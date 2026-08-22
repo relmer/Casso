@@ -119,6 +119,8 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
     int      outIdx     = 0;
     int      i          = 0;
 
+
+
     if (out == nullptr || cap == 0)
     {
         return;
@@ -329,6 +331,7 @@ std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
     std::wstring  label = L"?";
 
 
+
     switch (category)
     {
         case InputEventCategory::Host:   label = L"Host";   break;
@@ -353,6 +356,7 @@ LPCWSTR InputDebugPanel::ButtonAnnotation (Word address, bool mouseButtonAtC063)
 {
     // Empty for any address that is not one of the three button switches.
     LPCWSTR  text = L"";
+
 
 
     switch (address)
@@ -406,6 +410,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 {
     // Anything this table does not recognize belongs to no game-port pair.
     InputGamePortClass  cls = InputGamePortClass::None;
+
 
 
     switch (type)
@@ -516,6 +521,8 @@ void InputDebugPanel::FormatInputEvent (
     bool     counting = false;
     int      axis     = 0;
     LPCWSTR  button   = nullptr;
+
+
 
     out.category = src.category;
     out.type     = src.type;
@@ -691,6 +698,8 @@ void InputDebugPanel::ProjectOne (
     bool                                       mouseButtonAtC063)
 {
     InputEventDisplay  entry;
+
+
 
     FormatInputEvent (src, uptimeAnchor, filter, entry, mouseButtonAtC063);
     deque.push_back (std::move (entry));
@@ -1810,6 +1819,7 @@ void InputDebugPanel::ApplySort()
 
         return _wcsicmp (l.c_str(), r.c_str()) < 0;
     };
+
 
 
     if (m_sortColumn < 0 || m_sortColumn >= kInputColumnCount)

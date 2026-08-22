@@ -186,6 +186,8 @@ static std::wstring MachineDisplayName (std::string_view machineId)
     // catalog still shows something recognizable before it is listed here.
     std::wstring  name (machineId.begin(), machineId.end());
 
+
+
     if      (machineId == "Apple2")          { name = L"Apple ]["; }
     else if (machineId == "Apple2Plus")      { name = L"Apple ][+"; }
     else if (machineId == "Apple2e")         { name = L"Apple //e"; }
@@ -1060,6 +1062,8 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
     static const std::wstring  runningKey =
         RepoCheckout::WorktreeKeyOf (PathResolver::GetExecutableDirectory());
 
+
+
     return RepoCheckout::IsForeignCheckoutDisk (p, runningKey);
 }
 
@@ -1769,6 +1773,7 @@ static HRESULT DownloadStockBootDisk (
     fs::path      destPath;
     vector<Byte>  payload;
     error_code    ec;
+
 
 
     outDiskPath.clear();
@@ -3155,6 +3160,8 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     bool                   audioIncluded  = false;
     error_code             ec;
     fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
+
+
 
     UNREFERENCED_PARAMETER (hInstance);
 

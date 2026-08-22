@@ -100,6 +100,8 @@ static void FormatCycleWithSeparators (uint64_t value, wchar_t * out, size_t cap
     int       outIdx     = 0;
     int       i          = 0;
 
+
+
     if (out == nullptr || cap == 0)
     {
         return;
@@ -533,6 +535,8 @@ void DebugDialogProjection::DrainAndProject (
     Disk2EventDisplay       lostEntry;
     Disk2Event              syntheticLost          = {};
 
+
+
     if (droppedCount > 0)
     {
         syntheticLost.category          = EventCategory::Controller;
@@ -607,6 +611,8 @@ int DebugDialogProjection::PreservedFocusItem (
     bool    hasFilter = false;
     auto    it        = newFilteredIndices.begin();
 
+
+
     hasFilter = !newFilteredIndices.empty();
     CBR (hasFilter);
 
@@ -658,6 +664,8 @@ DebugSelectionResult DebugDialogProjection::ResolveSelection (
     uint64_t              bestBeforeSeq = 0;
     size_t                earliestRow   = kNone;
     uint64_t              earliestSeq   = 0;
+
+
 
     // One pass gathers all three candidates. The exact match used to get its
     // own early-exit scan, but a miss then paid for two full sweeps, and a

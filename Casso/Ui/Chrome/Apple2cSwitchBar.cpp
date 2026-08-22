@@ -24,6 +24,8 @@ uint32_t Apple2cSwitchBar::LerpArgb (uint32_t a, uint32_t b, float t)
         return (uint32_t) (v < 0 ? 0 : (v > 255 ? 255 : v));
     };
 
+
+
     return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
 }
 
@@ -53,6 +55,8 @@ void Apple2cSwitchBar::ShearFill (
 {
     float  st = (refBottom - yTop)       * tan;   // top-edge shift
     float  sb = (refBottom - (yTop + h)) * tan;   // bottom-edge shift
+
+
 
     p.FillConvexQuad (xL + st,     yTop,
                       xL + w + st, yTop,
@@ -211,6 +215,9 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     int    rightW     = 0;
     int    rx         = 0;
     auto   px      = [eDpi] (int dp) { return MulDiv (dp, (int) eDpi, 96); };
+
+
+
     edge = px (kEdgePadDp);
     resetW = px (kResetWDp);
     resetH = px (kResetHDp);
@@ -288,6 +295,8 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::PartAt (int x, int y) const
         return px >= r.left && px < r.right && py >= r.top && py < r.bottom;
     };
 
+
+
     Part  part = Part::None;
 
     if      (inside (m_resetRect,  x, y)) { part = Part::Reset;       }
@@ -311,6 +320,8 @@ const wchar_t * Apple2cSwitchBar::TooltipTextAt (int x, int y) const
 {
     // Null means "no tip here" -- the bar's background gets none.
     const wchar_t *  tip = nullptr;
+
+
 
     switch (PartAt (x, y))
     {
@@ -425,6 +436,8 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 {
     constexpr int  kN = 10;
 
+
+
     float  x     = (float) r.left;
     float  y     = (float) r.top;
     float  w     = (float) (r.right - r.left);
@@ -519,6 +532,7 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
     float  refB  = y + h;
     float  dx    = h * tan;
     float  bodyW = w - dx;                   // lamp body width (bbox minus overhang)
+
 
 
     if (lit)

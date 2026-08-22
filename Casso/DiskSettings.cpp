@@ -55,6 +55,7 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
     bool                  isOpen        = false;
 
 
+
     searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                       PathResolver::GetWorkingDirectory());
     configRelPath = fs::path ("Machines") / fs::path (machineName).string()
@@ -267,9 +268,10 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     int                                             i              = 0;
     bool                                            hasMachine     = false;
     const char                                     * keyName        = (drive == 0) ? "disk1Path" : "disk2Path";
+
+
+
     uiPrefsIdx = -1;
-
-
 
     hasMachine = !machineName.empty();
     CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);

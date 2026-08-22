@@ -231,6 +231,8 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
     bool                       wrote           = false;
     char                       line[160];
 
+
+
     HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
@@ -495,6 +497,8 @@ void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & 
         "CZIDBVN"
     };
 
+
+
     // Print the registers and the opcode byte
     std::printf ("SP: %02x  A: %04X  X: %04X  Y: %04X  %c%c%c%c%c%c%c    [%04X] %02X ",
                  SP,
@@ -688,6 +692,8 @@ void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
     bool  hasOperand = microcode.isLegal
                        && microcode.globalAddressingMode != GlobalAddressingMode::SingleByteNoOperand
                        && microcode.globalAddressingMode != GlobalAddressingMode::Accumulator;
+
+
 
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
@@ -1224,6 +1230,9 @@ Word Cpu::PopWord()
 {
     Byte lo = PopByte();
     Byte hi = PopByte();
+
+
+
     return lo | (hi << 8);
 }
 
@@ -1292,6 +1301,9 @@ Word Cpu::ReadWord (Word address)
 {
     Byte lo = ReadByte (address);
     Byte hi = ReadByte (static_cast<Word> (address + 1));
+
+
+
     return static_cast<Word> (lo | (hi << 8));
 }
 
@@ -1741,6 +1753,8 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
     Byte  addressingMode            = 0;
     Byte  currentAddressingModeFlag = 1;
 
+
+
     while (addressingMode < addressingModeMax)
     {
         if (addressingModeFlags & currentAddressingModeFlag)
@@ -1802,6 +1816,8 @@ HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
     HRESULT       hr     = S_OK;
     bool          isOpen = false;
     std::ifstream file     (filename, std::ios::binary);
+
+
 
     isOpen = file.is_open();
     CBRAEx (isOpen, E_INVALIDARG);

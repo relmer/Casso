@@ -230,6 +230,8 @@ void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[
     float   xl   = 0.0f;
     float   y[3] = {};
 
+
+
     z[0] /= zl; z[1] /= zl; z[2] /= zl;
 
     // x = normalize(cross(up, z)) with up = (0,1,0)
@@ -999,6 +1001,8 @@ float Printer3DScene::RoleIntensity (LampRole role) const
     // not model.
     float  intensity = 0.0f;
 
+
+
     switch (role)
     {
         case LampRole::Power:   intensity = 1.0f;                      break;  // always lit while powered
@@ -1035,6 +1039,8 @@ void Printer3DScene::AppendQuad (std::vector<Vertex> & out,
     float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
     float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
 
+
+
     Vertex   v00 = { p00[0], p00[1], p00[2], u0, v0, r, g, b, a };
     Vertex   v10 = { p10[0], p10[1], p10[2], u1, v0, r, g, b, a };
     Vertex   v01 = { p01[0], p01[1], p01[2], u0, v1, r, g, b, a };
@@ -1069,6 +1075,8 @@ void Printer3DScene::AppendFaceQuad (std::vector<Vertex> & out,
     float   p01[3] = { x0, y0, z };
     float   p11[3] = { x1, y0, z };
 
+
+
     AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, argb, shade);
 }
 
@@ -1093,6 +1101,8 @@ void Printer3DScene::AppendLatheX (std::vector<Vertex> & out,
 {
     float   prevY = cy + radius * std::sin (a0);
     float   prevZ = cz + radius * std::cos (a0);
+
+
 
     for (int i = 1; i <= segments; i++)
     {
@@ -1138,6 +1148,8 @@ void Printer3DScene::AppendDiscX (std::vector<Vertex> & out,
     float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
     float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
 
+
+
     float   prevY = cy + radius * std::sin (a0);
     float   prevZ = cz + radius * std::cos (a0);
 
@@ -1182,6 +1194,8 @@ void Printer3DScene::AppendGlowZ (std::vector<Vertex> & out,
     float   baseG = (float) ((argb >>  8) & 0xFF) / 255.0f;
     float   baseB = (float) ((argb      ) & 0xFF) / 255.0f;
 
+
+
     // Premultiplied center; transparent rim (color 0, alpha 0).
     Vertex   c = { cx, cy, z, 0.0f, 0.0f,
                    baseR * coreAlpha, baseG * coreAlpha, baseB * coreAlpha, coreAlpha };
@@ -1221,6 +1235,8 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
     float  halfH = 0.004f;
     float  core  = 0.60f * (std::max) (0.0f, intensity - 0.15f);
     float  shade = 0.0f;
+
+
 
     // Halo first, so the lens draws over its center and the ring shows around.
     if (core > 0.02f)
@@ -1292,6 +1308,8 @@ void Printer3DScene::BuildBackdrop (std::vector<Vertex> & out) const
     float   tr[3] = {  1.0f,  1.0f, 0.0f };
     float   bl[3] = { -1.0f, -1.0f, 0.0f };
     float   br[3] = {  1.0f, -1.0f, 0.0f };
+
+
 
     AppendQuad (out, tl, tr, bl, br, 0, 0, 1, 1, s_kArgbMat, 1.0f);
 }
@@ -1416,6 +1434,8 @@ static void AppendSideFeather (std::vector<Dxui3DRenderer::Vertex> & out,
     Dxui3DRenderer::Vertex   in1  = { xIn,  y1, z1, u, v1, sh1, sh1, sh1, 1.0f };
     Dxui3DRenderer::Vertex   out0 = { xOut, y0, z0, u, v0, 0.0f, 0.0f, 0.0f, 0.0f };
     Dxui3DRenderer::Vertex   out1 = { xOut, y1, z1, u, v1, 0.0f, 0.0f, 0.0f, 0.0f };
+
+
 
     out.push_back (in0);
     out.push_back (out0);
@@ -1884,6 +1904,8 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
     float   zWall = s_kBodyZFront + 0.001f;
     float   zCap  = s_kBodyZFront + 0.016f;   // paddles stand proud of the face
 
+
+
     for (int i = 0; i < s_kButtonCount; i++)
     {
         float  cx       = s_kButtonX0 + (float) i * s_kButtonDx;
@@ -2111,6 +2133,8 @@ void Printer3DScene::Render (const RECT & targetPx)
     float            mvp[16];
     float            identity[16];
     D3D11_VIEWPORT   vp = {};
+
+
 
     if (!m_renderer.IsInitialized() || w <= 0 || h <= 0)
     {

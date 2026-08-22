@@ -131,6 +131,8 @@ void PrintJobSerializer::ExtractIndexPlane (
     int   row    = 0;
     int   col    = 0;
 
+
+
     outWidth  = width;
     outHeight = height;
     outPixels.assign ((size_t) width * height, 0);
@@ -163,6 +165,8 @@ HRESULT PrintJobSerializer::RebuildRaster (
 {
     HRESULT   hr         = S_OK;
     size_t    pixelCount = 0;
+
+
 
     // Graceful rejection of a malformed/corrupt plane -- not a programming
     // error, so no assert (the store falls back to empty paper, FR-026).

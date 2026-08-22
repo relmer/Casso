@@ -30,6 +30,8 @@ void DxuiPopupMenu::Show (
 {
     constexpr int    kMinWidthDip      = 140;
 
+
+
     HRESULT  hr        = S_OK;
     float    fontDip   = 0.0f;
     int      itemH     = 0;

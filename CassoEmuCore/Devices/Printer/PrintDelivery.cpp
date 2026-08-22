@@ -28,6 +28,8 @@ HRESULT PrintDelivery::RenderToPng (
     PaperRenderer::Options   options;
     RgbaImage                image;
 
+
+
     options.outputDpi = dpi;
     options.style     = style;
 

@@ -160,5 +160,8 @@ unique_ptr<MemoryDevice> RomDevice::CreateFromData (
     Word start, Word end, const Byte * data, size_t size)
 {
     vector<Byte> romData (data, data + size);
+
+
+
     return make_unique<RomDevice> (start, end, move (romData));
 }

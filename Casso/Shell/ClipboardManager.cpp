@@ -428,6 +428,8 @@ void ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
     // lands in a couple of seconds.
     constexpr uint32_t   kStrobeSettleCycles = 20000;
 
+
+
     AppleKeyboard      * keyboard = nullptr;
     Byte                 ch       = 0;
 

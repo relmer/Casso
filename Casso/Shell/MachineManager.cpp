@@ -898,6 +898,7 @@ HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<
     std::ifstream   file (path, std::ios::binary | std::ios::ate);
 
 
+
     isOpen = file.good();
     CBR (isOpen);
 
@@ -1139,6 +1140,9 @@ void MachineManager::CreateVideoModes()
     std::unique_ptr<AppleHiResMode>          hiResMode;
     std::unique_ptr<AppleDoubleHiResMode>    doubleHiResMode;
     std::unique_ptr<Apple80ColTextMode>      text80;
+
+
+
     m_shell.m_refs.activeVideoMode = textMode.get();
     m_shell.m_videoModes.push_back (std::move (textMode));
 

@@ -316,15 +316,15 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
     std::string            bootstrapError;
     bool                   userExited     = false;
     bool                   selected       = false;
-    HINSTANCE              hInstance      = nullptr;
+    HINSTANCE              hInstance      = (HINSTANCE) GetModuleHandleW (nullptr);
     std::wstring      wideName (machineName.begin(), machineName.end());
-    hInstance = (HINSTANCE) GetModuleHandleW (nullptr);
     HWND              hwndParent  = (m_emuShell != nullptr && m_emuShell->m_hwnd != nullptr)
                                         ? m_emuShell->m_hwnd
                                         : GetActiveWindow();
+
+
+
     selected = (m_emuShell != nullptr && !machineName.empty());
-
-
 
     if (selected)
     {

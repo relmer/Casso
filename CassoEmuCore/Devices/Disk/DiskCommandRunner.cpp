@@ -40,6 +40,27 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 
 
 
+//
+//  Each disk option, and what it does.
+//
+//  Written without a prefix, because the help answers in whichever one the
+//  reader typed and `/out` is one character narrower than `--out`. The column
+//  is padded at build time rather than into each literal, or a table spaced for
+//  one prefix comes out ragged in the other.
+//
+static constexpr const char *  s_kppszDiskOptions[][2] =
+{
+    { "out <file>", "Write an extracted file here, not to standard output" },
+    { "as <path>",  "Name the placed file this on the disk" },
+    { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
+                    "                         ProDOS takes TXT, BIN, BAS or SYS" },
+    { "addr $XXXX", "Load address for a placed binary" },
+    { "text",       "Convert the high-bit encoding and the line endings" },
+    { "basic",      "Convert to and from an Applesoft listing" },
+};
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,28 +179,13 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 {
-    //  Flag, then what it does. Padded to a fixed description column below
-    //  rather than written into each literal, because `/out` is one character
-    //  narrower than `--out` and a table spaced for one prefix comes out
-    //  ragged in the other.
-    static constexpr const char *  kppszOptions[][2] =
-    {
-        { "out <file>", "Write an extracted file here, not to standard output" },
-        { "as <path>",  "Name the placed file this on the disk" },
-        { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
-                        "                         ProDOS takes TXT, BIN, BAS or SYS" },
-        { "addr $XXXX", "Load address for a placed binary" },
-        { "text",       "Convert the high-bit encoding and the line endings" },
-        { "basic",      "Convert to and from an Applesoft listing" },
-    };
-
     const size_t  kDescriptionColumn = 25;
     std::string   lp                 = CommandLineHelp::LongPrefix (flagPrefix);
     std::string   text;
 
 
 
-    for (const auto & entry : kppszOptions)
+    for (const auto & entry : s_kppszDiskOptions)
     {
         std::string  line = "  " + lp + entry[0];
 

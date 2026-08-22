@@ -78,6 +78,8 @@ void SettingsPreviewController::Tick (int64_t nowMs)
     constexpr int64_t  s_kKeyboardIdleMs = 500;     // auto-end 0.5s after last keystroke
     constexpr float    s_kFadeDurationMs = 180.0f;  // panel/scrim fade-in/out time
 
+
+
     float    targetPanel   = 1.0f;
     float    targetFocused = 1.0f;
     int64_t  dtMs          = 0;

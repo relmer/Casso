@@ -97,6 +97,7 @@ void DxuiGridLayout::Arrange (
     LONG   cellH    = (rowTotal > 0) ? rowTotal / m_rows : 0;
 
 
+
     if (children.empty())
     {
         return;

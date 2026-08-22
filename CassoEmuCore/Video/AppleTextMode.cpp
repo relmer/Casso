@@ -38,6 +38,9 @@ static constexpr uint32_t kColorWhite  = 0xFFFFFFFF;   // BGRA white
 static const CharacterRomData & GetDefaultCharRom()
 {
     static CharacterRomData s_defaultRom;
+
+
+
     return s_defaultRom;
 }
 
@@ -46,6 +49,16 @@ AppleTextMode::AppleTextMode (MemoryBus & bus)
       m_charRom (GetDefaultCharRom())
 {
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleTextMode::AppleTextMode
+//
+////////////////////////////////////////////////////////////////////////////////
 
 AppleTextMode::AppleTextMode (MemoryBus & bus, const CharacterRomData & charRom)
     : m_bus     (bus),

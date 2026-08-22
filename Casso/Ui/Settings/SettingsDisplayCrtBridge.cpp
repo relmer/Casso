@@ -299,6 +299,8 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride()
     bool  promotes = m_prefs != nullptr
                      && !m_prefs->crtByMode[ActiveModeIdx()].userOverride;
 
+
+
     if (promotes)
     {
         ResetActiveToDefaults();

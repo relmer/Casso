@@ -21,12 +21,25 @@
 RECT ThemePage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 
 
-// Linear interpolation between two ARGB endpoints, premultiplied
-// per-channel. Used for the title-bar gradient bands.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::LerpArgb
+//
+//  Linear interpolation between two ARGB endpoints, premultiplied
+//  per-channel. Used for the title-bar gradient bands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
 {
     uint8_t  aA   = (uint8_t) ((a >> 24) & 0xFF);
@@ -48,6 +61,16 @@ uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
            ((uint32_t) gOut <<  8) |  (uint32_t) bOut;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::ComputePreviewGeometry
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
                                         int           driveBandDp,
                                         RECT        & outPrevRect,
@@ -61,6 +84,8 @@ void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
     float  availAspect  = (availH > 0) ? ((float) availW / (float) availH) : 0.0f;
     int    prevW        = 0;
     int    prevH        = 0;
+
+
 
     if (availW <= 0 || availH <= 0)
     {
@@ -90,6 +115,15 @@ void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::PaintPreviewWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void ThemePage::PaintPreviewWindow (DxuiPainter                          & painter,
                                    DxuiTextRenderer                     & text,
                                    const RECT                           & availRect,
@@ -112,6 +146,8 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     int      screenH      = 0;
     UINT     effectiveDpi = 0;
     auto      ScalePx  = [&scale] (int dp) -> int { return (int) ((float) dp * scale); };
+
+
 
     // Bottom inset: a full/compact drive bar when the machine has a Disk ][
     // controller, else just the joystick band (mirrors the live chrome's
@@ -449,6 +485,8 @@ void ThemePage::UpdateMonitorCheckboxEnabled()
     std::string  selected = SelectedThemeId();
     bool         isSkeuo  = !selected.empty()
                             && !CassoTheme::ForName (selected).compactDrives;
+
+
 
     m_monitorFrameCheckbox.SetEnabled (isSkeuo);
 }

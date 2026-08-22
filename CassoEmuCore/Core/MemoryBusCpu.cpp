@@ -20,6 +20,8 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     Byte * pBase = memory.data();
     int    page  = 0;
 
+
+
     // Register this CPU's 64 KB memory[] as the default page-table backing
     // for $0000-$BFFF. The bus's fast-path read/write for RAM pages will
     // land in memory[], keeping PeekByte/PokeByte/GetMemory() coherent
@@ -93,6 +95,9 @@ Word MemoryBusCpu::ReadWord (Word address)
 {
     Byte lo = ReadByte (address);
     Byte hi = ReadByte (static_cast<Word> (address + 1));
+
+
+
     return static_cast<Word> (lo | (hi << 8));
 }
 

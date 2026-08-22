@@ -347,6 +347,15 @@ bool EmulatorShell::TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outM
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::CenterInWorkArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void EmulatorShell::CenterInWorkArea (
     const RECT & work,
     int          windowW,
@@ -359,13 +368,23 @@ void EmulatorShell::CenterInWorkArea (
 }
 
 
-// Loads an HICON resource into a CPU-side premultiplied BGRA8
-// pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
-// path. Uses a GDI memory DC + 32-bit DIB section to capture the
-// icon's alpha-channelled pixels (LoadImageW preserves alpha when
-// LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
-// pixels in place because D2D's DrawBitmap expects premultiplied
-// sources.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LoadIconAsPremulBgra
+//
+//  Loads an HICON resource into a CPU-side premultiplied BGRA8
+//  pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
+//  path. Uses a GDI memory DC + 32-bit DIB section to capture the
+//  icon's alpha-channelled pixels (LoadImageW preserves alpha when
+//  LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
+//  pixels in place because D2D's DrawBitmap expects premultiplied
+//  sources.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT EmulatorShell::LoadIconAsPremulBgra (
     HINSTANCE               hInstance,
     int                     iconResourceId,
@@ -517,6 +536,8 @@ EmulatorShell::EmulatorShell()
     // different patterns; tests pin the seed directly via the test
     // harness instead of going through this path.
     uint64_t    seed = static_cast<uint64_t> (time (nullptr));
+
+
 
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
@@ -3250,6 +3271,8 @@ void EmulatorShell::QueueNotification (const std::wstring & message)
 {
     std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
 
+
+
     s_pendingNotifications.push_back (message);
 }
 
@@ -3365,6 +3388,8 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     constexpr int  s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
     constexpr int  s_kMinHeightDip    = 160;
     constexpr int  s_kMaxHeightDip    = 620;
+
+
 
     MessageDialog                       dlg;
     DxuiWindow::CreateParams            params;
@@ -3700,6 +3725,8 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
     constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
 
+
+
     std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
     MessageDialog                       dlg;
     DxuiWindow::CreateParams            params;
@@ -3805,6 +3832,8 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // scaled drives without a separate constant.
     constexpr int  s_kFullDriveBarDp    = 225;
     constexpr int  s_kCompactDriveBarDp = 105;
+
+
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarThicknessDp;
@@ -4321,6 +4350,8 @@ void EmulatorShell::UpdatePrinterStatus()
 void EmulatorShell::UpdatePrinterPreview()
 {
     static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
+
+
 
     HRESULT    hr        = S_OK;
     uint64_t   activity  = 0;
@@ -4913,6 +4944,8 @@ int EmulatorShell::RunMessageLoop()
     // vsynced present in the same ~16ms frame; an uncontended drain still
     // exits on empty-queue long before the deadline.
     constexpr int64_t  s_kMaxDrainMs = 8;
+
+
 
     MSG      msg             = {};
     HRESULT  hr              = S_OK;
@@ -6751,6 +6784,8 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
 
     m_uiShell.OnMouseLeave();
 
@@ -9601,6 +9636,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
     uint64_t      total          = 0;
     bool          wonTheRace     = false;
     bool          hasTrace       = false;
+
 
 
     // One-shot: the graceful-exit path and the crash handler both call this,

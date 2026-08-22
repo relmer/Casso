@@ -139,6 +139,8 @@ bool DxuiViewport::IsReservedKeystroke (const DxuiKeyEvent & ev)
     // Char events never count as reserved keystrokes; only key transitions do.
     bool  isTransition = (ev.kind != DxuiKeyEventKind::Char);
 
+
+
     return isTransition
         && ((ev.vk == VK_TAB    && !ev.ctrl)     // focus traversal
          || (ev.vk == VK_ESCAPE && !ev.ctrl)     // cancel modal / drop focus
@@ -166,6 +168,8 @@ void DxuiViewport::Layout (
     const DxuiDpiScaler & scaler)
 {
     bool  changed = false;
+
+
 
     DXUI_ASSERT_UI_THREAD();
 
@@ -266,6 +270,8 @@ bool DxuiViewport::OnKey (const DxuiKeyEvent & ev)
     bool  forwards = m_consumesInput
                      && m_sink != nullptr
                      && (m_wantsAllKeys || !IsReservedKeystroke (ev));
+
+
 
     DXUI_ASSERT_UI_THREAD();
 

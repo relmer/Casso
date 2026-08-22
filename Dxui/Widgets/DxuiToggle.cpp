@@ -120,6 +120,8 @@ bool DxuiToggle::OnKey (WPARAM vk)
                   && m_focused
                   && (vk == VK_SPACE || vk == VK_RETURN);
 
+
+
     if (flips)
     {
         Flip();
@@ -179,6 +181,8 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr float     s_kLabelGapDip   = 8.0f;
     constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
+
+
 
     HRESULT  hr         = S_OK;
     float    pillW      = m_scaler.Pxf (s_kPillWidthDip);

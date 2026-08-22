@@ -361,6 +361,8 @@ void DriveAudioMixer::MixDriveIntoSpeakerStereo (
     float     l = 0.0f;
     float     r = 0.0f;
 
+
+
     if (speakerStereo == nullptr || driveStereo == nullptr || numSamples == 0)
     {
         return;

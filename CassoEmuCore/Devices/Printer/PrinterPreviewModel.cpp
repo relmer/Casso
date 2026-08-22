@@ -144,6 +144,8 @@ PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool swee
 {
     constexpr int   kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
 
+
+
     InkSample   sample;
     int         colJump = (curCol > prevCol) ? (curCol - prevCol) : (prevCol - curCol);
     bool        wrapped = (revealRow != renderedRevealRow)
@@ -190,6 +192,8 @@ bool PrinterPreviewModel::BandHasInk (const PrintRaster & spanRaster, int spanFi
     int   r       = 0;
     int   c       = 0;
     bool  hasInk  = false;
+
+
 
     // Any inked cell in the band answers the question, so both loops carry
     // the found test -- this runs once per audio frame over a live band.

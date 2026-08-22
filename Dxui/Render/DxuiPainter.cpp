@@ -67,6 +67,7 @@ HRESULT DxuiPainter::Initialize (
     HRESULT  hr = S_OK;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     CBRAEx (pDevice,  E_INVALIDARG);
@@ -511,6 +512,7 @@ void DxuiPainter::FillRect (
     Vertex  v = MakeVertex (argbColor, m_globalAlpha);
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     PushQuad (xPx, yPx, widthPx, heightPx, v, v, v, v);
@@ -536,6 +538,7 @@ void DxuiPainter::FillGradientRect (
 {
     Vertex  top    = MakeVertex (argbTop,    m_globalAlpha);
     Vertex  bottom = MakeVertex (argbBottom, m_globalAlpha);
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -564,6 +567,7 @@ void DxuiPainter::OutlineRect (
     uint32_t  argbColor)
 {
     float  t = (thicknessPx > 0.0f) ? thicknessPx : 1.0f;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -595,6 +599,7 @@ void DxuiPainter::FillCircleApprox (
     uint32_t  argbColor)
 {
     int  slices = (int) (radiusPx * 2.0f);
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -637,6 +642,7 @@ void DxuiPainter::FillEllipseApprox (
     uint32_t  argbColor)
 {
     int  slices = (int) (radiusYPx * 2.0f);
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -691,6 +697,8 @@ void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t arg
         return (argbColor & 0x00FFFFFFu) | (a << 24);
     };
 
+
+
     xl = floorf (x0);
     xr = floorf (x1);
 
@@ -742,6 +750,7 @@ void DxuiPainter::FillConvexQuad (
     float  py[4]  = { y0, y1, y2, y3 };
     float  minY   = py[0], maxY = py[0];
     int    slices = 0;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -813,6 +822,7 @@ void DxuiPainter::DrawLineApprox (
     int    steps = 0;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     if (len < 0.5f)
@@ -876,6 +886,7 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
     D3D11_VIEWPORT              vp               = {};
     ID3D11RenderTargetView    * rtvs[1]          = { pRtv };
     bool                        hasNothingToDraw = false;
+
 
 
     DXUI_ASSERT_UI_THREAD();

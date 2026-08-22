@@ -574,6 +574,8 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
     bool                                  fitsInPage = resolved && value >= 0 && value <= 0xFF;
     GlobalAddressingMode::AddressingMode  mode       = rule.fallback;
 
+
+
     ASSERT (rule.syntax == syntax);
 
 
@@ -650,6 +652,8 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 {
     Byte  size = 1;      // opcode only, and the fallback for an unknown syntax
 
+
+
     switch (syntax)
     {
         case OperandSyntax::None:
@@ -707,9 +711,10 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
 {
     std::string result;
+
+
+
     result.reserve (str.size());
-
-
 
     for (size_t i = 0; i < str.size(); i++)
     {
@@ -1377,6 +1382,8 @@ void AssemblySession::SortDiagnosticsByLine()
     {
         return a.lineNumber < b.lineNumber;
     };
+
+
 
     std::stable_sort (m_result.errors.begin(),   m_result.errors.end(),   byLine);
     std::stable_sort (m_result.warnings.begin(), m_result.warnings.end(), byLine);
@@ -2181,6 +2188,8 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
         { Directive::Dd,   4                },
     };
 
+
+
     return std::span<const StructMemberType> (s_kTypes, std::size (s_kTypes));
 }
 
@@ -2662,6 +2671,8 @@ HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current
     Directive    token   = Directive::None;
     std::string  condArg;
 
+
+
     handled = false;
 
 
@@ -2798,6 +2809,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
                                                 const std::string & condArg)
 {
     HRESULT hr = S_OK;
+
+
 
     ConditionalState state = {};
 
@@ -4992,6 +5005,8 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::FileType,        nullptr,                                  nullptr                                  },
     { Directive::SaveObject,      nullptr,                                  nullptr                                  },
     };
+
+
 
     // Adding a Directive without adding its row fails the build here. Row
     // ORDER is checked at lookup instead -- a static_assert cannot see a

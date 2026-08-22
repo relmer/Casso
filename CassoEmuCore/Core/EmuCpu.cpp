@@ -88,6 +88,9 @@ Word EmuCpu::ReadWord (Word address)
 {
     Byte lo = m_memoryBus.ReadByte (address);
     Byte hi = m_memoryBus.ReadByte (static_cast<Word> (address + 1));
+
+
+
     return static_cast<Word> (lo | (hi << 8));
 }
 

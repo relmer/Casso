@@ -75,6 +75,8 @@ HRESULT Apple2eMmu::Initialize (
 {
     HRESULT  hr = S_OK;
 
+
+
     UNREFERENCED_PARAMETER (auxRam);
     UNREFERENCED_PARAMETER (internalRom);
     UNREFERENCED_PARAMETER (lc);
@@ -484,14 +486,28 @@ void Apple2eMmu::ResolveMain02_BF()
 Byte * Apple2eMmu::SelectMainRead (int page)
 {
     Byte *  base = m_ramRd ? m_auxRam.data() : m_mainRamPtr;
+
+
+
     return base + (page * kPageSize);
 }
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::SelectMainWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
 Byte * Apple2eMmu::SelectMainWrite (int page)
 {
     Byte *  base = m_ramWrt ? m_auxRam.data() : m_mainRamPtr;
+
+
+
     return base + (page * kPageSize);
 }
 

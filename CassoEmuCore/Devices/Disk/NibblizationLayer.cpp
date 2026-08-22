@@ -188,6 +188,8 @@ static void AppendAddressField (
     Byte    checksum = static_cast<Byte> (volume ^ track ^ sector);
     int     i        = 0;
 
+
+
     for (i = 0; i < kAddrPrologueGap; i++)
     {
         PackSyncNibbleBits (dst, bitOffset);
@@ -231,6 +233,8 @@ static void AppendDataField (
     Byte    prev                      = 0;
     Byte    enc                       = 0;
     int     i                         = 0;
+
+
 
     for (i = 0; i < kDataPrologueGap; i++)
     {
@@ -319,6 +323,8 @@ static HRESULT NibblizeWithMap (
     int       logical   = 0;
     size_t    offset    = 0;
     size_t    rawSize   = 0;
+
+
 
     rawSize = raw.size();
     CBRAEx (rawSize == NibblizationLayer::kImageByteSize, E_INVALIDARG);
@@ -822,6 +828,8 @@ static HRESULT DecodeOneSector (
     size_t    bitsConsumed              = 0;
     size_t    addrFieldStart            = 0;
 
+
+
     CBR (trackBits != 0);
 
     foundProlog = 0;
@@ -1185,6 +1193,8 @@ HRESULT NibblizationLayer::DecodeTracks (
     // reads fail or repeat, without letting a hostile track spin forever.
     constexpr int  kMaxAttemptsPerTrack = kSectorsPerTrack * 2;
     constexpr int  kAllSectorsMask      = (1 << kSectorsPerTrack) - 1;
+
+
 
     HRESULT       hr                    = S_OK;
     const int *   interleave            = nullptr;

@@ -105,6 +105,7 @@ void DiskManager::ProbeFileWritability (
     fs::path         p (path);
 
 
+
     outReadOnly     = false;
     outNoPermission = false;
 
@@ -152,6 +153,7 @@ void DiskManager::ApplyExternalWriteProtect (
     bool  readOnly     = false;
     bool  noPermission = false;
     bool  userWp       = false;
+
 
 
     if (image == nullptr)
@@ -310,6 +312,7 @@ void DiskManager::MountCommandLineDisks (
     HRESULT      hr            = S_OK;
     std::string  resolvedDisk1 = disk1Path;
     std::string  resolvedDisk2 = disk2Path;
+
 
 
     if (resolvedDisk1.empty() && !m_currentMachineName.empty())
@@ -545,6 +548,7 @@ void DiskManager::RemountSlot6Disks()
     std::string  savedDisk[DiskImageStore::kDriveCount];
     HRESULT      hrMount = S_OK;
     int          drive   = 0;
+
 
 
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)

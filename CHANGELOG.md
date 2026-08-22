@@ -309,6 +309,9 @@ Entries before versioning was introduced use dates only.
   previously unreachable from any test. Behavior is unchanged and now pinned by
   tests; the grammar's one filesystem question — does `build` name a real
   `build.a65`? — is injected rather than probed directly.
+- internal: CheckStyle's declaration-block and banner rules now see wrapped
+  signatures, constructor-form declarations, and a statement sitting directly
+  under the block; the ~400 pre-existing hits across the tree were swept.
 
 ### Removed
 - **`ignoreOpcodeCase` is gone.** `-i` set it, nothing read it, and nothing

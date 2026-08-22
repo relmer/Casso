@@ -49,6 +49,9 @@ static int Scale (int dipValue, UINT dpi) noexcept
 static RECT MakeRect (int x, int y, int w, int h) noexcept
 {
     RECT r;
+
+
+
     r.left   = x;
     r.top    = y;
     r.right  = x + w;

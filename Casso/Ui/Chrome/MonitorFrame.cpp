@@ -264,6 +264,8 @@ void MonitorFrame::Paint (
     float  lip    = std::max (s_kMinLipPx, (float) MulDiv (s_kGlassLipDp, (int) m_dpi, s_kBaseDpi));
     float  bevelW = std::max (s_kMinLipPx, lip * s_kBevelLipFrac);
 
+
+
     UNREFERENCED_PARAMETER (text);
     UNREFERENCED_PARAMETER (theme);
 

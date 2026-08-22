@@ -138,6 +138,8 @@ bool TrackSectorPredicate::TryParseValue (std::wstring_view tok,
     int   val = 0;
     bool  ok  = false;
 
+
+
     if (TryParseDecimalQt (tok, qt))
     {
         outVal  = qt;

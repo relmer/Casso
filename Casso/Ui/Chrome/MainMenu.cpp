@@ -173,6 +173,8 @@ const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
     // menu id this function has not been taught about.
     const wchar_t *  name = L"?";
 
+
+
     switch (menu)
     {
     case MainMenuId::File:    name = L"&File";    break;

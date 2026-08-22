@@ -58,15 +58,24 @@ RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::PlaceOnEdge
 //
 //  Position a rect of the supplied size on the chosen edge of an
 //  anchor without any work-area clamping. Helper for placement.
 //
+////////////////////////////////////////////////////////////////////////////////
+
 RECT  DxuiPopupHost::PlaceOnEdge (const RECT          & anchor,
                    DxuiPopupPlacement    edge,
                    SIZE                  popupSizePx)
 {
     RECT  out = {};
+
 
 
     switch (edge)
@@ -172,6 +181,7 @@ HRESULT DxuiPopupHost::Initialize (HINSTANCE              hInstance,
                                   ID3D11DeviceContext  * context)
 {
     HRESULT  hr  = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -429,6 +439,7 @@ void DxuiPopupHost::Close (int resultCode)
     std::function<void()>  onClosed;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     if (!m_open)
@@ -583,6 +594,7 @@ RECT DxuiPopupHost::ComputePlacementForTest (
     bool                outLeft    = false;
 
 
+
     placed = PlaceOnEdge (anchorScreenPx, preferred, popupSizePx);
 
     if (flipIfOffscreen)
@@ -698,6 +710,8 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
     // that is what makes Manual "only Close() dismisses" rather than "nothing
     // dismisses".
     bool  dismisses = (reason == DxuiPopupDismissReason::Manual);
+
+
 
     switch (policy)
     {
@@ -935,6 +949,7 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     wchar_t      classNameBuf[64] = {};
     uint32_t     serial           = 0;
     ATOM         classAtom        = 0;
+
 
 
     BAIL_OUT_IF (m_classRegistered, S_OK);
@@ -1280,6 +1295,7 @@ void DxuiPopupHost::RenderNow()
     bool      textBegun    = false;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     // Nothing to draw into, or nothing that wants drawing. Both flags below
@@ -1378,6 +1394,7 @@ HRESULT DxuiPopupHost::MeasureText (const wchar_t  * text,
     HRESULT  hr = S_OK;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     hr = m_textRenderer.MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
@@ -1405,6 +1422,7 @@ HRESULT DxuiPopupHost::MeasureTextWrapped (const wchar_t  * text,
                                            float          & outHeightDip)
 {
     HRESULT  hr = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();

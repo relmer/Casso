@@ -36,6 +36,9 @@ static constexpr int    s_kResetWidthDp    = 130;
 RECT DiskPage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 

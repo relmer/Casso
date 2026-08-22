@@ -106,6 +106,8 @@ static int PitchForCommand (Byte cmd)
     // The divisor is characters per inch; 0 means "not a pitch command".
     int  dotsPerChar = 0;
 
+
+
     switch (cmd)
     {
     case 'n':   dotsPerChar = PrinterGrid::kDotsPerInchH /  9; break;
@@ -249,6 +251,8 @@ void ImageWriterInterpreter::Consume (
     vector<PrinterEvent> &  outEvents)
 {
     size_t   i = 0;
+
+
 
     for (i = 0; i < count; i++)
     {

@@ -191,6 +191,8 @@ void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
     size_t   copy = need < cells.size() ? need : cells.size();
     size_t   i    = 0;
 
+
+
     m_cells.assign (need, 0);
 
     for (i = 0; i < copy; i++)

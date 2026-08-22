@@ -97,6 +97,8 @@ static Byte ReadDhrByte (
     // fallback for a renderer with no direct pointers wired.
     Byte  value = 0;
 
+
+
     if      (useAux && auxMem != nullptr) { value = auxMem[addr];       }
     else if (videoRam != nullptr)         { value = videoRam[addr];     }
     else                                  { value = bus.ReadByte (addr); }
@@ -131,6 +133,8 @@ void AppleDoubleHiResMode::Render (
     static constexpr int kDhrScanlines         = 192;
     static constexpr int kBytesPerScanline     = 40;
     static constexpr int kBitsPerByte          = 7;
+
+
 
     Word     pageBase                    = GetActivePageAddress (m_page2);
     bool     dots[kDhrPixelsPerScanline] = {};

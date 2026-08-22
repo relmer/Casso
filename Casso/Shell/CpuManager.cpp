@@ -71,6 +71,7 @@ HRESULT CpuManager::Start (
     bool     isIdle = false;
 
 
+
     isIdle = !m_thread.joinable();
     CBRA (isIdle);
 
@@ -124,6 +125,8 @@ void CpuManager::Stop()
 void CpuManager::PostCommand (WORD id, const std::string & payload)
 {
     std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+
 
     m_commandQueue.push_back ({ id, payload });
 }

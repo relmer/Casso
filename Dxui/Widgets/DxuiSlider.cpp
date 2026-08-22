@@ -122,6 +122,8 @@ bool DxuiSlider::HitTest (int x, int y) const
     // gets silently dropped.
     constexpr int  s_kPuckRadiusMaxDip = 11;
 
+
+
     int   puckExtPx = 0;
     bool  isHit     = false;
 
@@ -409,6 +411,8 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 {
     constexpr float  s_kInactiveTrackContrast = 1.6f;   // inactive track must stand off the panel bg
     float            tickStep                 = 0.0f;
+
+
 
     uint32_t  accentArgb     = theme.Accent();
     uint32_t  s_kTrack       = DxuiColor::TintForContrast (theme.Background(), s_kInactiveTrackContrast);

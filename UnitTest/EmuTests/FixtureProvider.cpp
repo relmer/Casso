@@ -170,6 +170,8 @@ HRESULT FixtureProvider::OpenFixture (
     bool                hasRoot     = false;
     bool                isOpen      = false;
 
+
+
     outBytes.clear();
 
     pathIsSafe = !IsRejectedPath (relativePath);
