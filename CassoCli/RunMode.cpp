@@ -53,7 +53,7 @@ HRESULT RunMode::LoadBinaryFileIntoMemory (Cpu & cpu,
 
     if (FAILED (hr))
     {
-        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
+        std::cerr << "Error: cannot read input file: " << inputFile << "\n";
     }
 
     CHR (hr);

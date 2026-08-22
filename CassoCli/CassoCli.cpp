@@ -101,7 +101,7 @@ int main (int argc, char * argv[])
         // the reason to stderr, so stdout is flushed between them to make the
         // order on the screen the order written here.
         CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
-        std::cout.flush();
+        CommandLine::FlushOutput();
 
         std::cerr << CommandLine::kGapBeforeTheReason << options.refusalMessage;
 
@@ -152,6 +152,23 @@ int main (int argc, char * argv[])
         // A subcommand the parser knows but this dispatch does not.
         CommandLine::PrintUsage (options);
     }
+
+    //  ONE BLANK LINE BEFORE THE SHELL PROMPT, whatever the tool just said.
+    //
+    //  Every arm above ends on its own last line and the prompt landed against
+    //  it, which reads as though the prompt were part of the output. Written
+    //  once here rather than at the end of each arm, because there are ten of
+    //  them and the one that forgets is the one nobody notices.
+    //
+    //  TO stderr, so it cannot land in a redirected file or, worse, in the
+    //  middle of an extracted binary: `disk get` writes a file's bytes to
+    //  stdout, and a newline appended to those is a corrupted file.
+    //
+    //  After the flush, so it is genuinely last: stdout is buffered and stderr
+    //  is not, and a blank line written before the page had gone out would land
+    //  in the middle of it.
+    CommandLine::FlushOutput();
+    std::cerr << "\n";
 
     //  The HRESULT says what went wrong; the exit code is what a script reads.
     //  Only the second crosses the process boundary, and it is never derived

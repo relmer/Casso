@@ -97,15 +97,16 @@ SourceAssembler::Result SourceAssembler::Assemble (const std::string & inputFile
 
     if (FAILED (hr))
     {
-        std::cerr << "Error: Cannot read input file: " << inputFile << "\n";
+        std::cerr << "Error: cannot read input file: " << inputFile << "\n";
         ar.ok = false;
     }
     else
     {
         Assembler  assembler (instructionSets, asmOptions);
 
-        ar.result = assembler.Assemble (source);
-        ar.ok     = ar.result.success;
+        ar.sourceRead = true;
+        ar.result     = assembler.Assemble (source);
+        ar.ok         = ar.result.success;
     }
 
     return ar;
@@ -136,9 +137,21 @@ void SourceAssembler::ReportDiagnostics (const SourceAssembler::Result & ar)
         std::println (stderr, "{}", DiagnosticFormatter::Format (e, ar.inputFile, DiagnosticSeverity::Error));
     }
 
-    if (!ar.ok)
+    //  A COUNT ONLY WHEN THERE IS SOMETHING TO COUNT. `CassoCli as65 joij`
+    //  reported "Assembly failed with 0 error(s)" directly under "Cannot read
+    //  input file: joij", which reads as a second, contradictory claim: no
+    //  assembly was attempted, so there were no errors to have. The read
+    //  failure has already said everything there is to say.
+    if (!ar.ok && !ar.result.errors.empty())
     {
         std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size());
+    }
+    else if (!ar.ok && ar.sourceRead)
+    {
+        //  Read, not assembled, and silent about why. Nothing produces this
+        //  today; it is here so that if something ever does, it says so
+        //  rather than exiting non-zero with nothing on the screen.
+        std::println (stderr, "Assembly failed");
     }
 }
 

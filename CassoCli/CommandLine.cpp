@@ -64,6 +64,28 @@ CommandLineOptions CommandLine::Parse (int argc, char * argv[])
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLine::FlushOutput
+//
+//  Empties every buffer the tool writes usage through.
+//
+//  BOTH OF THEM. std::println writes to the C stdout FILE* and std::cout is a
+//  separate C++ stream over the same descriptor, so flushing one leaves the
+//  other holding a page. See the header for what that looked like.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::FlushOutput()
+{
+    std::cout.flush();
+    fflush (stdout);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLine::UsageWidth
 //
 //  How wide the reader's terminal is, or 80 when there is no terminal to ask.
@@ -79,6 +101,7 @@ size_t CommandLine::UsageWidth()
 {
     CONSOLE_SCREEN_BUFFER_INFO  info       = {};
     HANDLE                      out        = GetStdHandle (STD_OUTPUT_HANDLE);
+    HANDLE                      console    = INVALID_HANDLE_VALUE;
     bool                        hasConsole = false;
     int                         columns    = 0;
 
@@ -88,10 +111,43 @@ size_t CommandLine::UsageWidth()
     //  the library, where a test can reach it -- see UsageText::WidthFrom. This
     //  used to hold both, so "is the help folding to my terminal?" could only be
     //  answered by a person looking at one.
-    if (out != nullptr && out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo (out, &info))
+    hasConsole = out != nullptr && out != INVALID_HANDLE_VALUE
+              && GetConsoleScreenBufferInfo (out, &info);
+
+    //  CONOUT$ WHEN THE HANDLE ITSELF WILL NOT ANSWER, and only then. A stdout
+    //  that is a character device is a terminal of some kind, so a screen-buffer
+    //  query that fails on it is the handle being awkward rather than there
+    //  being no terminal -- some pseudoconsole hosts hand out a write-only
+    //  handle that GetConsoleScreenBufferInfo refuses. CONOUT$ opens the
+    //  process's own console directly and answers.
+    //
+    //  A stdout redirected to a FILE or a PIPE never reaches here, which is the
+    //  point: that stream has no width, and folding it to the width of a window
+    //  standing behind it would put 200-column lines into a file.
+    if (!hasConsole && GetFileType (out) == FILE_TYPE_CHAR)
     {
-        hasConsole = true;
-        columns    = info.srWindow.Right - info.srWindow.Left + 1;
+        console = CreateFileW (L"CONOUT$", GENERIC_READ | GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                               OPEN_EXISTING, 0, nullptr);
+
+        if (console != INVALID_HANDLE_VALUE)
+        {
+            hasConsole = GetConsoleScreenBufferInfo (console, &info) != FALSE;
+            CloseHandle (console);
+        }
+    }
+
+    if (hasConsole)
+    {
+        columns = info.srWindow.Right - info.srWindow.Left + 1;
+
+        //  The window is the right question and the buffer is the fallback: a
+        //  host that leaves srWindow empty still fills dwSize, and a zero from
+        //  the first would otherwise read as a terminal too narrow to fold to.
+        if (columns <= (int) UsageText::kNarrowestTerminal)
+        {
+            columns = info.dwSize.X;
+        }
     }
 
     //  _dupenv_s rather than getenv, which the CRT deprecates here. The buffer
@@ -628,7 +684,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
 
     PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
-    std::cout.flush();
+    FlushOutput();
 
     std::cerr << kGapBeforeTheReason << "Error: '" << word << "' is not a mode\n";
 
@@ -686,7 +742,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
     }
 
     PrintPageFor (subcommand, prefix);
-    std::cout.flush();
+    FlushOutput();
 
     std::cerr << kGapBeforeTheReason << "Error: '" << flag << "' is not an option of the "
               << mode << " mode\n";

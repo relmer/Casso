@@ -50,6 +50,21 @@ public:
     //
     static constexpr const char *  kGapBeforeTheReason = "\n\n";
 
+    //
+    //  Empties EVERY buffer the tool writes usage through, so what goes to
+    //  stderr next lands under it rather than inside it.
+    //
+    //  TWO BUFFERS, WHICH IS THE WHOLE POINT. std::println writes to the C
+    //  stdout FILE*, and std::cout is a separate C++ stream over the same
+    //  descriptor; the pages go out through the first and the disk runner's
+    //  output through the second. Flushing only std::cout left std::println's
+    //  buffer full, so a refusal written to the unbuffered stderr overtook the
+    //  page still sitting in it -- `as65 -asdf` printed the reason in the
+    //  middle of the flag table, and the blank lines meant to separate them
+    //  landed halfway up the page too.
+    //
+    static void                FlushOutput               ();
+
     static CommandLineOptions  Parse                     (int argc, char * argv[]);
 
     //  The page the request asked for, written with the prefix it was typed

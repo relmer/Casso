@@ -64,7 +64,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
     if (!result.output.empty())
     {
         std::cout << TextEncoding::NarrowToConsole (result.output);
-        std::cout.flush();
+        CommandLine::FlushOutput();
     }
 
     if (result.hasPayload)
@@ -90,7 +90,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
     if (result.badCommandLine)
     {
         CommandLine::PrintPageFor (CommandLineOptions::Subcommand::Disk, options.flagPrefix);
-        std::cout.flush();
+        CommandLine::FlushOutput();
         std::cerr << CommandLine::kGapBeforeTheReason;
     }
 

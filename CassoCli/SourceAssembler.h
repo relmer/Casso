@@ -44,6 +44,14 @@ public:
     {
         AssemblyResult result;
         bool           ok = false;      // default: treat an unfilled result as failure
+
+        //  Whether the source was READ, which is not the same as whether it
+        //  assembled. A file that could not be opened produces no diagnostics
+        //  of its own, and the failure summary used to total those anyway and
+        //  report "failed with 0 error(s)" under a line that had already said
+        //  the file could not be read.
+        bool           sourceRead = false;
+
         std::string    inputFile;
     };
 
