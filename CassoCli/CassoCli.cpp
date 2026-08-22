@@ -81,22 +81,30 @@ int main (int argc, char * argv[])
         CommandLine::PrintUsage (options);
         exitCode = options.showHelp ? 0 : 1;
     }
-    else if (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused
-             && options.subcommand != CommandLineOptions::Subcommand::Disk)
+    else if (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused)
     {
         // A REFUSED COMMAND LINE RUNS NOTHING.
         //
-        // The parser has already said what was wrong, in its own words and on
-        // stderr, so there is nothing left to print -- only work left to not
-        // do. This arm was missing, so `CassoCli as65 prog.a65 extra.a65`
-        // reported the surplus argument and then went on to assemble anyway,
-        // complaining it could not read a source file the refusal had said
-        // nothing about.
+        // The parser said what was wrong and this prints it. The arm was
+        // missing entirely, so `CassoCli as65 prog.a65 extra.a65` reported the
+        // surplus argument and then went on to assemble anyway, complaining it
+        // could not read a source file the refusal had said nothing about.
         //
         // BELOW THE HELP ARM, because a command line refused for naming no
         // subcommand at all is answered with the usage page and that arm owns
-        // it. `disk` is excluded: its runner assigns its own statuses and
-        // already declines to act on a refusal -- see DiskCommandRunner.
+        // it.
+        //
+        // THE MODE'S OWN PAGE COMES FIRST AND THE REASON LAST. The answer to
+        // "you typed this wrong" is the grammar, and a reader sees the bottom
+        // of the screen, so a 98-line page ahead of the message would leave
+        // the message on it and the page above it. Usage goes to stdout and
+        // the reason to stderr, so stdout is flushed between them to make the
+        // order on the screen the order written here.
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+        std::cout.flush();
+
+        std::cerr << "\n" << options.refusalMessage;
+
         exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)

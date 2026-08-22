@@ -1131,8 +1131,8 @@ void CommandLineParser::ParseDiskOptions (
             }
             else
             {
-                std::cerr << "Error: " << argv[i + 1]
-                          << " is not an address. Write it as $XXXX\n";
+                Refusal (options) << "Error: " << argv[i + 1]
+                                  << " is not an address. Write it as $XXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1148,7 +1148,7 @@ void CommandLineParser::ParseDiskOptions (
         //  options to try instead.
         if (IsDiskOptionNeedingValue (arg))
         {
-            std::cerr << "Error: " << argv[i] << " needs a value after it\n";
+            Refusal (options) << "Error: " << argv[i] << " needs a value after it\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
@@ -1164,8 +1164,8 @@ void CommandLineParser::ParseDiskOptions (
         //  below is for.
         if (arg.size() > 1 && arg[0] == '-')
         {
-            std::cerr << "Error: unknown disk option: " << argv[i]
-                      << ". Try: " << DescribeDiskOptions() << "\n";
+            Refusal (options) << "Error: unknown disk option: " << argv[i]
+                              << ". Try: " << DescribeDiskOptions() << "\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
@@ -1184,9 +1184,9 @@ void CommandLineParser::ParseDiskOptions (
         //  three would answer a question nobody asked.
         if (limit > 0 && positional >= limit)
         {
-            std::cerr << "Error: surplus argument: " << arg << "\n"
-                      << "       `disk " << DiskVerbWord (options.disk.verb) << "` takes "
-                      << (limit == 1 ? "the image and nothing else.\n"
+            Refusal (options) << "Error: surplus argument: " << arg << "\n"
+                              << "       `disk " << DiskVerbWord (options.disk.verb) << "` takes "
+                              << (limit == 1 ? "the image and nothing else.\n"
                                      : "the image and one file.\n");
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -2076,11 +2076,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 NoteFlagPrefix ('/', options);
             }
 
-            std::cerr << "Error: " << longPrefix << "cpu is gone. Use "
-                      << options.flagPrefix << "x for the 65C02.\n"
-                      << "       " << options.flagPrefix
-                      << "x is AS65's own name for the switch, and selects the same\n"
-                      << "       instruction set. The default is still a strict 6502.\n";
+            Refusal (options) << "Error: " << longPrefix << "cpu is gone. Use "
+                              << options.flagPrefix << "x for the 65C02.\n"
+                              << "       " << options.flagPrefix
+                              << "x is AS65's own name for the switch, and selects the same\n"
+                              << "       instruction set. The default is still a strict 6502.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -2125,19 +2125,19 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 continue;
             }
 
-            std::cerr << "Error: surplus argument: " << arg << "\n";
-            std::cerr << "       Assembling takes one source file, and "
-                      << options.inputFile << " is already it.\n";
+            Refusal (options) << "Error: surplus argument: " << arg << "\n";
+            Refusal (options) << "       Assembling takes one source file, and "
+                              << options.inputFile << " is already it.\n";
 
             if (wantsValue != 0)
             {
-                std::cerr << "       If " << arg << " was meant as a value, AS65 glues it to its option:\n"
-                          << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
+                Refusal (options) << "       If " << arg << " was meant as a value, AS65 glues it to its option:\n"
+                                  << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
             }
             else if (IsPlainDecimal (arg))
             {
-                std::cerr << "       If " << arg << " was meant as a value, AS65 glues every value to its\n"
-                          << "       option, with no space between them.\n";
+                Refusal (options) << "       If " << arg << " was meant as a value, AS65 glues every value to its\n"
+                                  << "       option, with no space between them.\n";
             }
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -2208,9 +2208,9 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                     //  A numeric option given no number. as65 documents no bare
                     //  form for -h, and the neighboring argument is not one: a
                     //  separated value here would be somebody's source file.
-                    std::cerr << "Error: " << options.flagPrefix << flag->option
-                              << " takes its number ATTACHED: " << options.flagPrefix
-                              << flag->option << "60\n";
+                    Refusal (options) << "Error: " << options.flagPrefix << flag->option
+                                      << " takes its number ATTACHED: " << options.flagPrefix
+                                      << flag->option << "60\n";
                     refused = true;
                 }
             }
@@ -2236,10 +2236,10 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 //  refusal existed, span forever looking for the value.
                 if (value.empty() && flag->bareDefault == nullptr)
                 {
-                    std::cerr << "Error: " << options.flagPrefix << flag->option
-                              << " needs a filename after it, attached or separated:\n"
-                              << "       " << options.flagPrefix << flag->option << "prog.bin, or "
-                              << options.flagPrefix << flag->option << " prog.bin\n";
+                    Refusal (options) << "Error: " << options.flagPrefix << flag->option
+                                      << " needs a filename after it, attached or separated:\n"
+                                      << "       " << options.flagPrefix << flag->option << "prog.bin, or "
+                                      << options.flagPrefix << flag->option << " prog.bin\n";
                     refused = true;
                 }
 
@@ -2361,17 +2361,17 @@ void CommandLineParser::AddSymbolDefinition (const std::string & definition,
         }
         else
         {
-            std::cerr << "Error: " << options.flagPrefix << "d cannot read `"
-                      << text << "` as a value.\n"
-                      << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
-                      << "       `=` off entirely: a name on its own is defined as 1.\n";
+            Refusal (options) << "Error: " << options.flagPrefix << "d cannot read `"
+                              << text << "` as a value.\n"
+                              << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
+                              << "       `=` off entirely: a name on its own is defined as 1.\n";
         }
     }
 
     if (taken && name.empty())
     {
-        std::cerr << "Error: " << options.flagPrefix
-                  << "d needs a name in front of the `=`.\n";
+        Refusal (options) << "Error: " << options.flagPrefix
+                          << "d needs a name in front of the `=`.\n";
         taken = false;
     }
 
@@ -2883,9 +2883,9 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             //  named two files got one assembled, exit 0, and no word about
             //  the other. Merlin was still silently discarding it after as65
             //  stopped, so the two grammars disagreed about the same mistake.
-            std::cerr << "Error: surplus argument: " << arg << "\n";
-            std::cerr << "       Assembling takes one source file, and "
-                      << options.inputFile << " is already it.\n";
+            Refusal (options) << "Error: surplus argument: " << arg << "\n";
+            Refusal (options) << "       Assembling takes one source file, and "
+                              << options.inputFile << " is already it.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             stop                 = true;
@@ -3130,7 +3130,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
             if (FAILED (hr))
             {
-                std::cerr << "Error: Invalid fill byte value\n";
+                Refusal (options) << "Error: Invalid fill byte value\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3144,7 +3144,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                std::cerr << "Error: Invalid load address\n";
+                Refusal (options) << "Error: Invalid load address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3158,7 +3158,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                std::cerr << "Error: Invalid entry address\n";
+                Refusal (options) << "Error: Invalid entry address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3172,7 +3172,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             }
             else
             {
-                std::cerr << "Error: Invalid stop address\n";
+                Refusal (options) << "Error: Invalid stop address\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3182,7 +3182,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
             if (FAILED (hr))
             {
-                std::cerr << "Error: Invalid max-cycles value\n";
+                Refusal (options) << "Error: Invalid max-cycles value\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
@@ -3212,9 +3212,9 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             //  which is the right verdict, but under the words "Unknown
             //  option" -- and a filename is not an option, so the reader was
             //  sent looking for a flag they had not typed.
-            std::cerr << "Error: surplus argument: " << arg << "\n"
-                      << "       `run` takes one input file, and " << options.inputFile
-                      << " is already it.\n";
+            Refusal (options) << "Error: surplus argument: " << arg << "\n"
+                              << "       `run` takes one input file, and " << options.inputFile
+                              << " is already it.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
@@ -3222,12 +3222,12 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         {
             //  An option that ran out of command line is not an unknown one.
             //  See IsRunOptionNeedingValue.
-            std::cerr << "Error: " << argv[argIndex] << " needs a value after it\n";
+            Refusal (options) << "Error: " << argv[argIndex] << " needs a value after it\n";
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
         }
         else
         {
-            std::cerr << "Error: Unknown option: " << arg << "\n";
+            Refusal (options) << "Error: Unknown option: " << arg << "\n";
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             RecordUnrecognizedFlag (arg, options);
         }

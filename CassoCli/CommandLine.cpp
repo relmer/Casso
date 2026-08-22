@@ -7,6 +7,7 @@
 #include "CommandLineHelp.h"
 #include "DialectHelp.h"
 #include "DialectRegistry.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Version.h"
 
 
@@ -458,6 +459,54 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLine::PrintPageFor
+//
+//  The page belonging to one mode, chosen from the mode rather than from a
+//  help request.
+//
+//  A REFUSAL PRINTS A PAGE TOO, and it has to be the same page a help request
+//  would have printed. `disk get img.dsk A B` used to answer with two lines
+//  naming the surplus argument and nothing else, so a reader who had the verb's
+//  operands wrong was told they were wrong and not what the right ones are. The
+//  answer to "you typed this wrong" is the grammar.
+//
+//  The disk page is the runner's, because the disk grammar's help is composed
+//  where its verbs are. Everything else is one of the three above.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix)
+{
+    switch (mode)
+    {
+    case CommandLineOptions::Subcommand::As65:
+        PrintAssemblePage (prefix);
+        break;
+
+    case CommandLineOptions::Subcommand::Merlin:
+        PrintMerlinPage (prefix);
+        break;
+
+    case CommandLineOptions::Subcommand::Run:
+        PrintRunPage (prefix);
+        break;
+
+    case CommandLineOptions::Subcommand::Disk:
+        PrintUsageBlock (DiskCommandRunner::BuildHelpText (prefix, BuildBanner()));
+        break;
+
+    default:
+        PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLine::PrintRunPage
 //
 //  A page of its own, reached by asking `run` for help in any form. It closes
@@ -603,6 +652,13 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 //  The subcommand was fine; something after it was not. The full usage, then
 //  the line naming the argument, last for the same reason as above.
 //
+//  THAT MODE'S PAGE, NOT THE GENERAL ONE. The general page is a table of
+//  contents: it names the four modes and where each mode's flags are written
+//  down, and it lists no flag of any of them. So a reader who had typed a flag
+//  wrong was handed the one page in the tool that could not tell them the right
+//  one. The reader has already said which grammar they are in by naming the
+//  subcommand, and that grammar's flags are what they were reaching for.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOptions::Subcommand subcommand, char prefix)
@@ -620,7 +676,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
         }
     }
 
-    PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+    PrintPageFor (subcommand, prefix);
     std::cout.flush();
 
     std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";

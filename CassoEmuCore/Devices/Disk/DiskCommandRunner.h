@@ -38,6 +38,13 @@ struct DiskCommandResult
     //  meanings the assembler and run subcommands already assign.
     int           exitStatus  = 0;
 
+    //  Set when what was WRONG was the command line rather than the disk:
+    //  a verb this grammar does not have, an operand it needed and did not
+    //  get, an encoding nobody offers. The edge prints the disk page ahead
+    //  of the diagnostic for these and not for the rest, because "PROG is
+    //  not on this volume" is answered by a listing and not by a grammar.
+    bool          badCommandLine = false;
+
     std::string        output;   // stdout, text
     std::string        diagnostics;   // stderr, always
     std::vector<Byte>  payload;   // stdout, binary

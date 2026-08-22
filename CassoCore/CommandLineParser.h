@@ -33,6 +33,40 @@
 class CommandLineParser
 {
 public:
+    //
+    //  One refusal, accumulated into the options rather than printed.
+    //
+    //  It is written at the point of refusal in the same `<<` chain the code
+    //  there already used, and lands in options.refusalMessage when the
+    //  statement ends. The executable prints it, AFTER the mode's help, so the
+    //  explanation is the last thing on the screen rather than the first thing
+    //  a long page scrolled away.
+    //
+    class Refusal
+    {
+    public:
+        explicit Refusal (CommandLineOptions & options) : m_options (options) {}
+
+        ~Refusal()
+        {
+            m_options.refusalMessage += m_text.str();
+        }
+
+        Refusal (const Refusal &)             = delete;
+        Refusal & operator= (const Refusal &) = delete;
+
+        template <typename T>
+        Refusal & operator<< (const T & value)
+        {
+            m_text << value;
+            return *this;
+        }
+
+    private:
+        CommandLineOptions &  m_options;
+        std::ostringstream    m_text;
+    };
+
     // Answers "does this path exist?" without the parser touching the disk.
     using FileExistsFn = std::function<bool (const std::string &)>;
 

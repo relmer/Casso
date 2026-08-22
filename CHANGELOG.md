@@ -343,6 +343,19 @@ Entries before versioning was introduced use dates only.
   unaffected — that filesystem records neither field.
 
 ### Fixed
+- **A command line the tool cannot read is answered with the grammar, not with
+  one line.** `CassoCli disk get img.dsk A B` said `surplus argument: B` and
+  stopped, so a reader who had a verb's operands wrong was told they were wrong
+  and not what the right ones are. Every refusal now prints the page belonging
+  to the mode that was named — the assembler's, Merlin's, `run`'s or `disk`'s —
+  and then the reason, last, so the reason is the line left on screen. An
+  unrecognized flag printed a page already, but printed the general one: a
+  table of contents that names the four modes and lists not one flag of any of
+  them, which is the single page in the tool least able to answer "which flag
+  did you mean?". The reason itself moved out of `std::cerr` and onto the parse
+  result, which is what allows it to be printed after the page instead of
+  before it, and what allows a test to read any of the twenty-three refusal
+  messages for the first time.
 - **An argument with nowhere to go is now an error instead of being thrown
   away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
   0, and never said that `60` had gone nowhere — so a build script asking for

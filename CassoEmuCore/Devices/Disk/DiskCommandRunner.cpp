@@ -1379,8 +1379,9 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         default:
-            result.diagnostics += "unknown encoding. Try: --text, --basic, or neither\n";
-            result.exitStatus   = kNoOutput;
+            result.diagnostics    += "unknown encoding. Try: --text, --basic, or neither\n";
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
             hr                  = E_INVALIDARG;
             break;
     }
@@ -1743,8 +1744,9 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             break;
 
         default:
-            result.diagnostics += "unknown encoding. Try: --text, --basic, or neither\n";
-            result.exitStatus   = kNoOutput;
+            result.diagnostics    += "unknown encoding. Try: --text, --basic, or neither\n";
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
             hr                  = E_INVALIDARG;
             break;
     }
@@ -1836,9 +1838,10 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     if (!named)
     {
-        result.diagnostics += "no host file named to place. put takes the file to "
-                              "copy onto the disk\n";
-        result.exitStatus   = kNoOutput;
+        result.diagnostics    += "no host file named to place. put takes the file to "
+                                 "copy onto the disk\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2007,9 +2010,10 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
 
     if (!named)
     {
-        result.diagnostics += "no program named to boot. boot takes the file on the "
-                              "disk to run after the operating system loads\n";
-        result.exitStatus   = kNoOutput;
+        result.diagnostics    += "no program named to boot. boot takes the file on the "
+                                 "disk to run after the operating system loads\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2166,8 +2170,9 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         default:
-            result.diagnostics += "unknown disk verb. Try: " + DescribeAcceptedVerbs() + "\n";
-            result.exitStatus   = kNoOutput;
+            result.diagnostics    += "unknown disk verb. Try: " + DescribeAcceptedVerbs() + "\n";
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
             break;
     }
 

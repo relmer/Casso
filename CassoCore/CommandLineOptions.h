@@ -186,6 +186,21 @@ struct CommandLineOptions
     //  know, as typed. Empty otherwise. The subcommand is valid, so the help
     //  the edge prints is that mode's rather than the general one.
     std::string   unrecognizedFlag;
+
+    //
+    //  Why the command line was refused, in the words a user reads. Empty when
+    //  it was not.
+    //
+    //  CARRIED RATHER THAN PRINTED, which it was not until this existed: the
+    //  parser wrote each refusal straight to stderr, from a library that has no
+    //  business owning a console. Two things fell out of that. Nothing could
+    //  test a single one of them, because the test assembly reads what Parse
+    //  RETURNS; and the executable could not put the message after the help it
+    //  now prints, so a 98-line page would have scrolled the explanation off
+    //  the top of the screen.
+    //
+    std::string   refusalMessage;
+
     bool          hasLoadAddress  = false;
     bool          hasStopAddress  = false;
     bool          hasEntryAddress = false;

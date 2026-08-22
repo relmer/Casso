@@ -78,6 +78,22 @@ int DiskCommand::Run (const CommandLineOptions & options)
         }
     }
 
+    //  A COMMAND LINE THIS GRAMMAR CANNOT READ IS ANSWERED WITH THE GRAMMAR.
+    //  An unknown verb used to earn one line naming the twelve that exist and
+    //  nothing about what any of them takes, so a reader who had the verb wrong
+    //  learned its name and then had to ask a second question to learn its
+    //  operands. The page goes first and the diagnostic last, the same order
+    //  every other refusal uses: the reader sees the bottom of the screen.
+    //
+    //  Only for a bad command line. "PROG is not on this volume" is answered by
+    //  a listing rather than by a page of syntax.
+    if (result.badCommandLine)
+    {
+        CommandLine::PrintPageFor (CommandLineOptions::Subcommand::Disk, options.flagPrefix);
+        std::cout.flush();
+        std::cerr << "\n";
+    }
+
     if (!result.diagnostics.empty())
     {
         std::cerr << TextEncoding::NarrowToConsole (result.diagnostics);

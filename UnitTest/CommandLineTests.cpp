@@ -37,16 +37,37 @@ namespace CommandLineTests
                 m_storage.push_back (std::string (arg));
             }
 
-            for (std::string & arg : m_storage)
+            Point();
+        }
+
+        //  The same from a vector, for a test that sweeps a TABLE of command
+        //  lines rather than writing one out. A braced list cannot be held in a
+        //  variable, so a loop over many of them needs this.
+        explicit ArgVector (const std::vector<const char *> & args)
+        {
+            for (const char * arg : args)
             {
-                m_pointers.push_back (arg.data());
+                m_storage.push_back (std::string (arg));
             }
+
+            Point();
         }
 
         int      Count() const { return (int) m_pointers.size(); }
         char * * Data()        { return m_pointers.data(); }
 
     private:
+        //  argv is char**, so the pointers have to be taken AFTER the strings
+        //  have stopped moving. Taking them inside the fill loop would leave
+        //  every one of them dangling at the first reallocation.
+        void Point()
+        {
+            for (std::string & arg : m_storage)
+            {
+                m_pointers.push_back (arg.data());
+            }
+        }
+
         std::vector<std::string>  m_storage;
         std::vector<char *>       m_pointers;
     };
@@ -1417,6 +1438,145 @@ namespace CommandLineTests
     //  refuse.
     //
     ////////////////////////////////////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RefusalMessageTests
+    //
+    //  WHAT A REFUSED COMMAND LINE SAYS, which nothing could read until it said
+    //  it into the options rather than onto stderr.
+    //
+    //  Twenty-three refusals were written with `std::cerr <<` from inside the
+    //  library. The test assembly reads what Parse RETURNS, so every one of them
+    //  was invisible here: a message could be silently deleted, or could name a
+    //  flag the parser no longer has, and the suite would stay green. They are
+    //  accumulated into options.refusalMessage now, which is also what lets the
+    //  executable print the mode's page BEFORE the reason instead of after.
+    //
+    //  These check the properties that hold across all of them rather than
+    //  quoting each one back. A test that repeats a sentence verbatim only
+    //  proves the sentence was copied twice.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (RefusalMessageTests)
+    {
+    public:
+        static std::wstring Widen (const std::string & text)
+        {
+            return std::wstring (text.begin(), text.end());
+        }
+
+        static CommandLineOptions Parse (std::initializer_list<const char *> typed)
+        {
+            ArgVector  args = typed;
+
+            return CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+        }
+
+        //  EVERY REFUSAL SAYS SOMETHING. A verdict with no words behind it is a
+        //  command line the tool declines to run and declines to explain, and
+        //  the executable would print the mode's page under a blank line.
+        TEST_METHOD (EveryRefusedCommandLine_CarriesAReason)
+        {
+            std::vector<std::vector<const char *>>  refused =
+            {
+                { "CassoCli", "as65",   "prog.a65", "extra.a65" },
+                { "CassoCli", "as65",   "prog.a65", "-w", "100" },
+                { "CassoCli", "as65",   "prog.a65", "-d", "=5" },
+                { "CassoCli", "as65",   "prog.a65", "-dFAST=zzz" },
+                { "CassoCli", "as65",   "prog.a65", "-h" },
+                { "CassoCli", "as65",   "prog.a65", "--cpu", "6502" },
+                { "CassoCli", "merlin", "prog.s",   "extra.s" },
+                { "CassoCli", "run",    "a.bin",    "b.bin" },
+                { "CassoCli", "run",    "a.bin",    "--stop" },
+                { "CassoCli", "disk",   "list",     "img.dsk", "--bogus" },
+                { "CassoCli", "disk",   "get",      "img.dsk", "A", "B" },
+                { "CassoCli", "disk",   "put",      "img.dsk", "f", "--addr", "nonsense" },
+            };
+
+            for (const std::vector<const char *> & typed : refused)
+            {
+                ArgVector           args (typed);
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+                std::string         line;
+
+                for (const char * word : typed)
+                {
+                    line += std::string (word) + " ";
+                }
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                Widen ("not refused: " + line).c_str());
+                Assert::IsFalse (opts.refusalMessage.empty(),
+                                 Widen ("refused with no reason given: " + line).c_str());
+            }
+        }
+
+        //  A CLEAN COMMAND LINE SAYS NOTHING, which is the other half. A message
+        //  left behind by a path that then decided not to refuse would print a
+        //  page and an accusation over a run that was about to succeed.
+        TEST_METHOD (ACleanCommandLine_CarriesNoReason)
+        {
+            CommandLineOptions  opts = Parse ({ "CassoCli", "as65", "prog.a65", "-oprog.bin", "-t" });
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::IsTrue (opts.refusalMessage.empty(),
+                            L"nothing went wrong, so nothing is explained");
+        }
+
+        //  IT NAMES WHAT THE READER TYPED. A reason that describes the rule and
+        //  not the argument leaves them comparing their command line against a
+        //  paragraph to find which word it meant.
+        TEST_METHOD (TheReason_QuotesTheArgumentItIsAbout)
+        {
+            Assert::IsTrue (Parse ({ "CassoCli", "as65", "prog.a65", "extra.a65" })
+                                .refusalMessage.find ("extra.a65") != std::string::npos,
+                            L"the surplus argument is named");
+            Assert::IsTrue (Parse ({ "CassoCli", "disk", "list", "img.dsk", "--bogus" })
+                                .refusalMessage.find ("--bogus") != std::string::npos,
+                            L"and so is the option nobody has");
+        }
+
+        //  AND IT ENDS IN A NEWLINE, every time. The executable prints the page,
+        //  then this, and a reason without its terminator would leave the shell
+        //  prompt on the same line as the last thing the tool said.
+        TEST_METHOD (TheReason_EndsInANewline)
+        {
+            std::string  reason = Parse ({ "CassoCli", "run", "a.bin", "b.bin" }).refusalMessage;
+
+            Assert::IsFalse (reason.empty());
+            Assert::AreEqual ('\n', reason.back(), L"a reason runs to the end of its line");
+        }
+
+        //  Nothing the parser writes carries the dash the help text no longer
+        //  uses, and this is the sweep that says so across all of them at once.
+        TEST_METHOD (NoReason_UsesTheDoubleHyphenDash)
+        {
+            std::vector<std::vector<const char *>>  refused =
+            {
+                { "CassoCli", "as65", "prog.a65", "extra.a65" },
+                { "CassoCli", "as65", "prog.a65", "--cpu", "6502" },
+                { "CassoCli", "as65", "prog.a65", "-dFAST=zzz" },
+                { "CassoCli", "disk", "list",     "img.dsk", "--bogus" },
+                { "CassoCli", "disk", "get",      "img.dsk", "A", "B" },
+                { "CassoCli", "run",  "a.bin",    "b.bin" },
+            };
+
+            for (const std::vector<const char *> & typed : refused)
+            {
+                ArgVector           args   (typed);
+                CommandLineOptions  opts   = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+                std::string         reason = opts.refusalMessage;
+
+                Assert::IsTrue (reason.find (" -- ") == std::string::npos,
+                                Widen ("a dash survived in: " + reason).c_str());
+            }
+        }
+    };
+
+
+
 
     TEST_CLASS (SurplusArgumentTests)
     {

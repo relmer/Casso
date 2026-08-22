@@ -62,6 +62,13 @@ public:
     //  the process is about to return.
     static int                 PrintCpuFlagRefusal       (const std::string & refusal);
 
+    //  The page belonging to one mode, whichever mode that is.
+    //
+    //  Public because a REFUSAL prints it too, not only a help request: the
+    //  answer to "you typed this wrong" is the grammar, so main and the disk
+    //  edge reach for the same page a --help would have opened.
+    static void                PrintPageFor              (CommandLineOptions::Subcommand mode, char prefix);
+
 private:
     //  How wide the reader's terminal is, or 80 when there is no terminal.
     static size_t  UsageWidth          ();
