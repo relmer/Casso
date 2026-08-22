@@ -76,9 +76,13 @@ def emit (text, name, pointer = False):
     return len (rows)
 
 
-rows = emit ("DRIVE 1", "s_kDrive1Mask")
-emit ("DRIVE 2", "s_kDrive2Mask")
-emit ("IN USE",  "s_kInUseMask", pointer = True)
+# The word and the number are baked SEPARATELY because they are not set at
+# the same size -- the number is nearly twice the word's cap height, and one
+# mask can only carry one. Placement centers them on a shared line.
+rows = emit ("DRIVE", "s_kDriveWordMask")
+emit ("1",      "s_kDrive1Mask")
+emit ("2",      "s_kDrive2Mask")
+emit ("IN USE", "s_kInUseMask", pointer = True)
 
 HEADER = '''#pragma once
 

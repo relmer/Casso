@@ -110,7 +110,18 @@ static constexpr float   s_kDriveBrandHeightMm = 29.0f;
 static constexpr float   s_kDriveBrandTopZMm   = s_kFaceMarginMm + s_kDriveBrandHeightMm;
 static constexpr float   s_kDriveBrandLeftMm   = 155.0f - s_kFaceMarginMm
                                                  - s_kDriveBrandHeightMm * 36.0f / 54.0f;
-static constexpr float   s_kDriveBrandFrontY   = -1.8f;
+static constexpr float   s_kDriveBrandFrontY   = -1.95f;
+
+// A THICKNESS, which is what routes the mark through the smoothed relief
+// builder instead of laying it down as raw bits. It was the last mark on the
+// faceplate still stamped from its bitmask unaltered, so while the legends
+// became type and the logotype got a rounded outline, the bird kept its
+// staircase -- at 29 mm over a 54-row silhouette its cells are half a
+// millimeter, the same order as the logotype's, and just as visible.
+//
+// Small: this is an applied mark, not a molded one like the monitor's badge,
+// so it wants the smoothing far more than it wants the depth.
+static constexpr float   s_kDriveBrandThickMm  = 0.25f;
 
 // The DRIVE n legend, top-left of the faceplate. The cap height is the
 // legends' shared size; the baked mask is exactly one cap tall, so the cell
@@ -119,6 +130,17 @@ static constexpr float   s_kDriveLabelLeftMm = s_kFaceMarginMm;
 static constexpr float   s_kDriveLabelTopZMm = 96.0f - s_kFaceMarginMm;
 static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
+
+// The NUMBER is what the legend is actually for -- which drive this is -- so
+// it is set nearly twice the word's cap height and the two share one
+// centerline rather than a baseline. Baseline-aligned, a number this much
+// bigger reads as a different line of text that happens to start where the
+// word ends; centered, the word reads as its label.
+//
+// The number is the taller of the two, so the number is what the top margin
+// holds and the word centers on it.
+static constexpr float   s_kDriveNumberScale = 1.8f;
+static constexpr float   s_kDriveNumberGapMm = 1.9f;
 
 // The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
 // LED's left at the LED's height (the 2D widget's arrangement).
@@ -604,7 +626,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // label pointing at the LED. The DRIVE-number badge text is stamped
         // per-drive by the scene -- it cannot live in the shared model.
         BuildBrandStamp (s_kDriveBrandLeftMm, s_kDriveBrandTopZMm,
-                         s_kDriveBrandHeightMm, s_kDriveBrandFrontY);
+                         s_kDriveBrandHeightMm, s_kDriveBrandFrontY,
+                         s_kDriveBrandThickMm);
         BuildInUseStamp();
 
         BuildWordmarkStamp();
@@ -1604,31 +1627,48 @@ void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
 //
 //  DeskSceneModel::StampDriveLabel
 //
-//  "DRIVE n" from its baked mask, set to the faceplate's top-left margin.
+//  "DRIVE n" from its baked masks, set to the faceplate's top-left margin.
 //
-//  Sized by CAP HEIGHT rather than by cell: the mask is exactly one cap tall,
-//  so the cell falls out of the size wanted instead of being a number tuned
-//  until the label looked right. Rebaking at a different resolution then
-//  changes nothing about how big the legend is.
+//  Sized by CAP HEIGHT rather than by cell: each mask is exactly one cap
+//  tall, so the cell falls out of the size wanted instead of being a number
+//  tuned until the label looked right. Rebaking at a different resolution
+//  then changes nothing about how big the legend is.
+//
+//  The word and the number are separate masks because they are set at
+//  different sizes, and they share a CENTERLINE rather than a baseline: the
+//  number is what the legend is for, so it is the taller of the two and it is
+//  what the top margin holds, with the word centered on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber)
 {
-    const char * const *  mask = (driveNumber >= 2) ? s_kDrive2Mask : s_kDrive1Mask;
-    int                   rows = (driveNumber >= 2) ? kDrive2MaskRows : kDrive1MaskRows;
-    int                   cols = (driveNumber >= 2) ? kDrive2MaskCols : kDrive1MaskCols;
-    std::vector<float>    ink ((size_t) rows * 3);
+    const char * const *  digit     = (driveNumber >= 2) ? s_kDrive2Mask : s_kDrive1Mask;
+    int                   digitRows = (driveNumber >= 2) ? kDrive2MaskRows : kDrive1MaskRows;
+    int                   digitCols = (driveNumber >= 2) ? kDrive2MaskCols : kDrive1MaskCols;
+    float                 digitCap  = s_kDriveLabelCapMm * s_kDriveNumberScale;
+    float                 centerZ   = s_kDriveLabelTopZMm - digitCap * 0.5f;
+    float                 wordCell  = s_kDriveLabelCapMm / (float) kDriveWordMaskRows;
+    float                 wordWidth = (float) kDriveWordMaskCols * wordCell;
+    std::vector<float>    ink ((size_t) (std::max) (kDriveWordMaskRows, digitRows) * 3);
 
-    for (int row = 0; row < rows; row++)
+
+
+    for (size_t row = 0; row < ink.size() / 3; row++)
     {
-        ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
-        ink[(size_t) row * 3 + 1] = s_kFaceInkRgb[1];
-        ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
+        ink[row * 3 + 0] = s_kFaceInkRgb[0];
+        ink[row * 3 + 1] = s_kFaceInkRgb[1];
+        ink[row * 3 + 2] = s_kFaceInkRgb[2];
     }
 
-    StampFaceMask (out, mask, rows, cols, s_kDriveLabelLeftMm, s_kDriveLabelTopZMm,
-                   s_kDriveLabelCapMm / (float) rows, s_kDriveLabelFrontY, ink.data(), true);
+    StampFaceMask (out, s_kDriveWordMask, kDriveWordMaskRows, kDriveWordMaskCols,
+                   s_kDriveLabelLeftMm, centerZ + s_kDriveLabelCapMm * 0.5f,
+                   wordCell, s_kDriveLabelFrontY, ink.data(), true);
+
+    StampFaceMask (out, digit, digitRows, digitCols,
+                   s_kDriveLabelLeftMm + wordWidth + s_kDriveNumberGapMm,
+                   centerZ + digitCap * 0.5f,
+                   digitCap / (float) digitRows, s_kDriveLabelFrontY, ink.data(), true);
 }
 
 
