@@ -112,16 +112,10 @@ static constexpr float   s_kDriveBrandLeftMm   = 155.0f - s_kFaceMarginMm
                                                  - s_kDriveBrandHeightMm * 36.0f / 54.0f;
 static constexpr float   s_kDriveBrandFrontY   = -1.95f;
 
-// A THICKNESS, which is what routes the mark through the smoothed relief
-// builder instead of laying it down as raw bits. It was the last mark on the
-// faceplate still stamped from its bitmask unaltered, so while the legends
-// became type and the logotype got a rounded outline, the bird kept its
-// staircase -- at 29 mm over a 54-row silhouette its cells are half a
-// millimeter, the same order as the logotype's, and just as visible.
-//
-// Small: this is an applied mark, not a molded one like the monitor's badge,
-// so it wants the smoothing far more than it wants the depth.
-static constexpr float   s_kDriveBrandThickMm  = 0.25f;
+// NO THICKNESS. This is a mark printed on a flat plate, not molded into one
+// like the monitor's badge, and giving it relief to buy the smoothing was
+// paying in the wrong currency -- the smoothing is now what the flat path
+// does, so the mark can be as flat as it really is.
 
 // The DRIVE n legend, top-left of the faceplate. The cap height is the
 // legends' shared size; the baked mask is exactly one cap tall, so the cell
@@ -626,8 +620,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // label pointing at the LED. The DRIVE-number badge text is stamped
         // per-drive by the scene -- it cannot live in the shared model.
         BuildBrandStamp (s_kDriveBrandLeftMm, s_kDriveBrandTopZMm,
-                         s_kDriveBrandHeightMm, s_kDriveBrandFrontY,
-                         s_kDriveBrandThickMm);
+                         s_kDriveBrandHeightMm, s_kDriveBrandFrontY);
         BuildInUseStamp();
 
         BuildWordmarkStamp();
@@ -808,51 +801,230 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
         return;
     }
 
-    for (int row = firstRow; row <= lastRow; row++)
+    {
+        std::vector<uint8_t>  bits;
+        std::vector<float>    rgb;
+
+        BrandMask (bits, rgb, firstRow, lastRow);
+        BuildSmoothMask (m_opaque, bits.data(), CassoBranding::kGridW, CassoBranding::kGridH,
+                         leftMm, topZMm, heightMm, frontY, rgb.data(), false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::BrandMask
+//
+//  The cassowary's silhouette as bytes and its stripe colors as one rgb per
+//  grid row -- the form both mark builders take.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BrandMask (std::vector<uint8_t> & outMask, std::vector<float> & outRgb,
+                                int firstRow, int lastRow)
+{
+    outMask.assign ((size_t) CassoBranding::kGridW * CassoBranding::kGridH, 0);
+    outRgb.assign ((size_t) CassoBranding::kGridH * 3, 0.0f);
+
+    for (int row = 0; row < CassoBranding::kGridH; row++)
     {
         uint64_t  bits   = CassoBranding::SilhouetteRow (row);
-        int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
+        int       banded = (std::min) (lastRow, (std::max) (firstRow, row));
+        int       stripe = ((banded - firstRow) * CassoBranding::kStripeCount)
+                           / (lastRow - firstRow + 1);
         uint32_t  argb   = CassoBranding::StripeColor (stripe);
-        float     zTop   = topZMm - (float) row * rowH;
-        float     r      = (float) ((argb >> 16) & 0xFF) / 255.0f;
-        float     g      = (float) ((argb >> 8) & 0xFF) / 255.0f;
-        float     b      = (float) (argb & 0xFF) / 255.0f;
-        int       col    = 0;
 
-        while (col < CassoBranding::kGridW)
+        for (int col = 0; col < CassoBranding::kGridW; col++)
         {
-            int    runStart = 0;
-            float  x0       = 0.0f;
-            float  x1       = 0.0f;
+            outMask[(size_t) row * CassoBranding::kGridW + col] =
+                ((bits >> col) & 1ULL) ? (uint8_t) 1 : (uint8_t) 0;
+        }
 
-            if ((bits & (1ULL << col)) == 0)
+        outRgb[(size_t) row * 3 + 0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
+        outRgb[(size_t) row * 3 + 1] = (float) ((argb >> 8) & 0xFF) / 255.0f;
+        outRgb[(size_t) row * 3 + 2] = (float) (argb & 0xFF) / 255.0f;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::BuildSmoothMask
+//
+//  A mask as a flat mark whose outline is the field's own half-level contour
+//  rather than a set of filled cells.
+//
+//  WHERE THE SMOOTHING LANDS is the whole of it. Resampling a mask and then
+//  filling whole fine cells leaves the boundary a staircase however smooth
+//  the field underneath is -- finer steps than the mask's, but steps, and at
+//  a zoom the scene now offers they are visible. Interpolating to find where
+//  the field actually crosses its half level, and putting the edge there,
+//  takes the quantization out of the outline entirely.
+//
+//  The filter is a smooth falloff, not a hard disc: a box filter has an edge
+//  of its own, that edge puts kinks in the field, and a kink in the field is
+//  a kink in the contour.
+//
+//  Consecutive rows join as TRAPEZOIDS wherever their spans correspond, so a
+//  sloping edge is one straight run rather than a stack of rectangles. Where
+//  the span counts disagree -- a limb separating from a body -- the two rows
+//  meet halfway as rectangles instead, which is correct if less pretty and
+//  happens over a fraction of a millimeter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildSmoothMask (std::vector<Dxui3DRenderer::Vertex> & out,
+                                      const uint8_t * mask, int gridW, int gridH,
+                                      float leftMm, float topZMm, float heightMm, float frontY,
+                                      const float * rowRgb, bool lit,
+                                      float smoothCells, int subdivide)
+{
+    const int    fw    = gridW * subdivide;
+    const int    fh    = gridH * subdivide;
+    const float  cell  = heightMm / (float) gridH;
+    const float  fcell = cell / (float) subdivide;
+    const int    span  = (int) std::ceil (smoothCells + 1.0f);
+    const float  ny    = lit ? -1.0f : 0.0f;
+
+    std::vector<float>                 field ((size_t) fh * fw, 0.0f);
+    std::vector<std::vector<float>>    cross ((size_t) fh);
+
+
+
+    for (int fy = 0; fy < fh; fy++)
+    {
+        float  oy = ((float) fy + 0.5f) / (float) subdivide;
+
+        for (int fx = 0; fx < fw; fx++)
+        {
+            float  ox  = ((float) fx + 0.5f) / (float) subdivide;
+            float  num = 0.0f;
+            float  den = 0.0f;
+
+            for (int dy = -span; dy <= span; dy++)
             {
-                col++;
+                for (int dx = -span; dx <= span; dx++)
+                {
+                    int    sy = (int) std::floor (oy) + dy;
+                    int    sx = (int) std::floor (ox) + dx;
+                    float  ax = (float) sx + 0.5f - ox;
+                    float  az = (float) sy + 0.5f - oy;
+                    float  d2 = (ax * ax + az * az) / (smoothCells * smoothCells);
+                    float  w  = 0.0f;
+
+                    if (d2 >= 1.0f)
+                    {
+                        continue;
+                    }
+
+                    w    = (1.0f - d2) * (1.0f - d2);
+                    den += w;
+
+                    if (sy >= 0 && sy < gridH && sx >= 0 && sx < gridW &&
+                        mask[(size_t) sy * gridW + sx] != 0)
+                    {
+                        num += w;
+                    }
+                }
+            }
+
+            field[(size_t) fy * fw + fx] = (den > 0.0f) ? num / den : 0.0f;
+        }
+    }
+
+    // Where the field crosses half, to a fraction of a sample. These are the
+    // mark's edges, and they alternate entering and leaving it.
+    for (int fy = 0; fy < fh; fy++)
+    {
+        const float *  row = &field[(size_t) fy * fw];
+
+        for (int fx = 0; fx + 1 < fw; fx++)
+        {
+            float  a = row[fx];
+            float  b = row[fx + 1];
+
+            if ((a < 0.5f) == (b < 0.5f))
+            {
                 continue;
             }
 
-            runStart = col;
-
-            while (col < CassoBranding::kGridW && (bits & (1ULL << col)) != 0)
             {
-                col++;
+                float  t = (0.5f - a) / (b - a);
+
+                cross[(size_t) fy].push_back (leftMm + ((float) fx + 0.5f + t) * fcell);
+            }
+        }
+    }
+
+    {
+        auto  pushQuad = [&out, frontY, ny] (float xa0, float xa1, float za,
+                                             float xb0, float xb1, float zb, const float * rgb)
+        {
+            Dxui3DRenderer::Vertex   quad[6] = {};
+
+            quad[0] = { xa0, frontY, za, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+            quad[1] = { xa1, frontY, za, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+            quad[2] = { xb1, frontY, zb, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+            quad[3] = { xa0, frontY, za, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+            quad[4] = { xb1, frontY, zb, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+            quad[5] = { xb0, frontY, zb, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, 0.0f, ny, 0.0f };
+
+            out.insert (out.end(), quad, quad + 6);
+        };
+
+        auto  pushBand = [&pushQuad] (const std::vector<float> & xs, float za, float zb,
+                                      const float * rgb)
+        {
+            for (size_t i = 0; i + 1 < xs.size(); i += 2)
+            {
+                pushQuad (xs[i], xs[i + 1], za, xs[i], xs[i + 1], zb, rgb);
+            }
+        };
+
+        for (int fy = 0; fy < fh; fy++)
+        {
+            const std::vector<float> &  a    = cross[(size_t) fy];
+            const float *               rgb  = rowRgb + (size_t) (fy / subdivide) * 3;
+            float                       zMid = topZMm - ((float) fy + 0.5f) * fcell;
+
+            // The half rows at the very top and bottom, which no pair spans.
+            if (fy == 0)
+            {
+                pushBand (a, topZMm, zMid, rgb);
             }
 
-            x0 = leftMm + (float) runStart * colW;
-            x1 = leftMm + (float) col * colW;
+            if (fy + 1 >= fh)
+            {
+                pushBand (a, zMid, topZMm - heightMm, rgb);
+                continue;
+            }
 
             {
-                Dxui3DRenderer::Vertex   quad[6] = {};
-                float                    z1      = zTop - rowH;
+                const std::vector<float> &  b     = cross[(size_t) fy + 1];
+                const float *               rgbB  = rowRgb + (size_t) ((fy + 1) / subdivide) * 3;
+                float                       zNext = zMid - fcell;
 
-                quad[0] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[1] = { x1, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[2] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[3] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[4] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f };
+                if (a.size() == b.size() && (a.size() % 2) == 0)
+                {
+                    for (size_t i = 0; i + 1 < a.size(); i += 2)
+                    {
+                        pushQuad (a[i], a[i + 1], zMid, b[i], b[i + 1], zNext, rgb);
+                    }
 
-                m_opaque.insert (m_opaque.end(), quad, quad + 6);
+                    continue;
+                }
+
+                // The spans do not correspond, so there is nothing to join.
+                // Each row keeps its own half of the gap.
+                pushBand (a, zMid, (zMid + zNext) * 0.5f, rgb);
+                pushBand (b, (zMid + zNext) * 0.5f, zNext, rgbB);
             }
         }
     }
@@ -876,27 +1048,10 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
 {
     constexpr float  kRollMm = 0.14f;    // how far down the top edge rolls
 
-    std::vector<uint8_t>  mask ((size_t) CassoBranding::kGridW * CassoBranding::kGridH, 0);
-    std::vector<float>    rgb ((size_t) CassoBranding::kGridH * 3, 0.0f);
+    std::vector<uint8_t>  mask;
+    std::vector<float>    rgb;
 
-    for (int row = 0; row < CassoBranding::kGridH; row++)
-    {
-        uint64_t  bits   = CassoBranding::SilhouetteRow (row);
-        int       banded = (std::min) (lastRow, (std::max) (firstRow, row));
-        int       stripe = ((banded - firstRow) * CassoBranding::kStripeCount)
-                           / (lastRow - firstRow + 1);
-        uint32_t  argb   = CassoBranding::StripeColor (stripe);
-
-        for (int col = 0; col < CassoBranding::kGridW; col++)
-        {
-            mask[(size_t) row * CassoBranding::kGridW + col] =
-                ((bits >> col) & 1ULL) ? (uint8_t) 1 : (uint8_t) 0;
-        }
-
-        rgb[(size_t) row * 3 + 0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
-        rgb[(size_t) row * 3 + 1] = (float) ((argb >> 8) & 0xFF) / 255.0f;
-        rgb[(size_t) row * 3 + 2] = (float) (argb & 0xFF) / 255.0f;
-    }
+    BrandMask (mask, rgb, firstRow, lastRow);
 
     // The flat interior stays UNLIT: it is most of the mark, and the brand's
     // colors have to come out exact. Only the rolled band and the side walls

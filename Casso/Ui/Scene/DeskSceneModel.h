@@ -348,6 +348,34 @@ private:
     // `superSample` is fine cells per mask cell. It costs the square of
     // itself in both work and triangles, so a mask that arrives already fine
     // should lower it rather than pay twice.
+    // A mask as a FLAT mark with a genuinely smooth outline -- no relief, no
+    // thickness, for a logo printed on a surface rather than molded into it.
+    //
+    // The difference from BuildRelief is where the smoothing lands. That one
+    // resamples the mask and then FILLS whole fine cells, so however smooth
+    // the underlying field is, the boundary the eye sees is still a staircase
+    // of cell-sized steps -- finer than the mask's, but a staircase. This one
+    // finds where the field actually crosses its half level along each row,
+    // by interpolating between samples, and puts the geometry's edge THERE.
+    // The outline stops being quantized at all.
+    //
+    // Two things follow from that. The filter is a smooth falloff rather than
+    // a hard disc, because a box filter's own edge puts kinks in the field
+    // and a kink in the field is a kink in the contour. And consecutive rows
+    // are joined as TRAPEZOIDS wherever their spans correspond, so a sloping
+    // edge is one straight run instead of a stack of rectangles -- which is
+    // what removes the last of the stepping.
+    static void  BuildSmoothMask (std::vector<Dxui3DRenderer::Vertex> & out,
+                                  const uint8_t * mask, int gridW, int gridH,
+                                  float leftMm, float topZMm, float heightMm, float frontY,
+                                  const float * rowRgb, bool lit,
+                                  float smoothCells = 2.2f, int subdivide = 6);
+
+    // The cassowary's silhouette and stripe colors as a mask plus one rgb per
+    // grid row, which is what both mark builders take.
+    static void  BrandMask      (std::vector<uint8_t> & outMask, std::vector<float> & outRgb,
+                                 int firstRow, int lastRow);
+
     static void  BuildRelief    (std::vector<Dxui3DRenderer::Vertex> & out,
                                  const uint8_t * mask, int gridW, int gridH,
                                  float leftMm, float topZMm, float heightMm, float frontY,
