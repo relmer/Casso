@@ -1480,7 +1480,7 @@ void ProDosVolume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     {
         inOutOutcome.warnings.push_back (
             "the directory did not parse completely, so an entry that could not be"
-            " read claims nothing this pass can see -- a block it shares with the"
+            " read claims nothing this pass can see, and a block it shares with the"
             " deleted file may have been freed while that entry still uses it");
     }
 }

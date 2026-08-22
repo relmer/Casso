@@ -70,10 +70,10 @@ tokenized form; `--text` converts the high-bit encoding and line endings;
 naming neither, the default, moves bytes unchanged, so extract-edit-replace
 perturbs nothing the edit did not touch.
 
-**The assembler's command line is now as65's, exactly.** Values attach to their
+**The assembler's command line is now AS65's, exactly.** Values attach to their
 flags, flags chain into one argument, `-x` selects the 65C02, and exit codes 0
-through 3 carry the meanings the as65 manual gives them — so a build script
-written for as65 branches correctly here without being read again. **This
+through 3 carry the meanings the AS65 manual gives them — so a build script
+written for AS65 branches correctly here without being read again. **This
 changes behavior scripts may depend on; see [CHANGELOG.md](CHANGELOG.md) before
 upgrading.** The help is tiered to match: `CassoCli --help` is one screen naming
 the three modes, and each mode's flags, examples and exit codes wait behind that
@@ -420,38 +420,31 @@ Casso.sln
 and syntax reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ```powershell
-# Assemble a source file to its assembled bytes (AS65 mode — no subcommand)
-# Every value attaches to its flag, which is as65's grammar: -ooutput.bin
-CassoCli input.a65 -ooutput.bin
+# Assemble a source file. The dialect is NAMED: `as65` is a subcommand, not an
+# assumption. `CassoCli input.a65` used to work and no longer does -- see the
+# breaking-changes entry in CHANGELOG.md.
+#
+# Every value attaches to its flag, which is AS65's grammar. `-o` is the one
+# switch where the space before its value is optional.
+CassoCli as65 input.a65 -ooutput.bin
 
 # Assemble with a listing file and a symbol table
-CassoCli input.a65 -ooutput.bin -llisting.txt -t
+CassoCli as65 input.a65 -ooutput.bin -llisting.txt -t
 
 # Output Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli input.a65 -s   -ooutput.s19
-CassoCli input.a65 -s2  -ooutput.hex
-# Assemble a source file to a flat binary. The dialect is NAMED: `as65` is a
-# subcommand, not an assumption. `CassoCli input.a65` used to work and no
-# longer does -- see the breaking-changes entry in CHANGELOG.md.
-CassoCli as65 input.a65 -o output.bin
+CassoCli as65 input.a65 -s   -ooutput.s19
+CassoCli as65 input.a65 -s2  -ooutput.hex
 
-# Assemble with a listing file and a symbol table
-CassoCli as65 input.a65 -o output.bin -l listing.txt -t
-
-# Output Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli as65 input.a65 -s   -o output.s19
-CassoCli as65 input.a65 -s2  -o output.hex
-
-# Write only the assembled bytes, or a BLOAD-ready DOS 3.3 binary
-# (the default is a full 64 KB image padded with the fill byte)
-CassoCli as65 input.a65 --raw      -o output.bin
-CassoCli as65 input.a65 --dos-bin  -o output.bin
+# The default is the assembled bytes and nothing else. --flat pads out to a
+# full 64 KB image at the origin; --dos-bin writes a BLOAD-ready DOS 3.3 binary.
+CassoCli as65 input.a65 --flat     -ooutput.bin
+CassoCli as65 input.a65 --dos-bin  -ooutput.bin
 
 # Pre-define a symbol on the command line
-CassoCli as65 input.a65 -d DEBUG=1 -o output.bin
+CassoCli as65 input.a65 -dDEBUG=1 -ooutput.bin
 
 # Generate a listing with cycle counts
-CassoCli as65 input.a65 -c -l listing.txt
+CassoCli as65 input.a65 -c -llisting.txt
 
 # Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
 # The default is a strict 6502; 65C02-only opcodes are rejected without -x.
@@ -540,7 +533,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Symbol table | `-t` |
 | Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64 KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
-| Pre-defined symbols | `-dNAME` or `-dNAME=VALUE` (attached, as65-style) |
+| Pre-defined symbols | `-dNAME` or `-dNAME=VALUE` (attached, AS65-style) |
 | Debug info | `-g` (named for the source, `.dbg`) |
 | Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
 | Verbose / quiet | `-v` / `-q` |
@@ -557,7 +550,7 @@ against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502
 
 ## Assembler
 
-`CassoCli` is an as65-compatible 6502 / 65C02 cross-assembler with a built-in
+`CassoCli` is an AS65-compatible 6502 / 65C02 cross-assembler with a built-in
 runner. Every flag, directive, addressing mode and output format is documented
 in **[docs/Assembler.md](docs/Assembler.md)**.
 

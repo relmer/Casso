@@ -290,8 +290,8 @@ public:
         //  call. Only the first is worth saying: two candidate explanations
         //  for one refusal is what leaves a reader guessing.
         Assert::AreEqual (std::string ("a direct-boot payload must load between $0900 and "
-                                       "$BFFF -- page $08 carries the loader and $C000 is "
-                                       "not memory -- and $0300 was asked for"),
+                                       "$BFFF, because page $08 carries the loader and "
+                                       "$C000 is not memory, and $0300 was asked for"),
             refusal,
             L"the address is the reason; the size is a consequence of it");
 

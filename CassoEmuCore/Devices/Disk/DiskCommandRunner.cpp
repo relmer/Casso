@@ -171,7 +171,7 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 //  the wording and DiskCommandRunner for what assigns each one.
 //
 //  NOT THE IN-USE PROBE, THOUGH. A locked image is refused by name where it
-//  happens ("is open in another program -- close it and try again"), which is
+//  happens ("is open in another program. Close it and try again"), which is
 //  the report a user acts on; a paragraph restating that in the help was
 //  documentation of an error message.
 //
@@ -666,11 +666,11 @@ std::string DiskCommandRunner::DescribeSurface (const OpenedImage & opened)
 
     text += DetailLine ("boot sector",
                         bootCode
-                            ? "track 0 sector 0 carries code -- the drive's ROM reads\n"
+                            ? "track 0 sector 0 carries code. The drive's ROM reads\n"
                               "                that sector and jumps into it, so this image"
                               " boots something.\n                It simply keeps its files"
                               " somewhere this tool does not read"
-                            : "track 0 sector 0 is blank -- nothing here would boot");
+                            : "track 0 sector 0 is blank, so nothing here would boot");
 
     return text;
 }
@@ -944,7 +944,7 @@ std::string DiskCommandRunner::DescribeListingRefusal (
 
 
 
-    message += " -- ";
+    message += ": ";
 
     if (error.hasLineNumber)
     {
@@ -997,7 +997,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 {
     if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
     {
-        return "is locked on this volume -- unlock it on the disk before writing over it";
+        return "is locked on this volume. Unlock it on the disk before writing over it";
     }
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))
@@ -1008,7 +1008,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))
     {
-        return "is not a name this filesystem can store -- it must be a single "
+        return "is not a name this filesystem can store. It must be a single "
                "component starting with a letter, short enough for the catalog, "
                "and free of commas and control characters";
     }
@@ -1025,12 +1025,12 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))
     {
-        return "is a binary, which has to be told where it loads -- give --addr $XXXX";
+        return "is a binary, which has to be told where it loads. Give --addr $XXXX";
     }
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED))
     {
-        return "is a directory, and this tool does not go inside one -- so removing "
+        return "is a directory, and this tool does not go inside one, so removing "
                "it would strand everything beneath it";
     }
 
@@ -1047,7 +1047,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE))
     {
-        return "is not a program this volume's boot path launches -- on ProDOS that "
+        return "is not a program this volume's boot path launches. On ProDOS that "
                "means a file of type SYS, and not the kernel itself";
     }
 
@@ -1075,11 +1075,11 @@ std::string DiskCommandRunner::DescribeReplaceFailure (HRESULT hr)
 {
     if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
     {
-        return "is write-protected -- clear its read-only attribute and try again. "
+        return "is write-protected. Clear its read-only attribute and try again. "
                "Nothing was written";
     }
 
-    return "could not be replaced -- it may be read-only or in use";
+    return "could not be replaced. It may be read-only or in use";
 }
 
 
@@ -1156,7 +1156,7 @@ HRESULT DiskCommandRunner::CommitImage (
     // a near-miss from that table would read as a different problem in a log.
     CBRFEx (!stale, STG_E_NOTCURRENT,
             RefuseCommit (opened.imagePath,
-                          "changed since it was read -- nothing was written, read it "
+                          "changed since it was read. Nothing was written; read it "
                           "again and retry", result));
 
     // Step over anything already sitting at the name we would take. This is
@@ -1176,14 +1176,14 @@ HRESULT DiskCommandRunner::CommitImage (
 
     CBRFEx (foundFreeName, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS),
             RefuseCommit (opened.imagePath,
-                          "already has that many temporary files beside it -- remove them "
+                          "already has that many temporary files beside it. Remove them "
                           "and try again", result));
 
     progress.furthestAttempted = CommitPlan::Step::WriteTemporary;
 
     hr = m_fileIo.WriteAllBytes (tempPath, newImageBytes);
     CHRF (hr, RefuseCommit (opened.imagePath,
-                            "could not be written beside -- the folder may be read-only "
+                            "could not be written beside. The folder may be read-only "
                             "or full", result));
 
     progress.furthestAttempted = CommitPlan::Step::Replace;
@@ -1292,7 +1292,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     for (const std::string & note : listing.damage)
     {
         result.diagnostics += Failure (options.disk.imagePath, "",
-            note + " -- THIS LISTING IS INCOMPLETE, entries may be missing") + "\n";
+            note + ". THIS LISTING IS INCOMPLETE, entries may be missing") + "\n";
         result.exitStatus   = kWithComplaints;
     }
 
@@ -1379,7 +1379,7 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         default:
-            result.diagnostics += "unknown encoding -- try: --text, --basic, or neither\n";
+            result.diagnostics += "unknown encoding. Try: --text, --basic, or neither\n";
             result.exitStatus   = kNoOutput;
             hr                  = E_INVALIDARG;
             break;
@@ -1481,7 +1481,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     if (opened.report.HasDataLoss())
     {
         snprintf (note, sizeof (note),
-                  "%d sector(s) could not be decoded -- THIS FILE IS INCOMPLETE, "
+                  "%d sector(s) could not be decoded. THIS FILE IS INCOMPLETE, "
                   "unreadable sectors were delivered as zeros",
                   opened.report.GetUnrecoveredCount());
 
@@ -1611,7 +1611,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
     if (!recognized)
     {
-        result.diagnostics += "--type " + options.disk.typeName + " means nothing on this volume -- "
+        result.diagnostics += "--type " + options.disk.typeName + " means nothing on this volume: "
                             + (isDos ? "DOS 3.3 takes T, I, A, B or R"
                                      : "ProDOS takes TXT, BIN, BAS or SYS")
                             + "\n";
@@ -1743,7 +1743,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             break;
 
         default:
-            result.diagnostics += "unknown encoding -- try: --text, --basic, or neither\n";
+            result.diagnostics += "unknown encoding. Try: --text, --basic, or neither\n";
             result.exitStatus   = kNoOutput;
             hr                  = E_INVALIDARG;
             break;
@@ -1836,7 +1836,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     if (!named)
     {
-        result.diagnostics += "no host file named to place -- put takes the file to "
+        result.diagnostics += "no host file named to place. put takes the file to "
                               "copy onto the disk\n";
         result.exitStatus   = kNoOutput;
         BAIL_OUT_IF (true, E_INVALIDARG);
@@ -2007,7 +2007,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
 
     if (!named)
     {
-        result.diagnostics += "no program named to boot -- boot takes the file on the "
+        result.diagnostics += "no program named to boot. boot takes the file on the "
                               "disk to run after the operating system loads\n";
         result.exitStatus   = kNoOutput;
         BAIL_OUT_IF (true, E_INVALIDARG);
@@ -2050,7 +2050,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     if (!runnable)
     {
         result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
-            "is set as the startup program, but a booting DOS 3.3 RUNs its greeting -- "
+            "is set as the startup program, but a booting DOS 3.3 RUNs its greeting, "
             "which runs an Applesoft or Integer program. This file is neither, so the "
             "disk will boot without running it") + "\n";
 
@@ -2166,7 +2166,7 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         default:
-            result.diagnostics += "unknown disk verb -- try: " + DescribeAcceptedVerbs() + "\n";
+            result.diagnostics += "unknown disk verb. Try: " + DescribeAcceptedVerbs() + "\n";
             result.exitStatus   = kNoOutput;
             break;
     }

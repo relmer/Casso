@@ -1,10 +1,10 @@
 # Casso Assembler
 
-`CassoCli` is a 6502 / 65C02 cross-assembler with an as65-compatible command
+`CassoCli` is a 6502 / 65C02 cross-assembler with an AS65-compatible command
 line, plus a built-in runner that assembles and executes in one step.
 
-It is deliberately drop-in for [as65](http://www.kingswood-consulting.co.uk/assemblers/):
-an option omitted behaves the way as65's did, down to the `$FF` fill byte, the
+It is deliberately drop-in for [AS65](http://www.kingswood-consulting.co.uk/assemblers/):
+an option omitted behaves the way AS65's did, down to the `$FF` fill byte, the
 `$8000` load address and the full 64 KB output image. Existing scripts keep
 working; the modern conveniences are opt-in.
 
@@ -34,7 +34,7 @@ CassoCli --version
 **The dialect is named, not guessed.** `CassoCli as65 input.a65 -o out.bin` — the
 form before dialect support — no longer works; insert `as65` after the
 executable and nothing else changes. An unrecognized first argument used to be
-assumed to be an as65 source file, and a dialect the tool infers is a dialect
+assumed to be an AS65 source file, and a dialect the tool infers is a dialect
 nobody stated.
 
 The source file may be given without an extension, in which case `.a65`, `.asm`
@@ -50,7 +50,7 @@ the tool even if the rest of the command line mixes the two.
 usage is printed, the line naming the argument comes last, and the process
 exits 2 without assembling.
 
-Short flags concatenate as65-style, with a value-taking flag last:
+Short flags concatenate AS65-style, with a value-taking flag last:
 
 ```powershell
 CassoCli as65 input.a65 -tlfile        # same as -t -l file
@@ -137,10 +137,10 @@ shipped, and their opcode slots behave as NOPs.
 ### Accepted but not yet implemented
 
 Both are parsed and then read by no code, so passing them changes nothing.
-They exist so an as65 invocation is not refused outright. Tracked by
+They exist so an AS65 invocation is not refused outright. Tracked by
 [#118](https://github.com/relmer/Casso/issues/118).
 
-| Flag | as65 behavior | Casso today |
+| Flag | AS65 behavior | Casso today |
 |---|---|---|
 | `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored — and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
 | `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
@@ -324,7 +324,7 @@ CassoCli merlin <source> [flags]
 | `--flat` | Write a full 64 KB image with the bytes at their origin, padded with `$FF`. |
 
 **The default output is the assembled bytes and nothing around them** — not the
-64 KB image as65 writes. A Merlin source names its own origin, and Merlin's
+64 KB image AS65 writes. A Merlin source names its own origin, and Merlin's
 origin directive *relocates* rather than seeks, so one contiguous object can
 carry sections destined for several addresses; padding it out to an
 address-indexed image would scatter them.

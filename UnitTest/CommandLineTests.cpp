@@ -3,6 +3,7 @@
 #include "CommandLineHelp.h"
 #include "DialectHelp.h"
 #include "CommandLineParser.h"
+#include "UsageText.h"
 
 #include "CppUnitTest.h"
 
@@ -152,18 +153,21 @@ namespace CommandLineTests
         //  bare one was read as a source filename, so `CassoCli ?` went looking
         //  for a file called `?` and exited saying it could not open one.
         //
-        //  IT OPENS THE ASSEMBLER'S PAGE rather than the general one, and is the
-        //  only way there. The request belongs to as65, and assembling is as65
-        //  mode, so it lands on the page describing the grammar it comes from.
-        TEST_METHOD (BareQuestionMarkAlone_OpensTheAssemblersPage)
+        //  IT OPENS THE GENERAL PAGE, the same one every other form of the
+        //  request opens at this level, and it briefly did not. It went to the
+        //  assembler's page while a bare source file still assembled, which
+        //  made the top level as65 mode and a `?` typed there an as65 command
+        //  line. Assembling names its dialect now, so the top level names no
+        //  grammar and this is the same question `--help` asks.
+        TEST_METHOD (BareQuestionMarkAlone_OpensTheGeneralPage)
         {
             ArgVector           args = { "CassoCli", "?" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.showHelp);
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Help);
-            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
-                            L"a lone ? is as65's own usage request");
+            Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
+                            L"no subcommand was named, so no grammar's page is the answer");
             Assert::IsTrue (opts.inputFile.empty(), L"and it is not a source file to assemble");
         }
 
@@ -362,6 +366,50 @@ namespace CommandLineTests
                             L"and a run option on run's");
         }
 
+        //
+        //  EVERY GENERATED BLOCK FOLDS, AND FOLDS UNDER ITS OWN COLUMN.
+        //
+        //  The executable prints what these build, and it prints it through the
+        //  wrapper -- but it briefly did not for this one page, which went out
+        //  raw and kept its composed width whatever the terminal was. That is
+        //  invisible to a test of either half on its own: the composer is right,
+        //  the wrapper is right, and the page is wrong because the two were not
+        //  introduced. So the composition is checked THROUGH the wrapper here.
+        //
+        //  A continuation belongs under the first character of the text it
+        //  continues, which UsageText finds from the row's last gutter. A route
+        //  table that lost its gutter would still wrap, and would wrap to the
+        //  left margin, which is what turns a table back into a paragraph.
+        //
+        TEST_METHOD (TheGeneralPage_FoldsWithItsContinuationsUnderTheDescription)
+        {
+            std::string  page  = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
+            size_t       start = page.find ("  CassoCli as65 --help");
+            std::string  row;
+
+            Assert::IsTrue (start != std::string::npos, L"the route table is there to fold");
+
+            row = page.substr (start, page.find ('\n', start) - start);
+
+            //  Narrow enough that the description cannot fit beside the route,
+            //  so the row has to wrap and the indent is what is being asserted.
+            std::vector<std::string>  folded = UsageText::Wrap (row, 44);
+            size_t                    column = UsageText::ContinuationIndent (row);
+
+            Assert::IsTrue (folded.size() > 1, L"44 columns is narrower than this row");
+
+            for (size_t at = 1; at < folded.size(); at++)
+            {
+                Assert::AreEqual (column, folded[at].find_first_not_of (' '),
+                                  L"a continuation starts under the text it continues");
+            }
+
+            for (const std::string & line : folded)
+            {
+                Assert::IsTrue (line.size() <= 44, L"and nothing overhangs the terminal");
+            }
+        }
+
         //  Both prefixes, because the reader is answered in the one they typed.
         TEST_METHOD (EveryGeneratedPage_IsWrittenInThePrefixTheReaderTyped)
         {
@@ -513,10 +561,14 @@ namespace CommandLineTests
             CommandLineOptions  run    = ParseTyped ({ "CassoCli", "run",    "?" });
             CommandLineOptions  disk   = ParseTyped ({ "CassoCli", "disk",   "?" });
 
-            //  The top-level one lands on the assembler's page, because a bare
-            //  `?` IS as65's request and assembling is what as65 does.
+            //  THE TOP-LEVEL ONE LANDS ON THE GENERAL PAGE, and briefly did
+            //  not. It opened the assembler's while a bare source file still
+            //  assembled -- the top level was as65 mode then, so a `?` typed
+            //  there came from an as65 command line. Assembling names its
+            //  dialect now, so `CassoCli ?` names no grammar at all and is the
+            //  same question `CassoCli --help` asks.
             Assert::IsTrue (top.showHelp,    L"CassoCli ?");
-            Assert::IsTrue (top.helpPage    == CommandLineOptions::HelpPage::Assemble);
+            Assert::IsTrue (top.helpPage    == CommandLineOptions::HelpPage::General);
 
             Assert::IsTrue (as65.showHelp,   L"CassoCli as65 ?");
             Assert::IsTrue (as65.helpPage   == CommandLineOptions::HelpPage::Assemble);

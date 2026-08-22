@@ -131,7 +131,7 @@ public:
     //  is documenting the wrong surface.
     //
     static constexpr const char *  kInUseRefusalText =
-        "is open in another program -- close it and try again";
+        "is open in another program. Close it and try again";
 
     //
     //  What each status means when a `disk` command returns it.

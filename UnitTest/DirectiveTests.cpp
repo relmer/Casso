@@ -1505,7 +1505,7 @@ namespace DirectiveTests
             AssemblyResult  result = a.Assemble ("        .org $0300\n        .hex 0102\n");
 
             Assert::AreEqual ((size_t) 1, result.errors.size());
-            Assert::AreEqual (std::string ("Unknown directive: .HEX -- HEX is a directive belonging to "
+            Assert::AreEqual (std::string ("Unknown directive: .HEX. HEX is a directive belonging to "
                                            "the merlin dialect, not to as65"),
                               result.errors[0].message);
         }

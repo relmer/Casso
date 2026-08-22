@@ -1491,7 +1491,7 @@ void Dos33Volume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     {
         inOutOutcome.warnings.push_back (
             "the catalog did not parse completely, so an entry that could not be"
-            " read claims nothing this pass can see -- a sector it shares with the"
+            " read claims nothing this pass can see, and a sector it shares with the"
             " deleted file may have been freed while that entry still uses it");
     }
 }

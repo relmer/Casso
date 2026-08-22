@@ -249,11 +249,52 @@ void CommandLine::PrintDialectFlags (DialectId dialect, char prefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintExitCodes (const char * codes)
+void CommandLine::PrintExitCodes (const std::string & codes)
 {
     std::println ("");
     std::println ("Exit codes:");
-    std::println ("{}", codes);
+    PrintUsageBlock (codes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::InstalledGigabytes
+//
+//  How much memory is fitted, for the one help line that mentions it.
+//
+//  GetPhysicallyInstalledSystemMemory READS THE FIRMWARE'S OWN TABLES, so it
+//  answers 32 on a machine with 32 GB in it. GlobalMemoryStatusEx answers what
+//  the kernel is allowed to hand out, which is always less: the firmware
+//  reserved a slice before Windows counted. Both are rounded on the way out,
+//  because neither lands on the number printed on the module.
+//
+//  Zero when the OS declines to answer, and the sentence says "your machine"
+//  instead of inventing a size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unsigned CommandLine::InstalledGigabytes()
+{
+    ULONGLONG        kilobytes = 0;
+    MEMORYSTATUSEX   status    = { sizeof (MEMORYSTATUSEX) };
+    unsigned         answer    = 0;
+
+
+
+    if (GetPhysicallyInstalledSystemMemory (&kilobytes))
+    {
+        answer = CommandLineParser::RoundToInstalledSize (kilobytes * 1024ull);
+    }
+    else if (GlobalMemoryStatusEx (&status))
+    {
+        answer = CommandLineParser::RoundToInstalledSize (status.ullTotalPhys);
+    }
+
+    return answer;
 }
 
 
@@ -284,7 +325,7 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintUsageLine ("  <source>   An assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
 
     PrintSectionHeading ("AS65 compatibility");
-    PrintUsageLine ("  This assembler is an implementation of as65 and keeps 100% compatibility with as65's command-line patterns, so any as65 command line assembles here unchanged behind the `as65` word.");
+    PrintUsageLine ("  This assembler is an implementation of AS65 and keeps 100% compatibility with AS65's command-line patterns, so any AS65 command line assembles here unchanged behind the `as65` word.");
     std::println ("");
     PrintUsageLine (std::format ("  Single-letter switches chain into one argument, so {0}tlfile means {0}t {0}lfile. A switch taking a NUMBER can be followed inside the group, so {0}h80t means {0}h80 {0}t. One taking a NAME cannot, because the name would swallow whatever came after it.", sp));
     std::println ("");
@@ -292,9 +333,11 @@ void CommandLine::PrintAssemblePage (char prefix)
     std::println ("");
     PrintUsageLine (std::format ("  {0}o is the one switch where the space before its value is optional: {0}o prog.bin is taken as readily as {0}oprog.bin.", sp));
     std::println ("");
-    PrintUsageLine (std::format ("  {0}s2 is one switch rather than {0}s followed by a 2. The longest switch name that matches wins, which is how as65 reads it too.", sp));
-    std::println ("");
-    PrintUsageLine ("  A question mark with no switch character in front of it prints this page, which is as65's own usage request. It has to be the only thing after `as65`: with anything beside it, ? is an ordinary argument.");
+    //  The longest-match rule that makes `-s2` one switch is deliberately NOT
+    //  here. It only matters to a reader who thinks `-2` might be a switch of
+    //  its own, and nothing in this page has given them that idea -- so stating
+    //  it plants the question it then answers.
+    PrintUsageLine ("  A question mark with no switch character in front of it prints this page, which is AS65's own usage request. It has to be the only thing after `as65`: with anything beside it, ? is an ordinary argument.");
 
     PrintSectionHeading ("AS65 options");
     PrintDialectFlags (DialectId::As65, prefix);
@@ -309,7 +352,7 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}lprog.lst {0}c {0}t", sp));
     PrintUsageLine ("      Writes prog.lst alongside prog.bin: each source line with the bytes it generated and the cycles it costs, then the symbol table at the end.");
 
-    PrintExitCodes (CommandLineParser::kAssembleExitStatusHelpText);
+    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes()));
 }
 
 
@@ -352,9 +395,9 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintDialectFlags (DialectId::Merlin, prefix);
 
     PrintSectionHeading ("Supported subset");
-    PrintUsageLine ("  The absolute subset that needs no linker. Where support ends is reported by name rather than as a syntax error -- see docs/merlin-subset.md.");
+    PrintUsageLine ("  The absolute subset that needs no linker. Where support ends is reported by name rather than as a syntax error. See docs/merlin-subset.md.");
 
-    PrintExitCodes (CommandLineParser::kAssembleExitStatusHelpText);
+    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes()));
 }
 
 
@@ -404,7 +447,7 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
         break;
 
     default:
-        std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+        PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
         break;
     }
 }
@@ -458,7 +501,7 @@ void CommandLine::PrintRunPage (char prefix)
     PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp));
     PrintUsageLine ("      Assembles prog.a65, loads it at $8000, and runs until the PC reaches $6010 or ten thousand cycles have passed, whichever comes first.");
 
-    PrintExitCodes (CommandLineParser::kRunExitStatusHelpText);
+    PrintExitCodes (std::string (CommandLineParser::kRunExitStatusHelpText));
 }
 
 
@@ -526,7 +569,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
 
 
-    std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+    PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
     std::cerr << "\nCassoCli: '" << word << "' is not a subcommand.\n";
@@ -577,7 +620,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
         }
     }
 
-    std::print ("{}", CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
+    PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
     std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";

@@ -274,13 +274,13 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
     if (!wideRecovery.empty())
     {
         message += L" Your session was preserved here instead:\n\n" + wideRecovery +
-                   L"\n\nThat copy is complete -- it keeps the track that could not "
+                   L"\n\nThat copy is complete. It keeps the track that could not "
                    L"be written back. Mount it to carry on from where you were.";
     }
     else
     {
         message += L" Your recent writes were NOT persisted. If this is a .dsk, "
-                   L"try a .woz image -- WOZ round-trips writes reliably.";
+                   L"try a .woz image. WOZ round-trips writes reliably.";
     }
 
     return message;

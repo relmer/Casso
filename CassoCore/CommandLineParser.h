@@ -99,13 +99,30 @@ public:
     //  printing code is a claim nothing can check. `disk` keeps its own, beside
     //  the runner that assigns it -- see DiskCommandRunner.
     //
+    //  Status 4 is filled in at print time, so BuildAssembleExitCodes below is
+    //  what a page prints. This is the rest of it, and what a test reads when
+    //  the machine's memory is beside the point.
     static constexpr const char *  kAssembleExitStatusHelpText =
         "    0  Assembled successfully\n"
         "    1  Bad command line\n"
         "    2  Error opening source or output file\n"
         "    3  Error assembling source file\n"
-        "    4  Out of memory, says as65. 64K. On a machine with gigabytes. Sure.\n"
+        "    4  Out of memory, says AS65\n"
         "    5  Assembled with warnings";
+
+    //  The same table with 4 told properly, which needs a number this library
+    //  will not go and get for itself: the console executable asks the OS and
+    //  passes the answer in. Zero means it could not find out, and the line
+    //  falls back to saying "your machine" rather than inventing a size.
+    static std::string  BuildAssembleExitCodes (unsigned installedGigabytes);
+
+    //  Installed memory as a person would say it, from what the OS reports.
+    //
+    //  A machine with 32 GB fitted answers 31 or 34,359,738,368-minus-a-bit
+    //  depending on which API is asked and what the firmware reserved, and
+    //  "on your 31 GB machine" reads like a bug. Rounded UP to the next size
+    //  anybody actually buys.
+    static unsigned  RoundToInstalledSize (uint64_t bytes);
 
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  Ran to a stop: the stop address or the cycle limit\n"
@@ -164,9 +181,17 @@ public:
     // looking for "how do I get a listing" should find the listing flags
     // together rather than scanning one alphabetical run for the four that
     // apply.
+    //
+    //  WHAT IS ASSEMBLED AND WHAT SHAPE IT IS WRITTEN IN ARE TWO QUESTIONS, and
+    //  they were one category until a reader had to pick `-o`, `-x`, `-d`, `-s`,
+    //  `-s2`, `-z`, `--flat` and `--dos-bin` out of a single run of eight. The
+    //  formats are mutually exclusive with each other and with nothing else in
+    //  the list, which is exactly the sort of thing a heading says for free.
+    //
     enum class FlagCategory
     {
-        AssembledCode,   // what is assembled, and what is written out
+        AssembledCode,   // what is assembled
+        OutputFormat,    // and what shape it is written in -- pick one
         Listing,         // the human-readable listing
         Debug,           // symbol and debug files
         General,         // everything else about the run itself

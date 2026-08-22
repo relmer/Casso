@@ -88,5 +88,11 @@ private:
 
     static void    PrintPageBanner     (CommandLineOptions::Subcommand mode);
     static void    PrintDialectFlags   (DialectId dialect, char prefix);
-    static void    PrintExitCodes      (const char * codes);
+    static void    PrintExitCodes      (const std::string & codes);
+
+    //  How much memory this machine has fitted, for the one help line that
+    //  mentions it. The library composes the sentence and cannot ask the OS
+    //  itself, so the asking happens here, at the platform edge. Zero when
+    //  the OS declines to say.
+    static unsigned  InstalledGigabytes  ();
 };

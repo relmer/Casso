@@ -118,11 +118,11 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "x",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::AssembledCode, "",
-            "Use the 65C02 extensions. Without it the CMOS opcodes are rejected, which is the default" },
+            "Allow 65C02 instructions" },
     { "d",  CommandLineParser::ValueKind::SymbolDefinition, CommandLineParser::Attachment::AttachedOnly,
             "DEBUG=1",
             CommandLineParser::FlagCategory::AssembledCode, "<name>[=<value>]",
-            "Pre-define a symbol: -dFAST defines FAST as 1, -dFAST=2 defines it as 2, and a bare -d defines DEBUG as 1" },
+            "Define a symbol. If -d is specified alone, it defines DEBUG=1. If value is not given, it defaults to 1." },
     { "i",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::AssembledCode, "",
@@ -138,16 +138,19 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
             "Where the assembled bytes go. Defaults to <source>.bin, or <source>.s19 under -s and <source>.hex under -s2" },
     { "s2", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
             "",
-            CommandLineParser::FlagCategory::AssembledCode, "<file>",
+            CommandLineParser::FlagCategory::OutputFormat, "<file>",
             "Output Intel HEX format (.hex)" },
     { "s",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
             "",
-            CommandLineParser::FlagCategory::AssembledCode, "<file>",
+            CommandLineParser::FlagCategory::OutputFormat, "<file>",
             "Output S-record format (.s19)" },
     { "z",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
-            CommandLineParser::FlagCategory::AssembledCode, "",
-            "Fill unused space with $00 (default: $FF)" },
+            CommandLineParser::FlagCategory::OutputFormat, "",
+            // No long option is named here. A description is printed verbatim
+            // under whichever prefix the reader typed, so a `--flat` written
+            // into one leaks a dashed option onto a slash-prefixed page.
+            "Pad with $00 rather than $FF" },
 
     { "l",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
             "-",
@@ -421,6 +424,103 @@ int CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand mode)
 
 
     return startedNothing ? kNothingStarted : As65ExitStatus::kBadCommandLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::RoundToInstalledSize
+//
+//  Installed memory in gigabytes, as a person would say it.
+//
+//  WHAT THE OS REPORTS IS NOT WHAT IS FITTED. A machine with 32 GB in it
+//  answers something under 32: the firmware reserves a slice for itself before
+//  Windows ever counts, and the count is in bytes of 2^30 rather than the
+//  round number on the box. Printing that verbatim gives "on your 31 GB
+//  machine", which reads like a bug in the tool rather than a fact about the
+//  machine.
+//
+//  So the raw figure is rounded UP to the next size somebody actually buys.
+//  The ladder is doubling with the halfway steps that real modules produce
+//  (12, 24, 48, 96), and past the end of it the number is used as it comes --
+//  a host with more memory than this list anticipates is better served by an
+//  honest odd number than by a wrong round one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unsigned CommandLineParser::RoundToInstalledSize (uint64_t bytes)
+{
+    constexpr uint64_t  kGigabyte = 1024ull * 1024ull * 1024ull;
+    constexpr unsigned  kSizes[]  = { 1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 512, 1024 };
+    //  Rounded UP, so anything past a boundary lands on the next size rather
+    //  than the one below it: 32 GB fitted reports ~31.8 and must not become
+    //  24. Integer division truncates, so the remainder is carried by hand.
+    unsigned            whole     = (unsigned) (bytes / kGigabyte);
+    unsigned            rounded   = whole + ((bytes % kGigabyte) != 0 ? 1 : 0);
+
+
+
+    if (bytes == 0)
+    {
+        return 0;
+    }
+
+    for (unsigned size : kSizes)
+    {
+        if (rounded <= size)
+        {
+            return size;
+        }
+    }
+
+    return rounded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::BuildAssembleExitCodes
+//
+//  The assembler's exit codes, with status 4 told properly.
+//
+//  4 IS as65'S OUT-OF-MEMORY AND CANNOT HAPPEN HERE. It belongs to a 16-bit
+//  tool assembling out of a 640 KB real-mode heap; the line names the machine's
+//  own memory because the size of the gap is the whole joke, and because a
+//  reader who DOES somehow see a 4 should be told plainly that it is a bug.
+//
+//  Composed here rather than in the executable for the reason every other
+//  claim in this header is: the test assembly links this library and not that
+//  executable, so a sentence written beside the printing code is a sentence
+//  nothing can check. The one thing this cannot do for itself is ask the OS how
+//  much memory is fitted, so that number arrives as an argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabytes)
+{
+    std::string  machine = (installedGigabytes == 0)
+                               ? std::string ("your machine")
+                               : std::to_string (installedGigabytes) + " GB machine";
+    std::string  text;
+
+
+
+    text  = "    0  Assembled successfully\n";
+    text += "    1  Bad command line\n";
+    text += "    2  Error opening source or output file\n";
+    text += "    3  Error assembling source file\n";
+    text += "    4  Out of memory, says AS65, assembling your 64K binary. On your "
+          + machine + ". Sure. If you run out of memory doing 6502 assembly, "
+            "definitely open an issue, because something has gone *very* wrong :)\n";
+    text += "    5  Assembled with warnings";
+
+    return text;
 }
 
 
@@ -1032,7 +1132,7 @@ void CommandLineParser::ParseDiskOptions (
             else
             {
                 std::cerr << "Error: " << argv[i + 1]
-                          << " is not an address -- write it as $XXXX\n";
+                          << " is not an address. Write it as $XXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1065,7 +1165,7 @@ void CommandLineParser::ParseDiskOptions (
         if (arg.size() > 1 && arg[0] == '-')
         {
             std::cerr << "Error: unknown disk option: " << argv[i]
-                      << " -- try: " << DescribeDiskOptions() << "\n";
+                      << ". Try: " << DescribeDiskOptions() << "\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             continue;
@@ -1215,6 +1315,7 @@ const char * CommandLineParser::DescribeCategory (FlagCategory category)
     switch (category)
     {
         case FlagCategory::AssembledCode:  heading = "Assembled code:";  break;
+        case FlagCategory::OutputFormat:   heading = "Output formats (mutually exclusive):";  break;
         case FlagCategory::Listing:        heading = "Listing:";         break;
         case FlagCategory::Debug:          heading = "Debug:";           break;
         case FlagCategory::General:        heading = "General:";         break;
@@ -1975,10 +2076,10 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
                 NoteFlagPrefix ('/', options);
             }
 
-            std::cerr << "Error: " << longPrefix << "cpu is gone -- use "
+            std::cerr << "Error: " << longPrefix << "cpu is gone. Use "
                       << options.flagPrefix << "x for the 65C02.\n"
                       << "       " << options.flagPrefix
-                      << "x is as65's own name for the switch, and selects the same\n"
+                      << "x is AS65's own name for the switch, and selects the same\n"
                       << "       instruction set. The default is still a strict 6502.\n";
 
             options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -2030,12 +2131,12 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
             if (wantsValue != 0)
             {
-                std::cerr << "       If " << arg << " was meant as a value, as65 glues it to its option:\n"
+                std::cerr << "       If " << arg << " was meant as a value, AS65 glues it to its option:\n"
                           << "       " << previous << arg << ", not " << previous << " " << arg << ".\n";
             }
             else if (IsPlainDecimal (arg))
             {
-                std::cerr << "       If " << arg << " was meant as a value, as65 glues every value to its\n"
+                std::cerr << "       If " << arg << " was meant as a value, AS65 glues every value to its\n"
                           << "       option, with no space between them.\n";
             }
 
@@ -2263,7 +2364,7 @@ void CommandLineParser::AddSymbolDefinition (const std::string & definition,
             std::cerr << "Error: " << options.flagPrefix << "d cannot read `"
                       << text << "` as a value.\n"
                       << "       Write it as a decimal or 0x-prefixed number, or leave the\n"
-                      << "       `=` off entirely -- a name on its own is defined as 1.\n";
+                      << "       `=` off entirely: a name on its own is defined as 1.\n";
         }
     }
 
@@ -3253,16 +3354,21 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
         options.subcommand = CommandLineOptions::Subcommand::Help;
         options.showHelp   = true;
 
-        //  A LONE `?` OPENS THE ASSEMBLER'S PAGE, and is the only thing that
-        //  does. It is as65's own usage request, and assembling IS as65 mode,
-        //  so the request lands on the page describing the grammar it comes
-        //  from. Every other form asks for the general page. The `argc == 2`
-        //  condition is already spent above, so a `?` reaching here was the
-        //  whole command line.
-        if (first == "?")
-        {
-            options.helpPage = CommandLineOptions::HelpPage::Assemble;
-        }
+        //  A LONE `?` ASKS FOR THE GENERAL PAGE, like every other form of the
+        //  request at this level, because at this level no grammar has been
+        //  named yet.
+        //
+        //  It used to open the assembler's page, and that was right while it
+        //  was written: a bare source file assembled, so the top level WAS
+        //  as65 mode and a `?` typed there came from an as65 command line.
+        //  Assembling names its dialect now. The top level selects a mode and
+        //  runs nothing, so `CassoCli ?` and `CassoCli --help` are one
+        //  question -- somebody who named no subcommand -- and answering them
+        //  with different pages sent one of the two to a grammar they had not
+        //  entered, which never mentions that merlin, run and disk exist.
+        //
+        //  as65 compatibility is unaffected: `CassoCli as65 ?` is where that
+        //  command line lives, and the general page's second line says so.
     }
     else if (isVer)
     {

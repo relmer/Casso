@@ -141,8 +141,8 @@ namespace As65ExitStatusTests
 
             Assert::IsTrue (help.find ("    4  ") != std::string::npos,
                             L"4 is documented, because a ported script may test for it");
-            Assert::IsTrue (help.find ("as65") != std::string::npos,
-                            L"and attributed, because it is as65's status and not this tool's");
+            Assert::IsTrue (help.find ("AS65") != std::string::npos,
+                            L"and attributed, because it is AS65's status and not this tool's");
 
             Assert::AreNotEqual (4, As65ExitStatus::kClean);
             Assert::AreNotEqual (4, As65ExitStatus::kBadCommandLine);

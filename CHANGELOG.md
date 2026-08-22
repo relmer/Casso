@@ -11,7 +11,7 @@ Entries before versioning was introduced use dates only.
 ## [1.19.0] — disk file access + breaking command-line changes
 
 ### Added
-- **PowerShell no longer breaks an ordinary as65 command line.** `CassoCli
+- **PowerShell no longer breaks an ordinary AS65 command line.** `CassoCli
   prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
   parameter name cannot contain a dot, and the tool used to refuse it and
   explain the shell to a user who had typed it correctly. The halves are now
@@ -23,28 +23,30 @@ Entries before versioning was introduced use dates only.
   `-o` could always be written `-o prog.bin`, and those three had no separated
   form to fall back on. With the repair in place the help no longer explains the
   shell at all, and simply states that the space after `-o` is optional.
-- **Exit code 4 is documented, and is never returned.** as65 spends it on a
-  failed allocation, so a script ported from as65 may still test for it, and a
+- **Exit code 4 is documented, and is never returned.** AS65 spends it on a
+  failed allocation, so a script ported from AS65 may still test for it, and a
   list jumping from 3 to 5 left its author guessing whether the status had been
-  renumbered or folded into another. It is named as as65's, with the reason it
+  renumbered or folded into another. It is named as AS65's, with the reason it
   cannot arrive here.
 - **`-n` names the issue that tracks it.** It is accepted and does nothing; the
   page said "no-op", which is a status a reader cannot check from a help page.
   It now points at https://github.com/relmer/Casso/issues/118.
-- **`-x` selects the 65C02 extensions.** as65 names this switch and calls the
+- **`-x` selects the 65C02 extensions.** AS65 names this switch and calls the
   set 65SC02; the table installed here is the 65C02 one, carrying
   RMB/SMB/BBR/BBS. The flag was not accepted before: it fell through to the
   unknown-flag warning and was dropped, so the source then failed to assemble on
   a strict 6502 and the diagnostic named the opcode rather than the flag that
-  would have allowed it. It packs with the other as65 flags (`-xq`) and takes
+  would have allowed it. It packs with the other AS65 flags (`-xq`) and takes
   either prefix. It replaces `--cpu`, which is withdrawn — see below.
-- **A bare `?` shows the usage text.** as65 prints its help when the only
+- **A bare `?` shows the usage text.** AS65 prints its help when the only
   parameter is a question mark. `-?` and `/?` already worked; the unadorned one
   was read as a source filename, so `CassoCli ?` went looking for a file called
   `?` and exited saying it could not open one. Every subcommand takes it too —
-  `CassoCli as65 ?` is where an as65 user types it now that assembling names its
-  dialect, and `merlin`, `run` and `disk` answer with their own pages. Only the
-  single-argument case changed — `?` alongside anything else is still an
+  `CassoCli as65 ?` is where an AS65 user types it now that assembling names its
+  dialect, and `merlin`, `run` and `disk` answer with their own pages. Typed
+  alone it opens the general page, like every other form of the request at that
+  level: no subcommand has been named, so no grammar's page is the answer. Only
+  the single-argument case changed — `?` alongside anything else is still an
   ordinary argument, because a question mark further along a command line is
   somebody's operand, and a DOS 3.3 catalog will hold a file called `?`.
 - **A `disk` subcommand: read files off an Apple II disk image and put them
@@ -115,18 +117,18 @@ Entries before versioning was introduced use dates only.
   carries, so the result is ready to `BLOAD` once placed on a disk.
 
 ### Changed
-- **The assembler's exit codes now match as65's exactly.** as65 documents
+- **The assembler's exit codes now match AS65's exactly.** AS65 documents
   `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
   an assembly that warned and put the bad command line under 2 with everything
-  else that opened no file. So a script ported from as65 read a warning as a
+  else that opened no file. So a script ported from AS65 read a warning as a
   command-line error and a command-line error as a missing file. 0 through 3 are
-  as65's meanings now, warnings report **5**, and 4 stays unused because as65
+  AS65's meanings now, warnings report **5**, and 4 stays unused because AS65
   spends it on an out-of-memory this tool cannot reach. Naming no source file at
   all is 1 rather than 2 for the same reason: nothing was opened because nothing
   was named. **This is a breaking change for any script branching on 1 or 2.**
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
-  now means what `-oprog.bin` means. That accepts MORE than as65 does and never
-  less, so every as65 command line still reads exactly as as65 reads it. What
+  now means what `-oprog.bin` means. That accepts MORE than AS65 does and never
+  less, so every AS65 command line still reads exactly as AS65 reads it. What
   earns it is a shell rather than a preference: PowerShell parses a token
   beginning with a single `-` as a parameter name, a parameter name may not
   contain a dot, and so it cuts `-oprog.bin` into `-oprog` and `.bin` before
@@ -136,7 +138,7 @@ Entries before versioning was introduced use dates only.
   `-oC:\out\prog.bin` arrives whole and works while the relative name beside it
   does not. No other shell does any of this — cmd.exe, bash, make and any
   argument array pass the token whole. **`-o` only.** `-l`, `-d`, `-w` and `-g`
-  each have a bare form as65 documents, so for them a following word is
+  each have a bare form AS65 documents, so for them a following word is
   genuinely ambiguous with that bare reading and telling the two apart would
   take a guess; `-o` has no bare form, which is what leaves nothing to guess
   about. An `-o` with nothing at all after it is still refused.
@@ -146,7 +148,7 @@ Entries before versioning was introduced use dates only.
   where a reader who had scrolled past the flags never arrived. The general
   page is now twenty lines: what the tool is, one line per mode, the route to
   each mode's page, and the loop from source to a program running in the
-  emulator. `CassoCli ?` opens the assembler's page — that is as65's own
+  emulator. `CassoCli ?` opens the assembler's page — that is AS65's own
   convention, usage when the only parameter is a question mark, and assembling
   is as65 mode — while `CassoCli run --help` and `CassoCli disk --help` open
   theirs. `-?`, `-h` as the first argument, `--help`, the `/` form of each,
@@ -159,7 +161,7 @@ Entries before versioning was introduced use dates only.
   listing options nest under assembly, since neither applies to `run` or `disk`;
   the disk verbs lead with every form they accept (`cat | catalog | dir | list |
   ls`) rather than trailing aliases in an "also written" clause; and each group
-  carries its own example. The assembly page opens with an as65 compatibility
+  carries its own example. The assembly page opens with an AS65 compatibility
   section, stating the grammar rules that hold for every command line on it —
   single-letter switches chain into one argument, values attach with no space,
   and `-o` is the one whose value may be separated — instead of leaving them as
@@ -173,7 +175,7 @@ Entries before versioning was introduced use dates only.
   with exists only inside the assembler's flag walk, which neither grammar
   reaches. The assembler's own `-h` is unchanged: help as the first argument,
   the page height everywhere else.
-- **BREAKING: an assembly error now exits 3, where it used to exit 2.** as65
+- **BREAKING: an assembly error now exits 3, where it used to exit 2.** AS65
   spends 2 on "unable to open input or output file" and 3 on "assembly gave
   errors", and this assembler collapsed both into 2 — a source that could not
   be opened and a source full of errors each leave nothing to write, so one
@@ -184,7 +186,7 @@ Entries before versioning was introduced use dates only.
   with a warning, 2 no file — and `run` and `disk` are untouched, since their
   statuses were never the assembler's.
 - **BREAKING: every assembler value attaches to its flag. There are no
-  separated forms left.** as65 glues every parameter it takes — the manual
+  separated forms left.** AS65 glues every parameter it takes — the manual
   notates them `-d<name>`, `-h<lines>`, `-w<width>`, `-l<filename>`,
   `-o<filename>` — and each separated form Casso accepted was its own
   invention. **`-o prog.bin` becomes `-oprog.bin`**, and it is the one most
@@ -193,15 +195,15 @@ Entries before versioning was introduced use dates only.
   The same goes for `-l out.lst` → `-lout.lst`, `-d NAME` → `-dNAME`,
   `-w 100` → `-w100`, `-h 60` → `-h60`. A separated `-o` is refused with the
   form to type rather than a bare "unknown option", because nothing else about
-  the mistake tells you what is wrong. The bare forms as65 documents are
+  the mistake tells you what is wrong. The bare forms AS65 documents are
   untouched: `-l` alone still lists to stdout, `-w` alone is still 133 columns,
   `-d` alone still defines `DEBUG`. **`--flat`, `--dos-bin` and `-s2` are
-  untouched** — they are Casso's own, name output formats as65 has no equivalent for,
+  untouched** — they are Casso's own, name output formats AS65 has no equivalent for,
   and are deliberately kept.
 - **BREAKING: `--cpu` is withdrawn; `-x` selects the 65C02.** The two selected
-  the same instruction set, and `-x` is as65's own name for that switch — "Use
+  the same instruction set, and `-x` is AS65's own name for that switch — "Use
   65SC02 extensions" — so the tool carried two forms of one capability and
-  the as65-shaped one was what an as65 user would reach for. Both `--cpu` and
+  the AS65-shaped one was what an AS65 user would reach for. Both `--cpu` and
   `/cpu` are answered by name, pointing at `-x`, rather than falling into the
   generic unknown-option refusal: command lines carrying the flag already
   exist, and `/cpu` would otherwise be read as the concatenated `-c -p -u`.
@@ -212,14 +214,14 @@ Entries before versioning was introduced use dates only.
   rewording, or its guidance degrades to a bare "unknown option". This closes
   the deferred half of GH #118.
 - **BREAKING: a flag with a numeric value no longer swallows the rest of its
-  group.** as65: "no other option can follow one that may have a string
+  group.** AS65: "no other option can follow one that may have a string
   parameter. Other options can follow one that has a numeric parameter", with
   `-h80t` as its own worked example — 80 lines per page and a symbol table.
   `-h` and `-w` ran to the end of the argument and discarded whatever trailed,
   so `-h80t` produced a listing with **no** symbol table and reported success.
   They now consume exactly their digits and hand the rest back.
 - **BREAKING: an unrecognized assembler flag prints usage and assembles
-  nothing.** as65: "Help message if only parameter is a question mark, or if an
+  nothing.** AS65: "Help message if only parameter is a question mark, or if an
   illegal option has been specified." It was dropped with a warning while the
   assembly ran on and wrote its output at status 1 — a decision this project
   made deliberately and has now reversed, because a flag that does not parse is
@@ -229,18 +231,18 @@ Entries before versioning was introduced use dates only.
   tests for 1 to mean "a flag was ignored", there is no such status now**: the
   command line is refused and exits 2. The assembler's own page is the one
   printed, and the complaint goes to stderr while the page goes to stdout.
-- **BREAKING: `-g` takes no filename.** as65's entry for it is one sentence and
+- **BREAKING: `-g` takes no filename.** AS65's entry for it is one sentence and
   names no file, extension or format, so `-g out.dbg` and `-gout.dbg` are both
   gone. Bare `-g` still writes the source's name with a `.dbg` extension, which
-  is what it always did. **This removes a capability as65 never had rather than
+  is what it always did. **This removes a capability AS65 never had rather than
   matching one** — naming the debug file would need a form of Casso's own.
-  Note that `-gout.dbg` now parses as `-g -out.dbg` under as65 concatenation,
+  Note that `-gout.dbg` now parses as `-g -out.dbg` under AS65 concatenation,
   the same reading that makes `/out` mean `-o ut`.
 - **BREAKING: a bare `CassoCli` exits 1.** It printed the general page and
   exited 0, so a script invoking the tool with an argument variable that
   happened to be empty was told the run had worked. Asking for the page still
   exits 0; being shown it because nothing could be done is a command line that
-  could not be acted on, which is as65's status 1.
+  could not be acted on, which is AS65's status 1.
 - **BREAKING: exit statuses are documented per mode, because they differ.** The
   help stated one set of meanings and claimed it held everywhere. It did not:
   an assembly error exits **3** when a source file is assembled and **1** when
@@ -250,8 +252,8 @@ Entries before versioning was introduced use dates only.
   whichever mode its author was not picturing. Each mode's section now ends
   with its own list, and every line was measured by running the tool rather
   than carried over from the text it replaces. The assembler's list also names
-  as65's status 4, no memory could be allocated, and says outright that this
-  assembler does not produce it — so a script ported from as65 does not have to
+  AS65's status 4, no memory could be allocated, and says outright that this
+  assembler does not produce it — so a script ported from AS65 does not have to
   work out by experiment which status replaced it.
 - **`--out` typed at the assembler is refused instead of half-obeyed.** It
   warned `Unknown flag: --`, wrote the output to a file called `ut` in the
@@ -260,8 +262,8 @@ Entries before versioning was introduced use dates only.
   Every `--` option the assembly grammar does not have is now refused with a
   message naming it and pointing at `-o <file>`. `--out` remains the `disk`
   grammar's flag and `-o` the assembler's; they are deliberately not unified,
-  because as65 argument compatibility is what the assembly grammar exists for.
-  The `/` forms are untouched — `/oFILE` is the glued form as65 documents,
+  because AS65 argument compatibility is what the assembly grammar exists for.
+  The `/` forms are untouched — `/oFILE` is the glued form AS65 documents,
   so `/out` still means `-o ut`.
 - **`-o` typed at `disk` is refused instead of silently dropped.** `disk get
   img FILE -o out.bin` counted `-o` and `out.bin` as a third and fourth
@@ -300,7 +302,7 @@ Entries before versioning was introduced use dates only.
   `read` and `write` alias `get` and `put`. `ls` and `rm` already worked. The
   primary verbs are unchanged.
 - **An explicit output-format flag now wins over the filename's extension.**
-  Extension matching remains as the fallback when no flag is given, so as65-era
+  Extension matching remains as the fallback when no flag is given, so AS65-era
   scripts naming a `.s19` or `.hex` output keep working. Previously the
   extension always won, which meant `-s -o out.dat` silently wrote a flat
   binary despite the flag asking for an S-record.
@@ -351,7 +353,7 @@ Entries before versioning was introduced use dates only.
   mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
   mentioning `extra`. Each is now refused at the status its own mode documents
   for a command line that was refused — **1** for the assembling modes, which
-  is as65's "incorrect parameter specified on the commandline", and **2** for
+  is AS65's "incorrect parameter specified on the commandline", and **2** for
   `run` and `disk`, which have no such status and call it having started
   nothing. Nothing is assembled, nothing run, and nothing written. The message
   names the argument, and where the likely cause is visible it names that too:
@@ -367,17 +369,17 @@ Entries before versioning was introduced use dates only.
   a refusal, because its runner assigns its own statuses. The decision now
   lives in the library beside the tables that document it, where the test
   assembly can reach it; it was previously made in `main`, which nothing links.
-  Merlin was not refusing a second source file at all — as65 stopped discarding
+  Merlin was not refusing a second source file at all — AS65 stopped discarding
   one and Merlin kept doing it — so the same mistake was an error in one
   grammar and silent in the other. It is an error in both.
-- **A bare `-h` is refused rather than silently doing nothing.** as65 documents
+- **A bare `-h` is refused rather than silently doing nothing.** AS65 documents
   the bare form of `-w` — "If the -w option is given without a number following
   it, then the listing will be 133 columns wide" — and documents no bare form
   of `-h` on the same page. Casso accepted one and ignored it: the page height
   kept whatever it already had, and the flag might as well not have been typed.
   It now says so and names `-h0`, which is the real form for no page breaks
   at all. `-h` as the FIRST argument is still the help request. The four bare
-  forms as65 does document — `-w`, `-l`, `-d`, `-g` — are unchanged.
+  forms AS65 does document — `-w`, `-l`, `-d`, `-g` — are unchanged.
 - **A value that cannot be read is refused instead of being replaced.**
   `disk put img prog.bin --addr zzz` dropped the address and then answered "is
   a binary, which has to be told where it loads — give `--addr $XXXX`" to
@@ -390,7 +392,7 @@ Entries before versioning was introduced use dates only.
   `--addr`" and then listed `--addr` among the options to try instead. Both the
   `disk` and `run` grammars now say the option needs a value.
 - **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
-  as65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
+  AS65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
   defined nothing at all, because it took whatever followed unconditionally —
   and the two things that follow a flag are the source file and the next flag.
   `CassoCli -d prog.a65` defined a label called `prog.a65` and then reported
@@ -422,10 +424,10 @@ Entries before versioning was introduced use dates only.
   listing title the way a `.page` directive already did. No `-h` still means
   one continuous page, so existing listings are unchanged.
 - **A bare `-w` selects the 133-column listing the help has always said it
-  selects**, which it previously did not. That bare form is as65's own:
+  selects**, which it previously did not. That bare form is AS65's own:
   "If the -w option is given without a number following it, then the listing
   will be 133 columns wide."
-- **The default listing width is 79, not 80.** as65: "Normally, the listing is
+- **The default listing width is 79, not 80.** AS65: "Normally, the listing is
   printed using 79 columns for output to a 80-column screen or printer." 80 is
   the width of the screen, not of the listing — it is the one column that does
   not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift

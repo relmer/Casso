@@ -15,6 +15,7 @@
 static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
 {
     CommandLineParser::FlagCategory::AssembledCode,
+    CommandLineParser::FlagCategory::OutputFormat,
     CommandLineParser::FlagCategory::Listing,
     CommandLineParser::FlagCategory::Debug,
     CommandLineParser::FlagCategory::General,
@@ -40,7 +41,7 @@ static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
 
 std::string DialectHelp::GetAllDialects (char flagPrefix)
 {
-    std::string  text = "\nDialects -- the assembler the source is written for, named rather than guessed:\n";
+    std::string  text = "\nDialects (the assembler the source is written for, named rather than guessed):\n";
 
 
 
@@ -176,9 +177,11 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
             group += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
         }
 
-        // The output formats are assembled-code options and print with them,
-        // rather than in a section of their own that says the same thing.
-        if (category == CommandLineParser::FlagCategory::AssembledCode)
+        // The long-option formats print under the same heading as `-s` and
+        // `-s2`, because they answer the same question and only one of the
+        // four can be asked. They used to sit with the assembled-code flags,
+        // which left a reader picking the formats out of a run of eight.
+        if (category == CommandLineParser::FlagCategory::OutputFormat)
         {
             for (const CommandLineParser::OutputFormatFlag & format : formats)
             {
