@@ -13,6 +13,11 @@ Ka 0 0 0
 Kd 0.806 0.762 0.648
 d 1
 
+newmtl frame
+Ka 0 0 0 
+Kd 0.135 0.13 0.15
+d 1
+
 newmtl plate_pebbled
 Ka 0 0 0 
 Kd 0.135 0.13 0.15
@@ -21,11 +26,6 @@ d 1
 newmtl plate
 Ka 0 0 0 
 Kd 0.1 0.1 0.11
-d 1
-
-newmtl frame
-Ka 0 0 0 
-Kd 0.135 0.13 0.15
 d 1
 
 newmtl slot

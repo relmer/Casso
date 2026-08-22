@@ -155,37 +155,64 @@ static constexpr float   s_kDiskIiEjectMax[3] = { 141.0f,  3.0f, 70.3f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 220.0f, 96.0f };
 
-// Write-protect padlock stamp on the drive faceplate (model mm): brass body
-// with a shackle arch and a keyhole, top-right beside the badge row like
-// the 2D widget's badge. Flat proud quads like the brand stamp; each layer
-// floats a hair nearer the viewer than the one it sits on so depth never
-// ties.
-// Set from the top-right corner it belongs to, so the whole badge -- shackle
-// included -- clears the edges by the face margin. Its own proportions are
-// what everything else is measured off.
-static constexpr float   s_kPadlockBodyW     = 10.0f;
-static constexpr float   s_kPadlockBodyH     = 9.5f;
-static constexpr float   s_kPadlockArchH     = 6.2f;
-static constexpr float   s_kPadlockBodyX1    = 155.0f - s_kFaceMarginMm;
+// Write-protect padlock stamp on the drive faceplate (model mm), top-right
+// like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
+// layer floats a hair nearer the viewer than the one it sits on, so depth
+// never ties.
+//
+// DRAWN AS THE SHAPES A PADLOCK IS MADE OF rather than as bars. It had been
+// three straight quads for a square-cornered arch, a square-cornered body,
+// and a rectangular slot -- none of which a padlock has. The badge is ten
+// millimeters across, so it has no room for detail; what it has instead is
+// silhouette, and a padlock's silhouette is a round-topped U behind a
+// soft-cornered body. Squared off it read as a briefcase.
+//
+// Everything below is a proportion, so the badge stays a badge if it moves or
+// resizes. Its outer edges are set FROM the corner it holds, less the
+// outline, so the face margin applies to what is actually visible.
+
+// The outline that separates brass from the black face it sits on. Without
+// one the badge's own edge is the only boundary, and a dark brass edge
+// against a black plate has almost nothing to be a boundary WITH.
+static constexpr float   s_kPadlockOutlineMm = 0.30f;
+
+static constexpr float   s_kPadlockBodyW     = 10.2f;
+static constexpr float   s_kPadlockBodyH     =  9.4f;
+static constexpr float   s_kPadlockArchH     =  6.4f;
+static constexpr float   s_kPadlockBodyX1    = 155.0f - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kPadlockBodyX0    = s_kPadlockBodyX1 - s_kPadlockBodyW;
-static constexpr float   s_kPadlockArchZ1    = 96.0f - s_kFaceMarginMm;
+static constexpr float   s_kPadlockArchZ1    = 96.0f - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kPadlockBodyZ1    = s_kPadlockArchZ1 - s_kPadlockArchH;
 static constexpr float   s_kPadlockBodyZ0    = s_kPadlockBodyZ1 - s_kPadlockBodyH;
-static constexpr float   s_kPadlockLegW      = 1.7f;
-static constexpr float   s_kPadlockArchInset = 1.5f;
-static constexpr float   s_kPadlockHoleX0    = s_kPadlockBodyX0 + 4.4f;
-static constexpr float   s_kPadlockHoleX1    = s_kPadlockBodyX0 + 5.6f;
-static constexpr float   s_kPadlockHoleZ0    = s_kPadlockBodyZ0 + 2.3f;
-static constexpr float   s_kPadlockHoleZ1    = s_kPadlockBodyZ0 + 6.2f;
+static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners
+static constexpr float   s_kPadlockShackleR  =  3.05f;   // the U's outer radius
+static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickness
+// A BIG bore over a SHORT slot. The proportions decide whether this reads as
+// a keyhole or as an arrow, and a small bore over a long tapering slot is an
+// arrow every time -- the barbs where the two meet are the whole of what the
+// eye picks up at four pixels across. Keeping the slot shorter than the bore
+// is wide leaves the bore as the shape, and the slot as a notch under it.
+static constexpr float   s_kPadlockHoleR     =  1.35f;   // the keyhole's bore
+static constexpr float   s_kPadlockHoleCz    = s_kPadlockBodyZ0 + 5.5f;
+static constexpr float   s_kPadlockHoleZ0    = s_kPadlockBodyZ0 + 2.9f;
+
+// One rasterization cell, in mm. Small enough that the badge's outlines land
+// under a screen pixel at any zoom the scene offers.
+static constexpr float   s_kPadlockCellMm    = 0.05f;
+
+static constexpr float   s_kPadlockOutlineY  = -1.90f;
 static constexpr float   s_kPadlockShackleY  = -1.95f;
 static constexpr float   s_kPadlockBodyY     = -2.00f;
 static constexpr float   s_kPadlockHoleY     = -2.05f;
+
 // Slack around the padlock's hit box: the badge is ~10 mm across and the
 // tooltip should answer a deliberate hover, not demand marksmanship.
 static constexpr float   s_kPadlockHitPadMm  = 2.5f;
-static constexpr float   s_kPadlockFill[3]   = { 0.847f, 0.718f, 0.416f };   // warm brass
-static constexpr float   s_kPadlockShade[3]  = { 0.478f, 0.376f, 0.149f };   // darker brass
-static constexpr float   s_kPadlockHole[3]   = { 0.165f, 0.129f, 0.035f };   // keyhole
+
+static constexpr float   s_kPadlockFill[3]    = { 0.847f, 0.718f, 0.416f };   // warm brass
+static constexpr float   s_kPadlockShade[3]   = { 0.478f, 0.376f, 0.149f };   // darker brass
+static constexpr float   s_kPadlockHole[3]    = { 0.165f, 0.129f, 0.035f };   // keyhole
+static constexpr float   s_kPadlockOutline[3] = { 0.086f, 0.070f, 0.035f };   // near-black brass
 
 
 
@@ -1114,15 +1141,31 @@ void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
 //  DeskSceneModel::BuildPadlockStamp
 //
 //  The write-protect cue: a small brass padlock on the drive faceplate,
-//  right of the IN-USE LED -- the 2D widget's badge carried into the model.
+//  top-right of the plate -- the 2D widget's badge carried into the model.
 //  Flat unlit quads (brand-stamp style) so the brass reads exactly; the
 //  scene draws them only while the mounted disk is protected.
+//
+//  Every piece is an analytic SHAPE rasterized into horizontal runs, not a
+//  quad standing in for one. The badge is ten millimeters across, so it has
+//  no room for detail -- what it has instead is silhouette, and a padlock's
+//  silhouette is round-topped and soft-cornered. Squared off, it read as a
+//  briefcase.
+//
+//  Drawn back to front: outline, shackle, body, keyhole. The shackle's legs
+//  run down INSIDE the body, which is why the body has to cover them rather
+//  than meet them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskSceneModel::BuildPadlockStamp()
 {
-    auto pushQuad = [this] (float x0, float z0, float x1, float z1, float y, const float rgb[3])
+    const float  cx     = (s_kPadlockBodyX0 + s_kPadlockBodyX1) * 0.5f;
+    const float  archCz = s_kPadlockArchZ1 - s_kPadlockShackleR;
+    const float  innerR = s_kPadlockShackleR - s_kPadlockShackleT;
+
+
+
+    auto  pushRun = [this] (float x0, float x1, float z0, float z1, float y, const float rgb[3])
     {
         Dxui3DRenderer::Vertex   quad[6] = {};
 
@@ -1136,19 +1179,117 @@ void DeskSceneModel::BuildPadlockStamp()
         m_padlock.insert (m_padlock.end(), quad, quad + 6);
     };
 
-    float   legX0 = s_kPadlockBodyX0 + s_kPadlockArchInset;
-    float   legX1 = s_kPadlockBodyX1 - s_kPadlockArchInset;
+    // Scans the badge's bounding box a cell at a time and merges each row's
+    // covered span into one quad, which is the same trick the text and brand
+    // stamps use -- a curve costs a few more runs, not a triangle per cell.
+    auto  rasterize = [&pushRun] (float y, const float rgb[3], auto && inside)
+    {
+        float  x0   = s_kPadlockBodyX0 - s_kPadlockOutlineMm;
+        float  x1   = s_kPadlockBodyX1 + s_kPadlockOutlineMm;
+        float  z0   = s_kPadlockBodyZ0 - s_kPadlockOutlineMm;
+        float  z1   = s_kPadlockArchZ1 + s_kPadlockOutlineMm;
+        int    cols = (int) std::ceil ((x1 - x0) / s_kPadlockCellMm);
+        int    rows = (int) std::ceil ((z1 - z0) / s_kPadlockCellMm);
 
+        for (int row = 0; row < rows; row++)
+        {
+            float  zTop = z1 - (float) row * s_kPadlockCellMm;
+            float  zMid = zTop - s_kPadlockCellMm * 0.5f;
+            int    col  = 0;
 
+            while (col < cols)
+            {
+                int  start = col;
 
-    // Shackle: two legs rising from the body, bridged by the arch bar.
-    pushQuad (legX0, s_kPadlockBodyZ1, legX0 + s_kPadlockLegW, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
-    pushQuad (legX1 - s_kPadlockLegW, s_kPadlockBodyZ1, legX1, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
-    pushQuad (legX0, s_kPadlockArchZ1 - s_kPadlockLegW, legX1, s_kPadlockArchZ1, s_kPadlockShackleY, s_kPadlockShade);
+                while (col < cols &&
+                       inside (x0 + ((float) col + 0.5f) * s_kPadlockCellMm, zMid))
+                {
+                    col++;
+                }
 
-    // Body, then the keyhole floating on it.
-    pushQuad (s_kPadlockBodyX0, s_kPadlockBodyZ0, s_kPadlockBodyX1, s_kPadlockBodyZ1, s_kPadlockBodyY, s_kPadlockFill);
-    pushQuad (s_kPadlockHoleX0, s_kPadlockHoleZ0, s_kPadlockHoleX1, s_kPadlockHoleZ1, s_kPadlockHoleY, s_kPadlockHole);
+                if (col > start)
+                {
+                    pushRun (x0 + (float) start * s_kPadlockCellMm,
+                             x0 + (float) col * s_kPadlockCellMm,
+                             zTop - s_kPadlockCellMm, zTop, y, rgb);
+                    continue;
+                }
+
+                col++;
+            }
+        }
+    };
+
+    // The U: an annulus above its center, two straight legs below it. The
+    // legs run PAST the body's top edge, so the body covers their ends and
+    // the shackle reads as passing into it rather than resting on it.
+    auto  shackle = [&] (float x, float z, float grow)
+    {
+        float  dx = x - cx;
+
+        if (z >= archCz)
+        {
+            float  r = std::sqrt (dx * dx + (z - archCz) * (z - archCz));
+
+            return r >= innerR + grow && r <= s_kPadlockShackleR + grow;
+        }
+
+        return z >= s_kPadlockBodyZ1 - 1.5f &&
+               std::fabs (dx) >= innerR + grow && std::fabs (dx) <= s_kPadlockShackleR + grow;
+    };
+
+    // The body: a rounded rectangle, as the distance from the rect its
+    // corner centers describe.
+    auto  body = [] (float x, float z, float grow)
+    {
+        float  r  = s_kPadlockCornerR;
+        float  ix = (std::min) (s_kPadlockBodyX1 - r, (std::max) (s_kPadlockBodyX0 + r, x));
+        float  iz = (std::min) (s_kPadlockBodyZ1 - r, (std::max) (s_kPadlockBodyZ0 + r, z));
+        float  dx = x - ix;
+        float  dz = z - iz;
+
+        return dx * dx + dz * dz <= (r + grow) * (r + grow);
+    };
+
+    // The keyhole: a bore with a tapered ward slot hanging under it.
+    auto  keyhole = [&] (float x, float z)
+    {
+        float  dx = x - cx;
+
+        if (z >= s_kPadlockHoleCz)
+        {
+            return dx * dx + (z - s_kPadlockHoleCz) * (z - s_kPadlockHoleCz)
+                   <= s_kPadlockHoleR * s_kPadlockHoleR;
+        }
+
+        {
+            // Barely tapered, and always well inside the bore. Flared it
+            // read as an ARROWHEAD -- a disc over a widening triangle is
+            // an arrow before it is a keyhole. What makes it one is the
+            // bore overhanging a slot narrower than itself the whole way.
+            float  t  = (s_kPadlockHoleCz - z) / (s_kPadlockHoleCz - s_kPadlockHoleZ0);
+            float  hw = s_kPadlockHoleR * (0.46f + 0.10f * t);
+
+            return z >= s_kPadlockHoleZ0 && std::fabs (dx) <= hw;
+        }
+    };
+
+    rasterize (s_kPadlockOutlineY, s_kPadlockOutline, [&] (float x, float z)
+    {
+        return shackle (x, z, s_kPadlockOutlineMm) || body (x, z, s_kPadlockOutlineMm);
+    });
+
+    rasterize (s_kPadlockShackleY, s_kPadlockShade, [&] (float x, float z)
+    {
+        return shackle (x, z, 0.0f);
+    });
+
+    rasterize (s_kPadlockBodyY, s_kPadlockFill, [&] (float x, float z)
+    {
+        return body (x, z, 0.0f);
+    });
+
+    rasterize (s_kPadlockHoleY, s_kPadlockHole, keyhole);
 }
 
 
@@ -1205,29 +1346,29 @@ void DeskSceneModel::RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> 
 // standing at the drive.
 static const char * const  s_kDiskWordmark[] =
 {
-    "..............................................................#######.#######",
+    "....................######....................................#######.#######",
     ".............######.######...............######...............#######.#######",
     ".............######.######...............######...............#######.#######",
     ".............######.######...............######...............#######.#######",
-    ".............######.######...............######...............#######.#######",
-    ".............######.######.....########..######....#####........#####.#####..",
-    ".....#######.######.######...###########.######...#######.......#####.#####..",
-    "....########.######.######..############.######...#######.......#####.#####..",
-    "...#########.######.######.#############.######...#######.......#####.#####..",
-    "..##########.######.######.#############.######..#######........#####.#####..",
-    ".###########.######.######.#############.###############........#####.#####..",
-    ".########....######.######.#####.........##############.........#####.#####..",
-    "#######......######.######.###########...#############..........#####.#####..",
-    "######.......######.######.############..#############..........#####.#####..",
-    "######.......######.######..############.##############.........#####.#####..",
-    "######.......######.######..############.###############........#####.#####..",
-    "#######......######.######....##########.######...#######.......#####.#####..",
-    "########.....######.######..############.######...#######.......#####.#####..",
-    ".##################.######.#############.######...#######.....#######.#######",
-    ".##################.######.#############.######...#######.....#######.#######",
-    "..#################.######.#############.######...#######.....#######.#######",
-    "...################.######.############..######....######.....#######.#######",
-    ".....##############.######.##########.....#####....#####.....................",
+    ".............######......................######...............#######.#######",
+    ".............######............########..######.......#####.....#####.#####..",
+    ".....#######.######.######...###########.######......#####......#####.#####..",
+    "....########.######.######..############.######....#####........#####.#####..",
+    "...#########.######.######.#############.######...#####.........#####.#####..",
+    "..##########.######.######.#############.######.#####...........#####.#####..",
+    ".###########.######.######.#############.###########............#####.#####..",
+    ".########....######.######.#####.........##########.............#####.#####..",
+    "#######......######.######.###########...########...............#####.#####..",
+    "######.......######.######.############..#######................#####.#####..",
+    "######.......######.######..############.########...............#####.#####..",
+    "######.......######.######..############.#########..............#####.#####..",
+    "#######......######.######....##########.###########............#####.#####..",
+    "########.....######.######..############.######.#####...........#####.#####..",
+    ".##################.######.#############.######..#####........#######.#######",
+    ".##################.######.#############.######...#####.......#######.#######",
+    "..#################.######.#############.######.....#####.....#######.#######",
+    "...################.######.############..######......#####....#######.#######",
+    ".....##############.######.##########.....#####.......#####..................",
 };
 
 static constexpr int  s_kWordmarkRows = (int) (sizeof (s_kDiskWordmark) / sizeof (s_kDiskWordmark[0]));
@@ -1325,6 +1466,36 @@ void DeskSceneModel::BuildWordmarkStamp()
         ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
         ink[(size_t) row * 3 + 1] = s_kFaceInkRgb[1];
         ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
+    }
+
+    // A REFINED CELL OFF EVERY SIDE, which is where the weight comes off.
+    // The mark is drawn in whole cells, so it has no way to say "a third of a
+    // cell thinner" -- but the refined grid does, and taking one cell off it
+    // narrows a stroke by about a tenth without touching what the letters
+    // are. Done here rather than by lowering the relief's ink threshold: the
+    // threshold erodes hardest exactly where a shape turns a corner, and this
+    // mark's corners are what carry it.
+    {
+        std::vector<uint8_t>  thin (mask);
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int col = 0; col < cols; col++)
+            {
+                bool  edge = (row == 0 || col == 0 || row == rows - 1 || col == cols - 1)
+                             || mask[(size_t) (row - 1) * cols + col] == 0
+                             || mask[(size_t) (row + 1) * cols + col] == 0
+                             || mask[(size_t) row * cols + col - 1] == 0
+                             || mask[(size_t) row * cols + col + 1] == 0;
+
+                if (edge)
+                {
+                    thin[(size_t) row * cols + col] = 0;
+                }
+            }
+        }
+
+        mask.swap (thin);
     }
 
     // Wider than the cassowary's disc, because the steps being rounded here

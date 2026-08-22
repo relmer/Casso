@@ -20,7 +20,7 @@ OUT  = os.path.join (ROOT, "Casso", "Ui", "Scene", "DeskSceneFaceLabels.h")
 
 FONT  = r"C:\Windows\Fonts\arialbd.ttf"
 PX    = 64          # rasterize tall, so the mask's own cells fall sub-pixel
-TRACK = 0.16        # extra advance as a fraction of the em -- the real
+TRACK = 0.05        # extra advance as a fraction of the em -- the real
                     # faceplate legends are letterspaced
 
 font = ImageFont.truetype (FONT, PX)

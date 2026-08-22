@@ -71,6 +71,12 @@ DOOR_Z0 = FRAME_Z0
 DOOR_Z1 = 84.4
 DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 
+# How far the handle band stands forward of the frame, and the chamfer that
+# turns its front edges into something light can catch rather than a butt
+# joint between two pieces of the same grained black.
+HANDLE_PROUD   = 1.1
+HANDLE_CHAMFER = 0.45
+
 # The finger notch behind the door: a wedge, flush with the face at its bottom
 # and NOTCH_DEEP at the top, which is where the door comes to rest. It cuts
 # the frame and the face alike, so an open door leaves a gap in the frame.
@@ -229,7 +235,21 @@ slot_cavity = (cq.Workplane("XY")
                     centered=(False, False, False))
                .translate((SLOT_X0, FRAME_Y + BEVEL_RUN, SLOT_Z0)))
 
-case = case.cut (notch_outer).cut (slot_cavity)
+# The cavity GROWN BY ITS LINING, which is what the case has to give up. The
+# case was cut by the bare cavity, so the lining had nowhere to be: it sat
+# inside case material that was still there, and beige won every pixel. That
+# went unseen only because the faceplate covered the opening; the moment the
+# mouth became a real hole, the slot lit up beige.
+#
+# The same fault the notch had, and the same shape of fix -- the case loses
+# cavity + wall, the lining fills the wall back in, and what is open is the
+# cavity.
+slot_outer = (cq.Workplane("XY")
+              .box(SLOT_X1 - SLOT_X0 + SLOT_WALL * 2.0, SLOT_DEPTH + SLOT_WALL,
+                   SLOT_Z1 - SLOT_Z0 + SLOT_WALL * 2.0, centered=(False, False, False))
+              .translate((SLOT_X0 - SLOT_WALL, FRAME_Y + BEVEL_RUN, SLOT_Z0 - SLOT_WALL)))
+
+case = case.cut (notch_outer).cut (slot_outer)
 
 m.add("case", case, BEIGE)
 
@@ -295,17 +315,6 @@ plate = (cq.Workplane("XY")
          .box(W - LIP * 2.0, 2.0, H - LIP * 2.0, centered=(False, False, False))
          .translate((LIP, PLATE_Y, LIP)))
 
-# Two finishes, one plastic. Above the frame's bottom edge the face carries
-# the molded pebble grain; below it, the same black in a smooth matte. The
-# split is the frame's own bottom, so the two never disagree about where the
-# boundary is.
-plate_hi = (cq.Workplane("XY")
-            .box(W - LIP * 2.0, 2.0, (LIP + H - LIP * 2.0) - FRAME_Z0, centered=(False, False, False))
-            .translate((LIP, PLATE_Y, FRAME_Z0)))
-
-m.add("plate_pebbled", plate.intersect (plate_hi).cut (notch), KD["plate_pebbled"])
-m.add("plate",         plate.cut (plate_hi).cut (notch),        PLATE)
-
 # ------------------------------------------------- faceplate furniture
 
 # The slot frame: a slab over the frame rectangle with the mouth LOFTED
@@ -335,6 +344,31 @@ throat = (cq.Workplane("XY")
 
 m.add("frame", frame.cut (mouth).cut (throat).cut (notch), KD["plate_pebbled"])
 
+# THE MOUTH GOES THROUGH THE PLATE TOO, which it did not. The plate is a slab
+# at y -1..1 and the bevel narrows to the slot only at y -0.73, so the plate's
+# own front face sat ACROSS the opening a third of a millimeter behind the
+# bevel -- and being face, it carried the molded grain. What looked like a
+# slot was a pebbled panel seen through a chamfer: texture on a void, with no
+# material there to hold it. Cutting the plate with the same mouth and throat
+# leaves the opening bounded by the slot's lining, which is the smooth dark
+# plastic a cavity should be.
+#
+# Frame and plate now share the bevel surface over the third of a millimeter
+# they overlap. Same shape, same grain, same color -- coincident faces that
+# cannot disagree about anything the eye can see.
+plate = plate.cut (mouth).cut (throat)
+
+# Two finishes, one plastic. Above the frame's bottom edge the face carries
+# the molded pebble grain; below it, the same black in a smooth matte. The
+# split is the frame's own bottom, so the two never disagree about where the
+# boundary is.
+plate_hi = (cq.Workplane("XY")
+            .box(W - LIP * 2.0, 2.0, (LIP + H - LIP * 2.0) - FRAME_Z0, centered=(False, False, False))
+            .translate((LIP, PLATE_Y, FRAME_Z0)))
+
+m.add("plate_pebbled", plate.intersect (plate_hi).cut (notch), KD["plate_pebbled"])
+m.add("plate",         plate.cut (plate_hi).cut (notch),        PLATE)
+
 # The slot is a VOID cut into the core of the drive, not a dark rectangle
 # painted behind the bevel. It used to be a 0.6 mm panel floating at y 0.47,
 # which is inside the door's own slab -- so it both read as a flat card and
@@ -348,15 +382,10 @@ m.add("frame", frame.cut (mouth).cut (throat).cut (notch), KD["plate_pebbled"])
 # is only a few mm deep at the slot's height and would otherwise floor the
 # opening almost immediately.
 # The cavity's walls are black plastic, not the beige they would otherwise
-# expose. Grown by the wall thickness and hollowed by the cavity itself, so
-# the lining is exactly the surfaces the eye can see down the slot.
-slot_shell = (cq.Workplane("XY")
-              .box(slot_w + SLOT_WALL * 2.0, SLOT_DEPTH + SLOT_WALL,
-                   slot_h + SLOT_WALL * 2.0, centered=(False, False, False))
-              .translate((SLOT_X0 - SLOT_WALL, FRAME_Y + BEVEL_RUN,
-                          SLOT_Z0 - SLOT_WALL)))
-
-m.add("slot", slot_shell.cut (slot_cavity), SLOT_DK)
+# expose. The grown volume the case gave up, hollowed by the cavity itself, so
+# the lining is exactly the surfaces the eye can see down the slot -- and
+# exactly the space the case is no longer occupying.
+m.add("slot", slot_outer.cut (slot_cavity), SLOT_DK)
 
 # The door. IDENTITY COLOR: the scene splits this out and swings it, so its
 # y/z extents are part of the contract.
@@ -368,10 +397,31 @@ door = (cq.Workplane("XY")
 # part that stands proud, so it has nothing behind it to occupy. Running it
 # back to the door's own back plane buried it in the plate, which rendered as
 # z-fighting stripes down the middle of the drive.
+#
+# IT STANDS PROUD OF THE FRAME, and its front edges are chamfered. Finishing
+# flush with the frame gave it no step at all along its top, and along its
+# bottom it opened straight onto the notch -- so the one part of the door you
+# actually grip was bounded, top and bottom, by an edge between two pieces of
+# the same dark grained plastic lying in the same plane. There was nothing
+# there for light to catch. Proud of the frame it throws a shadow onto the
+# notch below it, and the chamfer runs a lit line right around it.
+#
+# Chamfered by LOFT rather than by filleting an edge, for the reason the mouth
+# is: picking the wrong edge out of a selection renders as "looks a bit off"
+# rather than as a failure.
+door = door.union (
+    cq.Workplane("XZ", origin=((DOOR_X0 + DOOR_W * 0.5), FRAME_Y - HANDLE_PROUD,
+                               (FRAME_Z0 + FRAME_Z1) * 0.5))
+      .rect(DOOR_W - HANDLE_CHAMFER * 2.0, (FRAME_Z1 - FRAME_Z0) - HANDLE_CHAMFER * 2.0)
+      .workplane(offset=-HANDLE_CHAMFER)
+      .rect(DOOR_W, FRAME_Z1 - FRAME_Z0)
+      .loft())
+
 door = door.union (
     cq.Workplane("XY")
-      .box(DOOR_W, PLATE_Y - FRAME_Y, FRAME_Z1 - FRAME_Z0, centered=(False, False, False))
-      .translate((DOOR_X0, FRAME_Y, FRAME_Z0)))
+      .box(DOOR_W, PLATE_Y - (FRAME_Y - HANDLE_PROUD + HANDLE_CHAMFER),
+           FRAME_Z1 - FRAME_Z0, centered=(False, False, False))
+      .translate((DOOR_X0, FRAME_Y - HANDLE_PROUD + HANDLE_CHAMFER, FRAME_Z0)))
 
 # The notch's walls are black plastic, not the beige shell behind them, and
 # they carry the same pebble grain as the face. Line the pocket, then cut the
@@ -385,7 +435,10 @@ door = door.union (
 # belonged in: the pocket's walls and sloped floor were left as bare case, so
 # an open door showed BEIGE where the drive's own dark interior should be.
 # A box cannot line a wedge; only the wedge can.
-liner = notch_outer.cut (notch).cut (slot_cavity)
+# Cut by the slot's OUTER volume for the same reason the case is: where the
+# two pockets meet, the slot's own lining is what should show, and a notch
+# liner left standing in that volume would be the surface in front of it.
+liner = notch_outer.cut (notch).cut (slot_outer)
 
 m.add("notch_liner", liner, KD["plate_pebbled"])
 
