@@ -522,20 +522,36 @@ public:
 
 
 
+        // The faceplate and the quarter-inch every mark on it is set to. The
+        // badge holds the TOP-RIGHT corner, so the margin is what its right
+        // and top extremes should land on -- asserted as a reach, not just a
+        // box, because "inside the corner somewhere" is what a badge drifted
+        // toward the middle also satisfies.
+        constexpr float  kFaceW   = 155.0f;
+        constexpr float  kFaceH   = 96.0f;
+        constexpr float  kMargin  = 0.25f * 25.4f;
+        constexpr float  kSlack   = 0.05f;
+
+        float  right = 0.0f;
+        float  top   = 0.0f;
+
         AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.PadlockVerts().empty());
 
-        // Proud of the faceplate at its top-right (the 2D widget's badge
-        // position), clear of the badge plaque and the slot: every vertex
-        // sits in front of the plate (y < -1) inside that corner region.
-        // The z band tracks the faceplate, which scales with the case
-        // height -- above the slot (top at 58) and below the top lip (89).
+        // Proud of the faceplate (y < -1) and wholly inside its top-right
+        // quadrant, clear of the slot below and of the legend opposite.
         for (const Dxui3DRenderer::Vertex & v : model.PadlockVerts())
         {
             Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
-            Assert::IsTrue (v.x > 120.0f && v.x < 142.0f);
-            Assert::IsTrue (v.z > 60.0f  && v.z < 84.0f);
+            Assert::IsTrue (v.x > kFaceW * 0.5f && v.x <= kFaceW - kMargin + kSlack);
+            Assert::IsTrue (v.z > 60.0f         && v.z <= kFaceH - kMargin + kSlack);
+
+            right = (std::max) (right, v.x);
+            top   = (std::max) (top,   v.z);
         }
+
+        Assert::AreEqual (kFaceW - kMargin, right, kSlack);
+        Assert::AreEqual (kFaceH - kMargin, top,   kSlack);
     }
 
     //

@@ -87,7 +87,10 @@ LED_R      = 1.55
 # dot(n, L), so the protrusion and the size of the pool are the same number.
 LED_PROUD  = 2.0
 LED_BARREL = LED_PROUD - LED_R
-LED_X, LED_Z = 45.0, 28.9
+# Follows the IN-USE legend, which moved left when every mark on the face was
+# set to a quarter inch off the edge it is nearest. The lamp is what the
+# legend points at, so the gap between them is the fixed thing, not the x.
+LED_X, LED_Z = 34.0, 28.9
 
 NOTCH_Z0   = LED_Z - LED_R
 

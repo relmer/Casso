@@ -389,6 +389,7 @@
     <ClInclude Include="Ui\Printer3DScene.h" />
     <ClInclude Include="Ui\Scene\DeskScene.h" />
     <ClInclude Include="Ui\Scene\DeskSceneHitTester.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneFaceLabels.h" />
     <ClInclude Include="Ui\Scene\DeskSceneLayout.h" />
     <ClInclude Include="Ui\Scene\DeskSceneModel.h" />
     <ClInclude Include="Ui\Scene\FullscreenStripState.h" />

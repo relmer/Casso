@@ -78,33 +78,15 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     hr = m_drive.Load (DeskDeviceKind::DiskII, driveObj, driveMtl);
     CHRA (hr);
 
-    // The per-drive badge text, stamped onto the model's badge plaque
-    // (plaque 13..52 x 64..74 mm): the number differs per drive, so the
-    // text lives here, not in the shared model.
-    {
-        // 0.43 at the old 5x7 grid. Same 18 mm sticker, more and smaller
-        // pixels -- the advance went 6 cells -> 8, so the cell shrinks.
-        constexpr float   kLabelCellMm = 0.3225f;
-        // Both faceplate legends line up on the OUTER edge of the slot
-        // frame's left bevel -- the one strong vertical the front actually
-        // has. Two labels each measured to themselves read as two accidents;
-        // sharing an edge with the frame makes the column look intended.
-        //
-        // Kept in step with s_kInUseLeftMm in DeskSceneModel.cpp; the value is
-        // FRAME_X0 + FRAME_FLAT from cad_diskii.py.
-        constexpr float   kLabelLeftMm = 12.23f;
-        constexpr float   kLabelTopZMm = 78.7f;   // straight on the black, no plaque
-        constexpr float   kLabelFrontY = -1.9f;
-        constexpr float   kLabelRgb[3] = { 0.870f, 0.860f, 0.840f };   // white ON the black, no plaque behind it
+    // The per-drive legend: the number differs per drive, so it is stamped
+    // here rather than into the shared model. Everything about how it is set
+    // -- its margin, size, color and finish -- belongs with the rest of the
+    // faceplate furniture and stays in the model.
+    m_driveLabelVerts[0].clear();
+    m_driveLabelVerts[1].clear();
 
-        m_driveLabelVerts[0].clear();
-        m_driveLabelVerts[1].clear();
-
-        DeskSceneModel::StampText (m_driveLabelVerts[0], "DRIVE 1", kLabelLeftMm,
-                                   kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
-        DeskSceneModel::StampText (m_driveLabelVerts[1], "DRIVE 2", kLabelLeftMm,
-                                   kLabelTopZMm, kLabelCellMm, kLabelFrontY, kLabelRgb);
-    }
+    DeskSceneModel::StampDriveLabel (m_driveLabelVerts[0], 1);
+    DeskSceneModel::StampDriveLabel (m_driveLabelVerts[1], 2);
 
     BuildDerivedGeometry();
 

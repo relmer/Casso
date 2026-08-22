@@ -5,6 +5,7 @@
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Chrome/CassoBranding.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Scene/DeskSceneFaceLabels.h"
 
 
 
@@ -88,41 +89,63 @@ static constexpr float   s_kMon2BrandFrontY   = 0.0f;
 // strip axis by centroid before there was a panel around it at all.
 static constexpr float   s_kMon2BrandBoxCenter = 0.0f;
 
+// A QUARTER INCH from whichever edges a mark is nearest. Every piece of
+// faceplate furniture is set to it -- the two legends and the logotype off
+// the left, the padlock off the right, the logotype and the cassowary off the
+// bottom -- which is what makes four separately-placed marks read as one
+// layout instead of four decisions.
+static constexpr float   s_kFaceMarginMm = 0.25f * 25.4f;
+
+// The legends are SILVER, not white. On the real drive they are a bright
+// metallic ink that shifts as the light moves across it, so they are stamped
+// lit: a flat value can be the right lightness but it cannot be shiny, and
+// what says metal is the highlight moving, not the color sitting still.
+static constexpr float   s_kFaceInkRgb[3] = { 0.780f, 0.790f, 0.815f };
+
 // The drive's cassowary, lower-right of the faceplate like the 2D widget,
-// proud of the black plate (front y = -1).
-static constexpr float   s_kDriveBrandLeftMm   = 127.0f;
-static constexpr float   s_kDriveBrandTopZMm   = 38.0f;
+// proud of the black plate (front y = -1). Set to the face margin off the
+// right edge and the bottom, which is where its height comes from: the mark
+// is 36 x 54, so the width follows and the left edge is what it lands on.
 static constexpr float   s_kDriveBrandHeightMm = 29.0f;
+static constexpr float   s_kDriveBrandTopZMm   = s_kFaceMarginMm + s_kDriveBrandHeightMm;
+static constexpr float   s_kDriveBrandLeftMm   = 155.0f - s_kFaceMarginMm
+                                                 - s_kDriveBrandHeightMm * 36.0f / 54.0f;
 static constexpr float   s_kDriveBrandFrontY   = -1.8f;
+
+// The DRIVE n legend, top-left of the faceplate. The cap height is the
+// legends' shared size; the baked mask is exactly one cap tall, so the cell
+// follows from it rather than being chosen.
+static constexpr float   s_kDriveLabelLeftMm = s_kFaceMarginMm;
+static constexpr float   s_kDriveLabelTopZMm = 96.0f - s_kFaceMarginMm;
+static constexpr float   s_kDriveLabelCapMm  = 3.1f;
+static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
 // The IN-USE label: "IN USE" plus the pointer triangle, sitting to the
 // LED's left at the LED's height (the 2D widget's arrangement).
-// Shares the drive label's left edge -- the outer edge of the slot frame's
-// left bevel. See kLabelLeftMm in DeskScene.cpp; the value is
-// FRAME_X0 + FRAME_FLAT from cad_diskii.py.
-static constexpr float   s_kInUseLeftMm  = 12.23f;
-static constexpr float   s_kInUseTopZMm  = 31.1f;
-// 0.5 at the old 5x7 grid. The legend keeps its measured 24 mm width: the
-// advance went 6 cells -> 8, so the cell shrinks to match rather than the
-// label growing.
-static constexpr float   s_kInUseCellMm  = 0.375f;
+static constexpr float   s_kInUseLeftMm  = s_kFaceMarginMm;
+static constexpr float   s_kInUseCapMm   = 3.1f;    // the legend's cap height
 static constexpr float   s_kInUseFrontY  = -1.8f;
-static constexpr float   s_kInUseRgb[3]  = { 0.750f, 0.730f, 0.700f };
+static constexpr float   s_kInUseLampZ   = 28.9f;   // == LED_Z in cad_diskii.py
 
 // The "disk ][" logotype, low on the FACEPLATE -- below the IN-USE legend and
 // its lamp, opposite the cassowary in the other corner. It was briefly put on
 // the lid, which was simply wrong about where the mark lives.
 //
-// Shares the left column the other two legends use, so the face reads as one
-// left-aligned stack rather than three separately-placed marks.
-static constexpr float   s_kWordLeftMm   = 12.23f;
-static constexpr float   s_kWordTopZMm   = 22.0f;
-static constexpr float   s_kWordCellMm   = 0.52f;   // -> a 40 mm logotype
-static constexpr float   s_kWordFrontY   = -1.8f;
+// EMBOSSED, not printed: the real drive's logotype is molded into the plate
+// and stands proud of it, so it carries a lit edge along its top and a shadow
+// under its bottom that no flat stamp can. Its front sits ahead of the plane
+// the printed legends share, and it runs back THROUGH that plane into the
+// plate, which is what the relief is measured against.
+static constexpr float   s_kWordLeftMm    = s_kFaceMarginMm;
+static constexpr float   s_kWordCellMm    = 0.52f;   // -> a 40 mm logotype
+static constexpr float   s_kWordFrontY    = -2.10f;
+static constexpr float   s_kWordThickMm   = 0.30f;
 
-// Printed ink, not molded plastic. Slightly softer than the legends' gray so
-// the logotype does not out-shout the labels that carry actual information.
-static constexpr float   s_kWordRgb[3]   = { 0.815f, 0.800f, 0.780f };
+// How far the top edge rolls before it meets the face. It has to be a real
+// fraction of the smoothed outline's own width or the chamfer lands inside a
+// cell or two and reads as a crust of lit specks around the letters rather
+// than as an edge rolling over.
+static constexpr float   s_kWordRollMm    = 0.25f;
 
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
@@ -137,17 +160,23 @@ static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 220.0f, 96.0f };
 // the 2D widget's badge. Flat proud quads like the brand stamp; each layer
 // floats a hair nearer the viewer than the one it sits on so depth never
 // ties.
-static constexpr float   s_kPadlockBodyX0    = 127.0f;
-static constexpr float   s_kPadlockBodyX1    = 137.0f;
-static constexpr float   s_kPadlockBodyZ0    = 64.7f;
-static constexpr float   s_kPadlockBodyZ1    = 74.2f;
-static constexpr float   s_kPadlockArchZ1    = 80.4f;
+// Set from the top-right corner it belongs to, so the whole badge -- shackle
+// included -- clears the edges by the face margin. Its own proportions are
+// what everything else is measured off.
+static constexpr float   s_kPadlockBodyW     = 10.0f;
+static constexpr float   s_kPadlockBodyH     = 9.5f;
+static constexpr float   s_kPadlockArchH     = 6.2f;
+static constexpr float   s_kPadlockBodyX1    = 155.0f - s_kFaceMarginMm;
+static constexpr float   s_kPadlockBodyX0    = s_kPadlockBodyX1 - s_kPadlockBodyW;
+static constexpr float   s_kPadlockArchZ1    = 96.0f - s_kFaceMarginMm;
+static constexpr float   s_kPadlockBodyZ1    = s_kPadlockArchZ1 - s_kPadlockArchH;
+static constexpr float   s_kPadlockBodyZ0    = s_kPadlockBodyZ1 - s_kPadlockBodyH;
 static constexpr float   s_kPadlockLegW      = 1.7f;
 static constexpr float   s_kPadlockArchInset = 1.5f;
-static constexpr float   s_kPadlockHoleX0    = 131.4f;
-static constexpr float   s_kPadlockHoleX1    = 132.6f;
-static constexpr float   s_kPadlockHoleZ0    = 67.0f;
-static constexpr float   s_kPadlockHoleZ1    = 70.9f;
+static constexpr float   s_kPadlockHoleX0    = s_kPadlockBodyX0 + 4.4f;
+static constexpr float   s_kPadlockHoleX1    = s_kPadlockBodyX0 + 5.6f;
+static constexpr float   s_kPadlockHoleZ0    = s_kPadlockBodyZ0 + 2.3f;
+static constexpr float   s_kPadlockHoleZ1    = s_kPadlockBodyZ0 + 6.2f;
 static constexpr float   s_kPadlockShackleY  = -1.95f;
 static constexpr float   s_kPadlockBodyY     = -2.00f;
 static constexpr float   s_kPadlockHoleY     = -2.05f;
@@ -543,8 +572,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // per-drive by the scene -- it cannot live in the shared model.
         BuildBrandStamp (s_kDriveBrandLeftMm, s_kDriveBrandTopZMm,
                          s_kDriveBrandHeightMm, s_kDriveBrandFrontY);
-        StampText (m_opaque, "IN USE >", s_kInUseLeftMm, s_kInUseTopZMm,
-                   s_kInUseCellMm, s_kInUseFrontY, s_kInUseRgb);
+        BuildInUseStamp();
 
         BuildWordmarkStamp();
     }
@@ -783,14 +811,62 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
 //  DeskSceneModel::BuildBrandSolid
 //
 //  The cassowary as a solid with a smoothed outline and a rounded top edge.
+//  Its silhouette and stripe colors, handed to the general relief builder.
 //
-//  The mark's own resolution is the problem this works around. It is a 36x54
-//  bitmask, so one cell lands about two screen pixels wide, and both the
-//  staircase edges and any round-over are the same order as a cell -- rounding
-//  the raw silhouette by the case's own 0.35 mm would erase a one-cell feature
-//  outright, taking the beak serrations and the leg with it.
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm, float frontY,
+                                      float thicknessMm, int firstRow, int lastRow)
+{
+    constexpr float  kRollMm = 0.14f;    // how far down the top edge rolls
+
+    std::vector<uint8_t>  mask ((size_t) CassoBranding::kGridW * CassoBranding::kGridH, 0);
+    std::vector<float>    rgb ((size_t) CassoBranding::kGridH * 3, 0.0f);
+
+    for (int row = 0; row < CassoBranding::kGridH; row++)
+    {
+        uint64_t  bits   = CassoBranding::SilhouetteRow (row);
+        int       banded = (std::min) (lastRow, (std::max) (firstRow, row));
+        int       stripe = ((banded - firstRow) * CassoBranding::kStripeCount)
+                           / (lastRow - firstRow + 1);
+        uint32_t  argb   = CassoBranding::StripeColor (stripe);
+
+        for (int col = 0; col < CassoBranding::kGridW; col++)
+        {
+            mask[(size_t) row * CassoBranding::kGridW + col] =
+                ((bits >> col) & 1ULL) ? (uint8_t) 1 : (uint8_t) 0;
+        }
+
+        rgb[(size_t) row * 3 + 0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
+        rgb[(size_t) row * 3 + 1] = (float) ((argb >> 8) & 0xFF) / 255.0f;
+        rgb[(size_t) row * 3 + 2] = (float) (argb & 0xFF) / 255.0f;
+    }
+
+    // The flat interior stays UNLIT: it is most of the mark, and the brand's
+    // colors have to come out exact. Only the rolled band and the side walls
+    // shade, which is the whole of what reads as depth.
+    BuildRelief (m_opaque, mask.data(), CassoBranding::kGridW, CassoBranding::kGridH,
+                 leftMm, topZMm, heightMm, frontY, thicknessMm, kRollMm, rgb.data(), false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  So the mask is resampled instead of offset. Coverage is measured over a
+//  DeskSceneModel::BuildRelief
+//
+//  A mask as a solid with a smoothed outline and a rounded top edge.
+//
+//  The mask's own resolution is the problem this works around. A brand or a
+//  logotype is a few dozen cells across, so one cell lands on a screen pixel
+//  or two, and both the staircase edges and any round-over worth having are
+//  the same order as a cell -- rounding the raw silhouette by a case's own
+//  0.35 mm would erase a one-cell feature outright, taking the cassowary's
+//  beak serrations and its leg with it.
+//
+//  So the mask is RESAMPLED instead of offset. Coverage is measured over a
 //  disc a little wider than a cell and thresholded at half, which rounds the
 //  staircase off while holding the mark's area and its concavities, and the
 //  same field then gives a distance to the outline: cap height ramps from the
@@ -798,24 +874,22 @@ void DeskSceneModel::BuildBrandStamp (float leftMm, float topZMm, float heightMm
 //  rolls over rather than breaking square. Erosion never enters it, which is
 //  why thin features survive.
 //
-//  The flat interior stays UNLIT and merged into row runs -- it is most of the
-//  mark, and the brand's colors have to come out exact. Only the rolled band
-//  and the side walls carry normals and shade, which is the whole of what
-//  reads as depth.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm, float frontY,
-                                      float thicknessMm, int firstRow, int lastRow)
+void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
+                                  const uint8_t * mask, int gridW, int gridH,
+                                  float leftMm, float topZMm, float heightMm, float frontY,
+                                  float thicknessMm, float rollMm,
+                                  const float * rowRgb, bool litFace,
+                                  float smoothCells, int superSample)
 {
-    constexpr int    kSuper   = 4;        // fine cells per silhouette cell
-    constexpr float  kSmoothR = 1.15f;    // coverage disc radius, in silhouette cells
-    constexpr float  kRollMm  = 0.14f;    // how far down the top edge rolls
+    const int    kSuper   = superSample;
+    const float  kSmoothR = smoothCells;
 
-    const int    fw     = CassoBranding::kGridW * kSuper;
-    const int    fh     = CassoBranding::kGridH * kSuper;
+    const int    fw     = gridW * kSuper;
+    const int    fh     = gridH * kSuper;
     const int    vw     = fw + 1;
-    const float  cell   = heightMm / (float) CassoBranding::kGridH;
+    const float  cell   = heightMm / (float) gridH;
     const float  fcell  = cell / (float) kSuper;
     const float  scale  = 2.0f * kSmoothR * cell;   // coverage units -> mm
     const float  backY  = frontY + thicknessMm;
@@ -851,9 +925,8 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
 
                     seen++;
 
-                    if (sy >= 0 && sy < CassoBranding::kGridH &&
-                        sx >= 0 && sx < CassoBranding::kGridW &&
-                        (CassoBranding::SilhouetteRow (sy) & (1ULL << sx)) != 0)
+                    if (sy >= 0 && sy < gridH && sx >= 0 && sx < gridW &&
+                        mask[(size_t) sy * gridW + sx] != 0)
                     {
                         hits++;
                     }
@@ -863,9 +936,9 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
             {
                 float  cov  = (seen > 0) ? (float) hits / (float) seen : 0.0f;
                 float  dist = (cov - 0.5f) * scale;
-                float  t    = (std::min) (1.0f, (std::max) (0.0f, dist / kRollMm));
+                float  t    = (std::min) (1.0f, (std::max) (0.0f, dist / rollMm));
 
-                height[(size_t) vy * vw + vx] = frontY + kRollMm * (1.0f - t);
+                height[(size_t) vy * vw + vx] = frontY + rollMm * (1.0f - t);
             }
         }
     }
@@ -883,23 +956,12 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
             float  h11 = height[(size_t) (fy + 1) * vw + fx + 1];
             float  avg = (h00 + h10 + h01 + h11) * 0.25f;
 
-            inside[(size_t) fy * fw + fx] = (avg < frontY + kRollMm) ? 1 : 0;
+            inside[(size_t) fy * fw + fx] = (avg < frontY + rollMm) ? 1 : 0;
         }
     }
 
     {
-        auto  stripeRgb = [firstRow, lastRow] (int fineRow, float rgb[3])
-        {
-            int       row    = (std::min) (lastRow, (std::max) (firstRow, fineRow / kSuper));
-            int       stripe = ((row - firstRow) * CassoBranding::kStripeCount) / (lastRow - firstRow + 1);
-            uint32_t  argb   = CassoBranding::StripeColor (stripe);
-
-            rgb[0] = (float) ((argb >> 16) & 0xFF) / 255.0f;
-            rgb[1] = (float) ((argb >> 8) & 0xFF) / 255.0f;
-            rgb[2] = (float) (argb & 0xFF) / 255.0f;
-        };
-
-        auto  pushTri = [this] (const float a[3], const float b[3], const float c[3],
+        auto  pushTri = [&out] (const float a[3], const float b[3], const float c[3],
                                 const float n[3], const float rgb[3])
         {
             Dxui3DRenderer::Vertex   tri[3] = {};
@@ -908,7 +970,7 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
             tri[1] = { b[0], b[1], b[2], 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, n[0], n[1], n[2] };
             tri[2] = { c[0], c[1], c[2], 0, 0, rgb[0], rgb[1], rgb[2], 1.0f, n[0], n[1], n[2] };
 
-            m_opaque.insert (m_opaque.end(), tri, tri + 3);
+            out.insert (out.end(), tri, tri + 3);
         };
 
         auto  pushQuad = [&pushTri] (const float p00[3], const float p10[3],
@@ -919,18 +981,18 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
             pushTri (p00, p11, p01, n, rgb);
         };
 
-        const float  kFlatN[3] = { 0.0f, 0.0f, 0.0f };   // zero normal == unlit
+        // A zero normal is what means unlit, so the flat interior's normal is
+        // the caller's choice of ink or metal.
+        const float  kFaceN[3] = { 0.0f, litFace ? -1.0f : 0.0f, 0.0f };
 
         for (int fy = 0; fy < fh; fy++)
         {
-            float  rgb[3] = {};
-            float  zTop   = topZMm - (float) fy * fcell;
-            float  zBot   = zTop - fcell;
-            int    fx     = 0;
+            const float *  rgb  = rowRgb + (size_t) (fy / kSuper) * 3;
+            float          zTop = topZMm - (float) fy * fcell;
+            float          zBot = zTop - fcell;
+            int            fx   = 0;
 
-            stripeRgb (fy, rgb);
-
-            // Flat interior, merged into runs: unlit, so the stripes are exact.
+            // Flat interior, merged into runs.
             while (fx < fw)
             {
                 int  runStart = fx;
@@ -953,7 +1015,7 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
                     float  p11[3] = { x1, frontY, zBot };
                     float  p01[3] = { x0, frontY, zBot };
 
-                    pushQuad (p00, p10, p11, p01, kFlatN, rgb);
+                    pushQuad (p00, p10, p11, p01, kFaceN, rgb);
                     continue;
                 }
 
@@ -1130,149 +1192,6 @@ void DeskSceneModel::RotateDoorVerts (const std::vector<Dxui3DRenderer::Vertex> 
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskSceneModel::StampText
-//
-//  Each glyph row is 5 bits, bit 0 the LEFT column; unknown characters stamp
-//  as spaces. Runs merge within a row exactly like the brand stamp.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-// The label font: only what the scene's drive labels use. '>' is the
-// LED-pointer triangle.
-//
-// SEVEN BY NINE, and written as PICTURES rather than hex. The old font was
-// 5x7 packed into uint8_t rows, and both halves of that were a problem: five
-// columns cannot hold a letterform with any weight to it, so the labels read
-// as chunky approximations, and a wall of hex is not something anyone can
-// edit -- the shape is invisible until it renders.
-//
-// A '#' is on and every other character is off, so the glyph in the source
-// looks like the glyph on the drive. That matters more than the parse cost,
-// which is paid once at model load and never again.
-struct SceneGlyph
-{
-    char          ch;
-    const char *  rows[9];
-};
-
-static constexpr int  s_kGlyphW    = 7;
-static constexpr int  s_kGlyphH    = 9;
-static constexpr int  s_kGlyphAdv  = 8;   // 7 columns + 1 of tracking
-
-static constexpr SceneGlyph  s_kSceneFont[] =
-{
-    { 'D', { "######.",
-             "##...##",
-             "##....#",
-             "##....#",
-             "##....#",
-             "##....#",
-             "##....#",
-             "##...##",
-             "######." } },
-
-    { 'R', { "######.",
-             "##...##",
-             "##...##",
-             "##...##",
-             "######.",
-             "##.##..",
-             "##..##.",
-             "##...##",
-             "##....#" } },
-
-    { 'I', { "#######",
-             "...#...",
-             "...#...",
-             "...#...",
-             "...#...",
-             "...#...",
-             "...#...",
-             "...#...",
-             "#######" } },
-
-    { 'V', { "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             ".##.##.",
-             ".##.##.",
-             "..###..",
-             "...#..." } },
-
-    { 'E', { "#######",
-             "##.....",
-             "##.....",
-             "##.....",
-             "######.",
-             "##.....",
-             "##.....",
-             "##.....",
-             "#######" } },
-
-    { 'N', { "##....#",
-             "###...#",
-             "####..#",
-             "##.#..#",
-             "##..#.#",
-             "##...##",
-             "##....#",
-             "##....#",
-             "##....#" } },
-
-    { 'U', { "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             "##...##",
-             ".#####." } },
-
-    { 'S', { ".#####.",
-             "##...##",
-             "##.....",
-             "###....",
-             ".####..",
-             "....###",
-             ".....##",
-             "##...##",
-             ".#####." } },
-
-    { '1', { "...##..",
-             "..###..",
-             ".####..",
-             "...##..",
-             "...##..",
-             "...##..",
-             "...##..",
-             "...##..",
-             ".######" } },
-
-    { '2', { ".#####.",
-             "##...##",
-             ".....##",
-             "....##.",
-             "...##..",
-             "..##...",
-             ".##....",
-             "##.....",
-             "#######" } },
-
-    { '>', { "##.....",
-             "###....",
-             "####...",
-             "#####..",
-             "######.",
-             "#####..",
-             "####...",
-             "###....",
-             "##....." } },
-};
 
 
 // The "disk ][" logotype as it is set on the drive's lid: a SILHOUETTE, not
@@ -1286,29 +1205,29 @@ static constexpr SceneGlyph  s_kSceneFont[] =
 // standing at the drive.
 static const char * const  s_kDiskWordmark[] =
 {
-    "...............................................................######.#######",
-    ".............######.######...............######..............########.#######",
-    ".............######.######...............######..............########.#######",
-    ".............######.######...............######..............########.#######",
-    ".............######..#####...............######...............#######.#######",
-    ".............######..##.##.....########..######....#####.......######.#####..",
-    ".....#######.######..#####...###########.######...#######......######.#####..",
-    "....########.######.######..############.######...#######......######.#####..",
-    "...#########.######.######.#############.######...#######......######.#####..",
-    "..##########.######.######.#############.######..#######.......######.#####..",
-    ".###########.######.######.#############.###############.......######.#####..",
-    ".########....######.######.#####.........##############........######.#####..",
-    "#######......######.######.###########...#############.........######.#####..",
-    "######.......######.######.############..#############.........######.#####..",
-    "######.......######.######..############.##############........######.#####..",
-    "######.......######.######..############.###############.......######.#####..",
-    "#######......######..#####....##########.######...#######......######.#####..",
-    "########.....######.######..#.......####.######...#######......######.#####..",
-    ".##################.######.#############.######...#######....########.#######",
-    ".##################.######.#############.######...#######....########.#######",
-    "..#################.######.#############.######...#######....########.#######",
-    "...################.######.############..######....######....########.#######",
-    ".....##############..#####.##########.....#####....#####.....................",
+    "..............................................................#######.#######",
+    ".............######.######...............######...............#######.#######",
+    ".............######.######...............######...............#######.#######",
+    ".............######.######...............######...............#######.#######",
+    ".............######.######...............######...............#######.#######",
+    ".............######.######.....########..######....#####........#####.#####..",
+    ".....#######.######.######...###########.######...#######.......#####.#####..",
+    "....########.######.######..############.######...#######.......#####.#####..",
+    "...#########.######.######.#############.######...#######.......#####.#####..",
+    "..##########.######.######.#############.######..#######........#####.#####..",
+    ".###########.######.######.#############.###############........#####.#####..",
+    ".########....######.######.#####.........##############.........#####.#####..",
+    "#######......######.######.###########...#############..........#####.#####..",
+    "######.......######.######.############..#############..........#####.#####..",
+    "######.......######.######..############.##############.........#####.#####..",
+    "######.......######.######..############.###############........#####.#####..",
+    "#######......######.######....##########.######...#######.......#####.#####..",
+    "########.....######.######..############.######...#######.......#####.#####..",
+    ".##################.######.#############.######...#######.....#######.#######",
+    ".##################.######.#############.######...#######.....#######.#######",
+    "..#################.######.#############.######...#######.....#######.#######",
+    "...################.######.############..######....######.....#######.#######",
+    ".....##############.######.##########.....#####....#####.....................",
 };
 
 static constexpr int  s_kWordmarkRows = (int) (sizeof (s_kDiskWordmark) / sizeof (s_kDiskWordmark[0]));
@@ -1320,32 +1239,102 @@ static constexpr int  s_kWordmarkCols = 77;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneModel::BuildInUseStamp
+//
+//  "IN USE" and its pointer, set to the left margin and CENTERED ON THE LAMP
+//  -- the legend labels the lamp, so its middle is the lamp's middle rather
+//  than a z chosen to look level with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildInUseStamp()
+{
+    float               cell = s_kInUseCapMm / (float) kInUseMaskRows;
+    float               topZ = s_kInUseLampZ + (float) kInUseMaskRows * cell * 0.5f;
+    std::vector<float>  ink ((size_t) kInUseMaskRows * 3);
+
+    for (int row = 0; row < kInUseMaskRows; row++)
+    {
+        ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
+        ink[(size_t) row * 3 + 1] = s_kFaceInkRgb[1];
+        ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
+    }
+
+    StampFaceMask (m_opaque, s_kInUseMask, kInUseMaskRows, kInUseMaskCols,
+                   s_kInUseLeftMm, topZ, cell, s_kInUseFrontY, ink.data(), true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneModel::BuildWordmarkStamp
 //
-//  The "disk ][" logotype, printed low on the faceplate below the IN-USE
+//  The "disk ][" logotype, EMBOSSED low on the faceplate below the IN-USE
 //  legend and its lamp -- opposite the cassowary, which holds the other
-//  corner.
+//  corner. Bottom-aligned with the cassowary on the face margin, so the two
+//  marks sit on one line.
 //
 //  A SILHOUETTE, not type: the mark's lowercase d carries a slab no font of
 //  ours has and its ][ is a pair of drawn bars rather than two bracket
 //  characters, so it is stored as the shape it is.
 //
+//  It goes through BuildRelief rather than being laid flat, for two reasons
+//  that happen to want the same thing. It is MOLDED on the real drive, so it
+//  needs a lit top edge and a shadow under its bottom. And at 23 rows over
+//  12 mm its own cells land around a screen pixel, so a flat stamp shows the
+//  staircase -- the same coverage resample that rounds the cassowary's
+//  outline rounds this one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskSceneModel::BuildWordmarkStamp()
 {
-    std::vector<float>  ink ((size_t) s_kWordmarkRows * 3);
+    // The mask is REFINED before it is smoothed. Its letters stand one cell
+    // apart, and the coverage disc that rounds a staircase is about a cell
+    // wide, so applied to the mask as drawn it welded d-i-s-k into one blob
+    // -- the smoothing cannot tell a gap it is meant to keep from a step it
+    // is meant to erase. Splitting every cell three ways changes neither the
+    // shape nor its size, but it makes the same disc a third as wide, which
+    // is small enough to round the steps and leave the gaps.
+    //
+    // Supersampling drops to match, because the mask now arrives fine: the
+    // relief costs the square of it in work and in triangles, and paying 4x
+    // on top of 3x would be paying for the same resolution twice.
+    constexpr int    kRefine = 3;
+    constexpr int    kSuper  = 2;
 
-    for (int row = 0; row < s_kWordmarkRows; row++)
+    const int             cols     = s_kWordmarkCols * kRefine;
+    const int             rows     = s_kWordmarkRows * kRefine;
+    float                 heightMm = (float) s_kWordmarkRows * s_kWordCellMm;
+    std::vector<uint8_t>  mask ((size_t) rows * cols, 0);
+    std::vector<float>    ink ((size_t) rows * 3);
+
+    for (int row = 0; row < rows; row++)
     {
-        ink[(size_t) row * 3 + 0] = s_kWordRgb[0];
-        ink[(size_t) row * 3 + 1] = s_kWordRgb[1];
-        ink[(size_t) row * 3 + 2] = s_kWordRgb[2];
+        const char *  bits = s_kDiskWordmark[row / kRefine];
+
+        for (int col = 0; col < cols; col++)
+        {
+            mask[(size_t) row * cols + col] = (bits[col / kRefine] == '#') ? (uint8_t) 1
+                                                                           : (uint8_t) 0;
+        }
+
+        ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
+        ink[(size_t) row * 3 + 1] = s_kFaceInkRgb[1];
+        ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
     }
 
-    StampFaceMask (m_opaque, s_kDiskWordmark, s_kWordmarkRows, s_kWordmarkCols,
-                   s_kWordLeftMm, s_kWordTopZMm, s_kWordCellMm, s_kWordFrontY,
-                   ink.data());
+    // Wider than the cassowary's disc, because the steps being rounded here
+    // are a whole drawn cell rather than a refined one. Held under the gaps'
+    // three refined cells, which is what keeps the letters apart.
+    constexpr float  kSmooth = 1.9f;
+
+    BuildRelief (m_opaque, mask.data(), cols, rows,
+                 s_kWordLeftMm, s_kFaceMarginMm + heightMm, heightMm, s_kWordFrontY,
+                 s_kWordThickMm, s_kWordRollMm, ink.data(), true, kSmooth, kSuper);
 }
 
 
@@ -1357,9 +1346,13 @@ void DeskSceneModel::BuildWordmarkStamp()
 //  DeskSceneModel::StampFaceMask
 //
 //  A silhouette laid on a front face, one merged quad per horizontal run.
-//  Unlit, like the other stamps: printed marks keep their exact ink values
-//  rather than taking the room's light, and the surface they sit on carries
-//  all the shading the eye needs to place them.
+//
+//  `lit` is the difference between ink and metal. A printed mark wants it
+//  off, so its colors come out exactly as specified and the surface under it
+//  carries all the shading the eye needs. The faceplate legends want it on,
+//  because they are silver: what reads as metal is a highlight that MOVES as
+//  the view does, and an unlit quad can be the right lightness but can never
+//  be shiny.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1371,8 +1364,11 @@ void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
                                     float                                 topZMm,
                                     float                                 cellMm,
                                     float                                 frontY,
-                                    const float                         * rowRgb)
+                                    const float                         * rowRgb,
+                                    bool                                  lit)
 {
+    float  ny = lit ? -1.0f : 0.0f;   // a zero normal is what means unlit
+
     for (int row = 0; row < rowCount; row++)
     {
         const char *  bits = rows[row];
@@ -1408,12 +1404,12 @@ void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
             {
                 Dxui3DRenderer::Vertex   quad[6] = {};
 
-                quad[0] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[1] = { x1, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[2] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[3] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f };
-                quad[4] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f };
-                quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f };
+                quad[0] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
+                quad[1] = { x1, frontY, zTop, 0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
+                quad[2] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
+                quad[3] = { x0, frontY, zTop, 0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
+                quad[4] = { x1, frontY, z1,   0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
+                quad[5] = { x0, frontY, z1,   0, 0, r, g, b, 1.0f, 0.0f, ny, 0.0f };
 
                 out.insert (out.end(), quad, quad + 6);
             }
@@ -1425,77 +1421,35 @@ void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
 
 
 
-void DeskSceneModel::StampText (std::vector<Dxui3DRenderer::Vertex> & out,
-                                const char                          * text,
-                                float                                 leftMm,
-                                float                                 topZMm,
-                                float                                 cellMm,
-                                float                                 frontY,
-                                const float                           rgb[3])
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::StampDriveLabel
+//
+//  "DRIVE n" from its baked mask, set to the faceplate's top-left margin.
+//
+//  Sized by CAP HEIGHT rather than by cell: the mask is exactly one cap tall,
+//  so the cell falls out of the size wanted instead of being a number tuned
+//  until the label looked right. Rebaking at a different resolution then
+//  changes nothing about how big the legend is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber)
 {
-    float  penX = leftMm;
+    const char * const *  mask = (driveNumber >= 2) ? s_kDrive2Mask : s_kDrive1Mask;
+    int                   rows = (driveNumber >= 2) ? kDrive2MaskRows : kDrive1MaskRows;
+    int                   cols = (driveNumber >= 2) ? kDrive2MaskCols : kDrive1MaskCols;
+    std::vector<float>    ink ((size_t) rows * 3);
 
-
-
-    for (const char * pCh = text; *pCh != '\0'; pCh++)
+    for (int row = 0; row < rows; row++)
     {
-        const SceneGlyph *  glyph = nullptr;
-
-        for (const SceneGlyph & candidate : s_kSceneFont)
-        {
-            if (candidate.ch == *pCh)
-            {
-                glyph = &candidate;
-                break;
-            }
-        }
-
-        if (glyph != nullptr)
-        {
-            for (int row = 0; row < s_kGlyphH; row++)
-            {
-                const char *  bits = glyph->rows[row];
-                float         zTop = topZMm - (float) row * cellMm;
-                int           col  = 0;
-
-                while (col < s_kGlyphW)
-                {
-                    int  runStart = 0;
-
-                    if (bits[col] != '#')
-                    {
-                        col++;
-                        continue;
-                    }
-
-                    runStart = col;
-
-                    while (col < s_kGlyphW && bits[col] == '#')
-                    {
-                        col++;
-                    }
-
-                    {
-                        Dxui3DRenderer::Vertex   quad[6] = {};
-                        float                    x0      = penX + (float) runStart * cellMm;
-                        float                    x1      = penX + (float) col * cellMm;
-                        float                    z1      = zTop - cellMm;
-
-                        quad[0] = { x0, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-                        quad[1] = { x1, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-                        quad[2] = { x1, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-                        quad[3] = { x0, frontY, zTop, 0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-                        quad[4] = { x1, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-                        quad[5] = { x0, frontY, z1,   0, 0, rgb[0], rgb[1], rgb[2], 1.0f };
-
-                        out.insert (out.end(), quad, quad + 6);
-                    }
-                }
-            }
-        }
-
-        penX += (float) s_kGlyphAdv * cellMm;
+        ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
+        ink[(size_t) row * 3 + 1] = s_kFaceInkRgb[1];
+        ink[(size_t) row * 3 + 2] = s_kFaceInkRgb[2];
     }
+
+    StampFaceMask (out, mask, rows, cols, s_kDriveLabelLeftMm, s_kDriveLabelTopZMm,
+                   s_kDriveLabelCapMm / (float) rows, s_kDriveLabelFrontY, ink.data(), true);
 }
 
 

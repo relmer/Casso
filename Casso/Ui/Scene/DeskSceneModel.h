@@ -151,23 +151,16 @@ public:
                                   float                                       angleRad,
                                   std::vector<Dxui3DRenderer::Vertex>       & out);
 
-    // Stamps text in a 7x9 pixel font as proud unlit quads, one merged quad
-    // per horizontal pixel run -- the same technique as the brand stamp, so
-    // labels keep the period pixel-art house style. Glyphs cover what the
-    // scene labels need (DRIVE n / IN USE and the '>' LED-pointer triangle);
-    // unknown characters stamp as spaces. `cellMm` is one font pixel; a
-    // glyph is 7 cells wide + 1 cell of tracking.
-    //
-    // The grid was 5x7, which is too few columns to carry a letterform with
-    // any weight -- the labels read as chunky approximations of type rather
-    // than type. Callers scale cellMm DOWN to match: the same label is now
-    // more, smaller pixels rather than the same pixels made bigger.
     // Stamps a silhouette mask onto a FRONT FACE, one merged quad per
-    // horizontal run -- the same technique as the text and brand stamps, for
-    // marks that are shapes rather than letters.
+    // horizontal run -- the same technique as the brand stamp, for marks that
+    // are shapes rather than letters. `rowRgb` is three floats per row, which
+    // is what lets one routine serve a single-color logotype and a striped
+    // mark alike.
     //
-    // `rowRgb` is three floats per row, which is what would let one routine
-    // serve a single-color logotype and a striped mark alike.
+    // `lit` decides whether the mark takes the room's light. Printed ink
+    // wants it off, so a brand's colors come out exact; anything meant to
+    // read as METAL wants it on, because a highlight that does not move with
+    // the surface is not a highlight, and the drive's legends are silver.
     static void  StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
                                 const char * const                  * rows,
                                 int                                   rowCount,
@@ -176,15 +169,12 @@ public:
                                 float                                 topZMm,
                                 float                                 cellMm,
                                 float                                 frontY,
-                                const float                         * rowRgb);
+                                const float                         * rowRgb,
+                                bool                                  lit);
 
-    static void  StampText (std::vector<Dxui3DRenderer::Vertex> & out,
-                            const char                          * text,
-                            float                                 leftMm,
-                            float                                 topZMm,
-                            float                                 cellMm,
-                            float                                 frontY,
-                            const float                           rgb[3]);
+    // Stamps "DRIVE n" onto the faceplate, from the baked masks. The scene
+    // owns these because they differ per drive and the model is shared.
+    static void  StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber);
 
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
@@ -307,7 +297,44 @@ private:
                                  float thicknessMm, int firstRow, int lastRow);
     void     BuildPadlockStamp  ();
 
-    // The "disk ][" logotype, printed low on the faceplate.
+    // A mask stamped as a solid with a SMOOTHED outline and a rounded top
+    // edge -- what turns a coarse bitmask into a mark that reads as molded
+    // rather than as pixels.
+    //
+    // Offsetting the raw silhouette cannot do this: one cell is the same
+    // order as any round-over worth having, so rounding by it would erase
+    // single-cell features outright. The mask is RESAMPLED instead --
+    // coverage over a disc a little wider than a cell, thresholded at half --
+    // which rounds the staircase off while holding the mark's area and its
+    // concavities, and the same field gives a distance to the outline, so cap
+    // height can ramp down over the last fraction of a millimeter.
+    //
+    // `mask` is gridW * gridH bytes, row-major, nonzero for ink. `rowRgb` is
+    // three floats per GRID row. `litFace` shades the flat interior along
+    // with the relief; leave it off where exact ink values matter more than
+    // the light.
+    //
+    // `smoothCells` is the coverage disc's radius IN MASK CELLS, and it is
+    // the one number that has to suit the mark. A disc near a cell rounds a
+    // staircase nicely, but it also closes any gap narrower than itself --
+    // on a mark whose letters stand a cell apart, the default welds them into
+    // a blob. The fix is resolution, not a smaller disc: give the mask finer
+    // cells and the same radius covers less of the mark.
+    //
+    // `superSample` is fine cells per mask cell. It costs the square of
+    // itself in both work and triangles, so a mask that arrives already fine
+    // should lower it rather than pay twice.
+    static void  BuildRelief    (std::vector<Dxui3DRenderer::Vertex> & out,
+                                 const uint8_t * mask, int gridW, int gridH,
+                                 float leftMm, float topZMm, float heightMm, float frontY,
+                                 float thicknessMm, float rollMm,
+                                 const float * rowRgb, bool litFace,
+                                 float smoothCells = 1.15f, int superSample = 4);
+
+    // "IN USE" and its pointer, printed beside the drive's lamp.
+    void     BuildInUseStamp    ();
+
+    // The "disk ][" logotype, embossed low on the faceplate.
     void     BuildWordmarkStamp ();
     void     AddRegionBoxes     ();
     void     ComputeBounds         ();
