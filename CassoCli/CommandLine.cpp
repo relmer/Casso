@@ -461,11 +461,13 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintUsageLine ("  <source>   A Merlin assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
 
     PrintSectionHeading ("Merlin directives");
-    PrintUsageLine ("  Merlin source answers in itself most of what a switch answers elsewhere, so these are directives written IN the source rather than options typed at the shell:");
+    PrintUsageLine ("  Merlin uses source directives instead of cmdline switches for many options. Some important ones are:");
     std::println ("");
     PrintUsageLine ("    XC       Select the 65C02.");
     PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
     PrintUsageLine ("    ORG      Set the origin.");
+    std::println ("");
+    PrintUsageLine ("  For more details, see docs\\Assembler.md and the Merlin manual.");
 
     PrintSectionHeading ("Merlin options");
     PrintDialectFlags (DialectId::Merlin, prefix);
