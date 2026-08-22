@@ -111,20 +111,30 @@ size_t CommandLine::UsageWidth()
     //  the library, where a test can reach it -- see UsageText::WidthFrom. This
     //  used to hold both, so "is the help folding to my terminal?" could only be
     //  answered by a person looking at one.
-    hasConsole = out != nullptr && out != INVALID_HANDLE_VALUE
+    //
+    //  A FILE IS THE ONLY THING WITH NO WIDTH TO ASK ABOUT. It will be opened in
+    //  an editor, where 200-column lines are the wrong answer, so a redirect to
+    //  disk keeps the 80 fallback and asks nothing.
+    bool  toFile = GetFileType (out) == FILE_TYPE_DISK;
+
+    hasConsole = !toFile && out != nullptr && out != INVALID_HANDLE_VALUE
               && GetConsoleScreenBufferInfo (out, &info);
 
-    //  CONOUT$ WHEN THE HANDLE ITSELF WILL NOT ANSWER, and only then. A stdout
-    //  that is a character device is a terminal of some kind, so a screen-buffer
-    //  query that fails on it is the handle being awkward rather than there
-    //  being no terminal -- some pseudoconsole hosts hand out a write-only
-    //  handle that GetConsoleScreenBufferInfo refuses. CONOUT$ opens the
-    //  process's own console directly and answers.
+    //  CONOUT$ WHEN THE HANDLE ITSELF WILL NOT ANSWER, which is most of the
+    //  time and was the whole bug.
     //
-    //  A stdout redirected to a FILE or a PIPE never reaches here, which is the
-    //  point: that stream has no width, and folding it to the width of a window
-    //  standing behind it would put 200-column lines into a file.
-    if (!hasConsole && GetFileType (out) == FILE_TYPE_CHAR)
+    //  GetConsoleScreenBufferInfo needs a READABLE console handle. A stdout that
+    //  has been through a shell -- piped, or handed on by a host that sits
+    //  between the terminal and the process -- is write-only or is a pipe, and
+    //  the call fails on it however wide the window behind it is. Measured:
+    //  under `> CON`, `| findstr` and a plain redirect alike, the stdout handle
+    //  answers nothing and CONOUT$ answers 112.
+    //
+    //  So the terminal is asked directly. CONOUT$ opens the process's OWN
+    //  console, so a tool with no console at all still gets nothing and still
+    //  falls back to 80 -- and a pipe into a pager now folds to the terminal
+    //  the pager is about to draw on, which is the answer that was wanted.
+    if (!hasConsole && !toFile)
     {
         console = CreateFileW (L"CONOUT$", GENERIC_READ | GENERIC_WRITE,
                                FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
