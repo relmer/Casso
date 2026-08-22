@@ -1549,6 +1549,34 @@ namespace CommandLineTests
             Assert::AreEqual ('\n', reason.back(), L"a reason runs to the end of its line");
         }
 
+        //  IT OPENS ON ITS FIRST WORD, not on a blank line. The executable puts
+        //  exactly two blank lines between the page and the reason, written once
+        //  as CommandLine::kGapBeforeTheReason; a reason carrying a newline of
+        //  its own would make that three for some refusals and two for others,
+        //  and nothing in the executable would be wrong.
+        TEST_METHOD (TheReason_DoesNotOpenWithBlankLinesOfItsOwn)
+        {
+            std::vector<std::vector<const char *>>  refused =
+            {
+                { "CassoCli", "as65", "prog.a65", "extra.a65" },
+                { "CassoCli", "as65", "prog.a65", "--cpu", "6502" },
+                { "CassoCli", "as65", "prog.a65", "-h" },
+                { "CassoCli", "disk", "list",     "img.dsk", "--bogus" },
+                { "CassoCli", "run",  "a.bin",    "b.bin" },
+            };
+
+            for (const std::vector<const char *> & typed : refused)
+            {
+                ArgVector           args   (typed);
+                CommandLineOptions  opts   = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+                std::string         reason = opts.refusalMessage;
+
+                Assert::IsFalse (reason.empty());
+                Assert::AreNotEqual ('\n', reason.front(),
+                                     Widen ("a reason opens on a blank line: " + reason).c_str());
+            }
+        }
+
         //  Nothing the parser writes carries the dash the help text no longer
         //  uses, and this is the sweep that says so across all of them at once.
         TEST_METHOD (NoReason_UsesTheDoubleHyphenDash)

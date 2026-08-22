@@ -91,7 +91,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
     {
         CommandLine::PrintPageFor (CommandLineOptions::Subcommand::Disk, options.flagPrefix);
         std::cout.flush();
-        std::cerr << "\n";
+        std::cerr << CommandLine::kGapBeforeTheReason;
     }
 
     if (!result.diagnostics.empty())

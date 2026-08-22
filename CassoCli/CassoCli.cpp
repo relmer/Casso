@@ -103,7 +103,7 @@ int main (int argc, char * argv[])
         CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
         std::cout.flush();
 
-        std::cerr << "\n" << options.refusalMessage;
+        std::cerr << CommandLine::kGapBeforeTheReason << options.refusalMessage;
 
         exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }

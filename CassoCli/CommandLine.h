@@ -35,6 +35,21 @@
 class CommandLine
 {
 public:
+    //
+    //  What separates a usage page from the reason it was printed.
+    //
+    //  TWO BLANK LINES, named once so the four places that print a page and
+    //  then a reason cannot drift into three gaps. The page ends in a newline
+    //  of its own, so the two blank lines are two more.
+    //
+    //  One was not enough. A page closes on a run of indented continuation
+    //  lines -- the exit-code table's wrapped entries, the disk page's worked
+    //  example -- and a single blank under those reads as the paragraph break
+    //  the page uses everywhere else, which left the reason looking like one
+    //  more line of help rather than the answer to what went wrong.
+    //
+    static constexpr const char *  kGapBeforeTheReason = "\n\n";
+
     static CommandLineOptions  Parse                     (int argc, char * argv[]);
 
     //  The page the request asked for, written with the prefix it was typed

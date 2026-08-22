@@ -621,7 +621,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
     PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
     std::cout.flush();
 
-    std::cerr << "\nCassoCli: '" << word << "' is not a subcommand.\n";
+    std::cerr << kGapBeforeTheReason << "CassoCli: '" << word << "' is not a subcommand.\n";
 
     if (CommandLineParser::IsAssemblySource (word))
     {
@@ -679,7 +679,8 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
     PrintPageFor (subcommand, prefix);
     std::cout.flush();
 
-    std::cerr << "\nCassoCli: '" << flag << "' is not an option of the " << mode << " subcommand.\n";
+    std::cerr << kGapBeforeTheReason << "CassoCli: '" << flag << "' is not an option of the " << mode
+              << " subcommand.\n";
 }
 
 

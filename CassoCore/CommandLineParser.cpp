@@ -17,11 +17,10 @@
 //
 static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 {
-    { "run",  CommandLineOptions::Subcommand::Run  },
-    { "disk", CommandLineOptions::Subcommand::Disk },
     { "as65",   CommandLineOptions::Subcommand::As65   },
     { "merlin", CommandLineOptions::Subcommand::Merlin },
     { "run",    CommandLineOptions::Subcommand::Run    },
+    { "disk",   CommandLineOptions::Subcommand::Disk   },
 };
 
 
