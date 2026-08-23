@@ -363,6 +363,179 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  stamp: bytes at a track and a sector, with no filesystem involved.
+    //
+    //  THE SECTOR IS LOGICAL AND THE FILE OFFSET IS NOT. They differ by the DOS
+    //  3.3 interleave, and an implementation that ignored it would read back
+    //  perfectly through our own reader while being garbage on real hardware.
+    //  So the assertions below are against the SKEWED offsets, computed from
+    //  the layer that owns the table rather than restated here.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static CommandLineOptions MakeStamp (const char * image, const char * file, int track, int sector)
+    {
+        CommandLineOptions  options;
+
+        options.subcommand     = CommandLineOptions::Subcommand::Disk;
+        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Stamp;
+        options.disk.verbWord  = "stamp";
+        options.disk.imagePath = image;
+        options.disk.hostFile  = file;
+        options.disk.track     = track;
+        options.disk.sector    = sector;
+
+        return options;
+    }
+
+    //  A blank .dsk to write into, with no filesystem on it at all.
+    //
+    //  THE STAMP MATTERS AS MUCH AS THE BYTES. A commit compares the file it
+    //  is about to replace against the one that was read, and refuses when it
+    //  cannot: an image seeded with contents and no stamp is one the runner
+    //  will decline to write, which is correct of it and easy to mistake for
+    //  a bug in the verb under test.
+    static void SeedBlankImage (FakeDiskFileIo & io, const char * path)
+    {
+        FileStamp  stamp;
+
+        io.files[path] = vector<Byte> ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0x00);
+
+        stamp.sizeBytes   = (uint64_t) io.files[path].size();
+        stamp.modifiedUnix = 1;
+
+        io.stamps[path] = stamp;
+    }
+
+    //  LOGICAL SECTOR 1 IS NOT AT FILE OFFSET 256. It is at the offset the
+    //  interleave puts it, which for DOS 3.3 is physical position 7. This is
+    //  the assertion that would fail if the verb wrote sequentially.
+    TEST_METHOD (Stamp_PlacesBytesWhereTheInterleavePutsThem)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xA5);
+        vector<Byte>       written;
+        size_t             expectedAt = 0;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 3, 1)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
+
+        expectedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+                              + NibblizationLayer::DskFileIndexForDosLogicalSector (1))
+                             * NibblizationLayer::kSectorByteSize);
+
+        Assert::AreEqual ((Byte) 0xA5, written[expectedAt], L"the skewed offset holds the bytes");
+        Assert::AreNotEqual ((size_t) (3 * 16 + 1) * 256, expectedAt,
+                             L"and that is not where a sequential write would have put them");
+        Assert::AreEqual ((Byte) 0x00, written[(size_t) (3 * 16 + 1) * 256],
+                          L"which is still untouched");
+    }
+
+    //  A payload longer than one track runs on into the next, because splitting
+    //  the call per track would put the wrap arithmetic back in the caller.
+    TEST_METHOD (Stamp_RunsOnPastTheEndOfATrack)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (NibblizationLayer::kSectorByteSize * 20, (Byte) 0x5A);
+        vector<Byte>       written;
+        size_t             lastAt = 0;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["big.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeStamp ("raw.dsk", "big.bin", 1, 0)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
+
+        //  Twenty sectors from track 1 sector 0 run to index 19, which is
+        //  four sectors into track 2: logical sector 3.
+        lastAt = (size_t) ((2 * NibblizationLayer::kSectorsPerTrack
+                          + NibblizationLayer::DskFileIndexForDosLogicalSector (3))
+                         * NibblizationLayer::kSectorByteSize);
+
+        Assert::AreEqual ((Byte) 0x5A, written[lastAt], L"the last sector landed on track 2");
+
+        Assert::AreEqual ((Byte) 0x00,
+                          written[(size_t) ((2 * NibblizationLayer::kSectorsPerTrack
+                                           + NibblizationLayer::DskFileIndexForDosLogicalSector (4))
+                                          * NibblizationLayer::kSectorByteSize)],
+                          L"and the one after it was left alone");
+    }
+
+    //  IT WRITES WHOLE SECTORS AND DISTURBS NOTHING ELSE. A payload that does
+    //  not fill its last sector leaves the rest of that sector as it was.
+    TEST_METHOD (Stamp_TouchesOnlyTheSectorsItWasGiven)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       written;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["short.bin"] = vector<Byte> (4, (Byte) 0xFF);
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeStamp ("raw.dsk", "short.bin", 0, 0)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
+
+        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, written.size(),
+                          L"the image is still a whole disk");
+        Assert::AreEqual ((Byte) 0xFF, written[0]);
+        Assert::AreEqual ((Byte) 0x00, written[4],  L"the rest of the sector is untouched");
+        Assert::AreEqual ((Byte) 0x00, written[256], L"and so is the next one");
+    }
+
+    //  A track or sector off the end of the disk is refused, not clamped.
+    TEST_METHOD (Stamp_RefusesAPlaceThatIsNotOnTheDisk)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = vector<Byte> (16, (Byte) 0xA5);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 35, 0)).exitStatus,
+                          L"track 35 is one past the last");
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 0, 16)).exitStatus,
+                          L"and sector 16 is one past the last");
+    }
+
+    //  A payload that will not fit from where it was told to start is refused
+    //  before anything is written, rather than truncated.
+    TEST_METHOD (Stamp_RefusesAPayloadThatRunsOffTheEnd)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       before;
+        vector<Byte>       after;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["big.bin"] = vector<Byte> ((size_t) NibblizationLayer::kSectorByteSize * 40, (Byte) 0x5A);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", before));
+
+        result = runner.Run (MakeStamp ("raw.dsk", "big.bin", 33, 0));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", after));
+        Assert::IsTrue (before == after, L"and the image is exactly as it was");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  create --boot: a disk that starts a binary with no operating system.
     //
     //  The builder underneath is already gated by a real-CPU test that boots a

@@ -32,7 +32,16 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Debug'
+    [string]$Configuration = 'Debug',
+
+    # Lay the image out in PowerShell, the way this script always did, rather
+    # than with `CassoCli disk stamp`. Kept because it is the independent
+    # witness: the two methods share no code, so agreeing byte for byte is
+    # evidence rather than a tautology. -Compare runs both and diffs them.
+    [switch]$LegacyLayout,
+
+    # Build the image both ways and report whether they are identical.
+    [switch]$Compare
 )
 
 $ErrorActionPreference = 'Stop'
@@ -181,70 +190,168 @@ $hgr      = Read-AssetFile 'cassowary.hgr'           $kImageLength
 $bands    = Read-AssetFile 'test-bands.hgr'          $kImageLength
 $lores    = Read-AssetFile 'lores-bars.lores'        ($kBytesPerSector * 4)
 
+function Build-LayoutInPowerShell {
+    #  The original method: allocate the image, stamp every region at a
+    #  computed file offset, write it out.
+    #
+    #  KEPT AS AN INDEPENDENT WITNESS, not as a fallback. It shares no code
+    #  with the stamp path, so the two agreeing byte for byte is evidence
+    #  rather than a tautology. Run -Compare to check them against each other.
+
+    # $00-filled blank disk (matches the test fixture; nibblizer doesn't
+    # care, but a zero fill keeps unused sectors clean).
+    $image = New-Object byte[] $kImageSize
+
+    # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
+    Write-Bytes-At $image (Get-LogicalSectorOffset 0 0) $stage1
+
+    # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-LogicalSectorOffset (1 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Track 3 logical sector 0: stage 2 ($1000..$10FF)
+    Write-Bytes-At $image (Get-LogicalSectorOffset 3 0) $stage2
+
+    # Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
+    for ($sector = 0; $sector -lt 4; $sector++) {
+        $slice = New-Object byte[] $kBytesPerSector
+        [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
+        Write-Bytes-At $image (Get-LogicalSectorOffset 3 (1 + $sector)) $slice
+    }
+
+    # Tracks 4-5: DHGR main pattern
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-LogicalSectorOffset (4 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Tracks 6-7: HGR1 cassowary
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-LogicalSectorOffset (6 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Tracks 8-9: HGR2 test bands
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-LogicalSectorOffset (8 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    $dskPath = Join-Path $demoDir 'casso-rocks.dsk'
+    [System.IO.File]::WriteAllBytes($dskPath, $image)
+
+    return ,$image
+}
+
+
+function Build-LayoutWithCassoCli {
+    #  The same layout as seven `disk stamp` calls.
+    #
+    #  What this buys is not brevity. The PowerShell method has to know the
+    #  DOS 3.3 interleave, so it carries its own copy of the sixteen numbers,
+    #  in a language where no compiler and no test will ever notice it
+    #  drifting from the engine. `stamp` takes a track and a LOGICAL sector
+    #  and does the translation in the layer that owns the skew.
+
+    $dsk = Join-Path $demoDir "casso-rocks.dsk"
+
+    #  An unformatted image, because this disk has no filesystem: it boots
+    #  its own loader, which reads fixed tracks. --format none is that.
+    if (Test-Path $dsk) { Remove-Item $dsk -Force }
+
+    & $cli disk create $dsk --type dsk --format none | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "disk create failed ($LASTEXITCODE)" }
+
+    #  Each stage goes to a scratch file first: stamp takes a file, and the
+    #  assembled regions are in memory at this point.
+    $tmp1 = Join-Path $demoDir "stage1.tmp"
+    $tmp2 = Join-Path $demoDir "stage2.tmp"
+
+    [System.IO.File]::WriteAllBytes($tmp1, $stage1)
+    [System.IO.File]::WriteAllBytes($tmp2, $stage2)
+
+    #  Track, logical sector, and what goes there: the layout the demo
+    #  documents, in the order its boot loader reads it.
+    $plan = @(
+        @{ Track = 0; Sector = 0; Path = $tmp1 },
+        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 3; Sector = 0; Path = $tmp2 },
+        @{ Track = 3; Sector = 1; Path = (Join-Path $demoDir "lores-bars.lores") },
+        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
+        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") },
+        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "test-bands.hgr") }
+    )
+
+    foreach ($step in $plan) {
+        & $cli disk stamp $dsk $step.Path --track $step.Track --sector $step.Sector | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "disk stamp failed: $($step.Path) at track $($step.Track) sector $($step.Sector)"
+        }
+    }
+
+    Remove-Item $tmp1 -Force
+    Remove-Item $tmp2 -Force
+
+    return ,([System.IO.File]::ReadAllBytes($dsk))
+}
+
+
 Write-Host "Laying out .dsk image..." -ForegroundColor Cyan
 
-# $00-filled blank disk (matches the test fixture; nibblizer doesn't
-# care, but a zero fill keeps unused sectors clean).
-$image = New-Object byte[] $kImageSize
+$dskPath = Join-Path $demoDir "casso-rocks.dsk"
 
-# Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
-Write-Bytes-At $image (Get-LogicalSectorOffset 0 0) $stage1
+if ($Compare) {
+    #  Both methods, and whether they agree. Checking them against each
+    #  other is the reason the old one is still here.
+    $viaCli   = Build-LayoutWithCassoCli
+    $viaShell = Build-LayoutInPowerShell
 
-# Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (1 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+    [System.IO.File]::WriteAllBytes($dskPath, $viaCli)
+
+    $same = ($viaCli.Length -eq $viaShell.Length)
+
+    if ($same) {
+        for ($i = 0; $i -lt $viaCli.Length; $i++) {
+            if ($viaCli[$i] -ne $viaShell[$i]) { $same = $false; break }
+        }
     }
-}
 
-# Track 3 logical sector 0: stage 2 ($1000..$10FF)
-Write-Bytes-At $image (Get-LogicalSectorOffset 3 0) $stage2
-
-# Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
-for ($sector = 0; $sector -lt 4; $sector++) {
-    $slice = New-Object byte[] $kBytesPerSector
-    [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 3 (1 + $sector)) $slice
-}
-
-# Tracks 4-5: DHGR main pattern
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (4 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+    if (-not $same) {
+        throw "The two layout methods disagree. One of them has the sector skew wrong."
     }
+
+    Write-Host "Both methods agree, byte for byte." -ForegroundColor Green
+}
+elseif ($LegacyLayout) {
+    $image = Build-LayoutInPowerShell
+    [System.IO.File]::WriteAllBytes($dskPath, $image)
+}
+else {
+    Build-LayoutWithCassoCli | Out-Null
 }
 
-# Tracks 6-7: HGR1 cassowary
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (6 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
-    }
-}
-
-# Tracks 8-9: HGR2 test bands
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (8 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
-    }
-}
-
-$dskPath = Join-Path $demoDir 'casso-rocks.dsk'
-[System.IO.File]::WriteAllBytes($dskPath, $image)
+$image = [System.IO.File]::ReadAllBytes($dskPath)
 
 Write-Host "Wrote $dskPath ($($image.Length) bytes)" -ForegroundColor Green

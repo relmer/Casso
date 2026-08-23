@@ -166,6 +166,18 @@ public:
     //  perfectly through the same wrong table and is garbage on real hardware.
     static int      PoFileIndexForDosLogicalSector (int logicalSector);
 
+    //  Where DOS logical sector L sits within a DOS-ordered file's track.
+    //
+    //  The .dsk answer to the .po question above, and the one anybody laying
+    //  bytes into an image by track and sector needs: a `.dsk` in this engine
+    //  holds logical sector L of track T at (T * 16 + this) * 256.
+    //
+    //  Exposed because it was being written down elsewhere. The demo-disk
+    //  build script carried its own copy of the sixteen numbers, in
+    //  PowerShell, where no compiler and no test would ever notice the two
+    //  drifting apart.
+    static int      DskFileIndexForDosLogicalSector (int logicalSector);
+
     //  Which sector of a DOS-ordered buffer the drive presents at physical
     //  position P -- equivalently, which one answers to the address field
     //  numbered P, since the sixteen address fields are laid down in order.

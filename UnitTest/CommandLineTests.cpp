@@ -2988,7 +2988,7 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (17), CommandLineParser::GetAllDiskVerbs().size(),
+            Assert::AreEqual (size_t (18), CommandLineParser::GetAllDiskVerbs().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

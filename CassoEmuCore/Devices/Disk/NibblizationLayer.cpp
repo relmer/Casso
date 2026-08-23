@@ -449,6 +449,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblizationLayer::DskFileIndexForDosLogicalSector
+//
+//  Where DOS logical sector L sits within a DOS-ordered file's track.
+//
+//  This is the table itself rather than a composition of it, because the
+//  table IS indexed by logical sector: see its own note above, which says the
+//  bytes for logical mark L come from file offset (track * 16 + kDsk_LtoP[L])
+//  * 256. The .po answer next door has to be composed because both tables
+//  there are indexed the other way round.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int NibblizationLayer::DskFileIndexForDosLogicalSector (int logicalSector)
+{
+    //  Clamped rather than asserted, because a caller reaching past the end
+    //  of a track has a bug worth a diagnostic rather than a crash, and the
+    //  disk grammar refuses an out-of-range sector before it gets here.
+    bool  inRange = logicalSector >= 0 && logicalSector < kSectorsPerTrack;
+
+
+
+    return inRange ? kDsk_LtoP[logicalSector] : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblizationLayer::PoFileIndexForDosLogicalSector
 //
 //  Both interleave tables answer the same question -- which file offset holds

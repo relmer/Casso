@@ -110,7 +110,7 @@ struct CommandLineOptions
         //  --help` resolves to. Keeping it out of that table is deliberate:
         //  the table is swept to check every verb is described in the help,
         //  and the help request is not one of the things being described.
-        enum class Verb      { None, List, Get, Put, Delete, Boot, Create, Init, Help };
+        enum class Verb      { None, List, Get, Put, Delete, Boot, Create, Init, Stamp, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -169,6 +169,15 @@ struct CommandLineOptions
         //  would force such a payload to be rebuilt just to boot.
         Word         entryAddress    = 0;
         bool         hasEntryAddress = false;
+
+        //
+        //  Where `stamp` lays its bytes down: a track and a DOS LOGICAL
+        //  sector, which is the numbering a source listing and a boot loader
+        //  both speak. The physical position on the disk differs from it by
+        //  the interleave, and translating between the two is the engine's
+        //  job rather than the caller's.
+        int          track           = 0;
+        int          sector          = 0;
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because

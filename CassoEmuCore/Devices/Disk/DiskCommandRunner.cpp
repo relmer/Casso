@@ -90,6 +90,9 @@ static constexpr const char *  s_kppszDiskOptions[][2] =
                     "option is how you say where" },
     { "entry <addr>",
                     "create: start a --boot binary here rather than at its load address" },
+    { "track <n>",  "stamp: which track to write at, 0 to 34" },
+    { "sector <n>", "stamp: which DOS logical sector to start at, 0 to 15. The bytes "
+                    "run on into the next track if they do not fit" },
     { "text",       "Convert the high-bit encoding and the line endings" },
     { "basic",      "Convert to and from an Applesoft listing" },
 };
@@ -171,6 +174,9 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
         "                                    ready to write to\n"
         "  init | format                     Format an image that is already there,\n"
         "                                    discarding everything on it\n"
+        "  stamp                             Lay a host file into the image at a\n"
+        "                                    track and a sector, with no filesystem\n"
+                                          "    involved\n"
         "\n"
         "  CassoCli disk " + lp + "help\n"
         "  CassoCli disk list   <image>\n"
@@ -878,7 +884,8 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 HRESULT DiskCommandRunner::OpenImage (
     const std::string  & imagePath,
     OpenedImage        & outOpened,
-    DiskCommandResult  & result)
+    DiskCommandResult  & result,
+    bool                 requireFilesystem)
 {
     HRESULT       hr      = S_OK;
     bool          named   = !imagePath.empty();
@@ -921,7 +928,7 @@ HRESULT DiskCommandRunner::OpenImage (
 
     outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
 
-    if (outOpened.kind == VolumeKind::Unknown)
+    if (outOpened.kind == VolumeKind::Unknown && requireFilesystem)
     {
         // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
         // got no catalog, so this is still status 2 and still goes to the error
@@ -2213,6 +2220,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             RunBoot (options, result);
             break;
 
+        case CommandLineOptions::DiskOptions::Verb::Stamp:
+            RunStamp (options, result);
+            break;
+
         case CommandLineOptions::DiskOptions::Verb::Create:
             RunCreate (options, result);
             break;
@@ -2928,4 +2939,160 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
     }
 
     BuildAndWrite (options, format, true, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunStamp
+//
+//  A host file laid into an image at a track and a DOS logical sector.
+//
+//  NO FILESYSTEM IS INVOLVED, WHICH IS THE POINT. A demo that boots its own
+//  loader and reads fixed tracks has no catalog to make an entry in and no
+//  allocator to ask for space, so `put` cannot express it at all. This writes
+//  the bytes given, where it is told, and nothing else.
+//
+//  THE SECTOR IS LOGICAL, NOT PHYSICAL. Logical numbering is what a source
+//  listing and a boot loader both speak; the position on the disk differs from
+//  it by the interleave, and translating between the two belongs to the layer
+//  that owns the skew. A caller doing that arithmetic itself is a second copy
+//  of the sixteen numbers, which is how an image comes to read back perfectly
+//  through our own reader and be garbage on real hardware.
+//
+//  It runs on past the end of a track into the next one, because a payload
+//  longer than 4 KB is ordinary and splitting the call per track would put the
+//  wrap arithmetic back in the caller's hands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunStamp (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT       hr           = S_OK;
+    size_t        needed       = 0;
+    size_t        written      = 0;
+    OpenedImage   opened;
+    vector<Byte>  payload;
+    vector<Byte>  edited;
+    char          summary[160] = {};
+
+
+
+    if (options.disk.hostFile.empty())
+    {
+        result.diagnostics    += "Error: no host file named to stamp\n"
+                                 "       stamp takes the image and the file to lay into it\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    if (options.disk.track < 0 || options.disk.track >= NibblizationLayer::kTrackCount
+     || options.disk.sector < 0 || options.disk.sector >= NibblizationLayer::kSectorsPerTrack)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: track %d sector %d is not on this disk\n"
+                  "       tracks run 0 to %d and sectors 0 to %d\n",
+                  options.disk.track, options.disk.sector,
+                  NibblizationLayer::kTrackCount - 1,
+                  NibblizationLayer::kSectorsPerTrack - 1);
+
+        result.diagnostics    += summary;
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.hostFile, "", "cannot be read") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    //  A disk with no filesystem is the ordinary case here rather than a
+    //  refusal: a demo that boots its own loader has no catalog, and that
+    //  is exactly the disk this verb exists to write.
+    hr = OpenImage (options.disk.imagePath, opened, result, false);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    edited = opened.sectors;
+
+    //  Whole sectors, because that is the unit the drive reads. A payload that
+    //  does not fill its last one is padded with what was already there rather
+    //  than with a value this command invented.
+    needed = (payload.size() + (size_t) NibblizationLayer::kSectorByteSize - 1)
+           / (size_t) NibblizationLayer::kSectorByteSize;
+
+    {
+        size_t  first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
+                                + options.disk.sector);
+        size_t  total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
+
+        if (first + needed > total)
+        {
+            snprintf (summary, sizeof (summary),
+                      "Error: %zu bytes will not fit from track %d sector %d\n"
+                      "       that is %zu sectors and the disk has %zu left there\n",
+                      payload.size(), options.disk.track, options.disk.sector,
+                      needed, total - first);
+
+            result.diagnostics    += summary;
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
+
+            return;
+        }
+
+        for (size_t index = 0; index < needed; index++)
+        {
+            size_t  running = first + index;
+            int     track   = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
+            int     logical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
+            size_t  at      = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
+                                       + NibblizationLayer::DskFileIndexForDosLogicalSector (logical))
+                                      * NibblizationLayer::kSectorByteSize);
+            size_t  from    = index * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t  count   = std::min ((size_t) NibblizationLayer::kSectorByteSize,
+                                        payload.size() - from);
+
+            if (at + count > edited.size())
+            {
+                break;
+            }
+
+            std::copy (payload.begin() + (ptrdiff_t) from,
+                       payload.begin() + (ptrdiff_t) (from + count),
+                       edited.begin()  + (ptrdiff_t) at);
+
+            written += count;
+        }
+    }
+
+    hr = SaveAndCommit (opened, edited, result);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    snprintf (summary, sizeof (summary),
+              "%s: %zu bytes at track %d sector %d, %zu sector(s)\n",
+              options.disk.imagePath.c_str(), written,
+              options.disk.track, options.disk.sector, needed);
+
+    result.output     += summary;
+    result.exitStatus  = kClean;
 }

@@ -58,6 +58,7 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
     { "create",  CommandLineOptions::DiskOptions::Verb::Create },
     { "new",     CommandLineOptions::DiskOptions::Verb::Create },
     { "init",    CommandLineOptions::DiskOptions::Verb::Init   },
+    { "stamp",   CommandLineOptions::DiskOptions::Verb::Stamp  },
     { "format",  CommandLineOptions::DiskOptions::Verb::Init   },
 };
 
@@ -228,6 +229,8 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "bootable",
     "boot",
     "entry",
+    "track",
+    "sector",
 };
 
 
@@ -837,6 +840,7 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb v
     case CommandLineOptions::DiskOptions::Verb::Put:
     case CommandLineOptions::DiskOptions::Verb::Delete:
     case CommandLineOptions::DiskOptions::Verb::Boot:
+    case CommandLineOptions::DiskOptions::Verb::Stamp:
         count = 2;
         break;
 
@@ -1142,6 +1146,43 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  A track and a sector are plain decimals rather than addresses, so
+        //  they are read here rather than through ParseAddress, and a word
+        //  that is not a number is refused rather than reading as zero.
+        if ((arg == "--track" || arg == "--sector") && hasValue)
+        {
+            std::string  text  = argv[i + 1];
+            int          value = 0;
+            bool         ok    = IsPlainDecimal (text);
+
+            if (ok)
+            {
+                value = std::stoi (text);
+            }
+
+            if (ok)
+            {
+                if (arg == "--track")
+                {
+                    options.disk.track = value;
+                }
+                else
+                {
+                    options.disk.sector = value;
+                }
+            }
+            else
+            {
+                Refusal (options) << "Error: " << argv[i + 1] << " is not a "
+                                  << (arg == "--track" ? "track" : "sector") << " number\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
+            i++;
+            continue;
+        }
+
         if (arg == "--format" && hasValue)
         {
             options.disk.formatName = argv[i + 1];
@@ -1300,9 +1341,13 @@ void CommandLineParser::ParseDiskOptions (
         }
         else if (positional == 1)
         {
-            // `put` takes a host file here; every other verb takes a path on
-            // the disk. --as may override the on-disk name afterwards.
-            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Put)
+            // `put` and `stamp` take a HOST file here; every other verb takes
+            // a path on the disk. --as may override the on-disk name
+            // afterwards. Stamp has no on-disk name at all: it writes to a
+            // track and a sector, and the disk it writes to may have no
+            // filesystem to hold a name in.
+            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Put
+             || options.disk.verb == CommandLineOptions::DiskOptions::Verb::Stamp)
             {
                 options.disk.hostFile = arg;
             }

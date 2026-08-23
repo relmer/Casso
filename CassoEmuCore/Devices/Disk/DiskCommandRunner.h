@@ -131,9 +131,14 @@ public:
 
     //  Loads the image, identifies its filesystem and records its stamp, or
     //  explains why not.
+    //  `requireFilesystem` is what every verb but `stamp` wants: a disk with
+    //  no catalog is nothing they can act on, so identifying none is a
+    //  refusal. `stamp` writes to a track and a sector and asks nothing of
+    //  the filesystem, so for it an unrecognized disk is an ordinary one.
     HRESULT  OpenImage (const std::string  & imagePath,
                         OpenedImage        & outOpened,
-                        DiskCommandResult  & result);
+                        DiskCommandResult  & result,
+                        bool                 requireFilesystem = true);
 
     //  Puts a computed image over the target, or refuses and leaves the target
     //  byte-for-byte as it was.
@@ -164,6 +169,18 @@ public:
     void  BuildDirectBoot (const CommandLineOptions & options,
                            DiskFormat                 format,
                            DiskCommandResult        & result);
+
+    //
+    //  Lays a host file into an image at a track and a DOS logical sector,
+    //  with no filesystem involved.
+    //
+    //  FOR THE DISKS THAT HAVE NO FILESYSTEM TO PUT A FILE INTO. A demo that
+    //  boots its own loader and reads fixed tracks is a real and common
+    //  layout, and `put` cannot express it: there is no catalog to make an
+    //  entry in and no allocator to ask for space. This writes exactly the
+    //  bytes given, exactly where it is told.
+    //
+    void  RunStamp (const CommandLineOptions & options, DiskCommandResult & result);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
