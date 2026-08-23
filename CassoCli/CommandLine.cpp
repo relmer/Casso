@@ -467,7 +467,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
     PrintUsageLine ("    ORG      Set the origin.");
     std::println ("");
-    PrintUsageLine ("  For more details, see docs\\Assembler.md and the Merlin manual.");
+    PrintUsageLine ("  For more details, see docs\\Assembler.md and the Merlin documentation.");
 
     PrintSectionHeading ("Merlin options");
     PrintDialectFlags (DialectId::Merlin, prefix);
