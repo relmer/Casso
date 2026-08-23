@@ -90,7 +90,7 @@ confirm the file contains exactly the assembled bytes (and, when requested, the
 
 ---
 
-### User Story 2 - Put a file onto a disk image (Priority: P1)
+### User Story 2 - Put a file onto a disk image (Priority: P1) - DELIVERED
 
 A developer places an assembled binary onto a disk image, naming it and telling
 the disk what kind of file it is and where it loads. The disk is then mounted in
@@ -124,7 +124,7 @@ loading it produces the expected bytes in memory.
 
 ---
 
-### User Story 3 - Read a disk image's contents (Priority: P1)
+### User Story 3 - Read a disk image's contents (Priority: P1) - DELIVERED
 
 A developer lists what is on a disk image and extracts a file from it to the host
 — to recover source stored on a disk, to inspect what a program actually wrote, or
@@ -163,7 +163,7 @@ compare it byte-for-byte against the original.
 
 ---
 
-### User Story 4 - Make the disk boot the program (Priority: P2)
+### User Story 4 - Make the disk boot the program (Priority: P2) - DELIVERED
 
 A developer configures a bootable disk so that inserting it and powering on runs
 their program, with no typing at the guest prompt.
@@ -193,7 +193,23 @@ program, then boot the image in Casso and confirm the program runs without input
 
 ---
 
-### User Story 5 - Boot straight into a program with no operating system (Priority: P3)
+### User Story 5 - Boot straight into a program with no operating system (Priority: P3) - BUILT, NOT YET REACHABLE
+
+**BUILT AND NOT REACHABLE. Exposure deferred to
+[#122](https://github.com/relmer/Casso/issues/122).** The capability itself is
+delivered: `DirectBootBuilder` generates the image, refuses a payload that will not fit
+the `$0900` to `$BFFF` window with the capacity named, supports an entry address distinct
+from the load address, and is gated by a real-CPU test that boots a 6502 over the result
+and requires it to reach the payload in under a quarter of the cycles the equivalent DOS
+3.3 boot spends. Tasks T040 to T042 are complete.
+
+What is missing is the command that reaches it. Its only callers are 30 test sites; no
+CLI verb and no GUI path constructs one, so a developer cannot produce a direct-boot disk
+from outside the test suite. It produces a whole image rather than a boot sector to lay
+over a formatted one, so it is a separate construction path in `create` rather than
+another field on the blank-disk spec, and it needs its own container handling.
+`disk create --boot <binary>` parses today and is refused by name, pointing at that
+issue.
 
 A developer produces a disk image that boots directly into a binary with no DOS or
 ProDOS present at all — the program owns the machine from power-on and gets the
@@ -223,7 +239,7 @@ present on the disk.
 
 ---
 
-### User Story 6 - Put BASIC source on a disk as a runnable program (Priority: P3)
+### User Story 6 - Put BASIC source on a disk as a runnable program (Priority: P3) - DELIVERED
 
 A developer writes Applesoft BASIC as ordinary text on the host and places it on a
 disk as a program the guest can `RUN` directly.
@@ -244,6 +260,38 @@ program in the guest, and confirm the listing matches the source text.
 2. **Given** a listing containing a syntax error or an out-of-order line number,
    **When** the developer places it, **Then** the operation is refused with the
    offending line quoted and its line number reported.
+
+---
+
+### User Story 7 - Make the disk in the first place (Priority: P1) - DELIVERED
+
+A developer starts from an empty directory and needs a disk before anything can be put
+on it.
+
+**Why this priority**: It is P1 by discovery rather than by design. Every other story
+assumes an image already exists, and the worked example this feature ships began
+`disk put mydisk.dsk` with nothing anywhere creating `mydisk.dsk`, so a reader
+following it from a clean directory failed at the second command. Casso could already
+make blank disks from the GUI; the command line could not, which left the loop broken
+exactly where a newcomer starts.
+
+**Independent Test**: From an empty directory, create an image, put a file on it, and
+list it back.
+
+**Acceptance Scenarios**:
+
+1. **Given** an empty directory, **When** the developer creates an image, **Then** it
+   is formatted and immediately writable, and its container follows the name's
+   extension unless one is named explicitly.
+2. **Given** an image that already exists, **When** the developer runs `create` against
+   it, **Then** the operation is refused rather than overwriting it, and names the verb
+   that does mean it.
+3. **Given** an image that already exists, **When** the developer formats it again,
+   **Then** its contents are discarded and its container is unchanged, and no option is
+   offered to change the container.
+4. **Given** a request for a bootable disk, **When** the developer names no operating
+   system master, **Then** the one the emulator has already downloaded is used, and
+   when none has been downloaded the refusal says which is missing and how to fetch it.
 
 ---
 
@@ -617,3 +665,31 @@ them is the correct behavior, not a gap.
   of it. FR-018 is the fix. It MUST land before any write path that consumes
   denibblized output, and the pre-existing emulator-side exposure SHOULD be
   tracked as its own defect rather than folded silently into this feature.
+
+### Issues this feature opened
+
+- **[#121](https://github.com/relmer/Casso/issues/121) - 6502 disassembler.** The loop
+  runs in reverse as far as bytes: `disk get` returns a file byte-for-byte and reports
+  the load address DOS 3.3 does not record, and `--basic` returns a tokenized program as
+  a listing. Nothing turns a binary back into source, so the reverse loop stops one step
+  short. Deciding code from data is undecidable in general, and the design is therefore
+  verifiable rather than complete: disassemble, reassemble, compare bytes. The emulator's
+  own instruction trace can widen the reachable set past what static analysis can follow.
+  Shared with #51 and #59, which need the same primitive.
+- **[#122](https://github.com/relmer/Casso/issues/122) - `disk create --boot`.** User
+  Story 5, deferred. See that story for why.
+
+### What this feature changed beyond its own scope
+
+- **The command-line executable is now a shim.** `CassoCli.exe` held 3,639 lines the
+  test assembly could not link, including the dispatch that chose an exit code. Two
+  defects were sitting in that unreachable half: the documented exit statuses were never
+  the ones returned, and a bare invocation exited 0 where its own comment said 1. Both
+  were found within minutes of the code moving. It is 57 lines now, and the rest lives in
+  `CassoEmuCore/Cli`. Recorded against
+  [#85](https://github.com/relmer/Casso/issues/85), which asks every executable to take
+  this shape.
+- **Locating the operating-system masters moved into the library** as `StockBootDisks`.
+  It sat in `Casso.exe`, so the command line could not reach the download cache and
+  `--bootable` had to be told the path by hand. Downloading stays in the GUI, where
+  consent and a network stack belong.

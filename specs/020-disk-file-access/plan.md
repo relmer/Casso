@@ -139,7 +139,7 @@ specs/020-disk-file-access/
 │   └── disk-subcommand.md
 ├── checklists/
 │   └── requirements.md
-└── tasks.md             # Phase 2 (/speckit-tasks — T001..T051)
+└── tasks.md             # Phase 2 (/speckit-tasks — T001..T135)
 ```
 
 ### Source Code (repository root)
@@ -163,7 +163,12 @@ CassoEmuCore/Devices/Disk/
 ├── IDiskFileIo.h                # NEW — byte-level file seam (read/write/stat/replace)
 ├── DiskCommandRunner.h/.cpp     # NEW — every disk-command DECISION, testable
 ├── CommitPlan.h/.cpp            # NEW — temp-name policy, staleness comparison
-└── DirectBootBuilder.h/.cpp     # NEW — no-OS boot image (US5, P3)
+├── DirectBootBuilder.h/.cpp     # NEW — no-OS boot image (US5, P3). BUILT AND
+│                                #   GATED; no caller outside the tests yet (#122)
+└── StockBootDisks.h/.cpp        # NEW — where the OS masters are, so a bare
+                                 #   --bootable finds one. Lifted out of
+                                 #   Casso.exe's AssetBootstrap, which the command
+                                 #   line cannot link. Downloading stays in the GUI
 
 CassoCore/
 ├── CommandLineOptions.h         # EXTEND — Disk subcommand + DiskVerb + operands
@@ -171,11 +176,26 @@ CassoCore/
 ├── AppleTextCodec.h/.cpp        # NEW — host text <-> high ASCII, line endings
 └── ApplesoftTokenizer.h/.cpp    # NEW — listing <-> tokenized form (US6, P3)
 
-CassoCli/                        # syscalls and printing ONLY — UnitTest cannot link this
-├── DiskCommand.h/.cpp           # NEW — DoDisk: construct IO, call runner, print
-├── Win32DiskFileIo.h/.cpp       # NEW — ifstream / ofstream / ReplaceFileW / stat
-└── CommandLine.cpp              # + one PrintUsage registration line ONLY (1,222
-                                 #   lines already, and spec 019 is editing it)
+CassoEmuCore/Cli/                # THE WHOLE COMMAND-LINE APPLICATION, testable
+├── CliMain.h/.cpp               # everything main used to do: parse, dispatch,
+│                                #   and the exit code each arm earns
+├── DiskCommand.h/.cpp           # construct IO, call runner, deliver to the streams
+├── Win32DiskFileIo.h/.cpp       # ifstream / ofstream / ReplaceFileW / stat
+├── CommandLine.h/.cpp           # every page of help, and the terminal edge
+└── ArtifactWriter, SourceAssembler, HostFile, and the four mode runners
+
+CassoCli/                        # THE ENTRY POINT AND NOTHING ELSE — 57 lines
+└── CassoCli.cpp                 # int main { return CliMain (argc, argv); }
+
+# The plan put the CLI layer under CassoCli and called it "syscalls and printing
+# ONLY". That was the wrong criterion, and the line above it proves the cost: the
+# file reserved for "one registration line" reached 778, and the dispatch that
+# chose every exit code sat beside it where no test could reach it. Two defects
+# lived there undisturbed — the documented exit statuses were never the ones
+# returned, and a bare invocation exited 0 where its own comment said 1.
+#
+# The criterion is UT-reachability, not platform, so the Win32 file layer moved
+# into the library as well. See GitHub issue #85.
 
 UnitTest/
 ├── CommandLineTests.cpp         # EXTEND — disk grammar (existing tests MUST stay green)

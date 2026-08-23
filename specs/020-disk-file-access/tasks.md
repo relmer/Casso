@@ -5,6 +5,19 @@
 Written for whoever picks this up next, including a later session of me after a
 context loss. Current as of the last commit on `020-disk-file-access`.
 
+**133 of 135 tasks are done. The two that are not are deferred with issues, not
+forgotten.** T134 is the command surface for direct boot, whose builder is
+complete and gated by a real-CPU test but has no caller outside the test suite
+([#122](https://github.com/relmer/Casso/issues/122)). T135 is a disassembler,
+which the reverse loop stops one step short of
+([#121](https://github.com/relmer/Casso/issues/121)).
+
+**Every user story is delivered** except US5, which is built and not yet
+reachable. Phases 17 to 19 at the end of this file were added after the original
+plan and cover what running the feature turned up: nothing created the disk the
+worked example wrote to, and the executable held 3,639 lines no test could reach.
+Both were found by using the tool rather than by reading it.
+
 **Done and on the branch.** Phase 2 (foundational, T002–T013), Phase 3
 (US3 — read, T014–T022), **both** Phase 4 chains — T023 + T024 (DOS 3.3 write
 and delete) and **T025 + T026** (ProDOS write with tree growth, and delete) —
@@ -2001,3 +2014,42 @@ direct-boot turns out to matter more than boot configuration.
 **The one ordering that is not negotiable** is Phase 2 before any write path.
 The decoder currently returns success over data it silently zeroed; building a
 write path on top of that ships the same defect from a second direction.
+
+---
+
+## Phase 17: The disk nobody was making
+
+**Goal**: the worked example runs from an empty directory.
+
+Found by running it. Every step began `disk put mydisk.dsk` and nothing anywhere
+made `mydisk.dsk`, so following the example this feature ships failed at the
+second command. `BlankDiskBuilder` had been in `CassoEmuCore` since spec 017 and
+was reachable only from the GUI.
+
+- [x] T126 [US7] Add `create` and `init` to the disk grammar in `CassoCore/CommandLineParser.cpp`, with `new` and `format` as aliases, and the options `--type`, `--format`, `--volume` and `--bootable` on `CommandLineOptions::DiskOptions`. **Three decisions.** (1) **`--type` names two different things and stays one word.** Under `put` it is the file type the catalog records; under `create` it is the container the image is written as. They never appear on the same command line, the verb is always known by the time the option is read, and the help states which under each. (2) **`init` refuses `--type` rather than ignoring it.** The container was decided when the file was made; a reader who wants a different one wants a different file, which is what `create` makes. (3) **`--bootable` is optional-valued.** A following argument beginning with a dash is the next option rather than a filename, so `--bootable --format prodos` reads as both and not as a master called `--format`.
+- [x] T127 [US7] Implement `RunCreate` and `RunInit` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` over `BlankDiskBuilder`, reaching the host only through `IDiskFileIo`. **Three decisions.** (1) **`create` refuses to write over an existing image.** A disk somebody still wanted is one keystroke from a disk they no longer have, and `create` is the verb reached for when not thinking about what is already there; the refusal names `init`. (2) **`--volume` is read as a number under DOS 3.3 and a name under ProDOS, decided by the format rather than by how the word looks.** A ProDOS volume legitimately called `254` would otherwise silently become a DOS volume number. (3) **An unknown container or format is refused by name with the ones that exist**, because somebody who typed `--type 2mg` meant it and handing them a `.dsk` is a disk they did not ask for under a name they did. Seven tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp` driving both verbs through `FakeDiskFileIo`.
+- [x] T128 [US7] Teach `CommitImage` that a target may not exist yet. Its freshness check asks whether the image changed between being read and being written, and a file nobody has read cannot have: with no stamp to compare, the commit refused every new disk with "could not be checked for changes". The in-use probe still runs, so a name another program is holding is still refused.
+- [x] T129 [US7] Move locating the operating-system masters into the library as `CassoEmuCore/Devices/Disk/StockBootDisks.h/.cpp`, so a bare `--bootable` finds the one the emulator already downloaded. It sat in `Casso.exe`'s `AssetBootstrap`, which the command line cannot link. **Downloading stays in the GUI** — it needs consent, a progress report and a network stack, none of which belong in a library — so the split is at the line where the platform actually starts. **It creates nothing**, which is the one behavioral difference from the code it came out of: asking where a file would be is not arranging for it to exist, and every `create` without `--bootable` would otherwise have left an empty folder behind.
+- [x] T130 [US7] Add the create step to the worked example in `CommandLineHelp::BuildExampleCommands` and to the README, and assert the whole loop in `DiskHelpTextTests`. Measured from a clean directory: create, assemble, put, put, boot, list — six commands, every one exit 0, catalog lists HELLO, PROG and STARTUP.
+
+---
+
+## Phase 18: The executable that nothing could test
+
+**Goal**: `CassoCli.exe` holds only what cannot live in a library.
+
+Recorded against [#85](https://github.com/relmer/Casso/issues/85). The criterion
+is UT-reachability rather than portability, so the Win32 file layer moved too;
+what stayed is the entry point the linker demands.
+
+- [x] T131 Delete the second exit-code mapper. `AssemblerExitCode` mapped a failed assembly to 2 and a warning to 1; `As65ExitStatus` maps them to 3 and 5. **Both had full green test suites asserting contradictory numbers**, and neither could see which one the executable called, because the test assembly does not link an executable. The wiring was the one thing uncovered and the wiring was the bug: every page of the help documented statuses the tool did not return. Deleting the loser is the fix that holds — there is one mapper now and no second function for a call site to reach for. Warnings move onto it as a third argument.
+- [x] T132 Move the command-line application layer from `CassoCli` to `CassoEmuCore/Cli`: `CommandLine`, `Win32DiskFileIo`, `DiskCommand`, `ArtifactWriter`, the four mode runners, `SourceAssembler` and `HostFile`. `main`'s body becomes `CliMain`. **3,639 lines to 57.**
+- [x] T133 Add `UnitTest/CliMainTests.cpp`: six tests asserting what the tool returns to a shell, through the dispatch rather than through the mapper it is supposed to ask. **It failed on its first run** — a bare `CassoCli` exited 0 while the banner directly above the code said it exits 1. The arm read `showHelp`, which is set whether the page was asked for or merely printed at you; the parse verdict is what tells those apart.
+
+---
+
+## Phase 19: Deferred, with the reason written down
+
+- [ ] T134 [US5] `disk create --boot <binary>`, the command surface for `DirectBootBuilder`. **Deferred to [#122](https://github.com/relmer/Casso/issues/122).** The builder is complete and gated by a real-CPU test (T040 to T042); it has no caller outside the test suite. It produces a whole image rather than a boot sector to lay over a formatted one, so it is a separate construction path in `create` and needs its own container handling. The flag parses and is refused by name today.
+- [ ] T135 A 6502 disassembler. **Deferred to [#121](https://github.com/relmer/Casso/issues/121).** The loop runs in reverse as far as bytes and stops one step short of source. Deciding code from data is undecidable in general, so the design is verifiable rather than complete: disassemble, reassemble, compare bytes. Shared with #51 and #59.
+
