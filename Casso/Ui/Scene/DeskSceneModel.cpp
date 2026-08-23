@@ -96,6 +96,10 @@ static constexpr float   s_kMon2BrandBoxCenter = 0.0f;
 // layout instead of four decisions.
 static constexpr float   s_kFaceMarginMm = 0.25f * 25.4f;
 
+// Short local names for the plate the whole front is measured against.
+static constexpr float   s_kFaceWmm = DeskSceneModel::kFaceWidthMm;
+static constexpr float   s_kFaceHmm = DeskSceneModel::kFaceHeightMm;
+
 // The legends are SILVER, not white. On the real drive they are a bright
 // metallic ink that shifts as the light moves across it, so they are stamped
 // lit: a flat value can be the right lightness but it cannot be shiny, and
@@ -108,7 +112,7 @@ static constexpr float   s_kFaceInkRgb[3] = { 0.780f, 0.790f, 0.815f };
 // is 36 x 54, so the width follows and the left edge is what it lands on.
 static constexpr float   s_kDriveBrandHeightMm = 29.0f;
 static constexpr float   s_kDriveBrandTopZMm   = s_kFaceMarginMm + s_kDriveBrandHeightMm;
-static constexpr float   s_kDriveBrandLeftMm   = 155.0f - s_kFaceMarginMm
+static constexpr float   s_kDriveBrandLeftMm   = s_kFaceWmm - s_kFaceMarginMm
                                                  - s_kDriveBrandHeightMm * 36.0f / 54.0f;
 static constexpr float   s_kDriveBrandFrontY   = -1.95f;
 
@@ -121,7 +125,7 @@ static constexpr float   s_kDriveBrandFrontY   = -1.95f;
 // legends' shared size; the baked mask is exactly one cap tall, so the cell
 // follows from it rather than being chosen.
 static constexpr float   s_kDriveLabelLeftMm = s_kFaceMarginMm;
-static constexpr float   s_kDriveLabelTopZMm = 96.0f - s_kFaceMarginMm;
+static constexpr float   s_kDriveLabelTopZMm = s_kFaceHmm - s_kFaceMarginMm;
 static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
@@ -141,7 +145,7 @@ static constexpr float   s_kDriveNumberGapMm = 1.9f;
 static constexpr float   s_kInUseLeftMm  = s_kFaceMarginMm;
 static constexpr float   s_kInUseCapMm   = 3.1f;    // the legend's cap height
 static constexpr float   s_kInUseFrontY  = -1.8f;
-static constexpr float   s_kInUseLampZ   = 28.9f;   // == LED_Z in cad_diskii.py
+static constexpr float   s_kInUseLampZ   = 26.966f;  // == LED_Z in cad_diskii.py
 
 // The "disk ][" logotype, low on the FACEPLATE -- below the IN-USE legend and
 // its lamp, opposite the cassowary in the other corner. It was briefly put on
@@ -166,10 +170,10 @@ static constexpr float   s_kWordRollMm    = 0.25f;
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
-static constexpr float   s_kDiskIiEjectMin[3] = {  14.0f, -5.0f, 49.1f };
-static constexpr float   s_kDiskIiEjectMax[3] = { 141.0f,  3.0f, 70.3f };
+static constexpr float   s_kDiskIiEjectMin[3] = {   8.0f, -5.0f, 45.81f };
+static constexpr float   s_kDiskIiEjectMax[3] = { 145.08f,  3.0f, 65.60f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
-static constexpr float   s_kDiskIiBodyMax[3]  = { 155.0f, 220.0f, 96.0f };
+static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
 // Write-protect padlock stamp on the drive faceplate (model mm), top-right
 // like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
@@ -195,9 +199,9 @@ static constexpr float   s_kPadlockOutlineMm = 0.30f;
 static constexpr float   s_kPadlockBodyW     = 10.2f;
 static constexpr float   s_kPadlockBodyH     =  9.4f;
 static constexpr float   s_kPadlockArchH     =  6.4f;
-static constexpr float   s_kPadlockBodyX1    = 155.0f - s_kFaceMarginMm - s_kPadlockOutlineMm;
+static constexpr float   s_kPadlockBodyX1    = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kPadlockBodyX0    = s_kPadlockBodyX1 - s_kPadlockBodyW;
-static constexpr float   s_kPadlockArchZ1    = 96.0f - s_kFaceMarginMm - s_kPadlockOutlineMm;
+static constexpr float   s_kPadlockArchZ1    = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kPadlockBodyZ1    = s_kPadlockArchZ1 - s_kPadlockArchH;
 static constexpr float   s_kPadlockBodyZ0    = s_kPadlockBodyZ1 - s_kPadlockBodyH;
 static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners

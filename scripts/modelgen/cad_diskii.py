@@ -22,7 +22,22 @@ from cadkit import KD, Model
 
 # ---------------------------------------------------------------- dimensions
 
-W, H, D = 155.0, 96.0, 220.0
+# MEASURED OFF A REAL DRIVE, outside the metal: 6.125 in wide, 8.625 in long,
+# 3.625 in high, or 3.75 in over the rubber feet. The body carried here is the
+# volume the wrap encloses, so each is the case less two sheet thicknesses --
+# and the depth less the wrap's front overhang, which reaches forward of the
+# body to make the lip.
+#
+# Width and length were already right to within a millimeter. The HEIGHT was
+# not: 96 here plus two sheets made 98.5 against a real 92.1, seven percent
+# over, which is enough to make the proportions read wrong without being
+# obviously wrong anywhere in particular.
+INCH_ = 25.4
+CASE_W, CASE_H, CASE_D = 6.125 * INCH_, 3.625 * INCH_, 8.625 * INCH_
+CASE_FEET_H = 3.75 * INCH_
+
+W, H = CASE_W - 2.0 * 1.25, CASE_H - 2.0 * 1.25       # SHELL_T, defined below
+D = CASE_D + (-1.0 - 0.75)                            # PLATE_Y - SHELL_PROUD
 
 # Faceplate features were laid out against an 86 mm case; they are placed as
 # fractions of the real height so the front keeps its proportions.
@@ -37,7 +52,15 @@ LIP      = 0.0
 POCKET_D = 2.0                    # how far the black plate sits behind the front
 
 SLOT_Z0, SLOT_Z1 = 46.0 * FZ, 52.0 * FZ
-SLOT_X0, SLOT_X1 = 14.0, W - 14.0
+
+# A DISKETTE HAS TO GO IN, which it could not. The opening was inset 14 mm a
+# side, giving 127 mm of mouth for a disk that is 5.25 in -- 133.35 mm --
+# across: six millimeters short, so the drive could not have accepted the
+# medium it exists to read. The photographs agree with the arithmetic; the
+# real slot runs nearly the full width of the faceplate with only a slim
+# black margin at each end.
+SLOT_MARGIN      = 8.0
+SLOT_X0, SLOT_X1 = SLOT_MARGIN, W - SLOT_MARGIN
 
 PLATE_Y = -1.0                    # the black drive face
 
@@ -68,7 +91,7 @@ DOOR_W  = 39.0
 DOOR_T  = 2.0
 DOOR_X0 = (W - DOOR_W) * 0.5
 DOOR_Z0 = FRAME_Z0
-DOOR_Z1 = 84.4
+DOOR_Z1 = 84.4 * (H / 96.0)
 DOOR_BACK = PLATE_Y + DOOR_T      # both steps share one back plane
 
 # How far the handle band stands forward of the frame, and the chamfer that
@@ -81,7 +104,7 @@ HANDLE_CHAMFER = 0.45
 # and NOTCH_DEEP at the top, which is where the door comes to rest. It cuts
 # the frame and the face alike, so an open door leaves a gap in the frame.
 NOTCH_W    = DOOR_W + 1.0         # a hair wider, so the door never binds
-NOTCH_DEEP = 38.0
+NOTCH_DEEP = 35.72
 NOTCH_WALL = 1.0                  # thickness of the dark lining around it
 
 # The notch runs BELOW the slot, down to the in-use lamp's bottom edge -- the
@@ -96,7 +119,7 @@ LED_BARREL = LED_PROUD - LED_R
 # Follows the IN-USE legend, which moved left when every mark on the face was
 # set to a quarter inch off the edge it is nearest. The lamp is what the
 # legend points at, so the gap between them is the fixed thing, not the x.
-LED_X, LED_Z = 34.0, 28.9
+LED_X, LED_Z = 34.0, 28.9 * (H / 96.0)
 
 NOTCH_Z0   = LED_Z - LED_R
 
@@ -273,9 +296,9 @@ slot_outer = (cq.Workplane("XY")
 VENT_N       = 9
 VENT_W       = 2.8                # slot width, along the drive's length
 VENT_PITCH   = 10.5
-VENT_Y0      = 120.0              # where the comb starts back from the face
+VENT_Y0      = 118.5              # where the comb starts back from the face
 VENT_TOP_IN  = 13.0               # how far onto the lid a slot reaches
-VENT_SIDE_DN = 37.0               # how far down the flank it reaches
+VENT_SIDE_DN = 34.5               # how far down the flank it reaches
 VENT_POCKET  = 4.0                # depth of the dark interior behind them
 VENT_DK      = (0.055, 0.052, 0.048)
 
@@ -412,7 +435,7 @@ lid_dents = None
 # band and bordered by a raised margin. Equal lengths read as a deliberate
 # split down a symmetric lid; the real one is not symmetric, and the front
 # panel stops short.
-for y0, y1 in [(18.0, 96.0), (112.0, 204.0)]:
+for y0, y1 in [(17.8, 94.8), (110.6, 201.5)]:
     x0, x1 = 21.5, W - 21.5
     # Chamfered on the tool's UNDERSIDE, which is what puts the slope in the
     # material: the cut is narrowest at the floor and opens to full width by
@@ -620,8 +643,8 @@ m.add("led", led, KD["drive_lamp"])
 for fx in (16.0, W - 16.0):
     for fy in (18.0, D - 18.0):
         m.add(f"foot{fx:.0f}_{fy:.0f}",
-              cq.Workplane("XY").cylinder(2.2, 6.0, centered=(True, True, False))
-                .translate((fx, fy, -2.2 - SHELL_T)),
+              cq.Workplane("XY").cylinder(CASE_FEET_H - CASE_H, 6.0, centered=(True, True, False))
+                .translate((fx, fy, -(CASE_FEET_H - CASE_H) - SHELL_T)),
               FOOT)
 
 

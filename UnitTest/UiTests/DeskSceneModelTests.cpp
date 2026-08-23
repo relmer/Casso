@@ -439,7 +439,7 @@ public:
         // The closed pose of the door's bottom edge, on the drive face at the
         // slot frame's bottom -- the two points the mechanism was solved from.
         const float  kClosedY = -1.0f;
-        const float  kClosedZ = 47.58f;
+        const float  kClosedZ = 44.144f;
 
         std::vector<Dxui3DRenderer::Vertex>   base (1);
         std::vector<Dxui3DRenderer::Vertex>   open;
@@ -455,7 +455,7 @@ public:
 
         // It RISES: the bottom edge ends up at the notch's top, some 37 mm
         // above where it started, which is what leaves only that edge showing.
-        Assert::AreEqual (84.4f, open[0].z, 0.5f);
+        Assert::AreEqual (78.75f, open[0].z, 0.5f);
 
         // And it does NOT come toward the viewer. The old mechanism drove the
         // bottom edge to negative y -- out of the drive and into the room.
@@ -464,7 +464,7 @@ public:
         Assert::AreEqual (0.0f, open[0].y, 0.5f);
     }
 
-    // The far end has to FIT: the notch is 38 mm deep, and a door that swings
+    // The far end has to FIT: the notch is 35.7 mm deep, and a door that swings
     // deeper than that would pass through the back of its own pocket.
     TEST_METHOD (Door_Fully_Open_Stays_Within_The_Notch_Depth)
     {
@@ -472,7 +472,7 @@ public:
         std::vector<Dxui3DRenderer::Vertex>   open;
 
         base[0].y = -1.0f;
-        base[0].z = 84.4f;      // the door's top edge, closed
+        base[0].z = 78.75f;     // the door's top edge, closed
 
         DeskSceneModel::RotateDoorVerts (base,
                                          DeskSceneModel::kDiskIiDoorPoleY,
@@ -480,7 +480,7 @@ public:
                                          DeskSceneModel::kDiskIiDoorOpenRad,
                                          open);
 
-        Assert::IsTrue (open[0].y < 38.0f, L"the door swings past the notch's floor");
+        Assert::IsTrue (open[0].y < 35.72f, L"the door swings past the notch's floor");
     }
 
     TEST_METHOD (Rotating_The_Door_Keeps_The_Hinge_And_Swings_The_Bottom_Out)
@@ -527,8 +527,8 @@ public:
         // and top extremes should land on -- asserted as a reach, not just a
         // box, because "inside the corner somewhere" is what a badge drifted
         // toward the middle also satisfies.
-        constexpr float  kFaceW   = 155.0f;
-        constexpr float  kFaceH   = 96.0f;
+        constexpr float  kFaceW   = DeskSceneModel::kFaceWidthMm;
+        constexpr float  kFaceH   = DeskSceneModel::kFaceHeightMm;
         constexpr float  kMargin  = 0.25f * 25.4f;
         constexpr float  kSlack   = 0.05f;
 
@@ -544,7 +544,7 @@ public:
         {
             Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
             Assert::IsTrue (v.x > kFaceW * 0.5f && v.x <= kFaceW - kMargin + kSlack);
-            Assert::IsTrue (v.z > 60.0f         && v.z <= kFaceH - kMargin + kSlack);
+            Assert::IsTrue (v.z > kFaceH * 0.5f && v.z <= kFaceH - kMargin + kSlack);
 
             right = (std::max) (right, v.x);
             top   = (std::max) (top,   v.z);

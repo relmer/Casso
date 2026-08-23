@@ -114,6 +114,17 @@ public:
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
 
+    // The Disk II faceplate's size, which is the case's outside less the
+    // sheet that wraps it -- 6.125 x 3.625 in measured off a real drive.
+    //
+    // NAMED, because everything on the front is placed relative to an edge of
+    // it and the numbers had been written out as literals in three files. A
+    // case that turned out to be seven percent too tall then had to be
+    // corrected in every one of them, and any that was missed would have put
+    // a mark off the plate without anything failing to build.
+    static constexpr float  kFaceWidthMm  = 153.075f;
+    static constexpr float  kFaceHeightMm =  89.575f;
+
     // The Disk II door's motion is a CANTILEVER, not a hinge. It rises as it
     // swings, which is the only way it clears into a notch shallower than the
     // door is long: a pure pivot at the door's top would sweep its bottom edge
@@ -132,8 +143,8 @@ public:
     // They were in two files, with the angle tuned in one while the pivot was
     // derived from the door's bounding box in the other -- so remodeling the
     // door silently moved the mechanism.
-    static constexpr float  kDiskIiDoorPoleY   = 22.19f;
-    static constexpr float  kDiskIiDoorPoleZ   = 65.37f;
+    static constexpr float  kDiskIiDoorPoleY   = 20.826f;
+    static constexpr float  kDiskIiDoorPoleZ   = 60.828f;
     static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
 
     // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
