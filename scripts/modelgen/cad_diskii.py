@@ -131,33 +131,33 @@ SLOT_WALL  = 1.2                  # thickness of the black lining around it
 
 # ------------------------------------------------------------- the enclosure
 #
-# The metal case is one wrapped sheet around the drive body plus a separate
-# plate closing the rest of the bottom.
+# TWO PIECES, and not the pair this used to be. It was a tube around the body
+# -- lid, both sides AND a bottom -- with a separate plate filling a span down
+# the middle of the underside, which put two seams along the bottom and
+# notched them into the FRONT LIP, where they showed on every render.
+#
+# An exploded drive says otherwise. The upper is an inverted U: the lid and
+# both full-height sides, open at front, back and bottom. The lower is an L:
+# the bottom, which widens just behind the front and runs that width all the
+# way back before turning up to become the rear panel. So the sides reach the
+# ground, the bottom tucks up inside them, and nothing seams a flank or breaks
+# the front lip -- which is exactly what the assembled photographs show.
 #
 # It OVERHANGS the front, so the black face sits down inside a shallow metal
 # lip instead of flush with it. That lip is the ONLY thing bordering the black
 # face -- no plastic shows around it at all -- and it catches light the whole
 # way round, which a flush joint cannot.
 #
-# The bottom being TWO pieces is the detail worth having. The wrap's flange
-# ends stop short of each other and a separate plate fills the span between
-# them, sitting BOTTOM_DROP lower, so the two seams read from the front as a
-# pair of fine gaps in the bottom edge.
-#
 SHELL_T     = 1.25                # sheet thickness
 SHELL_PROUD = 0.75                # how far the metal stands forward of the face
-BOTTOM_DROP = 1.25                # how far the bottom plate hangs below the wrap
-SEAM_GAP    = 0.70                # the visible gap where wrap meets bottom plate
 
-# The wrap's flanges reach SEAM_INSET in from each outer side, so the separate
-# plate covers the BULK of the bottom rather than a strip down the middle.
-# Measured from the metal's own outer faces, since that is the edge a ruler
-# laid across the real drive starts from.
+# Where the bottom widens, and how far in from each side it runs ahead of
+# that. Under the drive, so it is a matter of being right rather than of
+# being seen.
+BOTTOM_STEP  = 34.0
+BOTTOM_INSET = 16.0
+
 INCH        = 25.4
-SEAM_INSET  = 0.8 * INCH
-
-SEAM_L      = -SHELL_T + SEAM_INSET
-SEAM_R      = W + SHELL_T - SEAM_INSET
 
 # The metal stands proud of the BLACK FACE, which is the drive's front now
 # that no plastic borders it.
@@ -186,7 +186,7 @@ m = Model()
 case = (cq.Workplane("XY")
         .box(W, D + 3.0, H, centered=(False, False, False))
         .translate((0.0, -3.0, 0.0))
-        .edges("|Y").fillet(1.8)
+        .edges("|Y and >Z").fillet(1.8)
         .edges("|X").fillet(1.2))
 
 # The pocket reaches 4 mm INTO the case body, not just through the proud
@@ -313,7 +313,7 @@ def shell_band (outer_off, inner_off):
         return (cq.Workplane("XY")
                 .box(W + off * 2.0, D + 12.0, H + off * 2.0, centered=(False, False, False))
                 .translate((-off, -6.0, -off))
-                .edges("|Y").fillet (max (0.3, 1.8 + off)))
+                .edges("|Y and >Z").fillet (max (0.3, 1.8 + off)))
 
     return at (outer_off).cut (at (inner_off))
 
@@ -382,7 +382,7 @@ shell_outer = (cq.Workplane("XY")
                .box(W + SHELL_T * 2.0, D - SHELL_Y0, H + SHELL_T * 2.0,
                     centered=(False, False, False))
                .translate((-SHELL_T, SHELL_Y0, -SHELL_T))
-               .edges("|Y").fillet(1.8 + SHELL_T))
+               .edges("|Y and >Z").fillet(1.8 + SHELL_T))
 
 # The INNER corner is rounded too, by the outer radius LESS the sheet
 # thickness. Bent metal keeps its thickness through a turn -- it cannot gain
@@ -395,18 +395,17 @@ shell_outer = (cq.Workplane("XY")
 shell_cav = (cq.Workplane("XY")
              .box(W, D - SHELL_Y0 + 2.0, H, centered=(False, False, False))
              .translate((0.0, SHELL_Y0 - 1.0, 0.0))
-             .edges("|Y").fillet(1.8))
+             .edges("|Y and >Z").fillet(1.8))
 
 shell = shell_outer.cut (shell_cav)
 
-# Take the bottom plate's span out of the wrap. The cut runs well below the
-# sheet so it clears the plate at its dropped height too -- the two must not
-# be left sharing a face, or the seam disappears into a coincident surface
-# and the join stops reading at any angle.
+# The upper piece has NO BOTTOM. Everything between the two sides at the
+# underside belongs to the lower piece, so it comes out of the tube and what
+# is left is the inverted U the case actually is: lid, and two sides that run
+# the full height to the ground.
 bottom_span = (cq.Workplane("XY")
-               .box(SEAM_R - SEAM_L, D - SHELL_Y0 + 2.0, SHELL_T + BOTTOM_DROP + 2.0,
-                    centered=(False, False, False))
-               .translate((SEAM_L, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
+               .box(W, D - SHELL_Y0 + 4.0, SHELL_T + 2.0, centered=(False, False, False))
+               .translate((0.0, SHELL_Y0 - 2.0, -SHELL_T - 1.0)))
 
 # ---------------------------------------------------------------- lid dents
 #
@@ -451,16 +450,28 @@ for y0, y1 in [(17.8, 94.8), (110.6, 201.5)]:
 
 m.add("shell", shell.cut (bottom_span).cut (vent_slots).cut (lid_dents), SHELL)
 
-# The separate bottom plate, narrower than the span it fills by SEAM_GAP at
-# each end. Those two slots ARE the gaps -- they are what shows from the
-# front, and they exist because the piece is a different piece, not because
-# anything was drawn on.
-m.add("shell_bottom",
-      cq.Workplane("XY")
-        .box((SEAM_R - SEAM_GAP) - (SEAM_L + SEAM_GAP), D - SHELL_Y0, SHELL_T,
-             centered=(False, False, False))
-        .translate((SEAM_L + SEAM_GAP, SHELL_Y0, -SHELL_T - BOTTOM_DROP)),
-      SHELL)
+# The lower piece: the bottom, narrow where it passes the mechanism at the
+# front, widening just behind it and running that width to the back, where it
+# turns up and becomes the rear panel.
+shell_bottom = (cq.Workplane("XY")
+                .box(W, D - BOTTOM_STEP, SHELL_T, centered=(False, False, False))
+                .translate((0.0, BOTTOM_STEP, -SHELL_T)))
+
+shell_bottom = shell_bottom.union (
+    cq.Workplane("XY")
+      .box(W - BOTTOM_INSET * 2.0, BOTTOM_STEP - SHELL_Y0, SHELL_T,
+           centered=(False, False, False))
+      .translate((BOTTOM_INSET, SHELL_Y0, -SHELL_T)))
+
+# The turn-up at the back. The wrap is open there, so without it the case has
+# no rear at all -- which never showed only because nothing looks at a drive
+# from behind.
+shell_bottom = shell_bottom.union (
+    cq.Workplane("XY")
+      .box(W, SHELL_T, H + SHELL_T, centered=(False, False, False))
+      .translate((0.0, D - SHELL_T, -SHELL_T)))
+
+m.add("shell_bottom", shell_bottom, SHELL)
 
 # The black faceplate filling the pocket floor, a hair behind the lip.
 plate = (cq.Workplane("XY")
