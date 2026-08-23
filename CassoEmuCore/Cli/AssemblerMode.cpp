@@ -71,7 +71,8 @@ std::unique_ptr<AssemblerMode> AssemblerMode::CreateFor (DialectId dialect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) const
+HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
+                            FileReader * sourceReader) const
 {
     using Clock = std::chrono::high_resolution_clock;
 
@@ -104,7 +105,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
     CBREx (hasInput, E_INVALIDARG);
 
     asmOptions            = SourceAssembler::BuildOptions (options);
-    asmOptions.fileReader = &fileReader;
+    asmOptions.fileReader = sourceReader ? sourceReader : &fileReader;
 
     lastSep = options.inputFile.find_last_of ("/\\");
 
@@ -117,7 +118,8 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
     ReportAssemblyStarting (options);
 
     startTime = Clock::now();
-    ar        = SourceAssembler::Assemble (options.inputFile, CreateInstructionSetProvider (options, cpu), asmOptions);
+    ar        = SourceAssembler::Assemble (options.inputFile, CreateInstructionSetProvider (options, cpu),
+                                          asmOptions, sourceReader);
     endTime   = Clock::now();
 
     ReportAssemblyFinished (options, std::chrono::duration_cast<std::chrono::microseconds> (endTime - startTime).count());

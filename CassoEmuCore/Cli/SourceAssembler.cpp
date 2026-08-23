@@ -83,19 +83,32 @@ AssemblerOptions SourceAssembler::BuildOptions (const CommandLineOptions & optio
 
 SourceAssembler::Result SourceAssembler::Assemble (const std::string & inputFile,
                                                       const InstructionSetProvider & instructionSets,
-                                                      const AssemblerOptions & asmOptions)
+                                                      const AssemblerOptions & asmOptions,
+                                                      FileReader * sourceReader)
 {
-    HRESULT                  hr = S_OK;
-    SourceAssembler::Result  ar = {};
+    HRESULT                  hr     = S_OK;
+    SourceAssembler::Result  ar     = {};
     std::string              source;
+    bool                     gotIt  = false;
 
 
 
     ar.inputFile = inputFile;
 
-    hr = HostFile::ReadAll (inputFile, source);
+    if (sourceReader != nullptr)
+    {
+        FileReadResult  read = sourceReader->ReadFile (inputFile, asmOptions.baseDir);
 
-    if (FAILED (hr))
+        gotIt  = read.success;
+        source = read.contents;
+    }
+    else
+    {
+        hr    = HostFile::ReadAll (inputFile, source);
+        gotIt = SUCCEEDED (hr);
+    }
+
+    if (!gotIt)
     {
         std::cerr << "Error: cannot read input file: " << inputFile << "\n";
         ar.ok = false;

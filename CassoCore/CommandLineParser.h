@@ -353,6 +353,18 @@ public:
     // because the help output has to describe all of them.
     static std::span<const DiskVerbName>    GetAllDiskVerbs();
 
+    //  The long options each grammar takes, in the order the tables hold them
+    //  and without their `--`.
+    //
+    //  EXPOSED SO A TEST CAN ASK THE GRAMMAR WHAT IT ACCEPTS rather than
+    //  restate it. A switch nobody exercised was a switch nobody would notice
+    //  breaking, and ten of them had never appeared in a test at all. A
+    //  coverage test that reads these can fail when a row is added without
+    //  one; a hand-written list of the same names cannot.
+    static std::span<const char * const>    GetAs65LongOptions();
+    static std::span<const char * const>    GetRunLongOptions();
+    static std::span<const char * const>    GetDiskOptionNames();
+
     //  Every option the `disk` grammar takes, comma-separated and in their `--` form,
     //  for the refusal an argument that is none of them earns.
     //

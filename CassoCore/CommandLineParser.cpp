@@ -1402,6 +1402,57 @@ std::span<const CommandLineParser::DiskVerbName> CommandLineParser::GetAllDiskVe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::GetAs65LongOptions
+//
+//  The long options as65 takes, for a test that wants to walk them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetAs65LongOptions()
+{
+    return std::span<const char * const> (s_kpszAs65LongOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetRunLongOptions
+//
+//  The long options `run` takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetRunLongOptions()
+{
+    return std::span<const char * const> (s_kpszRunLongOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetDiskOptionNames
+//
+//  The long options `disk` takes, without their dashes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetDiskOptionNames()
+{
+    return std::span<const char * const> (s_kpszDiskOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DescribeDiskOptions
 //
 //  The disk options read out of the table that defines them, so the suggestion

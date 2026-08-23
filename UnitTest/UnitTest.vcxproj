@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -230,6 +230,7 @@
     <ClCompile Include="ConstantTests.cpp" />
     <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="CliMainTests.cpp" />
+    <ClCompile Include="CliSwitchCoverageTests.cpp" />
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />

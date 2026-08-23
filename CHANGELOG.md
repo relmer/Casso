@@ -422,6 +422,17 @@ Entries before versioning was introduced use dates only.
   unaffected, that filesystem records neither field.
 
 ### Fixed
+- **Ten command-line switches had no test at all, and nothing was looking.**
+  as65's `-n`, `-p`, `-c` and `-m`, `run`'s `--warn`, and `disk`'s `--format`,
+  `--volume`, `--boot`, `--track` and `--sector` were parsed by the tool and
+  exercised by nothing. A switch nobody exercises is a switch nobody notices
+  breaking. Every switch of every mode now has a case that parses it and
+  asserts what it did, and the coverage is checked against the parser's own
+  tables rather than a list somebody has to remember to extend: a row added
+  without a case fails, and a case for a row that no longer exists fails too.
+  Illegal combinations are covered the same way, including every pairing of
+  the four output formats, and each asserts the status a shell is handed
+  rather than only the message printed.
 - **A refused flag combination exited 2, and an unknown flag exited 1, for the
   same class of mistake.** as65 spends 1 on "incorrect parameter specified on
   the commandline" and 2 on "unable to open input or output file". Naming two

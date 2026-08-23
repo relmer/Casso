@@ -53,7 +53,17 @@ public:
     //  process should hand back, which is a three-value vocabulary a script
     //  branches on. An assembly that merely warned succeeded -- S_OK -- and
     //  still exits 1.
-    HRESULT Run (const CommandLineOptions & options, int & exitCode) const;
+    //
+    //  `sourceReader` IS THE DOOR THE OPTIONS ALREADY DESCRIBE. Null, which is
+    //  every production caller, reads the source off the disk as before.
+    //  AssemblerOptions has carried a `fileReader` for exactly this purpose all
+    //  along, and this function was reaching past it for a local one, which put
+    //  every documented exit status behind a real file: nothing could show that
+    //  an assembly error exits 3 without writing a broken source to disk first.
+    //  That is how 3 came to be documented, mapped, tested at the mapper, and
+    //  never once returned by the tool.
+    HRESULT Run (const CommandLineOptions & options, int & exitCode,
+                 FileReader * sourceReader = nullptr) const;
 
     //  The instruction sets this assembly chooses between. Both dialects offer
     //  the same two CPUs, the 6502 and the 65C02; what differs is WHEN the

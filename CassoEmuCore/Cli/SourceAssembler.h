@@ -61,9 +61,20 @@ public:
     static AssemblerOptions   BuildOptions          (const CommandLineOptions & options);
 
     //  Assemble one file against the instruction sets the caller chose.
+    //
+    //  `sourceReader` SUPPLIES THE TOP-LEVEL SOURCE, and null (every
+    //  production caller) reads it off the disk exactly as before.
+    //
+    //  It is a parameter of its own rather than `asmOptions.fileReader`
+    //  because those two answer different questions. The one in the options
+    //  resolves an `include` RELATIVE TO baseDir; this one is handed the input
+    //  path as the caller wrote it, and baseDir was derived from that path, so
+    //  routing the first read through the other reader would apply the
+    //  directory twice.
     static Result             Assemble              (const std::string & inputFile,
                                                      const InstructionSetProvider & instructionSets,
-                                                     const AssemblerOptions & asmOptions);
+                                                     const AssemblerOptions & asmOptions,
+                                                     FileReader * sourceReader = nullptr);
 
     //  The assembly's own warnings and errors, on stderr.
     static void               ReportDiagnostics     (const Result & ar);
