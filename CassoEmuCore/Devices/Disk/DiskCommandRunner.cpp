@@ -2465,7 +2465,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     if (!options.disk.directBootFile.empty())
     {
         result.diagnostics    += "Error: --boot is not implemented yet\n"
-                                 "       tracked at https://github.com/relmer/Casso/issues/121\n";
+                                 "       tracked at https://github.com/relmer/Casso/issues/122\n";
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
