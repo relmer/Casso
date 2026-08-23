@@ -173,6 +173,12 @@ SEAM_R      = W + SHELL_T - SEAM_INSET
 BOTTOM_DROP = 1.25
 SEAM_GAP    = 0.70
 
+# The wrap runs on PAST the back panel, the way it runs past the black face at
+# the other end, so the rear is a recess framed by metal on all four sides
+# rather than one flush plane. The panel was set level with the wrap's back
+# edge, which made the case look closed off square at a corner it is not.
+REAR_INSET  = 6.0
+
 # Where the lower piece widens, and how far it then laps over each flange.
 BOTTOM_STEP = 1.0 * INCH
 BOTTOM_LAP  = 12.0
@@ -380,12 +386,16 @@ for right in (False, True):
 # The lower piece laps UP INSIDE the body over most of the length, and its
 # turn-up closes the back, so the body has to give both volumes up -- two
 # solids left sharing a face is the underside z-fighting instead of a joint.
+#
+# The body ends at the back panel too, not at the wrap's back edge -- leaving
+# it full depth would floor the recess with beige a hair behind the metal, so
+# the wrap would run past nothing.
 lower_relief = (cq.Workplane("XY")
                 .box(W, D - BOTTOM_STEP, SHELL_T, centered=(False, False, False))
                 .translate((0.0, BOTTOM_STEP, 0.0))
                 .union (cq.Workplane("XY")
-                          .box(W, SHELL_T, H, centered=(False, False, False))
-                          .translate((0.0, D - SHELL_T, 0.0))))
+                          .box(W, REAR_INSET + SHELL_T, H, centered=(False, False, False))
+                          .translate((0.0, D - REAR_INSET - SHELL_T, 0.0))))
 
 case = case.cut (notch_outer).cut (slot_outer).cut (vent_pocket).cut (lower_relief)
 
@@ -500,17 +510,18 @@ shell_bottom = shell_bottom.union (
 
 shell_bottom = shell_bottom.union (
     cq.Workplane("XY")
-      .box((SEAM_R + BOTTOM_LAP) - (SEAM_L - BOTTOM_LAP), D - BOTTOM_STEP - SHELL_T, SHELL_T,
+      .box((SEAM_R + BOTTOM_LAP) - (SEAM_L - BOTTOM_LAP),
+           (D - REAR_INSET) - BOTTOM_STEP - SHELL_T, SHELL_T,
            centered=(False, False, False))
       .translate((SEAM_L - BOTTOM_LAP, BOTTOM_STEP + SHELL_T, 0.0)))
 
-# The turn-up at the back. The wrap is open there, so without it the case has
-# no rear at all -- which never showed only because nothing looks at a drive
-# from behind.
+# The turn-up at the back, standing REAR_INSET forward of the wrap's own back
+# edge. The wrap is open there, so without it the case has no rear at all --
+# which never showed only because nothing looks at a drive from behind.
 shell_bottom = shell_bottom.union (
     cq.Workplane("XY")
       .box(W, SHELL_T, H, centered=(False, False, False))
-      .translate((0.0, D - SHELL_T, 0.0)))
+      .translate((0.0, D - REAR_INSET - SHELL_T, 0.0)))
 
 m.add("shell_bottom", shell_bottom, SHELL)
 
@@ -692,7 +703,12 @@ m.add("led", led, KD["drive_lamp"])
 # under the WRAP's flanges rather than under the separate bottom plate, which
 # is where the real drive puts them -- the plate is not what carries the
 # weight -- so they drop by the sheet thickness, not by the plate's.
-for fx in (16.0, W - 16.0):
+#
+# CENTERED ON THE FLANGE, not merely over it. At a fixed inset they overhung
+# the flange's inner edge and half of each foot stood on the plate a sheet
+# lower -- a foot bridging a step, which is a thing no drive would ship.
+# Derived from the flange's own two edges, so they follow it if it moves.
+for fx in ((-SHELL_T + SEAM_L) * 0.5, (SEAM_R + W + SHELL_T) * 0.5):
     for fy in (18.0, D - 18.0):
         m.add(f"foot{fx:.0f}_{fy:.0f}",
               cq.Workplane("XY").cylinder(CASE_FEET_H - CASE_H, 6.0, centered=(True, True, False))
