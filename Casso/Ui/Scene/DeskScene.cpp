@@ -201,6 +201,7 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.glass         = m_monitor.Surface();
     metrics.monitorFrontY = m_monitor.FrontPlaneY();
     metrics.driveFrontY   = m_drive.FrontPlaneY();
+    metrics.driveDoorClearMm = m_drive.DoorFrontClearanceMm();
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
@@ -1125,14 +1126,12 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
         // only when SetDriveVisuals moved the progress.
         if (m_driveDoorVerts[drive].empty() && !m_drive.DoorVerts().empty())
         {
-            float   progress = std::clamp (m_doorProgress[drive], 0.0f, 1.0f);
-            float   pivotY   = 0.0f;
-            float   pivotZ   = 0.0f;
-
-            m_drive.DoorPivot (pivotY, pivotZ);
-            DeskSceneModel::RotateDoorVerts (m_drive.DoorVerts(), pivotY, pivotZ,
-                                             progress * m_drive.DoorOpenRad(),
-                                             m_driveDoorVerts[drive]);
+            // The MODEL poses it, because the two drives do not move the same
+            // way -- one turns about a pole inside the drive and the other
+            // travels back and then up -- and a caller that picks for itself
+            // picks the motion it happens to know.
+            m_drive.PoseDoor (std::clamp (m_doorProgress[drive], 0.0f, 1.0f),
+                              m_driveDoorVerts[drive]);
         }
 
         if (!m_driveDoorVerts[drive].empty())

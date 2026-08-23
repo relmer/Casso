@@ -182,7 +182,7 @@ static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceH
 static constexpr float   s_kDisk2cEjectMin[3] = {  13.0f, -5.0f, 28.0f };
 static constexpr float   s_kDisk2cEjectMax[3] = { 139.0f,  3.0f, 49.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
-static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 70.0f };
+static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 182.4f, 70.0f };
 
 // Write-protect padlock stamp on the drive faceplate (model mm), top-right
 // like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
@@ -631,9 +631,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // against a face 20 mm taller, so DRIVE n and the badge landed off
         // the top of this one and printed on the monitor standing on it --
         // and "disk ][" belongs to a drive this is not.
-        m_doorPivotY  = kDisk2cDoorPoleY;
-        m_doorPivotZ  = kDisk2cDoorPoleZ;
-        m_doorOpenRad = kDisk2cDoorOpenRad;
+        m_doorMotion = DeskDoorMotion::InThenUp;
 
         BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1);
     }
@@ -645,6 +643,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // produce this motion -- see s_kDiskIiDoorPole*. Deriving it also made
         // the mechanism a silent function of the door's bounding box, so
         // remodeling the door moved the mechanism.
+        m_doorMotion  = DeskDoorMotion::Cantilever;
         m_doorPivotY  = kDiskIiDoorPoleY;
         m_doorPivotZ  = kDiskIiDoorPoleZ;
         m_doorOpenRad = kDiskIiDoorOpenRad;
@@ -1529,6 +1528,71 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ)
     });
 
     rasterize (s_kPadlockHoleY, s_kPadlockHole, keyhole);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::PoseDoor
+//
+//  The door at `progress`, by whichever motion this drive has.
+//
+//  One entry point, because the alternative is every caller choosing -- and
+//  the only choice a caller reaches for is the one it already knows, which is
+//  how the //c's latch came to be posed as a rotation twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::PoseDoor (float progress, std::vector<Dxui3DRenderer::Vertex> & out) const
+{
+    if (m_doorMotion == DeskDoorMotion::InThenUp)
+    {
+        SlideDoorVerts (m_door, kDisk2cDoorInMm, kDisk2cDoorUpMm, progress, out);
+        return;
+    }
+
+    RotateDoorVerts (m_door, m_doorPivotY, m_doorPivotZ, progress * m_doorOpenRad, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::SlideDoorVerts
+//
+//  Straight in, then straight up. No rotation anywhere in it.
+//
+//  TWO LEGS, not a diagonal: the latch has to be clear of the face before it
+//  can rise, so it travels back over the first half of the motion and up over
+//  the second. A single interpolated move would drag it up through the case
+//  front it is still sitting against.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::SlideDoorVerts (const std::vector<Dxui3DRenderer::Vertex> & base,
+                                     float                                       inMm,
+                                     float                                       upMm,
+                                     float                                       progress,
+                                     std::vector<Dxui3DRenderer::Vertex>       & out)
+{
+    float   t  = (std::min) (1.0f, (std::max) (0.0f, progress));
+    float   dy = inMm * (std::min) (1.0f, t * 2.0f);
+    float   dz = upMm * (std::max) (0.0f, t * 2.0f - 1.0f);
+
+
+
+    out = base;
+
+    for (Dxui3DRenderer::Vertex & v : out)
+    {
+        v.y += dy;
+        v.z += dz;
+    }
 }
 
 

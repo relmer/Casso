@@ -55,6 +55,12 @@ struct DeskSceneMetrics
     float                 monitorFrontY = 0.0f;
     float                 driveFrontY   = 0.0f;
 
+    // How far FORWARD of the shared front plane the drive row must stand for
+    // its door to open at all. Zero for a door that stays inside its own
+    // case; the //c's latch rises above the lid, and this stack puts a
+    // monitor there for it to hit.
+    float                 driveDoorClearMm = 0.0f;
+
     // Ground-plane clearance each device's contact shadow needs, in that
     // device's model mm (side, front-to-back). The containment solve counts
     // it as part of the scene: a shadow lies on the floor BEYOND its device

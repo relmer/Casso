@@ -5,7 +5,7 @@ and does not say WHICH is a generator nobody can check.
 
 ## Disk IIc (A2M4050Z)
 
-Five photographs, supplied 2026-08-23:
+Eight photographs, supplied 2026-08-23:
 
 | # | View | What it settles |
 |---|------|-----------------|
@@ -14,6 +14,9 @@ Five photographs, supplied 2026-08-23:
 | 3 | Whole //c system (drive left, computer right, monitor on a stand) | The drive's proportions beside a known object, and that it stands BESIDE the computer |
 | 4 | Underside, rectified | Four round feet at the corners; ~14 front-to-back vent slots; the product label |
 | 5 | Front three-quarter, close | The latch stands proud and rises onto the lid's front edge; the finger recess under it; the case parting line |
+| 6 | //c system again, from the right | Confirms #3's arrangement |
+| 7 | Rear three-quarter on a desk | The rib count (nineteen); a VENT GRILLE across the rear face; the cable's strain relief at the rear-left |
+| 8 | Underside, better lit | The aspect again, the label text (`A2M4050Z`, `825-0820-A`), and the raised foot bar |
 
 ### What they establish
 
@@ -29,16 +32,36 @@ Five photographs, supplied 2026-08-23:
 - **The logo is on the LID, rear-left**, not on the front face.
 - **The case is a warm off-white**, not the platinum gray of the //e era.
 
+- **The latch TRAVELS, it does not turn.** In toward the rear of the drive,
+  then straight up. No tilt, no pivot, no arc anywhere in it. Not visible in
+  a still -- reported by somebody who has used one -- and worth writing down
+  because the model got it wrong twice, both times as a rotation, since a
+  rotation was the only door motion the scene knew.
+
 ### Not established by these photographs
 
-- **Overall dimensions.** #4 is rectified and suggests the underside is around
-  1.25 times as deep as wide; the model currently uses 216 x 152, which is
-  1.42. That is a real discrepancy, but inferring millimeters from an image
-  whose scale is unknown is how a model acquires confident wrong numbers. It
-  wants a tape measure, the way the Disk II's did.
+- **Overall dimensions.** #4 and #8 are both near enough rectified to read an
+  aspect from, and put the case between 1.18 and 1.25 times as deep as it is
+  wide. The model used 1.42, which is roughly a fifth too long; it now uses
+  1.20, which SPLITS THEM AND IS STILL A GUESS. Inferring millimeters from an
+  image of unknown scale is how a model acquires confident wrong numbers, and
+  the Disk II's were only ever right once somebody put a tape on one.
+  This wants the same. The one hard constraint it satisfies: a 5.25 inch
+  diskette is 133.35 mm square and must go all the way in, which leaves about
+  49 mm behind it for spindle, motor and board -- tight and plausible, where
+  the old depth left 83 mm the mechanism has no use for.
 - **Whether the `/` indicator is lit.** It reads as a molded mark in every
   shot. Casso lights it, because Casso needs somewhere to show drive
   activity, and that mark is where the hardware puts the idea.
+
+### Modeled but unverifiable here, or knowingly not modeled
+
+- **The rear vent grille** (#7) is real and is not modeled. Nothing in this
+  scene ever sees the back of a drive.
+- **The logo is a rainbow block, not the cassowary** the Disk II wears. The
+  //c drive's brand lives in its MESH where the Disk II's is stamped by the
+  scene, and the scene has no top-face stamp to put a cassowary on a lid
+  with. It sits under the monitor here in any case.
 
 ## The image files
 

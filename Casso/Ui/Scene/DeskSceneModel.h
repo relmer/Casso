@@ -36,6 +36,20 @@
 enum class DriveWidgetRegion;
 
 
+//
+//  How a drive's door gets out of the way. The two are not one motion with
+//  different numbers: the Disk II's door turns about a pole that is not on
+//  the part, and the //c's latch travels in a straight line and then another
+//  straight line. Naming both stops the scene assuming every door rotates,
+//  which is the assumption that made the //c's latch sweep out of its case.
+//
+enum class DeskDoorMotion
+{
+    Cantilever,    // the Disk II: one rotation about a pole inside the drive
+    InThenUp,      // the //c: back into the case, then straight up
+};
+
+
 enum class DeskDeviceKind
 {
     Monitor2c,     // the //c's platinum 9-inch
@@ -167,30 +181,62 @@ public:
     static constexpr float  kDiskIiDoorPoleZ   = 60.828f;
     static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
 
-    // The //c's is a FLIP LATCH, and it turns IN PLACE -- about a horizontal
-    // axis through its own middle, in the plane of the face. Its bottom comes
-    // toward the viewer as its top goes back.
+    // THE //c's LATCH DOES NOT TURN AT ALL. It travels: in toward the rear of
+    // the drive, then straight up. No tilt, no pivot, no arc.
     //
-    // Hinged at an edge and swung sixty degrees, as it first was, the latch
-    // does not flip: it sweeps, and the top of a block this tall travels
-    // nearly three centimeters out of the drive. Which is the giveaway that
-    // the wrong mechanism was being modeled -- nothing on this drive retracts
-    // anywhere, because unlike the Disk II's door there is no pocket for
-    // anything to go into.
-    static constexpr float  kDisk2cDoorPoleY   = -2.5f;
-    static constexpr float  kDisk2cDoorPoleZ   = 49.0f;
-    static constexpr float  kDisk2cDoorOpenRad = 0.5f;
+    // Which is why it went through two wrong mechanisms before this one --
+    // both of them rotations, because the only door the scene knew how to
+    // move was the Disk II's, and a rotation is what that one is. Given a
+    // hinge at an edge it swept out of the case; given a pivot through its
+    // middle it tilted like a flap. The part does neither. A rotation cannot
+    // express this however its pole is placed, so the motion has to be a
+    // choice the model makes rather than something every door shares.
+    static constexpr float  kDisk2cDoorInMm  = 4.5f;
+    static constexpr float  kDisk2cDoorUpMm  = 13.0f;
+
+    // And BECAUSE it rises, the row has to stand clear of whatever is stacked
+    // on it. The latch travels up past the lid, and this scene puts a monitor
+    // there -- so the open latch would pass through it. Far enough forward
+    // that the whole of the latch's open position is in front of the
+    // monitor's face: the latch reaches about 7 mm behind the drive's own
+    // front plane when open, plus margin.
+    //
+    // This is the one thing that breaks the stack's shared front plane, and
+    // it breaks it for a reason a photograph cannot show -- the drives in the
+    // reference sit BESIDE the computer, where nothing is above them and
+    // nothing has to move out of the way.
+    static constexpr float  kDisk2cDoorFrontClearMm = 10.0f;
+
+    // How far in front of anything stacked on it this drive's row must sit.
+    float  DoorFrontClearanceMm () const
+    {
+        return (m_doorMotion == DeskDoorMotion::InThenUp) ? kDisk2cDoorFrontClearMm : 0.0f;
+    }
 
     // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
     // the part -- the mechanism is a cantilever, so the door rises as it swings
     // and the center of that motion sits inside the drive.
     void  DoorPivot (float & outY, float & outZ) const { outY = m_doorPivotY; outZ = m_doorPivotZ; }
 
-    // How far it swings, WITH the pole. The two drives' mechanisms are not
-    // the same one at different sizes -- a cantilevered door and a flip
-    // lever -- so the angle belongs to whichever model was loaded, next to
-    // the pole it means nothing without.
+    // How far it swings, WITH the pole -- meaningless apart, so kept together
+    // and only meaningful for a Cantilever door.
     float  DoorOpenRad () const { return m_doorOpenRad; }
+
+    DeskDoorMotion  DoorMotion () const { return m_doorMotion; }
+
+    // The door at `progress` (0 shut, 1 open), by whichever motion this drive
+    // actually has. One call, so a caller cannot pose a sliding latch as a
+    // turning one by reaching for the rotation because it is the one it knows.
+    void  PoseDoor (float progress, std::vector<Dxui3DRenderer::Vertex> & out) const;
+
+    // Straight-line travel: back into the case over the first half, then up
+    // over the second. Two legs rather than a diagonal because that is what
+    // the part does -- it has to clear before it can rise.
+    static void  SlideDoorVerts (const std::vector<Dxui3DRenderer::Vertex> & base,
+                                 float                                       inMm,
+                                 float                                       upMm,
+                                 float                                       progress,
+                                 std::vector<Dxui3DRenderer::Vertex>       & out);
 
     // Rotates the cached door assembly about the hinge by `angleRad`: the
     // bottom edge swings out toward the viewer (-Y) and up, like the real
@@ -458,6 +504,7 @@ private:
     float                                m_doorPivotY      = 0.0f;
     float                                m_doorPivotZ      = 0.0f;
     float                                m_doorOpenRad     = 0.0f;
+    DeskDoorMotion                       m_doorMotion      = DeskDoorMotion::Cantilever;
 
     // Where the write-protect badge actually landed, so its hit box is taken
     // from the badge rather than written out a second time beside it.

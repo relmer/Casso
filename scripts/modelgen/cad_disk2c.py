@@ -1,13 +1,13 @@
 """Apple Disk IIc (A2M4050Z) as a real solid model. The low off-white unit
-styled to match the //c, 152 x 216 x 70 mm (W x D x H). X right, Y back,
+styled to match the //c, 152 x 182 x 70 mm (W x D x H). X right, Y back,
 Z up; front face at y = -2.5.
 
 MODELED FROM PHOTOGRAPHS -- see specs/018-3d-desk-scene/reference/README.md,
-which names the five and says what each one settles. The shape this replaces
+which names them and says what each one settles. The shape this replaces
 was a generic low box with a full-width slot and a lever under it, which is
 not what the drive looks like at all:
 
-  - the LID IS A RIB FIELD, fifteen long grooves running front to back over
+  - the LID IS A RIB FIELD, nineteen long grooves running front to back over
     most of it. Plain, the lid is the one surface that could belong to any
     beige box of the period; ribbed, it is a Disk IIc from across the room.
   - the SLOT IS TWO SEGMENTS, split by a central latch that stands proud of
@@ -30,12 +30,23 @@ from cadkit import KD, Model
 
 # ---------------------------------------------------------------- dimensions
 #
-# UNMEASURED. The rectified underside suggests the case is about 1.25 times
-# as deep as wide where this is 1.42, so the depth is likely long -- but
-# reading millimeters off an image of unknown scale is how a model acquires
-# confident wrong numbers, and the Disk II's dimensions were only ever right
-# once somebody put a tape on one. Left as they were until then.
-W, D, H = 152.0, 216.0, 70.0
+# STILL UNMEASURED, but no longer left at a figure the evidence contradicts.
+# Two underside photographs, both near enough rectified to read an aspect
+# from, put the case between 1.18 and 1.25 times as deep as it is wide. It
+# was 1.42 -- roughly a fifth too long, which is the kind of error that reads
+# as "something about this is off" without ever looking like a mistake.
+#
+# 1.20 splits them. It is an ESTIMATE off photographs of unknown scale, which
+# is exactly the move that earns confident wrong numbers, so it is written
+# down as one: the Disk II's dimensions were only ever right once somebody
+# put a tape on one, and this wants the same.
+#
+# Sanity check it survives: a 5.25 inch diskette is 133.35 mm square and has
+# to go all the way in, leaving about 49 mm behind it for spindle, motor and
+# board. Tight, and possible. At the old 216 there was 83 mm back there,
+# which is more room than the mechanism has any use for.
+W, H = 152.0, 70.0
+D    = W * 1.20
 
 # Warm off-white, not the //e era's platinum: the photographs show a case that
 # matches the //c's own cream, and the latch a cool gray against it.
@@ -80,7 +91,7 @@ LAMP_PROUD     = 1.0
 
 # --------------------------------------------------------------------- the lid
 
-RIB_N     = 15
+RIB_N     = 19
 RIB_W     = 2.4
 RIB_DEEP  = 1.1
 RIB_X0    = 22.0

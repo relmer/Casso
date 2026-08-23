@@ -297,6 +297,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
     forwardMm  = metrics.driveFrontY - metrics.monitorFrontY;
 
+    // ...except by whatever the drive's door needs to open. The shared
+    // front plane is the rule and this is its one exception: a latch that
+    // rises above the lid has the monitor in its way, and no amount of
+    // coplanarity is worth a door that opens through the thing above it.
+    forwardMm += metrics.driveDoorClearMm;
+
     (void) dropMm;
 
     for (int i = 0; i < driveCount; i++)
