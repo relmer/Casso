@@ -185,8 +185,10 @@ struct CommandLineOptions
     //  other step in the build loop takes. NOTHING WRITES IT: a flag whose only
     //  effect is to select the default earns a line in the help and buys no
     //  capability, so the `--raw` that used to name it is gone. Binary is the
-    //  as65 full-64-KB padded image, which a ROM burner or a reference
-    //  comparison wants and which needs --flat to ask for. DosBinary carries
+    //  full 64 KB padded image, which a ROM burner or a reference comparison
+    //  wants and which needs --flat to ask for. THAT IS NOT WHAT AS65 WRITES:
+    //  its binary runs from the lowest address the source used to the highest,
+    //  the same span Raw holds, which is why Raw is the default here. DosBinary carries
     //  the Apple DOS 3.3 header. See OutputFormats for what each one writes.
     enum class OutputFormat  { Binary, SRecord, IntelHex, Raw, DosBinary };
 

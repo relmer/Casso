@@ -765,14 +765,21 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
 //
 //  The sentence arrives composed, because naming the in-source directive that
 //  replaces the flag is the dialect's own knowledge and this is the printing
-//  edge. The exit code is the same "no output" every other way of producing
-//  nothing earns: a script asks whether it got a file, and it did not.
+//  edge.
+//
+//  IT NO LONGER PICKS THE EXIT CODE. It used to return kNoOutput, reasoning
+//  that a refusal produces no file and a script only asks whether it got one.
+//  That reads as65's table backwards: 2 is "unable to open input or output
+//  file", and a command line refused before anything is opened never touched a
+//  file at all. as65 spends 1 on "incorrect parameter specified on the
+//  commandline", which is what both callers of this have. An unknown flag
+//  already exited 1 while a rejected flag COMBINATION exited 2, so the tool
+//  disagreed with itself about the same class of mistake. The caller now maps
+//  the code through ExitCodeForRefusal like every other refusal does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
+void CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
 {
     std::cerr << "Error: " << refusal << "\n";
-
-    return As65ExitStatus::kNoOutput;
 }

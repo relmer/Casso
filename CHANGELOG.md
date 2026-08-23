@@ -153,6 +153,16 @@ Entries before versioning was introduced use dates only.
   become the default (see Changed above), and `--dos-bin` writes that span
   behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
   carries, so the result is ready to `BLOAD` once placed on a disk.
+- **`disk stamp` writes a file into an image at a track and a sector, with no
+  filesystem involved.** A disk that boots its own loader has no directory to
+  put anything in, so building one meant computing file offsets by hand. `stamp`
+  takes a track and a *logical* sector and lays whole sectors in, applying the
+  DOS 3.3 interleave in the layer that owns it. Bytes run on into the next track
+  when they do not fit, and a placement off the end of the disk is refused
+  before anything is written rather than truncated. `scripts/BuildDemoDisk.ps1`
+  now builds `casso-rocks.dsk` through it, and keeps its hand-rolled layout as
+  `-LegacyLayout`: the two share no code, so `-Compare` running both and
+  getting the same 143,360 bytes is evidence rather than a tautology.
 
 ### Changed
 - **The executable is a shim, and everything it used to do is in the library.**
@@ -412,6 +422,18 @@ Entries before versioning was introduced use dates only.
   unaffected — that filesystem records neither field.
 
 ### Fixed
+- **A refused flag combination exited 2, and an unknown flag exited 1, for the
+  same class of mistake.** as65 spends 1 on "incorrect parameter specified on
+  the commandline" and 2 on "unable to open input or output file". Naming two
+  output formats, or handing Merlin the `-x` it takes from the source instead,
+  is the first of those and was answered with the second, by a printing helper
+  that returned its own exit code on the reasoning that a refusal produces no
+  file. A command line refused before anything is opened has not been near a
+  file. Both now map through `ExitCodeForRefusal`, the way every other refusal
+  already did, so `disk` still reports having started nothing while the
+  assembler dialects report the bad command line. Nothing had pinned the codes:
+  the refusals were asserted for their message text and never for what they
+  returned, which is how they drifted apart.
 - **The help fills the terminal, which it did almost nowhere.**
   `GetConsoleScreenBufferInfo` needs a readable console handle, and a `stdout`
   that has been through a shell is not one: it is write-only or a pipe, and the

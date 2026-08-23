@@ -5,8 +5,9 @@ line, plus a built-in runner that assembles and executes in one step.
 
 It is deliberately drop-in for [AS65](http://www.kingswood-consulting.co.uk/assemblers/):
 an option omitted behaves the way AS65's did, down to the `$FF` fill byte, the
-`$8000` load address and the full 64 KB output image. Existing scripts keep
-working; the modern conveniences are opt-in.
+`$8000` load address and the shape of the output: the assembled bytes, from the
+lowest address the source used to the highest. Existing scripts keep working;
+the modern conveniences are opt-in.
 
 - [Invocation](#invocation)
 - [Assembler flags](#assembler-flags)
@@ -65,18 +66,22 @@ CassoCli as65 input.a65 -tlfile        # same as -t -l file
 | Flag | Meaning |
 |---|---|
 | `-o <file>` | Output file. Default: the input with a `.bin` extension. |
-| `--raw` | Write only the assembled bytes, unpadded. |
+| `--flat` | Write a full 64 KB image with the bytes at their origin, padded with the fill byte. |
 | `--dos-bin` | Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to `BLOAD`. |
 | `-s` | Motorola S-record (`.s19`). |
 | `-s2` | Intel HEX (`.hex`). |
 | `-z` | Fill unused space with `$00`. Default is `$FF`. |
 
-With no format flag the output is a **full 64 KB image** padded with the fill
-byte — AS65's behavior, and the right shape for ROM burning or reference
-comparison.
+With no format flag the output is **the assembled bytes and nothing around
+them**, running from the lowest address the source used to the highest. That is
+AS65's behavior, and it has no flag of its own because it is what you get by
+asking for nothing.
+
+`--flat` is the one that pads, and it is the shape a ROM burner takes or a
+byte-for-byte comparison against a reference image needs.
 
 **The four format flags are mutually exclusive, and naming two is refused.**
-`-s --raw` fails, naming both flags, rather than quietly writing one of them:
+`-s --flat` fails, naming both flags, rather than quietly writing one of them:
 each flag is valid alone, so nothing in the output would look like a
 mistake. The same flag repeated is not a conflict. The output file's extension
 (`.s19`, `.hex`) is consulted only when no flag was given at all, so an
@@ -155,16 +160,16 @@ currently nothing for `-n` to switch off.
 
 | Format | Flag | What is written |
 |---|---|---|
-| Full image | *(default)* | 64 KB, padded with the fill byte. The only format that pads. |
-| Raw | `--raw` | Only the assembled span, with no address. |
+| Assembled span | *(default)* | Only the bytes the source assembled, with no address. |
+| Full image | `--flat` | 64 KB, the bytes at their origin, padded with the fill byte. The only format that pads. |
 | DOS 3.3 binary | `--dos-bin` | Load address (2 bytes, little-endian), length (2 bytes), then the span. `BLOAD`-ready. |
 | S-record | `-s` | Only the assembled span, as Motorola S1 records that each carry their address. |
 | Intel HEX | `-s2` | Only the assembled span, as Intel HEX records that each carry their address. |
 
-Put another way: the default answers "what is in memory", and the other four
-answer "what was assembled". Three of those four know where it goes -- the DOS
-header, the S-record address field, the HEX address field -- and `--raw` is the
-one that does not.
+Put another way: `--flat` answers "what is in memory", and the other four
+answer "what was assembled". Three of those four know where it goes (the DOS
+header, the S-record address field, the HEX address field) and the default is
+the one that does not.
 
 ---
 
@@ -242,7 +247,7 @@ would benefit from a concrete case to be designed against.
 
 ## Examples
 
-Assemble to the default full 64 KB image:
+Assemble to the default, the assembled bytes on their own:
 
 ```powershell
 CassoCli as65 input.a65 -o output.bin
@@ -258,7 +263,7 @@ A `BLOAD`-ready DOS 3.3 binary, or just the assembled bytes:
 
 ```powershell
 CassoCli as65 input.a65 --dos-bin -o HELLO.BIN
-CassoCli as65 input.a65 --raw     -o payload.bin
+CassoCli as65 input.a65           -o payload.bin
 ```
 
 S-record or Intel HEX:
@@ -323,14 +328,15 @@ CassoCli merlin <source> [flags]
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
 | `--flat` | Write a full 64 KB image with the bytes at their origin, padded with `$FF`. |
 
-**The default output is the assembled bytes and nothing around them** — not the
-64 KB image AS65 writes. A Merlin source names its own origin, and Merlin's
+**The default output is the assembled bytes and nothing around them**, which is
+what `as65` writes by default too. A Merlin source names its own origin, and
+Merlin's
 origin directive *relocates* rather than seeks, so one contiguous object can
 carry sections destined for several addresses; padding it out to an
 address-indexed image would scatter them.
 
 `--dos-bin` is the one worth reaching for. The header carries the **origin**,
-and the default output throws it away — so wrapping the bytes by hand afterward
+and the default output throws it away, so wrapping the bytes by hand afterward
 means already knowing an address that usually comes from an `ORG` line rather
 than from your command line. There is no `-z`: `--flat` always pads with `$FF`,
 and neither of the other two formats pads at all.

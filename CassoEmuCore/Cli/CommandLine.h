@@ -90,7 +90,7 @@ public:
     //  A CPU flag the active dialect does not take. The sentence is composed
     //  in core, where the dialect's own data is; this prints it and says what
     //  the process is about to return.
-    static int                 PrintCpuFlagRefusal       (const std::string & refusal);
+    static void                PrintCpuFlagRefusal       (const std::string & refusal);
 
     //  The page belonging to one mode, whichever mode that is.
     //

@@ -72,14 +72,16 @@ int CliMain (int argc, char * argv[])
         // Two formats named is two files asked for, and one gets written. Same
         // reasoning as the arm below: the sentence naming both flags is a
         // better answer than usage text that lists them among twenty others.
-        exitCode = CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
+        CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
+        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (!options.cpuFlagRefusal.empty())
     {
         // Checked before the usage arm for the same reason the line above is: a
         // refusal that names the directive to write instead is a strictly better
         // answer than a wall of usage text, and printing usage would bury it.
-        exitCode = CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
+        CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
+        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                              || options.subcommand == CommandLineOptions::Subcommand::Help)

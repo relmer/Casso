@@ -74,6 +74,44 @@ namespace CliMainTests
                               L"and an option this grammar does not have");
         }
 
+        //  A REFUSED FLAG COMBINATION IS A BAD COMMAND LINE, NOT A FAILED OPEN.
+        //
+        //  These exited 2 while an unknown flag exited 1, so the tool answered
+        //  two different numbers for one class of mistake. 2 is as65's "unable
+        //  to open input or output file", and a command line refused before
+        //  anything is opened has not been near a file. Nothing pinned the
+        //  code, which is how it drifted: the refusals were asserted for their
+        //  message text and never for what they returned.
+        TEST_METHOD (ARefusedFlagCombination_IsABadCommandLine)
+        {
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "as65", "prog.a65", "-s", "--flat" }),
+                              L"two output formats");
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "as65", "prog.a65", "--flat", "--dos-bin" }),
+                              L"two others");
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "as65", "prog.a65", "-s", "-s2" }),
+                              L"and the two short ones");
+        }
+
+        //  Merlin takes its processor from the source, so -x is refused. That
+        //  is the same kind of mistake and earns the same number.
+        TEST_METHOD (AFlagTheDialectRefuses_IsABadCommandLine)
+        {
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "merlin", "prog.s", "-x" }));
+        }
+
+        //  THE TOOL AGREES WITH ITSELF ABOUT THE CLASS. An unknown flag and a
+        //  refused combination are both incorrect parameters, so asserting they
+        //  match is the property that actually broke.
+        TEST_METHOD (AnUnknownFlag_AndARefusedCombination_ShareAStatus)
+        {
+            Assert::AreEqual (Run ({ "CassoCli", "as65", "prog.a65", "-Z" }),
+                              Run ({ "CassoCli", "as65", "prog.a65", "-s", "--flat" }));
+        }
+
         //  as65: "2 - Unable to open input or output file."
         TEST_METHOD (AnUnreadableSource_IsTwo)
         {

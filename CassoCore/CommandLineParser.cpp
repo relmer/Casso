@@ -287,7 +287,7 @@ static constexpr CommandLineParser::DialectFlagTable  s_kDialectFlags[] =
 //  address that usually comes from an ORG buried in the source. The assembler
 //  knows it; nothing else reliably does.
 //
-//  as65 has no row. Its grammar is a hand-rolled walk that writes --raw and
+//  as65 has no row. Its grammar is a hand-rolled walk that writes --flat and
 //  --dos-bin inline, and its own usage block documents them, so a row here
 //  would be a second description of a tool this table does not drive.
 //

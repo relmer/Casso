@@ -41,11 +41,26 @@ had independently withdrawn `--cpu` in favor of as65's `-x`, so the collision
 predicted here never materialized.
 
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
-already done and on master: the unpadded span and `--dos-bin` live in
-`CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. The unpadded
-span is the default and has no flag of its own — `--raw` named it for one
-revision and was retired by owner decision. A session picking up 020 should
-implement US2 onward and treat US1 as complete.
+done: `WriteRaw`, `WriteDosBinary` and `WriteFlatImage` all live in
+`CassoCore/OutputFormats`, with tests, and those writers plus the
+`OutputFormat` enum are on master. **What is branch-only is which one is the
+default.** Making the unpadded span the default is commit `3a99fc31`, on
+020 and not on master, so master still writes the padded 64 KB image when no
+format flag is given. A session picking up 020 should implement US2 onward and
+treat US1 as complete.
+
+**The unpadded span has no flag of its own.** `--raw` named it for one revision
+and was retired by owner decision: a flag whose only effect is to select the
+default earns a line in the help and buys no capability. Several places in the
+tree still claimed that the padded 64 KB image is what AS65 writes and that the
+span was our own modern addition. That is backwards. AS65's own manual says its
+binary "begins at the lowest used address, and continues up to the highest used
+address", and its `testincl.bin` is 21 bytes, so the unpadded span **is** AS65's
+behavior and the padded image is the departure from it. The claims in
+`docs/Assembler.md`, `CommandLineOptions.h` and `CommandLineParser.cpp` were
+corrected; historical `CHANGELOG` entries were left as written. Check
+https://github.com/Ludoclt/as65_142 rather than this tree's prose before
+changing an as65 default again.
 
 **Two 020 findings that outlive the feature.** `NibblizationLayer::Denibblize`
 stops at the first sector it cannot decode on a track and leaves that sector and
