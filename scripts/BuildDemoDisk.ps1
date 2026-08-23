@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Rebuilds the casso-rocks demo disk image from sources.
 
@@ -102,7 +102,13 @@ function Get-AssembledRegion {
 
     # The dialect is named, because assembling no longer guesses: an
     # unrecognized first argument is refused rather than taken as a source file.
-    & $cli as65 $SourcePath -o $outBin -q -z | Out-Null
+    #
+    # --flat is REQUIRED and was not always. This script reads its regions
+    # out of the output at their ORIGIN, so it needs the whole 64 KB address
+    # space, not just the bytes the source filled. Spec 020 made the
+    # assembled bytes the default and retired the flag that used to name
+    # them, which left this script reading offset $0800 of a 253-byte file.
+    & $cli as65 $SourcePath -o $outBin -q -z --flat | Out-Null
 
     if (-not (Test-Path $outBin)) {
         throw "Assembly failed: $SourcePath (no output produced)"
