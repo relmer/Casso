@@ -2,6 +2,45 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
+Version change: 1.9.0 -> 1.10.0 (MINOR -- Principle VI now states that the
+  exe/lib split is a testability line and NOT a platform boundary)
+Modified principles:
+  - VI. Thin Executable, Testable Core: replaced the "Irreducible Platform
+    Edge Only" bullet, which listed file/registry I/O, clipboard and dialogs
+    as things that stay in the executable. That reading let any code touching
+    a platform API claim exemption from the Testability Litmus in the bullet
+    directly above it, which was already NON-NEGOTIABLE. The two bullets
+    contradicted each other and the weaker one was winning.
+    Now: the criterion is whether UnitTest can drive it, full stop. Calling
+    Win32 is not a reason to live in the exe. What stays is only what cannot
+    exist without the process -- for a console app, an entry point that does
+    nothing but call a core entry function and return what it returns; for a
+    GUI, that plus the HWND, its message pump, and the device objects.
+    Added an Evidence paragraph recording what the old reading cost.
+Modified sections: N/A
+Added sections: N/A
+Removed sections: N/A
+Templates requiring updates:
+  ✅ plan-template.md - Constitution Check still aligned
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
+Follow-up TODOs: GitHub issue #85 tracks extracting the executables that
+  predate this. Casso.exe is the remaining offender; CassoCli.exe was
+  reduced from 3,639 lines to 57 under this reading and is the worked
+  example.
+
+WHY MINOR AND NOT MAJOR: this makes previously-compliant code non-compliant,
+  which reads as a backward-incompatible redefinition. It is filed as MINOR
+  because the Testability Litmus already said this and already carried
+  NON-NEGOTIABLE; the removed bullet was an exemption that contradicted it.
+  Resolving a contradiction in favor of the stronger existing rule is a
+  clarification of what the principle always meant. Reclassify if the owner
+  reads it the other way.
+================================================================================
+
+================================================================================
+SYNC IMPACT REPORT (PRIOR)
+================================================================================
 Version change: 1.8.0 -> 1.9.0 (MINOR -- scoped the dependency allowlist to
   shipped material and added a lighter rule for test fixtures)
 Modified principles: N/A
@@ -197,12 +236,15 @@ Complexity MUST be justified:
 
 Essentially all logic MUST live in a linked core library, not the application executable:
 
-- **Trivially Thin Shell**: The application `.exe` MUST be a minimal shim — process entry point, window/message-loop creation, and object wiring only. Emulation, parsing, rendering, device models, persistence, and lifecycle/orchestration MUST live in a core static library that BOTH the executable AND the `UnitTest` project link.
+- **Trivially Thin Shell**: The application `.exe` MUST be an empty shell over a core entry function — `CliMain` for the console tool, its GUI equivalent for the emulator. Emulation, parsing, rendering, device models, persistence, and lifecycle/orchestration MUST live in a core static library that BOTH the executable AND the `UnitTest` project link. An executable that contains a decision worth asserting has already failed this.
 - **Testability Litmus (NON-NEGOTIABLE)**: Any new logic MUST be reachable and exercised from the `UnitTest` project. If a piece of logic can only be tested by running the `.exe`, it is in the wrong place or the wrong shape (entangled with an `HWND`, device context, COM apartment, or menu id). Factor it into core as data-in/data-out functions or interface seams. The exe carries no test coverage by design, so it MUST carry no logic worth testing.
-- **Irreducible Platform Edge Only**: Only the unavoidable platform boundary stays in the exe — thread creation, file/registry I/O, clipboard, print/file dialogs, menu registration. Each such edge MUST be a thin call into core; the decision-making and data transformation behind it belong in the library. System APIs that are pure computation over in-memory buffers (e.g. an image codec over WIC) belong in core, where they remain testable per Principle II.
+- **THE CRITERION IS TESTABILITY, NOT A PLATFORM BOUNDARY (NON-NEGOTIABLE)**: The exe/lib line is NOT where the operating system begins. It is where testability ends. "Does this call a platform API?" is the wrong question and MUST NOT be used to justify placement; the only question is "can the `UnitTest` project drive this?" Calling Win32 is not a reason to live in the exe. File I/O behind an interface seam, a registry read, a clipboard round-trip, an image codec over WIC: all are drivable by a test, therefore all belong in core.
+- **What Actually Stays**: Only what cannot exist without the process itself. For a console application that is the entry point and nothing else — `main` MUST do no more than call a core entry function and return what it returns. For a GUI application it is the entry point, the `HWND` and its message pump, and the graphics/audio device objects. Everything else, including the code that decides what to draw, what to persist, what to load and what status to exit with, MUST live in core.
 - **Do Not Imitate Existing Divergence**: Where an executable has already accreted logic that belongs in core, that is debt to be extracted — NEVER a template for new code. New code follows this principle regardless of the surrounding exe's current state.
 
 **Rationale**: A thin shell over a rich, linked core is the structural precondition for Principle II — thorough unit testing and mocking are only possible when the logic lives where tests can reach it. Untestable code is, most often, merely code placed where tests cannot link to it.
+
+**Evidence**: `CassoCli.exe` held 3,639 lines under the old platform-boundary reading: parsing adapters, every page of help text, artifact writing, the mode runners, the Win32 file layer, and a `main` whose ten-arm dispatch chose which page to print and what to exit with. All of it looked defensible as "the platform edge and the printing around it." None of it was reachable by a test, and two defects lived there undisturbed through a release cycle: the exit statuses every help page documented were never the ones the tool returned, and a bare invocation exited 0 while the comment directly above the code said 1. Both were caught within minutes of the code moving into core. The executable is now 57 lines and its `main` calls `CliMain`. The lesson is that code placed by platform reasoning is not merely untested, it is unobservable — and unobservable code drifts from its own documentation with nothing failing.
 
 ## Technology Constraints
 
@@ -289,4 +331,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.9.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-08-16
+**Version**: 1.10.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-08-22
