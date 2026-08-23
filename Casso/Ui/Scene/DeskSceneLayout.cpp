@@ -297,8 +297,6 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
     forwardMm  = metrics.driveFrontY - metrics.monitorFrontY;
 
-    forwardMm += kDriveInspectGapMm;
-
     (void) dropMm;
 
     for (int i = 0; i < driveCount; i++)

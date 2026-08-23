@@ -217,12 +217,6 @@ public:
     static constexpr float  kEyeAboveMonitorTopMm  = 25.0f;
     static constexpr float  kDriveDeskGapMm        = 45.0f;    // monitor front to drive back
 
-    // *** TEMPORARY, and asked for: slides the drive row toward the viewer so
-    // *** its whole LID is visible for inspection. The monitor otherwise
-    // *** stands on the drives with every front face coplanar, which leaves
-    // *** nothing of the top in view. Set to 0 to restore the real
-    // *** composition -- this is the only thing holding it apart.
-    static constexpr float  kDriveInspectGapMm     = 300.0f;
     static constexpr float  kDriveGapMm            = 32.0f;    // between the two drives
     static constexpr float  kContainMargin         = 1.005f;
 
