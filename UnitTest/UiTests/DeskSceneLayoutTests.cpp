@@ -328,25 +328,16 @@ public:
         float                 backTop[3]  = {};
         float                 frontPx[2]  = {};
         float                 backPx[2]   = {};
-        // *** TEMPORARY: the drives are turned over for inspection (see
-        // *** kDriveInspectFlip), which swaps which face points up and which
-        // *** end of it is the deeper. What is under test does not change --
-        // *** the upward face has visible area -- so the test asks for it in
-        // *** whichever pose the scene is currently built in.
-        bool                  flipped     = DeskSceneLayout::kDriveInspectFlip;
-        float                 upZ         = flipped ? metrics.driveMin[2] : metrics.driveMax[2];
-        float                 deepY       = flipped ? metrics.driveMin[1] : metrics.driveMax[1];
-        float                 nearY       = flipped ? metrics.driveMax[1] : metrics.driveMin[1];
 
 
 
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
 
-        // The upward face's near and deep edges, both through the left
-        // drive's world transform.
+        // Top edge of the drive, front (model y min) vs back (model y max),
+        // both through the left drive's world transform.
         {
-            float   frontModel[3] = { 77.5f, nearY, upZ };
-            float   backModel[3]  = { 77.5f, deepY, upZ };
+            float   frontModel[3] = { 77.5f, metrics.driveMin[1], metrics.driveMax[2] };
+            float   backModel[3]  = { 77.5f, metrics.driveMax[1], metrics.driveMax[2] };
 
             Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], frontModel, frontTop));
             Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], backModel, backTop));
@@ -355,9 +346,8 @@ public:
         Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, frontTop, vp, frontPx));
         Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, backTop, vp, backPx));
 
-        // Seen from above: the deeper edge of that face projects HIGHER on
-        // screen than the near one, so the face has visible area (FR-016
-        // parallax).
+        // Seen from above: the back of the lid projects HIGHER on screen than
+        // the front edge, so the top face has visible area (FR-016 parallax).
         Assert::IsTrue (backPx[1] < frontPx[1] - 1.0f);
     }
 
@@ -370,22 +360,16 @@ public:
         float                 backEdge[3]  = {};
         float                 frontPx[2]   = {};
         float                 backPx[2]    = {};
-        // *** TEMPORARY: turning the drives over for inspection swaps which
-        // *** end is the deeper -- see kDriveInspectFlip. The flank's visible
-        // *** width is what is under test either way.
-        bool                  flipped      = DeskSceneLayout::kDriveInspectFlip;
-        float                 deepY        = flipped ? metrics.driveMin[1] : metrics.driveMax[1];
-        float                 nearY        = flipped ? metrics.driveMax[1] : metrics.driveMin[1];
 
 
 
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
 
-        // The LEFT drive's RIGHT (inward) side: the near and deep corners of
-        // that flank.
+        // The LEFT drive's RIGHT (inward) side: front and back bottom
+        // corners of that flank.
         {
-            float   frontModel[3] = { metrics.driveMax[0], nearY, 40.0f };
-            float   backModel[3]  = { metrics.driveMax[0], deepY, 40.0f };
+            float   frontModel[3] = { metrics.driveMax[0], metrics.driveMin[1], 40.0f };
+            float   backModel[3]  = { metrics.driveMax[0], metrics.driveMax[1], 40.0f };
 
             Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], frontModel, frontEdge));
             Assert::IsTrue (SceneCamera::TransformPoint (comp.driveWorld[0], backModel, backEdge));
