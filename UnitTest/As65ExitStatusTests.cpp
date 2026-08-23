@@ -37,6 +37,29 @@ namespace As65ExitStatusTests
             Assert::AreEqual (0, As65ExitStatus::ForAssembly (true, true));
         }
 
+        //  WARNINGS ARE 5 AND ARE THE CALLER'S TO DECLARE. A source that
+        //  assembled and warned is a success with something to say, and this
+        //  is where the number for it is decided.
+        //
+        //  It reached the shell as 1 for a long time -- as65's bad command
+        //  line -- because the executable called a second mapper with its own
+        //  numbering and its own green tests. That mapper is gone; this is the
+        //  only one, which is what stops the two disagreeing again.
+        TEST_METHOD (SourceAssembledWithWarnings_IsWarned)
+        {
+            Assert::AreEqual (5, As65ExitStatus::ForAssembly (true, true, true));
+            Assert::AreEqual (0, As65ExitStatus::ForAssembly (true, true, false),
+                              L"and a clean assembly is still clean");
+        }
+
+        //  A FAILED ASSEMBLY THAT ALSO WARNED IS A FAILED ASSEMBLY. Reporting 5
+        //  would tell a script an output file exists when none does.
+        TEST_METHOD (WarningsDoNotSoftenAFailure)
+        {
+            Assert::AreEqual (3, As65ExitStatus::ForAssembly (true, false, true));
+            Assert::AreEqual (2, As65ExitStatus::ForAssembly (false, false, true));
+        }
+
         //  as65: "3 - Assembly gave errors." This was 2 -- the code for a file
         //  that could not be opened -- so every build script that branched on
         //  the status sent a syntax error down the "your path is wrong" arm.

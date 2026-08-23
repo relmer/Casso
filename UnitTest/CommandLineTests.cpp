@@ -1606,6 +1606,84 @@ namespace CommandLineTests
 
 
 
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListingExtensionTests
+    //
+    //  What `-l<name>` writes when the name carries no extension.
+    //
+    //  `-lfoo` wrote a file literally called `foo`. That is what as65 does with
+    //  the name, and it is a file a person then has to work out how to open.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ListingExtensionTests)
+    {
+    public:
+        TEST_METHOD (ANameWithNoExtension_Gets_lst)
+        {
+            Assert::AreEqual (std::string ("foo.lst"),
+                              CommandLineParser::ApplyListingExtension ("foo"));
+        }
+
+        //  One the reader supplied is left exactly as typed, whatever it is.
+        //  Choosing `.txt` is a choice, and a tool that "corrects" it to `.lst`
+        //  is a tool that writes a file nobody asked for.
+        TEST_METHOD (ANameWithAnExtension_IsUntouched)
+        {
+            Assert::AreEqual (std::string ("foo.txt"),
+                              CommandLineParser::ApplyListingExtension ("foo.txt"));
+            Assert::AreEqual (std::string ("foo.lst"),
+                              CommandLineParser::ApplyListingExtension ("foo.lst"));
+        }
+
+        //  A TRAILING DOT ASKS FOR NO EXTENSION and gets none. The dot comes
+        //  off with it: a file called `foo.` is awkward on this host, and
+        //  nobody typing it meant the dot to survive.
+        TEST_METHOD (ATrailingDot_MeansNoExtensionAtAll)
+        {
+            Assert::AreEqual (std::string ("foo"),
+                              CommandLineParser::ApplyListingExtension ("foo."));
+        }
+
+        //  A DOT IN A DIRECTORY IS NOT AN EXTENSION. Only the last component is
+        //  examined, or `build.out/listing` would come back unchanged and write
+        //  a file with no extension inside a folder that merely has one.
+        TEST_METHOD (ADotInADirectoryDoesNotCountAsAnExtension)
+        {
+            Assert::AreEqual (std::string ("build.out/listing.lst"),
+                              CommandLineParser::ApplyListingExtension ("build.out/listing"));
+            Assert::AreEqual (std::string ("build.out\\listing.lst"),
+                              CommandLineParser::ApplyListingExtension ("build.out\\listing"));
+        }
+
+        //  And it reaches the parse, which is the half that a test of the
+        //  function alone would not have caught.
+        TEST_METHOD (TheGrammarAppliesIt_InBothDialects)
+        {
+            ArgVector           as65   = { "CassoCli", "as65",   "prog.a65", "-lfoo" };
+            ArgVector           merlin = { "CassoCli", "merlin", "prog.s",   "-lbar" };
+
+            Assert::AreEqual (std::string ("foo.lst"),
+                              CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe()).listingFile);
+            Assert::AreEqual (std::string ("bar.lst"),
+                              CommandLineParser::Parse (merlin.Count(), merlin.Data(), NoProbe()).listingFile);
+        }
+
+        //  A bare -l is stdout and names no file, so there is nothing to extend.
+        TEST_METHOD (ABare_l_IsStdoutAndNamesNothing)
+        {
+            ArgVector           args = { "CassoCli", "as65", "prog.a65", "-l" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.listingToStdout);
+            Assert::IsTrue (opts.listingFile.empty());
+        }
+    };
+
+
+
+
     TEST_CLASS (SurplusArgumentTests)
     {
     public:

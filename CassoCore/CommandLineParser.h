@@ -164,6 +164,18 @@ public:
     //  anybody actually buys.
     static unsigned  RoundToInstalledSize (uint64_t bytes);
 
+    //
+    //  A listing filename with `.lst` supplied when the reader gave no
+    //  extension of their own.
+    //
+    //  `-lfoo` wrote a file literally called `foo`, which is as65's reading
+    //  and is a file a person then has to work out how to open. A name that
+    //  already carries an extension is untouched, and one ending in a DOT is
+    //  somebody asking for no extension at all: the dot is removed and
+    //  nothing is added, so `-lfoo.` is the way to insist on `foo`.
+    //
+    static std::string  ApplyListingExtension (const std::string & name);
+
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  Ran to a stop: the stop address or the cycle limit\n"
         "    1  The input was source and did not assemble; nothing ran\n"

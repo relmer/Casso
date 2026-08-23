@@ -2459,7 +2459,7 @@ void CommandLineParser::ApplyAs65Flag (const DialectFlag * flag,
 
         options.generateListing  = true;
         options.listingToStdout  = toStdout;
-        options.listingFile      = toStdout ? std::string() : value;
+        options.listingFile      = toStdout ? std::string() : ApplyListingExtension (value);
     }
     else if (option == "p")
     {
@@ -2729,7 +2729,7 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
         //  filename and "no filename" are the same request.
         options.generateListing = true;
         options.listingToStdout = value == "-";
-        options.listingFile     = options.listingToStdout ? std::string() : value;
+        options.listingFile     = options.listingToStdout ? std::string() : ApplyListingExtension (value);
         break;
 
     case 'v':
@@ -3407,4 +3407,51 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
 
 Error:
     return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyListingExtension
+//
+//  `.lst` when the reader named no extension of their own.
+//
+//  `-lfoo` wrote a file called `foo`, which is what as65 does with the name and
+//  is a file a person then has to work out how to open. Only the last path
+//  component is examined, so a dot in a DIRECTORY name is not an extension:
+//  `-lbuild.out/listing` is still missing one.
+//
+//  A NAME ENDING IN A DOT ASKS FOR NO EXTENSION, and gets none. The dot itself
+//  comes off, because a file called `foo.` is awkward on this host and nobody
+//  typing it meant the dot to survive -- so `-lfoo.` is how to insist on `foo`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineParser::ApplyListingExtension (const std::string & name)
+{
+    size_t  lastSlash = name.find_last_of ("\\/");
+    size_t  component = (lastSlash == std::string::npos) ? 0 : lastSlash + 1;
+    size_t  dot       = name.find_last_of ('.');
+
+
+
+    if (name.empty() || component >= name.size())
+    {
+        return name;
+    }
+
+    if (name.back() == '.')
+    {
+        return name.substr (0, name.size() - 1);
+    }
+
+    if (dot != std::string::npos && dot >= component)
+    {
+        return name;
+    }
+
+    return name + ".lst";
 }

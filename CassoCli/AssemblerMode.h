@@ -23,7 +23,7 @@
 //  below; the order of the steps, the exit codes and the bail-on-first-failure
 //  are the same for both and live here.
 //
-//  THE EXIT CODES ARE NOT A PER-DIALECT DECISION. AssemblerExitCode maps a
+//  THE EXIT CODES ARE NOT A PER-DIALECT DECISION. As65ExitStatus maps a
 //  finished assembly onto the three the tool speaks -- 0 clean, 1 assembled
 //  with complaints, 2 no output -- and a subcommand that computed its own would
 //  be teaching a script a second vocabulary for the same three outcomes. A

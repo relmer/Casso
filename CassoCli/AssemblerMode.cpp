@@ -4,7 +4,6 @@
 #include "ArtifactWriter.h"
 #include "As65Mode.h"
 #include "Assembler.h"
-#include "AssemblerExitCode.h"
 #include "As65ExitStatus.h"
 #include "DialectReporting.h"
 #include "MerlinMode.h"
@@ -78,7 +77,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
 
 
 
-    const int                       kNoOutput  = AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+    const int                       kNoOutput  = As65ExitStatus::kNoOutput;
     HRESULT                         hr         = S_OK;
     AssemblerOptions                asmOptions;
     DefaultFileReader               fileReader;

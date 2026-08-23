@@ -3,7 +3,7 @@
 #include "CommandLine.h"
 #include "HostFile.h"
 #include "UsageText.h"
-#include "AssemblerExitCode.h"
+#include "As65ExitStatus.h"
 #include "CommandLineHelp.h"
 #include "DialectHelp.h"
 #include "DialectRegistry.h"
@@ -473,7 +473,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintDialectFlags (DialectId::Merlin, prefix);
 
     PrintSectionHeading ("Supported subset");
-    PrintUsageLine ("  The absolute subset that needs no linker. Where support ends is reported by name rather than as a syntax error. See docs/merlin-subset.md.");
+    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused by name, with what it would take to support it. See docs\\merlin-subset.md.");
 
     PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes(), false));
 }
@@ -774,5 +774,5 @@ int CommandLine::PrintCpuFlagRefusal (const std::string & refusal)
 {
     std::cerr << "Error: " << refusal << "\n";
 
-    return AssemblerExitCode::ToProcessCode (AssemblyExitCode::NoOutput);
+    return As65ExitStatus::kNoOutput;
 }
