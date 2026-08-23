@@ -175,6 +175,15 @@ static constexpr float   s_kDiskIiEjectMax[3] = { 145.08f,  3.0f, 65.60f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
+// The //c drive's own, from cad_disk2c.py: a 152 x 70 x 216 case whose slot
+// sits at z 42..47 with the flip lever at 30..40, so the eject zone spans
+// the pair of them. The Disk II's boxes are measured against a face 20 mm
+// taller and put the eject strip above this drive's slot entirely.
+static constexpr float   s_kDisk2cEjectMin[3] = {  13.0f, -5.0f, 28.0f };
+static constexpr float   s_kDisk2cEjectMax[3] = { 139.0f,  3.0f, 49.0f };
+static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
+static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 70.0f };
+
 // Write-protect padlock stamp on the drive faceplate (model mm), top-right
 // like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
 // layer floats a hair nearer the viewer than the one it sits on, so depth
@@ -199,11 +208,14 @@ static constexpr float   s_kPadlockOutlineMm = 0.30f;
 static constexpr float   s_kPadlockBodyW     = 10.2f;
 static constexpr float   s_kPadlockBodyH     =  9.4f;
 static constexpr float   s_kPadlockArchH     =  6.4f;
-static constexpr float   s_kPadlockBodyX1    = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
-static constexpr float   s_kPadlockBodyX0    = s_kPadlockBodyX1 - s_kPadlockBodyW;
-static constexpr float   s_kPadlockArchZ1    = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
-static constexpr float   s_kPadlockBodyZ1    = s_kPadlockArchZ1 - s_kPadlockArchH;
-static constexpr float   s_kPadlockBodyZ0    = s_kPadlockBodyZ1 - s_kPadlockBodyH;
+// WHERE it goes is the caller's, because it is the same badge on two drives
+// of different heights. The Disk II holds its top-right corner at the face
+// margin. The //c has no room there -- its slot runs nearly the full width at
+// two thirds height -- so it takes the clear strip above the slot instead.
+static constexpr float   s_kDiskIiPadlockX1  = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
+static constexpr float   s_kDiskIiPadlockZ1  = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
+static constexpr float   s_kDisk2cPadlockX1  = 139.65f;
+static constexpr float   s_kDisk2cPadlockZ1  =  63.50f;
 static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners
 static constexpr float   s_kPadlockShackleR  =  3.05f;   // the U's outer radius
 static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickness
@@ -213,8 +225,8 @@ static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickn
 // eye picks up at four pixels across. Keeping the slot shorter than the bore
 // is wide leaves the bore as the shape, and the slot as a notch under it.
 static constexpr float   s_kPadlockHoleR     =  1.35f;   // the keyhole's bore
-static constexpr float   s_kPadlockHoleCz    = s_kPadlockBodyZ0 + 5.5f;
-static constexpr float   s_kPadlockHoleZ0    = s_kPadlockBodyZ0 + 2.9f;
+static constexpr float   s_kPadlockHoleCzUp  =  5.5f;    // above the body's bottom
+static constexpr float   s_kPadlockHoleZ0Up  =  2.9f;
 
 // One rasterization cell, in mm. Small enough that the badge's outlines land
 // under a screen pixel at any zoom the scene offers.
@@ -605,8 +617,26 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     lampFound = !m_lamp.empty();
     CBRA (lampFound);
 
-    doorOk = (kind != DeskDeviceKind::DiskII) || !m_door.empty();
+    doorOk = !IsDriveKind (kind) || !m_door.empty();
     CBRA (doorOk);
+
+    if (kind == DeskDeviceKind::Disk2c)
+    {
+        // The //c's face needs almost nothing stamped on it: its brand, its
+        // lamp, its slot and its lever are all MODELED, so the only thing
+        // missing is the write-protect badge, which is ours rather than
+        // Apple's and has no place in the mesh.
+        //
+        // It emphatically does not want the Disk II's marks. Those are placed
+        // against a face 20 mm taller, so DRIVE n and the badge landed off
+        // the top of this one and printed on the monitor standing on it --
+        // and "disk ][" belongs to a drive this is not.
+        m_doorPivotY  = kDisk2cDoorPoleY;
+        m_doorPivotZ  = kDisk2cDoorPoleZ;
+        m_doorOpenRad = kDisk2cDoorOpenRad;
+
+        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1);
+    }
 
     if (kind == DeskDeviceKind::DiskII)
     {
@@ -615,10 +645,11 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // produce this motion -- see s_kDiskIiDoorPole*. Deriving it also made
         // the mechanism a silent function of the door's bounding box, so
         // remodeling the door moved the mechanism.
-        m_doorPivotY = kDiskIiDoorPoleY;
-        m_doorPivotZ = kDiskIiDoorPoleZ;
+        m_doorPivotY  = kDiskIiDoorPoleY;
+        m_doorPivotZ  = kDiskIiDoorPoleZ;
+        m_doorOpenRad = kDiskIiDoorOpenRad;
 
-        BuildPadlockStamp();
+        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1);
 
         // The cassowary (lower-right, the 2D widget's mark) and the IN-USE
         // label pointing at the LED. The DRIVE-number badge text is stamped
@@ -1345,11 +1376,30 @@ void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildPadlockStamp()
+void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ)
 {
-    const float  cx     = (s_kPadlockBodyX0 + s_kPadlockBodyX1) * 0.5f;
-    const float  archCz = s_kPadlockArchZ1 - s_kPadlockShackleR;
+    const float  bodyX1 = rightX;
+    const float  bodyX0 = bodyX1 - s_kPadlockBodyW;
+    const float  archZ1 = topZ;
+    const float  bodyZ1 = archZ1 - s_kPadlockArchH;
+    const float  bodyZ0 = bodyZ1 - s_kPadlockBodyH;
+    const float  holeCz = bodyZ0 + s_kPadlockHoleCzUp;
+    const float  holeZ0 = bodyZ0 + s_kPadlockHoleZ0Up;
+    const float  cx     = (bodyX0 + bodyX1) * 0.5f;
+    const float  archCz = archZ1 - s_kPadlockShackleR;
     const float  innerR = s_kPadlockShackleR - s_kPadlockShackleT;
+
+
+
+    // Recorded so the hit box follows the badge rather than being written out
+    // a second time beside it -- which is how a badge and its tooltip target
+    // come to disagree.
+    m_padlockMin[0] = bodyX0;
+    m_padlockMin[1] = s_kPadlockHoleY;
+    m_padlockMin[2] = bodyZ0;
+    m_padlockMax[0] = bodyX1;
+    m_padlockMax[1] = 0.0f;
+    m_padlockMax[2] = archZ1;
 
 
 
@@ -1370,12 +1420,13 @@ void DeskSceneModel::BuildPadlockStamp()
     // Scans the badge's bounding box a cell at a time and merges each row's
     // covered span into one quad, which is the same trick the text and brand
     // stamps use -- a curve costs a few more runs, not a triangle per cell.
-    auto  rasterize = [&pushRun] (float y, const float rgb[3], auto && inside)
+    auto  rasterize = [&pushRun, bodyX0, bodyX1, bodyZ0, archZ1]
+                      (float y, const float rgb[3], auto && inside)
     {
-        float  x0   = s_kPadlockBodyX0 - s_kPadlockOutlineMm;
-        float  x1   = s_kPadlockBodyX1 + s_kPadlockOutlineMm;
-        float  z0   = s_kPadlockBodyZ0 - s_kPadlockOutlineMm;
-        float  z1   = s_kPadlockArchZ1 + s_kPadlockOutlineMm;
+        float  x0   = bodyX0 - s_kPadlockOutlineMm;
+        float  x1   = bodyX1 + s_kPadlockOutlineMm;
+        float  z0   = bodyZ0 - s_kPadlockOutlineMm;
+        float  z1   = archZ1 + s_kPadlockOutlineMm;
         int    cols = (int) std::ceil ((x1 - x0) / s_kPadlockCellMm);
         int    rows = (int) std::ceil ((z1 - z0) / s_kPadlockCellMm);
 
@@ -1422,17 +1473,17 @@ void DeskSceneModel::BuildPadlockStamp()
             return r >= innerR + grow && r <= s_kPadlockShackleR + grow;
         }
 
-        return z >= s_kPadlockBodyZ1 - 1.5f &&
+        return z >= bodyZ1 - 1.5f &&
                std::fabs (dx) >= innerR + grow && std::fabs (dx) <= s_kPadlockShackleR + grow;
     };
 
     // The body: a rounded rectangle, as the distance from the rect its
     // corner centers describe.
-    auto  body = [] (float x, float z, float grow)
+    auto  body = [bodyX0, bodyX1, bodyZ0, bodyZ1] (float x, float z, float grow)
     {
         float  r  = s_kPadlockCornerR;
-        float  ix = (std::min) (s_kPadlockBodyX1 - r, (std::max) (s_kPadlockBodyX0 + r, x));
-        float  iz = (std::min) (s_kPadlockBodyZ1 - r, (std::max) (s_kPadlockBodyZ0 + r, z));
+        float  ix = (std::min) (bodyX1 - r, (std::max) (bodyX0 + r, x));
+        float  iz = (std::min) (bodyZ1 - r, (std::max) (bodyZ0 + r, z));
         float  dx = x - ix;
         float  dz = z - iz;
 
@@ -1444,9 +1495,9 @@ void DeskSceneModel::BuildPadlockStamp()
     {
         float  dx = x - cx;
 
-        if (z >= s_kPadlockHoleCz)
+        if (z >= holeCz)
         {
-            return dx * dx + (z - s_kPadlockHoleCz) * (z - s_kPadlockHoleCz)
+            return dx * dx + (z - holeCz) * (z - holeCz)
                    <= s_kPadlockHoleR * s_kPadlockHoleR;
         }
 
@@ -1455,10 +1506,10 @@ void DeskSceneModel::BuildPadlockStamp()
             // read as an ARROWHEAD -- a disc over a widening triangle is
             // an arrow before it is a keyhole. What makes it one is the
             // bore overhanging a slot narrower than itself the whole way.
-            float  t  = (s_kPadlockHoleCz - z) / (s_kPadlockHoleCz - s_kPadlockHoleZ0);
+            float  t  = (holeCz - z) / (holeCz - holeZ0);
             float  hw = s_kPadlockHoleR * (0.46f + 0.10f * t);
 
-            return z >= s_kPadlockHoleZ0 && std::fabs (dx) <= hw;
+            return z >= holeZ0 && std::fabs (dx) <= hw;
         }
     };
 
@@ -1850,13 +1901,25 @@ void DeskSceneModel::AddRegionBoxes()
 
 
 
-    if (m_kind != DeskDeviceKind::DiskII)
+    if (!IsDriveKind (m_kind))
     {
         return;
     }
 
-    memcpy (box.boxMin, s_kDiskIiEjectMin, sizeof (box.boxMin));
-    memcpy (box.boxMax, s_kDiskIiEjectMax, sizeof (box.boxMax));
+    // Per drive, because the two faces are laid out differently and a box
+    // measured against the wrong one is a click that lands nowhere. The
+    // //c's eject zone wraps its slot and the flip lever under it.
+    if (m_kind == DeskDeviceKind::Disk2c)
+    {
+        memcpy (box.boxMin, s_kDisk2cEjectMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk2cEjectMax, sizeof (box.boxMax));
+    }
+    else
+    {
+        memcpy (box.boxMin, s_kDiskIiEjectMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDiskIiEjectMax, sizeof (box.boxMax));
+    }
+
     box.region = DriveWidgetRegion::Eject;
     m_regions.push_back (box);
 
@@ -1866,17 +1929,26 @@ void DeskSceneModel::AddRegionBoxes()
     // the sake of a tooltip. The badge keeps everything above the slot, which
     // is most of it. Slack all round so the badge is not a pixel hunt, and
     // the near face reaches in front of the plate it stands on.
-    box.boxMin[0] = s_kPadlockBodyX0 - s_kPadlockHitPadMm;
-    box.boxMin[1] = s_kPadlockHoleY - 1.0f;
-    box.boxMin[2] = s_kPadlockBodyZ0 - s_kPadlockHitPadMm;
-    box.boxMax[0] = s_kPadlockBodyX1 + s_kPadlockHitPadMm;
+    box.boxMin[0] = m_padlockMin[0] - s_kPadlockHitPadMm;
+    box.boxMin[1] = m_padlockMin[1] - 1.0f;
+    box.boxMin[2] = m_padlockMin[2] - s_kPadlockHitPadMm;
+    box.boxMax[0] = m_padlockMax[0] + s_kPadlockHitPadMm;
     box.boxMax[1] = 0.5f;
-    box.boxMax[2] = s_kPadlockArchZ1 + s_kPadlockHitPadMm;
+    box.boxMax[2] = m_padlockMax[2] + s_kPadlockHitPadMm;
     box.region    = DriveWidgetRegion::Padlock;
     m_regions.push_back (box);
 
-    memcpy (box.boxMin, s_kDiskIiBodyMin, sizeof (box.boxMin));
-    memcpy (box.boxMax, s_kDiskIiBodyMax, sizeof (box.boxMax));
+    if (m_kind == DeskDeviceKind::Disk2c)
+    {
+        memcpy (box.boxMin, s_kDisk2cBodyMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk2cBodyMax, sizeof (box.boxMax));
+    }
+    else
+    {
+        memcpy (box.boxMin, s_kDiskIiBodyMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDiskIiBodyMax, sizeof (box.boxMax));
+    }
+
     box.region = DriveWidgetRegion::Body;
     m_regions.push_back (box);
 }

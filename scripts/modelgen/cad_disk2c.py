@@ -85,9 +85,19 @@ m.add("tab",
       KD["drive_latch_alt"])
 
 # Activity lamp, lower-left: green, //c family style.
+#
+# IT HAS TO STAND PROUD OF THE PANEL. It was set with its lens at y -0.4
+# against a panel face at -0.8, so it sat four tenths of a millimeter INSIDE
+# the surface it was meant to light -- invisible, and a light source that
+# lights nothing: the shader weighs every surface by dot(n, L), and a lamp in
+# the plane of the panel gives that panel a term of zero. The Disk II's LED
+# had exactly this fault and the fix is the same one: the standoff IS the
+# lighting.
+LAMP_PROUD = 1.2
+
 m.add("lamp",
       cq.Workplane("XY").cylinder(1.8, 2.8, direct=(0, 1, 0), centered=(True, True, False))
-        .translate((22.0, -0.4, 14.0)),
+        .translate((22.0, -0.8 - LAMP_PROUD, 14.0)),
       KD["drive_lamp_alt"])
 
 # Rainbow brand, lower-right: six small stripes.

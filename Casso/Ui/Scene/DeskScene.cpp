@@ -68,25 +68,38 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
                                const std::string  & monitorObj, const std::string & monitorMtl,
                                const std::string  & driveObj,   const std::string & driveMtl)
 {
-    HRESULT   hr = S_OK;
+    DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
+                                ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
+    HRESULT         hr        = S_OK;
 
 
 
     hr = m_monitor.Load (monitorKind, monitorObj, monitorMtl);
     CHRA (hr);
 
-    hr = m_drive.Load (DeskDeviceKind::DiskII, driveObj, driveMtl);
+    // The drive that comes with the monitor. They are never mixed -- the //c
+    // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
+    // them here beats making every caller say it twice and disagree once.
+    hr = m_drive.Load (driveKind, driveObj, driveMtl);
     CHRA (hr);
 
     // The per-drive legend: the number differs per drive, so it is stamped
     // here rather than into the shared model. Everything about how it is set
     // -- its margin, size, color and finish -- belongs with the rest of the
     // faceplate furniture and stays in the model.
+    //
+    // ONLY THE DISK II WEARS ONE. The //c drive has no drive-number legend on
+    // the real hardware, and stamping the Disk II's landed it off the top of
+    // a face 20 mm shorter -- printing it on the monitor standing on the
+    // drive rather than on the drive.
     m_driveLabelVerts[0].clear();
     m_driveLabelVerts[1].clear();
 
-    DeskSceneModel::StampDriveLabel (m_driveLabelVerts[0], 1);
-    DeskSceneModel::StampDriveLabel (m_driveLabelVerts[1], 2);
+    if (driveKind == DeskDeviceKind::DiskII)
+    {
+        DeskSceneModel::StampDriveLabel (m_driveLabelVerts[0], 1);
+        DeskSceneModel::StampDriveLabel (m_driveLabelVerts[1], 2);
+    }
 
     BuildDerivedGeometry();
 
@@ -1118,7 +1131,8 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
 
             m_drive.DoorPivot (pivotY, pivotZ);
             DeskSceneModel::RotateDoorVerts (m_drive.DoorVerts(), pivotY, pivotZ,
-                                             progress * kDoorOpenRad, m_driveDoorVerts[drive]);
+                                             progress * m_drive.DoorOpenRad(),
+                                             m_driveDoorVerts[drive]);
         }
 
         if (!m_driveDoorVerts[drive].empty())

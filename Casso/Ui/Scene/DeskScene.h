@@ -279,10 +279,10 @@ public:
     static constexpr int    kRingArcSegments   = 10;
     static constexpr int    kRingCrossSegments = 6;
 
-    // Drive door swing: fully open lifts the door bar this far off the
-    // faceplate (a touch past 60 degrees, like the real drive at rest), and
-    // progress deltas below the epsilon skip the vertex rebuild.
-    static constexpr float  kDoorOpenRad     = DeskSceneModel::kDiskIiDoorOpenRad;
+    // Drive door swing: how far it opens comes from the MODEL, next to the
+    // pole it means nothing without -- the two drives' mechanisms are a
+    // cantilevered door and a flip lever, not one mechanism at two sizes.
+    // Progress deltas below the epsilon skip the vertex rebuild.
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:

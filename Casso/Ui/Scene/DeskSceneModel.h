@@ -41,6 +41,7 @@ enum class DeskDeviceKind
     Monitor2c,     // the //c's platinum 9-inch
     Monitor2,      // the //e's beige 12-inch (Monitor II)
     DiskII,
+    Disk2c,        // the platinum 5.25 that pairs with the //c
 };
 
 
@@ -53,6 +54,25 @@ enum class DeskDeviceKind
 inline bool IsMonitorKind (DeskDeviceKind kind)
 {
     return kind == DeskDeviceKind::Monitor2c || kind == DeskDeviceKind::Monitor2;
+}
+
+
+//
+//  Both drives carry a door the scene swings on eject, an activity lamp and a
+//  write-protect badge, and differ in everything else -- the //c's is 70 mm
+//  tall against the Disk II's 95, and its face already carries its own brand,
+//  lamp and lever in the MESH rather than wanting them stamped on.
+//
+//  Which is why they need separate kinds. Loading the //c as a Disk II gave
+//  it the Disk II's marks at the Disk II's coordinates: DRIVE n and the
+//  padlock landed above a face 20 mm shorter than the one they were placed
+//  against and printed on the monitor standing on it, the cassowary hung off
+//  the right edge, and a "disk ][" logotype appeared on a drive that never
+//  wore one.
+//
+inline bool IsDriveKind (DeskDeviceKind kind)
+{
+    return kind == DeskDeviceKind::DiskII || kind == DeskDeviceKind::Disk2c;
 }
 
 
@@ -147,10 +167,24 @@ public:
     static constexpr float  kDiskIiDoorPoleZ   = 60.828f;
     static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
 
+    // The //c's is a FLIP LEVER, not a door, so its motion is the simple one
+    // the Disk II's is not: a real hinge along the lever's own top-back edge,
+    // which it turns about to stand out from the face. Nothing has to clear a
+    // pocket, so nothing forces the pole off the part.
+    static constexpr float  kDisk2cDoorPoleY   = -0.8f;
+    static constexpr float  kDisk2cDoorPoleZ   = 40.0f;
+    static constexpr float  kDisk2cDoorOpenRad = 1.05f;
+
     // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
     // the part -- the mechanism is a cantilever, so the door rises as it swings
     // and the center of that motion sits inside the drive.
     void  DoorPivot (float & outY, float & outZ) const { outY = m_doorPivotY; outZ = m_doorPivotZ; }
+
+    // How far it swings, WITH the pole. The two drives' mechanisms are not
+    // the same one at different sizes -- a cantilevered door and a flip
+    // lever -- so the angle belongs to whichever model was loaded, next to
+    // the pole it means nothing without.
+    float  DoorOpenRad () const { return m_doorOpenRad; }
 
     // Rotates the cached door assembly about the hinge by `angleRad`: the
     // bottom edge swings out toward the viewer (-Y) and up, like the real
@@ -330,7 +364,10 @@ private:
                                  float thicknessMm = 0.0f);
     void     BuildBrandSolid    (float leftMm, float topZMm, float heightMm, float frontY,
                                  float thicknessMm, int firstRow, int lastRow);
-    void     BuildPadlockStamp  ();
+    // The write-protect badge, its top-right corner where the caller says.
+    // Both drives carry it and their faces are different heights, so the
+    // corner is an argument rather than a constant.
+    void     BuildPadlockStamp  (float rightX, float topZ);
 
     // A mask stamped as a solid with a SMOOTHED outline and a rounded top
     // edge -- what turns a coarse bitmask into a mark that reads as molded
@@ -414,6 +451,12 @@ private:
     CurvedDisplaySurface                 m_surface;
     float                                m_doorPivotY      = 0.0f;
     float                                m_doorPivotZ      = 0.0f;
+    float                                m_doorOpenRad     = 0.0f;
+
+    // Where the write-protect badge actually landed, so its hit box is taken
+    // from the badge rather than written out a second time beside it.
+    float                                m_padlockMin[3]   = {};
+    float                                m_padlockMax[3]   = {};
     float                                m_boundsMin[3]    = {};
     float                                m_boundsMax[3]    = {};
     float                                m_footprintMin[2] = {};
