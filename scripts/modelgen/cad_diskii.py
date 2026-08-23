@@ -262,12 +262,20 @@ slot_outer = (cq.Workplane("XY")
 # Built by intersecting a BAND of the shell's own cross-section with a corner
 # quadrant, so each slot follows the metal round the turn by construction
 # rather than being three pieces mitred together.
-VENT_N       = 11
-VENT_W       = 2.2                # slot width, along the drive's length
-VENT_PITCH   = 5.0
-VENT_Y0      = 30.0               # where the comb starts back from the face
+#
+# NINE, ON THE REAR HALF. They were briefly put near the front and counted at
+# eleven, both off a photograph read the wrong way round: the drive in it
+# faces right, so the flank running away to the LEFT is its back, not its
+# front. Counting the dark runs along a scan line through the comb gives nine
+# every time, and measuring them against the flank's ends puts them from
+# about 115 mm to 200 mm of a 220 mm case -- which is where the model had
+# them before, from the same photograph read correctly.
+VENT_N       = 9
+VENT_W       = 2.8                # slot width, along the drive's length
+VENT_PITCH   = 10.5
+VENT_Y0      = 120.0              # where the comb starts back from the face
 VENT_TOP_IN  = 13.0               # how far onto the lid a slot reaches
-VENT_SIDE_DN = 34.0               # how far down the flank it reaches
+VENT_SIDE_DN = 37.0               # how far down the flank it reaches
 VENT_POCKET  = 4.0                # depth of the dark interior behind them
 VENT_DK      = (0.055, 0.052, 0.048)
 
@@ -377,7 +385,45 @@ bottom_span = (cq.Workplane("XY")
                     centered=(False, False, False))
                .translate((SEAM_L, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
 
-m.add("shell", shell.cut (bottom_span).cut (vent_slots), SHELL)
+# ---------------------------------------------------------------- lid dents
+#
+# Two long rounded-corner depressions pressed into the lid. They were here as
+# proud SLABS in a darker beige, which is two mistakes: they are recesses, not
+# ridges, and they are the same paint as the rest -- what distinguishes them
+# is the light, not the color. Painted on, they read as two patches of
+# slightly wrong beige.
+#
+# The rim is CHAMFERED rather than square. A 0.6 mm step in a lid seen from
+# above shows a wall a fraction of a pixel wide and a floor shaded exactly
+# like the surface around it, so a square-walled dent is very nearly
+# invisible; the sloped rim is the only part with a normal of its own, and it
+# is the whole of what makes the dent read. Which is also what a pressed
+# feature in sheet metal actually looks like -- metal cannot turn a corner
+# sharply.
+LID_DENT_D = 0.8                  # how deep the press goes
+LID_DENT_R = 11.0                 # the corner radius in plan
+
+lid_dents = None
+
+# TWO BROAD PANELS, ONE BEHIND THE OTHER. They were a pair of narrow strips
+# running the lid's length side by side, which is the wrong axis: the real
+# press is two wide rounded rectangles stacked front to back, each most of
+# the lid across, separated by a raised band and bordered by a raised margin.
+for y0, y1 in [(18.0, 102.0), (118.0, 202.0)]:
+    x0, x1 = 21.5, W - 21.5
+    # Chamfered on the tool's UNDERSIDE, which is what puts the slope in the
+    # material: the cut is narrowest at the floor and opens to full width by
+    # the time it reaches the lid. Chamfering its top face instead does
+    # nothing at all -- that end is four millimeters clear of the metal.
+    dent = (cq.Workplane("XY")
+            .box(x1 - x0, y1 - y0, LID_DENT_D + 4.0, centered=(False, False, False))
+            .translate((x0, y0, H + SHELL_T - LID_DENT_D))
+            .edges("|Z").fillet (LID_DENT_R))
+    dent = dent.faces("<Z").chamfer (LID_DENT_D * 0.98)
+
+    lid_dents = dent if lid_dents is None else lid_dents.union (dent)
+
+m.add("shell", shell.cut (bottom_span).cut (vent_slots).cut (lid_dents), SHELL)
 
 # The separate bottom plate, narrower than the span it fills by SEAM_GAP at
 # each end. Those two slots ARE the gaps -- they are what shows from the
@@ -564,14 +610,6 @@ m.add("led", led, KD["drive_lamp"])
 # sides are under the wrap, and anything left at the old offsets would be
 # sealed inside it. Each is pushed out by the sheet thickness.
 
-# THE LID IS PLAIN, and two things used to be on it that are not on the real
-# drive. It carried a pair of slim darker strips front-to-back, which were
-# invention: they had no depth to catch light with, so they read as two
-# patches of slightly wrong paint rather than as anything the case does. And
-# the vents were flat dark slabs stuck to the REAR of each flank, which is
-# neither where the real ones are nor what they are -- see the louvers, which
-# are cut through the metal over the front corners.
-#
 # Rubber feet: the ground footprint the contact shadow is sized from. They sit
 # under the WRAP's flanges rather than under the separate bottom plate, which
 # is where the real drive puts them -- the plate is not what carries the
