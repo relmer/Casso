@@ -30,6 +30,18 @@ Entries before versioning was introduced use dates only.
   script pointing at its own. The locating half moved into the library as
   `StockBootDisks`; the downloading stays in the GUI, which is where consent
   and a network stack belong.
+- **`disk create --boot <binary>` makes a disk that starts a program with no
+  operating system on it at all.** The boot sector loads the binary and jumps to
+  it, so there is no DOS to wait for and none of the memory it would occupy is
+  spent. Two commands from source to a booting disk instead of five, and no
+  Applesoft one-liner whose only job is to `BRUN` the thing you actually wrote.
+  `--addr` names the load address, which must fall between `$0900` and `$BFFF`
+  because page `$08` carries the loader and `$C000` is not memory; `--entry`
+  starts it somewhere other than its first byte, for a payload that begins with
+  a header or a jump table. It is refused alongside `--bootable`, which is the
+  other way to boot and not a variant of this one, and alongside any `--format`
+  but none, because there is no filesystem here to format. Works into `.dsk`,
+  `.do`, `.po` and `.woz` alike.
 - **A listing file gets `.lst` when you do not name an extension.** `-lfoo`
   wrote a file called `foo`, which is what AS65 does with the name and is a
   file a person then has to work out how to open. An extension you gave is

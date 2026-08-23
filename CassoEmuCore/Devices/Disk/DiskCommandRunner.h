@@ -158,6 +158,13 @@ public:
     //  What was just written, in the words the flags asked for it with.
     static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
 
+    //  A disk that starts a binary with no operating system on it. Its own
+    //  path rather than a flag on the formatted one: there is no filesystem
+    //  here to put the binary into.
+    void  BuildDirectBoot (const CommandLineOptions & options,
+                           DiskFormat                 format,
+                           DiskCommandResult        & result);
+
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 

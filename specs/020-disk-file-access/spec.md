@@ -193,23 +193,15 @@ program, then boot the image in Casso and confirm the program runs without input
 
 ---
 
-### User Story 5 - Boot straight into a program with no operating system (Priority: P3) - BUILT, NOT YET REACHABLE
+### User Story 5 - Boot straight into a program with no operating system (Priority: P3) - DELIVERED
 
-**BUILT AND NOT REACHABLE. Exposure deferred to
-[#122](https://github.com/relmer/Casso/issues/122).** The capability itself is
-delivered: `DirectBootBuilder` generates the image, refuses a payload that will not fit
-the `$0900` to `$BFFF` window with the capacity named, supports an entry address distinct
-from the load address, and is gated by a real-CPU test that boots a 6502 over the result
-and requires it to reach the payload in under a quarter of the cycles the equivalent DOS
-3.3 boot spends. Tasks T040 to T042 are complete.
-
-What is missing is the command that reaches it. Its only callers are 30 test sites; no
-CLI verb and no GUI path constructs one, so a developer cannot produce a direct-boot disk
-from outside the test suite. It produces a whole image rather than a boot sector to lay
-over a formatted one, so it is a separate construction path in `create` rather than
-another field on the blank-disk spec, and it needs its own container handling.
-`disk create --boot <binary>` parses today and is refused by name, pointing at that
-issue.
+**DELIVERED.** `disk create <image> --boot <binary>` writes a disk with no
+filesystem on it at all: the boot sector loads the binary and jumps to it. The
+builder was complete and gated from the start and its only callers were tests;
+what was missing was 90 lines of command. `--addr` names the load address and
+`--entry` an entry away from it; `--boot` is refused alongside `--bootable`, which
+is the other way to boot and not a variant of this one, and alongside any
+`--format` other than none, because there is no filesystem here to format.
 
 A developer produces a disk image that boots directly into a binary with no DOS or
 ProDOS present at all — the program owns the machine from power-on and gets the

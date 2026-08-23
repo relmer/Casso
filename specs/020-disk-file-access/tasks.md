@@ -5,15 +5,16 @@
 Written for whoever picks this up next, including a later session of me after a
 context loss. Current as of the last commit on `020-disk-file-access`.
 
-**133 of 135 tasks are done. The two that are not are deferred with issues, not
-forgotten.** T134 is the command surface for direct boot, whose builder is
-complete and gated by a real-CPU test but has no caller outside the test suite
-([#122](https://github.com/relmer/Casso/issues/122)). T135 is a disassembler,
-which the reverse loop stops one step short of
+**135 of 136 tasks are done, and every user story is delivered.** The one that
+is not is T135, a disassembler, which the reverse loop stops one step short of
 ([#121](https://github.com/relmer/Casso/issues/121)).
 
-**Every user story is delivered** except US5, which is built and not yet
-reachable. Phases 17 to 19 at the end of this file were added after the original
+T134, the command for direct boot, was deferred and then done: the reason for
+deferring it was that it "needs its own container handling", and that turned out
+to be false the moment it was checked. The builder already returns the same
+sector buffer the other one does.
+
+**Every user story is delivered.** Phases 17 to 19 at the end of this file were added after the original
 plan and cover what running the feature turned up: nothing created the disk the
 worked example wrote to, and the executable held 3,639 lines no test could reach.
 Both were found by using the tool rather than by reading it.
@@ -2050,6 +2051,7 @@ what stayed is the entry point the linker demands.
 
 ## Phase 19: Deferred, with the reason written down
 
-- [ ] T134 [US5] `disk create --boot <binary>`, the command surface for `DirectBootBuilder`. **Deferred to [#122](https://github.com/relmer/Casso/issues/122).** The builder is complete and gated by a real-CPU test (T040 to T042); it has no caller outside the test suite. It produces a whole image rather than a boot sector to lay over a formatted one, so it is a separate construction path in `create` and needs its own container handling. The flag parses and is refused by name today.
+- [x] T134 [US5] `disk create --boot <binary>`, the command surface for `DirectBootBuilder`. **Deferred once and then done, because the reason for deferring did not survive being checked.** The stated blocker was that it "needs its own container handling"; `DirectBootBuilder::Build` returns the complete 143,360-byte DOS-ordered sector buffer, which is the exact shape `BlankDiskBuilder` holds before its own container switch. **Three decisions.** (1) **That switch became `BlankDiskBuilder::WrapInContainer`**, shared rather than copied: a second copy of the `.po` reordering or the WOZ nibblization is a second place for the sector skew to be got wrong. (2) **It is its own path in `RunCreate` rather than a flag on `BuildAndWrite`**, because there is no filesystem here to put the binary into. (3) **The `--boot` and `--bootable` exclusion is checked twice on purpose.** `ResolveBoot` has it, and this path never reaches `ResolveBoot` because it builds no filesystem, so the pair silently honored `--boot` and dropped `--bootable` until the check was repeated here. Measured, not reasoned. Six tests in `DiskCommandRunnerTests` drive the command through `FakeDiskFileIo`, one of them asserting the written `.dsk` is byte-for-byte what `DirectBootBuilder::Build` produces, which ties the command to the output the guest-visible tests already boot a 6502 over.
+- [x] T136 [US5] `--entry <addr>` on the disk grammar, refused rather than dropped when it will not parse, for the reason `--addr` gives: a dropped value leaves the runner answering a command line the caller did not type.
 - [ ] T135 A 6502 disassembler. **Deferred to [#121](https://github.com/relmer/Casso/issues/121).** The loop runs in reverse as far as bytes and stops one step short of source. Deciding code from data is undecidable in general, so the design is verifiable rather than complete: disassemble, reassemble, compare bytes. Shared with #51 and #59.
 

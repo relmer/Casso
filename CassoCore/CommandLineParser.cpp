@@ -227,6 +227,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "volume",
     "bootable",
     "boot",
+    "entry",
 };
 
 
@@ -1178,6 +1179,31 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--boot" && hasValue)
         {
             options.disk.directBootFile = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        //  An entry that could not be read is refused rather than dropped, for
+        //  the reason --addr gives: a dropped value leaves the runner answering
+        //  a command line the caller did not type.
+        if (arg == "--entry" && hasValue)
+        {
+            Word     entry = 0;
+            HRESULT  hr    = ParseAddress (argv[i + 1], entry);
+
+            if (SUCCEEDED (hr))
+            {
+                options.disk.entryAddress    = entry;
+                options.disk.hasEntryAddress = true;
+            }
+            else
+            {
+                Refusal (options) << "Error: " << argv[i + 1] << " is not an address\n"
+                                  << "       write it as $XXXX\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
             i++;
             continue;
         }

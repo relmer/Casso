@@ -9,6 +9,7 @@
 #include "DiskImageStore.h"
 #include "BlankDiskBuilder.h"
 #include "StockBootDisks.h"
+#include "DirectBootBuilder.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -81,7 +82,14 @@ static constexpr const char *  s_kppszDiskOptions[][2] =
                     "volume name" },
     { "bootable <image>",
                     "create, init: copy an operating system on from this DOS 3.3 master "
-                    "or ProDOS system disk, so the disk boots" },
+                    "or ProDOS system disk, so the disk boots. Alone, it uses the master "
+                    "the emulator already downloaded" },
+    { "boot <file>",
+                    "create: make a disk that starts this binary with no operating "
+                    "system at all. It must load between $0900 and $BFFF, and the addr "
+                    "option is how you say where" },
+    { "entry <addr>",
+                    "create: start a --boot binary here rather than at its load address" },
     { "text",       "Convert the high-bit encoding and the line endings" },
     { "basic",      "Convert to and from an Applesoft listing" },
 };
@@ -2462,14 +2470,17 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 
 
 
-    if (!options.disk.directBootFile.empty())
+    //  THE TWO WAYS TO BOOT ARE NOT VARIANTS OF ONE THING, so asking for both
+    //  asks for a disk that boots twice.
+    if (!options.disk.directBootFile.empty() && options.disk.bootable)
     {
-        result.diagnostics    += "Error: --boot is not implemented yet\n"
-                                 "       tracked at https://github.com/relmer/Casso/issues/122\n";
+        result.diagnostics    += "Error: --bootable and --boot ask for different disks\n"
+                                 "       --bootable copies an operating system on; --boot starts a "
+                                 "binary with no operating system at all\n";
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
-        return E_NOTIMPL;
+        return E_INVALIDARG;
     }
 
     if (!options.disk.bootable)
@@ -2712,7 +2723,142 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
         return;
     }
 
+    if (!options.disk.directBootFile.empty())
+    {
+        BuildDirectBoot (options, format, result);
+        return;
+    }
+
     BuildAndWrite (options, format, false, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildDirectBoot
+//
+//  A disk that starts a binary with no operating system on it at all.
+//
+//  A SEPARATE PATH RATHER THAN A FLAG ON THE OTHER ONE, because there is no
+//  filesystem here to put the binary into. DirectBootBuilder writes a loader
+//  into the boot sector and lays the payload down in the sectors after it; the
+//  disk has no VTOC, no catalog and no directory, and `list` will say so.
+//
+//  Both builders hand back the same 143,360-byte DOS-ordered buffer, so the
+//  container is settled by the same function either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
+                                         DiskFormat                 format,
+                                         DiskCommandResult        & result)
+{
+    HRESULT         hr = S_OK;
+    DirectBootSpec  spec;
+    vector<Byte>    payload;
+    vector<Byte>    sectors;
+    vector<Byte>    imageBytes;
+    OpenedImage     target;
+    std::string     refusal;
+
+
+
+    //  THE TWO WAYS TO BOOT ARE NOT VARIANTS OF ONE THING, so asking for both
+    //  asks for a disk that boots twice.
+    //
+    //  Checked here as well as in ResolveBoot, because this path never reaches
+    //  ResolveBoot: it builds no filesystem, so it skips the code that would
+    //  have caught the pair. Measured before the check went in, the two
+    //  together honored --boot and dropped --bootable without a word.
+    if (options.disk.bootable)
+    {
+        result.diagnostics    += "Error: --bootable and --boot ask for different disks\n"
+                                 "       --bootable copies an operating system on; --boot starts a "
+                                 "binary with no operating system at all\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    //  A filesystem was asked for AND a disk with none. Refused rather than
+    //  quietly dropping one of them.
+    if (!options.disk.formatName.empty() && options.disk.formatName != "none")
+    {
+        result.diagnostics    += "Error: --boot writes no filesystem, so --format "
+                               + options.disk.formatName + " cannot be honored\n"
+                                 "       a direct-boot disk holds the binary and nothing else\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    hr = m_fileIo.ReadAllBytes (options.disk.directBootFile, payload);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.directBootFile, "",
+                                       "cannot be read, so there is nothing to boot") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    //  The load address is the one the binary was assembled for, and --addr is
+    //  how the caller says so. The entry follows it unless named separately.
+    if (options.disk.hasLoadAddress)
+    {
+        spec.loadAddress = options.disk.loadAddress;
+    }
+
+    spec.entryAddress = options.disk.hasEntryAddress ? options.disk.entryAddress
+                                                     : spec.loadAddress;
+
+    //  The builder names exactly one reason, and it is the reason: an address
+    //  outside the window has a capacity of zero, so blaming the payload's
+    //  length for an address problem would be answering the wrong question.
+    hr = DirectBootBuilder::Build (payload, spec, sectors, refusal);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, options.disk.directBootFile, refusal) + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    hr = BlankDiskBuilder::WrapInContainer (format, false, sectors, imageBytes);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, "", "could not be built") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    target.imagePath     = options.disk.imagePath;
+    target.stampRecorded = false;
+    target.isNew         = true;
+
+    hr = CommitImage (target, imageBytes, result);
+
+    if (SUCCEEDED (hr))
+    {
+        char  summary[160] = {};
+
+        snprintf (summary, sizeof (summary),
+                  "%s: direct boot, %zu bytes loading at $%04X, entered at $%04X\n",
+                  options.disk.imagePath.c_str(), payload.size(),
+                  (unsigned) spec.loadAddress, (unsigned) spec.entryAddress);
+
+        result.output     += summary;
+        result.exitStatus  = kClean;
+    }
 }
 
 

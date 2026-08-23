@@ -162,6 +162,13 @@ struct CommandLineOptions
         bool         bootable       = false;          // --bootable, with or without a path
         std::string  bootableFrom;                     // --bootable <os image>, when named
         std::string  directBootFile;                   // --boot <binary>
+
+        //  --entry, for a direct-boot payload whose first byte is not its
+        //  first instruction. A header, a jump table or a length word at the
+        //  front is ordinary, and making the entry follow the load address
+        //  would force such a payload to be rebuilt just to boot.
+        Word         entryAddress    = 0;
+        bool         hasEntryAddress = false;
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because
