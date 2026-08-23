@@ -135,17 +135,20 @@ SLOT_WALL  = 1.2                  # thickness of the black lining around it
 # flange turned in under each side -- and the lower closes the rest of the
 # bottom and turns up at the back to make the rear panel.
 #
-# HOW THEY MEET is the part worth stating, because getting it wrong breaks
-# something visible at the other end of the drive. The lower is narrow for the
-# first inch, sitting BETWEEN the flanges and flush with them, so the front
-# bottom edge is one unbroken lip across the whole width. An inch back it
-# widens and rides UP OVER the flanges, overlapping them for the rest of the
-# length -- which is what the screws go through.
+# HOW THEY MEET is the whole of what shows. The lower is narrow for its first
+# inch, running BETWEEN the flanges, sitting BOTTOM_DROP lower than them with
+# SEAM_GAP of daylight to each side -- so the front bottom edge is a stepped
+# joint with two fine gaps in it, and reads as two pieces of metal. An inch
+# back it steps up, widens, and rides OVER the flanges for the rest of the
+# length, which is the lap the screws pass through.
 #
-# Deleting the flanges outright, on the theory that the sides simply reached
-# the ground, left the front lip existing only at its two ends. The lip is
-# made by the bottom sheet's front edge, so removing the sheet removed the
-# lip, a hundred and fifty millimeters from the change.
+# Both halves of that were got wrong in one pass. Deleting the flanges, on the
+# theory that the sides simply reached the ground, left the front lip existing
+# only at its two ends -- the lip IS the bottom sheet's front edge, so
+# removing the sheet removed the lip, a hundred and fifty millimeters from the
+# change. Then making the replacement flush and gapless, to get the lip back
+# in one piece, deleted the joint instead. A continuous lip is the thing to
+# avoid here, not the thing to aim for.
 #
 # It OVERHANGS the front, so the black face sits down inside a shallow metal
 # lip instead of flush with it. That lip is the ONLY thing bordering the black
@@ -164,6 +167,11 @@ SEAM_INSET  = 0.8 * INCH
 
 SEAM_L      = -SHELL_T + SEAM_INSET
 SEAM_R      = W + SHELL_T - SEAM_INSET
+
+# How the joint reads at the front: the lower piece hangs a sheet below the
+# flanges, with a gap of daylight where the two meet.
+BOTTOM_DROP = 1.25
+SEAM_GAP    = 0.70
 
 # Where the lower piece widens, and how far it then laps over each flange.
 BOTTOM_STEP = 1.0 * INCH
@@ -469,22 +477,32 @@ for y0, y1 in [(17.8, 94.8), (110.6, 201.5)]:
 
 m.add("shell", shell.cut (bottom_span).cut (vent_slots).cut (lid_dents), SHELL)
 
-# The lower piece. Its first inch is narrow and sits BETWEEN the flanges,
-# flush with them, which is what keeps the front bottom edge one unbroken lip.
+# The lower piece's first inch: narrow, running between the flanges, and
+# sitting a sheet lower than them with a gap to each side.
+#
+# THOSE TWO GAPS AND THAT STEP ARE THE JOINT, and they are the only part of
+# any of this the eye ever gets. Making the front flush and gapless -- on the
+# reasoning that the lip should be continuous -- deleted the evidence that
+# the case is two pieces at all, which is a worse error than the notches it
+# was trying to fix: the notches were at least true.
 shell_bottom = (cq.Workplane("XY")
-                .box(SEAM_R - SEAM_L, BOTTOM_STEP - SHELL_Y0, SHELL_T,
-                     centered=(False, False, False))
-                .translate((SEAM_L, SHELL_Y0, -SHELL_T)))
+                .box((SEAM_R - SEAM_GAP) - (SEAM_L + SEAM_GAP), BOTTOM_STEP - SHELL_Y0,
+                     SHELL_T, centered=(False, False, False))
+                .translate((SEAM_L + SEAM_GAP, SHELL_Y0, -SHELL_T - BOTTOM_DROP)))
 
-# Then it widens and rides UP OVER the flanges, lapping them the rest of the
-# way back. Riding over is why it is a sheet thickness higher here: the
-# underside of the drive is the flange at its edges and this a step above it
-# between them.
+# Then it steps up, widens, and rides OVER the flanges for the rest of the
+# length -- which is the lap the screws pass through.
 shell_bottom = shell_bottom.union (
     cq.Workplane("XY")
-      .box((SEAM_R + BOTTOM_LAP) - (SEAM_L - BOTTOM_LAP), D - BOTTOM_STEP, SHELL_T,
+      .box((SEAM_R - SEAM_GAP) - (SEAM_L + SEAM_GAP), SHELL_T,
+           SHELL_T + BOTTOM_DROP + SHELL_T, centered=(False, False, False))
+      .translate((SEAM_L + SEAM_GAP, BOTTOM_STEP, -SHELL_T - BOTTOM_DROP)))
+
+shell_bottom = shell_bottom.union (
+    cq.Workplane("XY")
+      .box((SEAM_R + BOTTOM_LAP) - (SEAM_L - BOTTOM_LAP), D - BOTTOM_STEP - SHELL_T, SHELL_T,
            centered=(False, False, False))
-      .translate((SEAM_L - BOTTOM_LAP, BOTTOM_STEP, 0.0)))
+      .translate((SEAM_L - BOTTOM_LAP, BOTTOM_STEP + SHELL_T, 0.0)))
 
 # The turn-up at the back. The wrap is open there, so without it the case has
 # no rear at all -- which never showed only because nothing looks at a drive
