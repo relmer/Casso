@@ -29,7 +29,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int As65ExitStatus::ForAssembly (bool inputWasRead, bool assembled)
+int As65ExitStatus::ForAssembly (bool inputWasRead, bool assembled, bool warned)
 {
     int  status = kClean;
 
@@ -42,6 +42,10 @@ int As65ExitStatus::ForAssembly (bool inputWasRead, bool assembled)
     else if (!assembled)
     {
         status = kAssemblyErrors;
+    }
+    else if (warned)
+    {
+        status = kWarned;
     }
 
     return status;

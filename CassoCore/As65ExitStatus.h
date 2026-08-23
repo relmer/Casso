@@ -63,5 +63,8 @@ public:
     static constexpr int  kAssemblyErrors = 3;
     static constexpr int  kWarned         = 5;
 
-    static int  ForAssembly (bool inputWasRead, bool assembled);
+    //  `warned` is consulted only on the success path: an assembly that
+    //  failed AND warned is a failed assembly, and reporting 5 would tell a
+    //  script an output file exists when none does.
+    static int  ForAssembly (bool inputWasRead, bool assembled, bool warned = false);
 };

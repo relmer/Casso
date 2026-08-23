@@ -284,9 +284,10 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 
     return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
-        "  " + sp + "o names the assembled output file; --disk1 mounts an image in drive 1"
-        " as the emulator starts, and is the emulator's own flag, which is why it is"
-        " written that way here.\n"
+        "  " + sp + "o names the assembled output file. The last line is the emulator's"
+        " own command line rather than this tool's, which is why its flags are written"
+        " with two dashes whatever prefix you asked for here: --machine Apple2e opens"
+        " an Apple //e, and --disk1 puts the image in drive 1 as it starts.\n"
         "  Assemble with the default output rather than " + lp + "dos-bin: put writes the"
         " DOS 3.3 header itself from " + lp + "addr, and a file that already carries one has"
         " its own header loaded as code where the program should begin.\n"

@@ -114,7 +114,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
                  + lp + "type B " + lp + "addr $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
         "  CassoCli disk boot mydisk.dsk STARTUP\n"
-        "  Casso.exe --disk1 mydisk.dsk\n";
+        "  Casso.exe --machine Apple2e --disk1 mydisk.dsk\n";
 }
 
 

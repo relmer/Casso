@@ -501,7 +501,8 @@ unsigned CommandLineParser::RoundToInstalledSize (uint64_t bytes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabytes)
+std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabytes,
+                                                       bool     withAs65sOutOfMemory)
 {
     std::string  machine = (installedGigabytes == 0)
                                ? std::string ("your machine")
@@ -514,9 +515,14 @@ std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabyt
     text += "    1  Bad command line\n";
     text += "    2  Error opening source or output file\n";
     text += "    3  Error assembling source file\n";
-    text += "    4  Out of memory, says AS65, assembling your 64K binary. On your "
-          + machine + ". Sure. If you run out of memory doing 6502 assembly, "
-            "definitely open an issue, because something has gone *very* wrong :)\n";
+
+    if (withAs65sOutOfMemory)
+    {
+        text += "    4  Out of memory, says AS65, assembling your 64K binary. On your "
+              + machine + ". Sure. If you run out of memory doing 6502 assembly, "
+                "definitely open an issue, because something has gone *very* wrong :)\n";
+    }
+
     text += "    5  Assembled with warnings";
 
     return text;

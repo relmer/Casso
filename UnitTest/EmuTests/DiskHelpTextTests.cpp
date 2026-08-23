@@ -208,7 +208,9 @@ public:
                           lines[2], L"place the greeting");
         Assert::AreEqual (std::string ("  CassoCli disk boot mydisk.dsk STARTUP"),
                           lines[3], L"set the greeting");
-        Assert::AreEqual (std::string ("  Casso.exe --disk1 mydisk.dsk"),
+        //  The launch line names the MACHINE as well as the disk: a reader
+        //  following the loop should land on the //e the rest of it assumes.
+        Assert::AreEqual (std::string ("  Casso.exe --machine Apple2e --disk1 mydisk.dsk"),
                           lines[4], L"launch");
     }
 
@@ -217,8 +219,8 @@ public:
         std::string               help    = DiskCommandRunner::BuildHelpText();
         std::string               rest    = HelpWithoutExampleCommands (help);
         std::vector<std::string>  options = OptionsUsedByExample (help);
-        std::vector<std::string>  expected { "-o", "--as", "--type",
-                                             "--addr", "--basic", "--disk1" };
+        std::vector<std::string>  expected { "-o", "--as", "--type", "--addr",
+                                             "--basic", "--machine", "--disk1" };
 
         //  The exact set, not merely a non-empty one. A scanner that found
         //  nothing, or found only the first line's two, would satisfy the loop

@@ -107,6 +107,24 @@ int main (int argc, char * argv[])
 
         exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
+    else if (options.inputFile.empty()
+             && (options.subcommand == CommandLineOptions::Subcommand::As65
+              || options.subcommand == CommandLineOptions::Subcommand::Merlin
+              || options.subcommand == CommandLineOptions::Subcommand::Run))
+    {
+        // A MODE NAMED WITH NOTHING AFTER IT IS SOMEBODY ASKING HOW IT WORKS.
+        //
+        // It answered "Error: No input file specified", which tells a reader
+        // who has just discovered the mode exists the one thing they had
+        // already worked out. `disk` alone opened its page from the start;
+        // the three assembler-shaped modes do the same now.
+        //
+        // Still non-zero, and for the same reason a bare `CassoCli` is: a
+        // script that invokes the tool wrongly has to fail. Asking for the
+        // page BY NAME is what exits 0.
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+    }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
         CommandLine::PrintVersion();

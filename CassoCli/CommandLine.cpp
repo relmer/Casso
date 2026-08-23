@@ -475,7 +475,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintSectionHeading ("Supported subset");
     PrintUsageLine ("  The absolute subset that needs no linker. Where support ends is reported by name rather than as a syntax error. See docs/merlin-subset.md.");
 
-    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes()));
+    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes(), false));
 }
 
 
@@ -664,7 +664,10 @@ void CommandLine::PrintVersion()
 
 std::string CommandLine::BuildBanner()
 {
-    return std::string ("CassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
+    //  OPENS ON A BLANK LINE. Every page starts with this, so one here is
+    //  one gap between the command the reader typed and what came back --
+    //  written once rather than at the head of four pages.
+    return std::string ("\nCassoCli - 6502 Assembler and Emulator  v" VERSION_STRING " (")
          + s_arch
          + ")  " VERSION_BUILD_TIMESTAMP "\n"
            "Copyright (c) 2025-" VERSION_YEAR_STRING " by Robert Elmer\n";
@@ -740,24 +743,14 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
 void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOptions::Subcommand subcommand, char prefix)
 {
-    std::string  mode = "this";
-
-
-
-    for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
-    {
-        if (entry.token == subcommand)
-        {
-            mode = entry.name;
-            break;
-        }
-    }
-
     PrintPageFor (subcommand, prefix);
     FlushOutput();
 
-    std::cerr << kGapBeforeTheReason << "Error: '" << flag << "' is not an option of the "
-              << mode << " mode\n";
+    //  THE MODE IS NOT NAMED. It is on the page printed directly above and
+    //  in the command the reader just typed, so "is not an option of the
+    //  merlin mode" spent a clause saying what they can see -- and said it
+    //  in lower case, which is not how the assembler is written.
+    std::cerr << kGapBeforeTheReason << "Error: unknown option: " << flag << "\n";
 }
 
 

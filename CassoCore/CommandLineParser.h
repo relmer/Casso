@@ -148,7 +148,13 @@ public:
     //  will not go and get for itself: the console executable asks the OS and
     //  passes the answer in. Zero means it could not find out, and the line
     //  falls back to saying "your machine" rather than inventing a size.
-    static std::string  BuildAssembleExitCodes (unsigned installedGigabytes);
+    //  `withAs65sOutOfMemory` names status 4, which nothing returns and
+    //  which belongs to as65 rather than to this tool. The Merlin page
+    //  leaves it out: a reader there has no as65 build script to port and
+    //  no reason to be told what a status they will never see once meant
+    //  in an assembler they are not using.
+    static std::string  BuildAssembleExitCodes (unsigned installedGigabytes,
+                                                bool     withAs65sOutOfMemory = true);
 
     //  Installed memory as a person would say it, from what the OS reports.
     //

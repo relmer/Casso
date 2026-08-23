@@ -5,6 +5,7 @@
 #include "As65Mode.h"
 #include "Assembler.h"
 #include "AssemblerExitCode.h"
+#include "As65ExitStatus.h"
 #include "DialectReporting.h"
 #include "MerlinMode.h"
 
@@ -131,7 +132,15 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode) 
     reports  = DialectReporting::BuildReport (asmOptions, SourceAssembler::BuildCpuReport (options, ar.result));
     SourceAssembler::ReportToStderr (reports);
 
-    exitCode = AssemblerExitCode::ToProcessCode (AssemblerExitCode::FromResult (ar.result));
+    //  THE DOCUMENTED NUMBERS, WHICH THIS DID NOT RETURN.
+    //
+    //  As65ExitStatus was written to move an assembly error off 2 and
+    //  warnings off 1 -- 1 being as65's bad command line, which a ported
+    //  build script branches on -- and it was tested, documented, and never
+    //  called. The executable kept an older mapper with no status 3 in it at
+    //  all, so every page in the help described a numbering the tool did not
+    //  use: an assembly error exited 2 and a warning exited 1.
+    exitCode = As65ExitStatus::ForAssembly (ar.sourceRead, ar.ok, !ar.result.warnings.empty());
 
     CBREx (ar.ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
