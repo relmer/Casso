@@ -249,9 +249,89 @@ slot_outer = (cq.Workplane("XY")
                    SLOT_Z1 - SLOT_Z0 + SLOT_WALL * 2.0, centered=(False, False, False))
               .translate((SLOT_X0 - SLOT_WALL, FRAME_Y + BEVEL_RUN, SLOT_Z0 - SLOT_WALL)))
 
-case = case.cut (notch_outer).cut (slot_outer)
+# ------------------------------------------------------------------- louvers
+#
+# The cooling slots WRAP OVER THE TOP CORNERS. That is the thing to get right
+# about this shell and the one feature of it nobody would invent: each slot
+# starts on the LID a little in from the edge, bends over the corner radius,
+# and carries on down the SIDE. Read as "side vents" they end up flat strips
+# on a flank; read as "lid vents" they end up stripes on the top. They are
+# neither -- they are one comb of slots draped over the edge, near the front,
+# and the drive is instantly recognizable by them.
+#
+# Built by intersecting a BAND of the shell's own cross-section with a corner
+# quadrant, so each slot follows the metal round the turn by construction
+# rather than being three pieces mitred together.
+VENT_N       = 11
+VENT_W       = 2.2                # slot width, along the drive's length
+VENT_PITCH   = 5.0
+VENT_Y0      = 30.0               # where the comb starts back from the face
+VENT_TOP_IN  = 13.0               # how far onto the lid a slot reaches
+VENT_SIDE_DN = 34.0               # how far down the flank it reaches
+VENT_POCKET  = 4.0                # depth of the dark interior behind them
+VENT_DK      = (0.055, 0.052, 0.048)
+
+VENT_LEN = VENT_N * VENT_PITCH - (VENT_PITCH - VENT_W)
+
+
+def shell_band (outer_off, inner_off):
+    """The shell's cross-section between two offsets from the BODY's surface,
+    carried round the filleted corners. 0 is the metal's inner face and
+    SHELL_T its outer, so a band spanning the two is the sheet itself."""
+    def at (off):
+        return (cq.Workplane("XY")
+                .box(W + off * 2.0, D + 12.0, H + off * 2.0, centered=(False, False, False))
+                .translate((-off, -6.0, -off))
+                .edges("|Y").fillet (max (0.3, 1.8 + off)))
+
+    return at (outer_off).cut (at (inner_off))
+
+
+def vent_quadrant (y0, length, right, round_ends = False):
+    """Everything above the flank's cut-off and outboard of the lid's, on one
+    side -- which is the corner the slots run over.
+
+    `round_ends` caps a slot the way a pressed one is: the fillets land on the
+    two faces the slot terminates against, so the cap is a half-round of the
+    slot's own width at each end. Square ends are a milled look, and the real
+    shell's are not milled."""
+    z0  = H + SHELL_T - VENT_SIDE_DN
+    x   = (W + SHELL_T - VENT_TOP_IN) if right else (-SHELL_T + VENT_TOP_IN)
+    box = (cq.Workplane("XY")
+           .box(200.0, length, 200.0, centered=(False, False, False))
+           .translate(((x if right else x - 200.0), y0, z0)))
+
+    if round_ends:
+        lid = ">X" if right is False else "<X"
+        box = box.edges(lid).edges("|Z").fillet (length * 0.5 - 0.01)
+        box = box.edges("<Z").edges("|X").fillet (length * 0.5 - 0.01)
+
+    return box
+
+
+vent_slots  = None
+vent_pocket = None
+
+for right in (False, True):
+    pocket = shell_band (0.0, -VENT_POCKET).intersect (
+                 vent_quadrant (VENT_Y0 - 1.0, VENT_LEN + 2.0, right))
+    vent_pocket = pocket if vent_pocket is None else vent_pocket.union (pocket)
+
+    for i in range (VENT_N):
+        # From a little proud of the metal to a little inside it, so the cut
+        # goes cleanly through the sheet and no coincident face is left.
+        slot = shell_band (SHELL_T + 0.6, -1.0).intersect (
+                   vent_quadrant (VENT_Y0 + i * VENT_PITCH, VENT_W, right, True))
+        vent_slots = slot if vent_slots is None else vent_slots.union (slot)
+
+# The body gives up the space behind the slots, and a dark panel fills it --
+# otherwise the slots open onto beige at zero depth and read as painted lines.
+# The same lesson the disk slot taught: a hole needs something dark behind it
+# or it is not a hole.
+case = case.cut (notch_outer).cut (slot_outer).cut (vent_pocket)
 
 m.add("case", case, BEIGE)
+m.add("vent_cavity", vent_pocket, VENT_DK)
 
 # ---------------------------------------------------------------- enclosure
 
@@ -297,7 +377,7 @@ bottom_span = (cq.Workplane("XY")
                     centered=(False, False, False))
                .translate((SEAM_L, SHELL_Y0 - 1.0, -SHELL_T - BOTTOM_DROP - 2.0)))
 
-m.add("shell", shell.cut (bottom_span), SHELL)
+m.add("shell", shell.cut (bottom_span).cut (vent_slots), SHELL)
 
 # The separate bottom plate, narrower than the span it fills by SEAM_GAP at
 # each end. Those two slots ARE the gaps -- they are what shows from the
@@ -484,22 +564,14 @@ m.add("led", led, KD["drive_lamp"])
 # sides are under the wrap, and anything left at the old offsets would be
 # sealed inside it. Each is pushed out by the sheet thickness.
 
-# Lid channels: two slim darker strips running front to back.
-for i, (x0, x1) in enumerate([(24.0, 62.0), (93.0, 131.0)]):
-    m.add(f"channel{i}",
-          cq.Workplane("XY").box(x1 - x0, D - 42.0, 0.35, centered=(False, False, False))
-            .translate((x0, 18.0, H + SHELL_T - 0.01)),
-          BEIGE_DK)
-
-# Side vents: nine slits per side, rear half.
-for s, (sx0, sx1) in enumerate([(-SHELL_T - 0.35, -SHELL_T + 0.1),
-                                (W + SHELL_T - 0.1, W + SHELL_T + 0.35)]):
-    for i in range(9):
-        m.add(f"vent{s}_{i}",
-              cq.Workplane("XY").box(sx1 - sx0, 3.2, 46.0 * FZ, centered=(False, False, False))
-                .translate((sx0, 146.0 + i * 7.0, 20.0 * FZ)),
-              BEIGE_DK)
-
+# THE LID IS PLAIN, and two things used to be on it that are not on the real
+# drive. It carried a pair of slim darker strips front-to-back, which were
+# invention: they had no depth to catch light with, so they read as two
+# patches of slightly wrong paint rather than as anything the case does. And
+# the vents were flat dark slabs stuck to the REAR of each flank, which is
+# neither where the real ones are nor what they are -- see the louvers, which
+# are cut through the metal over the front corners.
+#
 # Rubber feet: the ground footprint the contact shadow is sized from. They sit
 # under the WRAP's flanges rather than under the separate bottom plate, which
 # is where the real drive puts them -- the plate is not what carries the

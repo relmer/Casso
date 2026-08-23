@@ -3,6 +3,11 @@ Ka 0 0 0
 Kd 0.833 0.784 0.659
 d 1
 
+newmtl vent_cavity
+Ka 0 0 0 
+Kd 0.055 0.052 0.048
+d 1
+
 newmtl shell
 Ka 0 0 0 
 Kd 0.806 0.762 0.648
@@ -46,106 +51,6 @@ d 1
 newmtl led
 Ka 0 0 0 
 Kd 0.9 0.12 0.1
-d 1
-
-newmtl channel0
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl channel1
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_0
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_1
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_2
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_3
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_4
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_5
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_6
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_7
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent0_8
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_0
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_1
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_2
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_3
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_4
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_5
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_6
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_7
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
-d 1
-
-newmtl vent1_8
-Ka 0 0 0 
-Kd 0.76 0.71 0.59
 d 1
 
 newmtl foot16_18
