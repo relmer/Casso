@@ -37,6 +37,43 @@ void DeskSceneLayout::MakeDeviceWorld (float tx, float ty, float tz, float scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::FlipDeviceForInspection
+//
+//  *** TEMPORARY: see kDriveInspectFlip.
+//
+//  Half a turn about the model's own X axis, THROUGH ITS OWN CENTER. Model y
+//  and z both invert, which brings the back round to face the camera and the
+//  underside up into the light.
+//
+//  About its center rather than about the origin, which is what keeps this
+//  from touching anything else: a box is symmetric about its own center, so
+//  the device occupies exactly the world volume it did before and the
+//  containment solve, the reported footprint and the standoff all stay right
+//  without knowing anything happened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::FlipDeviceForInspection (const float modelMin[3], const float modelMax[3],
+                                               float world[16])
+{
+    float  scale = world[0];
+    float  cy    = (modelMin[1] + modelMax[1]) * 0.5f;
+    float  cz    = (modelMin[2] + modelMax[2]) * 0.5f;
+
+
+
+    world[6]   = -world[6];
+    world[9]   = -world[9];
+    world[13] += 2.0f * cz * scale;
+    world[14] -= 2.0f * cy * scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::SolveStandoff
 //
 //  Closed-form containment: for a camera at (0, eyeY, eyeZ) looking straight
@@ -304,6 +341,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     for (int i = 0; i < driveCount; i++)
     {
         MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
+
+        if (kDriveInspectFlip)
+        {
+            FlipDeviceForInspection (metrics.driveMin, metrics.driveMax, out.driveWorld[i]);
+        }
     }
 
     // Scene bounds in world space: the monitor spans its model box remapped

@@ -174,6 +174,10 @@ public:
     // translated by (tx, ty, tz).
     static void     MakeDeviceWorld (float tx, float ty, float tz, float scale, float out[16]);
 
+    // *** TEMPORARY: see kDriveInspectFlip.
+    static void     FlipDeviceForInspection (const float modelMin[3], const float modelMax[3],
+                                             float world[16]);
+
     // The Ctrl+0 inverse: the center (viewport) size at which the emulator
     // picture -- aspect-fitted INSIDE the projected glass, like the image on
     // a real tube -- lands at the requested pixel size. The glass's own
@@ -223,6 +227,14 @@ public:
     // *** nothing of the top in view. Set to 0 to restore the real
     // *** composition -- this is the only thing holding it apart.
     static constexpr float  kDriveInspectGapMm     = 300.0f;
+
+    // *** TEMPORARY, and asked for: turns each drive over so its BACK and
+    // *** UNDERSIDE face the camera instead of its front and lid. Half a turn
+    // *** about the model's own X axis, through its own center -- which is
+    // *** what leaves the world bounding box untouched, so the containment
+    // *** solve and the reported footprint need to know nothing about it.
+    // *** Set to false to stand them up again.
+    static constexpr bool   kDriveInspectFlip      = true;
     static constexpr float  kDriveGapMm            = 32.0f;    // between the two drives
     static constexpr float  kContainMargin         = 1.005f;
 
