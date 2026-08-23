@@ -1,26 +1,21 @@
 newmtl case
 Ka 0 0 0 
-Kd 0.87 0.862 0.835
-d 1
-
-newmtl panel
-Ka 0 0 0 
-Kd 0.83 0.822 0.795
+Kd 0.884 0.874 0.846
 d 1
 
 newmtl slot
 Ka 0 0 0 
-Kd 0.06 0.06 0.07
+Kd 0.055 0.055 0.062
 d 1
 
 newmtl lever
 Ka 0 0 0 
-Kd 0.72 0.712 0.685
+Kd 0.845 0.836 0.812
 d 1
 
 newmtl tab
 Ka 0 0 0 
-Kd 0.64 0.632 0.605
+Kd 0.806 0.798 0.774
 d 1
 
 newmtl lamp
@@ -58,67 +53,92 @@ Ka 0 0 0
 Kd 0.17 0.45 0.85
 d 1
 
-newmtl rib0_0
+newmtl vent0
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib0_1
+newmtl vent1
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib0_2
+newmtl vent2
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib0_3
+newmtl vent3
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib1_0
+newmtl vent4
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib1_1
+newmtl vent5
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib1_2
+newmtl vent6
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl rib1_3
+newmtl vent7
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl lid
+newmtl vent8
 Ka 0 0 0 
-Kd 0.79 0.782 0.755
+Kd 0.055 0.055 0.062
 d 1
 
-newmtl foot16_18
+newmtl vent9
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl vent10
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl vent11
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl vent12
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl vent13
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl foot18_16
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot16_198
+newmtl foot18_200
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot136_18
+newmtl foot134_16
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot136_198
+newmtl foot134_200
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1

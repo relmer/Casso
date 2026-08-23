@@ -167,13 +167,19 @@ public:
     static constexpr float  kDiskIiDoorPoleZ   = 60.828f;
     static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
 
-    // The //c's is a FLIP LEVER, not a door, so its motion is the simple one
-    // the Disk II's is not: a real hinge along the lever's own top-back edge,
-    // which it turns about to stand out from the face. Nothing has to clear a
-    // pocket, so nothing forces the pole off the part.
-    static constexpr float  kDisk2cDoorPoleY   = -0.8f;
-    static constexpr float  kDisk2cDoorPoleZ   = 40.0f;
-    static constexpr float  kDisk2cDoorOpenRad = 1.05f;
+    // The //c's is a FLIP LATCH, and it turns IN PLACE -- about a horizontal
+    // axis through its own middle, in the plane of the face. Its bottom comes
+    // toward the viewer as its top goes back.
+    //
+    // Hinged at an edge and swung sixty degrees, as it first was, the latch
+    // does not flip: it sweeps, and the top of a block this tall travels
+    // nearly three centimeters out of the drive. Which is the giveaway that
+    // the wrong mechanism was being modeled -- nothing on this drive retracts
+    // anywhere, because unlike the Disk II's door there is no pocket for
+    // anything to go into.
+    static constexpr float  kDisk2cDoorPoleY   = -2.5f;
+    static constexpr float  kDisk2cDoorPoleZ   = 49.0f;
+    static constexpr float  kDisk2cDoorOpenRad = 0.5f;
 
     // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
     // the part -- the mechanism is a cantilever, so the door rises as it swings
