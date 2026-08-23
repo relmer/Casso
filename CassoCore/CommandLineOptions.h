@@ -110,7 +110,7 @@ struct CommandLineOptions
         //  --help` resolves to. Keeping it out of that table is deliberate:
         //  the table is swept to check every verb is described in the help,
         //  and the help request is not one of the things being described.
-        enum class Verb      { None, List, Get, Put, Delete, Boot, Help };
+        enum class Verb      { None, List, Get, Put, Delete, Boot, Create, Init, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -137,6 +137,30 @@ struct CommandLineOptions
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --addr
         bool         hasLoadAddress = false;           // $0000 is a legal address
+
+        //
+        //  What `create` and `init` are being asked to make.
+        //
+        //  Kept as the words the reader typed rather than as enums, because
+        //  the parser has no business knowing which container types exist:
+        //  the runner owns that table, refuses what is not in it, and can
+        //  name the ones that are. `--type` is read only under `create`;
+        //  `init` takes the container as it finds it.
+        //
+        std::string  containerType;                    // --type: dsk, do, po, woz
+        std::string  formatName;                       // --format: dos33, prodos, none
+        std::string  volumeName;                       // --volume: a DOS number or a ProDOS name
+
+        //  TWO WAYS TO BOOT, AND THEY ARE NOT THE SAME MECHANISM, which is
+        //  why they are two fields rather than one flag with a mode.
+        //
+        //  `--bootable <image>` copies an operating system onto the disk, so
+        //  it needs a DOS 3.3 master or a ProDOS system disk to copy FROM.
+        //  `--boot <binary>` writes no operating system at all: the boot
+        //  sector loads the binary and jumps to it. Naming both is asking
+        //  for a disk that boots two ways, and is refused.
+        std::string  bootableFrom;                     // --bootable <os image>
+        std::string  directBootFile;                   // --boot <binary>
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because

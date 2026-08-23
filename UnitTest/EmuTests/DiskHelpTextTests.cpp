@@ -242,7 +242,7 @@ public:
         //  A sweep of the parser's own table rather than a list retyped here:
         //  a verb added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (13), verbs.size(), L"five verbs and eight aliases");
+        Assert::AreEqual (size_t (17), verbs.size(), L"seven verbs and ten aliases");
 
         for (const auto & verb : verbs)
         {

@@ -6,6 +6,8 @@
 #include "VolumeImage.h"
 #include "Dos33Volume.h"
 #include "ProDosVolume.h"
+#include "DiskImageStore.h"
+#include "BlankDiskBuilder.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -48,13 +50,37 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 //  is padded at build time rather than into each literal, or a table spaced for
 //  one prefix comes out ragged in the other.
 //
+//
+//  Every container this tool can WRITE, and the word that names it.
+//
+//  Separate from the reader in DiskImageStore, which recognizes what a file
+//  already is. This is the shorter list of what a new one can be made as.
+//
+static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
+{
+    { "dsk", DiskFormat::Dsk },
+    { "do",  DiskFormat::Do  },
+    { "po",  DiskFormat::Po  },
+    { "woz", DiskFormat::Woz },
+};
+
+
+
 static constexpr const char *  s_kppszDiskOptions[][2] =
 {
     { "out <file>", "Write an extracted file here, not to standard output" },
     { "as <path>",  "Name the placed file this on the disk" },
-    { "type <t>",   "File type. DOS 3.3 takes T, I, A, B or R;\n"
-                    "                         ProDOS takes TXT, BIN, BAS or SYS" },
+    { "type <t>",   "put: the file type the catalog records. DOS 3.3 takes T, I, A, "
+                    "B or R; ProDOS takes TXT, BIN, BAS or SYS. create: the container "
+                    "instead -- dsk, do, po or woz, taken from the name's extension "
+                    "when not given" },
     { "addr $XXXX", "Load address for a placed binary" },
+    { "format <f>", "create, init: dos33, prodos or none. Defaults to dos33" },
+    { "volume <v>", "create, init: a DOS 3.3 volume number, 1 to 254, or a ProDOS "
+                    "volume name" },
+    { "bootable <image>",
+                    "create, init: copy an operating system on from this DOS 3.3 master "
+                    "or ProDOS system disk, so the disk boots" },
     { "text",       "Convert the high-bit encoding and the line endings" },
     { "basic",      "Convert to and from an Applesoft listing" },
 };
@@ -132,6 +158,10 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
         "                                    the space it alone claimed\n"
         "  boot                              Set the program that runs when the disk\n"
         "                                    is booted\n"
+        "  create | new                      Make a new image file, formatted and\n"
+        "                                    ready to write to\n"
+        "  init | format                     Format an image that is already there,\n"
+        "                                    discarding everything on it\n"
         "\n"
         "  CassoCli disk " + lp + "help\n"
         "  CassoCli disk list   <image>\n"
@@ -1140,25 +1170,31 @@ HRESULT DiskCommandRunner::CommitImage (
 
     progress.furthestAttempted = CommitPlan::Step::Reverify;
 
-    CBRFEx (opened.stampRecorded, HRESULT_FROM_WIN32 (ERROR_CANT_ACCESS_FILE),
-            RefuseCommit (opened.imagePath,
-                          "could not be checked for changes when it was read, so it will "
-                          "not be written over", result));
+    //  A disk being made for the first time has nothing to have changed, so
+    //  the check is skipped rather than failed. See OpenedImage::isNew.
+    if (!opened.isNew)
+    {
+        CBRFEx (opened.stampRecorded, HRESULT_FROM_WIN32 (ERROR_CANT_ACCESS_FILE),
+                RefuseCommit (opened.imagePath,
+                              "could not be checked for changes when it was read, so it will "
+                              "not be written over", result));
 
-    hr = m_fileIo.Stat (opened.imagePath, observed);
-    CHRF (hr, RefuseCommit (opened.imagePath,
-                            "has gone away since it was read", result));
+        hr = m_fileIo.Stat (opened.imagePath, observed);
+        CHRF (hr, RefuseCommit (opened.imagePath,
+                                "has gone away since it was read", result));
 
-    stale = CommitPlan::IsStale (opened.stamp.sizeBytes, opened.stamp.modifiedUnix,
-                                 observed.sizeBytes,     observed.modifiedUnix);
+        stale = CommitPlan::IsStale (opened.stamp.sizeBytes, opened.stamp.modifiedUnix,
+                                     observed.sizeBytes,     observed.modifiedUnix);
 
-    // STG_E_NOTCURRENT says exactly this and nothing else -- the object changed
-    // since it was last read. The Win32 table has no code for it, and inventing
-    // a near-miss from that table would read as a different problem in a log.
-    CBRFEx (!stale, STG_E_NOTCURRENT,
-            RefuseCommit (opened.imagePath,
-                          "changed since it was read. Nothing was written; read it "
-                          "again and retry", result));
+        // STG_E_NOTCURRENT says exactly this and nothing else -- the object
+        // changed since it was last read. The Win32 table has no code for it,
+        // and inventing a near-miss from it would read as a different problem
+        // in a log.
+        CBRFEx (!stale, STG_E_NOTCURRENT,
+                RefuseCommit (opened.imagePath,
+                              "changed since it was read. Nothing was written; read it "
+                              "again and retry", result));
+    }
 
     // Step over anything already sitting at the name we would take. This is
     // the abandoned-temporary case; the invocation tag inside the name is what
@@ -2166,6 +2202,14 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             RunBoot (options, result);
             break;
 
+        case CommandLineOptions::DiskOptions::Verb::Create:
+            RunCreate (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Verb::Init:
+            RunInit (options, result);
+            break;
+
         case CommandLineOptions::DiskOptions::Verb::Help:
             result.output     += BuildHelpText (options.flagPrefix, m_banner);
             result.exitStatus  = kClean;
@@ -2181,4 +2225,534 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveContainer
+//
+//  Which container a new image is written as.
+//
+//  --type when it is given, the file's own extension when it is not. An
+//  unknown word is refused BY NAME with the ones that exist: somebody who
+//  typed `--type 2mg` meant it, and handing them a .dsk instead is a disk they
+//  did not ask for under a name they did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
+                                             DiskFormat               & outFormat,
+                                             DiskCommandResult        & result)
+{
+    HRESULT      hr    = S_OK;
+    std::string  asked = options.disk.containerType;
+
+
+
+    if (asked.empty())
+    {
+        //  No --type, so the name decides. A name carrying no extension this
+        //  tool knows is refused for the same reason an unknown --type is.
+        hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, outFormat);
+
+        if (FAILED (hr))
+        {
+            result.diagnostics    += "Error: cannot tell what kind of image " + options.disk.imagePath
+                                   + " should be\n"
+                                     "       name it .dsk, .do, .po or .woz, or say which with --type\n";
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
+        }
+
+        return hr;
+    }
+
+    for (char & letter : asked)
+    {
+        letter = (char) tolower ((unsigned char) letter);
+    }
+
+    for (const ContainerName & entry : s_kContainers)
+    {
+        if (asked == entry.name)
+        {
+            outFormat = entry.format;
+            return S_OK;
+        }
+    }
+
+    result.diagnostics    += "Error: unknown image type: " + options.disk.containerType + "\n"
+                             "       this tool writes dsk, do, po and woz\n";
+    result.exitStatus      = kNoOutput;
+    result.badCommandLine  = true;
+
+    return E_INVALIDARG;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveContents
+//
+//  What goes inside the container: a DOS 3.3 catalog, a ProDOS directory, or
+//  nothing at all.
+//
+//  DOS 3.3 IS THE DEFAULT because it is what a disk written by this tool is
+//  most likely to be for: `put` and `boot` both work on one without anything
+//  further. `none` is a genuinely useful answer -- a raw sector image for a
+//  guest that formats it itself -- so it is offered by name rather than being
+//  where an unrecognized word quietly lands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
+                                            BlankDiskContents        & outContents,
+                                            DiskCommandResult        & result)
+{
+    std::string  asked = options.disk.formatName;
+
+
+
+    if (asked.empty())
+    {
+        outContents = BlankDiskContents::Dos33;
+        return S_OK;
+    }
+
+    for (char & letter : asked)
+    {
+        letter = (char) tolower ((unsigned char) letter);
+    }
+
+    if (asked == "dos33" || asked == "dos" || asked == "dos3.3")
+    {
+        outContents = BlankDiskContents::Dos33;
+        return S_OK;
+    }
+
+    if (asked == "prodos")
+    {
+        outContents = BlankDiskContents::ProDos;
+        return S_OK;
+    }
+
+    if (asked == "none" || asked == "raw" || asked == "unformatted")
+    {
+        outContents = BlankDiskContents::Unformatted;
+        return S_OK;
+    }
+
+    result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
+                             "       this tool formats dos33, prodos, or none\n";
+    result.exitStatus      = kNoOutput;
+    result.badCommandLine  = true;
+
+    return E_INVALIDARG;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveVolume
+//
+//  --volume, which is a NUMBER under DOS 3.3 and a NAME under ProDOS.
+//
+//  The two filesystems label a disk differently and one flag serves both, so
+//  which one the word is read as follows from the format already chosen rather
+//  than from how the word looks. A ProDOS volume legitimately called `254`
+//  would otherwise become a DOS volume number, silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
+                                          BlankDiskSpec            & inOutSpec,
+                                          DiskCommandResult        & result)
+{
+    const std::string &  asked  = options.disk.volumeName;
+    int                  number = 0;
+
+
+
+    if (asked.empty())
+    {
+        return S_OK;
+    }
+
+    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    {
+        inOutSpec.volumeName = asked;
+        return S_OK;
+    }
+
+    //  A DOS 3.3 volume number, and only a number. Read by hand so a word that
+    //  is not one at all is refused rather than quietly reading as zero.
+    for (char letter : asked)
+    {
+        if (letter < '0' || letter > '9')
+        {
+            number = -1;
+            break;
+        }
+
+        number = (number * 10) + (letter - '0');
+    }
+
+    if (number < 1 || number > 254)
+    {
+        result.diagnostics    += "Error: " + asked + " is not a DOS 3.3 volume number\n"
+                                 "       give a number from 1 to 254, or format the disk as prodos "
+                                 "to name it instead\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return E_INVALIDARG;
+    }
+
+    inOutSpec.volumeNumber = (Byte) number;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveBoot
+//
+//  Whether the disk boots, and from which operating system.
+//
+//  THE MASTER IS NAMED RATHER THAN FOUND. Making a disk bootable means copying
+//  an operating system onto it, so there has to be one to copy from -- and
+//  where the emulator keeps its downloaded copy is the executable's knowledge
+//  rather than this library's. So the path arrives on the command line, where
+//  a script points at whichever master it has.
+//
+//  --boot, which starts a binary with no operating system at all, is not here
+//  yet: DirectBootBuilder produces a whole image rather than a boot sector to
+//  lay over a formatted one, so it is its own path and not a flag on this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
+                                        BlankDiskSpec            & inOutSpec,
+                                        BootPayload              & outPayload,
+                                        DiskCommandResult        & result)
+{
+    HRESULT       hr       = S_OK;
+    bool          copiesOs = !options.disk.bootableFrom.empty();
+    vector<Byte>  osBytes;
+
+
+
+    if (!options.disk.directBootFile.empty())
+    {
+        result.diagnostics    += "Error: --boot is not implemented yet\n"
+                                 "       tracked at https://github.com/relmer/Casso/issues/121\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return E_NOTIMPL;
+    }
+
+    if (!copiesOs)
+    {
+        return S_OK;
+    }
+
+    hr = m_fileIo.ReadAllBytes (options.disk.bootableFrom, osBytes);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.bootableFrom, "",
+                                       "cannot be read, so there is no operating system to copy") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return hr;
+    }
+
+    //  Which slot it fills follows the format being written, because that is
+    //  the one the builder will reach for.
+    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    {
+        outPayload.proDosUsersDisk = osBytes;
+    }
+    else
+    {
+        outPayload.dosMasterSectors = osBytes;
+    }
+
+    inOutSpec.bootable = true;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeNewDisk
+//
+//  What was just written, in the words the flags used to ask for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
+{
+    std::string  text;
+
+
+
+    switch (spec.contents)
+    {
+    case BlankDiskContents::Dos33:       text = "DOS 3.3";      break;
+    case BlankDiskContents::ProDos:      text = "ProDOS";       break;
+    default:                             text = "unformatted";  break;
+    }
+
+    if (spec.contents == BlankDiskContents::Dos33)
+    {
+        text += ", volume " + std::to_string ((int) spec.volumeNumber);
+    }
+    else if (spec.contents == BlankDiskContents::ProDos)
+    {
+        text += ", volume " + spec.volumeName;
+    }
+
+    text += spec.bootable ? ", bootable" : ", not bootable";
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildAndWrite
+//
+//  Everything create and init share: settle the spec, build the bytes, put
+//  them where they go.
+//
+//  ALL OR NOTHING, through the same commit path every other write uses. A
+//  build that fails leaves the target exactly as it was, which for `init`
+//  means the disk somebody was reformatting is still the disk they had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
+                                       DiskFormat                 format,
+                                       bool                       overExisting,
+                                       DiskCommandResult        & result)
+{
+    HRESULT        hr = S_OK;
+    BlankDiskSpec  spec;
+    BootPayload    payload;
+    vector<Byte>   imageBytes;
+    OpenedImage    target;
+
+
+
+    spec.format = format;
+
+    hr = ResolveContents (options, spec.contents, result);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    hr = ResolveVolume (options, spec, result);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    hr = ResolveBoot (options, spec, payload, result);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    hr = BlankDiskBuilder::ValidateSpec (spec);
+
+    if (FAILED (hr))
+    {
+        //  The pairing rules are the builder's: a DOS 3.3 catalog cannot go in
+        //  a .po, a ProDOS directory cannot go in a .dsk, and a bootable spec
+        //  needs the master its own format calls for.
+        result.diagnostics    += "Error: that combination cannot be written\n"
+                                 "       dsk and do carry DOS 3.3, po carries ProDOS, and woz carries "
+                                 "either; a bootable disk needs the master for its own format\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    hr = BlankDiskBuilder::Build (spec, payload, imageBytes);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, "", "could not be built") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    //  An image being made for the first time has nothing to be stale against,
+    //  so the freshness guard the commit path applies to an edit is the wrong
+    //  question here. Reformatting one that already exists keeps it.
+    target.imagePath     = options.disk.imagePath;
+    target.stampRecorded = false;
+    target.isNew         = !overExisting;
+
+    if (overExisting)
+    {
+        hr = m_fileIo.Stat (options.disk.imagePath, target.stamp);
+        target.stampRecorded = SUCCEEDED (hr);
+    }
+
+    hr = CommitImage (target, imageBytes, result);
+
+    if (SUCCEEDED (hr))
+    {
+        result.output     += options.disk.imagePath + ": " + DescribeNewDisk (spec) + "\n";
+        result.exitStatus  = kClean;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunCreate
+//
+//  A new image file, of a container this tool decides here.
+//
+//  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
+//  keystroke from a disk they no longer have, and `create` is the verb they
+//  reach for when they are not thinking about what is already there. The
+//  refusal names `init`, which is the verb for meaning it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT     hr     = S_OK;
+    DiskFormat  format = DiskFormat::Dsk;
+
+
+
+    if (options.disk.imagePath.empty())
+    {
+        result.diagnostics    += "Error: no image named to create\n"
+                                 "       create takes the name of the image file to write\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    if (m_fileIo.Exists (options.disk.imagePath))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, "",
+                                       "is already there, and create will not write over it. "
+                                       "Use init to reformat it, or choose another name") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    hr = ResolveContainer (options, format, result);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    BuildAndWrite (options, format, false, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunInit
+//
+//  A disk that is already there, formatted again.
+//
+//  THE CONTAINER IS NOT A CHOICE HERE. It was decided when the file was made,
+//  and this verb rewrites what is INSIDE it -- so `init` takes no --type, and
+//  a reader who wants a different container wants a different file, which is
+//  what `create` makes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT     hr     = S_OK;
+    DiskFormat  format = DiskFormat::Dsk;
+
+
+
+    if (options.disk.imagePath.empty())
+    {
+        result.diagnostics    += "Error: no image named to format\n"
+                                 "       init takes the image file to format again\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    if (!m_fileIo.Exists (options.disk.imagePath))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, "",
+                                       "is not there. Use create to make one") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    if (!options.disk.containerType.empty())
+    {
+        result.diagnostics    += "Error: init does not take --type\n"
+                                 "       the image already has a container; create makes one with a "
+                                 "different container\n";
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    //  From the file's own name, because the file is what is being reformatted.
+    hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, format);
+
+    if (FAILED (hr))
+    {
+        result.diagnostics += Failure (options.disk.imagePath, "",
+                                       "is not a kind of image this tool writes") + "\n";
+        result.exitStatus   = kNoOutput;
+
+        return;
+    }
+
+    BuildAndWrite (options, format, true, result);
 }

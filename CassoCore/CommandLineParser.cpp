@@ -55,6 +55,10 @@ static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
     { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
     { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
     { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
+    { "create",  CommandLineOptions::DiskOptions::Verb::Create },
+    { "new",     CommandLineOptions::DiskOptions::Verb::Create },
+    { "init",    CommandLineOptions::DiskOptions::Verb::Init   },
+    { "format",  CommandLineOptions::DiskOptions::Verb::Init   },
 };
 
 
@@ -219,6 +223,10 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "addr",
     "text",
     "basic",
+    "format",
+    "volume",
+    "bootable",
+    "boot",
 };
 
 
@@ -815,7 +823,12 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb v
 
     switch (verb)
     {
+    //  Create and init name an image and nothing else. Everything they take
+    //  beyond that arrives as an option, so a second operand is a mistake
+    //  and is refused rather than dropped.
     case CommandLineOptions::DiskOptions::Verb::List:
+    case CommandLineOptions::DiskOptions::Verb::Create:
+    case CommandLineOptions::DiskOptions::Verb::Init:
         count = 1;
         break;
 
@@ -1108,9 +1121,50 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  `--type` NAMES TWO DIFFERENT THINGS, one per verb, and the verb
+        //  is always already known here. Under `put` it is the file type the
+        //  catalog records; under `create` it is the container the image is
+        //  written as. They never appear on the same command line, so one
+        //  word serves both and the help says which is which under each.
         if (arg == "--type" && hasValue)
         {
-            options.disk.typeName = argv[i + 1];
+            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Create)
+            {
+                options.disk.containerType = argv[i + 1];
+            }
+            else
+            {
+                options.disk.typeName = argv[i + 1];
+            }
+
+            i++;
+            continue;
+        }
+
+        if (arg == "--format" && hasValue)
+        {
+            options.disk.formatName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--volume" && hasValue)
+        {
+            options.disk.volumeName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--bootable" && hasValue)
+        {
+            options.disk.bootableFrom = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--boot" && hasValue)
+        {
+            options.disk.directBootFile = argv[i + 1];
             i++;
             continue;
         }

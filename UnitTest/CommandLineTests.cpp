@@ -1954,7 +1954,9 @@ namespace CommandLineTests
         //  asked.
         TEST_METHOD (Disk_AnUnknownVerb_IsNotDiagnosedAsAnOperandCount)
         {
-            ArgVector           args = { "CassoCli", "disk", "format", "my.dsk", "PROG", "extra" };
+            //  `format` USED TO BE THE WORD HERE and is now an alias for init, which
+            //  made this test assert the operand rule against a verb that has one.
+            ArgVector           args = { "CassoCli", "disk", "frobnicate", "my.dsk", "PROG", "extra" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
@@ -2986,7 +2988,7 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (13), CommandLineParser::GetAllDiskVerbs().size(),
+            Assert::AreEqual (size_t (17), CommandLineParser::GetAllDiskVerbs().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

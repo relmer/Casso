@@ -15,6 +15,15 @@
 //  share the core library's Pch conveniences.
 enum class VolumeKind;
 
+//  BlankDiskBuilder.h is kept out for the same reason, and the create and init
+//  verbs take everything from it by reference, so opaque declarations are all
+//  this header needs. Including it built the library fine and broke the console
+//  project, which is the failure mode the note above is about.
+enum class DiskFormat;
+enum class BlankDiskContents;
+struct BlankDiskSpec;
+struct BootPayload;
+
 
 
 
@@ -101,6 +110,19 @@ public:
         //  commit refuses rather than proceeding without the check, because a
         //  guarantee quietly not applied is indistinguishable from one applied.
         bool                stampRecorded = false;
+
+        //
+        //  Set when the target does not exist yet, which is `create` and
+        //  nothing else.
+        //
+        //  THE FRESHNESS CHECK IS THE WRONG QUESTION FOR A FILE THAT IS NOT
+        //  THERE. It asks whether the image changed between being read and
+        //  being written, and a file nobody has read cannot have: with no
+        //  stamp to compare, the commit refused every new disk with "could
+        //  not be checked for changes". Everything else about the write is
+        //  unchanged, the in-use probe included, so a name another program
+        //  is already holding is still refused.
+        bool                isNew         = false;
     };
 
     explicit DiskCommandRunner (IDiskFileIo & fileIo);
@@ -115,6 +137,65 @@ public:
 
     //  Puts a computed image over the target, or refuses and leaves the target
     //  byte-for-byte as it was.
+    //
+    //  Makes a new image file, or reformats one that is already there.
+    //
+    //  TWO VERBS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
+    //  file that did not exist and decides its container; `init` finds the
+    //  container already decided by the file it was handed and only rewrites
+    //  what is inside it. So `create` takes --type and `init` does not, and
+    //  create refuses to write over something rather than quietly replacing a
+    //  disk somebody still wanted.
+    //
+    //  One row of the container table: the word a reader types and the
+    //  format it names.
+    struct ContainerName
+    {
+        const char  *  name;
+        DiskFormat     format;
+    };
+
+    //  What was just written, in the words the flags asked for it with.
+    static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
+
+    void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //
+    //  The container a new image should be written as, from --type or, failing
+    //  that, from the name it is being given.
+    //
+    //  An unknown word is refused by NAME, with the ones that exist, rather
+    //  than defaulting: a reader who typed --type 2mg means it, and silently
+    //  handing them a .dsk is worse than saying no.
+    //
+    HRESULT  ResolveContainer (const CommandLineOptions & options,
+                               DiskFormat               & outFormat,
+                               DiskCommandResult        & result);
+
+    //  What goes INSIDE it: a DOS 3.3 catalog, a ProDOS directory, or nothing.
+    HRESULT  ResolveContents (const CommandLineOptions & options,
+                              BlankDiskContents        & outContents,
+                              DiskCommandResult        & result);
+
+    //  --volume, which is a number under DOS 3.3 and a name under ProDOS.
+    HRESULT  ResolveVolume (const CommandLineOptions & options,
+                            BlankDiskSpec            & inOutSpec,
+                            DiskCommandResult        & result);
+
+    //  Reads the operating system a --bootable disk is copied FROM, or the
+    //  binary a --boot disk starts instead of one.
+    HRESULT  ResolveBoot (const CommandLineOptions & options,
+                          BlankDiskSpec            & inOutSpec,
+                          BootPayload              & outPayload,
+                          DiskCommandResult        & result);
+
+    //  Everything create and init share: build the bytes, then put them there.
+    void  BuildAndWrite (const CommandLineOptions & options,
+                         DiskFormat                 format,
+                         bool                       overExisting,
+                         DiskCommandResult        & result);
+
     HRESULT  CommitImage (const OpenedImage        & opened,
                           const std::vector<Byte>  & newImageBytes,
                           DiskCommandResult        & result);

@@ -367,6 +367,145 @@ public:
     //  What the refusal owes the reader now is which word it could not read;
     //  what the verbs ARE is the page's job, and a sweep over the grammar's
     //  own table already holds the page to it.
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  create and init.
+    //
+    //  The verbs that make a disk rather than edit one, and the pair the worked
+    //  example needed: every step of it began `disk put mydisk.dsk`, and
+    //  nothing anywhere made mydisk.dsk.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static CommandLineOptions MakeCreate (const char * path)
+    {
+        CommandLineOptions  options;
+
+        options.subcommand     = CommandLineOptions::Subcommand::Disk;
+        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Create;
+        options.disk.verbWord  = "create";
+        options.disk.imagePath = path;
+
+        return options;
+    }
+
+    TEST_METHOD (Create_WritesAFormattedImageThatListsAsEmpty)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result = runner.Run (MakeCreate ("new.dsk"));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (io.Exists ("new.dsk"), L"the image is there afterwards");
+        Assert::IsTrue (result.output.find ("DOS 3.3") != std::string::npos,
+                        L"and it says what it made");
+    }
+
+    //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
+    //  keystroke from a disk they no longer have, and the refusal names the
+    //  verb for meaning it.
+    TEST_METHOD (Create_RefusesToReplaceAnImageThatIsAlreadyThere)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  first  = runner.Run (MakeCreate ("new.dsk"));
+        DiskCommandResult  second = runner.Run (MakeCreate ("new.dsk"));
+
+        Assert::AreEqual (DiskCommandRunner::kClean,    first.exitStatus);
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, second.exitStatus);
+        Assert::IsTrue (second.diagnostics.find ("init") != std::string::npos,
+                        L"and points at the verb that does mean it");
+    }
+
+    //  The container follows the name when --type is not given, which is what
+    //  makes `disk create mydisk.po` do the obvious thing.
+    TEST_METHOD (Create_TakesTheContainerFromTheNameWhenTypeIsNotGiven)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("new.po");
+        DiskCommandResult   result;
+
+        options.disk.formatName = "prodos";
+        result                  = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find ("ProDOS") != std::string::npos);
+    }
+
+    //  A word that names no container is refused BY NAME. Handing back a .dsk
+    //  would be a disk they did not ask for under a name they did.
+    TEST_METHOD (Create_RefusesAContainerItCannotWrite)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("new.2mg");
+        DiskCommandResult   result;
+
+        options.disk.containerType = "2mg";
+        result                     = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine, L"so the page prints above it");
+        Assert::IsTrue (result.diagnostics.find ("2mg") != std::string::npos,
+                        L"and the word they typed is quoted back");
+        Assert::IsFalse (io.Exists ("new.2mg"), L"and nothing was written");
+    }
+
+    //  A DOS 3.3 volume is a NUMBER, and a word that is not one is refused
+    //  rather than quietly reading as zero.
+    TEST_METHOD (Create_RefusesAVolumeThatIsNotADosNumber)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("new.dsk");
+        DiskCommandResult   result;
+
+        options.disk.volumeName = "MYDISK";
+        result                  = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsFalse (io.Exists ("new.dsk"));
+    }
+
+    //  init needs one to be there; create needs one not to be. Between them
+    //  every state is covered and neither guesses.
+    TEST_METHOD (Init_RefusesAnImageThatIsNotThere)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("missing.dsk");
+        DiskCommandResult   result;
+
+        options.disk.verb     = CommandLineOptions::DiskOptions::Verb::Init;
+        options.disk.verbWord = "init";
+        result                = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("create") != std::string::npos,
+                        L"and points at the verb that makes one");
+    }
+
+    //  THE CONTAINER IS NOT A CHOICE UNDER init. It was decided when the file
+    //  was made, so --type is refused rather than silently ignored.
+    TEST_METHOD (Init_RefusesTypeBecauseTheContainerIsAlreadyDecided)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("new.dsk");
+        DiskCommandResult   result;
+
+        runner.Run (options);
+
+        options.disk.verb          = CommandLineOptions::DiskOptions::Verb::Init;
+        options.disk.verbWord      = "init";
+        options.disk.containerType = "woz";
+        result                     = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine);
+    }
+
     TEST_METHOD (UnknownVerb_AsksForThePageInsteadOfListingTheVerbsAgain)
     {
         FakeDiskFileIo      io;
