@@ -1,7 +1,7 @@
-# T130 — Variable-declaration column-alignment audit
+# T130: Variable-declaration column-alignment audit
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T130
-**Constitution**: §I 1.4.0 — column-align sequential declarations: type,
+**Constitution**: §I 1.4.0, column-align sequential declarations: type,
 pointer/reference symbol, name, `=`, value. If any line in a block has a
 pointer `*` or reference `&`, all lines must include a column for that
 symbol; non-pointer lines use a space placeholder so subsequent columns
@@ -21,7 +21,7 @@ that contain at least one line **added** by this feature.
 
 The initial scan reported 33 candidate blocks across 16 files. After
 filtering to blocks that contain any added line, **23 real violations**
-were identified — all in files newly authored by this feature or in
+were identified, all in files newly authored by this feature or in
 new test scaffolding. Each was fixed by re-padding the shorter-name
 lines to align the `=` sign at the column dictated by the longest name
 in the block (or, where a `static constexpr` group was abutting a non-
@@ -74,7 +74,7 @@ These are pre-feature tech debt and are out of Phase 16 scope.
 
 ## Verdict
 
-**PASS** — 0 column-alignment violations introduced by this feature
+**PASS**, 0 column-alignment violations introduced by this feature
 after fixes. All 23 real violations were corrected by surgical
 whitespace-only edits that do not affect compilation, semantics, or
 test outcomes.

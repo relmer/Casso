@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Dxui — Reusable DirectX UI Framework
+# Specification Quality Checklist: Dxui: Reusable DirectX UI Framework
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-19
@@ -39,11 +39,11 @@
 - [x] FR-126 flipped PENDING → IMPLEMENTED; shipped as the `ShowModalDialog` / `ShowModelessDialog` split
 - [x] FR-129 `DxuiPropertySheet` / `DxuiPropertyPage` acceptance is grep-verifiable (SC-029)
 - [x] FR-130 composited mode + after-paint hook acceptance is grep-verifiable (SC-030)
-- [ ] FR-131 (staged machine / ROM restart notice) — PENDING; acceptance defined, not yet built
-- [ ] FR-132 (Theme "Apply now") — PENDING; acceptance defined, not yet built
+- [ ] FR-131 (staged machine / ROM restart notice), PENDING; acceptance defined, not yet built
+- [ ] FR-132 (Theme "Apply now"), PENDING; acceptance defined, not yet built
 
 ## Notes
 
 - Spec was generated from an unusually detailed user input that already contained design, naming, and migration phasing. The spec preserves all of that fidelity rather than inventing alternatives.
-- Zero clarification markers needed — the input was fully specified.
+- Zero clarification markers needed: the input was fully specified.
 - Items marked incomplete (none) would require spec updates before `/speckit.clarify` or `/speckit.plan`.

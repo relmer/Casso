@@ -3,12 +3,12 @@
 **Feature**: `specs/020-disk-file-access` | **Date**: 2026-08-15
 
 Findings that shape the design. Empirical results were measured against the
-cached DOS 3.3 System Master and the code in the tree, not recalled — each such
+cached DOS 3.3 System Master and the code in the tree, not recalled; each such
 item says how it was verified.
 
 ---
 
-## R-001 — The substrate is asymmetric between the two filesystems
+## R-001: The substrate is asymmetric between the two filesystems
 
 **Decision**: Plan DOS 3.3 and ProDOS as separate work streams with different
 shapes, not as one parameterized effort.
@@ -17,8 +17,8 @@ shapes, not as one parameterized effort.
 
 | | ProDOS | DOS 3.3 |
 |---|---|---|
-| Reader | `ProDosReader::ExtractFile` — seedling / sapling / tree | **None. No `Dos33Reader` exists.** |
-| Writer | `ProDosFileWriter::WriteFile` — name, type, aux, bytes; seedling + sapling; `AllocateBlock` against the volume bitmap | `Dos33FileWriter::WriteHello (buffer)` — zero parameters, one hardcoded file |
+| Reader | `ProDosReader::ExtractFile`, seedling / sapling / tree | **None. No `Dos33Reader` exists.** |
+| Writer | `ProDosFileWriter::WriteFile`: name, type, aux, bytes; seedling + sapling; `AllocateBlock` against the volume bitmap | `Dos33FileWriter::WriteHello (buffer)`: zero parameters, one hardcoded file |
 | Delete | None | None |
 | Paths | Volume directory only | Flat by nature |
 | Tests | `UnitTest/EmuTests/ProDosVolumeTests.cpp` | Only via `BlankDiskBuilderTests` |
@@ -29,7 +29,7 @@ them.
 
 **Rationale**: The two are not at the same starting point, but the effort is
 closer to balanced than the table suggests, because DOS 3.3's structures are
-much simpler — flat catalog, track/sector list, no tree, no subdirectories.
+much simpler, flat catalog, track/sector list, no tree, no subdirectories.
 Building its reader from nothing is small; ProDOS's remaining work is fiddlier
 per line.
 
@@ -38,14 +38,14 @@ readers. The DOS 3.3 reader is on the critical path from the first story, and
 nothing exists to build it on.
 
 **Alternatives considered**: A single generic volume abstraction with two
-backends, written together. Rejected — the two filesystems share almost no
+backends, written together. Rejected, the two filesystems share almost no
 structure below the API surface, and the shared layer would be an interface with
 two independent implementations behind it, which is what the contract already
 describes without forcing simultaneous development.
 
 ---
 
-## R-002 — The sector decoder discards what it cannot read (pre-existing defect)
+## R-002: The sector decoder discards what it cannot read (pre-existing defect)
 
 **Decision**: Extend denibblization to report per-track, per-sector decode
 results, and land it before any write path consumes its output.
@@ -63,7 +63,7 @@ leaves a track partially written can already lose the remainder of that track on
 eject, with no error surfaced anywhere.
 
 **Rationale**: This feature would build a write path on top of a decoder that
-silently returns zeros for data it could not read — the exact shape of a
+silently returns zeros for data it could not read, the exact shape of a
 data-loss bug. FR-018 is the fix.
 
 **A test already pins this behavior, and it is right about the case it tests.**
@@ -74,7 +74,7 @@ images (a blank disk is all zeros), not silent corruption of a valid track."
 That reasoning is correct for the case it exercises and wrong as a general claim,
 and the gap between them is exactly the defect:
 
-- **Wholly unformatted track** (no address fields anywhere): zeros are correct — a
+- **Wholly unformatted track** (no address fields anywhere): zeros are correct, a
   blank disk really is all zeros. The test wipes an entire track, so this is the
   case it covers.
 - **Partially decodable track** (some sectors decode, then a failure): `break`
@@ -92,18 +92,18 @@ and the gap between them is exactly the defect:
    MUST distinguish "no address fields found → unformatted, benign, writable"
    from "coverage incomplete → data loss, refuse the write". A report that only
    says "not all sixteen decoded" collapses the two, and its consumer then either
-   rejects blank disks or accepts damaged ones — the latter being this defect
+   rejects blank disks or accepts damaged ones, the latter being this defect
    again, wearing a report.
 
 **The `break` is not the only zero-fill path.** Two more leave logical sectors
 zeroed with no decode failure at all, so a fix aimed at `break` alone leaves both
 live:
 
-- **Out-of-range sector number** — `continue` at NibblizationLayer.cpp:771 skips a
+- **Out-of-range sector number**: `continue` at NibblizationLayer.cpp:771 skips a
   sector whose address field claims, say, sector 200. The loop is bounded at
   sixteen iterations, so that iteration is consumed and one logical slot is never
   filled. Nothing failed; nothing was reported.
-- **Duplicate sector numbers** — two physical sectors both claiming sector 5 both
+- **Duplicate sector numbers**: two physical sectors both claiming sector 5 both
   `memcpy` to the same offset. The second overwrites the first and some other
   logical slot goes unclaimed. Again no failure.
 
@@ -120,7 +120,7 @@ Unformatted  = no address fields found at all
 
 Implemented as a 16-bit coverage mask per track, checked at end of track, with a
 second write to an already-covered slot counting as a violation. Sixteen bits and
-one comparison — cheaper than the decode work already happening. It **subsumes**
+one comparison, cheaper than the decode work already happening. It **subsumes**
 the `break` case rather than sitting beside it (a track cut short simply has
 incomplete coverage), so one property decides the outcome instead of three
 conditions that must each be remembered, and any future mechanism that loses a
@@ -136,7 +136,7 @@ review:
 2. **The revolution bound must be tested where the address field was found, not
    where the cursor sits.** The gap trailing the last sector leaves the cursor
    short of a full revolution, so a bound on the cursor admits one more attempt
-   that wraps onto an already-recovered header — reporting a duplicate the disk
+   that wraps onto an already-recovered header, reporting a duplicate the disk
    does not have. Damage invented by the scan is as bad as damage missed by it.
 3. **Coverage is indexed by output-buffer slot, not by the number the address
    field carried.** Every consumer holds the flat buffer; the interleave between
@@ -144,18 +144,18 @@ review:
 
 **Also found while implementing**: the decoder never verified the address-field
 checksum. An unverified header yields a plausible but wrong sector number, and
-the payload is then filed under the wrong logical sector — silent misplacement
+the payload is then filed under the wrong logical sector, silent misplacement
 rather than a reported failure. Now validated, with a mismatch resynchronizing
 onto the next header.
 
 **Call-site census** (verified by grep): exactly **one** production caller,
-`DiskImage::Serialize` at `DiskImage.cpp:434`. Everything else is tests — twelve
+`DiskImage::Serialize` at `DiskImage.cpp:434`. Everything else is tests, twelve
 sites across `NibblizationTests` (9) and `BlankDiskBuilderTests` (3).
 
 **Overload decision**: keep both signatures, but the existing three-argument form
 **forwards to the reporting form and fails on data loss** rather than bypassing
 it. Preserving it as a reportless passthrough would leave the defect reachable in
-the one place that matters — the flush path — while looking like compatibility.
+the one place that matters, the flush path, while looking like compatibility.
 Forwarding-and-failing keeps all twelve test sites compiling, keeps the
 unformatted-track test passing, fixes `Serialize` whether or not anyone migrates
 it, and leaves no overload that silently loses data for someone to pick later.
@@ -165,12 +165,12 @@ and should be tracked separately rather than folded silently into this feature.
 See spec § Dependencies and Known Defects.
 
 **Alternatives considered**: Treating any decode failure as a whole-operation
-error. Rejected — US3 explicitly wants a useful partial report from a damaged
+error. Rejected, US3 explicitly wants a useful partial report from a damaged
 disk, and it would also make blank tracks fail, which is wrong.
 
 ---
 
-## R-003 — DOS 3.3 boot greeting is a 30-byte field inside the DOS image
+## R-003: DOS 3.3 boot greeting is a 30-byte field inside the DOS image
 
 **Decision**: Setting the DOS 3.3 startup program patches the greeting filename
 in place, in the DOS image on tracks 0-2. No catalog change, no chaining file.
@@ -181,12 +181,12 @@ scanning tracks 0-2 for high-ASCII `HELLO` = `C8 C5 CC CC CF`):
 - Exactly two occurrences on the whole disk: **T01 S09 `+$75`** (the DOS image)
   and T17 S15 `+$0E` (the catalog entry's name field).
 - The T01 S09 field holds the name in **high ASCII, padded with `$A0`**, 30 bytes
-  wide — the same width as a catalog name field.
+  wide, the same width as a catalog name field.
 - Caveat worth recording: the bytes *after* the field are also `$A0`, so the
   field's end is not self-evident from the data. 30 is taken from the catalog
   name width, which the DOS code that reads it shares.
 
-**Bonus finding**: the master's catalog entry 0 has type byte **`$82`** — the
+**Bonus finding**: the master's catalog entry 0 has type byte **`$82`**, the
 `$80` lock bit over `$02` (Applesoft). The stock HELLO is locked, so the most
 obvious test disk already exercises FR-014's locked-file refusal.
 
@@ -194,19 +194,19 @@ obvious test disk already exercises FR-014's locked-file refusal.
 cheap to verify.
 
 **Alternatives considered**: Writing a new greeting file that chains to the
-target. Rejected — it costs a catalog entry and sectors, changes what `CATALOG`
+target. Rejected; it costs a catalog entry and sectors, changes what `CATALOG`
 shows, and is not how DOS itself does it.
 
 ---
 
-## R-004 — ProDOS startup program is directory order, not a stored name
+## R-004: ProDOS startup program is directory order, not a stored name
 
 **Decision**: Setting the ProDOS startup program reorders the volume directory
 so the desired `.SYSTEM` file is the first one the boot code finds.
 
 **Rationale**: The ProDOS boot block loads `PRODOS`, which launches the first
 file of type `$FF` (SYS) in volume-directory order. There is no "startup program"
-field to patch — the mechanism *is* the ordering. This is a genuinely different
+field to patch, the mechanism *is* the ordering. This is a genuinely different
 mechanism from DOS 3.3's, not a second spelling of one, and the two must not be
 unified behind a single "write the boot name" helper.
 
@@ -216,17 +216,17 @@ be built with it.
 
 ---
 
-## R-005 — Volume integrity is one pass with four consumers
+## R-005: Volume integrity is one pass with four consumers
 
 **Decision**: Build the reference map once as a first-class pass over a volume,
 not three or four times inside its callers.
 
 **Consumers**:
 
-1. **Delete** (FR-011) — what may be freed is what this file uniquely owns.
-2. **Listing** (US3) — the damage report is this pass's output.
-3. **Allocation** (Edge Cases) — whether the free map may be trusted.
-4. **Pre-commit check** (FR-039) — run over the *computed result* before writing
+1. **Delete** (FR-011), what may be freed is what this file uniquely owns.
+2. **Listing** (US3); the damage report is this pass's output.
+3. **Allocation** (Edge Cases), whether the free map may be trusted.
+4. **Pre-commit check** (FR-039); run over the *computed result* before writing
    a byte, so a write verifies its own output rather than assuming it.
 
 **Rationale**: The fourth consumer is what changes the feature's character. R-002
@@ -242,12 +242,12 @@ bounded by a visited set plus a ceiling derived from the volume's own capacity
 unfollowable rather than followed.
 
 **Alternatives considered**: Checking only on delete, where the danger is most
-obvious. Rejected — that leaves the write path unverified, which is the case
+obvious. Rejected; that leaves the write path unverified, which is the case
 that actually shipped a bug.
 
 ---
 
-## R-006 — Bit-stream writes re-encode only changed tracks
+## R-006: Bit-stream writes re-encode only changed tracks
 
 **Decision**: Denibblize to a flat buffer, edit, then re-encode **only** the
 tracks whose 4,096 bytes changed, writing into `DiskImage::GetTrackBitsForWrite`
@@ -260,16 +260,16 @@ untouched tracks verbatim.
 
 **Refusal signals**, cheapest first (FR-019):
 
-1. **Quarter-track map** — free and definitive. Sector images map every
+1. **Quarter-track map**: free and definitive. Sector images map every
    quarter-track to `qt / 4`; WOZ images install an explicit map from the TMAP,
    so any position resolving elsewhere means data at half/quarter positions that
    a sector-level rewrite cannot represent. Whole-image refusal, zero decoding.
-2. **Image metadata** — flags recording that the image was captured with
+2. **Image metadata**: flags recording that the image was captured with
    cross-track synchronization or with drive-level fake bits preserved. Whole
    image, two bytes of parsing, evaluated before any track is touched.
-3. **Per-track sector decode** — the primary test. Sixteen distinct valid
+3. **Per-track sector decode**: the primary test. Sixteen distinct valid
    standard sectors, or the track is not writable. This is R-002's report.
-4. **Track bit length** — advisory only; materially off-nominal lengths are a
+4. **Track bit length**: advisory only; materially off-nominal lengths are a
    hint, not a verdict.
 
 **Posture**: fail-safe. Prove standard-ness; never enumerate protection schemes.
@@ -277,12 +277,12 @@ untouched tracks verbatim.
 **Scope note**: most copy-protected disks never reach the track check at all,
 because they carry no readable DOS 3.3 or ProDOS volume and the filesystem layer
 refuses them first. The track check is the backstop for a mostly-standard disk
-with one or two protected tracks — precisely where a silent failure does the most
+with one or two protected tracks, precisely where a silent failure does the most
 damage, which is why it earns its keep despite rarely firing.
 
 ---
 
-## R-007 — Atomic commit at the shell edge
+## R-007: Atomic commit at the shell edge
 
 **Decision**: Core produces complete image bytes or fails, changing nothing (the
 shape `BlankDiskBuilder::Build` already uses). The shell writes those bytes to a
@@ -292,21 +292,21 @@ original.
 **Rationale**: Two independent arguments, and the second is the stronger one.
 Crash safety is the obvious one. The better one is **non-destructive replace**:
 replace is delete + write, and done in place a failure between the two frees the
-old file and never lands the new one, losing the file outright — worse than a
+old file and never lands the new one, losing the file outright, worse than a
 refused write. Computing the whole result first makes that impossible by
 construction. This project has already shipped two disk-write corruption defects,
 so insurance on this specific path is not hypothetical.
 
 **Details to get right**:
 
-- **Uniqueness and cleanup** — two concurrent invocations on one image must not
+- **Uniqueness and cleanup**: two concurrent invocations on one image must not
   collide, and a hard kill must not litter. The project dislikes stray files and
   forbids gitignoring them, so a leftover temp is a real if minor violation.
-- **Write-protect composition** — spec 017 uses the host read-only attribute as
+- **Write-protect composition**: spec 017 uses the host read-only attribute as
   the write-protect mechanism for sector formats. Replacing a read-only file
   fails with access denied, which is the *correct* outcome under FR-014, but the
   message must be intelligible rather than a raw platform code.
-- **Documented asymmetry** — the emulator's own flush path writes
+- **Documented asymmetry**: the emulator's own flush path writes
   non-atomically. After this feature, command-line writes are crash-safe and
   emulator flushes are not. Deliberate: one is a one-shot on a file the user may
   have no other copy of, the other happens continuously. Recorded in the spec's
@@ -319,15 +319,15 @@ recovery, litters the tree).
 **MEASURED AFTERWARDS, AND ONE HALF OF "must not litter" IS NOT MET.** The
 interrupted-write pass in `quickstart.md` §US2 stops the process from inside the
 commit at a chosen instant, which is the only way this instant has ever been
-reached — every attempt to kill the process from outside landed after the
+reached, every attempt to kill the process from outside landed after the
 replace. The image survives both stages byte-identical and still boots. The
 temporary does **not** get cleaned up, and that is two separate facts:
 
 - A hard stop cannot run cleanup. Expected, and not the problem.
 - **No later run reclaims it either.** `CommitPlan::TemporaryPathFor` stamps
   each invocation's own tag into the name, so an orphan sits at a name no future
-  invocation will ever choose, examine, or sweep. Recovery is unaffected — the
-  next `put` succeeds and produces the right bytes — but the file stays until a
+  invocation will ever choose, examine, or sweep. Recovery is unaffected, the
+  next `put` succeeds and produces the right bytes, but the file stays until a
   person deletes it.
 
 So read the decision above as satisfied for uniqueness and for crash safety, and
@@ -335,10 +335,10 @@ So read the decision above as satisfied for uniqueness and for crash safety, and
 violation" this section names is still open, deliberately rather than by
 oversight.
 
-### Re-examined, and still not fixed — with the obvious fix ruled out
+### Re-examined, and still not fixed: with the obvious fix ruled out
 
-The obvious candidate is to make the temporary's name **deterministic** — derive
-it from the target alone — so that a later `put` on the same target lands on the
+The obvious candidate is to make the temporary's name **deterministic**, derive
+it from the target alone, so that a later `put` on the same target lands on the
 orphan's name and can reclaim it. **That candidate is rejected, and not on
 grounds of effort: it is the very thing T030 diverged from its own task text to
 avoid.** A deterministic name puts two concurrent invocations against one image
@@ -361,11 +361,11 @@ target, which is exactly the case the tag exists for.
   added to `IDiskFileIo`, which today has no such method; (b) a Win32
   implementation of it in `CassoCli`, which the test assembly does not link, so
   the new platform code arrives uncovered; (c) a rule for telling an orphan from
-  a *live* concurrent invocation's temporary — deleting the latter mid-write is
+  a *live* concurrent invocation's temporary, deleting the latter mid-write is
   the corruption the whole plan exists to prevent. The tag's high half is a
   process id, so process liveness is the natural rule, and its failure direction
   is at least the safe one: a recycled id reads as *live* and the sweep simply
-  declines, where the dangerous verdict — a live owner read as dead — cannot
+  declines, where the dangerous verdict, a live owner read as dead, cannot
   arise. R-008 rejects process ids for *locks* on the recycling argument; that
   argument does not carry over unchanged here, and anyone reusing it should say
   which direction they mean. (d) It also contradicts a shipped test:
@@ -376,20 +376,20 @@ target, which is exactly the case the tag exists for.
 - **A temporary the kernel owns**, which needs no orphan-versus-live rule at
   all: create it with `FILE_FLAG_DELETE_ON_CLOSE`, keep the handle, and commit by
   renaming through that handle rather than by path, clearing the delete
-  disposition first. A hard kill closes the handle and the file goes with it —
+  disposition first. A hard kill closes the handle and the file goes with it;
   the guarantee is made by the operating system rather than by a later run
   guessing. The cost is a shape change to `IDiskFileIo`: the seam currently
   exposes `WriteAllBytes` and `ReplaceAtomically` as two independent calls over
   paths, and a retained handle has to live between them, which every substitute
-  then has to model. And the whole of it lands in `Win32DiskFileIo` — inside
-  `CassoCli`, which `UnitTest` does not link — so **no test in the suite can
+  then has to model. And the whole of it lands in `Win32DiskFileIo` (inside
+  `CassoCli`, which `UnitTest` does not link) so **no test in the suite can
   fail without it**; only the manual armed-abort procedure in `quickstart.md`
   §US2 can demonstrate it, which is the same evidence standard the measurement
   above was taken under. Written up from the documentation rather than tried
   here.
 
 Either way it is its own piece of work with its own tests, and whoever picks it
-up should start here rather than rediscovering the measurement — or the reason
+up should start here rather than rediscovering the measurement, or the reason
 the easy version of it is a worse bug than the one it fixes.
 
 ### Accepted as-is, by the project owner
@@ -401,7 +401,7 @@ single stray 143,360-byte file, and that a person who minds one can delete it.
 That leaves the section's "must not litter" phrasing overstating the
 requirement, so read it as a preference that lost to the cost of satisfying it.
 What was weighed: the orphan appears only when the process is killed *inside*
-the commit window — every attempt to hit that instant from outside the process
+the commit window, every attempt to hit that instant from outside the process
 landed after the replace, and reaching it at all required stopping the process
 from within. Ordinary failures clean up after themselves and successful runs
 sweep their own temporary. The target image is never left damaged in any of
@@ -415,7 +415,7 @@ spend that cost with the tradeoff already known.
 
 ---
 
-## R-008 — In-use detection is out of scope, and the requirement said otherwise
+## R-008: In-use detection is out of scope, and the requirement said otherwise
 
 **Decision**: Do not attempt to detect that an image is mounted in a running
 emulator. Document the hazard; probe only for what the platform can observe;
@@ -428,7 +428,7 @@ exclusive-open probe therefore succeeds even with the image mounted, so the
 obvious mechanism cannot work.
 
 **Rationale**: The spec's own Assumptions already declared a mounted image out of
-scope, while the pre-renumber FR-029 (now FR-035 and FR-036) required detecting exactly that — an internal
+scope, while the pre-renumber FR-029 (now FR-035 and FR-036) required detecting exactly that, an internal
 contradiction. The fix is the requirement, not the mechanism. Spec 021's disk
 manager can coordinate properly because it runs *inside* the process that knows
 what is mounted; a separate CLI process fundamentally cannot without inventing a
@@ -436,22 +436,22 @@ protocol this feature deliberately does not introduce.
 
 **Retained, because they are cheap and honest**:
 
-- Best-effort exclusive-open probe — catches *another* tool holding the file (an
+- Best-effort exclusive-open probe: catches *another* tool holding the file (an
   editor, a sync client, another disk utility). Never catches Casso; the
   documentation must not imply it does.
-- Size + modification-time re-verify immediately before commit — closes the
+- Size + modification-time re-verify immediately before commit, closes the
   window where another writer landed between read and commit. Cannot detect a
   write landing *after* the commit, and the documentation says so.
 
 **Alternatives considered**: A sidecar lock file with a PID (adds a cross-process
 protocol for an out-of-scope hazard; PIDs recycle, so stale locks false-positive);
 holding an exclusive handle for the mount's lifetime (degrades the emulator to
-serve the CLI, and refactors code spec 021 will build on while 021 is unwritten —
+serve the CLI, and refactors code spec 021 will build on while 021 is unwritten,
 if 021 wants a held handle, that is 021's call with the whole picture in view).
 
 ---
 
-## R-009 — CLI surface is additive by construction
+## R-009: CLI surface is additive by construction
 
 **Decision**: One row in the subcommand table, one arm in `Parse`, one options
 struct extension. Do not reshape the dispatcher.
@@ -472,12 +472,12 @@ tests breaks the other feature.
 `delete`, `boot`, with terse aliases `ls` and `rm`. Help displays the descriptive
 form. `put` / `get` are unambiguous because they are named from the *disk's*
 perspective, which also happens to match the mnemonics of the tool developers are
-migrating from — worth saying in the help text. `cat` is excluded: it collides
+migrating from, worth saying in the help text. `cat` is excluded: it collides
 with the established meaning of printing a file's contents, which this tool does
 under `get`.
 
 **Exit statuses** (FR-031, FR-032): `0` clean, `1` succeeded with complaints, `2`
-produced no output — matching what `as65` and `run` already return
+produced no output, matching what `as65` and `run` already return
 (`CommandLine.cpp:1218`, `1159`, `986`). Values of 3 and above stay
 subcommand-scoped and documented in that subcommand's help; requiring global
 uniqueness above 2 would couple subcommands that are otherwise independent, which
@@ -485,15 +485,15 @@ is the property that let 019 and 020 proceed in parallel at all.
 
 ---
 
-## R-011 — Both text conventions settled by measurement (CLOSED)
+## R-011: Both text conventions settled by measurement (CLOSED)
 
-**Decision**: The high-bit convention stays a **parameter** of the text codec --
+**Decision**: The high-bit convention stays a **parameter** of the text codec,
 not because the answer is unknown, but because measurement showed there is no
 single answer to know. Both filesystems carry high-bit text in practice; the
 ProDOS type does not constrain its producer, so a decoder must tolerate either
 and the encoder picks one as policy.
 
-### DOS 3.3 — settled: high-bit-set ASCII, `$8D` terminators
+### DOS 3.3: settled: high-bit-set ASCII, `$8D` terminators
 
 Measured across whole files on a Merlin disk carrying eight type-T files:
 
@@ -504,13 +504,13 @@ Measured across whole files on a Merlin disk carrying eight type-T files:
 | `PI.NAMES` | 40 | 39 | 0 | 1 |
 
 Terminators in `T.MACRO LIBRARY`'s first 256 bytes: `$8D` × 28, `$0D` × 0.
-`T.SENDMSG` is the clean specimen — 100% high-bit, every space `$A0`, no
+`T.SENDMSG` is the clean specimen, 100% high-bit, every space `$A0`, no
 low-ASCII at all. **Spaces are high too**, not merely letters.
 
 ### The decoder consequence, which matters more than the convention
 
 **Real files are mixed, so the decoder must strip bit 7 if present and tolerate
-it absent — never validate it.** `T.MACRO LIBRARY` carries 37 legitimate `$20`
+it absent; never validate it.** `T.MACRO LIBRARY` carries 37 legitimate `$20`
 spaces inside otherwise high-bit content, on a banner comment line padded with
 low ASCII. A decoder asserting bit 7 would reject a genuine vendor file.
 
@@ -523,7 +523,7 @@ low-ASCII banner line and suggested spaces were plain. The whole-file counts say
 the opposite. Same shape as the catalog-names trap below: a sample adjacent to
 the truth is not the truth.
 
-### ProDOS — SETTLED by measurement, and the common assertion is wrong
+### ProDOS: SETTLED by measurement, and the common assertion is wrong
 
 Real ProDOS `TXT` files arrived with the Merlin fixture disks. Measured:
 
@@ -532,7 +532,7 @@ Real ProDOS `TXT` files arrived with the Merlin fixture disks. Measured:
 | `/MERLIN/LIB/SENDMSG.S` | 149 | **149** | 26 | 0 | 15 | 0 |
 | `/MERLIN/SOURCE/PI.NAMES.S` (first block) | 256 | 223 | 3 | 33 | 10 | 0 |
 
-**ProDOS text here is high-bit-set ASCII with `$8D` terminators — the same
+**ProDOS text here is high-bit-set ASCII with `$8D` terminators, the same
 convention as DOS 3.3, not the plain seven-bit ASCII with `$0D` that is widely
 asserted.** `SENDMSG.S` is 149 of 149 bytes high with every space at `$A0`.
 
@@ -543,8 +543,8 @@ has is required on this filesystem too, not merely on the other one.
 ### The conclusion is subtler than "ProDOS is high ASCII"
 
 Every sample here was written by Merlin, an Apple II assembler that uses the
-high-bit convention natively. That is not a reason to discount the evidence —
-these are genuine ProDOS `TXT` files that a reader must handle — but it is a
+high-bit convention natively. That is not a reason to discount the evidence, 
+these are genuine ProDOS `TXT` files that a reader must handle, but it is a
 reason not to over-generalize from it. A `TXT` file written by a Pascal or
 AppleWorks-era tool may well be plain ASCII.
 
@@ -556,10 +556,10 @@ either single answer, and it settles the design questions:
   supported by measurement rather than a defensive choice.
 - **Encoding is a policy decision, not a discovered fact.** Casso writes for
   Apple II developers whose other tools are Apple II tools, so high ASCII is the
-  better default on both filesystems — chosen deliberately, and recorded as a
+  better default on both filesystems: chosen deliberately, and recorded as a
   choice rather than as a finding.
 
-### Being wrong is cheaper than it first appeared — reads cannot be corrupted
+### Being wrong is cheaper than it first appeared: reads cannot be corrupted
 
 Tolerating mixed bytes has a consequence worth stating on its own: **decoding is
 independent of the convention entirely.** Once the high bit is ignored,
@@ -583,14 +583,14 @@ comment in the nibblization tests came to license a data-loss defect.
 
 ---
 
-## R-012 — Runtime validation pass over quickstart §US3 (T022)
+## R-012: Runtime validation pass over quickstart §US3 (T022)
 
 Run against the shipped `CassoCli.exe`, not through the seam. Every scenario in
 quickstart §US3 was exercised against real material; what follows is what it
 found rather than a restatement of what passed.
 
 **Confirmed working.** `list` on a DOS 3.3 `.dsk` reproduces the machine's own
-`CATALOG` output on 66 of 67 lines — the one difference is the reference's
+`CATALOG` output on 66 of 67 lines; the one difference is the reference's
 trailing `]` prompt against our free-space summary. `list` on a `.do` correctly
 identifies a ProDOS volume in DOS sector order. `get` of a binary reports its
 load address on stderr and delivers 589 bytes through a real shell redirect
@@ -620,7 +620,7 @@ rejected 20 of the 63 entries on a disk Merlin shipped.
 
 The reason is worth stating exactly, because the first guess at it was wrong.
 Those heading rows are not inverse video. Their names are literally
-`C1 88 88 88 88 88 88 88 88` followed by the heading text — a high-ASCII `A`,
+`C1 88 88 88 88 88 88 88 88` followed by the heading text, a high-ASCII `A`,
 then eight **backspace** characters. DOS prints ` *T 000 ` and then the thirty
 name bytes straight to the screen, so the backspaces walk the cursor back over
 the sector count, the type letter and the lock flag, and the heading lands at
@@ -634,7 +634,7 @@ so the same idea is not tried again without new evidence.
 
 ---
 
-## R-013 — A stepper-sensitive gate has to run against a WOZ
+## R-013: A stepper-sensitive gate has to run against a WOZ
 
 **Finding**: a sector image cannot fail a head-positioning test, so a gate that
 means to check head positioning must not use one.
@@ -645,7 +645,7 @@ phases, so a WOZ carries a real per-quarter-track map: distinct quarter-tracks
 address distinct flux, an unmapped phase resolves to nothing, and copy-protected
 disks that format between tracks are read correctly. The `qt / 4` mapping in
 `DiskImage::InitWholeTrackMap` is only the synthetic default installed for
-**sector images**, which is the only thing it could be — a `.dsk` or `.po` file
+**sector images**, which is the only thing it could be, a `.dsk` or `.po` file
 is 35 whole tracks of decoded sectors and physically cannot carry half-track
 data. **This is a property of the sector formats, not a defect.**
 
@@ -660,8 +660,8 @@ guest-visible gate running on a sector image and was caught only by a structural
 assertion elsewhere. The guest booted anyway.
 
 **Rule for whoever writes the next guest test**: if the property under test is
-where the head ends up — seek, recalibration, phase ordering, anything that
-walks the stepper — point the gate at a WOZ. A sector image is the right fixture
+where the head ends up (seek, recalibration, phase ordering, anything that
+walks the stepper) point the gate at a WOZ. A sector image is the right fixture
 for filesystem and payload properties and the wrong one for mechanism.
 
 This belongs in `UnitTest/Fixtures/Disks/README.md`, which is where the on-disk
@@ -671,22 +671,22 @@ lands.
 
 ---
 
-## R-010 — Deferred, with rationale
+## R-010: Deferred, with rationale
 
 Not researched here because none changes the architecture, and each is better
 answered against real code than in advance.
 
-- **Applesoft tokenizer coverage** (US6, P3) — the token table is well
+- **Applesoft tokenizer coverage** (US6, P3); the token table is well
   documented; the open question is the boundary (strings containing token
   spellings, `DATA` payloads, `REM` text), which is a test-design question best
   settled against a real listing.
-- **Direct-boot loader capacity** (US5, P3) — how many sectors a custom boot
+- **Direct-boot loader capacity** (US5, P3), how many sectors a custom boot
   path can pull before handing off, which sets FR-027's reported capacity.
 
   **ANSWERED IN PHASE 6: 183 sectors, 46,848 bytes, and it is a MEMORY limit
   rather than a media one.** The question as posed assumed the disk would run
   out first; it does not, and by a wide margin. The loader re-enters the Disk II
-  boot ROM's own read routine, which is what DOS 3.3's boot0 does — read out of
+  boot ROM's own read routine, which is what DOS 3.3's boot0 does; read out of
   the stock master at track 0 sector 0, where it builds a `JMP ($3E)` to
   `$Cs5C`. That routine terminates by comparing against the byte at **$0800**
   and returns to **$0801**, both absolute addresses inside the ROM, so page $08
@@ -694,10 +694,10 @@ answered against real code than in advance.
   taken by the ROM's decode table and secondary buffer, and $C000 up not being
   memory, a payload occupies **$0900 to $BFFF**. Capacity is therefore
   `$C000 - loadAddress` bytes, and 183 sectors is its value at the bottom of
-  that window — against 544 sectors of media still free past the loader's own
+  that window, against 544 sectors of media still free past the loader's own
   track. The relationship is a `static_assert` rather than a runtime check,
   because a check that can never fire is indistinguishable from one that works.
-- **File-type spelling on the command line** — whether types are accepted as
+- **File-type spelling on the command line**: whether types are accepted as
   names (`BIN`, `TXT`), numbers, or both.
 
 ---
@@ -714,7 +714,7 @@ answered against real code than in advance.
 
 ---
 
-## R-014 — The silent-discard sweep (Phase 15)
+## R-014: The silent-discard sweep (Phase 15)
 
 A surplus positional argument was measured to be dropped without a word:
 `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited 0, and
@@ -729,7 +729,7 @@ grammar was invoked with one more positional than it has slots for; every
 option was invoked under a verb that does not serve it. Each case was measured
 against the built binary before anything was changed.
 
-**Fixed** — see T115–T122.
+**Fixed**; see T115–T122.
 
 **Left for the owner, because each is a grammar decision rather than a defect
 with one obvious answer:**
@@ -740,8 +740,8 @@ with one obvious answer:**
    BASIC; `--out` and `put`'s second positional likewise, so
    `disk put img aaa.txt --out bbb.txt` puts bbb.txt. `--type` and `--addr` on
    `list` are accepted and ignored at exit 0. The fix is per-verb option
-   applicability — a table of which options each verb serves, and a refusal for
-   the rest — which is a shape decision, not a repair.
+   applicability (a table of which options each verb serves, and a refusal for
+   the rest) which is a shape decision, not a repair.
 2. **The `--name=value` long-option form is claimed and not implemented.**
    `CanonicalLongFlag` carries an attached value across, on the stated grounds
    that "a long option may be spelled `--name=value`", and nothing matches one:
@@ -750,7 +750,7 @@ with one obvious answer:**
 3. **"N lines assembled" reports 0 unless `-l` was given.** The count is the
    length of the listing, and the listing is only built when one was asked for,
    so an ordinary assemble prints "0 lines assembled" over a binary it just
-   wrote. Outside this sweep's class -- nothing the user typed is discarded --
+   wrote. Outside this sweep's class, nothing the user typed is discarded,
    but it is the same kind of confident wrong statement.
 
 **One measurement that is NOT a product defect, recorded so it is not

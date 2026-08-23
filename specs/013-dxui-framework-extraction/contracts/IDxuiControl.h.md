@@ -109,7 +109,7 @@ protected:
 
 ## Contract notes
 
-- `Paint` takes `IDxuiPainter` / `IDxuiTextRenderer` by reference and `IDxuiTheme` by const reference (FR-032) — never the concrete types.
+- `Paint` takes `IDxuiPainter` / `IDxuiTextRenderer` by reference and `IDxuiTheme` by const reference (FR-032); never the concrete types.
 - `OnMouse` / `OnKey` return `true` to consume the event; `DxuiPanel` fan-out stops at the first consumer (front-to-back z-order, i.e., last-added child first).
 - `ClassifyHit` defaults to `Client`; chrome controls (`DxuiCaptionBar`, `DxuiSystemButton`, `DxuiDragRegion`) override it. Parent/tree walking handles pass-through behavior without a separate hit-test enum member.
 - `SetVisible(false)` is **Collapsed** semantics only in v1 (FR-011 clarification Q3): hidden control takes 0 layout space; siblings fill in. A future `Hidden` mode (retain space) is deferred.

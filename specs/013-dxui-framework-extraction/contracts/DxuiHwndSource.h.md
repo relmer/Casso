@@ -1,14 +1,14 @@
 # Contract: `DxuiHwndSource` (+ `DxuiWindow`)
 
 > **Renamed 2026-07 (commit `d5ef7bc`)**: the type originally sketched here as
-> `DxuiHostWindow` is now **`DxuiHwndSource`**, mirroring WPF's `HwndSource` — the
+> `DxuiHostWindow` is now **`DxuiHwndSource`**, mirroring WPF's `HwndSource`, the
 > HWND / swap-chain / message-pump backend. It is no longer the consumer-facing
 > top-level type. Consumers derive from the new **`DxuiWindow : DxuiPanel`**
 > (WPF's `Window : ContentControl`), which owns a `DxuiHwndSource` privately and
 > hides the HWND, `WPARAM`/`LPARAM`, and `IDxuiHostClient` entirely. See the
 > "Window element" section below and `plan.md` §Architecture.
 
-## `DxuiWindow` — top-level window element (consumer-facing)
+## `DxuiWindow`: top-level window element (consumer-facing)
 
 ```cpp
 // Dxui/Window/DxuiWindow.h
@@ -99,7 +99,7 @@ private:
 `DxuiDialog`/`DxuiDialogManager` pair, which will be deleted once all dialog
 consumers migrate. Not yet implemented.
 
-## `DxuiHwndSource` — HWND / swap-chain / pump backend (framework-internal)
+## `DxuiHwndSource`: HWND / swap-chain / pump backend (framework-internal)
 
 ```cpp
 // Dxui/Window/DxuiHwndSource.h

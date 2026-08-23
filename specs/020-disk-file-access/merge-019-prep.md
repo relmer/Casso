@@ -36,11 +36,11 @@ modules by hand, not by picking a side.
 
 **Both moved usage text into core, independently, and they are not rivals:**
 
-- 020: `CassoCore/CommandLineHelp.{h,cpp}` — help **content** (the general page,
+- 020: `CassoCore/CommandLineHelp.{h,cpp}`, help **content** (the general page,
   the usage line per mode, the worked example).
-- 019: `CassoCore/UsageText.{h,cpp}` — a pure **mechanism**: `Wrap(line, width)`
+- 019: `CassoCore/UsageText.{h,cpp}`, a pure **mechanism**: `Wrap(line, width)`
   and `ContinuationIndent(line)`. It holds no content at all.
-- 019: `CassoCore/DialectHelp.{h,cpp}` — content, but only the dialect flag lines.
+- 019: `CassoCore/DialectHelp.{h,cpp}`, content, but only the dialect flag lines.
 
 `UsageText` and `CommandLineHelp` compose. The good end state is 020's content fed
 through 019's folding.
@@ -51,7 +51,7 @@ rather than authoring it. Every line of 020's help is hand-wrapped to about 79
 columns inside string literals. 019's approach is better and 020's tables are the
 hard case: the option tables have a description column that folding has to
 preserve, which is exactly what `ContinuationIndent` is for. **Do not hand-wrap
-new help text during the merge** — it will have to be unwrapped again.
+new help text during the merge**; it will have to be unwrapped again.
 
 **019 keeps the bare-filename fallback.** `BareFilename_FallsBackToAs65` is one of
 its tests. 020's whole help structure rests on the assembler being the fallback
@@ -62,7 +62,7 @@ survives. 019 *adds* `as65` and `merlin` as named subcommands beside it.
 
 ### 1. Separated values: 019 accepts more than 020 documents
 
-019's rule is general — "a flag's argument may be glued to it or separated" — and
+019's rule is general, "a flag's argument may be glued to it or separated", and
 its help says `-o` **and `-l`** both take a separated value. 020 accepts it for
 `-o` alone; `-l prog.lst` is refused here, measured.
 
@@ -73,7 +73,7 @@ becomes false the moment 019 lands.**
 
 Note the interaction: 020 built the PowerShell rejoin partly *because* `-l` had no
 separated form to fall back on. With 019's `-l` accepting one, the rejoin is still
-wanted — it repairs `-d` and `-s` too, and it fixes the attached form the user
+wanted, it repairs `-d` and `-s` too, and it fixes the attached form the user
 actually typed rather than asking them to retype it.
 
 ### 2. `--cpu` versus `-x`
@@ -87,7 +87,7 @@ reworded.
 
 ### 3. Help structure: tiered pages versus one page
 
-020 tiered the help — a general page naming three modes, and a page per mode
+020 tiered the help, a general page naming three modes, and a page per mode
 reached by `?`, `run --help`, `disk --help`, each with its own banner and exit
 codes. 019 prints **one page**: `Usage: CassoCli {subcommands} [options] | -? |
 --version`, with an as65-habits paragraph that is 020's as65-compatibility section
@@ -99,7 +99,7 @@ beside the as65 one, most likely, with `DialectHelp` feeding it.
 
 ### 4. 019 has never heard of `disk`
 
-Its subcommand table is `as65`, `merlin`, `run` — zero references to
+Its subcommand table is `as65`, `merlin`, `run`, zero references to
 `Subcommand::Disk`. Every disk row, verb and help page is 020's alone and should
 survive the merge untouched. The risk is the opposite one: taking 019's version of
 a shared table and silently dropping the disk rows.
@@ -119,7 +119,7 @@ and the three files merge silently.
 
 **Every usage print site in 020's `CommandLine.cpp` already folds through it.**
 019's `UsageWidth`, `PrintUsageLine` and `PrintUsageBlock` were taken with their
-bodies unchanged — they are file-static here and `CommandLine` members there,
+bodies unchanged; they are file-static here and `CommandLine` members there,
 which is the one textual difference the merge will meet. Step 3 below is
 therefore half done: the mechanism is wired; what remains is unwrapping 020's
 hand-wrapped literals into one logical line each, which was deliberately NOT done

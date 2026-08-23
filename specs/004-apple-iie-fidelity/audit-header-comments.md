@@ -1,7 +1,7 @@
-# T126 — Header function-comment audit
+# T126: Header function-comment audit
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T126
-**Constitution**: §I 1.4.0 — function comments live ONLY in `.cpp`
+**Constitution**: §I 1.4.0, function comments live ONLY in `.cpp`
 **Audit date**: Phase 16
 
 ## Method
@@ -36,6 +36,6 @@ inspection confirms 0 real violations.
 
 ## Verdict
 
-**PASS** — 0 function-comment banners detected in changed `.h` files.
+**PASS**, 0 function-comment banners detected in changed `.h` files.
 Function-level documentation in this feature lives exclusively in the
 corresponding `.cpp` files.

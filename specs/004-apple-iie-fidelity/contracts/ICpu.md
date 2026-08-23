@@ -1,14 +1,14 @@
 # Contract: ICpu
 
 Pluggable CPU strategy for the emulator engine. The interface is intentionally
-**CPU-family agnostic** — nothing in `ICpu` assumes a 6502-shaped register
+**CPU-family agnostic**, nothing in `ICpu` assumes a 6502-shaped register
 file, vector address, or interrupt model. Implementations are free to model
 their CPU's reset, interrupt, and execution semantics however the real
 hardware does.
 
 Implementations:
 - `Cpu6502` (this feature; existing Cpu logic re-homed)
-- `Cpu65C02` (out of scope; future — drops in via the same interface)
+- `Cpu65C02` (out of scope; future, drops in via the same interface)
 - `Cpu65C816`, Z80, others (out of scope; drop in via the same interface)
 
 ## Header (canonical declarations)
@@ -57,13 +57,13 @@ interface.
 
 ## Semantics
 
-- `Reset()` — implementation-defined. Documented per implementation. For
+- `Reset()`: implementation-defined. Documented per implementation. For
   `Cpu6502`: sets I=1, loads PC from $FFFC/$FFFD via the connected
   MemoryBus, leaves SP/A/X/Y unchanged (real //e ROM handler reinitializes SP).
-- `Step()` — executes exactly one instruction, including any
+- `Step()`: executes exactly one instruction, including any
   interrupt-dispatch check at the appropriate boundary. Reports cycle count.
-- `SetInterruptLine(kNonMaskable, true)` — for `Cpu6502`, edge-triggered (false→true) NMI.
-- `SetInterruptLine(kMaskable, true)`    — for `Cpu6502`, level-sensitive IRQ; dispatched
+- `SetInterruptLine(kNonMaskable, true)`: for `Cpu6502`, edge-triggered (false→true) NMI.
+- `SetInterruptLine(kMaskable, true)`: for `Cpu6502`, level-sensitive IRQ; dispatched
   when `(P & I) == 0`.
 - The `kNonMaskable`/`kMaskable` mapping is a CPU implementation detail; callers
   do not need to know the exact electrical model.

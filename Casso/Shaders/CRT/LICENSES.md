@@ -1,4 +1,4 @@
-# Casso CRT Shaders — Third-Party Licenses
+# Casso CRT Shaders: Third-Party Licenses
 
 This directory contains HLSL ports of three upstream GLSL shaders from the
 [libretro `glsl-shaders` collection](https://github.com/libretro/glsl-shaders),

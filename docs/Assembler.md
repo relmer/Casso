@@ -32,8 +32,8 @@ CassoCli --help | -?
 CassoCli --version
 ```
 
-**The dialect is named, not guessed.** `CassoCli as65 input.a65 -o out.bin` — the
-form before dialect support — no longer works; insert `as65` after the
+**The dialect is named, not guessed.** `CassoCli as65 input.a65 -o out.bin`, the
+form before dialect support, no longer works; insert `as65` after the
 executable and nothing else changes. An unrecognized first argument used to be
 assumed to be an AS65 source file, and a dialect the tool infers is a dialect
 nobody stated.
@@ -106,12 +106,12 @@ has no opcodes.
 
 The practical consequence runs one way. A source written for the 65SC02
 assembles identically under both. A source using the Rockwell bit operations
-assembles under Casso and **would not** under AS65 — and Casso will not warn
+assembles under Casso and **would not** under AS65, and Casso will not warn
 that it has left the 65SC02 behind. The wider set is deliberate: Apple's //c
 ROM 4 and the Enhanced //e firmware use those instructions, and the emulator
 has to run them.
 
-WDC's `WAI`/`STP` are excluded — not part of the Rockwell devices Apple
+WDC's `WAI`/`STP` are excluded, not part of the Rockwell devices Apple
 shipped, and their opcode slots behave as NOPs.
 
 ### Listing and symbols
@@ -124,7 +124,7 @@ shipped, and their opcode slots behave as NOPs.
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Print the symbol table to stdout: each symbol with its address in hex and decimal, and a `*` on a redefinable one. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
-| `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions -- what is at an address, and where a name went -- and each order answers one. Casso's own format; no standard is being followed. |
+| `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions: what is at an address, and where a name went, and each order answers one. Casso's own format; no standard is being followed. |
 
 ### Symbols and diagnostics
 
@@ -135,7 +135,7 @@ shipped, and their opcode slots behave as NOPs.
 | `--no-warn` | Suppress warnings. |
 | `--fatal-warnings` | Treat warnings as errors. |
 | `-v` | Verbose: pass progress, assembly time, and a summary of output name, byte count, start and end address and symbol count. All on stderr, so it never mixes with a listing on stdout. |
-| `-q` | Quiet — suppress progress output. |
+| `-q` | Quiet, suppress progress output. |
 
 > The three warning flags are accepted but are not yet listed in `--help`.
 
@@ -147,7 +147,7 @@ They exist so an AS65 invocation is not refused outright. Tracked by
 
 | Flag | AS65 behavior | Casso today |
 |---|---|---|
-| `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored — and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
+| `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored: and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
 | `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 | `-h <lines>` | Listing page height; `0` disables pagination. | Accepted, ignored. The listing is not paginated at all. |
 
@@ -176,7 +176,7 @@ the one that does not.
 ## Running code
 
 `run` takes either a binary or a source file. Given source, it assembles first
-and runs the result — no intermediate file.
+and runs the result, no intermediate file.
 
 **`run` names its assembler.** `--as65` (the default) or `--merlin` decides which
 dialect reads a source; the flag is ignored for a binary, which needs no
@@ -206,7 +206,7 @@ Addresses accept `$8000` or `0x8000`.
 **Casso assembles a single source file into a single absolutely located image.
 There is no linker, and no way to assemble several sources into one program.**
 
-A source may pull in others — `include` under AS65, `PUT`/`USE` under Merlin —
+A source may pull in others (`include` under AS65, `PUT`/`USE` under Merlin)
 but that is textual inclusion: the result is still one assembly producing one
 image. What is absent is separate compilation: assembling several files
 independently and resolving references between them afterward. That is why
@@ -217,7 +217,7 @@ Nor does one assembly produce several outputs, which is why Merlin's `SAV` is
 refused.
 
 If your project needs either, please open an issue at
-[github.com/relmer/Casso/issues](https://github.com/relmer/Casso/issues) —
+[github.com/relmer/Casso/issues](https://github.com/relmer/Casso/issues);
 the linker is tracked as [#112](https://github.com/relmer/Casso/issues/112) and
 would benefit from a concrete case to be designed against.
 
@@ -231,7 +231,7 @@ would benefit from a concrete case to be designed against.
 | Addressing modes | `#$42`, `$30`, `$30,X`, `$1234`, `$1234,X`, `($20,X)`, `($20),Y`, `A` |
 | Rockwell bit ops | `RMB 0,$30` operand form, or the suffixed `RMB0 $30` / `BBR3 $30,target` form |
 | Labels | `loop: DEX` … `BNE loop` |
-| Constants | `value = $42`, `carry equ %00000001` — chains and forward references resolve |
+| Constants | `value = $42`, `carry equ %00000001`, chains and forward references resolve |
 | Origin and data | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"` |
 | Sections | `code`, `data`, `bss` |
 | Conditionals | `if` / `ifdef` / `ifndef` / `else` / `endif` |
@@ -241,7 +241,7 @@ would benefit from a concrete case to be designed against.
 | Numbers | `$FF` hex, `%10101010` binary, `255` decimal |
 | Expressions | `+ - * / % & \| ^ ~ << >>`, `<label` low byte, `>label` high byte, `*` current PC |
 | Listing control | `.page` is accepted and acts at listing time |
-| Case | Mnemonics, directives and instruction aliases are matched case-insensitively in **both** dialects; **labels are case-sensitive**. The asymmetry is deliberate — period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. A label written `lda` stays legal, and is warned about rather than refused. |
+| Case | Mnemonics, directives and instruction aliases are matched case-insensitively in **both** dialects; **labels are case-sensitive**. The asymmetry is deliberate: period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. A label written `lda` stays legal, and is warned about rather than refused. |
 
 ---
 
@@ -279,7 +279,7 @@ Pre-define a symbol, and make warnings fatal:
 CassoCli as65 input.a65 -d DEBUG=1 --fatal-warnings -o output.bin
 ```
 
-65C02 source — CMOS opcodes are rejected without the flag:
+65C02 source, CMOS opcodes are rejected without the flag:
 
 ```powershell
 CassoCli as65 input.a65c -x -o output.bin
@@ -359,19 +359,19 @@ The **label field** names the symbol; the rest of the line is the prompt. When
 pass 2 reaches that line, Casso looks the name up among the symbols `-d`
 defined:
 
-- **Answered** — the symbol is defined there and then, as an ordinary
+- **Answered**: the symbol is defined there and then, as an ordinary
   immutable equate, so every `DO SAVOBJ` below it sees the value. `-d SAVOBJ=0`
   gives zero; a bare `-d SAVOBJ` gives 1.
-- **Unanswered** — an error naming the symbol *and quoting the source's own
+- **Unanswered**: an error naming the symbol *and quoting the source's own
   prompt*, so the question is legible without opening the file:
-  `No answer supplied for SAVOBJ (Save object code? (1=yes, 0=no)) -- define it
+  `No answer supplied for SAVOBJ (Save object code? (1=yes, 0=no)); define it
   on the command line, for example -d SAVOBJ=0`.
 
 **An unanswered `KBD` is an error rather than a zero.** Both easier options are
 wrong: blocking on a prompt hangs an unattended build, and defaulting quietly
 assembles a program nobody asked for, since these symbols gate whole sections.
 
-`CLOCK.S` is the case that proves it — one source, two objects Merlin shipped,
+`CLOCK.S` is the case that proves it, one source, two objects Merlin shipped,
 chosen entirely by the answers:
 
 ```powershell
@@ -382,7 +382,7 @@ CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=12 --dos-bin -o CLOCK.12
 ### Where Merlin support ends
 
 Six constructs are recognized and **refused by name**, so a refusal says which
-construct, why, and what would widen it — where an unknown-directive error
+construct, why, and what would widen it, where an unknown-directive error
 would read as "Merlin support is broken". Crossing the boundary stops the
 assembly before pass 2 and exits 2.
 
@@ -401,7 +401,7 @@ Three things about that list are worth reading twice.
   and selects the 65C02, which Casso emulates. Only a second is refused.
 - **A relocatable module that imports nothing has a way forward**, and the
   refusal states it in full: remove `REL`, drop the `ENT` declarations, and give
-  the source an origin with `ORG`. A module carrying even one `EXT` does *not* —
+  the source an origin with `ORG`. A module carrying even one `EXT` does *not*,
   it references a definition living in another file, and no edit to this one
   supplies it. That advice is a property of the whole module, so one `EXT`
   anywhere removes it from every refusal in the file.
@@ -416,7 +416,7 @@ from its fields, so they cannot describe two different sets of rules.
 ### The supported subset
 
 [docs/merlin-subset.md](merlin-subset.md) covers what Merlin support *does*
-include — the field-based line model, the directive vocabulary, symbols and
+include, the field-based line model, the directive vocabulary, symbols and
 expressions, macros, and every place the implementation is documentation-led
 rather than settled by vendor bytes.
 

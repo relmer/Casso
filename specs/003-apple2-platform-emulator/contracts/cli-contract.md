@@ -5,7 +5,7 @@
 
 ## Executable
 
-`Casso.exe` — Win32 GUI application (WINDOWS subsystem)
+`Casso.exe`, Win32 GUI application (WINDOWS subsystem)
 
 ## Command-Line Arguments
 

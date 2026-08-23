@@ -2,7 +2,7 @@
 
 **Branch**: `feature/005-disk-ii-audio` | **Date**: 2026-03-19 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification at `specs/005-disk-ii-audio/spec.md`
-**Research basis**: [`research.md`](./research.md) — source-verified survey of OpenEmulator, MAME, AppleWin, and the Casso codebase
+**Research basis**: [`research.md`](./research.md), source-verified survey of OpenEmulator, MAME, AppleWin, and the Casso codebase
 **Constitution**: `.specify/memory/constitution.md`
 
 ## Summary
@@ -12,8 +12,8 @@ track-0 bumps, disk insert/eject) to Casso's //e emulator and mix it
 into the existing WASAPI pipeline alongside the speaker, in stereo with
 per-drive panning. The implementation is structured around a new
 `DriveAudioMixer` that owns a collection of `IDriveAudioSource` instances
-(one per attached drive). v1 ships one concrete source — `DiskIIAudioSource`
-— driven by an `IDriveAudioSink` event interface that the Disk II
+(one per attached drive). v1 ships one concrete source, `DiskIIAudioSource`
+, driven by an `IDriveAudioSink` event interface that the Disk II
 controller fires at the precise points where head, motor, and disk-mount
 state changes occur. The mixer is consumed once per audio frame by
 `WasapiAudio::SubmitFrame()`, which mixes drive PCM additively (stereo,
@@ -34,7 +34,7 @@ where touch points are required.
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145 (VS 2026)
-**Primary Dependencies**: Windows SDK + STL only — Windows MediaFoundation
+**Primary Dependencies**: Windows SDK + STL only, Windows MediaFoundation
 (`IMFSourceReader`) for WAV decoding and resampling, WinHTTP for the
 first-run bootstrap fetch (already in use by `AssetBootstrap`), and a
 single in-tree third-party header: **stb_vorbis.c** (public domain / MIT,
@@ -65,7 +65,7 @@ increase per-frame WASAPI submit cost; the inner loop is a small fixed
 number of float multiply-adds per active sample stream per channel (≤ 6
 simultaneous streams in v1: motor + head + door per drive, up to 2 drives).
 **Constraints**: No regression in speaker pipeline (FR-011, SC-006). No
-buffer underruns (NFR-001). Same-thread state model — no locks introduced
+buffer underruns (NFR-001). Same-thread state model, no locks introduced
 in v1 (NFR-002, with explicit revisit point if expensive DSP arrives).
 Asset footprint is advisory (NFR-003, revisit at >1 MB compressed).
 GPL-3 drive-audio samples MUST NOT be committed (NFR-004). Real-hardware
@@ -75,7 +75,7 @@ recordings preferred over synthesis when permissively licensed (NFR-005).
 
 ## Constitution Check
 
-### Principle I — Code Quality (NON-NEGOTIABLE)
+### Principle I: Code Quality (NON-NEGOTIABLE)
 
 | Rule                                              | How this plan complies                                                                                                                  |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
@@ -87,12 +87,12 @@ recordings preferred over synthesis when permissively licensed (NFR-005).
 | Avoid Nesting (≤ 2-3 indent beyond EHM)           | `GeneratePCM()` factored into `MixMotor()`, `MixHead()`, `MixDoor()` helpers, each ≤ 2 levels.                                          |
 | Variable Declarations at Top of Scope             | All new functions follow this; column-aligned per project rules.                                                                        |
 | Function Comments in `.cpp` Only                  | Headers carry only declaration comments; doc blocks live in `.cpp` with 80-`/` delimiters.                                              |
-| Function Spacing — `func()` vs `func (a, b)`      | Verified via `rg -n '\w \(\)' CassoEmuCore/Audio/ Casso/` before commit on every PR phase.                                              |
+| Function Spacing, `func()` vs `func (a, b)`      | Verified via `rg -n '\w \(\)' CassoEmuCore/Audio/ Casso/` before commit on every PR phase.                                              |
 | Smart Pointers                                    | `DriveAudioMixer` is owned by `EmulatorShell` directly (composition); no smart pointer needed. Sample buffers are `std::vector<float>`. |
 | PascalCase file names                             | All new source files (`DriveAudioMixer.{h,cpp}`, `DiskIIAudioSource.{h,cpp}`, `IDriveAudioSink.h`, `IDriveAudioSource.h`, `OptionsDialog.{h,cpp}`) and asset files (`MotorLoop.wav`, `HeadStep.wav`, `HeadStop.wav`, `DoorOpen.wav`, `DoorClose.wav`) use PascalCase with no underscores. |
 | No magic numbers                                  | `kMotorVolume = 0.25f`, `kHeadVolume = 0.30f`, `kDoorVolume = 0.30f`, `kSpeakerCenter = 0.7071f` (= √0.5), `kDrivePanOffset = 0.3927f` (= π/8 radians), `kSeekThresholdCycles = 16368`, `kHeadIdleCycles = 51150` are all named constants. |
 
-### Principle II — Test Isolation (NON-NEGOTIABLE)
+### Principle II: Test Isolation (NON-NEGOTIABLE)
 
 Drive-audio tests run on the same headless harness as existing
 `CassoEmuCore` tests. `DriveAudioMixer` and `DiskIIAudioSource` are
@@ -100,7 +100,7 @@ constructed with caller-owned in-memory sample buffers; tests never read
 host filesystem. The `IDriveAudioSink` interface lets `DiskIIController`
 tests substitute a recording mock with no audio device involved.
 
-### Principle V — Function Size & Structure
+### Principle V: Function Size & Structure
 
 `GeneratePCM()` is the only function with appreciable logic. `DriveAudioMixer::GeneratePCM` factors as:
 
@@ -267,7 +267,7 @@ Acquisition pipeline per OGG file (FR-018):
    rate.
 3. Convert to mono float32 (downmix if necessary) and resample to the
    WASAPI device rate. Reuse the existing `IMFSourceReader`-based
-   resampler used for WAV loading (or a simple linear resampler — drive
+   resampler used for WAV loading (or a simple linear resampler, drive
    noise is broadband mechanical content and is not pitch-critical).
 4. Write a PCM WAV file (16-bit or float32, whichever the WAV loader
    already prefers) to `Devices/DiskII/<Mechanism>/<CanonicalName>.wav`.
@@ -280,8 +280,8 @@ Filename mapping from upstream OGG → canonical PascalCase WAV:
 | `Shugart SA400 Drive.ogg` | `MotorLoop.wav` | `Alps 2124A Drive.ogg` | `MotorLoop.wav` |
 | `Shugart SA400 Head.ogg`  | `HeadStep.wav`  | `Alps 2124A Head.ogg`  | `HeadStep.wav` |
 | `Shugart SA400 Stop.ogg`  | `HeadStop.wav`  | `Alps 2124A Stop.ogg`  | `HeadStop.wav` |
-| `Shugart SA400 Open.ogg`  | `DoorOpen.wav`  | *(not shipped upstream)* | — |
-| `Shugart SA400 Close.ogg` | `DoorClose.wav` | *(not shipped upstream)* | — |
+| `Shugart SA400 Open.ogg`  | `DoorOpen.wav`  | *(not shipped upstream)* | n/a |
+| `Shugart SA400 Close.ogg` | `DoorClose.wav` | *(not shipped upstream)* | n/a |
 
 The Shugart `Align.ogg` (continuous seek-buzz) is not part of v1: FR-005's
 cycle-gap discriminator produces a serviceable buzz by retriggering
@@ -293,11 +293,11 @@ future feature MAY add `HeadSeek.wav` support.
 `DiskIIAudioSource::LoadSamples` looks for each canonical filename in this
 order:
 
-1. `Devices/DiskII/<filename>.wav` — top-level user override (self-recorded
+1. `Devices/DiskII/<filename>.wav`: top-level user override (self-recorded
    or otherwise permissively-licensed; may be committed if license permits).
-2. `Devices/DiskII/<SelectedMechanism>/<filename>.wav` — bootstrap-downloaded
+2. `Devices/DiskII/<SelectedMechanism>/<filename>.wav`: bootstrap-downloaded
    (always gitignored).
-3. *(none)* — leave buffer empty; FR-009 graceful silence at runtime.
+3. *(none)*, leave buffer empty; FR-009 graceful silence at runtime.
 
 The precedence is per-file. A user can override only `MotorLoop.wav` with
 their own recording and leave the rest pulling from the selected mechanism
@@ -387,21 +387,21 @@ Per-sound attenuation (source-internal):
 
 Worst-case per-channel sum: single-drive full speaker + full motor + full
 head, drive centered (`0.707` pan):
-`0.50 × 0.707 + (0.25 + 0.30) × 0.707 ≈ 0.74` per channel — safely under
+`0.50 × 0.707 + (0.25 + 0.30) × 0.707 ≈ 0.74` per channel, safely under
 1.0. Two-drive case is bounded by per-drive panning concentrating each
 drive's energy in one channel; see FR-008 rationale.
 
 When the WASAPI device is mono, the stereo output is downmixed by
 `(L + R) × 0.5` after clamp, preserving overall amplitude.
 
-## Constitution Check — Post-Design Re-Validation
+## Constitution Check: Post-Design Re-Validation
 
 - ✅ All new functions stay within size and indent budgets.
 - ✅ EHM applied to `LoadSamples` and WAV-decode path; `GeneratePCM`,
       `MixMotor`, `MixHead`, and event hooks are `void` and infallible
       (they only mutate POD state and float buffers).
 - ✅ No new threads, no locks (NFR-002).
-- ✅ No GPL-3 sample assets committed (NFR-004) — the asset directory is
+- ✅ No GPL-3 sample assets committed (NFR-004); the asset directory is
       either populated by the implementer with self-recorded or synthesized
       content, or empty (graceful-degradation path takes over).
 - ✅ Test isolation: in-memory sample buffers, mock sink for controller
@@ -412,51 +412,51 @@ When the WASAPI device is mono, the stereo output is downmixed by
 The implementation follows `research.md` §6.3's recommended order, expanded
 into atomic tasks in [`tasks.md`](./tasks.md). Phase summary:
 
-1. **Phase 0 — Contracts**: `IDriveAudioSink`, `IDriveAudioSource`,
+1. **Phase 0, Contracts**: `IDriveAudioSink`, `IDriveAudioSource`,
    `DriveAudioMixer.h`, `DiskIIAudioSource.h` declarations, named constants.
-2. **Phase 1 — Source skeleton**: `DiskIIAudioSource.cpp` with silent
+2. **Phase 1, Source skeleton**: `DiskIIAudioSource.cpp` with silent
    `GeneratePCM`, infallible event hooks (incl. insert/eject), unit tests
    against a mock that exercises every event combination.
-3. **Phase 2 — Mixer skeleton**: `DriveAudioMixer.cpp` with source
+3. **Phase 2, Mixer skeleton**: `DriveAudioMixer.cpp` with source
    registration, stereo equal-power pan+sum (no motor-hum dedup per
    revised FR-008), silent-source tests.
-4. **Phase 3 — Controller wiring**: Add `IDriveAudioSink* m_audioSink` to
+4. **Phase 3, Controller wiring**: Add `IDriveAudioSink* m_audioSink` to
    `DiskIIController.h`; add 4 emulation call sites plus mount/eject calls.
    Tests using a recording sink confirm event ordering.
-5. **Phase 4 — Sample loading (mechanism-aware)**: Implement
+5. **Phase 4, Sample loading (mechanism-aware)**: Implement
    `DiskIIAudioSource::LoadSamples(mechanismSubdir, deviceSampleRate)`
    with per-file precedence (FR-019): user-override top-level → mechanism
    subdir → silent. Reuse the existing `IMFSourceReader` WAV decoder.
-6. **Phase 5 — Mixer playback**: `MixMotor`, `MixHead`, `MixDoor`. Tests
+6. **Phase 5, Mixer playback**: `MixMotor`, `MixHead`, `MixDoor`. Tests
    verify per-sample output for canonical sequences.
-7. **Phase 6 — Step/seek discrimination**: `m_lastStepCycle`, `m_seekMode`,
+7. **Phase 6, Step/seek discrimination**: `m_lastStepCycle`, `m_seekMode`,
    idle timeout; tests verify rapid-step bursts collapse per FR-005.
-8. **Phase 7 — WASAPI stereo integration**: Negotiate stereo from WASAPI,
+8. **Phase 7, WASAPI stereo integration**: Negotiate stereo from WASAPI,
    extend `SubmitFrame` to produce stereo, additive per-channel mix,
    per-channel clamp, mono device downmix. Speaker regression test (SC-006).
-9. **Phase 8 — Shell wiring**: `EmulatorShell` owns mixer + per-drive
+9. **Phase 8, Shell wiring**: `EmulatorShell` owns mixer + per-drive
    sources; sink hookup; mount/eject hookup with cold-boot suppression
    flag. Boot-and-listen sanity in DOS 3.3 fixture (manual).
-10. **Phase 9 — Options dialog**: Create `OptionsDialog.{h,cpp}`; add
+10. **Phase 9, Options dialog**: Create `OptionsDialog.{h,cpp}`; add
     View → Options... menu entry; Drive Audio checkbox; Disk II mechanism
     dropdown (Shugart default); runtime toggle test (SC-003, SC-010).
-11. **Phase 10 — Directory restructure + .gitignore**: Migrate top-level
+11. **Phase 10, Directory restructure + .gitignore**: Migrate top-level
     `ROMs/` into per-machine `Machines/<Name>/` and per-device
     `Devices/DiskII/` directories. Move existing screenshots out of
     `Assets/` is intentionally NOT done (Assets/ stays for screenshots).
     Update `.gitignore` to whitelist-JSON-only under `Machines/**` and
     `Devices/**`. Update `AssetBootstrap`'s ROM catalog paths. Verify
     backward-compat search in `PathResolver` for existing user installs.
-12. **Phase 11 — Bootstrap fetch (stb_vorbis + OGG decode + consent)**:
+12. **Phase 11, Bootstrap fetch (stb_vorbis + OGG decode + consent)**:
     Add `stb_vorbis.c` to `CassoEmuCore`. Add `s_kDiskAudioCatalog` and
     `AssetBootstrap::CheckAndFetchDiskAudio` mirroring the existing
     `CheckAndFetchRoms` pattern. Implement the in-memory WinHTTP-to-WAV
     pipeline (no on-disk OGG, per NFR-006). Consent dialog (FR-017) with
     explicit GPL-3 disclosure and link to OpenEmulator's `COPYING` file.
-13. **Phase 12 — Asset graceful-degradation verification**: Confirm
+13. **Phase 12, Asset graceful-degradation verification**: Confirm
     declined-consent and per-mechanism missing-file paths produce silent
     audio with at most one log warning per file (FR-009, SC-004).
-14. **Phase 13 — Polish**: CHANGELOG, README, manual A/B listening, final
+14. **Phase 13, Polish**: CHANGELOG, README, manual A/B listening, final
     constitution sweep.
 
 ## Risks & Mitigations
@@ -467,7 +467,7 @@ into atomic tasks in [`tasks.md`](./tasks.md). Phase summary:
 | Disk-audio amplitude causes audible clipping when speaker is at full deflection        | Per-source attenuation + post-sum clamp; tune `kMotorVolume`/`kHeadVolume` in Phase 5 with the speaker test suite as regression guard.|
 | Missing or broken WAV files at user installs                                          | FR-009 graceful degradation; the mixer treats any empty buffer as "muted." Verified in Phase 12.                                      |
 | `IMFSourceReader` initialization failure on locked-down systems                       | WAV-decode path returns HRESULT; on failure, the affected sample buffer stays empty and FR-009 kicks in. No popup, single log line.   |
-| GPL-3 sample contamination — accidental commit of bootstrap-downloaded WAVs            | `.gitignore` whitelist-JSON-only rule under `Machines/**` and `Devices/**` covers every `.wav`/`.rom`/`.ogg`/`.txt` automatically; git won't even offer them for staging. |
+| GPL-3 sample contamination, accidental commit of bootstrap-downloaded WAVs            | `.gitignore` whitelist-JSON-only rule under `Machines/**` and `Devices/**` covers every `.wav`/`.rom`/`.ogg`/`.txt` automatically; git won't even offer them for staging. |
 | User redistributes their Casso install (zipping the directory) containing GPL-3 WAVs   | User's responsibility per the FR-017 consent dialog disclosure; NFR-006 minimizes the surface by not retaining `.ogg` files. We cannot prevent users from redistributing data they downloaded. |
 | OpenEmulator repository moves or the OGG files are renamed/removed upstream            | Single point of update in `s_kDiskAudioCatalog`; FR-009 keeps Casso functional with silent disk audio in the meantime.                |
 | stb_vorbis bug / decode failure                                                       | Library is widely used and battle-tested (Unity, Unreal, etc.). On failure, FR-009 keeps the affected sound silent.                  |

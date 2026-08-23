@@ -1,5 +1,5 @@
 ---
-description: "Disk II Debug Window — actionable, dependency-ordered tasks"
+description: "Disk II Debug Window, actionable, dependency-ordered tasks"
 ---
 
 # Tasks: Disk II Debug Window
@@ -11,10 +11,10 @@ description: "Disk II Debug Window — actionable, dependency-ordered tasks"
 **Tests**: Required throughout. Every production-code task that has
 observable behavior has a paired test task. Tests use a mock
 `IDiskIIEventSink`, in-memory `DiskIIEventRing` instances, and
-in-memory nibble streams — no host filesystem reads, no audio device,
+in-memory nibble streams; no host filesystem reads, no audio device,
 no real `HWND`, no real timer, per constitution §II and NFR-002.
 
-**Organization**: Phases follow `plan.md` §"Phasing" — interface first,
+**Organization**: Phases follow `plan.md` §"Phasing", interface first,
 producer side, consumer side, Win32 wiring, polish. Each phase ends with
 an explicit `[GATE]` task that re-asserts pre-existing tests still green
 and that the no-sink controller path is byte-identical to the pre-feature
@@ -22,25 +22,25 @@ baseline (FR-007, FR-020, SC-007).
 
 ## Format: `[ID] [P?] [GATE?] Description`
 
-- **[P]** — parallel-safe within its phase (different files, no shared-edit conflict)
-- **[GATE]** — phase-completion gate task; not parallel
+- **[P]**: parallel-safe within its phase (different files, no shared-edit conflict)
+- **[GATE]**: phase-completion gate task; not parallel
 - Every task cites the FR(s) it satisfies and the file(s) it touches
 - Every production-code task is paired with (or precedes) a test task
 
-## Constitution rules — apply to every code task
+## Constitution rules: apply to every code task
 
 1. Every `.cpp` includes `"Pch.h"` as the **first** include; no angle-bracket
    includes anywhere except inside `Pch.h`; project headers use quoted includes
 2. Function comments live in `.cpp` (80-`/` delimiters), not in the header
 3. Function/operator spacing: `func()`, `func (a, b)`, `if (...)`, `for (...)`
 4. All locals at top of scope, column-aligned (type / `*`-`&` column / name / `=` / value)
-5. No non-trivial calls inside macro arguments — store result first
+5. No non-trivial calls inside macro arguments, store result first
 6. ≤ 50 lines per function (100 absolute); ≤ 2 indent levels beyond EHM (3 max)
 7. Exactly 5 blank lines between top-level constructs; exactly 3 between
    top-of-function declarations and first statement
 8. EHM pattern (`HRESULT hr = S_OK; … Error: … return hr;`) on every fallible
    function; never bare `goto Error`
-9. No magic numbers (except 0/1/-1/nullptr/sizeof) — see `plan.md` Constitution
+9. No magic numbers (except 0/1/-1/nullptr/sizeof); see `plan.md` Constitution
    table for the named-constants list
 10. File names: PascalCase, no underscores (`DiskIIEventRing.cpp`, not
     `disk_ii_event_ring.cpp`)
@@ -102,7 +102,7 @@ baseline (FR-007, FR-020, SC-007).
       verify with `static_assert` if using fixed buffers. (FR-005,
       FR-014, NFR-003)
 - [ ] T004 [P] Create `CassoEmuCore/Devices/DiskIIEventRing.h` per plan.md
-      §"SPSC Ring Buffer" — class declaration only, with `kEventRingCapacity = 4096`
+      §"SPSC Ring Buffer", class declaration only, with `kEventRingCapacity = 4096`
       named constant (file-scope or class-static; matches plan.md's
       constants list), `TryPush`, `TryPop`, `Drain (DiskIIEvent*, uint32_t)`,
       `ApproxSize`. Two `alignas(64)` `std::atomic<uint32_t>` index members.
@@ -203,11 +203,11 @@ used by the dialog's Track and Sector inputs.
       tokenize on commas, then for each token detect range (`a-b`) vs.
       single value vs. decimal quarter-track (`17.25`, `17.5`,
       `17.75`). Convert decimal-qt to integer-qt via `(whole * 4) +
-      quarter_index`. Honor the `rawQt` flag (FR-014a — when set, bare
+      quarter_index`. Honor the `rawQt` flag (FR-014a, when set, bare
       integers are interpreted as quarter-tracks rather than whole
       tracks). Tolerate surrounding whitespace; silently skip
-      malformed tokens (e.g., `abc`) — they MUST NOT throw or block
-      other valid tokens in the same expression — but record their
+      malformed tokens (e.g., `abc`), they MUST NOT throw or block
+      other valid tokens in the same expression, but record their
       `{begin, end}` UTF-16 offsets within `expr` as a `RejectedSpan`
       (the span MUST cover only the token text itself, not the
       surrounding whitespace or comma separators, so the dialog can
@@ -227,14 +227,14 @@ used by the dialog's Track and Sector inputs.
       - `rawQt=true` with input `68` matches quarter-track 68
         (whole-track 17); same input with `rawQt=false` matches
         whole-track 68 (which is out of standard range but the
-        parser MUST NOT reject it — FR-014a's "no max-value
+        parser MUST NOT reject it, FR-014a's "no max-value
         validation" rule).
       - `abc` parses to an empty predicate (matches everything per
         FR-014a's "malformed token = no-match for that token" rule);
         `1, abc, 3` parses to `{1, 3}` matching 1 and 3.
       - Whitespace tolerated: `  0 - 2 , 17  ` parses correctly.
       - `999` parses successfully and matches only 999 (no max-value
-        rejection — FR-014a, FR-014b).
+        rejection, FR-014a, FR-014b).
       - **Rejected-span recording (FR-014e)**: for input
         `0-2, abc, 17`, `RejectedSpans()` returns exactly one span
         whose `[begin, end)` UTF-16 offsets cover the substring
@@ -244,7 +244,7 @@ used by the dialog's Track and Sector inputs.
         (`0-2, 17, 30-34`) the rejected-span vector is empty. For
         an all-junk input (`abc, def`) returns two spans covering
         `abc` and `def` and the predicate matches nothing valid
-        (but does not match everything — it matches nothing
+        (but does not match everything, it matches nothing
         because there are no ranges; the "empty = match all" rule
         applies only when the input is empty/whitespace, not when
         every token was rejected).
@@ -351,7 +351,7 @@ lifecycle, and fire audio outcomes from every audio decision site
       the first emulator slice ran, fire `OnAudioSilent(SoundKind::DoorClose,
       drive, SilentReason::ColdBootSuppression)` so the suppression
       decision is visible in the debug log. The `OnDiskInserted`
-      controller event still fires normally — the suppression is a
+      controller event still fires normally; the suppression is a
       pure audio decision. (FR-025)
 - [ ] T039 [P] Create `UnitTest/Audio/DiskIIAudioSourceEventSinkTests.cpp`
       with a recording mock `IDriveAudioEventSink`. Tests (one per
@@ -562,7 +562,7 @@ filter checkboxes, buttons. Render an empty list.
       index via `m_filteredIndices[iItem]` (Phase 7 populates this
       vector; until then, seed it with the identity mapping
       `[0, 1, ... deque.size()-1]`). For each requested column, the
-      ListView's `iSubItem` is the **visible-subset ordinal** — map it
+      ListView's `iSubItem` is the **visible-subset ordinal**, map it
       back to the `LogicalColumn::id` via the active visible-subset
       list (kept by `RebuildListViewColumns`, e.g., a small
       `std::array<int, 5> m_visibleOrdinalToLogicalId` rebuilt every
@@ -658,7 +658,7 @@ filter checkboxes, buttons. Render an empty list.
         regardless of sub-toggle state; Audio-master checked with
         only `Silent` sub-toggle on shows `AUDIO SILENT` rows and
         hides the other three audio outcome rows (loop events still
-        show — they are not gated by sub-toggles per FR-014c).
+        show; they are not gated by sub-toggles per FR-014c).
       (FR-014, FR-014a, FR-014b, FR-014c, SC-016)
 - [ ] T073 [GATE] Manual test: during a DOS 3.3 boot, toggle each
       filter control and verify the displayed events change
@@ -699,7 +699,7 @@ filter checkboxes, buttons. Render an empty list.
       - Two spans over `xx` and `yy` in `xx, 5, yy` → returns
         `L"Ignored: xx, yy"`.
       - Spans MUST be slicing into `expr` via the recorded UTF-16
-        offsets — no re-tokenization, no whitespace inclusion.
+        offsets: no re-tokenization, no whitespace inclusion.
       The Win32-touching squiggle apply is validated manually
       under T073's GATE plus the new manual check below.
       (FR-014e)
@@ -726,7 +726,7 @@ filter checkboxes, buttons. Render an empty list.
       (FR-015)
 - [ ] T081 Handle `WM_COMMAND` for the Clear button: clear `m_deque`,
       call `ListView_SetItemCountEx (m_listView, 0, ...)`. Do NOT
-      flush the ring — `m_ring` and `m_droppedSinceLastDrain` remain
+      flush the ring, `m_ring` and `m_droppedSinceLastDrain` remain
       untouched, so in-flight events drain into the now-empty deque on
       the next timer tick. (FR-016)
 - [ ] T082 [P] Add `DebugDialogProjectionTests.cpp` cases:
@@ -753,8 +753,8 @@ filter checkboxes, buttons. Render an empty list.
       for Ctrl+C: enumerate selected items (`ListView_GetNextItem` loop
       with `LVNI_SELECTED`), format each as
       `"<wall>\t<uptime>\t<cycle>\t<event>\t<detail>\r\n"` (UTF-16,
-      CRLF terminator) in VISIBLE-COLUMN order — hidden columns (width
-      0 per FR-026) MUST be omitted, including their leading tab —
+      CRLF terminator) in VISIBLE-COLUMN order (hidden columns (width
+      0 per FR-026) MUST be omitted, including their leading tab)
       concatenate into a `std::wstring`, open clipboard, set
       `CF_UNICODETEXT`. (FR-019, FR-026)
 - [ ] T091 [P] Add a headless test that exercises the formatting helper:
@@ -841,7 +841,7 @@ filter checkboxes, buttons. Render an empty list.
 **Purpose**: Right-click the column header to toggle individual column
 visibility via a logical column model. Hidden columns are absent from
 the ListView entirely; show/hide rebuilds the LV's column set from
-the logical model. In-session only — closing the dialog returns all
+the logical model. In-session only, closing the dialog returns all
 columns to their default state (NFR-006).
 
 - [ ] T106 In `DiskIIDebugDialog.cpp`, implement `RebuildListViewColumns()`
@@ -866,7 +866,7 @@ columns to their default state (NFR-006).
       `ToggleColumn(id)`: capture current widths back into the model
       first (so any user-drag that happened since the last rebuild is
       preserved), flip the `visible` bit, then call
-      `RebuildListViewColumns()`. Hiding all five columns is allowed —
+      `RebuildListViewColumns()`. Hiding all five columns is allowed,
       the user sees a blank ListView and can re-show via the same
       menu. (FR-026)
 - [ ] T107b Implement `CaptureCurrentWidthsIntoModel()` and wire it
@@ -916,7 +916,7 @@ columns to their default state (NFR-006).
       guidance (FR-018 / Risks table).
 - [ ] T112 Manual A/B test the four bundled WOZ fixtures
       (`Apple2/Demos/AppleStellarInvaders.woz`, `Choplifter.woz`,
-      `HardHatMack.woz`, `Karateka.woz`) — verify each surfaces a
+      `HardHatMack.woz`, `Karateka.woz`); verify each surfaces a
       reasonable event stream (motor on, head steps, address marks
       with their actual volume numbers, data reads). Note which
       titles surface non-standard volume numbers or half-track reads,

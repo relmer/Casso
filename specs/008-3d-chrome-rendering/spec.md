@@ -2,7 +2,7 @@
 
 **Feature Branch**: `008-3d-chrome-rendering`
 **Created**: 2025-11-25
-**Status**: Superseded (never implemented — see "Superseded by" below)
+**Status**: Superseded (never implemented; see "Superseded by" below)
 **Input**: User description: "Introduce a real 3D rendering path for UI chrome elements (starting with the Apple Disk II drive widgets), replacing the current 2D scanline-approximation approach."
 
 ## Superseded by the 3D desk scene
@@ -11,19 +11,19 @@ This spec was authored but never implemented, and it is kept here only as a
 record of the original design thinking. Two later efforts overtook it:
 
 - **Spec 015 (printer support)** shipped the mesh pipeline this document
-  anticipated — `ObjMeshParser` plus `Printer3DScene` — proving out OBJ/MTL
+  anticipated, `ObjMeshParser` plus `Printer3DScene`, proving out OBJ/MTL
   meshes under a shared perspective camera. The pipeline arrived in service of
   the Imagewriter II preview rather than the drive widgets.
 - **The 3D desk scene** then took the idea considerably further than the scope
   below: instead of re-rendering the drive widgets in place inside the command
   bar, the monitor, drives, and desk are CAD-built meshes composing a single
   seated-eye scene, and the 2D `MonitorFrame` is deleted outright. The 3D
-  drives are not optional there — only the CRT monitor is, through the
+  drives are not optional there, only the CRT monitor is, through the
   `crtMonitor` pref, and compact themes never draw the scene at all.
 
-Both user stories here are answered by that work — drives as real meshes under
+Both user stories here are answered by that work, drives as real meshes under
 one shared camera (US1) and the door as a true hinge rotation rather than a 2D
-translation (US2) — so the plan below was never taken to tasks. Nothing in this
+translation (US2), so the plan below was never taken to tasks. Nothing in this
 document should be implemented as written; consult the desk scene instead.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -31,9 +31,9 @@ document should be implemented as written; consult the desk scene instead.
 ### User Story 1 - Drive Widgets Render as Real 3D Objects (Priority: P1)
 
 When a user runs Casso and looks at the command bar, the two Apple Disk II drive
-widgets appear as actual three-dimensional objects — beige cases with subtly
+widgets appear as actual three-dimensional objects (beige cases with subtly
 beveled edges, an inset faceplate carrying the drive's label, slot recess, and
-door tab — drawn under a single shared perspective. Both drives share the same
+door tab) drawn under a single shared perspective. Both drives share the same
 camera, so the perspective foreshortening is visually consistent between them
 rather than fighting hand-tuned per-widget skews.
 
@@ -137,20 +137,20 @@ ambient light direction.
 ### Edge Cases
 
 - Command bar is sized too small or too narrow to fit two drive widgets at the
-  designed mesh aspect ratio — the renderer must fall back gracefully (clip
+  designed mesh aspect ratio, the renderer must fall back gracefully (clip
   rather than distort proportions; widgets must not bleed outside the command
   bar's clip rect).
-- Window is minimized or has zero client area — the 3D pass must skip cleanly
+- Window is minimized or has zero client area, the 3D pass must skip cleanly
   without device-context errors or depth-buffer allocation churn.
-- Display scaling changes at runtime (DPI change) — faceplate render-to-texture
+- Display scaling changes at runtime (DPI change), faceplate render-to-texture
   must be re-rasterized at the new DPI so the labels stay crisp.
-- D3D device is lost and recreated — the mesh registry, shaders, depth target,
+- D3D device is lost and recreated: the mesh registry, shaders, depth target,
   and faceplate render-textures must all be re-created without leaking
   resources or leaving widgets invisible.
 - Camera placement places a drive partly behind the near plane at extreme
-  command-bar sizes — clip without producing flickering or NaN screen-space
+  command-bar sizes, clip without producing flickering or NaN screen-space
   bounds for hit-testing.
-- Hit-testing during the door animation — the eject region must track the
+- Hit-testing during the door animation: the eject region must track the
   door's current projected quad each frame, not the start or end pose.
 - Unit tests that previously asserted on axis-aligned rectangles must continue
   to assert meaningful geometry against the projected mesh, not be deleted.
@@ -278,13 +278,13 @@ ambient light direction.
   of the feature branch with no new warnings attributable to the new mesh
   renderer code.
 - **SC-007**: Every commit on the feature branch builds and the application
-  launches successfully — there is no "broken middle" commit.
+  launches successfully; there is no "broken middle" commit.
 - **SC-008**: Drive faceplate labels (drive number, IN USE, cassowary,
   LED indicator) remain readable at the standard command bar height and at
   both 100% and 200% display scaling.
 - **SC-009**: With both drive widgets visible, vanishing-point lines drawn
   along corresponding case edges across the two drives converge consistently
-  — i.e., the two drives demonstrably share a single camera, not two
+, i.e., the two drives demonstrably share a single camera, not two
   independent ones.
 - **SC-010**: The eject hit-region accepts clicks on the door's currently
   projected screen footprint at any point during its open/close animation,

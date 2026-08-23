@@ -8,7 +8,7 @@ How to prove the feature works. Details of *what* is being validated live in
 ## Prerequisites
 
 - Visual Studio 2026 toolset (v145), x64.
-- Build via `Casso.sln`, **not** the `.vcxproj` directly — building the project
+- Build via `Casso.sln`, **not** the `.vcxproj` directly, building the project
   file alone drops the executable somewhere other than the solution output
   directory, and you end up testing a stale binary.
 - The style hook, once per clone: `git config core.hooksPath .githooks`.
@@ -24,16 +24,16 @@ scripts\RunTests.ps1 -Build
 
 `RunTests.ps1` does **not** build unless you pass `-Build`. It refuses to run
 against a test assembly older than its sources, because a stale run reports a
-confident pass against code that is not on disk — and a new test file that never
+confident pass against code that is not on disk, and a new test file that never
 compiled in is simply absent from the count rather than failing.
 
 Baseline before this feature: **2,961 tests Debug, 2,958 Release**. The
 three-test delta between configurations is unexplained and tracked separately as
-issue #113 — it is not something this feature introduced or is expected to fix.
+issue #113; it is not something this feature introduced or is expected to fix.
 
 Treat those numbers as soft. The Dormann integration tests fetch their source on
 demand from inside the test DLL, so when that data is unreachable the suite gets
-faster by **doing less work while still reporting a pass** — the same shape as a
+faster by **doing less work while still reporting a pass**, the same shape as a
 run against a stale assembly. Do not re-baseline against a figure measured in
 that state, and expect the counts to move when the fix lands elsewhere. A count
 that changed for that reason is not a regression here.
@@ -53,7 +53,7 @@ passed to vstest verbatim, so the full expression syntax stays available:
 scripts\RunTests.ps1 -Filter "FullyQualifiedName~Merlin&Name!~Slow"
 ```
 
-A filtered run prints a loud banner because it is **not** a suite run — reading a
+A filtered run prints a loud banner because it is **not** a suite run, reading a
 green partial result as a suite pass is the same class of mistake the staleness
 guard exists to prevent. Every phase criterion below that uses `-Filter` still
 needs a full-suite run before the phase is considered done.
@@ -63,7 +63,7 @@ needs a full-suite run before the phase is considered done.
 Each phase in [plan.md](./plan.md) has a criterion that is checkable rather than
 asserted.
 
-### Phase A — seam extraction changed no behavior
+### Phase A: seam extraction changed no behavior
 
 ```powershell
 scripts\RunTests.ps1 -Build
@@ -74,14 +74,14 @@ The suite passes **and** the second command shows no *existing* test file
 modified. Phase A moves the AS65 grammar behind the seam without altering it, so
 an edit to a test that already existed means behavior moved with it. That is the
 signal to stop and find out what changed. Run this before adding any new test
-file — new files are expected later in the phase and do not violate the gate.
+file, new files are expected later in the phase and do not violate the gate.
 
 This is also why the AS65 directive spelling table stays in `DirectiveTable`
 rather than moving into the profile: `UnitTest/DirectiveTokenTests.cpp` sweeps
 `GetAllSpellings()`, and moving the table would force an edit to exactly the kind
 of test this gate protects.
 
-### Phase B — diagnostics name the right file
+### Phase B: diagnostics name the right file
 
 ```powershell
 scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinDiagnosticTests
@@ -90,7 +90,7 @@ scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinDiagnosticTests
 A diagnostic raised inside an included file names that file, not the top-level
 input. Existing AS65 diagnostics are unchanged, which the untouched suite proves.
 
-### Phase C — AS65 output is byte-identical
+### Phase C: AS65 output is byte-identical
 
 ```powershell
 scripts\RunTests.ps1 -Build -Configuration Release
@@ -99,7 +99,7 @@ scripts\RunTests.ps1 -Build -Configuration Release
 This is SC-004. Holding both instruction tables must not change a single byte the
 existing corpus produces.
 
-### Phase E — the Merlin corpus matches captured bytes
+### Phase E: the Merlin corpus matches captured bytes
 
 ```powershell
 scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinCorpusTests
@@ -107,11 +107,11 @@ scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinCorpusTests
 
 This is SC-001. Every entry meeting the corpus floor assembles to bytes identical
 to those captured from real Merlin Pro. Nothing here reads a file or invokes another
-assembler — sources and objects are committed fixtures read through
+assembler, sources and objects are committed fixtures read through
 `IFixtureProvider::OpenFixture`, and multi-file entries are served by an injected
 mock reader. No fetch step: the fixtures run on every build on every machine.
 
-### Phase F — every boundary construct is refused by name
+### Phase F: every boundary construct is refused by name
 
 ```powershell
 scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinSubsetBoundaryTests
@@ -120,7 +120,7 @@ scripts\RunTests.ps1 -Build -Configuration Release -Filter MerlinSubsetBoundaryT
 The test sweeps the boundary table's accessor rather than a hand-picked sample, so
 a row added to the table is covered without anyone editing a test.
 
-### Phase H — a third dialect needs no engine change
+### Phase H: a third dialect needs no engine change
 
 ```powershell
 scripts\RunTests.ps1 -Build -Configuration Release -Filter DialectMechanismTests
@@ -134,8 +134,8 @@ hard-coded for two dialects passes every Merlin test and fails exactly here, whi
 is the cheap way to catch it before 023 finds it the expensive way.
 
 Note the diff is scoped to **the adding commit**, not to `origin/master`. Earlier
-phases of this same feature legitimately modify `AssemblySession.cpp` — new
-directive rows, dummy sections, per-line instruction tables — so a diff against
+phases of this same feature legitimately modify `AssemblySession.cpp` (new
+directive rows, dummy sections, per-line instruction tables) so a diff against
 master is never empty and would prove nothing. The claim SC-009 makes is about
 what *adding a dialect* costs, which is a property of that one commit.
 
@@ -151,7 +151,7 @@ scripts\CheckStyle.ps1
 ```
 
 `CheckStyle.ps1` inspects commit messages as well as added lines. If it rejects a
-push, rephrase — do not reach for `--no-verify`, which switches off every rule
+push, rephrase; do not reach for `--no-verify`, which switches off every rule
 rather than the one that fired.
 
 ARM64 is build-only; no device is available to run tests on, so x64 Debug and
@@ -160,7 +160,7 @@ Release green is the bar.
 ## Capturing a corpus entry
 
 Not part of validation. Offline, one-time per entry, and needed only to **add** a
-fixture — the five vendor oracles require none of it. The image is committed at
+fixture, the five vendor oracles require none of it. The image is committed at
 `UnitTest/Fixtures/Disks/Merlin-proDos2.23.dsk`, so you no longer supply your own;
 capture works against a copy of it, never the pristine image.
 
@@ -189,7 +189,7 @@ It works only because the Merlin disk is a flat DOS-order image; it is capture
 tooling, not a product feature, and does not stand in for
 `020-disk-file-access`'s `disk get`. Delete it when that lands.
 
-Source goes in by typing or pasting into Merlin's editor — and **paste is
+Source goes in by typing or pasting into Merlin's editor, and **paste is
 verified, not trusted**. Issue #110 reports the guest paste path garbling input,
 so save the source back to the disk from within Merlin, extract it, and compare
 against what you intended. A clean round trip is the proof; without it, a garbled
@@ -208,7 +208,7 @@ ways that look like emulator faults but are not.
 **Send `WM_CHAR`, never `WM_KEYDOWN`.** `scripts/SendCassoKeys.ps1` posts
 `WM_CHAR` only. Casso derives the character from the virtual key plus the *real*
 keyboard's shift state, so a synthetic `WM_KEYDOWN` produces the unshifted
-character — `"` arrives as `'`, `<` as `,`. Every shifted character in the source
+character, `"` arrives as `'`, `<` as `,`. Every shifted character in the source
 is silently wrong. This was caught only because Applesoft rejected
 `FLASH ; PRINT "TEST"` as a syntax error; a Merlin source line would have
 assembled to different bytes without complaint.
@@ -221,7 +221,7 @@ think, so it is not a mode signal.
 **Exiting Add mode: `RETURN` as the very first character of a line.** A `RETURN`
 after any text just ends that line. `ESC` in either of its message forms, a bare
 `RETURN` mid-line, and `Ctrl-C` are all *appended as source text* rather than
-exiting — six attempts before the manual settled it. To enter a deliberately
+exiting, six attempts before the manual settled it. To enter a deliberately
 blank line without exiting, type a space first, then `RETURN`.
 
 **`$08` is not backspace here.** Sending it to Merlin's object-name prompt
@@ -246,9 +246,9 @@ round-trip verification above is mandatory rather than advisory.
 ### The banner corruption, and what it is not
 
 The `Merlin` banner renders corrupted under emulation. Four hypotheses were
-eliminated — it is not `ALTCHARSET` left set (COUT resets it), not a
+eliminated; it is not `ALTCHARSET` left set (COUT resets it), not a
 Casso-specific text-mode fault, not a paste artifact, and a reference screenshot
 from the archive shows the same characters. It needs memory inspection to settle
 (GH #117, related to #51 / #59). **It does not affect captured bytes**, so it is
-not a blocker for corpus work — do not spend time on it before the corpus needs
+not a blocker for corpus work; do not spend time on it before the corpus needs
 it.

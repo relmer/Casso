@@ -1,4 +1,4 @@
-# Phase 1 — Data Model (Native UI Reset)
+# Phase 1: Data Model (Native UI Reset)
 
 This document defines the entities introduced or extended by the native reset.
 Schema and interface contracts live under `./contracts/`.

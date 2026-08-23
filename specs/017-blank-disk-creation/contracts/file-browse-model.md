@@ -1,6 +1,6 @@
 # Contract: FileBrowseModel (core)
 
-`CassoEmuCore/Ui/FileBrowseModel.h` — the pure navigation/validation engine
+`CassoEmuCore/Ui/FileBrowseModel.h`, the pure navigation/validation engine
 behind the create dialog (R-010). All filesystem access through the injected
 `IFileSystem`; fully unit-testable with a mock.
 

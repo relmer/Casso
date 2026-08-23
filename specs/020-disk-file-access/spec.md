@@ -4,9 +4,9 @@
 
 **Created**: 2026-08-15
 
-**Status**: Clarified (2026-08-15) — ready for planning
+**Status**: Clarified (2026-08-15), ready for planning
 
-**Input**: User description: "Developer-focused features so a 6502 developer can edit source on Windows, assemble it, get the result onto an Apple II disk image, and boot it — without leaving Casso or hand-assembling on a 128K machine."
+**Input**: User description: "Developer-focused features so a 6502 developer can edit source on Windows, assemble it, get the result onto an Apple II disk image, and boot it, without leaving Casso or hand-assembling on a 128K machine."
 
 ## Overview
 
@@ -21,8 +21,8 @@ toolchain, so a developer types one command and watches their program run.
 
 ### Minimum viable path
 
-Stories 1, 2, and 3 together — produce a loadable artifact, put it on a disk, take
-files off a disk — are the smallest set that lets a developer **migrate an
+Stories 1, 2, and 3 together (produce a loadable artifact, put it on a disk, take
+files off a disk) are the smallest set that lets a developer **migrate an
 existing project onto a modern host**, which is the situation that motivated this
 work. All three are P1 for that reason.
 
@@ -39,18 +39,18 @@ the migration.
 ### Session 2026-08-15
 
 - Q: When writing into a bit-stream image, what happens to tracks the operation never touched? → A: Re-encode only the tracks whose sectors changed; copy every other track's original bit stream verbatim. Representability is judged per touched track, not per image.
-- Q: How is an unwritable track identified — by detecting copy protection? → A: No. Detect standard-ness and refuse anything not provably standard; never enumerate protection schemes. The posture is fail-safe.
+- Q: How is an unwritable track identified, by detecting copy protection? → A: No. Detect standard-ness and refuse anything not provably standard; never enumerate protection schemes. The posture is fail-safe.
 - Q: How far does the all-or-nothing guarantee in FR-013 extend? → A: To crash safety. Build the complete image in memory or fail, then commit via a uniquely named temp file and an atomic replace.
-- Q: How should the tool detect that a target image is in use by a running emulator? → A: It should not — that scenario is already out of scope per the Assumptions, and the emulator holds no handle to detect. Document the hazard, keep a best-effort probe for other holders, and re-verify the file has not changed between read and write.
+- Q: How should the tool detect that a target image is in use by a running emulator? → A: It should not; that scenario is already out of scope per the Assumptions, and the emulator holds no handle to detect. Document the hazard, keep a best-effort probe for other holders, and re-verify the file has not changed between read and write.
 - Q: What second-level verbs does the `disk` subcommand use? → A: Descriptive canonical verbs (`list`, `put`, `get`, `delete`, `boot`) with terse aliases (`ls`, `rm`). No `cat`.
-- Q: What does the tool return when a volume is damaged but partly readable? → A: Three states on the tool's existing exit-status vocabulary — 0 clean, 1 succeeded with complaints, 2 produced no output.
-- Q: What does delete do when a file's sector chain is damaged — refuse, or free what is readable and leak the rest? → A: Neither blindly. Free only what the catalog proves the file uniquely owns, report the rest as leaked, and keep the file removable so a damaged file cannot strand the volume.
+- Q: What does the tool return when a volume is damaged but partly readable? → A: Three states on the tool's existing exit-status vocabulary, 0 clean, 1 succeeded with complaints, 2 produced no output.
+- Q: What does delete do when a file's sector chain is damaged, refuse, or free what is readable and leak the rest? → A: Neither blindly. Free only what the catalog proves the file uniquely owns, report the rest as leaked, and keep the file removable so a damaged file cannot strand the volume.
 - Q: Are files addressed by bare name or by path? → A: By path from the first pass, so subdirectory support is a filled-in capability rather than a later signature change.
-- Q: Is the volume reference map built per consumer or once? → A: Once, as a first-class integrity pass with four consumers — delete, listing, allocation, and the pre-commit check on every computed write.
+- Q: Is the volume reference map built per consumer or once? → A: Once, as a first-class integrity pass with four consumers: delete, listing, allocation, and the pre-commit check on every computed write.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Assemble to a loadable binary (Priority: P1) — DELIVERED
+### User Story 1 - Assemble to a loadable binary (Priority: P1): DELIVERED
 
 > Already implemented and shipped. `--raw` and `--dos-bin` live in the core's
 > output-format writers alongside the existing full-image writer, with tests.
@@ -66,7 +66,7 @@ who wants to load a 2 KB routine at `$6000` has to slice 64 KB down by hand.
 
 **Why this priority**: Every other story depends on having a loadable artifact.
 Without it there is nothing to place on a disk. It is also the smallest change in
-the feature and unblocks developers immediately, even before disk access exists —
+the feature and unblocks developers immediately, even before disk access exists;
 they can pair it with an external disk tool the same day.
 
 **Independent Test**: Assemble a source file with the new output selection and
@@ -127,11 +127,11 @@ loading it produces the expected bytes in memory.
 ### User Story 3 - Read a disk image's contents (Priority: P1) - DELIVERED
 
 A developer lists what is on a disk image and extracts a file from it to the host
-— to recover source stored on a disk, to inspect what a program actually wrote, or
+, to recover source stored on a disk, to inspect what a program actually wrote, or
 to confirm that a placement worked.
 
 **Why this priority**: For a developer migrating an existing project, this is
-step one — their source lives on Apple II disks today and cannot be edited on a
+step one; their source lives on Apple II disks today and cannot be edited on a
 modern host until it can be extracted. Nothing else in this feature is reachable
 for them until it exists. It also makes the loop debuggable, since listing is how
 a developer verifies Story 2 without booting the emulator.
@@ -153,8 +153,8 @@ compare it byte-for-byte against the original.
    endings are normalized.
 4. **Given** a disk image whose catalog is damaged, **When** the developer lists it,
    **Then** the readable entries are reported on the output stream, the damage is
-   described on the error stream, and the exit status is 1 — succeeded with
-   complaints — rather than the operation failing outright or reporting a clean
+   described on the error stream, and the exit status is 1, succeeded with
+   complaints, rather than the operation failing outright or reporting a clean
    success.
 5. **Given** a disk image with a track that cannot be decoded into standard
    sectors, **When** the developer lists or extracts from it, **Then** the
@@ -172,7 +172,7 @@ Casso can already create bootable DOS 3.3 and ProDOS disks, but they always boot
 to a stock greeting. There is no way to say "boot into *my* program."
 
 **Why this priority**: It removes the last manual step from the loop. Without it
-every iteration ends with the developer typing `BRUN PROG` by hand — tolerable
+every iteration ends with the developer typing `BRUN PROG` by hand, tolerable
 once, tedious fifty times a day. It is P2 rather than P1 because the loop is
 already usable without it.
 
@@ -204,13 +204,13 @@ is the other way to boot and not a variant of this one, and alongside any
 `--format` other than none, because there is no filesystem here to format.
 
 A developer produces a disk image that boots directly into a binary with no DOS or
-ProDOS present at all — the program owns the machine from power-on and gets the
+ProDOS present at all; the program owns the machine from power-on and gets the
 memory the operating system would otherwise occupy.
 
 **Why this priority**: For demos, test harnesses, and "does this even run," waiting
 for DOS to load is pure overhead, and the memory DOS occupies is often exactly
 what the program needs. It is P3 because it serves a narrower audience than the
-filesystem stories and is independently valuable — it does not depend on any of
+filesystem stories and is independently valuable; it does not depend on any of
 them.
 
 **Independent Test**: Produce a no-operating-system boot image from a binary, boot
@@ -238,7 +238,7 @@ disk as a program the guest can `RUN` directly.
 
 **Why this priority**: Hand-producing tokenized Applesoft is impractical, so
 without this a developer who wants a BASIC loader or test harness must type it at
-the guest prompt and save it there — which breaks the "edit on the host" premise.
+the guest prompt and save it there, which breaks the "edit on the host" premise.
 It is P3 because assembly, not BASIC, is the primary audience.
 
 **Independent Test**: Place a known BASIC listing on a disk, boot it, `LIST` the
@@ -292,8 +292,8 @@ list it back.
 - What happens when the target image is currently mounted in a running copy of
   Casso? The emulator holds the disk in memory and will write its own copy back
   when the drive flushes, silently discarding host-side edits. The emulator holds
-  no operating-system handle on the file while it is mounted — it reads the bytes
-  and closes — so no probe the tool can make detects this, and inventing a
+  no operating-system handle on the file while it is mounted, it reads the bytes
+  and closes, so no probe the tool can make detects this, and inventing a
   cross-process protocol to detect it would contradict the scope this feature
   declares. The hazard MUST therefore be documented rather than claimed to be
   prevented, and the tool MUST refuse only what the platform can actually
@@ -303,10 +303,10 @@ list it back.
   the decoder could not recover MUST be reported as unrecovered. It MUST NOT be
   presented as a run of zero bytes, which is indistinguishable from genuinely
   zeroed data and, on a write path, silently overwrites what could not be read.
-- What happens when a file name is not legal on the target filesystem — too long,
+- What happens when a file name is not legal on the target filesystem, too long,
   lowercase, or containing characters the catalog cannot store? The name MUST be
   reported as rejected rather than silently truncated or transliterated.
-- What happens when a placement fails partway through — out of space discovered
+- What happens when a placement fails partway through, out of space discovered
   after some sectors are written? The image MUST be left exactly as it was; a
   partially written file is worse than a failed operation.
 - What happens when the volume's free-space map disagrees with what the catalog
@@ -362,27 +362,27 @@ list it back.
   catalog actually references, and free only what the deleted file uniquely owns.
   Space the file referenced but that cannot be safely freed MUST be reported as
   leaked rather than freed, and a file whose sector chain is damaged MUST still be
-  removable on those terms — refusing to delete it would strand the volume, and
+  removable on those terms, refusing to delete it would strand the volume, and
   the migrating developer of US3 is working with exactly the degraded disks where
   that arises.
 - **FR-012**: Writing a file whose name already exists MUST replace the existing
   file, not create a duplicate entry or fail. Replacement MUST be computed as a
-  whole — the complete post-replacement image produced before anything is
-  committed — never as a delete applied to the target followed by a write. A
+  whole, the complete post-replacement image produced before anything is
+  committed, never as a delete applied to the target followed by a write. A
   failure between the two steps of an in-place replacement would leave the old
   file freed and the new one absent, which loses the file outright and is worse
   than a refused write.
 - **FR-013**: Every write operation MUST be all-or-nothing: on any failure the
   image MUST be left byte-for-byte as it was. The complete new image MUST be
   built in memory and validated before anything is committed, and the commit
-  MUST be crash-safe — written to a uniquely named temporary file alongside the
-  target, then atomically replacing it — so an interrupted write cannot truncate
+  MUST be crash-safe (written to a uniquely named temporary file alongside the
+  target, then atomically replacing it) so an interrupted write cannot truncate
   or corrupt the original. The temporary file MUST be removed on any failure,
   and its name MUST NOT collide when two invocations target the same image.
 - **FR-014**: The system MUST refuse to write to a volume that is write-protected,
   and MUST refuse to overwrite a file that is locked. The refusal MUST be
   reported in intelligible terms naming the image and the reason, not as a raw
-  platform error code — including when write protection is enforced by the host
+  platform error code, including when write protection is enforced by the host
   file's read-only attribute and surfaces as an access denial at commit time.
 - **FR-015**: Volume access MUST work on every disk image format Casso can already
   mount, including bit-stream images, not only sector-order images.
@@ -443,13 +443,13 @@ list it back.
 - **FR-029**: Every capability above MUST be reachable from the command-line tool
   using subcommand-style invocation consistent with the existing tool: a single
   `disk` subcommand carrying second-level verbs.
-- **FR-030**: The second-level verbs MUST be descriptive words — `list`, `put`,
-  `get`, `delete`, `boot` — and MUST additionally accept the terse aliases `ls`
+- **FR-030**: The second-level verbs MUST be descriptive words (`list`, `put`,
+  `get`, `delete`, `boot`) and MUST additionally accept the terse aliases `ls`
   for `list` and `rm` for `delete`. Help output MUST display the descriptive
   form. `put` and `get` are named from the disk's perspective, which is what
   makes their direction unambiguous; the help text MUST say so. `cat` MUST NOT
   be used for the catalog listing, because it collides with the established
-  meaning of printing a file's contents — which this tool does under `get`.
+  meaning of printing a file's contents, which this tool does under `get`.
 - **FR-031**: Every operation MUST report its outcome through an exit status.
   The values **0**, **1**, and **2** are reserved and mean the same thing in
   every subcommand of this tool: **0** the operation completed cleanly, **1** the
@@ -461,7 +461,7 @@ list it back.
 - **FR-032**: Exit statuses of **3** and above are scoped to the subcommand that
   returns them and MUST be documented in that subcommand's own help. They carry
   no cross-subcommand meaning and MUST NOT be coordinated against other
-  subcommands' values — a caller already knows which subcommand it invoked, so
+  subcommands' values; a caller already knows which subcommand it invoked, so
   requiring global uniqueness above 2 would couple independent subcommands
   without making any script more correct.
 - **FR-033**: Failure messages MUST name the image, the file, and the reason, and
@@ -471,7 +471,7 @@ list it back.
   scope (see Assumptions), and because the emulator holds no handle on the file
   to detect, the system MUST document the hazard rather than claim to prevent
   it. It MUST additionally make a best-effort exclusive-open probe and refuse
-  when some *other* holder has the file open — which the platform can detect —
+  when some *other* holder has the file open, which the platform can detect,
   without implying that a clean probe means no emulator is running.
 - **FR-036**: The system MUST record the target image's size and modification
   time when it reads the image, and MUST re-verify both immediately before
@@ -495,8 +495,8 @@ how the versions drift apart.
   to its end.
 - **FR-038**: That determination MUST terminate on any input. A corrupted chain
   pointer can form a cycle, and this pass runs by design on volumes selected for
-  being damaged, so traversal MUST be bounded — by a visited set, an iteration
-  ceiling derived from the volume's own capacity, or both — and a chain that hits
+  being damaged, so traversal MUST be bounded (by a visited set, an iteration
+  ceiling derived from the volume's own capacity, or both) and a chain that hits
   the bound MUST be reported as unfollowable rather than followed further.
 - **FR-039**: Every write MUST run this pass over the **computed result**, before
   anything is committed, and MUST refuse to commit a result that fails it: a
@@ -512,8 +512,8 @@ how the versions drift apart.
   when deleting from a volume whose catalog did not fully parse.
 
 Note the asymmetry that keeps the rest safe: delete only ever frees sectors the
-deleted file itself claims, so the large ambiguous set — allocated in the free
-map, claimed by no readable file — is never touched. That set is either
+deleted file itself claims, so the large ambiguous set (allocated in the free
+map, claimed by no readable file) is never touched. That set is either
 already-leaked space or an invisible file's data, and refusing to guess between
 them is the correct behavior, not a gap.
 
@@ -522,7 +522,7 @@ them is the correct behavior, not a gap.
 - **FR-041**: When a write is refused because the image could not be read
   losslessly, the system MUST preserve the rejected state rather than discard it.
   It MUST produce a recovery artifact beside the target in a form that loses
-  nothing — including the very content that caused the refusal — leave the
+  nothing, including the very content that caused the refusal, leave the
   original untouched, and name that artifact's location in the message. A refusal
   that leaves the user no way to recover their work is only half a fix: the point
   is to keep the original intact **and** the work retrievable, and to let the user
@@ -534,14 +534,14 @@ them is the correct behavior, not a gap.
 
 ### Key Entities
 
-- **Volume**: A formatted filesystem on a disk image — DOS 3.3 or ProDOS. Knows its
+- **Volume**: A formatted filesystem on a disk image, DOS 3.3 or ProDOS. Knows its
   total and free capacity, its name or number, and the files it contains.
-- **File Entry**: One catalog record — name, type, size, lock state, and (per
+- **File Entry**: One catalog record, name, type, size, lock state, and (per
   filesystem) load address, auxiliary type, and timestamps.
 - **File Payload**: The bytes of one file, plus the metadata needed to place it
   correctly (its type and, where applicable, its load address).
 - **Boot Configuration**: What a bootable volume runs after its operating system
-  loads, or — for a direct-boot image — the payload, its load address, and its
+  loads, or, for a direct-boot image, the payload, its load address, and its
   entry point.
 
 ## Success Criteria *(mandatory)*
@@ -556,23 +556,23 @@ them is the correct behavior, not a gap.
   Mechanically checkable form: the help output contains a copy-pasteable worked
   example covering assemble → place → boot, and every verb and option used in
   that example appears in the same help output. Whether a newcomer *succeeds* is a
-  review gate, not a test — the checkable part is that the material is there.
+  review gate, not a test; the checkable part is that the material is there.
 - **SC-003**: Files placed by Casso are read correctly by the guest operating
-  system in 100% of cases for the supported file types — verified by listing and
+  system in 100% of cases for the supported file types, verified by listing and
   loading each type from a booted machine.
 - **SC-004**: Files extracted by Casso match the bytes originally placed exactly,
   for every supported file type, across every image format Casso can mount.
 - **SC-005**: No failed operation ever leaves a disk image in a state the guest
-  operating system cannot read — verified by attempting every documented failure
+  operating system cannot read, verified by attempting every documented failure
   mode and booting the image afterwards. This holds for an interruption as well
   as a refusal: a write killed mid-commit leaves the original image intact and
   leaves no temporary file behind.
-- **SC-006**: A full iteration — assemble, place, launch, program running — takes
+- **SC-006**: A full iteration (assemble, place, launch, program running) takes
   under 10 seconds on a typical development machine for a program of a few
   kilobytes.
 - **SC-007**: A direct-boot image reaches the developer's code in **under 25% of
   the emulated CPU cycles the DISK contributes** to the equivalent DOS 3.3 boot of
-  the same program — each boot's whole cost less the fixed cost the controller ROM
+  the same program; each boot's whole cost less the fixed cost the controller ROM
   spends before either disk's first byte executes, which must be measured on both
   images and be the same number on both. Emulated cycles rather than wall clock,
   so the measurement is deterministic and independent of host speed and emulation
@@ -583,7 +583,7 @@ them is the correct behavior, not a gap.
   this machine is entered the same way: the controller ROM recalibrates the head
   with eighty half-steps and reads track 0 sector 0 into $0800 before anything on
   the disk runs. That costs 1,647,741 emulated cycles, which is 25.9% of what a
-  DOS 3.3 boot spends reaching a BRUN'd binary — so a disk holding nothing at all
+  DOS 3.3 boot spends reaching a BRUN'd binary, so a disk holding nothing at all
   would still exceed the bar. The constant is common to both images and is not
   something this feature can influence, so measuring it in tells you about the
   controller rather than about the feature. The bar itself is not relaxed: the
@@ -597,7 +597,7 @@ them is the correct behavior, not a gap.
   the write is refused, and the image is byte-for-byte unchanged afterwards.
 - **SC-009**: No write is ever committed without having been checked. Every
   committed image passed the volume integrity pass over its computed result, and
-  a deliberately corrupted result is refused rather than written — verified by
+  a deliberately corrupted result is refused rather than written, verified by
   the pass rejecting a result whose free map and catalog disagree.
 - **SC-010**: Every operation over a deliberately damaged volume terminates.
   Verified against volumes carrying cyclic and self-referential chains, with no
@@ -634,8 +634,8 @@ them is the correct behavior, not a gap.
   protection schemes.
 - Most copy-protected disks are refused by the filesystem layer before the track
   layer is consulted, because they carry no readable DOS 3.3 or ProDOS volume at
-  all. The per-track check is the backstop for the awkward middle case — a
-  mostly-standard disk with one or two protected tracks — which is precisely
+  all. The per-track check is the backstop for the awkward middle case, a
+  mostly-standard disk with one or two protected tracks, which is precisely
   where a silent failure does the most damage.
 - Crash-safe commit is introduced for this tool's writes only. The emulator's own
   flush path writes non-atomically, so after this feature command-line writes are

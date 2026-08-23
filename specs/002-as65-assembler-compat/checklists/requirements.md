@@ -32,7 +32,7 @@
 ## Notes
 
 - Spec expanded from Dormann-only to full AS65 clone (6502 mode) per user request
-- 65SC02/65C02 extensions explicitly out of scope — deferred to separate spec
+- 65SC02/65C02 extensions explicitly out of scope, deferred to separate spec
 - 4 clarification questions asked and answered (reassignable `=`, I_flag default, eager evaluation, full AS65 scope)
 - Reference documentation: `as65.man` from `as65_142.zip` (Frank A. Kingswood, v1.42)
 - AS65 test case file (`testcase.a65`) added as a secondary validation target alongside Dormann suite

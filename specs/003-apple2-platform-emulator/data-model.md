@@ -196,7 +196,7 @@ Manages Apple II video mode state.
 | page2 | bool | True when $C055 set (display page 2) |
 | hiresMode | bool | True when $C057 set (hi-res), false = lo-res |
 
-**State transitions**: Read or write to any address $C050–$C057 toggles the corresponding flag. Even addresses set the flag; odd addresses clear it (or vice versa per Apple II convention — see spec memory map).
+**State transitions**: Read or write to any address $C050–$C057 toggles the corresponding flag. Even addresses set the flag; odd addresses clear it (or vice versa per Apple II convention; see spec memory map).
 
 ---
 
@@ -305,7 +305,7 @@ Main application class.
 | colorMode | enum | Color, GreenMono, AmberMono, WhiteMono |
 
 **Frame loop** (integrated with Win32 message pump):
-1. `PeekMessage()` — process all pending Win32 messages
+1. `PeekMessage()`: process all pending Win32 messages
 2. Execute ~17,030 CPU cycles via `emuCpu->StepOne()` in a loop
 3. Call `activeVideoMode->Render()` to fill framebuffer
 4. Apply monochrome tint if `colorMode != Color`

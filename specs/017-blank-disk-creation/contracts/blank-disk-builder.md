@@ -1,6 +1,6 @@
 # Contract: BlankDiskBuilder (core)
 
-`CassoEmuCore/Devices/Disk/BlankDiskBuilder.h` — pure static API, EHM
+`CassoEmuCore/Devices/Disk/BlankDiskBuilder.h`, pure static API, EHM
 conventions, no host dependencies beyond caller-supplied payload bytes.
 
 ```cpp
@@ -47,19 +47,19 @@ public:
   CRC discipline; INFO write-protect byte = 0 per FR-012).
 - `Dsk`/`Po` outputs are exactly 143,360 bytes.
 - Formatted outputs satisfy the skeleton invariants in data-model.md
-  (VTOC/catalog for DOS 3.3; directory/bitmap for ProDOS) — unit tests assert
+  (VTOC/catalog for DOS 3.3; directory/bitmap for ProDOS), unit tests assert
   them structurally, and mount-level tests assert `CATALOG`/`CAT` cleanliness.
 - Bootable DOS output boots to the Applesoft prompt via the copied DOS tracks
   + generated `HELLO` (SC-006 gate exercises this with the real CPU).
 - Deterministic: identical spec + payload ⇒ identical bytes (no clocks, no
-  randomness) — keeps golden-byte tests stable.
+  randomness), keeps golden-byte tests stable.
 
 ## Sub-components (internal, individually unit-tested)
 
 - `Dos33Skeleton::Write (buffer, volumeNumber)` / `Dos33Skeleton::InstallDos
   (buffer, masterSectors)` / `Dos33FileWriter::WriteHello (buffer)`.
 - `ProDosSkeleton::Write (buffer, volumeName)` / `ProDosSkeleton::InstallBoot
-  (buffer, usersDisk)` — uses `ProDosReader::ExtractFile (usersDisk, name,
+  (buffer, usersDisk)`, which uses `ProDosReader::ExtractFile (usersDisk, name,
   outBytes, outFileType, outAuxType)` and `ProDosFileWriter::WriteFile
   (buffer, name, fileType, auxType, bytes)`.
 - `ProDosReader` / `ProDosFileWriter` maintain bitmap/directory consistency:

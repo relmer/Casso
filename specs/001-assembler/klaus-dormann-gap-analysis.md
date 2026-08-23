@@ -1,4 +1,4 @@
-# Klaus Dormann Functional Test Suite — Assembler Gap Analysis
+# Klaus Dormann Functional Test Suite: Assembler Gap Analysis
 
 **Status**: Investigation report for issue [#26](https://github.com/relmer/Casso/issues/26) (parent [#7](https://github.com/relmer/Casso/issues/7))
 **Date**: 2026-04-25
@@ -18,7 +18,7 @@ evidence drawn from the suite source, and acceptance criteria.
    `My6502Core/Parser.cpp`, and the feature spec at `specs/001-assembler/spec.md`.
 2. Read `6502_functional_test.a65` from the upstream repository and cataloged every
    distinct syntactic construct that Casso does not currently accept.
-3. Cross-checked the "Out of Scope" section of the existing feature spec — items
+3. Cross-checked the "Out of Scope" section of the existing feature spec, items
    listed there (macros, conditional assembly, includes) are deliberately deferred
    and need to be re-scoped if we want to run Dormann's suite directly.
 
@@ -26,8 +26,8 @@ evidence drawn from the suite source, and acceptance criteria.
 
 | Capability                              | Casso today                                          | Dormann's suite needs                                                  | Gap |
 |-----------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------|:---:|
-| Mnemonics + addressing modes (NMOS)     | All 56 standard mnemonics, all modes                   | Same                                                                   |  —  |
-| Number literals                         | `$hex`, `%bin`, decimal                                | Same                                                                   |  —  |
+| Mnemonics + addressing modes (NMOS)     | All 56 standard mnemonics, all modes                   | Same                                                                   | n/a |
+| Number literals                         | `$hex`, `%bin`, decimal                                | Same                                                                   | n/a |
 | Labels                                  | `name:` (colon required)                               | `name` at column 0, no colon (`range_fw`, `trap`, …)                   |  ✗  |
 | Constant / symbol definitions           | None                                                   | `name = expr` and `name equ expr` (heavily used: `carry equ %0001`, `zero_page = $a`, `range_adr = *+1`) | ✗ |
 | Current-PC operator (`*`)               | None                                                   | `*+1`, `beq *`, `jmp *`                                                |  ✗  |
@@ -41,8 +41,8 @@ evidence drawn from the suite source, and acceptance criteria.
 | `.include`                              | None                                                   | Suite is single-file but pulls in `report.i65` when `report=1`         | ✗* |
 | Assembler assertions / `ERROR` directive| None                                                   | `ERROR ERROR ERROR low byte of data_segment MUST be $00 !!`            | ✗* |
 | `noopt` and similar passthrough pragmas | None                                                   | `noopt` is harmless for a one-pass-style emitter but must not error    |  ✗  |
-| Case sensitivity                        | Mnemonics insensitive, labels sensitive (FR-022/023)   | Same — OK                                                              |  —  |
-| Output format                           | Flat binary, default fill `$FF`                        | Suite is built with `-h0` (intel hex) but a flat binary at `$0000..$FFFF` is acceptable for our purposes | — |
+| Case sensitivity                        | Mnemonics insensitive, labels sensitive (FR-022/023)   | Same, OK                                                              | n/a |
+| Output format                           | Flat binary, default fill `$FF`                        | Suite is built with `-h0` (intel hex) but a flat binary at `$0000..$FFFF` is acceptable for our purposes | n/a |
 
 `✗*` = nice-to-have but the default Dormann config (`report = 0`) makes it skippable.
 
@@ -102,14 +102,14 @@ core mnemonic/addressing-mode coverage is sufficient, but the surrounding meta-s
 (constant definitions, expressions, conditionals, and macros) is not. Closing #7 by
 running the suite from source therefore requires either:
 
-1. **Path A (preferred long-term)** — extend the assembler with the enhancements
+1. **Path A (preferred long-term)**: extend the assembler with the enhancements
    listed below so the suite builds with our toolchain, or
-2. **Path B (interim)** — assemble the suite externally with AS65/CA65 once and
+2. **Path B (interim)**: assemble the suite externally with AS65/CA65 once and
    commit the binary artifact for #7. This unblocks CPU validation but leaves the
    assembler unable to consume any non-trivial real-world source.
 
 The proposed enhancement issues below describe the work required for Path A. They
-are listed in the recommended implementation order — each is independently shippable
+are listed in the recommended implementation order; each is independently shippable
 and unlocks at least one additional concrete construct used in the suite.
 
 ---
@@ -123,7 +123,7 @@ of #7 (test suite execution) and unblock it.
 ### 1. `feat(assembler): support constant assignment via `=` and `equ``
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P1 — required for #7
+**Priority**: P1, required for #7
 **Blocks**: #7
 
 **Summary.** Allow lines of the form `NAME = EXPR` and `NAME equ EXPR` to define a
@@ -150,14 +150,14 @@ range_adr   = *+1
 - Redefinition produces an error in the same style as duplicate labels.
 - A constant whose name collides with a mnemonic or register is rejected (FR-024).
 - `name = *+N` resolves to the current PC at the point of definition (depends on
-  the `*` operator — see issue 2).
+  the `*` operator; see issue 2).
 
 ---
 
 ### 2. `feat(assembler): support `*` (current-PC) operator in expressions`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P1 — required for #7
+**Priority**: P1, required for #7
 **Blocks**: #7
 
 **Summary.** Recognize a bare `*` token in any expression context as "the address of
@@ -181,7 +181,7 @@ range_adr = *+1
 - `*` is valid anywhere a numeric expression is valid (operand, RHS of `=`/`equ`,
   inside `if`).
 - Branch targets like `bne *` correctly compute a relative offset of `-2`.
-- Multiplication in expressions (issue 3) must not be ambiguous with `*` — `*` is
+- Multiplication in expressions (issue 3) must not be ambiguous with `*`, `*` is
   only the current-PC operator when it appears as a primary (start of an expression
   or after an operator/`(`); otherwise it is the multiplication operator.
 
@@ -190,7 +190,7 @@ range_adr = *+1
 ### 3. `feat(assembler): full numeric expression evaluator`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P1 — required for #7
+**Priority**: P1, required for #7
 **Blocks**: #7, issue 1, issue 4
 
 **Summary.** Replace the current restricted operand classifier (which understands
@@ -239,13 +239,13 @@ if (data_segment & $ff) != 0
 ### 4. `feat(assembler): conditional assembly (`if` / `else` / `endif`)`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P1 — required for #7
+**Priority**: P1, required for #7
 **Blocks**: #7
 **Depends on**: issues 1, 3
 
 **Summary.** Add `if EXPR`, `else`, and `endif` directives (with and without leading
 dot, case-insensitive). When `EXPR` evaluates to non-zero the body is assembled,
-otherwise it is skipped — including label and constant definitions inside it.
+otherwise it is skipped, including label and constant definitions inside it.
 Conditionals nest arbitrarily.
 
 **Evidence (Dormann).**
@@ -287,7 +287,7 @@ endif
 ### 5. `feat(assembler): macro definitions with positional parameters`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P1 — required for #7
+**Priority**: P1, required for #7
 **Blocks**: #7
 **Depends on**: issues 1, 3, 4
 
@@ -314,7 +314,7 @@ set_a   macro
         plp
         endm
 ```
-Note that `trap_eq` itself contains a macro call (`trap`) — macro bodies can call
+Note that `trap_eq` itself contains a macro call (`trap`), macro bodies can call
 other macros (recursive expansion is bounded by the source not declaring infinite
 recursion).
 
@@ -338,7 +338,7 @@ recursion).
 ### 6. `feat(assembler): accept colon-less labels`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P2 — required for #7
+**Priority**: P2, required for #7
 **Blocks**: #7
 
 **Summary.** Currently a label requires a trailing `:`. Dormann (and AS65/CA65 by
@@ -372,7 +372,7 @@ range_adr   = *+1
 ### 7. `feat(assembler): storage directives `dsb` / `ds` / `.res``
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P2 — required for #7
+**Priority**: P2, required for #7
 **Blocks**: #7
 
 **Summary.** Add a directive to reserve N bytes, optionally pre-filled with a value.
@@ -389,7 +389,7 @@ Dormann uses these to lay out the data segment.
 ### 8. `feat(assembler): accept AS65 directive spellings (`org`, `db`, `dw`, `byt`, `noopt`)`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P3 — required for #7
+**Priority**: P3, required for #7
 **Blocks**: #7
 
 **Summary.** AS65 (the assembler Dormann targeted) writes directives without a
@@ -407,8 +407,8 @@ leading dot. To keep the suite source verbatim, accept `org`, `db`/`byt`/`byte`,
 ### 9. `feat(assembler): assertion directive (`ERROR`) and improved diagnostics`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P3 — nice-to-have for #7
-**Blocks**: —
+**Priority**: P3, nice-to-have for #7
+**Blocks**:,
 
 **Summary.** Inside a (presumably failed) `if` block Dormann emits a hard error:
 
@@ -432,8 +432,8 @@ an `AssemblyError` with the rest of the line as the message.
 ### 10. `feat(assembler): `.include` directive`
 
 **Labels**: `enhancement`, `assembler`
-**Priority**: P3 — only required if `report = 1` mode of the suite is used
-**Blocks**: —
+**Priority**: P3, only required if `report = 1` mode of the suite is used
+**Blocks**:,
 
 **Summary.** Allow the assembler to splice another source file in at the include
 site. The assembler core currently takes a string; the CLI layer would need to

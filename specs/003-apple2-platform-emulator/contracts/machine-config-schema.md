@@ -93,7 +93,7 @@ Machine configs are stored in `Casso/Machines/` as `.json` files. The `--machine
 
 ### characterRom Object
 
-Character ROM is not mapped on the CPU bus -- it's read by the video circuitry.
+Character ROM is not mapped on the CPU bus, it's read by the video circuitry.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|

@@ -2,7 +2,7 @@
 
 Additive by construction. **One row** in `s_kSubcommands`, **one arm** in
 `CommandLineParser::Parse`, and new fields on `CommandLineOptions`. The
-dispatcher is not reshaped — spec 019 is being developed concurrently against
+dispatcher is not reshaped, spec 019 is being developed concurrently against
 these same files, and `UnitTest/CommandLineTests.cpp` pins the current behavior.
 
 ## Parser change, in full
@@ -44,10 +44,10 @@ the command runs nothing. It used to be counted as an operand, and this grammar
 has none past the second, so `disk get img FILE -o out.bin` discarded both the
 flag and its value: the file went to standard output, nothing was written where
 the caller asked, and the exit status said the command had worked. Only a dash
-is treated as a mistake — a ProDOS path is `/VOLUME/FILE` and stays an operand.
+is treated as a mistake; a ProDOS path is `/VOLUME/FILE` and stays an operand.
 
 `put` and `get` are named from the **disk's** perspective, which is what makes
-their direction unambiguous — and it matches the mnemonics of the tool most
+their direction unambiguous, and it matches the mnemonics of the tool most
 migrating developers are coming from. The help text says so, so the mental model
 transfers without adopting that tool's flag syntax.
 
@@ -64,7 +64,7 @@ Naming neither conversion is how the unconverted path is reached.
 
 `--long` is retired for a related reason. It withheld the ProDOS `eof=` and
 `aux=` columns, which `ProDosVolume::Enumerate` fills whether or not anybody
-asks and which are the two fields a build loop most wants — the exact length of
+asks and which are the two fields a build loop most wants, the exact length of
 a file and the address a binary loads at. A listing prints them always; the
 widest measured row is 51 characters, well inside 80.
 
@@ -77,7 +77,7 @@ than absorbed in either direction.
 ## Options nest rather than flatten
 
 `disk` is the first subcommand to break `CommandLineOptions`' stated rationale
-for a flat struct, and the resolution was to nest — `options.disk.verb`,
+for a flat struct, and the resolution was to nest, `options.disk.verb`,
 `options.disk.imagePath`, and so on, inside a `DiskOptions` member.
 
 The flat shape was chosen when every option belonged to the assembler and the
@@ -93,7 +93,7 @@ original rationale and the reason it stopped holding are both readable.
 
 `get --text` must deliver the same bytes whether they are piped or written to
 `--out`. The conversion therefore happens once, on the payload, before the
-destination is chosen — not at each write site.
+destination is chosen, not at each write site.
 
 **An encoding this build cannot perform is refused, never ignored.** A flag that
 is parsed and then silently dropped is worse than one that does not exist: the
@@ -102,15 +102,15 @@ has nothing in the output distinguishing that from a file needing no conversion.
 `--basic` therefore exits `2` with a message naming the flag until the Applesoft
 tokenizer lands.
 
-On the read path the high-bit convention is inert — once bit 7 is ignored, high
-ASCII and plain ASCII differ in nothing — so the choice becomes load-bearing
+On the read path the high-bit convention is inert (once bit 7 is ignored, high
+ASCII and plain ASCII differ in nothing) so the choice becomes load-bearing
 only when writing. See research R-011: the `TXT` type does not imply a
 convention, the producer does.
 
 ## Listing shape
 
 - **Zero-sector catalog entries are rendered, not filtered.** Real disks use
-  them to draw section headings — twenty of the sixty-three on Merlin Pro's own
+  them to draw section headings, twenty of the sixty-three on Merlin Pro's own
   disk. DOS renders them and so does the vendor's printed catalog; hiding them
   makes this listing disagree with the machine's, and the disagreement reads as
   an enumeration bug. Anyone wanting them gone is asking for a filter, which is
@@ -129,19 +129,19 @@ per-subcommand knowledge to branch on them (FR-031):
 | Code | Meaning | Example |
 |---|---|---|
 | `0` | Completed cleanly | Listing a healthy volume |
-| `1` | Succeeded, with complaints — usable result on stdout, damage on stderr | Listing a volume with a damaged catalog or an undecodable track |
+| `1` | Succeeded, with complaints: usable result on stdout, damage on stderr | Listing a volume with a damaged catalog or an undecodable track |
 | `2` | Produced no output | Image unreadable, volume full, file locked, track not writable |
 
 Values of **3 and above are subcommand-scoped** and documented in that
 subcommand's own help (FR-032). They carry no cross-subcommand meaning and are
-not coordinated against other subcommands' values — a caller already knows which
+not coordinated against other subcommands' values; a caller already knows which
 subcommand it invoked, and requiring global uniqueness above 2 would couple
 subcommands that are otherwise independent.
 
 ## Streams
 
 - Listings and extracted bytes go to **stdout**, so they pipe.
-- Every diagnostic — including the damage description that accompanies exit `1` —
+- Every diagnostic: including the damage description that accompanies exit `1`,
   goes to **stderr**, so it never contaminates piped output (FR-033).
 - Failure messages name **the image, the file, and the reason** (FR-033).
   Write-protect refusals are reported in intelligible terms, not as a raw
@@ -160,13 +160,13 @@ The commit is these five steps, in this order:
 5. Print what core returned.
 
 **This list originally said the CLI shell OWNS all five, and that reading was
-wrong** — it would have put the entire commit policy in the one project the test
+wrong**; it would have put the entire commit policy in the one project the test
 assembly does not link, which is Principle VI's litmus failing in the place
 where a bug destroys a user's disk image. What is irreducibly the shell's is the
 *syscalls*: read bytes, write bytes, stat, exists, remove, atomic replace,
-exclusive-open probe. Every **decision** in the sequence — what the temporary is
+exclusive-open probe. Every **decision** in the sequence, what the temporary is
 called, whether the stamps agree, whether a temporary may still be sitting there
-once the sequence stopped, and what to say when it is refused — is core's, in
+once the sequence stopped, and what to say when it is refused, is core's, in
 `CommitPlan` and `DiskCommandRunner::CommitImage`, above `IDiskFileIo`. The
 sequence above is what the shell *causes to happen* by calling one method; it is
 not a list of things the shell implements.
@@ -175,11 +175,11 @@ Best-effort exclusive-open probe refuses when *another* holder has the file
 open. It cannot detect Casso, which holds no handle on a mounted image, and the
 help text does not imply otherwise (FR-035). The wording that carries FR-035
 lives on `DiskCommandRunner::kInUseHelpText`, beside the code that performs the
-probe, so a test can read it — a claim written only into the executable's help
+probe, so a test can read it, a claim written only into the executable's help
 block is a claim nothing can check.
 
 ## Help output
 
 Every capability appears in help (FR-034). SC-002 requires a newcomer to complete
 the loop from help alone, so the help text carries a worked example of the whole
-loop — assemble, put, boot — not just a flag list.
+loop (assemble, put, boot) not just a flag list.

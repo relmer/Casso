@@ -20,7 +20,7 @@ Rationale / Alternatives considered**.
   of cross-device bugs (audit C6). Keeps the page-table fast path (no
   per-access branching). Aligns with FR-001..FR-007 and FR-026..FR-029.
 - **Alternatives considered**:
-  - *Keep AuxRamCard, fix only $C003-$C006*. Rejected — the cross-device
+  - *Keep AuxRamCard, fix only $C003-$C006*. Rejected, the cross-device
     coupling and split ownership of $C0xx is the root cause of C6 and similar
     bugs; fixing the symptom leaves the architectural wound.
   - *Per-access dispatch (drop the page-table fast path)*. Rejected on
@@ -38,7 +38,7 @@ Rationale / Alternatives considered**.
   the same path.
 - **Rationale**: One read path, one write path, clear ownership. FR-001..FR-004.
 - **Alternatives considered**: Distributed ownership (each device handles
-  its own status read). Rejected — fragments the floating-bus low-7-bit
+  its own status read). Rejected, fragments the floating-bus low-7-bit
   policy and makes the read path harder to audit.
 
 ## 3. Floating bus low-7-bit source
@@ -50,7 +50,7 @@ Rationale / Alternatives considered**.
   byte the video shifter is fetching at this exact cycle) is out of
   scope for this feature and not required by any FR.
 - **Alternatives considered**: True video-shifter floating bus. Deferred.
-  Stub-zero. Rejected — explicitly violates audit and FR-003.
+  Stub-zero. Rejected, explicitly violates audit and FR-003.
 
 ## 4. Modifier keys ($C061-$C063): keyboard vs soft-switch bank
 
@@ -77,7 +77,7 @@ Rationale / Alternatives considered**.
   inspection into a family-specific debug interface avoids forcing
   every CPU into a 6502-shaped register struct.
 - **Alternatives considered**: Templates over the CPU type. Rejected
-  — virtual dispatch cost on a per-Step boundary is negligible vs the
+, virtual dispatch cost on a per-Step boundary is negligible vs the
   per-instruction work, and the abstraction is much less viral.
 
 ## 6. IRQ infrastructure
@@ -116,10 +116,10 @@ Rationale / Alternatives considered**.
 - **Rationale**: Real DRAM is indeterminate; modeling it as zero hides
   bugs that depend on uninitialized memory. Determinism in tests is
   required by FR-038 + SC-005.
-- **Alternatives considered**: Zero (current). Rejected — masks bugs.
-  System RNG. Rejected — non-deterministic.
+- **Alternatives considered**: Zero (current). Rejected, masks bugs.
+  System RNG. Rejected, non-deterministic.
 
-## 9. Disk II — full nibble-level rewrite (folds issue #61)
+## 9. Disk II: full nibble-level rewrite (folds issue #61)
 
 - **Decision**: Implement an LSS-equivalent state machine that reads/writes
   one bit per CPU half-cycle into a per-track nibble bit-stream. Per-slot
@@ -132,14 +132,14 @@ Rationale / Alternatives considered**.
   architectural pass. CP titles work as a natural consequence.
   FR-021..FR-025 + audit §7 + issue #61.
 - **Alternatives considered**: Incremental sector-level patch + later
-  WOZ. Rejected — leaves CP support permanently broken and accumulates a
+  WOZ. Rejected, leaves CP support permanently broken and accumulates a
   second code path that must be deprecated later.
 
 ## 10. Video composition (FR-020) and MIXED+80COL (FR-017a)
 
 - **Decision**: `VideoOutput` resolves the active mode set per scanline
   region. For MIXED + 80COL, the bottom 4 rows are rendered by calling
-  `Apple80ColTextMode::RenderRowRange(20, 24, ...)` — the same routine
+  `Apple80ColTextMode::RenderRowRange(20, 24, ...)`, the same routine
   used by full-screen 80-col. No branched copy.
 - **Rationale**: FR-017a explicitly forbids a duplicated path; FR-020
   requires composition.
@@ -173,7 +173,7 @@ Rationale / Alternatives considered**.
   fixture access goes through `IFixtureProvider`, which restricts paths
   to `UnitTest/Fixtures/`.
 - **Rationale**: FR-036..FR-038, FR-043, FR-044 + constitution §II.
-- **Alternatives considered**: Conditional compilation. Rejected —
+- **Alternatives considered**: Conditional compilation. Rejected,
   test code paths must exercise production code; only the host edge
   may differ.
 

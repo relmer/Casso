@@ -3,7 +3,7 @@
 **Feature**: `specs/020-disk-file-access` | **Date**: 2026-08-15
 
 Entities are plain data owned by `CassoEmuCore`. Nothing here holds a handle, a
-window, or a path to the host — the shell reads bytes in and writes bytes out, so
+window, or a path to the host; the shell reads bytes in and writes bytes out, so
 every type below is constructible from a byte buffer and assertable in a unit
 test.
 
@@ -40,7 +40,7 @@ in research R-002 and satisfies FR-018.
 **The report must carry the *shape* of a failure, not just its presence.** A
 report that says only "not all sixteen sectors decoded" collapses two cases that
 demand opposite handling, and a consumer forced to choose between them will
-either reject blank disks or accept damaged ones — the second being the original
+either reject blank disks or accept damaged ones, the second being the original
 defect wearing a report.
 
 ### TrackDecodeOutcome
@@ -48,14 +48,14 @@ defect wearing a report.
 | Outcome | Meaning | Writable? |
 |---|---|---|
 | `Complete` | All sixteen logical sectors written **exactly once** | Yes |
-| `Unformatted` | **No address field located anywhere** in a full revolution | Yes — a blank track is legitimately all zeros, and writing to it produces a standard track |
+| `Unformatted` | **No address field located anywhere** in a full revolution | Yes: a blank track is legitimately all zeros, and writing to it produces a standard track |
 | `Partial` | Address fields present, but coverage is incomplete or duplicated | **No** |
 
 Two independent discriminators, and neither substitutes for the other:
 
 - **Address fields present?** separates `Unformatted` from the rest. A track whose
-  address fields are present but whose data fields all fail is `Partial` —
-  damaged — not blank.
+  address fields are present but whose data fields all fail is `Partial`, 
+  damaged, not blank.
 - **Coverage complete?** separates `Complete` from `Partial`.
 
 **`Complete` is a coverage property, not a loop property.** "The loop ran sixteen
@@ -63,13 +63,13 @@ times without failing" does not mean the track is intact, because the existing
 loop has three separate ways to leave a logical sector unfilled and only one of
 them involves a failure:
 
-1. **Decode failure** — `break` at NibblizationLayer.cpp:766 abandons the rest of
+1. **Decode failure**: `break` at NibblizationLayer.cpp:766 abandons the rest of
    the track.
-2. **Out-of-range sector number** — `continue` at line 771 skips a sector whose
+2. **Out-of-range sector number**: `continue` at line 771 skips a sector whose
    address field claims, say, sector 200. The loop still runs only sixteen times,
    so one logical slot is never filled. **Nothing failed and nothing is
    reported.**
-3. **Duplicate sector numbers** — two physical sectors both claiming sector 5 both
+3. **Duplicate sector numbers**: two physical sectors both claiming sector 5 both
    `memcpy` to the same offset; the second overwrites the first and some other
    logical slot goes unclaimed. **Again no failure.**
 
@@ -80,7 +80,7 @@ fail to decode."
 **Implementation**: a 16-bit coverage mask per track, plus a check that no bit is
 set twice. `Complete` iff every bit is set and each was set exactly once.
 
-The second half of that test was originally specified as future-proofing —
+The second half of that test was originally specified as future-proofing,
 redundant under a sixteen-iteration loop, where the bound alone forces
 `distinct slots ≤ iterations ≤ 16` and a full mask already implies each slot was
 filled once. **It is no longer redundant.** The implementation replaced the fixed
@@ -105,17 +105,17 @@ having anticipated it.
 |---|---|
 | `trackCount` | Tracks examined |
 | `outcome[track]` | `Complete`, `Unformatted`, or `Partial` |
-| `coverage[track]` | The 16-bit mask — which logical sectors were filled |
+| `coverage[track]` | The 16-bit mask, which logical sectors were filled |
 | `duplicated[track]` | A logical sector was written more than once |
 | `hasDataLoss` | Any track is `Partial` |
-| `unrecoveredCount` | Logical sectors left uncovered on `Partial` tracks only — an `Unformatted` track contributes nothing, because nothing was lost |
+| `unrecoveredCount` | Logical sectors left uncovered on `Partial` tracks only: an `Unformatted` track contributes nothing, because nothing was lost |
 
 **Rules**
 
 - Decoding MUST continue past a failed sector and resynchronize on the next
   address prologue, rather than abandoning the rest of the track. The present
   `break` is the most visible defect this replaces, but fixing only `break`
-  leaves the out-of-range and duplicate paths live — which is why the outcome is
+  leaves the out-of-range and duplicate paths live, which is why the outcome is
   decided by coverage rather than by which exit the loop took.
 - A sector on a `Partial` track that did not decode MUST be marked unrecovered
   rather than presented as zeros indistinguishable from genuinely zeroed data.
@@ -128,7 +128,7 @@ having anticipated it.
 `UnitTest/EmuTests/NibblizationTests.cpp:308`
 (`Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers`) deliberately
 pins the zero-fill and **passes unchanged** under this design, because it wipes an
-entire track — the `Unformatted` case, where zeros are right.
+entire track, the `Unformatted` case, where zeros are right.
 
 Its comment, however, generalizes from that case to "missing sectors read back as
 zeros … not silent corruption of a valid track." That claim is true for the case
@@ -145,8 +145,8 @@ FR-017, FR-019.
 
 | Field | Meaning |
 |---|---|
-| `imageRefusalReason` | Set when the whole image is unwritable — a quarter-track map resolving off whole-track positions, or metadata declaring timing-sensitive capture. Checked before any track is decoded. |
-| `isTrackWritable(track)` | Outcome is `Complete` or `Unformatted` — never `Partial` |
+| `imageRefusalReason` | Set when the whole image is unwritable: a quarter-track map resolving off whole-track positions, or metadata declaring timing-sensitive capture. Checked before any track is decoded. |
+| `isTrackWritable(track)` | Outcome is `Complete` or `Unformatted`, never `Partial` |
 
 **Rules**
 
@@ -155,13 +155,13 @@ FR-017, FR-019.
   regions unwritable, which is wrong. On a bit-stream image a deliberately
   unformatted track is a protection signal, but that case is caught by the two
   whole-image checks above, which run first and refuse the image outright.
-- A write is refused only when it needs a track that is not writable (FR-016) —
+- A write is refused only when it needs a track that is not writable (FR-016),
   an unwritable track elsewhere on the disk does not block it.
 - Tracks not being written are never re-encoded (FR-017).
 
 ---
 
-## IVolume — the filesystem seam
+## IVolume: the filesystem seam
 
 One interface, two implementations. The two filesystems share almost no structure
 below this surface (research R-001), so the seam is deliberately narrow.
@@ -208,9 +208,9 @@ from "loads at $0000".
 |---|---|---|
 | `name` | 30 bytes, high ASCII, `$A0`-padded | up to 15, length in the type nibble |
 | `type` | catalog type byte, lock bit masked off | file type byte |
-| `isLocked` | `$80` bit of the type byte — **verified**: the stock master's HELLO is `$82` | access byte |
+| `isLocked` | `$80` bit of the type byte, **verified**: the stock master's HELLO is `$82` | access byte |
 | `sizeInSectors` / `sizeInBlocks` | sector count | blocks used |
-| `eofBytes` | absent — DOS 3.3 does not store it | 3-byte EOF |
+| `eofBytes` | absent, DOS 3.3 does not store it | 3-byte EOF |
 | `loadAddress` | from the file's own header for `B` files | `auxType` for `BIN` |
 | `auxType` | absent | present |
 | `timestamps` | absent | creation / modification where present |
@@ -233,7 +233,7 @@ The bytes of one file plus what is needed to place it correctly.
 | `bytes` | Contents, already in on-disk form |
 | `type` | Target file type |
 | `loadAddress` | Where the filesystem stores one (FR-020) |
-| `encoding` | Raw, host text, or Applesoft listing — selects the conversion (FR-021, FR-022) |
+| `encoding` | Raw, host text, or Applesoft listing: selects the conversion (FR-021, FR-022) |
 
 Text conversion is bidirectional and lossless in the round trip that matters:
 host text to high-ASCII with the target's line ending on the way in, the reverse
@@ -247,10 +247,10 @@ The output of the one pass with four consumers (research R-005; FR-037..FR-040).
 
 | Field | Meaning |
 |---|---|
-| `claimedBy[unit]` | Which entries claim each sector or block — empty, one, or several |
+| `claimedBy[unit]` | Which entries claim each sector or block: empty, one, or several |
 | `crossLinked` | Units claimed by more than one entry |
 | `allocatedButUnclaimed` | Marked used in the free map, claimed by no readable entry |
-| `claimedButFree` | Claimed by an entry, marked free — the map is already wrong |
+| `claimedButFree` | Claimed by an entry, marked free, the map is already wrong |
 | `unfollowableChains` | Entries whose chain could not be walked to its end, including those that hit the traversal bound |
 | `catalogFullyParsed` | False when some catalog entries were unreadable |
 | `isClean` | No cross-links, no disagreement, no unfollowable chains |
@@ -261,7 +261,7 @@ The output of the one pass with four consumers (research R-005; FR-037..FR-040).
   and a ceiling derived from the volume's own capacity. A chain hitting the bound
   is recorded as unfollowable, never followed further. This pass runs by design
   on volumes chosen for being damaged.
-- **Delete frees only uniquely-owned units** (FR-011) — those where `claimedBy`
+- **Delete frees only uniquely-owned units** (FR-011), those where `claimedBy`
   names the deleted entry and nothing else. Everything else is reported leaked.
 - **`allocatedButUnclaimed` is never freed.** It is either already-leaked space or
   an invisible file's data, and refusing to guess between them is correct
@@ -269,7 +269,7 @@ The output of the one pass with four consumers (research R-005; FR-037..FR-040).
 - **The guarantee is bounded by `catalogFullyParsed`** (FR-040). When the catalog
   did not fully parse, an unreadable entry claims nothing observable, so a unit it
   shares with the deleted file would be freed. This needs catalog damage *and*
-  cross-linking together — narrow, but the one case the rule can still lose data.
+  cross-linking together, narrow, but the one case the rule can still lose data.
   It MUST be warned about distinctly rather than assumed away.
 - **Every write runs the pass over its computed result** and refuses to commit a
   result that fails it (FR-039).
@@ -282,7 +282,7 @@ What the shell needs to land a computed image safely (FR-013, FR-036, R-007).
 
 | Field | Meaning |
 |---|---|
-| `imageBytes` | The complete new image — the only thing written |
+| `imageBytes` | The complete new image, the only thing written |
 | `expectedSize` / `expectedModifiedTime` | Recorded at read, re-verified immediately before commit |
 
 **Rules**
@@ -304,7 +304,7 @@ boot blocks, boot sectors, and the boot payload. R-003's "greeting" is DOS 3.3's
 own name for its instance of the concept and appears only when describing that
 filesystem's on-disk field.
 
-Deliberately **not** unified behind one "write the boot name" helper — the two
+Deliberately **not** unified behind one "write the boot name" helper; the two
 mechanisms are different in kind (research R-003, R-004).
 
 | Filesystem | Mechanism |

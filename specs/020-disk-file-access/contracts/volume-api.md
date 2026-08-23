@@ -1,6 +1,6 @@
 # Contract: Volume API (core)
 
-`CassoEmuCore/Devices/Disk/` — pure static/instance API over a flat sector
+`CassoEmuCore/Devices/Disk/`, pure static/instance API over a flat sector
 buffer, EHM conventions, no host dependencies. Every type is constructible from
 bytes and assertable in `UnitTest`, per Constitution Principle VI.
 
@@ -42,7 +42,7 @@ public:
 };
 ```
 
-Implementations: `Dos33Volume`, `ProDosVolume` — each its own `.h`/`.cpp` pair
+Implementations: `Dos33Volume`, `ProDosVolume`, each its own `.h`/`.cpp` pair
 per the one-class-per-pair rule, not nested inside the skeleton headers the way
 the existing readers and writers are.
 
@@ -50,7 +50,7 @@ the existing readers and writers are.
 
 - **Nothing mutates in place.** Every mutating call takes the current buffer and
   yields a new one. A failed call leaves the caller's buffer untouched (FR-013).
-- **Replace is computed whole** (FR-012) — never a delete applied to the target
+- **Replace is computed whole** (FR-012); never a delete applied to the target
   followed by a write, which would lose the file outright if it failed between
   the two.
 - **Delete frees only uniquely-owned units** (FR-011), reports the rest as
@@ -91,16 +91,16 @@ bool                      isClean;
 **Cost, settled once so it is not re-litigated.** Holding claims both ways is
 not a space concern at any size this project can encounter. The total is bounded
 by allocated units rather than by how they are indexed, and the ceiling is the
-*format*, not any drive: ProDOS block pointers are 16 bits, so 65,535 blocks —
-**32 MB** — is the largest volume that can exist. Fully allocated at that
+*format*, not any drive: ProDOS block pointers are 16 bits, so 65,535 blocks, 
+**32 MB**, is the largest volume that can exist. Fully allocated at that
 maximum, both slices together are a few hundred kilobytes, transiently. Larger
 media in later features do not change this.
 
 The axis worth watching is **time**. The pass is O(volume) and FR-039 runs it
 before every computed write; at a few tens of thousands of units that is
 microseconds per command-line invocation, so it is a non-issue here. It becomes
-interesting only if a caller runs it on something frequent — a live UI refresh in
-the disk manager, say — and that is a caching question, not a structural one.
+interesting only if a caller runs it on something frequent (a live UI refresh in
+the disk manager, say) and that is a caching question, not a structural one.
 Noted so spec 021 inherits the analysis rather than the surprise.
 
 **Termination is part of the contract** (FR-038). Traversal is bounded by a
@@ -142,7 +142,7 @@ static HRESULT  RenibblizeTracks (const vector<Byte>  & sectors,
 decoder maintains a 16-bit mask of which logical sectors were filled. `Complete`
 iff every bit is set and each was set exactly once.
 
-The "exactly once" half is deliberately stronger than today's loop requires — the
+The "exactly once" half is deliberately stronger than today's loop requires, the
 sixteen-iteration bound already makes a full mask imply it. It is specified that
 way so the invariant does not depend on that bound, which is a plausible thing to
 change: scanning until the bit stream wraps is the more general algorithm, and
@@ -154,7 +154,7 @@ sector zeroed and only one of them fails: `break` on a decode failure
 (NibblizationLayer.cpp:766), `continue` on an out-of-range sector number (771),
 and two physical sectors claiming the same number so one logical slot goes
 unclaimed. The loop is bounded at sixteen iterations, so the latter two consume an
-iteration without filling a distinct slot — no failure, nothing reported. A fix
+iteration without filling a distinct slot, no failure, nothing reported. A fix
 aimed only at `break` leaves both live. Coverage catches all three, and anything
 similar nobody anticipated.
 
@@ -163,8 +163,8 @@ address prologue rather than abandoning the track.
 
 **The three-argument form must fail rather than bypass.** Keeping it purely for
 source compatibility would preserve the defect's reachability in the one place
-that matters: `DiskImage::Serialize` — the emulator's flush path and the sole
-production caller — would keep calling the reportless form and keep silently
+that matters: `DiskImage::Serialize`, the emulator's flush path and the sole
+production caller, would keep calling the reportless form and keep silently
 truncating. Forwarding-and-failing instead means:
 
 - all twelve existing test call sites keep compiling unchanged;
@@ -207,12 +207,12 @@ Positive proof only. Never a protection-scheme heuristic.
 | Illegal name for the filesystem | `HRESULT_FROM_WIN32 (ERROR_INVALID_NAME)`, naming why |
 | Track not writable | `HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED)`, naming the track and the reason |
 | Name already present, on a path that does not replace | `HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS)` |
-| Computed result failed its own integrity check | `E_UNEXPECTED` — this is a bug in the writer, not user error, and asserts accordingly |
+| Computed result failed its own integrity check | `E_UNEXPECTED`: this is a bug in the writer, not user error, and asserts accordingly |
 
 **Not `E_INVALIDARG`, and the first two rows above used to say otherwise.**
 `E_INVALIDARG` marks a *coding* error in this codebase and asserts on the spot;
 an illegal name is something a user typed and an unwritable track is a property
-of the disk they handed us. Neither is a bug, so neither may assert — end-user
+of the disk they handed us. Neither is a bug, so neither may assert, end-user
 input earns a verdict, never an assertion. Only the last row is a defect in our
 own code, which is why it alone keeps an asserting code. Corrected after the
 DOS 3.3 writer followed the rule rather than the table; the ProDOS side should
@@ -220,7 +220,7 @@ match it.
 
 ## Testability
 
-No test may touch a real file. Volumes are built from synthetic buffers —
-`BlankDiskBuilder` already produces formatted ones — and damaged volumes are
+No test may touch a real file. Volumes are built from synthetic buffers, 
+`BlankDiskBuilder` already produces formatted ones, and damaged volumes are
 constructed by deliberately corrupting a good buffer, which is also how SC-010's
 cyclic-chain termination cases are made.

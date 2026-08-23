@@ -11,8 +11,8 @@ User Story 1 (assembler binary output) is **already delivered**; this plan cover
 US2 onward.
 
 The keystone is a filesystem layer that does not exist: `Dos33Volume` and
-`ProDosVolume` over the flat 143,360-byte sector buffer — enumerate, read, write,
-delete, allocate, free — in `CassoEmuCore` where `UnitTest` links it, per
+`ProDosVolume` over the flat 143,360-byte sector buffer (enumerate, read, write,
+delete, allocate, free) in `CassoEmuCore` where `UnitTest` links it, per
 Constitution Principle VI. A `disk` subcommand exposes it, added additively as
 one row in the existing subcommand table.
 
@@ -43,10 +43,10 @@ the CLI shell only. Core never touches the filesystem.
 damaged ones. Boot-level gates use the real-CPU DOS-boot harness and **fail**
 when its cached asset is absent, rather than skipping.
 
-**Target Platform**: Windows 10/11 x64 (ARM64 build-only — no device available,
+**Target Platform**: Windows 10/11 x64 (ARM64 build-only, no device available,
 so x64 Debug + Release green is the bar)
 
-**Project Type**: Desktop app + CLI — `CassoCore` / `CassoEmuCore` libraries,
+**Project Type**: Desktop app + CLI, `CassoCore` / `CassoEmuCore` libraries,
 `CassoCli` console shell, `UnitTest`
 
 **Performance Goals**: Whole loop under 10 s (SC-006); the integrity pass runs
@@ -63,24 +63,24 @@ concurrently.
 *Constitution v1.8.0. Evaluated pre-Phase-0, re-checked post-design.*
 
 **Every row states what was checked, not just the verdict.** A bare "PASS" is
-indistinguishable from a check that verified nothing — the same shape the
+indistinguishable from a check that verified nothing, the same shape the
 instructions now call out as degraded operation reading as healthy operation. A
 row citing its evidence is falsifiable by a reader in ten seconds; that is what
 caught the Principle VI failure below, and it was reading a project file, not
 thinking harder. See GH **#85** for the standing thin-executable work and the
 list of what legitimately stays in an executable; this plan does not re-argue it.
 
-- **I. Code Quality (NON-NEGOTIABLE)** — PASS. *Checked*: CheckStyle CS0001–CS0020
+- **I. Code Quality (NON-NEGOTIABLE)**: PASS. *Checked*: CheckStyle CS0001–CS0020
   runs pre-push and as CI's `style` job in `-Mode Tree`, so EHM shape, banners,
   spacing, and alignment are mechanically gated rather than asserted here. Magic
   numbers and EHM single-exit are not gated and remain review's job. New classes
   get their own `.h`/`.cpp` pairs: `ProDosReader` and `ProDosFileWriter` are
   declared inside `ProDosSkeleton.h`, which is exactly why a filename survey
-  missed them (R-001) — debt to avoid repeating, not a template.
-- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS. *Checked*: every volume
+  missed them (R-001), debt to avoid repeating, not a template.
+- **II. Testing Discipline (NON-NEGOTIABLE)**: PASS. *Checked*: every volume
   operation is data-in/data-out over byte buffers; the commit path reaches the
   host only through `IDiskFileIo`, which `UnitTest` substitutes with a fake whose
-  file table is inspectable — so "image unchanged, no temporary left" is
+  file table is inspectable, so "image unchanged, no temporary left" is
   assertable without touching a real file. **The boot-level gates FAIL when the
   cached master image is absent; they do not skip.** This reverses what spec 017
   did and what an earlier draft of this plan inherited: a test that cannot reach
@@ -88,21 +88,21 @@ list of what legitimately stays in an executable; this plan does not re-argue it
   That exact pattern is why the Dormann suite ran green while doing no work.
   Crash safety is the one thing genuinely not unit-testable, so the
   interrupted-write check is a single declared manual pass.
-- **III. User Experience Consistency** — PASS. *Checked*: subcommand style with
+- **III. User Experience Consistency**: PASS. *Checked*: subcommand style with
   long options; diagnostics to stderr and payloads to stdout so output pipes;
   every capability in `--help`; exit statuses 0/1/2 reuse the meanings
   `CommandLine.cpp:1218`/`1159`/`986` already assign rather than minting new ones.
   `--verbatim` was chosen over `--raw` and `--binary` because both already mean
   something else on the assembler side of the same parser.
-- **IV. Performance** — PASS. *Checked*: the integrity pass walks at most 560
+- **IV. Performance**: PASS. *Checked*: the integrity pass walks at most 560
   sectors or 280 blocks per volume, so running it per write is negligible;
   nothing added runs on the emulation thread.
-- **V. Simplicity** — PASS with one deliberate generalization: the integrity pass
+- **V. Simplicity**: PASS with one deliberate generalization: the integrity pass
   is built once as a first-class mechanism rather than three or four times inside
   its callers (R-005). Justified in Complexity Tracking below.
-- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — **initially FAILED;
+- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)**: **initially FAILED;
   now PASS.** *Checked*: `UnitTest.vcxproj` lines 555–570 reference
-  `CassoCore`, `CassoEmuCore`, `Casso`, and `Dxui` — **not `CassoCli`**.
+  `CassoCore`, `CassoEmuCore`, `Casso`, and `Dxui`, **not `CassoCli`**.
   Therefore nothing in `CassoCli` is reachable by a test.
 
   An earlier draft placed `FileCommit`, the exit-status mapping, the staleness
@@ -111,7 +111,7 @@ list of what legitimately stays in an executable; this plan does not re-argue it
   metadata comparison are *decisions*, not syscalls. Resolved by moving them to
   `CassoEmuCore` (which `UnitTest` links and `CassoCli` references) behind
   `IDiskFileIo`. `CassoCli` keeps `Win32DiskFileIo` and a `DoDisk` that
-  constructs it, calls the runner, prints, and returns the status — in its own
+  constructs it, calls the runner, prints, and returns the status, in its own
   `CassoCli/DiskCommand.cpp`, not appended to the 1,222-line `CommandLine.cpp`
   that GH #85 names as the offender.
 
@@ -119,7 +119,7 @@ list of what legitimately stays in an executable; this plan does not re-argue it
   natural home for CLI-adjacent logic *is* the CLI, so this condition reproduces
   the violation faster than review catches it. It is the second same-day instance
   after the parser extraction in `8b632268`. The fix that worked was not a more
-  careful self-assessment — it was reading a project file. Hence the
+  careful self-assessment; it was reading a project file. Hence the
   evidence-citing format above.
 
 **Post-design re-check**: PASS. Complexity Tracking carries one justified entry.
@@ -213,7 +213,7 @@ devices; the grammar lands in `CassoCore` beside the parser it extends.
 `AppleTextCodec` and `ApplesoftTokenizer` go in `CassoCore` because they are pure
 text transforms with no device dependency, they sit naturally beside `Parser` and
 the expression evaluator, and `CassoCore` is the lower layer. **Not** because it
-saves `CassoCli` from linking `CassoEmuCore` — `CassoCli.vcxproj` already
+saves `CassoCli` from linking `CassoEmuCore`, `CassoCli.vcxproj` already
 references both projects, so that reasoning is simply false and must not be
 repeated as though it were a constraint.
 
@@ -248,15 +248,15 @@ Ordered by dependency, not by story number. Each phase is a commit.
 *component*; tasks.md regrouped the same work by *story* (Phase 1 Setup,
 2 Foundational, 3 US3, 4 US2, 5 US4, 6 US5, 7 US6, 8 Polish) so each phase is an
 independently testable increment, which is what the task breakdown needs and
-what this sketch was not. The dependency order is identical either way — only the
+what this sketch was not. The dependency order is identical either way, only the
 grouping differs. Mapping: A → tasks Phase 2; B and C → split across tasks
 Phases 3 (readers) and 4 (writers + delete); D → split across the same two, since
 the CLI verbs land with the story they serve; E → Phase 5; F → Phases 6 and 7;
 G → Phase 8.
 
-**Phase A — Foundational (blocks everything).**
-`SectorDecodeReport` classifying each track by **coverage** — a 16-bit mask,
-`Complete` iff all sixteen logical sectors were filled exactly once — which
+**Phase A, Foundational (blocks everything).**
+`SectorDecodeReport` classifying each track by **coverage**, a 16-bit mask,
+`Complete` iff all sixteen logical sectors were filled exactly once, which
 subsumes the `break`, out-of-range, and duplicate zero-fill paths in one check
 rather than patching each (FR-018); decode continues past a failed sector and
 resynchronizes; the three-argument `Denibblize` rewired to forward and fail on
@@ -267,23 +267,23 @@ cases; `TrackWritability` (FR-016, FR-017, FR-019); `RenibblizeTracks`;
 `VolumeIntegrityReport` with bounded traversal (FR-037, FR-038). No write path
 may consume denibblized output before this lands.
 
-**Phase B — DOS 3.3 volume.** Reader first (US3 is P1 and nothing exists);
+**Phase B, DOS 3.3 volume.** Reader first (US3 is P1 and nothing exists);
 then write, delete with free-space return, replace. Generalizes
 `Dos33FileWriter::WriteHello` into a real writer.
 
-**Phase C — ProDOS volume.** Wrap the existing reader/writer behind `IVolume`;
+**Phase C, ProDOS volume.** Wrap the existing reader/writer behind `IVolume`;
 add tree growth, delete with free-space return, path-based traversal.
 
-**Phase D — Commit path + CLI.** `CommitPlan` and `DiskCommandRunner` in core
+**Phase D, Commit path + CLI.** `CommitPlan` and `DiskCommandRunner` in core
 behind `IDiskFileIo`; the one table row and one arm; `Win32DiskFileIo` and a thin
 `DoDisk` in the exe; help text. Delivers US2 and US3 end to end.
 
-**Phase E — Boot configuration (US4, P2).** DOS 3.3 greeting patch at the
+**Phase E, Boot configuration (US4, P2).** DOS 3.3 greeting patch at the
 verified offset; ProDOS directory reorder. Two mechanisms, not one helper.
 
-**Phase F — P3 stories.** Direct-boot image (US5); Applesoft tokenizer (US6).
+**Phase F, P3 stories.** Direct-boot image (US5); Applesoft tokenizer (US6).
 
-**Phase G — Polish.** CHANGELOG, README, help worked example, full gates.
+**Phase G, Polish.** CHANGELOG, README, help worked example, full gates.
 
 ## Complexity Tracking
 

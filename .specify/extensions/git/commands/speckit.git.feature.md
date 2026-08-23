@@ -4,7 +4,7 @@ description: "Create a feature branch with sequential or timestamp numbering"
 
 # Create Feature Branch
 
-Create and switch to a new git feature branch for the given specification. This command handles **branch creation only** — the spec directory and files are created by the core `__SPECKIT_COMMAND_SPECIFY__` workflow.
+Create and switch to a new git feature branch for the given specification. This command handles **branch creation only**, the spec directory and files are created by the core `__SPECKIT_COMMAND_SPECIFY__` workflow.
 
 ## User Input
 
@@ -32,7 +32,7 @@ Determine the branch numbering strategy by checking configuration in this order:
 
 1. Check `.specify/extensions/git/git-config.yml` for `branch_numbering` value
 2. Check `.specify/init-options.json` for `feature_numbering` value (inherit from core)
-3. Check `.specify/init-options.json` for `branch_numbering` value (deprecated, backward compatibility — will be removed in a future release)
+3. Check `.specify/init-options.json` for `branch_numbering` value (deprecated, backward compatibility, will be removed in a future release)
 4. Default to `sequential` if none of the above exist
 
 ## Execution
@@ -50,7 +50,7 @@ Run the appropriate script based on your platform:
 - **PowerShell (timestamp)**: `.specify/extensions/git/scripts/powershell/create-new-feature-branch.ps1 -Json -Timestamp -ShortName "<short-name>" "<feature description>"`
 
 **IMPORTANT**:
-- Do NOT pass `--number` — the script determines the correct next number automatically
+- Do NOT pass `--number`, the script determines the correct next number automatically
 - Always include the JSON flag (`--json` for Bash, `-Json` for PowerShell) so the output can be parsed reliably
 - You must only ever run this script once per feature
 - The JSON output will contain `BRANCH_NAME` and `FEATURE_NUM`

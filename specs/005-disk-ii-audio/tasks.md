@@ -1,5 +1,5 @@
 ---
-description: "Disk II Audio — actionable, dependency-ordered tasks"
+description: "Disk II Audio, actionable, dependency-ordered tasks"
 ---
 
 # Tasks: Disk II Audio
@@ -10,7 +10,7 @@ description: "Disk II Audio — actionable, dependency-ordered tasks"
 
 **Tests**: Required throughout. Every production-code task that has
 observable behavior has a paired test task. Tests use in-memory sample
-buffers and a mock `IDriveAudioSink` — no host filesystem reads, no audio
+buffers and a mock `IDriveAudioSink`; no host filesystem reads, no audio
 device, per constitution §II.
 
 **Organization**: Phases follow `research.md` §6.3's recommended
@@ -21,22 +21,22 @@ unchanged (SC-006 / FR-011).
 
 ## Format: `[ID] [P?] [GATE?] Description`
 
-- **[P]** — parallel-safe within its phase (different files, no shared-edit conflict)
-- **[GATE]** — phase-completion gate task; not parallel
+- **[P]**: parallel-safe within its phase (different files, no shared-edit conflict)
+- **[GATE]**: phase-completion gate task; not parallel
 - Every task cites the FR(s) it satisfies and the file(s) it touches
 - Every production-code task is paired with (or precedes) a test task
 
-## Constitution rules — apply to every code task
+## Constitution rules: apply to every code task
 
 1. Every `.cpp` includes `"Pch.h"` as the **first** include; no angle-bracket includes anywhere except inside `Pch.h`; project headers use quoted includes
 2. Function comments live in `.cpp` (80-`/` delimiters), not in the header
 3. Function/operator spacing: `func()`, `func (a, b)`, `if (...)`, `for (...)`
 4. All locals at top of scope, column-aligned (type / `*`-`&` column / name / `=` / value)
-5. No non-trivial calls inside macro arguments — store result first
+5. No non-trivial calls inside macro arguments, store result first
 6. ≤ 50 lines per function (100 absolute); ≤ 2 indent levels beyond EHM (3 max)
 7. Exactly 5 blank lines between top-level constructs; exactly 3 between top-of-function declarations and first statement
 8. EHM pattern (`HRESULT hr = S_OK; … Error: … return hr;`) on every fallible function; never bare `goto Error`
-9. No magic numbers (except 0/1/-1/nullptr/sizeof) — see `plan.md` for the named-constants list
+9. No magic numbers (except 0/1/-1/nullptr/sizeof); see `plan.md` for the named-constants list
 10. File names: PascalCase, no underscores (`DriveAudioMixer.cpp`, not `drive_audio_mixer.cpp`); asset filenames likewise (`MotorLoop.wav`, not `motor_loop.wav`)
 
 ---
@@ -58,7 +58,7 @@ unchanged (SC-006 / FR-011).
       `PanLeft()`, `PanRight()`, `SetPan(float left, float right)`. Inherits
       from `IDriveAudioSink`. Header-only. (FR-012, FR-016)
 - [X] T004 [P] Create `CassoEmuCore/Audio/DriveAudioMixer.h` per
-      `plan.md` §"Architecture" — declares the class with
+      `plan.md` §"Architecture", declares the class with
       `RegisterSource(IDriveAudioSource*)`, `UnregisterSource`,
       `SetEnabled`/`IsEnabled`, `GeneratePCM(float* stereoOut, uint32_t n)`,
       `Tick(uint64_t currentCycle)`. Owns no sources directly; just a
@@ -271,7 +271,7 @@ preference is documented per NFR-005; either path satisfies the spec.
 
 ## Phase 6: Step-vs-Seek Discrimination
 
-**Purpose**: FR-005 — collapse rapid step bursts into a single continuous
+**Purpose**: FR-005, collapse rapid step bursts into a single continuous
 gesture.
 
 - [X] T060 Add a `DiskIIAudioSource::Tick(uint64_t currentCycle)` method
@@ -283,7 +283,7 @@ gesture.
       `DiskIIAudioSource::OnHeadStep`:
       - If `(currentCycle - m_lastStepCycle) < kSeekThresholdCycles` and
         `m_lastStepCycle != 0`: set `m_seekMode = true`; do **not** reset
-        `m_headPos` (let current sample continue) — or, if the previous
+        `m_headPos` (let current sample continue), or, if the previous
         one-shot has already finished, keep seek state active by an
         equivalent mechanism.
       - Else: clear `m_seekMode`; reset `m_headPos = 0` (fresh step one-shot).
@@ -299,7 +299,7 @@ gesture.
       - `SeekModeIdleTimeout_after50ms_clearsSeekMode`
       (FR-005, SC-005)
 - [X] T065 [GATE] Build + test. FR-005 tests pass. Listen to a DOS 3.3 boot
-      fixture if a manual harness is available — verify recalibration sounds
+      fixture if a manual harness is available; verify recalibration sounds
       like a buzz, not click-click-click. (Manual step, document outcome.)
 
 ---
@@ -351,7 +351,7 @@ connect everything.
 
 - [X] T080 In `Casso/EmulatorShell.h`: add `DriveAudioMixer m_driveAudioMixer;`
       and a small container of `DiskIIAudioSource` instances (one per
-      attached Disk II drive — typically up to 2 per controller and up to 2
+      attached Disk II drive, typically up to 2 per controller and up to 2
       controllers in v1 but treat as N). Column-align with existing members.
       Include `CassoEmuCore/Audio/DriveAudioMixer.h` and `DiskIIAudioSource.h`.
 - [X] T081 In `Casso/EmulatorShell.cpp`:
@@ -407,7 +407,7 @@ connect everything.
 
 ## Phase 9: View → Options... → Drive Audio Toggle
 
-**Purpose**: FR-006, FR-007 — runtime toggleable drive audio, default on,
+**Purpose**: FR-006, FR-007, runtime toggleable drive audio, default on,
 in a new Options dialog.
 
 - [X] T090 Create `Casso/OptionsDialog.h` and `Casso/OptionsDialog.cpp`
@@ -433,7 +433,7 @@ in a new Options dialog.
 
 ## Phase 10: Graceful Asset Degradation Verification
 
-**Purpose**: FR-009 — explicit verification that missing assets don't crash
+**Purpose**: FR-009, explicit verification that missing assets don't crash
 or popup.
 
 - [ ] T100 If bundled-WAV path was chosen in Phase 4: rename
@@ -456,7 +456,7 @@ or popup.
 
 - [X] T110 [P] Run `scripts\Build.ps1 -RunCodeAnalysis`; address all new
       warnings in drive-audio code.
-- [X] T111 [P] `rg -n '\w \(\)' CassoEmuCore/Audio Casso/MenuSystem.cpp Casso/WasapiAudio.cpp Casso/EmulatorShell.cpp Casso/OptionsDialog.cpp` — zero hits on lines authored in this feature.
+- [X] T111 [P] `rg -n '\w \(\)' CassoEmuCore/Audio Casso/MenuSystem.cpp Casso/WasapiAudio.cpp Casso/EmulatorShell.cpp Casso/OptionsDialog.cpp`, zero hits on lines authored in this feature.
 - [X] T112 Update `CHANGELOG.md` (current version, no [Unreleased] section
       per project convention) with the `feat(audio)` entry. Mention motor
       hum, head clicks, track-0 bump, disk insert/eject, stereo per-drive
@@ -525,7 +525,7 @@ Replace blacklist `.gitignore` rules with a whitelist-JSON-only rule.
 - [ ] T127 [P] Update `UnitTest/EmuTests/AssetBootstrapTests.cpp` and
       `UnitTest/EmuTests/MachineConfigTests.cpp` for the new path
       conventions. Tests use in-memory resolvers / temp dirs (per
-      constitution §II — no real filesystem dependency on the new layout).
+      constitution §II, no real filesystem dependency on the new layout).
 - [ ] T128 [GATE] Build + full test suite green. Existing installations
       (with ROMs in old `ROMs/`) still boot via backward-compat search.
 
@@ -571,7 +571,7 @@ disk.
       - `stb_vorbis_open_memory(oggBytes.data(), oggBytes.size(), ...)`.
       - `stb_vorbis_get_samples_short_interleaved(...)` → int16 PCM.
       - Downmix to mono if stereo; convert int16 → float32 (`/ 32768.0f`).
-      - Resample to `targetSampleRate` (linear interp is acceptable —
+      - Resample to `targetSampleRate` (linear interp is acceptable,
         drive noise is broadband and not pitch-critical, per A-001
         rationale).
       - Discard `oggBytes`.

@@ -3,7 +3,7 @@
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2025-11-25
 **Feature**: [spec.md](../spec.md)
-**Status**: Superseded — the spec never went to planning; see [spec.md](../spec.md) for what replaced it
+**Status**: Superseded; the spec never went to planning; see [spec.md](../spec.md) for what replaced it
 
 ## Content Quality
 
@@ -38,7 +38,7 @@
   scope anchors and migration constraints, not implementation prescriptions.
   The *new* subsystem is described in capability terms (mesh registry,
   shared camera, lighting model, sub-node transforms) without prescribing
-  D3D11-specific types in the requirements themselves — even though the
+  D3D11-specific types in the requirements themselves, even though the
   Assumptions section pins D3D11 as the host API.
 - Six open questions are deferred to `/speckit.clarify` rather than guessed
   at, because each one (camera type, depth buffer ownership, world-unit

@@ -23,34 +23,34 @@ A two-pass 6502 assembler implemented as an instance-based `Assembler` class in 
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-### I. Code Quality — PASS
+### I. Code Quality: PASS
 - Formatting: Will follow existing Casso style (spaces, column alignment)
 - EHM macros: Use EHM patterns (CHR, CBR, BAIL_OUT_IF, etc.) for HRESULT-returning functions; avoid early returns, explicit gotos, and deeply nested code
 - Smart pointers: Will use where appropriate for owned resources
 - Precompiled headers: All `.cpp` files will include `"Pch.h"` first
 
-### II. Testing Discipline — PASS
+### II. Testing Discipline: PASS
 - All assembler logic is pure (string in → bytes/errors out); no system state
 - Tests in `UnitTest/` project using CppUnitTestFramework
-- Test isolation: Assembler takes a string, returns a result struct — fully deterministic
+- Test isolation: Assembler takes a string, returns a result struct, fully deterministic
 - TestCpu integration: extends existing `TestCpu` class with `Assemble()` / `RunUntil()`
 
-### III. User Experience Consistency — PASS (adapted)
+### III. User Experience Consistency: PASS (adapted)
 - Casso currently has no CLI; the `assemble`/`run` subcommand design is greenfield
 - Errors to stderr, usage on `--help` / no args
 - No backward compatibility concern (no existing CLI behavior)
 
-### IV. Performance Requirements — PASS
+### IV. Performance Requirements: PASS
 - Assembler is not performance-critical at expected scale (< 10K lines)
 - Will avoid unnecessary allocations; single-pass string scan per pass
 
-### V. Simplicity & Maintainability — PASS
+### V. Simplicity & Maintainability: PASS
 - Single `Assembler` class with clear two-pass architecture
 - Reverse opcode lookup built once from existing `instructionSet[256]`
 - Functions under 50 lines; parsing helpers factored out
-- No new projects added — all code fits in existing CassoCore/Casso/UnitTest
+- No new projects added: all code fits in existing CassoCore/Casso/UnitTest
 
-### Gate Result: **PASS** — No violations. Proceed to Phase 0.
+### Gate Result: **PASS**: No violations. Proceed to Phase 0.
 
 ## Project Structure
 
@@ -102,33 +102,33 @@ UnitTest/                      # Test DLL
 
 ## Constitution Re-Check (Post Phase 1 Design)
 
-### I. Code Quality — PASS
+### I. Code Quality: PASS
 - New files follow existing style (Pch.h first, quoted includes, column alignment)
 - EHM macros: Use EHM patterns for HRESULT-returning functions; BAIL_OUT_IF for success tests; avoid early returns and deeply nested code
 
-### II. Testing Discipline — PASS
-- Assembler is pure: string in, result struct out — fully deterministic, no system state
+### II. Testing Discipline: PASS
+- Assembler is pure: string in, result struct out, fully deterministic, no system state
 - Parser is pure: string in, parsed tokens out
 - OpcodeTable is pure: built from in-memory Microcode array
 - TestCpu integration: reads/writes only in-memory CPU memory array
 - No file I/O, registry, network, or system API access in any testable code
 - CLI file I/O is untested at unit level (tested manually / integration)
 
-### III. User Experience Consistency — PASS
+### III. User Experience Consistency: PASS
 - CLI uses standard `--flag` syntax, errors to stderr
 - Listing format follows conventional 6502 assembler style
 
-### IV. Performance Requirements — PASS
+### IV. Performance Requirements: PASS
 - No performance-sensitive paths at expected scale
 
-### V. Simplicity & Maintainability — PASS
+### V. Simplicity & Maintainability: PASS
 - 3 new core files (Assembler, Parser, OpcodeTable) with single responsibilities
 - No new projects; fits existing 3-project structure
 - Functions kept under 50 lines; parsing helpers factored out
 - Instance-based Assembler with stateless Assemble() calls
 
-### Gate Result: **PASS** — Design confirmed. Ready for Phase 2 task generation.
+### Gate Result: **PASS**: Design confirmed. Ready for Phase 2 task generation.
 
 ## Complexity Tracking
 
-No constitution violations — table intentionally left empty.
+No constitution violations, table intentionally left empty.

@@ -33,8 +33,8 @@
 ## Notes
 
 - All items pass validation. The spec is comprehensive with 7 prioritized user stories covering the full incremental build order.
-- No [NEEDS CLARIFICATION] markers were needed — the user's feature description was exceptionally detailed with all key design decisions pre-made.
-- Technical Apple II hardware details (memory addresses, interleaved layout, NTSC artifacting) are included as domain-specific behavioral requirements, not implementation details — they describe *what* the system must do, not *how* to code it.
+- No [NEEDS CLARIFICATION] markers were needed, the user's feature description was exceptionally detailed with all key design decisions pre-made.
+- Technical Apple II hardware details (memory addresses, interleaved layout, NTSC artifacting) are included as domain-specific behavioral requirements, not implementation details, they describe *what* the system must do, not *how* to code it.
 - The spec references specific Win32/GDI and C++ constraints in the Assumptions section because these are project-level constraints from the constitution, not implementation choices made in this spec.
 
 ### Post-Review Updates (2025-07-22)

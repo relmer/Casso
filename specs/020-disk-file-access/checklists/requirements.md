@@ -35,13 +35,13 @@
   three rounds as requirements were inserted after FR-011, FR-015, and FR-030.
   The spec now runs **FR-001..FR-042 and SC-001..SC-011** with no gaps or letter
   suffixes. Anything citing a number outside that range, or citing a number whose
-  text does not match, predates the pass — re-read rather than reconcile.
+  text does not match, predates the pass, re-read rather than reconcile.
   Everything added after the renumbering (volume integrity, then recovery) was
   **appended as a new final subsection** rather than inserted, deliberately, to
   stop the renumbering there.
 - **A cross-artifact analysis pass caught nine stale citations that survived the
   renumbering**, in this file and in the boot-configuration block of tasks.md,
-  data-model.md, and research.md — all shifted by exactly the amount their own
+  data-model.md, and research.md, all shifted by exactly the amount their own
   round predicted, and this file, which documents the rule, was among the worst
   offenders. Renumbering is cheap inside one file and expensive across eight; the
   append-only policy above exists because of this, and any future insertion should
@@ -50,11 +50,11 @@
   019's FR-016..FR-019 are cited externally from a GitHub issue, so renumbering
   would have broken a live reference; it kept an irregular sequence instead.
   Nothing outside this file cites 020's numbers, so flat renumbering was free
-  here. Two specs, opposite choices, each right for its own constraint — do not
+  here. Two specs, opposite choices, each right for its own constraint; do not
   "fix" one to match the other.
 - The clarification pass resolved an internal contradiction: the former FR-029
   required detecting an image in use by a running emulator, while the Assumptions
-  declared that scenario out of scope. The requirement now matches the scope —
+  declared that scenario out of scope. The requirement now matches the scope;
   document the hazard, probe only for what the platform can observe, and re-verify
   the file between read and commit (FR-035, FR-036).
 - FR-018 records a pre-existing defect rather than new behavior: the sector
@@ -73,16 +73,16 @@
   cross-feature concern; spec 019 was given the same note. FR-032 deliberately
   stops the sharing at 2: codes of 3 and above stay subcommand-scoped, because
   requiring global uniqueness would couple subcommands that are otherwise
-  independent — the property that let 019 and 020 be developed in parallel.
+  independent; the property that let 019 and 020 be developed in parallel.
 - **The two filesystems are not at the same starting point, and planning must not
   assume parity.** ProDOS has both a reader and a writer already (declared inside
   the skeleton's header rather than in files named for themselves, which is why a
   filename survey misses them): read handles all three storage types, write
-  handles two of them with real bitmap allocation. DOS 3.3 has neither — there is
+  handles two of them with real bitmap allocation. DOS 3.3 has neither; there is
   no reader at all, and its writer is a single zero-parameter method that emits
   one hardcoded greeting file, not a general writer with defaults. The
-  countervailing point is that DOS 3.3's structures are far simpler — flat
-  catalog, track/sector list, no tree, no subdirectories — so building its reader
+  countervailing point is that DOS 3.3's structures are far simpler (flat
+  catalog, track/sector list, no tree, no subdirectories) so building its reader
   from nothing is small work, while ProDOS's remaining work is fiddlier per line.
   Net effort is comparable; it sits in different places. The specific risk is that
   **US3 is P1 and needs both readers, and only one exists.**
@@ -94,8 +94,8 @@
   requires that writing an existing name replace it, and replace cannot be built
   on an append-only writer.
 - The volume-integrity pass (FR-037..FR-040) is one mechanism with four
-  consumers — delete, listing, allocation, and the pre-commit check on every
-  computed write — and should be built once as a first-class pass rather than
+  consumers (delete, listing, allocation, and the pre-commit check on every
+  computed write) and should be built once as a first-class pass rather than
   three or four times inside its callers. The fourth consumer is the one that
   changes the feature's character: checking the computed result before committing
   makes the write path self-verifying. That is the structural answer to the class
