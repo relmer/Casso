@@ -433,6 +433,16 @@ Entries before versioning was introduced use dates only.
   Illegal combinations are covered the same way, including every pairing of
   the four output formats, and each asserts the status a shell is handed
   rather than only the message printed.
+- **Three documented exit statuses had never been returned in a test.** 0, 5
+  and the 2 a failed write earns all require an assembly that SUCCEEDS, and a
+  successful assembly wrote its object before returning, so asserting them
+  meant putting real files on a real disk, which the unit tests do not do. The
+  two writes on that path now go through an `ArtifactSink`, alongside the
+  `FileReader` that supplies the source; both default to the real thing, so
+  every production caller reads and writes exactly as before. All five statuses
+  are now asserted through a real assembly of source that exists on no disk,
+  and the failed-write path is asserted for the listing and the object
+  separately.
 - **A refused flag combination exited 2, and an unknown flag exited 1, for the
   same class of mistake.** as65 spends 1 on "incorrect parameter specified on
   the commandline" and 2 on "unable to open input or output file". Naming two

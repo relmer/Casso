@@ -8,6 +8,13 @@
 
 
 
+//  Where the object and the listing go. Declared rather than included:
+//  a mode names the sink, and only the definitions need its shape.
+class ArtifactSink;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -62,8 +69,10 @@ public:
     //  an assembly error exits 3 without writing a broken source to disk first.
     //  That is how 3 came to be documented, mapped, tested at the mapper, and
     //  never once returned by the tool.
+    //  `artifacts` is the same door on the way out. Null writes files.
     HRESULT Run (const CommandLineOptions & options, int & exitCode,
-                 FileReader * sourceReader = nullptr) const;
+                 FileReader * sourceReader = nullptr,
+                 ArtifactSink * artifacts = nullptr) const;
 
     //  The instruction sets this assembly chooses between. Both dialects offer
     //  the same two CPUs, the 6502 and the 65C02; what differs is WHEN the

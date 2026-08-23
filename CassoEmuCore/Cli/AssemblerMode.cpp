@@ -72,7 +72,7 @@ std::unique_ptr<AssemblerMode> AssemblerMode::CreateFor (DialectId dialect)
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
-                            FileReader * sourceReader) const
+                            FileReader * sourceReader, ArtifactSink * artifacts) const
 {
     using Clock = std::chrono::high_resolution_clock;
 
@@ -82,6 +82,8 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     HRESULT                         hr         = S_OK;
     AssemblerOptions                asmOptions;
     DefaultFileReader               fileReader;
+    FileArtifactSink                fileSink;
+    ArtifactSink                  * out        = artifacts ? artifacts : &fileSink;
     Cpu                             cpu;
     SourceAssembler::Result         ar;
     std::vector<DialectReportLine>  reports;
@@ -147,13 +149,13 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
 
     ReportAssemblySucceeded (options, ar.result);
 
-    hr = options.generateListing ? ArtifactWriter::WriteListing (ar.result, options, reports) : S_OK;
+    hr = options.generateListing ? out->WriteListing (ar.result, options, reports) : S_OK;
     CHRF (hr, exitCode = kNoOutput);
 
     writeOptions            = options;
     writeOptions.outputFile = ResolveOutputName (options, ar.result);
 
-    hr = ArtifactWriter::WriteBinary (ar.result, writeOptions);
+    hr = out->WriteBinary (ar.result, writeOptions);
     CHRF (hr, exitCode = kNoOutput);
 
     hr = WriteExtraArtifacts (options, ar.result);

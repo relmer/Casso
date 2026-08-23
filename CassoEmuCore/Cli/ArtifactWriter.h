@@ -27,6 +27,69 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArtifactSink
+//
+//  Where a successful assembly's two files go.
+//
+//  THE STATUSES ON THE FAR SIDE OF THE WRITE WERE UNREACHABLE WITHOUT IT. An
+//  assembly that fails never gets this far, so 2 and 3 could be asserted with
+//  no files at all; one that SUCCEEDS writes an object before it returns, so
+//  0, 5, and the "wrote nothing" 2 a failed write earns could not be asserted
+//  without putting a real file on a real disk. Unit tests here do not, so
+//  those three went untested, which is the same hole that let two exit-code
+//  mappers disagree with each other for a release.
+//
+//  ONLY THE TWO CALLS ON THE SUCCESS PATH ARE BEHIND THIS. The symbol table
+//  goes to stdout, and the debug and symbol files are written only when a flag
+//  asks for them, so a test that names neither reaches no disk through them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ArtifactSink
+{
+public:
+    virtual ~ArtifactSink () = default;
+
+    virtual HRESULT  WriteBinary  (const AssemblyResult & result,
+                                   const CommandLineOptions & options) = 0;
+
+    virtual HRESULT  WriteListing (const AssemblyResult & result,
+                                   const CommandLineOptions & options,
+                                   const std::vector<DialectReportLine> & reports) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileArtifactSink
+//
+//  The sink that writes files, which is what every production caller wants.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FileArtifactSink : public ArtifactSink
+{
+public:
+    HRESULT  WriteBinary  (const AssemblyResult & result,
+                           const CommandLineOptions & options) override;
+
+    HRESULT  WriteListing (const AssemblyResult & result,
+                           const CommandLineOptions & options,
+                           const std::vector<DialectReportLine> & reports) override;
+};
+
+
+
+
 class ArtifactWriter
 {
 public:

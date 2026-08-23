@@ -106,6 +106,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileArtifactSink::WriteBinary
+//
+//  Straight through to the writer, which is the whole of what this class is
+//  for: somewhere for a test to stand instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileArtifactSink::WriteBinary (const AssemblyResult & result,
+                                       const CommandLineOptions & options)
+{
+    return ArtifactWriter::WriteBinary (result, options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileArtifactSink::WriteListing
+//
+//  Straight through, for the reason above.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileArtifactSink::WriteListing (const AssemblyResult & result,
+                                        const CommandLineOptions & options,
+                                        const std::vector<DialectReportLine> & reports)
+{
+    return ArtifactWriter::WriteListing (result, options, reports);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ArtifactWriter::WriteBinary
 //
 //  Writes the assembled image in the resolved format.

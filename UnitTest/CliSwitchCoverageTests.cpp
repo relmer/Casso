@@ -2,6 +2,7 @@
 
 #include "Cli/CliMain.h"
 #include "Cli/AssemblerMode.h"
+#include "Cli/ArtifactWriter.h"
 #include "AssemblerTypes.h"
 #include "As65ExitStatus.h"
 #include "CommandLineParser.h"
@@ -571,6 +572,50 @@ namespace CliSwitchCoverageTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MemorySink
+    //
+    //  The artifacts, kept in memory. Nothing here touches a disk, which is
+    //  the only reason a SUCCESSFUL assembly can be asserted at all.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class MemorySink : public ArtifactSink
+    {
+    public:
+        HRESULT WriteBinary (const AssemblyResult & result, const CommandLineOptions & options) override
+        {
+            binaryPath  = options.outputFile;
+            bytes       = result.bytes.size();
+            wroteBinary = true;
+
+            return binaryResult;
+        }
+
+        HRESULT WriteListing (const AssemblyResult &, const CommandLineOptions & options,
+                              const std::vector<DialectReportLine> &) override
+        {
+            listingPath  = options.listingFile;
+            wroteListing = true;
+
+            return listingResult;
+        }
+
+        //  What the sink reports back, so the far side of a FAILED write is
+        //  reachable without contriving an unwritable path.
+        HRESULT      binaryResult  = S_OK;
+        HRESULT      listingResult = S_OK;
+        bool         wroteBinary   = false;
+        bool         wroteListing  = false;
+        size_t       bytes         = 0;
+        std::string  binaryPath;
+        std::string  listingPath;
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  ExitStatusThroughTheAssemblerTests
     //
     //  The statuses an assembly earns, asserted against the assembler rather
@@ -598,18 +643,31 @@ namespace CliSwitchCoverageTests
 
         static int StatusUsing (OneSource & reader)
         {
-            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::As65);
-            CommandLineOptions              options;
-            HRESULT                         hr       = S_OK;
-            int                             exitCode = -1;
+            MemorySink  sink;
+
+            return StatusUsing (reader, sink);
+        }
+
+        static int StatusUsing (OneSource & reader, MemorySink & sink)
+        {
+            CommandLineOptions  options;
 
             options.inputFile = "in-memory.a65";
+
+            return StatusFor (options, reader, sink);
+        }
+
+        static int StatusFor (const CommandLineOptions & options, OneSource & reader, MemorySink & sink)
+        {
+            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::As65);
+            HRESULT                         hr       = S_OK;
+            int                             exitCode = -1;
 
             //  The HRESULT says whether the assembly went wrong; the exit code
             //  says what a shell is told. This asserts the second, so the
             //  first is captured and set aside rather than passed into the
             //  macro as a call.
-            hr = mode->Run (options, exitCode, &reader);
+            hr = mode->Run (options, exitCode, &reader, &sink);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             return exitCode;
@@ -634,6 +692,61 @@ namespace CliSwitchCoverageTests
             OneSource  missing = OneSource::Unreadable();
 
             Assert::AreEqual (As65ExitStatus::kNoOutput, StatusUsing (missing));
+        }
+
+        //  as65: "0 - No errors."
+        TEST_METHOD (ACleanAssembly_IsZero_AndWritesItsObject)
+        {
+            OneSource   clean (" ORG $0300\n LDA #$01\n RTS\n");
+            MemorySink  sink;
+
+            Assert::AreEqual (0, StatusUsing (clean, sink));
+            Assert::IsTrue (sink.wroteBinary, L"and the object was asked for");
+            Assert::IsTrue (sink.bytes > 0,   L"with something in it");
+        }
+
+        //  as65: "5 - Warnings during assembly."
+        //
+        //  A WARNING SUCCEEDS, and the object is still written. That is why
+        //  this status was unreachable before the sink, and why it must not be
+        //  confused with the 3 an actual error earns.
+        TEST_METHOD (AnAssemblyThatWarned_IsFive_AndStillWritesItsObject)
+        {
+            OneSource   warns (" ORG $0300\n ORG $0300\n RTS\n");
+            MemorySink  sink;
+
+            Assert::AreEqual (As65ExitStatus::kWarned, StatusUsing (warns, sink),
+                              L"a redundant ORG warns");
+            Assert::IsTrue (sink.wroteBinary, L"and the object is written anyway");
+        }
+
+        //  A WRITE THAT FAILED IS NO OUTPUT, whatever the assembly thought of
+        //  the source. The question a script asks is whether it got a file.
+        TEST_METHOD (AnObjectThatCouldNotBeWritten_IsNoOutput)
+        {
+            OneSource   clean (" ORG $0300\n RTS\n");
+            MemorySink  sink;
+
+            sink.binaryResult = HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+
+            Assert::AreEqual (As65ExitStatus::kNoOutput, StatusUsing (clean, sink));
+        }
+
+        //  The listing is written first, and failing it stops the object.
+        TEST_METHOD (AListingThatCouldNotBeWritten_IsNoOutput)
+        {
+            OneSource           clean (" ORG $0300\n RTS\n");
+            MemorySink          sink;
+            CommandLineOptions  options;
+
+            options.inputFile       = "in-memory.a65";
+            options.generateListing = true;
+            options.listingFile     = "prog.lst";
+            sink.listingResult      = HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+
+            Assert::AreEqual (As65ExitStatus::kNoOutput, StatusFor (options, clean, sink));
+            Assert::IsTrue  (sink.wroteListing, L"the listing was attempted");
+            Assert::IsFalse (sink.wroteBinary,  L"and the object was not, after it failed");
         }
     };
 
