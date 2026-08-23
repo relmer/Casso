@@ -405,11 +405,14 @@ LID_DENT_R = 11.0                 # the corner radius in plan
 
 lid_dents = None
 
-# TWO BROAD PANELS, ONE BEHIND THE OTHER. They were a pair of narrow strips
-# running the lid's length side by side, which is the wrong axis: the real
-# press is two wide rounded rectangles stacked front to back, each most of
-# the lid across, separated by a raised band and bordered by a raised margin.
-for y0, y1 in [(18.0, 102.0), (118.0, 202.0)]:
+# TWO BROAD PANELS, ONE BEHIND THE OTHER, and the front one is the SHORTER.
+# They were a pair of narrow strips running the lid's length side by side,
+# which is the wrong axis: the real press is two wide rounded rectangles
+# stacked front to back, each most of the lid across, separated by a raised
+# band and bordered by a raised margin. Equal lengths read as a deliberate
+# split down a symmetric lid; the real one is not symmetric, and the front
+# panel stops short.
+for y0, y1 in [(18.0, 96.0), (112.0, 204.0)]:
     x0, x1 = 21.5, W - 21.5
     # Chamfered on the tool's UNDERSIDE, which is what puts the slope in the
     # material: the cut is narrowest at the floor and opens to full width by
