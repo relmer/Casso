@@ -8,6 +8,7 @@
 #include "ProDosVolume.h"
 #include "DiskImageStore.h"
 #include "BlankDiskBuilder.h"
+#include "StockBootDisks.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -314,7 +315,9 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 
     return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
-        "  " + sp + "o names the assembled output file. The last line is the emulator's"
+        "  create makes the disk the rest of the loop writes to, and " + lp + "bootable copies"
+        " an operating system onto it so the machine has something to start. " + sp + "o names"
+        " the assembled output file. The last line is the emulator's"
         " own command line rather than this tool's, which is why its flags are written"
         " with two dashes whatever prefix you asked for here: --machine Apple2e opens"
         " an Apple //e, and --disk1 puts the image in drive 1 as it starts.\n"
@@ -2450,9 +2453,12 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
                                         BootPayload              & outPayload,
                                         DiskCommandResult        & result)
 {
-    HRESULT       hr       = S_OK;
-    bool          copiesOs = !options.disk.bootableFrom.empty();
-    vector<Byte>  osBytes;
+    HRESULT                hr       = S_OK;
+    bool                   isProDos = inOutSpec.contents == BlankDiskContents::ProDos;
+    StockBootDisks::Which  which    = isProDos ? StockBootDisks::Which::ProDosUsersDisk
+                                               : StockBootDisks::Which::Dos33Master;
+    std::string            master   = options.disk.bootableFrom;
+    vector<Byte>           osBytes;
 
 
 
@@ -2466,16 +2472,37 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
         return E_NOTIMPL;
     }
 
-    if (!copiesOs)
+    if (!options.disk.bootable)
     {
         return S_OK;
     }
 
-    hr = m_fileIo.ReadAllBytes (options.disk.bootableFrom, osBytes);
+    //  A BARE --bootable MEANS THE ONE THE EMULATOR DOWNLOADED. Which of the
+    //  two that is follows the format being written, because a ProDOS disk
+    //  cannot be made bootable out of a DOS master.
+    if (master.empty())
+    {
+        if (!StockBootDisks::IsCached (which))
+        {
+            result.diagnostics    += std::string ("Error: the ")
+                                   + (isProDos ? "ProDOS" : "DOS 3.3")
+                                   + " master has not been downloaded yet\n"
+                                     "       run the emulator once to fetch it, or name a master with "
+                                     "--bootable <image>\n";
+            result.exitStatus      = kNoOutput;
+            result.badCommandLine  = true;
+
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        master = StockBootDisks::PathFor (which);
+    }
+
+    hr = m_fileIo.ReadAllBytes (master, osBytes);
 
     if (FAILED (hr))
     {
-        result.diagnostics += Failure (options.disk.bootableFrom, "",
+        result.diagnostics += Failure (master, "",
                                        "cannot be read, so there is no operating system to copy") + "\n";
         result.exitStatus   = kNoOutput;
 
@@ -2484,7 +2511,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 
     //  Which slot it fills follows the format being written, because that is
     //  the one the builder will reach for.
-    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    if (isProDos)
     {
         outPayload.proDosUsersDisk = osBytes;
     }

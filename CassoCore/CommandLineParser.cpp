@@ -1155,10 +1155,23 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        if (arg == "--bootable" && hasValue)
+        //  --bootable STANDS ALONE OR NAMES A MASTER. Bare, the runner
+        //  looks in the cache the emulator downloads into; with a value it
+        //  uses that file. A following argument beginning with a dash is
+        //  the next option rather than a filename, so `--bootable --format
+        //  prodos` reads as both and not as a master called `--format`.
+        if (arg == "--bootable")
         {
-            options.disk.bootableFrom = argv[i + 1];
-            i++;
+            bool  named = hasValue && argv[i + 1][0] != '-';
+
+            options.disk.bootable     = true;
+            options.disk.bootableFrom = named ? argv[i + 1] : "";
+
+            if (named)
+            {
+                i++;
+            }
+
             continue;
         }
 

@@ -187,10 +187,18 @@ public:
         std::string               help  = DiskCommandRunner::BuildHelpText();
         std::vector<std::string>  lines = ExampleCommandLines (help);
 
-        //  Five commands: assemble, place the program, place the greeting, set
-        //  the greeting, launch. The count is asserted first because every
-        //  assertion below iterates, and a loop over nothing passes.
-        Assert::AreEqual (size_t (5), lines.size(), L"the example runs the loop end to end");
+        //  Six commands: make the disk, assemble, place the program, place
+        //  the greeting, set the greeting, launch. The count is asserted
+        //  first because every assertion below iterates, and a loop over
+        //  nothing passes.
+        //
+        //  THE FIRST STEP WAS MISSING FOR A LONG TIME. Every other line
+        //  wrote to mydisk.dsk and nothing made it, so a reader following
+        //  the example from an empty directory failed at step two.
+        Assert::AreEqual (size_t (6), lines.size(), L"the example runs the loop end to end");
+
+        Assert::AreEqual (std::string ("  CassoCli disk create mydisk.dsk --bootable"),
+                          lines[0], L"make the disk");
 
         //  No shape flag: the assembled bytes are what a bare invocation writes
         //  now, so the example that used to write `--raw` writes nothing.
@@ -199,19 +207,19 @@ public:
         //  The first step names its dialect, because assembling does now:
         //  a bare source file is no longer an invocation this tool accepts.
         Assert::AreEqual (std::string ("  CassoCli as65 prog.a65 -oprog.bin"),
-                          lines[0], L"assemble");
+                          lines[1], L"assemble");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk prog.bin"
                                        " --as PROG --type B --addr $6000"),
-                          lines[1], L"place the program");
+                          lines[2], L"place the program");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk greet.bas"
                                        " --as STARTUP --basic"),
-                          lines[2], L"place the greeting");
+                          lines[3], L"place the greeting");
         Assert::AreEqual (std::string ("  CassoCli disk boot mydisk.dsk STARTUP"),
-                          lines[3], L"set the greeting");
+                          lines[4], L"set the greeting");
         //  The launch line names the MACHINE as well as the disk: a reader
         //  following the loop should land on the //e the rest of it assumes.
         Assert::AreEqual (std::string ("  Casso.exe --machine Apple2e --disk1 mydisk.dsk"),
-                          lines[4], L"launch");
+                          lines[5], L"launch");
     }
 
     TEST_METHOD (HelpText_EveryOptionTheExampleTypes_IsDescribedElsewhereInTheSameHelp)
@@ -219,8 +227,8 @@ public:
         std::string               help    = DiskCommandRunner::BuildHelpText();
         std::string               rest    = HelpWithoutExampleCommands (help);
         std::vector<std::string>  options = OptionsUsedByExample (help);
-        std::vector<std::string>  expected { "-o", "--as", "--type", "--addr",
-                                             "--basic", "--machine", "--disk1" };
+        std::vector<std::string>  expected { "--bootable", "-o", "--as", "--type",
+                                             "--addr", "--basic", "--machine", "--disk1" };
 
         //  The exact set, not merely a non-empty one. A scanner that found
         //  nothing, or found only the first line's two, would satisfy the loop

@@ -159,7 +159,8 @@ struct CommandLineOptions
         //  `--boot <binary>` writes no operating system at all: the boot
         //  sector loads the binary and jumps to it. Naming both is asking
         //  for a disk that boots two ways, and is refused.
-        std::string  bootableFrom;                     // --bootable <os image>
+        bool         bootable       = false;          // --bootable, with or without a path
+        std::string  bootableFrom;                     // --bootable <os image>, when named
         std::string  directBootFile;                   // --boot <binary>
     };
 

@@ -109,6 +109,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 
 
     return std::string (kExampleHeading) + "\n"
+        "  CassoCli disk create mydisk.dsk " + lp + "bootable\n"
         "  CassoCli as65 prog.a65 " + sp + "oprog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
                  + lp + "type B " + lp + "addr $6000\n"
@@ -142,10 +143,10 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 //  itself, and a general page could only state them wrongly or at four times
 //  this length.
 //
-//  `?` IS THE ROUTE TO THE ASSEMBLER'S PAGE and carries no prefix, because it
-//  is as65's own convention: a lone question mark is how that assembler is
-//  asked for its usage, and assembling IS as65 mode. Every other route is
-//  written with the prefix the reader typed.
+//  A LONE `?` OPENS THIS PAGE TOO. It is as65's own convention -- a question
+//  mark on its own is how that assembler is asked for its usage -- and at the
+//  top level it names no grammar, so it asks the same question `--help` does.
+//  Every route below is written with the prefix the reader typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

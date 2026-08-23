@@ -238,6 +238,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\StockBootDisks.cpp" />
     <ClCompile Include="Devices\Disk\DirectBootBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
     <ClCompile Include="Devices\Disk\ProDosSkeleton.cpp" />
@@ -329,6 +330,7 @@
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
+    <ClInclude Include="Devices\Disk\StockBootDisks.h" />
     <ClInclude Include="Devices\Disk\DirectBootBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
     <ClInclude Include="Devices\Disk\ProDosSkeleton.h" />
