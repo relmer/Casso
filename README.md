@@ -51,28 +51,35 @@ internals (projects, threading, the memory model, and the optimization log).
 
 ### Disk file access from the command line (v1.19.0)
 
-The build loop no longer leaves the machine. `CassoCli disk` reads files off an
-Apple II disk image and puts them back — `list`, `get`, `put`, `delete`, and
-`boot` — on DOS 3.3 and ProDOS volumes, in `.dsk`, `.do`, `.po` and `.woz`
-images alike, with no third-party tool anywhere in the loop:
+The build loop no longer leaves the machine. `CassoCli disk` makes a disk,
+reads files off it and puts them back: `create`, `init`, `list`, `get`, `put`,
+`delete` and `boot`, on DOS 3.3 and ProDOS volumes, in `.dsk`, `.do`, `.po` and
+`.woz` images alike, with no third-party tool anywhere in the loop. Source to a
+running machine, in six commands:
 
 ```powershell
+CassoCli disk create mydisk.dsk --bootable
 CassoCli as65 prog.a65 -oprog.bin
 CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000
 CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic
 CassoCli disk boot mydisk.dsk STARTUP
-Casso.exe --disk1 mydisk.dsk
+Casso.exe --machine Apple2e --disk1 mydisk.dsk
 ```
 
+It runs in reverse too. `disk get` hands back a file byte-for-byte and reports
+the load address DOS 3.3 does not keep in its catalog, and `--basic` returns a
+tokenized Applesoft program as a listing you can edit.
+
 `CassoCli --help` carries that example, so a newcomer needs nothing but the
-tool's own output. `--basic` converts an Applesoft listing to and from the
-tokenized form; `--text` converts the high-bit encoding and line endings;
-naming neither, the default, moves bytes unchanged, so extract-edit-replace
-perturbs nothing the edit did not touch.
+tool's own output. `--bootable` copies an operating system onto the disk,
+finding the master the emulator already downloaded. `--basic` converts an
+Applesoft listing to and from the tokenized form; `--text` converts the
+high-bit encoding and line endings; naming neither, the default, moves bytes
+unchanged, so extract-edit-replace perturbs nothing the edit did not touch.
 
 **The assembler's command line is now AS65's, exactly.** Values attach to their
 flags, flags chain into one argument, `-x` selects the 65C02, and exit codes 0
-through 3 carry the meanings the AS65 manual gives them — so a build script
+through 3 carry the meanings the AS65 manual gives them, so a build script
 written for AS65 branches correctly here without being read again. **This
 changes behavior scripts may depend on; see [CHANGELOG.md](CHANGELOG.md) before
 upgrading.** The help is tiered to match: `CassoCli --help` is one screen naming

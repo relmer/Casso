@@ -11,6 +11,32 @@ Entries before versioning was introduced use dates only.
 ## [1.19.0] — disk file access + breaking command-line changes
 
 ### Added
+- **`disk create` and `disk init` make the disk the rest of the loop writes
+  to.** Every step of the worked example began `disk put mydisk.dsk`, and
+  nothing anywhere made `mydisk.dsk`, so following it from an empty directory
+  failed at step two. `create` writes a new image and decides its container,
+  from `--type` or from the name's extension; `init` reformats one that is
+  already there and takes the container as it finds it. `create` refuses to
+  write over something that exists and names `init` as the verb for meaning it.
+  Both take `--format dos33|prodos|none` and `--volume`, which is a number
+  under DOS 3.3 and a name under ProDOS: which one the word is read as follows
+  from the format rather than from how the word looks, or a ProDOS volume
+  legitimately called `254` would silently become a DOS volume number. `new`
+  and `format` are accepted as aliases.
+- **`--bootable` copies an operating system on, and finds it by itself.** Bare,
+  it takes the master matching the format being written from the cache the
+  emulator downloads into, and says which one is missing and how to fetch it
+  when the cache is empty. `--bootable <image>` names one explicitly, for a
+  script pointing at its own. The locating half moved into the library as
+  `StockBootDisks`; the downloading stays in the GUI, which is where consent
+  and a network stack belong.
+- **A listing file gets `.lst` when you do not name an extension.** `-lfoo`
+  wrote a file called `foo`, which is what AS65 does with the name and is a
+  file a person then has to work out how to open. An extension you gave is
+  untouched, a dot inside a directory name does not count as one, and a
+  trailing dot asks for no extension and gets none, so `-lfoo.` still writes
+  `foo`.
+
 - **PowerShell no longer breaks an ordinary AS65 command line.** `CassoCli
   prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
   parameter name cannot contain a dot, and the tool used to refuse it and
@@ -117,6 +143,37 @@ Entries before versioning was introduced use dates only.
   carries, so the result is ready to `BLOAD` once placed on a disk.
 
 ### Changed
+- **The executable is a shim, and everything it used to do is in the library.**
+  `CassoCli.exe` was 3,639 lines of parsing, dispatch, page composition and
+  exit-code decisions, none of which the test assembly links and therefore none
+  of which could be checked. It is 57 lines now: one `main` that calls
+  `CliMain` and returns what comes back. The split is testability rather than
+  platform, so the Win32 file layer moved too. This is the shape GitHub issue
+  #85 asks every executable to take.
+- **Every refusal opens with `Error:` and no longer names the mode it is not an
+  option of.** There were three prefixes in use, chosen by which layer happened
+  to notice the problem: `Error:`, `CassoCli:`, and none at all. The mode is on
+  the page printed directly above and in the command just typed, so
+  `'-a' is not an option of the merlin mode` spent a clause on what the reader
+  can see, and spelled the assembler in lower case. It reads
+  `Error: unknown option: -a`.
+- **A mode named with nothing after it opens that mode's page.** `CassoCli
+  as65` answered `No input file specified`, which tells a reader who has just
+  found the mode the one thing they had already worked out. `disk` did this
+  from the start; the other three do now. Still a non-zero exit, because a
+  script that invokes the tool wrongly has to fail.
+- **A bad command line is answered with the grammar, not one line.** `disk get
+  img.dsk A B` said `surplus argument: B` and stopped, so a reader who had a
+  verb's operands wrong learned they were wrong and not what the right ones
+  are. Every refusal now prints the page belonging to the mode that was named,
+  then the reason, last, so the reason is the line left on screen.
+- **A lone `?` opens the general page.** It opened the assembler's while a bare
+  source file still assembled, which made the top level AS65 mode. Naming the
+  dialect is required now, so the top level names no grammar and `?` asks the
+  same question `--help` does. `CassoCli as65 ?` opens the assembler's page.
+- The help says **mode** rather than subcommand throughout, and the disk page
+  calls its own second words **verbs**, because that is what they are.
+
 - **The assembler's exit codes now match AS65's exactly.** AS65 documents
   `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
   an assembly that warned and put the bad command line under 2 with everything
@@ -343,6 +400,33 @@ Entries before versioning was introduced use dates only.
   unaffected — that filesystem records neither field.
 
 ### Fixed
+- **The help fills the terminal, which it did almost nowhere.**
+  `GetConsoleScreenBufferInfo` needs a readable console handle, and a `stdout`
+  that has been through a shell is not one: it is write-only or a pipe, and the
+  call fails however wide the window behind it is. Measured against a
+  112-column console, the handle answered nothing under a redirect, a pipe and
+  `> CON` alike, while `CONOUT$` answered 112 every time. The terminal is asked
+  directly now. A redirect to a file keeps folding at 80, because a file will
+  be opened in an editor. `COLUMNS` overrides everything, which is the
+  convention and is what lets a script set a width and measure what came back.
+  The disk page was also hand-wrapped at 72 columns in its own source and
+  printed without folding at all, so it could not widen twice over.
+- **A refusal no longer prints in the middle of the page it interrupts.**
+  `std::println` writes to the C `stdout` stream and `std::cout` is a separate
+  C++ one over the same descriptor; every ordering point flushed only the
+  second, so the unbuffered `stderr` overtook a page still sitting in a buffer
+  nobody had emptied. `as65 -asdf` printed the reason inside the flag table.
+- **An unreadable source no longer claims a count it cannot have.** `as65 joij`
+  answered `Cannot read input file: joij` and then `Assembly failed with 0
+  error(s)`, which reads as a second and contradictory claim: no assembly was
+  attempted, so there were no errors to total.
+- **A bare `CassoCli` exits 1 again.** Printing the page because nothing was
+  asked for is a usage error; asking for the page is not. Both print the same
+  text, and the exit code read the wrong flag to tell them apart.
+- Two blank lines separate a usage page from the reason it was printed, and one
+  blank line closes every run, so a shell prompt does not land against the last
+  line of output.
+
 - **A command line the tool cannot read is answered with the grammar, not with
   one line.** `CassoCli disk get img.dsk A B` said `surplus argument: B` and
   stopped, so a reader who had a verb's operands wrong was told they were wrong

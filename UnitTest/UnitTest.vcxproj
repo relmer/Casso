@@ -229,6 +229,7 @@
     <ClCompile Include="MacroTests.cpp" />
     <ClCompile Include="ConstantTests.cpp" />
     <ClCompile Include="CommandLineTests.cpp" />
+    <ClCompile Include="CliMainTests.cpp" />
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
