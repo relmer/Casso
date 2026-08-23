@@ -518,10 +518,27 @@ shell_bottom = shell_bottom.union (
 # The turn-up at the back, standing REAR_INSET forward of the wrap's own back
 # edge. The wrap is open there, so without it the case has no rear at all --
 # which never showed only because nothing looks at a drive from behind.
+#
+# The ribbon leaves through a notch in the panel's FREE EDGE rather than a
+# hole in the middle of it. That is what the part shows and it is the only
+# thing that could be: the panel is bent up from the bottom after the drive
+# is in, so anything enclosed would have to thread the cable through it.
+CABLE_W  = 30.0
+CABLE_D  = 12.0
+CABLE_CX = W * 0.30
+CABLE_R  = 3.0
+
+cable_notch = (cq.Workplane("XY")
+               .box(CABLE_W, SHELL_T + 2.0, CABLE_D + 4.0, centered=(False, False, False))
+               .translate((CABLE_CX - CABLE_W * 0.5, D - REAR_INSET - SHELL_T - 1.0,
+                           H - CABLE_D))
+               .edges("|Y").fillet (CABLE_R))
+
 shell_bottom = shell_bottom.union (
     cq.Workplane("XY")
       .box(W, SHELL_T, H, centered=(False, False, False))
-      .translate((0.0, D - REAR_INSET - SHELL_T, 0.0)))
+      .translate((0.0, D - REAR_INSET - SHELL_T, 0.0))
+      .cut (cable_notch))
 
 m.add("shell_bottom", shell_bottom, SHELL)
 
@@ -708,11 +725,23 @@ m.add("led", led, KD["drive_lamp"])
 # the flange's inner edge and half of each foot stood on the plate a sheet
 # lower -- a foot bridging a step, which is a thing no drive would ship.
 # Derived from the flange's own two edges, so they follow it if it moves.
+#
+# TAPERED BLOCKS, not discs. They are molded rubber pads: square, widest
+# where they meet the case and drawing in to a smaller face on the floor,
+# which is what gives them their draft and a small contact patch. Cylinders
+# read as machine feet on something that has none.
+FOOT_H   = CASE_FEET_H - CASE_H
+FOOT_TOP = 15.0                   # against the case
+FOOT_BOT = 11.0                   # on the floor
+
 for fx in ((-SHELL_T + SEAM_L) * 0.5, (SEAM_R + W + SHELL_T) * 0.5):
     for fy in (18.0, D - 18.0):
         m.add(f"foot{fx:.0f}_{fy:.0f}",
-              cq.Workplane("XY").cylinder(CASE_FEET_H - CASE_H, 6.0, centered=(True, True, False))
-                .translate((fx, fy, -(CASE_FEET_H - CASE_H) - SHELL_T)),
+              cq.Workplane("XY", origin=(fx, fy, -SHELL_T))
+                .rect(FOOT_TOP, FOOT_TOP)
+                .workplane(offset=-FOOT_H)
+                .rect(FOOT_BOT, FOOT_BOT)
+                .loft(),
               FOOT)
 
 
