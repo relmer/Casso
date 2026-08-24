@@ -506,20 +506,59 @@ namespace CliSwitchCoverageTests
         {
             for (const SwitchCase & one : Cases())
             {
-                ArgVector           args (one.argv);
-                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
-
-                Assert::IsTrue (opts.unrecognizedFlag.empty(),
-                                Widen (std::string (one.what) + ": rejected as unknown ("
-                                       + opts.unrecognizedFlag + ")").c_str());
-                Assert::IsTrue (opts.refusalMessage.empty(),
-                                Widen (std::string (one.what) + ": refused with "
-                                       + opts.refusalMessage).c_str());
-                Assert::IsTrue (opts.outputFormatConflict.empty(),
-                                Widen (std::string (one.what) + ": "
-                                       + opts.outputFormatConflict).c_str());
-                Assert::IsTrue (one.took (opts), Widen (one.what).c_str());
+                Exercise (one, one.argv, "-");
             }
+        }
+
+        //  THE SAME SWITCHES IN THE OTHER PREFIX. Every flag is accepted as
+        //  `/x` as readily as `-x`, and the two are meant to be the same
+        //  switch. Eight of as65's and fifteen of the long options had never
+        //  been typed that way in a test, so half the accepted grammar rested
+        //  on the assumption that the prefixes could not diverge.
+        //
+        //  Driven from the same table as the pass above rather than a second
+        //  list of its own, so a switch cannot be covered in one prefix and
+        //  quietly missed in the other.
+        TEST_METHOD (EverySwitchWorksTheSameInSlashes)
+        {
+            for (const SwitchCase & one : Cases())
+            {
+                Exercise (one, InSlashes (one.argv), "/");
+            }
+        }
+
+    private:
+        //  Every argument that opens with a dash, rewritten to open with a
+        //  slash. A VALUE IS LEFT ALONE, which is what makes this safe: no
+        //  value in the table above begins with a dash.
+        static std::vector<std::string> InSlashes (const std::vector<std::string> & argv)
+        {
+            std::vector<std::string>  slashed;
+
+            for (const std::string & arg : argv)
+            {
+                bool  isFlag = arg.size() > 1 && arg[0] == '-';
+
+                slashed.push_back (isFlag ? "/" + arg.substr (arg.find_first_not_of ('-')) : arg);
+            }
+
+            return slashed;
+        }
+
+        static void Exercise (const SwitchCase & one, const std::vector<std::string> & argv,
+                              const std::string & prefix)
+        {
+            ArgVector           args (argv);
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            std::string         what = std::string (one.what) + " [" + prefix + "]";
+
+            Assert::IsTrue (opts.unrecognizedFlag.empty(),
+                            Widen (what + ": rejected as unknown (" + opts.unrecognizedFlag + ")").c_str());
+            Assert::IsTrue (opts.refusalMessage.empty(),
+                            Widen (what + ": refused with " + opts.refusalMessage).c_str());
+            Assert::IsTrue (opts.outputFormatConflict.empty(),
+                            Widen (what + ": " + opts.outputFormatConflict).c_str());
+            Assert::IsTrue (one.took (opts), Widen (what).c_str());
         }
     };
 
@@ -747,6 +786,92 @@ namespace CliSwitchCoverageTests
             Assert::AreEqual (As65ExitStatus::kNoOutput, StatusFor (options, clean, sink));
             Assert::IsTrue  (sink.wroteListing, L"the listing was attempted");
             Assert::IsFalse (sink.wroteBinary,  L"and the object was not, after it failed");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TopLevelSwitchTests
+    //
+    //  The switches that belong to no mode: the seven ways to ask for help and
+    //  the two ways to ask for the version.
+    //
+    //  THESE ARE NOT IN ANY GRAMMAR TABLE, so the coverage gate above cannot
+    //  see them and they have to be listed. The list is asserted against
+    //  IsHelpRequest rather than trusted, which is what stops a form from
+    //  being dropped from one and not the other. `-version` had never been
+    //  typed in a test at all.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (TopLevelSwitchTests)
+    {
+    public:
+        static int Run (std::initializer_list<const char *> typed)
+        {
+            std::vector<std::string>  words;
+
+            for (const char * word : typed)
+            {
+                words.push_back (std::string (word));
+            }
+
+            ArgVector  args (words);
+
+            return CliMain (args.Count(), args.Data());
+        }
+
+        //  Asking how the tool works succeeds, whichever way it is asked.
+        TEST_METHOD (EveryHelpForm_PrintsThePageAndSucceeds)
+        {
+            for (const char * form : { "--help", "-help", "-?", "-h", "/help", "/?", "/h" })
+            {
+                Assert::AreEqual (0, Run ({ "CassoCli", form }), Widen (form).c_str());
+                Assert::IsTrue (CommandLineParser::IsHelpRequest (form),
+                                Widen (std::string (form) + " is not recognized as a help request").c_str());
+            }
+        }
+
+        //  And the list above is the whole of it: a near miss is an argument,
+        //  not a request for the page.
+        TEST_METHOD (AWordThatMerelyResemblesOne_IsNotAHelpRequest)
+        {
+            for (const char * form : { "help", "?", "--h", "-hh", "/hh", "--halp" })
+            {
+                Assert::IsFalse (CommandLineParser::IsHelpRequest (form), Widen (form).c_str());
+            }
+        }
+
+        //  `?` ON ITS OWN IS AS65'S REQUEST and is answered, even though it
+        //  carries no switch character and IsHelpRequest says no to it.
+        TEST_METHOD (ABareQuestionMark_IsAs65sOwnRequest)
+        {
+            Assert::AreEqual (0, Run ({ "CassoCli", "?" }));
+            Assert::AreEqual (0, Run ({ "CassoCli", "as65", "?" }));
+        }
+
+        //  Both spellings of the version.
+        TEST_METHOD (EitherVersionForm_Succeeds)
+        {
+            Assert::AreEqual (0, Run ({ "CassoCli", "--version" }), L"--version");
+            Assert::AreEqual (0, Run ({ "CassoCli", "-version" }),  L"-version");
+        }
+
+        //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it
+        //  asks for the page; after a source file it is as65's page height,
+        //  which takes a number attached. Routing every `-h` to the help was a
+        //  real bug: it made `-h60` unreachable behind the dialect's own flag.
+        TEST_METHOD (DashH_IsHelpAlone_AndPageHeightInsideTheAssembler)
+        {
+            ArgVector           args ({ "CassoCli", "as65", "p.a65", "-h60" });
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (0, Run ({ "CassoCli", "-h" }), L"alone it is the page");
+            Assert::AreEqual (60, opts.pageHeight,           L"and attached to a number it is the height");
+            Assert::IsFalse (opts.showHelp,                  L"which is not a request for help");
         }
     };
 
