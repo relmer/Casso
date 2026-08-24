@@ -175,14 +175,13 @@ static constexpr float   s_kDiskIiEjectMax[3] = { 145.08f,  3.0f, 65.60f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
-// The //c drive's own, from cad_disk2c.py: a 152 x 70 x 216 case whose slot
-// sits at z 42..47 with the flip lever at 30..40, so the eject zone spans
-// the pair of them. The Disk II's boxes are measured against a face 20 mm
-// taller and put the eject strip above this drive's slot entirely.
-static constexpr float   s_kDisk2cEjectMin[3] = {  13.0f, -5.0f, 28.0f };
-static constexpr float   s_kDisk2cEjectMax[3] = { 139.0f,  3.0f, 49.0f };
-static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
-static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 182.4f, 70.0f };
+// The //c drive's own, from cad_disk2c.py: a 152 x 46 x 216 case -- a flat
+// slab, about a quarter of its width tall -- whose slot sits at z 25..29.5
+// with the latch below and through it. The eject zone spans the pair.
+static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 11.0f };
+static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 31.0f };
+static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
+static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
 
 // Write-protect padlock stamp on the drive faceplate (model mm), top-right
 // like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
@@ -215,7 +214,7 @@ static constexpr float   s_kPadlockArchH     =  6.4f;
 static constexpr float   s_kDiskIiPadlockX1  = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kDiskIiPadlockZ1  = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kDisk2cPadlockX1  = 139.65f;
-static constexpr float   s_kDisk2cPadlockZ1  =  63.50f;
+static constexpr float   s_kDisk2cPadlockZ1  =  45.20f;
 static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners
 static constexpr float   s_kPadlockShackleR  =  3.05f;   // the U's outer radius
 static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickness

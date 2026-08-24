@@ -10,12 +10,12 @@ d 1
 
 newmtl lever
 Ka 0 0 0 
-Kd 0.845 0.836 0.812
+Kd 0.7 0.692 0.668
 d 1
 
 newmtl tab
 Ka 0 0 0 
-Kd 0.806 0.798 0.774
+Kd 0.655 0.648 0.625
 d 1
 
 newmtl lamp
@@ -123,22 +123,32 @@ Ka 0 0 0
 Kd 0.055 0.055 0.062
 d 1
 
-newmtl foot18_16
+newmtl footbar22
+Ka 0 0 0 
+Kd 0.884 0.874 0.846
+d 1
+
+newmtl foot24_22
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot18_166
+newmtl foot128_22
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot134_16
+newmtl footbar194
+Ka 0 0 0 
+Kd 0.884 0.874 0.846
+d 1
+
+newmtl foot24_194
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot134_166
+newmtl foot128_194
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1

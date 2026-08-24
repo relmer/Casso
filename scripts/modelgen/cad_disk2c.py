@@ -1,5 +1,5 @@
 """Apple Disk IIc (A2M4050Z) as a real solid model. The low off-white unit
-styled to match the //c, 152 x 182 x 70 mm (W x D x H). X right, Y back,
+styled to match the //c, 152 x 216 x 46 mm (W x D x H). X right, Y back,
 Z up; front face at y = -2.5.
 
 MODELED FROM PHOTOGRAPHS -- see specs/018-3d-desk-scene/reference/README.md,
@@ -30,23 +30,22 @@ from cadkit import KD, Model
 
 # ---------------------------------------------------------------- dimensions
 #
-# STILL UNMEASURED, but no longer left at a figure the evidence contradicts.
-# Two underside photographs, both near enough rectified to read an aspect
-# from, put the case between 1.18 and 1.25 times as deep as it is wide. It
-# was 1.42 -- roughly a fifth too long, which is the kind of error that reads
-# as "something about this is off" without ever looking like a mistake.
+# THE HEIGHT WAS THE ERROR ALL ALONG, and it is the one that made the thing
+# unrecognizable. At 70 mm on a 152 mm case this was a chunky box; the drive
+# is a flat SLAB, about a quarter of its own width tall. Every photograph
+# agrees -- the side elevation is a band, the front face is far wider than it
+# is high -- and no amount of correct detail on a case the wrong shape reads
+# as the right machine.
 #
-# 1.20 splits them. It is an ESTIMATE off photographs of unknown scale, which
-# is exactly the move that earns confident wrong numbers, so it is written
-# down as one: the Disk II's dimensions were only ever right once somebody
-# put a tape on one, and this wants the same.
+# The DEPTH goes back to where it started. Reading two tightly-cropped
+# underside shots, I took the IMAGE's aspect for the drive's and concluded
+# the case was a fifth too long. A later underside with real margin around it
+# measures about 1.45 -- which is where 216 already was. The lesson is narrow
+# and worth keeping: an aspect read off a photograph is only the subject's
+# aspect if the subject's own bounding box is visible in it.
 #
-# Sanity check it survives: a 5.25 inch diskette is 133.35 mm square and has
-# to go all the way in, leaving about 49 mm behind it for spindle, motor and
-# board. Tight, and possible. At the old 216 there was 83 mm back there,
-# which is more room than the mechanism has any use for.
-W, H = 152.0, 70.0
-D    = W * 1.20
+# Still not measured. A tape on a real one settles all three.
+W, H, D = 152.0, 46.0, 216.0
 
 # Warm off-white, not the //e era's platinum: the photographs show a case that
 # matches the //c's own cream, and the latch a cool gray against it.
@@ -55,28 +54,29 @@ CASE_DK = (0.812, 0.803, 0.778)
 SLOT_DK = (0.055, 0.055, 0.062)
 FOOT    = (0.320, 0.310, 0.300)
 
-# The latch is a SHADE cooler than the case, not a different part in a
-# different material. Identity is by part NAME now, so these are free to be
-# the finish the photographs show rather than the marker colors they were.
-LATCH   = (0.845, 0.836, 0.812)
-GRIP    = (0.806, 0.798, 0.774)
+# The latch is GRAY -- a //c keycap's gray, plainly a different part from the
+# case rather than a tint of it. Made a shade off the cream it vanished into
+# the front, which is the opposite of what it is: the one thing on this face
+# you are meant to find with a thumb.
+LATCH   = (0.700, 0.692, 0.668)
+GRIP    = (0.655, 0.648, 0.625)
 
 RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
            (0.91, 0.18, 0.14), (0.58, 0.25, 0.60), (0.17, 0.45, 0.85)]
 
 # ------------------------------------------------------------------ the front
 
-SLOT_Z0, SLOT_Z1 = 40.0, 45.0     # the disk opening
+SLOT_Z0, SLOT_Z1 = 25.0, 29.5     # the disk opening
 SLOT_X0, SLOT_X1 = 16.0, W - 16.0
 
-LATCH_W      = 30.0               # the central block that splits the slot
+LATCH_W      = 21.0               # the central block that splits the slot
 LATCH_X0     = (W - LATCH_W) * 0.5
-LATCH_Z0     = SLOT_Z0 - 13.0
+LATCH_Z0     = SLOT_Z0 - 12.0
 LATCH_PROUD  = 4.2                # how far it stands off the face
 LATCH_R      = 2.0
 
-RECESS_W     = 44.0               # the finger pull under the latch
-RECESS_H     = 11.0
+RECESS_W     = 34.0               # the finger pull under the latch
+RECESS_H     =  8.0
 RECESS_D     = 3.0
 
 # The indicator. A slash, because that is the glyph Apple molded there and the
@@ -84,9 +84,9 @@ RECESS_D     = 3.0
 # be a different machine's idea. It stands proud for the reason every lamp in
 # this scene does: the shader weighs each surface by dot(n, L), so a lens in
 # the plane of the panel lights nothing.
-LAMP_W, LAMP_H = 2.2, 11.0
-LAMP_X, LAMP_Z = W - 26.0, 14.0
-LAMP_LEAN      = 3.2              # the slash's top-right offset
+LAMP_W, LAMP_H = 2.0, 8.0
+LAMP_X, LAMP_Z = W - 24.0, 7.0
+LAMP_LEAN      = 2.4              # the slash's top-right offset
 LAMP_PROUD     = 1.0
 
 # --------------------------------------------------------------------- the lid
@@ -96,8 +96,8 @@ RIB_W     = 2.4
 RIB_DEEP  = 1.1
 RIB_X0    = 22.0
 RIB_X1    = W - 14.0
-RIB_Y0    = 42.0                  # clear of the front's plain band
-RIB_Y1    = D - 14.0
+RIB_Y0    = 40.0                  # clear of the front's plain band
+RIB_Y1    = D - 20.0
 
 m = Model()
 
@@ -140,6 +140,17 @@ case = case.cut(
     cq.Workplane("XY")
       .box(SLOT_X1 - SLOT_X0, 14.0, SLOT_Z1 - SLOT_Z0, centered=(False, False, False))
       .translate((SLOT_X0, -3.0, SLOT_Z0)))
+
+# ------------------------------------------------------------------ the rear
+
+# A grille along the TOP edge of the back face. Never seen in this scene, and
+# in the model because the drive has one.
+for i in range(20):
+    x = 14.0 + (W - 28.0 - 2.0) * i / 19.0
+    case = case.cut(
+        cq.Workplane("XY")
+          .box(2.0, 6.0, H * 0.30, centered=(False, False, False))
+          .translate((x, D - 3.0, H * 0.58)))
 
 m.add("case", case, CASE)
 
@@ -207,15 +218,22 @@ for i in range(14):
             .translate((x, D * 0.30, -0.4)),
           SLOT_DK)
 
-# Feet: round pads at the corners, the ground footprint the contact shadow is
-# sized from.
-for fx in (18.0, W - 18.0):
-    for fy in (16.0, D - 16.0):
+# Feet: round pads on two raised bars across the underside, front and rear,
+# which is how the photographs show them -- not four pads loose on a flat
+# bottom. The ground footprint the contact shadow is sized from.
+for fy in (22.0, D - 22.0):
+    m.add(f"footbar{fy:.0f}",
+          cq.Workplane("XY")
+            .box(W - 44.0, 13.0, 1.6, centered=(False, False, False))
+            .translate((22.0, fy - 6.5, -1.6))
+            .edges("|Z").fillet(4.0),
+          CASE)
+
+    for fx in (24.0, W - 24.0):
         m.add(f"foot{fx:.0f}_{fy:.0f}",
               cq.Workplane("XY").cylinder(2.0, 7.0, centered=(True, True, False))
-                .translate((fx, fy, -2.0)),
+                .translate((fx, fy, -2.0 - 1.6)),
               FOOT)
-
 
 if __name__ == "__main__":
     import os
