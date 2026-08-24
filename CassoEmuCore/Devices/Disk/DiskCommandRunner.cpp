@@ -123,7 +123,7 @@ static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
     { "put | write",
       "Write a host file to the disk",
       "CassoCli disk put <image> <file> [%Las <path>] [%Ltype <t>] [%Laddr $XXXX]\n"
-      "                                 [%Ltext | %Lbasic]",
+      "                                   [%Ltext | %Lbasic]",
       "  %Las <path>             Name the placed file this on the disk\n"
       "  %Ltype <t>              The file type the catalog records. DOS 3.3 takes T, I,\n"
       "                          A, B or R; ProDOS takes TXT, BIN, BAS or SYS\n"
@@ -435,6 +435,8 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
     (void) flagPrefix;
 
     text += kExitStatusHelpText;
+
+    text += "\n";
 
     return text;
 }
