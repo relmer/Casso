@@ -475,7 +475,7 @@ namespace CommandLineTests
         //  argument of `run` or `disk` ever reaches.
         static std::vector<std::string> Forms()
         {
-            return { "--help", "-help", "-?", "-h", "/help", "/?", "/h" };
+            return { "--help", "-?", "-h", "/help", "/?", "/h" };
         }
 
         //  The same list without the one form the assembler grammar spends on
@@ -485,7 +485,7 @@ namespace CommandLineTests
         //  collision the parser deliberately resolves the other way.
         static std::vector<std::string> DialectForms()
         {
-            return { "--help", "-help", "-?", "/help", "/?" };
+            return { "--help", "-?", "/help", "/?" };
         }
 
         static CommandLineOptions ParseTyped (std::initializer_list<const char *> typed)
@@ -1380,7 +1380,7 @@ namespace CommandLineTests
         //  it, and asking still succeeds.
         TEST_METHOD (ExplicitHelpRequest_IsNotRefused)
         {
-            const char *  kSpellings[] = { "--help", "-help", "-?", "/?", "/help", "-h", "?" };
+            const char *  kSpellings[] = { "--help", "-?", "/?", "/help", "-h", "?" };
 
             for (const char * form : kSpellings)
             {
@@ -3002,7 +3002,7 @@ namespace CommandLineTests
         //  characters a reader most likely types are free to mean help.
         TEST_METHOD (Disk_TakesAHelpRequestInEverySpelling_NotOnlyAsTheFirstArgument)
         {
-            const char *  kSpellings[] = { "--help", "-help", "-?", "-h",
+            const char *  kSpellings[] = { "--help", "-?", "-h",
                                            "/help",  "/?",    "/h" };
 
             for (const char * form : kSpellings)

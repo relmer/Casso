@@ -395,6 +395,21 @@ Entries before versioning was introduced use dates only.
   under the block; the ~400 pre-existing hits across the tree were swept.
 
 ### Removed
+- **`-help` and `-version` are no longer accepted.** A single dash introduces
+  CONCATENATED single-letter switches, so `-version` is `-v -e -r -s -i -o -n`
+  and `-help` is `-h -e -l -p`. Taking them as words made one string mean two
+  irreconcilable things depending on where it sat: `CassoCli -version` printed
+  the version, while `CassoCli as65 prog.a65 -version` refused with
+  "unknown option: -e", which is the correct reading of the two. AS65 has
+  neither form (its documented request is a bare `?`), and neither was
+  advertised anywhere, so nothing could rely on them but a guess.
+  **Nothing is harder to find as a result:** an argument the grammar does not
+  know already prints the full page for whichever mode was named, so `-help`
+  still shows the help. What changes is the status, from the 0 of a question
+  answered to the 1 of a command line refused, which is what a misspelling
+  should earn. `--help`, `--version`, `-h`, `-?`, `/help`, `/version`, `/?`,
+  `/h` and a bare `?` all keep working: the word forms are legal behind `--`
+  and behind `/`, where no letter-by-letter reading competes with them.
 - **`ignoreOpcodeCase` is gone.** `-i` set it, nothing read it, and nothing
   could: this assembler folds opcode case unconditionally, which is exactly what
   the flag asks for. A stored `true` in two structs was an invitation to

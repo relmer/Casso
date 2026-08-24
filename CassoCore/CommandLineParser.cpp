@@ -354,6 +354,13 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 //  included for the same reason the option tables carry them: the help writes
 //  itself with whichever prefix was typed, so both prefixes have to work.
 //
+//  `-help` IS NOT ONE OF THEM. A single dash introduces concatenated
+//  single-letter switches, so `-help` is `-h -e -l -p` and the `-e` in the
+//  middle is an option no grammar here has. It was accepted at this level
+//  while the assembler's own flag walk refused it, which is one string with
+//  two answers. An unknown argument prints this page anyway, so the form
+//  loses nothing but the 0 it should not have been exiting with.
+//
 //  MATCHED EXACTLY AND IN LOWER CASE, which is what keeps a ProDOS path out of
 //  it. `/HELP` is a legal volume path and stays an operand; only the lowercase
 //  flag form a person types at a shell is read as a request.
@@ -373,7 +380,7 @@ static constexpr const char *  s_kpszSourceExtensions[] =
 
 bool CommandLineParser::IsHelpRequest (const std::string & arg)
 {
-    return arg == "--help" || arg == "-help" || arg == "-?" || arg == "-h" ||
+    return arg == "--help" || arg == "-?"    || arg == "-h" ||
            arg == "/help"  || arg == "/?"    || arg == "/h";
 }
 
@@ -2207,7 +2214,11 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         //  rather than from the walk's own position, because "only parameter"
         //  is the whole condition: `as65 prog.a65 ?` has a surplus argument to
         //  complain about and is not a request for anything.
-        if (arg == "--help" || arg == "-help" || arg == "-?" || arg == "/?" || arg == "/help" ||
+        //  `-help` IS NOT ON IT EITHER, and for the reason `-h` is not: a
+        //  single dash introduces concatenated single-letter switches, so
+        //  `-help` reads as `-h -e -l -p` and the `-e` is an option this
+        //  grammar does not have. It is refused, which still prints this page.
+        if (arg == "--help" || arg == "-?" || arg == "/?" || arg == "/help" ||
             IsLoneQuestionMark (argc, argv, startIndex))
         {
             if (arg[0] == '/')
@@ -3452,6 +3463,7 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     std::string                     first;
     bool                            isHelp   = false;
     bool                            isVer    = false;
+    bool                            viaSlash = false;
     bool                            isAs65   = false;
     //  THE SHELL'S DAMAGE IS UNDONE BEFORE ANY OF THE GRAMMAR SEES THE COMMAND
     //  LINE, which is what lets every reader below assume the arguments are the
@@ -3502,7 +3514,11 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     // Check for --help / --version first (accept / prefix on Windows)
     first = argv[1];
 
-    if (first[0] == '/')
+    //  WHICH PREFIX WAS TYPED SURVIVES THE NORMALIZATION, because the long
+    //  word forms are legal behind `/` and `--` and not behind a single `-`.
+    viaSlash = first[0] == '/';
+
+    if (viaSlash)
     {
         NoteFlagPrefix ('/', options);
         first[0] = '-';
@@ -3518,9 +3534,29 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     //  `?` further along a command line is an argument to whatever precedes it,
     //  and a filename is a perfectly legal thing to have called `?` on a host
     //  that allows it -- so nothing but the one-argument case changes meaning.
-    isHelp = first == "--help" || first == "-help" || first == "-h" || first == "-?" ||
-             (argc == 2 && first == "?");
-    isVer  = first == "--version" || first == "-version";
+    //  `-help` AND `-version` ARE NOT FORMS THIS TOOL TAKES, and the reason
+    //  is the grammar's own: a single dash introduces CONCATENATED
+    //  single-letter switches, so `-version` is `-v -e -r -s -i -o -n` and
+    //  `-help` is `-h -e -l -p`. Accepting them at the top level made one
+    //  string mean two irreconcilable things depending on where it sat:
+    //  `CassoCli -version` printed the version, while `CassoCli as65 x.a65
+    //  -version` refused with "unknown option: -e", which is the correct
+    //  reading of the two. AS65 has neither form; its documented request is a
+    //  bare `?`. Nothing advertised them either, so nothing could rely on them
+    //  except a script whose author guessed.
+    //
+    //  DROPPING THEM COSTS NO DISCOVERABILITY. An argument the grammar does
+    //  not know already prints the full page for whichever mode was named; all
+    //  that changes is the status, from the 0 of a question answered to the 1
+    //  of a command line refused, which is the right answer for a misspelling.
+    //
+    //  The `/` spellings stay. `/help` and `/version` are the Windows
+    //  convention and cannot be read as concatenated letters, since the whole
+    //  word is matched before the letters ever are.
+    isHelp = first == "--help" || first == "-h" || first == "-?"
+             || (viaSlash && first == "-help")
+             || (argc == 2 && first == "?");
+    isVer  = first == "--version" || (viaSlash && first == "-version");
 
     if (isHelp)
     {

@@ -827,7 +827,7 @@ namespace CliSwitchCoverageTests
         //  Asking how the tool works succeeds, whichever way it is asked.
         TEST_METHOD (EveryHelpForm_PrintsThePageAndSucceeds)
         {
-            for (const char * form : { "--help", "-help", "-?", "-h", "/help", "/?", "/h" })
+            for (const char * form : { "--help", "-?", "-h", "/help", "/?", "/h" })
             {
                 Assert::AreEqual (0, Run ({ "CassoCli", form }), Widen (form).c_str());
                 Assert::IsTrue (CommandLineParser::IsHelpRequest (form),
@@ -837,9 +837,16 @@ namespace CliSwitchCoverageTests
 
         //  And the list above is the whole of it: a near miss is an argument,
         //  not a request for the page.
+        //
+        //  `-help` IS ON THIS LIST DELIBERATELY. A single dash introduces
+        //  concatenated single-letter switches, so `-help` is `-h -e -l -p`,
+        //  and the `-e` is an option no grammar here has. It used to be
+        //  accepted at the top level while the assembler's own flag walk
+        //  refused it, which is one string with two answers.
         TEST_METHOD (AWordThatMerelyResemblesOne_IsNotAHelpRequest)
         {
-            for (const char * form : { "help", "?", "--h", "-hh", "/hh", "--halp" })
+            for (const char * form : { "help", "?", "--h", "-hh", "/hh", "--halp",
+                                       "-help", "-version" })
             {
                 Assert::IsFalse (CommandLineParser::IsHelpRequest (form), Widen (form).c_str());
             }
@@ -853,11 +860,32 @@ namespace CliSwitchCoverageTests
             Assert::AreEqual (0, Run ({ "CassoCli", "as65", "?" }));
         }
 
-        //  Both spellings of the version.
-        TEST_METHOD (EitherVersionForm_Succeeds)
+        //  The long word forms are legal behind `--` and behind `/`, and not
+        //  behind a single dash, which introduces concatenated letters.
+        TEST_METHOD (TheLongWordForms_TakeTwoDashesOrASlash)
         {
             Assert::AreEqual (0, Run ({ "CassoCli", "--version" }), L"--version");
-            Assert::AreEqual (0, Run ({ "CassoCli", "-version" }),  L"-version");
+            Assert::AreEqual (0, Run ({ "CassoCli", "/version" }),  L"/version");
+            Assert::AreEqual (0, Run ({ "CassoCli", "--help" }),    L"--help");
+            Assert::AreEqual (0, Run ({ "CassoCli", "/help" }),     L"/help");
+        }
+
+        //  AND A SINGLE DASH IN FRONT OF ONE IS REFUSED. It still prints the
+        //  page, because an argument the grammar does not know always does;
+        //  what it no longer does is exit 0 and call a misspelling a question.
+        TEST_METHOD (ASingleDashLongWord_IsRefused_ThoughItStillPrintsThePage)
+        {
+            Assert::AreNotEqual (0, Run ({ "CassoCli", "-version" }), L"-version");
+            Assert::AreNotEqual (0, Run ({ "CassoCli", "-help" }),    L"-help");
+
+            //  Inside a mode it was always refused, and the two answers now
+            //  agree with each other.
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "as65", "p.a65", "-help" }),
+                              L"as65 -help");
+            Assert::AreEqual (As65ExitStatus::kBadCommandLine,
+                              Run ({ "CassoCli", "as65", "p.a65", "-version" }),
+                              L"as65 -version");
         }
 
         //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it
