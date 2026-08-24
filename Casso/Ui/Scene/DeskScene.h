@@ -151,12 +151,19 @@ public:
     // Toned down from a near-white core: an indicator LED behind a tinted
     // lens is a small bright thing, but it is not a highlight, and blowing
     // its center to 0.80 white cost it the green it is supposed to read as.
+    //
+    // Toned down again, and further out this time. The bands are additive
+    // over whatever they cover, and what they cover on these machines is a
+    // CREAM case -- already near the top of the range before the halo adds
+    // anything. Every one of these numbers was set looking at a lamp on the
+    // Disk II's matte black faceplate, where the same alpha has most of the
+    // range to climb through and reads as a glow instead of a wash.
     static constexpr GlowBand  kGlowProfile[] =
     {
-        { 0.00f, 0.70f, 0.50f },   // hot core, still colored
-        { 0.45f, 0.56f, 0.26f },
-        { 1.00f, 0.32f, 0.00f },   // the lens rim: full hue
-        { 1.90f, 0.11f, 0.00f },   // spill onto the housing
+        { 0.00f, 0.58f, 0.50f },   // hot core, still colored
+        { 0.45f, 0.44f, 0.26f },
+        { 1.00f, 0.24f, 0.00f },   // the lens rim: full hue
+        { 1.90f, 0.07f, 0.00f },   // spill onto the housing
         { 3.40f, 0.00f, 0.00f },
     };
 
@@ -179,7 +186,14 @@ public:
     // scales the lamp term by the lit surface's own base color, so a lamp at
     // unity lands ~1.5/255 on matte black plastic. Applied to the light only,
     // never to the glowing bulb.
-    static constexpr float  kLampLightGain     = 16.0f;
+    //
+    // AND THAT SCALING IS WHY 16 WAS TOO MUCH. It was chosen against the Disk
+    // II's black faceplate, at a base color near 0.10 -- so the same gain on
+    // the //c's cream case, at 0.88, arrives nearly nine times stronger and
+    // washes the whole front of the drive. The number that reads as a lamp on
+    // dark plastic reads as a flashlight on light plastic, and most of this
+    // scene is light plastic.
+    static constexpr float  kLampLightGain     = 6.0f;
 
     // How far in front of its own back face a lamp's LIGHT sits, as a floor.
     //

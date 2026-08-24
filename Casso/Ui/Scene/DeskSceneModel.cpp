@@ -176,8 +176,9 @@ static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
 // The //c drive's own, from cad_disk2c.py: a 152 x 46 x 216 case -- a flat
-// slab, about a quarter of its width tall -- split two thirds up, with the
-// slot sitting on the seam at z 30.7..35.2.
+// slab, about a quarter of its width tall -- split so that the top shell is
+// half the height of the bottom one WITH ITS FEET, with the slot sitting on
+// that seam at z 28.2..32.7.
 //
 // IT TAKES TWO BOXES, and they are an L rather than one rectangle. The slot
 // band runs the full width. The notch column is narrow, and it is the whole
@@ -185,9 +186,9 @@ static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceH
 // into, the latch above it, and the latch's top out over the lid. Boxing the
 // two as one rectangle would claim the entire face -- including the plain
 // corners, where the padlock lives and a click means browse.
-static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 29.0f };
-static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 36.5f };
-static constexpr float   s_kDisk2cLatchMin[3] = {  52.0f, -8.0f, 18.0f };
+static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 26.5f };
+static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 34.0f };
+static constexpr float   s_kDisk2cLatchMin[3] = {  52.0f, -8.0f, 16.0f };
 static constexpr float   s_kDisk2cLatchMax[3] = { 100.0f,  3.0f, 46.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
 static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
@@ -228,11 +229,19 @@ static constexpr float   s_kPadlockArchH     =  6.4f;
 // else is on, and which no eject box reaches across.
 static constexpr float   s_kDiskIiPadlockX1  = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kDiskIiPadlockZ1  = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
-static constexpr float   s_kDisk2cPadlockX1  = 26.0f;
-static constexpr float   s_kDisk2cPadlockZ1  = 26.0f;
+static constexpr float   s_kDisk2cPadlockX1  = 24.0f;
+static constexpr float   s_kDisk2cPadlockZ1  = 19.0f;
+
+// And how big, as a fraction of the Disk II's. The badge holds the same share
+// of a face 46 mm tall that the full-size one holds of a face 90 mm tall --
+// which is the thing to keep constant, since what makes it read as a padlock
+// is its silhouette against the panel around it, not its size in millimeters.
+static constexpr float   s_kDiskIiPadlockScale = 1.00f;
+static constexpr float   s_kDisk2cPadlockScale = 0.60f;
 static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners
 static constexpr float   s_kPadlockShackleR  =  3.05f;   // the U's outer radius
 static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickness
+static constexpr float   s_kPadlockLegTopMm  =  1.50f;   // how far the legs run into the body
 // A BIG bore over a SHORT slot. The proportions decide whether this reads as
 // a keyhole or as an arrow, and a small bore over a long tapering slot is an
 // arrow every time -- the barbs where the two meet are the whole of what the
@@ -658,7 +667,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // and "disk ][" belongs to a drive this is not.
         m_doorMotion = DeskDoorMotion::InThenUp;
 
-        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1, s_kDisk2cPadlockY);
+        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1, s_kDisk2cPadlockY,
+                           s_kDisk2cPadlockScale);
     }
 
     if (kind == DeskDeviceKind::DiskII)
@@ -673,7 +683,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         m_doorPivotZ  = kDiskIiDoorPoleZ;
         m_doorOpenRad = kDiskIiDoorOpenRad;
 
-        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1, s_kDiskIiPadlockY);
+        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1, s_kDiskIiPadlockY,
+                           s_kDiskIiPadlockScale);
 
         // The cassowary (lower-right, the 2D widget's mark) and the IN-USE
         // label pointing at the LED. The DRIVE-number badge text is stamped
@@ -1401,19 +1412,32 @@ void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
+void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY, float scale)
 {
-    const float  outY   = frontY - s_kPadlockOutlineDy;
-    const float  bodyX1 = rightX;
-    const float  bodyX0 = bodyX1 - s_kPadlockBodyW;
-    const float  archZ1 = topZ;
-    const float  bodyZ1 = archZ1 - s_kPadlockArchH;
-    const float  bodyZ0 = bodyZ1 - s_kPadlockBodyH;
-    const float  holeCz = bodyZ0 + s_kPadlockHoleCzUp;
-    const float  holeZ0 = bodyZ0 + s_kPadlockHoleZ0Up;
-    const float  cx     = (bodyX0 + bodyX1) * 0.5f;
-    const float  archCz = archZ1 - s_kPadlockShackleR;
-    const float  innerR = s_kPadlockShackleR - s_kPadlockShackleT;
+    // EVERY DIMENSION OF THE BADGE IS SCALED, not just its outline. The
+    // constants below are the Disk II's, on a faceplate 90 mm tall; the //c's
+    // is 46, and a badge sized for the one is a placard on the other. Scaling
+    // the whole of it -- corners, shackle stock, keyhole bore -- is what keeps
+    // it reading as the same mark rather than as a fatter one.
+    //
+    // The rasterization cell is NOT scaled. It is a resolution, not a
+    // proportion, and a smaller badge simply gets relatively finer.
+    const float  outlnMm = s_kPadlockOutlineMm * scale;
+    const float  cornerR = s_kPadlockCornerR   * scale;
+    const float  shackR  = s_kPadlockShackleR  * scale;
+    const float  holeR   = s_kPadlockHoleR     * scale;
+    const float  legTop  = s_kPadlockLegTopMm  * scale;
+    const float  outY    = frontY - s_kPadlockOutlineDy;
+    const float  bodyX1  = rightX;
+    const float  bodyX0  = bodyX1 - s_kPadlockBodyW * scale;
+    const float  archZ1  = topZ;
+    const float  bodyZ1  = archZ1 - s_kPadlockArchH * scale;
+    const float  bodyZ0  = bodyZ1 - s_kPadlockBodyH * scale;
+    const float  holeCz  = bodyZ0 + s_kPadlockHoleCzUp * scale;
+    const float  holeZ0  = bodyZ0 + s_kPadlockHoleZ0Up * scale;
+    const float  cx      = (bodyX0 + bodyX1) * 0.5f;
+    const float  archCz  = archZ1 - shackR;
+    const float  innerR  = shackR - s_kPadlockShackleT * scale;
 
 
 
@@ -1446,13 +1470,13 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
     // Scans the badge's bounding box a cell at a time and merges each row's
     // covered span into one quad, which is the same trick the text and brand
     // stamps use -- a curve costs a few more runs, not a triangle per cell.
-    auto  rasterize = [&pushRun, bodyX0, bodyX1, bodyZ0, archZ1]
+    auto  rasterize = [&pushRun, bodyX0, bodyX1, bodyZ0, archZ1, outlnMm]
                       (float y, const float rgb[3], auto && inside)
     {
-        float  x0   = bodyX0 - s_kPadlockOutlineMm;
-        float  x1   = bodyX1 + s_kPadlockOutlineMm;
-        float  z0   = bodyZ0 - s_kPadlockOutlineMm;
-        float  z1   = archZ1 + s_kPadlockOutlineMm;
+        float  x0   = bodyX0 - outlnMm;
+        float  x1   = bodyX1 + outlnMm;
+        float  z0   = bodyZ0 - outlnMm;
+        float  z1   = archZ1 + outlnMm;
         int    cols = (int) std::ceil ((x1 - x0) / s_kPadlockCellMm);
         int    rows = (int) std::ceil ((z1 - z0) / s_kPadlockCellMm);
 
@@ -1496,18 +1520,18 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
         {
             float  r = std::sqrt (dx * dx + (z - archCz) * (z - archCz));
 
-            return r >= innerR + grow && r <= s_kPadlockShackleR + grow;
+            return r >= innerR + grow && r <= shackR + grow;
         }
 
-        return z >= bodyZ1 - 1.5f &&
-               std::fabs (dx) >= innerR + grow && std::fabs (dx) <= s_kPadlockShackleR + grow;
+        return z >= bodyZ1 - legTop &&
+               std::fabs (dx) >= innerR + grow && std::fabs (dx) <= shackR + grow;
     };
 
     // The body: a rounded rectangle, as the distance from the rect its
     // corner centers describe.
-    auto  body = [bodyX0, bodyX1, bodyZ0, bodyZ1] (float x, float z, float grow)
+    auto  body = [bodyX0, bodyX1, bodyZ0, bodyZ1, cornerR] (float x, float z, float grow)
     {
-        float  r  = s_kPadlockCornerR;
+        float  r  = cornerR;
         float  ix = (std::min) (bodyX1 - r, (std::max) (bodyX0 + r, x));
         float  iz = (std::min) (bodyZ1 - r, (std::max) (bodyZ0 + r, z));
         float  dx = x - ix;
@@ -1523,8 +1547,7 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
 
         if (z >= holeCz)
         {
-            return dx * dx + (z - holeCz) * (z - holeCz)
-                   <= s_kPadlockHoleR * s_kPadlockHoleR;
+            return dx * dx + (z - holeCz) * (z - holeCz) <= holeR * holeR;
         }
 
         {
@@ -1533,7 +1556,7 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
             // an arrow before it is a keyhole. What makes it one is the
             // bore overhanging a slot narrower than itself the whole way.
             float  t  = (holeCz - z) / (holeCz - holeZ0);
-            float  hw = s_kPadlockHoleR * (0.46f + 0.10f * t);
+            float  hw = holeR * (0.46f + 0.10f * t);
 
             return z >= holeZ0 && std::fabs (dx) <= hw;
         }
@@ -1541,7 +1564,7 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
 
     rasterize (outY, s_kPadlockOutline, [&] (float x, float z)
     {
-        return shackle (x, z, s_kPadlockOutlineMm) || body (x, z, s_kPadlockOutlineMm);
+        return shackle (x, z, outlnMm) || body (x, z, outlnMm);
     });
 
     rasterize (frontY - s_kPadlockShackleDy, s_kPadlockShade, [&] (float x, float z)

@@ -434,7 +434,7 @@ private:
     // The write-protect badge, its top-right corner where the caller says.
     // Both drives carry it and their faces are different heights, so the
     // corner is an argument rather than a constant.
-    void     BuildPadlockStamp  (float rightX, float topZ, float frontY);
+    void     BuildPadlockStamp  (float rightX, float topZ, float frontY, float scale);
 
     // A mask stamped as a solid with a SMOOTHED outline and a rounded top
     // edge -- what turns a coarse bitmask into a mark that reads as molded

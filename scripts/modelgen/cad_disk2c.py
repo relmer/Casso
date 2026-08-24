@@ -50,11 +50,29 @@ W, H, D = 152.0, 46.0, 216.0
 
 INCH = 25.4
 
-# A generous round on every edge -- an eighth of an inch. Molded ABS of this
-# era has no crisp arrises anywhere, and too tight a radius is most of what
-# made earlier passes read as a rendering rather than a thing.
-EDGE_R = INCH / 8.0
-CORNER_R = 4.5                    # the vertical corners, which are softer still
+# A generous round on every edge -- three sixteenths of an inch. Molded ABS of
+# this era has no crisp arrises anywhere, and too tight a radius is most of
+# what made earlier passes read as a rendering rather than a thing. An eighth
+# was still too tight for that; this is half again as much.
+EDGE_R = INCH * 3.0 / 16.0
+CORNER_R = 6.75                   # the vertical corners, which are softer still
+
+# ------------------------------------------------------------------- the feet
+#
+# Two of them, across the front and the back, not four at the corners: a
+# rectangle with a half-round at each end, extruded. A quarter inch tall, half
+# an inch deep, set half an inch in from the face it is nearest and from both
+# sides.
+#
+# UP HERE because the split is measured over them -- see SPLIT_Z, which counts
+# the feet as part of the bottom shell.
+FOOT_H     = INCH / 4.0
+FOOT_D     = INCH / 2.0
+FOOT_INSET = INCH / 2.0
+FOOT_R     = FOOT_D / 2.0
+PAD_R      = 5.0                  # inside the half-round's own circumference
+PAD_H      = 1.2
+FOOT_TOTAL = FOOT_H + PAD_H       # how far the drive stands off the desk
 
 # Warm off-white, not the //e era's platinum: the photographs show a case that
 # matches the //c's own cream.
@@ -76,10 +94,15 @@ RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
 # ------------------------------------------------------------------ the front
 
 # WHERE THE HALVES MEET decides the whole front, because the slot sits on
-# that line and everything else is placed off the slot. The top shell is half
-# the height of the bottom one, so the split lands two thirds up -- written
-# as the fraction, because a literal 30.667 is a number nobody can check.
-SPLIT_Z = H * 2.0 / 3.0
+# that line and everything else is placed off the slot.
+#
+# The top shell is half the height of the bottom one, and the BOTTOM SHELL
+# INCLUDES THE FEET -- what the eye compares is the two bands it can see, and
+# the feet are part of the lower one whatever the molding says. Solved rather
+# than written out, because a literal 28.15 is a number nobody can check:
+#
+#   H - SPLIT = (SPLIT + FOOT_TOTAL) / 2   ->   SPLIT = (2H - FOOT_TOTAL) / 3
+SPLIT_Z = (2.0 * H - FOOT_TOTAL) / 3.0
 
 SLOT_Z0, SLOT_Z1 = SPLIT_Z, SPLIT_Z + 4.5    # the disk opening, on the seam
 SLOT_X0, SLOT_X1 = 16.0, W - 16.0
@@ -146,19 +169,6 @@ RIB_X0    = 22.0
 RIB_X1    = W - 14.0
 RIB_Y0    = 40.0                  # clear of the front's plain band
 RIB_Y1    = D - 20.0
-
-# ------------------------------------------------------------------- the feet
-#
-# Two of them, across the front and the back, not four at the corners: a
-# rectangle with a half-round at each end, extruded. A quarter inch tall, half
-# an inch deep, set half an inch in from the face it is nearest and from both
-# sides.
-FOOT_H     = INCH / 4.0
-FOOT_D     = INCH / 2.0
-FOOT_INSET = INCH / 2.0
-FOOT_R     = FOOT_D / 2.0
-PAD_R      = 5.0                  # inside the half-round's own circumference
-PAD_H      = 1.2
 
 m = Model()
 
