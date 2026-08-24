@@ -96,6 +96,19 @@ public:
     //  takes the test runner's reporting down with it.
     static std::FILE *         UsageStream();
 
+    //  The blank line that separates whatever the tool just said from the
+    //  shell prompt.
+    //
+    //  IT GOES WHERE THE TALKING WENT. Written to a fixed stream it is the
+    //  same cross-stream splice as the page and its reason: a terminal reading
+    //  two pipes can render it anywhere, and a blank line in the middle of a
+    //  help page is what that looks like. So it follows whichever stream the
+    //  message actually used, and falls back to the error stream when there
+    //  was no message -- which is the case that matters, because `disk get`
+    //  writes a file's bytes to stdout and a newline appended to those is a
+    //  corrupted file.
+    static void                PrintTrailingBlankLine();
+
     class UsageOnErrorStream
     {
     public:

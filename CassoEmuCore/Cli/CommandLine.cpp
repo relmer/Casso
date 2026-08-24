@@ -68,6 +68,12 @@ CommandLineOptions CommandLine::Parse (int argc, char * argv[])
 static std::FILE *  s_pUsageStream = stdout;
 
 
+//  Which stream this invocation actually said something on, or null if it
+//  said nothing a person reads. Recorded so the closing blank line can join
+//  it rather than pick a stream of its own.
+static std::FILE *  s_pSpokenOn = nullptr;
+
+
 
 
 
@@ -82,6 +88,31 @@ static std::FILE *  s_pUsageStream = stdout;
 std::FILE * CommandLine::UsageStream()
 {
     return s_pUsageStream;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintTrailingBlankLine
+//
+//  One blank line between what the tool said and the shell prompt, on the
+//  stream it said it on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintTrailingBlankLine()
+{
+    //  Nothing a person read means nothing to separate, and stdout may be
+    //  holding a binary this must not touch.
+    std::FILE *  to = (s_pSpokenOn != nullptr) ? s_pSpokenOn : stderr;
+
+
+
+    std::println (to, "");
+    std::fflush (to);
 }
 
 
@@ -252,6 +283,8 @@ size_t CommandLine::UsageWidth()
 
 void CommandLine::PrintUsageLine (const std::string & line)
 {
+    s_pSpokenOn = s_pUsageStream;
+
     for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
     {
         std::println (s_pUsageStream, "{}", row);

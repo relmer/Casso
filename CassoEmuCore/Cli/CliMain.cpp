@@ -198,15 +198,18 @@ int CliMain (int argc, char * argv[])
     //  once here rather than at the end of each arm, because there are ten of
     //  them and the one that forgets is the one nobody notices.
     //
-    //  TO stderr, so it cannot land in a redirected file or, worse, in the
-    //  middle of an extracted binary: `disk get` writes a file's bytes to
-    //  stdout, and a newline appended to those is a corrupted file.
+    //  ON THE STREAM THE TOOL SPOKE ON, which is the only way it is genuinely
+    //  last. Pinned to stderr it was the same cross-stream splice as a
+    //  refusal's page and its reason: correct in each stream, and rendered by
+    //  a terminal wherever its two readers happened to be. A blank line in the
+    //  middle of a help page is what that looked like.
     //
-    //  After the flush, so it is genuinely last: stdout is buffered and stderr
-    //  is not, and a blank line written before the page had gone out would land
-    //  in the middle of it.
+    //  When nothing was said, it falls back to stderr, so it cannot land in a
+    //  redirected file or, worse, in the middle of an extracted binary:
+    //  `disk get` writes a file's bytes to stdout, and a newline appended to
+    //  those is a corrupted file.
     CommandLine::FlushOutput();
-    std::cerr << "\n";
+    CommandLine::PrintTrailingBlankLine();
 
     //  The HRESULT says what went wrong; the exit code is what a script reads.
     //  Only the second crosses the process boundary, and it is never derived
