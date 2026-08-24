@@ -1544,6 +1544,81 @@ public:
             L"a refusal must not carry a raw platform code");
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  WHAT put's THREE NAMING OPTIONS DEFAULT TO.
+    //
+    //  The help says all of this in a paragraph, and a test used to assert the
+    //  paragraph. Quoting a sentence proves somebody wrote it, not that the
+    //  command does it: the wording could be perfect while the default moved,
+    //  and the test would pass. These assert the defaults themselves, so the
+    //  page can be reworded freely and cannot become untrue.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Put_WithNoNameGiven_TakesTheOneTheFileHasOnTheHost)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "GREET", "");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "GREET",     MakePayload());
+
+        options.disk.path           = "";
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find ("GREET") != std::string::npos,
+            L"the name on the disk is the name it had on the host");
+    }
+
+    //  A BINARY IS WHAT put ASSUMES, which matters because the type decides
+    //  whether the guest can do anything with the file at all.
+    TEST_METHOD (Put_WithNoTypeGiven_StoresABinary)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
+            L"the catalog records a binary");
+    }
+
+    //  A DOS 3.3 BINARY WITHOUT AN ADDRESS IS REFUSED. The header carries the
+    //  load address, so there is no binary to write without one.
+    TEST_METHOD (Put_ABinaryWithNoAddress_IsRefusedRatherThanGuessing)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.hasLoadAddress = false;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+            L"a binary with nowhere to load is not written");
+        Assert::IsFalse (result.diagnostics.empty(), L"and the refusal says so");
+    }
+
     TEST_METHOD (Put_ABinaryOntoAFreshVolume_LandsAndReadsBackByteForByte)
     {
         FakeDiskFileIo      io;

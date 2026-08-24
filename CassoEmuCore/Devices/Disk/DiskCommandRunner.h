@@ -292,6 +292,22 @@ public:
     //  kInUseHelpText already gives: the test assembly does not link the console
     //  executable, so help written there is help nothing can check.
     //
+struct DiskCommandHelp
+{
+    const char *  forms;         // every accepted spelling, the plain one first
+    const char *  summary;       // one line, for the list at the top
+    const char *  grammar;       // where the operands go
+    const char *  options;       // the options this command takes, or nothing
+    const char *  discussion;    // what no option row can state, or nothing
+    const char *  example;       // one line that does something real
+};
+
+
+    //  Every command the page describes, so a test can walk what the help
+    //  claims instead of quoting sentences out of it.
+    static std::span<const DiskCommandHelp>  GetCommandHelp();
+
+
     static std::string  ApplyPrefixes      (const std::string & text, char flagPrefix);
     static std::string  BuildSubcommandHelp (char flagPrefix);
     static std::string  BuildCommandBlocks  (char flagPrefix);

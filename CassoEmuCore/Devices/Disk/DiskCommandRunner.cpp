@@ -87,20 +87,11 @@ static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
 //  worked loop still closes the page, because the loop is the thing no single
 //  command demonstrates.
 //
-struct DiskCommandHelp
-{
-    const char *  forms;         // every accepted spelling, the plain one first
-    const char *  summary;       // one line, for the list at the top
-    const char *  grammar;       // where the operands go
-    const char *  options;       // the options this command takes, or nothing
-    const char *  discussion;    // what no option row can state, or nothing
-    const char *  example;       // one line that does something real
-};
 
 
 
 
-static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
+static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
 {
     { "list | cat | catalog | dir | ls",
       "Show what is on the disk",
@@ -251,6 +242,23 @@ void DiskCommandRunner::SetBanner (const std::string & banner)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+std::span<const DiskCommandRunner::DiskCommandHelp> DiskCommandRunner::GetCommandHelp()
+{
+    return std::span<const DiskCommandHelp> (s_kDiskCommandHelp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyPrefixes
+//
+//  Puts the reader's own prefixes into a line of help.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::string DiskCommandRunner::ApplyPrefixes (const std::string & text, char flagPrefix)
 {
     std::string  longPrefix  = CommandLineHelp::LongPrefix  (flagPrefix);
@@ -318,7 +326,7 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 
 
-    for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
+    for (const DiskCommandRunner::DiskCommandHelp & entry : s_kDiskCommandHelp)
     {
         std::string  line = "  " + std::string (entry.forms);
 
@@ -361,7 +369,7 @@ std::string DiskCommandRunner::BuildCommandBlocks (char flagPrefix)
 
 
 
-    for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
+    for (const DiskCommandRunner::DiskCommandHelp & entry : s_kDiskCommandHelp)
     {
         text += "\n";
         text += ApplyPrefixes (entry.forms, flagPrefix) + "\n";

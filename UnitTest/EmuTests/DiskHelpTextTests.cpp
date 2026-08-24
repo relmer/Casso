@@ -177,6 +177,47 @@ public:
         return false;
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ArgVector
+    //
+    //  Owns the storage behind a synthetic argv, for the tests that run one of
+    //  the page's own examples through the parser.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    class ArgVector
+    {
+    public:
+        explicit ArgVector (const std::vector<std::string> & args)
+        {
+            m_storage = args;
+
+            for (std::string & arg : m_storage)
+            {
+                m_pointers.push_back (arg.data());
+            }
+        }
+
+        int      Count() const { return (int) m_pointers.size(); }
+        char * * Data()        { return m_pointers.data(); }
+
+    private:
+        std::vector<std::string>  m_storage;
+        std::vector<char *>       m_pointers;
+    };
+
+
+
+
+    static CommandLineParser::FileExistsFn NoProbe()
+    {
+        return [] (const std::string &) { return false; };
+    }
+
+
+
+
     static std::wstring Widen (const std::string & text)
     {
         return std::wstring (text.begin(), text.end());
@@ -353,23 +394,6 @@ public:
         }
     }
 
-    //  The old help carried a paragraph explaining that `put` and `get` are
-    //  named from the disk's point of view. It was there to rescue two command
-    //  names the descriptions did not state the direction of; the descriptions
-    //  state it now, so the paragraph is redundant rather than merely wordy.
-    TEST_METHOD (HelpText_PutsTheDirectionInTheCommandDescriptions_NotInAParagraphExcusingTheNames)
-    {
-        std::string  help = DiskCommandRunner::BuildHelpText();
-
-        Assert::IsTrue (help.find ("point of view") == std::string::npos,
-                        L"the paragraph excusing the two command names is gone");
-
-        Assert::IsTrue (help.find ("Read a file from the disk") != std::string::npos,
-                        L"get says which way it goes, on its own line");
-        Assert::IsTrue (help.find ("Write a file from the host to the disk") != std::string::npos,
-                        L"and so does put");
-    }
-
     //  Every alias of a command leads the line that describes it, so a reader
     //  scanning the left margin for the word they already have in mind finds it
     //  there rather than in an "also written" clause at the end of a sentence
@@ -401,78 +425,207 @@ public:
                         L"and no alias is left trailing in a footnote");
     }
 
-    TEST_METHOD (HelpText_QuotesTheRoundTripSentence_SoTheClaimCannotDrift)
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  THE PAGE IS CHECKED AGAINST THE GRAMMAR, NOT AGAINST ITS OWN PROSE.
+    //
+    //  Seven tests here used to quote sentences: "Write a host file to the
+    //  disk", "defaults to the host file's own name", what boot refuses. Every
+    //  one of them failed the moment the wording improved, and not one of them
+    //  would have failed if the sentence had stayed word-perfect while the
+    //  command underneath it changed. They asserted that nobody had edited the
+    //  file.
+    //
+    //  What is worth pinning is that the page and the grammar agree: that
+    //  every command has a grammar line and a worked example, that the example
+    //  PARSES, that it names the command whose block it sits in, and that every
+    //  option it types is documented right there rather than three screens
+    //  away. The facts the prose used to carry are asserted where they belong,
+    //  against the runner, in DiskCommandRunnerTests.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    //  Every option token in a line of help or of example, as typed.
+    static std::vector<std::string> OptionsIn (const std::string & text)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        std::vector<std::string>  found;
+        size_t                    at = 0;
 
-        //  The sentence lives beside the code that has to keep it true. What
-        //  this asserts is that it reaches the user -- a claim kept accurate in
-        //  a header nobody prints is worth nothing.
-        Assert::IsTrue (help.find (ApplesoftTokenizer::RoundTripHelpText ('-')) != std::string::npos,
-                        L"what --basic does and does not round-trip");
+        while ((at = text.find ("--", at)) != std::string::npos)
+        {
+            size_t  end = at + 2;
 
-        //  It sits under its own flag rather than closing the section. A reader
-        //  who has just read the --basic row has stopped looking two paragraphs
-        //  down, which is where this used to be.
-        Assert::IsTrue (help.find ("--basic                 Convert to and from an Applesoft listing\n"
-                                   "\n  --basic is real tokenization") != std::string::npos,
-                        L"and it follows the row it explains");
+            while (end < text.size() && (isalnum ((unsigned char) text[end]) || text[end] == '-'))
+            {
+                end++;
+            }
 
-        //  The in-use paragraph is gone: a locked image is refused by name where
-        //  it happens, and the help does not document error messages.
-        Assert::IsTrue (help.find ("in-use check") == std::string::npos,
-                        L"the in-use paragraph is gone");
+            if (end > at + 2)
+            {
+                found.push_back (text.substr (at, end - at));
+            }
+
+            at = end;
+        }
+
+        return found;
     }
 
-    TEST_METHOD (HelpText_SaysWhatBootWillRefuse_BecauseNothingInAListingShowsThatSettingAtAll)
+    TEST_METHOD (EveryCommandBlock_CarriesAGrammarLineAndAWorkedExample)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        auto  page = DiskCommandRunner::GetCommandHelp();
 
-        Assert::IsTrue (help.find ("has to be on the volume already") != std::string::npos,
-                        L"the program must exist");
-        Assert::IsTrue (help.find ("operating system on the tracks a") != std::string::npos,
-                        L"the image must be bootable at all");
-        Assert::IsTrue (help.find ("type SYS, and not the kernel") != std::string::npos,
-                        L"what ProDOS will launch");
+        Assert::IsTrue (page.size() >= 8, L"the page describes every command");
+
+        for (const auto & entry : page)
+        {
+            std::wstring  which = Widen (entry.forms);
+
+            Assert::IsTrue (entry.grammar != nullptr && *entry.grammar != '\0',
+                            (L"no grammar line: " + which).c_str());
+            Assert::IsTrue (entry.example != nullptr && *entry.example != '\0',
+                            (L"no example: " + which).c_str());
+            Assert::IsTrue (std::string (entry.grammar).find ("CassoCli disk ") == 0,
+                            (L"the grammar does not open on the command: " + which).c_str());
+        }
     }
 
-    TEST_METHOD (HelpText_SaysWhatPutsThreeNamingOptionsDefaultTo)
+    //  THE EXAMPLES ARE RUN THROUGH THE PARSER. A page may print anything; an
+    //  example that the tool would refuse is worse than none, because the
+    //  reader types it verbatim.
+    TEST_METHOD (EveryExampleOnThePage_ParsesCleanly_AndNamesItsOwnCommand)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            std::string               example = DiskCommandRunner::ApplyPrefixes (entry.example, '-');
+            std::vector<std::string>  words;
+            std::istringstream        reader (example);
+            std::string               word;
 
-        //  Quoted WITHOUT the line breaks they used to carry. The page is
-        //  composed one logical line per paragraph and folded to the
-        //  reader's terminal at print time, so where a sentence breaks is
-        //  the terminal's business and not a fact about the help.
-        Assert::IsTrue (help.find ("defaults to the name it has on the host") != std::string::npos,
-                        L"--as has a default and the help states it");
-        Assert::IsTrue (help.find ("only type the guest will RUN") != std::string::npos,
-                        L"--type has one too, and --basic overrides it");
-        Assert::IsTrue (help.find ("refused without one") != std::string::npos,
-                        L"and --addr is required for exactly one kind of file");
+            while (reader >> word)
+            {
+                words.push_back (word);
+            }
+
+            ArgVector           args (words);
+            CommandLineOptions  opts  = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            std::wstring        which = Widen (example);
+
+            Assert::IsTrue (opts.refusalMessage.empty(),
+                            (L"refused: " + which + L" -- " + Widen (opts.refusalMessage)).c_str());
+            Assert::IsTrue (opts.unrecognizedFlag.empty(),
+                            (L"unknown option in: " + which).c_str());
+            Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk,
+                            (L"not a disk command: " + which).c_str());
+
+            //  The example belongs to the block it is printed under.
+            std::string  forms = entry.forms;
+            Assert::IsTrue (forms.find (opts.disk.commandWord) != std::string::npos,
+                            (L"example runs `" + Widen (opts.disk.commandWord)
+                             + L"` under " + Widen (entry.forms)).c_str());
+        }
     }
 
-    TEST_METHOD (HelpText_WarnsAgainstDosBinIntoPut_BecauseTheDoubledHeaderRunsAsCode)
+    //  An example that types an option the block does not document sends the
+    //  reader looking for it under some other command.
+    TEST_METHOD (EveryOptionAnExampleTypes_IsDocumentedInItsOwnBlock)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            std::string  documented = (entry.options == nullptr) ? "" : entry.options;
 
-        //  `--raw` used to be named here as the output to assemble with. It is
-        //  the default now, so the warning names the default -- and would read
-        //  as advice to type a flag that does nothing if it still said --raw.
-        Assert::IsTrue (help.find ("the default output rather than --dos-bin") != std::string::npos,
-                        L"which assembler output the placement path wants");
-        Assert::IsTrue (help.find ("its own header loaded as code") != std::string::npos,
-                        L"and what goes wrong when the other one is used");
+            documented = DiskCommandRunner::ApplyPrefixes (documented, '-');
+
+            for (const std::string & option : OptionsIn (
+                     DiskCommandRunner::ApplyPrefixes (entry.example, '-')))
+            {
+                Assert::IsTrue (documented.find (option) != std::string::npos,
+                                (L"the example types " + Widen (option) + L" and "
+                                 + Widen (entry.forms) + L" does not document it").c_str());
+            }
+        }
     }
 
-    TEST_METHOD (HelpText_SaysTheBootProgramMustBeOneTheGreetingCanRun)
+    //  And a block may only document options the grammar actually accepts.
+    TEST_METHOD (EveryOptionABlockDocuments_IsOneTheGrammarAccepts)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        std::set<std::string>  accepted;
 
-        Assert::IsTrue (help.find ("RUNs its greeting") != std::string::npos,
-                        L"what a booting DOS 3.3 does with the name");
-        Assert::IsTrue (help.find ("boots without running it") != std::string::npos,
-                        L"and what naming a binary there actually gets you");
+        for (const char * option : CommandLineParser::GetDiskOptionNames())
+        {
+            accepted.insert (std::string ("--") + option);
+        }
+
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            std::string  block = (entry.options == nullptr) ? "" : entry.options;
+
+            for (const std::string & option : OptionsIn (
+                     DiskCommandRunner::ApplyPrefixes (block, '-')))
+            {
+                Assert::IsTrue (accepted.count (option) == 1,
+                                (L"the page invents " + Widen (option) + L" under "
+                                 + Widen (entry.forms)).c_str());
+            }
+        }
+    }
+
+    //  The grammar line and the option list under it describe one command, so
+    //  an option in one and not the other is a page arguing with itself.
+    TEST_METHOD (EveryOptionInAGrammarLine_IsListedUnderTheSameCommand)
+    {
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            std::string  documented = (entry.options == nullptr) ? "" : entry.options;
+
+            documented = DiskCommandRunner::ApplyPrefixes (documented, '-');
+
+            for (const std::string & option : OptionsIn (
+                     DiskCommandRunner::ApplyPrefixes (entry.grammar, '-')))
+            {
+                Assert::IsTrue (documented.find (option) != std::string::npos,
+                                (L"the grammar of " + Widen (entry.forms) + L" takes "
+                                 + Widen (option) + L", and the block does not list it").c_str());
+            }
+        }
+    }
+
+    //  Every accepted spelling of a command reaches the same command, which is
+    //  what the aliases on each heading promise.
+    TEST_METHOD (EverySpellingOnACommandHeading_ReachesThatCommand)
+    {
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            std::string         forms = entry.forms;
+            std::string         word;
+            std::istringstream  reader (forms);
+            std::string         first;
+
+            while (std::getline (reader, word, '|'))
+            {
+                size_t  from = word.find_first_not_of (" ");
+                size_t  to   = word.find_last_not_of (" ");
+
+                if (from == std::string::npos)
+                {
+                    continue;
+                }
+
+                word = word.substr (from, to - from + 1);
+
+                ArgVector           args ({ "CassoCli", "disk", word, "img.dsk" });
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.disk.command != CommandLineOptions::DiskOptions::Command::None,
+                                (L"the heading offers `" + Widen (word)
+                                 + L"` and the grammar does not take it").c_str());
+
+                if (first.empty())
+                {
+                    first = opts.disk.commandWord;
+                }
+            }
+        }
     }
 
     TEST_METHOD (DiskGrammar_AcceptsEitherPrefix_SoTheHelpMaySpellEitherOne)
