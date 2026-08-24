@@ -59,6 +59,13 @@ tell you whether it is a seam, a shadow, or a scratch.
   slot** when closed -- which leaves the notch open below the slot. That open
   stretch IS the finger recess. There is no separate pocket.
 - **The slot is beveled at 45 degrees all round**, to guide a diskette in.
+- **The top shell is half the height of the bottom one**, so the split -- and
+  with it the seam and the slot -- lands two thirds of the way up the case.
+- **The activity indicator is GREEN**, the same green as the Monitor //c's
+  power lamp and the //c switch bar's, not the Disk II's red.
+- **The indicator's lens is flush**, a matte plastic window lying in the front
+  face rather than a protruding dome. The Disk II's LED is a real dome; these
+  are not.
 - **Every edge is generously rounded**, about an eighth of an inch.
 - **The case is two halves meeting at the plane of the slot**, with about half
   a millimeter of gap showing all the way round.

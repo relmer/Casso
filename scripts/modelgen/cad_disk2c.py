@@ -75,7 +75,13 @@ RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
 
 # ------------------------------------------------------------------ the front
 
-SLOT_Z0, SLOT_Z1 = 25.0, 29.5     # the disk opening
+# WHERE THE HALVES MEET decides the whole front, because the slot sits on
+# that line and everything else is placed off the slot. The top shell is half
+# the height of the bottom one, so the split lands two thirds up -- written
+# as the fraction, because a literal 30.667 is a number nobody can check.
+SPLIT_Z = H * 2.0 / 3.0
+
+SLOT_Z0, SLOT_Z1 = SPLIT_Z, SPLIT_Z + 4.5    # the disk opening, on the seam
 SLOT_X0, SLOT_X1 = 16.0, W - 16.0
 SLOT_BEVEL       = 2.0            # the 45-degree lead-in, all four sides
 
@@ -85,31 +91,44 @@ SLOT_BEVEL       = 2.0            # the 45-degree lead-in, all four sides
 LATCH_W      = (SLOT_X1 - SLOT_X0) / 3.0
 LATCH_X0     = (W - LATCH_W) * 0.5
 LATCH_PROUD  = 1.5                # how far it stands off the face
+LATCH_SUNK   = 3.0                # how far it reaches back into the notch
 
 # The notch is a little wider than the latch so the latch travels freely in
 # it, and it runs from below the slot up over the top and back along the lid.
+#
+# It is DEEPER than the latch is thick, and deliberately: pressing eject
+# pushes the latch back into the drive before it rises, and the difference
+# between these two numbers is the room that press has to happen in. Sized to
+# LATCH_TRAVEL_IN so the two cannot drift apart -- the pair of them being one
+# number apiece in two files is how the latch came to travel through the back
+# of its own notch.
+LATCH_TRAVEL_IN = 4.0             # mirrored by kDisk2cDoorInMm
 NOTCH_W      = LATCH_W + 4.0
 NOTCH_X0     = (W - NOTCH_W) * 0.5
-NOTCH_Z0     = 13.0               # its floor, well below the slot
-NOTCH_D      = 5.0                # how far into the front face
+NOTCH_Z0     = SLOT_Z0 - 12.0     # its floor, well below the slot
+NOTCH_D      = LATCH_SUNK + LATCH_TRAVEL_IN + 1.0
 NOTCH_LID    = 16.0               # how far back along the lid
 NOTCH_LID_D  = 4.0                # how far down into the lid
 
 # The indicator. A slash, because that is the glyph Apple molded there and the
-# same one the Monitor //c wears beside its lamp. It stands proud for the
-# reason every lamp in this scene does: the shader weighs each surface by
-# dot(n, L), so a lens in the plane of the panel lights nothing.
+# same one the Monitor //c wears beside its lamp.
+#
+# ITS LENS IS ALL BUT FLUSH, because that is what the part is: a matte plastic
+# window sitting in the front face, not a domed bulb standing off it. The
+# earlier 1 mm standoff was there to make the LIGHT work -- the shader weighs
+# each surface by dot(n, L), so a source in the plane of the panel lights none
+# of it -- which was solving a lighting problem with geometry. The standoff
+# belongs to the light and now lives there; see kLampLightStandoffMm.
 LAMP_W, LAMP_H = 2.0, 8.0
-LAMP_X, LAMP_Z = W - 24.0, 7.0
+LAMP_X, LAMP_Z = W - 24.0, 11.0
 LAMP_LEAN      = 2.4
-LAMP_PROUD     = 1.0
+LAMP_PROUD     = 0.35
 
 # ------------------------------------------------------------- the two halves
 #
 # They meet at the PLANE OF THE SLOT, and the join shows: a fine gap running
 # the whole way round the case. Cut as a groove rather than built as two
 # solids with air between them -- a real gap would look through the drive.
-SPLIT_Z   = SLOT_Z0
 SEAM_GAP  = 0.5
 SEAM_DEEP = 0.8
 
@@ -153,17 +172,35 @@ case = (cq.Workplane("XY")
 case = case.edges(">Z").fillet(EDGE_R)
 case = case.edges("<Z").fillet(EDGE_R)
 
-# The lower half's taper: a wedge off each flank, full at the base and nothing
-# by the time it reaches the split. Cut after the rounds, so what it leaves is
-# a clean drafted flank rather than a rounded edge sliced through at an angle.
-for sign, x0 in ((-1.0, 0.0), (1.0, W)):
+# The lower half's taper: a wedge off each flank, nothing at the split and the
+# full draft by the time the base round starts.
+#
+# THE FIRST VERSION OF THIS CUT NOTHING AT ALL, and the reason is worth
+# keeping because it is the same trap twice in one file. An XZ workplane's
+# normal is -Y, so a NEGATIVE extrude runs BACKWARD, away from the viewer --
+# the wedge was ending up at y 226..462 on a case that stops at 216, missing
+# it entirely. Every flank was full width from base to lid, which is exactly
+# what "I can't see any evidence of the taper" describes. Two lines below the
+# lamp does the same arithmetic and gets it right, with a comment saying so.
+#
+# It also has to be open OUTWARD -- bounded inboard by the draft line and
+# running away from the case on the other three sides. A wedge with its
+# hypotenuse on the inboard side takes a slice out of the middle of the flank
+# and leaves the outermost millimeter standing as a fin, which from outside
+# is indistinguishable from no taper at all.
+for sign, xEdge in ((-1.0, 0.0), (1.0, W)):
+    xIn  = xEdge - sign * TAPER
+    xOut = xEdge + sign * 12.0
+
     case = case.cut(
         cq.Workplane("XZ", origin=(0.0, 0.0, 0.0))
-          .polyline([(x0 - sign * 10.0, -10.0),
-                     (x0 + sign * TAPER, -10.0),
-                     (x0 - sign * 10.0, SPLIT_Z)])
+          .polyline([(xEdge, SPLIT_Z),
+                     (xIn,   EDGE_R),
+                     (xIn,   -10.0),
+                     (xOut,  -10.0),
+                     (xOut,  SPLIT_Z)])
           .close()
-          .extrude(-(D + 20.0))
+          .extrude(D + 20.0)
           .translate((0.0, D + 10.0, 0.0)))
 
 # The lid's ribs: long shallow grooves front to back. Cut rather than laid on,
@@ -247,8 +284,11 @@ m.add("slot",
 # THE LATCH, closed: from the top of the drive down to the bottom of the slot,
 # sitting in the notch and standing a little proud of the face. It carries the
 # door identity, so this is the piece the scene moves on eject.
+#
+# It is LATCH_SUNK deep, not the notch's full depth: the rest of the notch is
+# the room the press travels into.
 latch = (cq.Workplane("XY")
-         .box(LATCH_W, LATCH_PROUD + NOTCH_D, H - SLOT_Z0, centered=(False, False, False))
+         .box(LATCH_W, LATCH_PROUD + LATCH_SUNK, H - SLOT_Z0, centered=(False, False, False))
          .translate((LATCH_X0, -2.5 - LATCH_PROUD, SLOT_Z0))
          .edges("|Y").fillet(1.6))
 
@@ -262,11 +302,15 @@ latch = latch.union(
 
 m.add("lever", latch, LATCH)
 
-# The thumb pad on its front, a shallow step across the lower half.
+# The thumb pad on its front. Placed and sized off the strip of latch that is
+# actually ABOVE the slot, because that is all there is to put it on -- pinned
+# to a fixed offset it ran off the top of the drive the moment the split
+# moved.
+TAB_Z0 = SLOT_Z1 + 1.0
 m.add("tab",
       cq.Workplane("XY")
-        .box(LATCH_W - 8.0, 1.2, 9.0, centered=(False, False, False))
-        .translate((LATCH_X0 + 4.0, -2.5 - LATCH_PROUD - 1.2, SLOT_Z1 + 3.0))
+        .box(LATCH_W - 8.0, 1.2, (H - 2.0) - TAB_Z0, centered=(False, False, False))
+        .translate((LATCH_X0 + 4.0, -2.5 - LATCH_PROUD - 1.2, TAB_Z0))
         .edges("|Y").fillet(1.0),
       GRIP)
 

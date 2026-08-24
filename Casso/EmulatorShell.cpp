@@ -7711,23 +7711,41 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 //
 //  EmulatorShell::OnMouseWheel
 //
-//  The wheel frames the desk scene. A precision touchpad's two-finger
-//  vertical slide arrives here as WM_MOUSEWHEEL, so the trackpad gesture and
-//  a real wheel are the same input, and a touchpad PINCH arrives as
-//  Ctrl+wheel -- which is why the modifier is not tested: all three mean
-//  "zoom", and demanding Ctrl would break the plain two-finger slide.
+//  The wheel frames the desk scene, and WHICH WAY it frames it depends on
+//  what sent it. Windows gives a touchpad and a mouse the same message, so
+//  the message alone cannot say -- but the DELTA can. A wheel is detented and
+//  reports whole WHEEL_DELTA notches; a precision touchpad reports the finger,
+//  in fractions of one. So:
 //
-//  Horizontal wheel is left alone. It would have to mean pan, and panning on
-//  one axis only, with no way to reach the other, is worse than not panning.
+//    - a touchpad PINCH arrives as Ctrl+wheel, and zooms.
+//    - a whole notch is a mouse wheel, and zooms -- a mouse has no pinch, and
+//      taking its zoom away to gain a pan would be a poor trade.
+//    - anything else is a two-finger slide, and PANS.
+//
+//  Which makes the touchpad behave like every map and every drawing program:
+//  drag to move, pinch to scale. Horizontal wheel joins in for the same
+//  reason it used to be ignored -- panning on one axis with no way to reach
+//  the other is worse than not panning, and a precision touchpad sends both
+//  axes, so the pair of them is a real pan and either alone is not.
+//
+//  The test is deliberately one-sided: only a delta that is NOT a whole notch
+//  is treated as a touchpad. A touchpad whose driver rounds to 120 keeps
+//  zooming, which is what it did before this -- no worse, just not better.
+//
+//  Touchscreen gestures do not come through here at all. They arrive as
+//  WM_GESTURE and are handled in OnGesture, whose pinch and one-finger drag
+//  are untouched by any of this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    int     delta  = GET_WHEEL_DELTA_WPARAM (wParam);
-    POINT   pt     = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float   notch  = 0.0f;
-    float   factor = 1.0f;
+    int     delta   = GET_WHEEL_DELTA_WPARAM (wParam);
+    POINT   pt      = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    bool    pinch   = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+    bool    detent  = (delta % WHEEL_DELTA) == 0;
+    float   notch   = 0.0f;
+    float   factor  = 1.0f;
 
 
 
@@ -7738,7 +7756,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     //
     // Mouse mode is NOT excluded. The guest mouse has no wheel to steal the
     // notch from, so zooming stays available while pointing.
-    if (horizontal || delta == 0 || !DeskSceneActive() || m_paddleCaptured)
+    if (delta == 0 || !DeskSceneActive() || m_paddleCaptured)
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -7754,10 +7772,70 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // Fractional notches matter: a precision touchpad sends many small
     // deltas rather than one WHEEL_DELTA, and rounding them to whole notches
     // turns a smooth slide into a series of jumps.
-    notch  = (float) delta / (float) WHEEL_DELTA;
+    notch = (float) delta / (float) WHEEL_DELTA;
+
+    if (!pinch && !detent)
+    {
+        return PanSceneByNotch (notch, horizontal);
+    }
+
+    // A horizontal wheel that got this far is a tilt wheel, which has no
+    // second axis to pair with and so still means nothing here.
+    if (horizontal)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
     factor = std::pow (s_kSceneZoomStep, notch);
 
     ZoomSceneAt (pt, factor);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PanSceneByNotch
+//
+//  A touchpad slide, in wheel notches, moved into the scene's pan.
+//
+//  DECLINED AT 1x, exactly as the touch pan is: with the scene framed to fit,
+//  there is nowhere to pan to, and claiming the message would only take the
+//  slide away from whatever else might want it. Returning NotHandled leaves
+//  it to be scrolled by something that can.
+//
+//  THE SIGNS MATCH THE TOUCH DRAG, not the scrollbar. Windows' own convention
+//  for a wheel is that the viewport follows the fingers, so content appears to
+//  go the other way; a DRAG is the opposite bargain -- the content is what you
+//  have hold of, and it goes where your fingers go, the way it does on a map.
+//  Since this gesture exists to be the touchpad's version of the one-finger
+//  touch pan, it copies that one's relationship to the hand: fingers down
+//  moves the scene down, fingers right moves it right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
+{
+    if (m_sceneView.zoom <= 1.0f)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (horizontal)
+    {
+        m_sceneView.panX += notch * s_kScenePanStep;
+    }
+    else
+    {
+        m_sceneView.panY += notch * s_kScenePanStep;
+    }
+
+    ClampSceneView();
+    InvalidateSceneComposition();
 
     return DxuiMessageResult::Handled;
 }

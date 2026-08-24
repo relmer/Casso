@@ -264,7 +264,20 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     // Monitor: centered on x = 0, front at z = 0, standing ON the drives --
     // its feet land on their lids, so the whole stack is one solid.
+    //
+    // ...unless the drive's door RISES, and then the stack opens up by
+    // exactly what the door needs. The //c's latch travels straight up out of
+    // its notch and clears the lid; with the monitor sitting flat on that lid
+    // the two share the same millimeters, and the forward clearance alone is
+    // a near miss you have to trust rather than a gap you can see. Lifting by
+    // the rise plus a margin buys back the gap in the axis the motion is
+    // actually in.
     monitorLiftMm = (driveCount > 0) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
+
+    if (driveCount > 0 && metrics.driveDoorRiseMm > 0.0f)
+    {
+        monitorLiftMm += metrics.driveDoorRiseMm + kDoorRiseMarginMm;
+    }
 
     MakeDeviceWorld (-monitorCx, monitorLiftMm, 0.0f, 1.0f, out.monitorWorld);
 

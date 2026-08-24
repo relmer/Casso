@@ -95,7 +95,9 @@ inline bool IsDriveKind (DeskDeviceKind kind)
 //  it on and off, so the model only records where it is and which triangles
 //  belong to it (by range into LampVerts).
 //
-//  `frontY` is the lens face (the most proud vertex, viewer at -Y) and
+//  `frontY` is the lens face (the most proud vertex, viewer at -Y), `backY`
+//  the panel side of it -- the pair is what lets the scene stand the LIGHT off
+//  a lens that is itself nearly flush, without moving a domed one. And
 //  `radiusX` / `radiusZ` its in-plane half-extents -- between them the scene
 //  can seat a glow on the lens, shaped like it, without knowing the model.
 //  Per axis rather than one radius because the lamps are not all round: the
@@ -106,6 +108,7 @@ struct DeskLampAnchor
 {
     float   center[3]   = {};
     float   frontY      = 0.0f;
+    float   backY       = 0.0f;
     float   radiusX     = 0.0f;
     float   radiusZ     = 0.0f;
     size_t  firstVertex = 0;
@@ -192,10 +195,11 @@ public:
     // express this however its pole is placed, so the motion has to be a
     // choice the model makes rather than something every door shares.
     //
-    // The IN leg is exactly how far the latch stands proud of the face, so
-    // the press seats it flush in its notch and the rise starts from there.
-    // Any further and it would travel through the notch's back wall.
-    static constexpr float  kDisk2cDoorInMm  = 1.5f;
+    // The IN leg is LATCH_TRAVEL_IN from cad_disk2c.py, which sizes the notch
+    // to be that much deeper than the latch is thick. The two are one fact in
+    // two files, so they are named after each other: change either without
+    // the other and the latch travels through the back of its own notch.
+    static constexpr float  kDisk2cDoorInMm  = 4.0f;
     static constexpr float  kDisk2cDoorUpMm  = 13.0f;
 
     // And BECAUSE it rises, the row has to stand clear of whatever is stacked
@@ -215,6 +219,13 @@ public:
     float  DoorFrontClearanceMm () const
     {
         return (m_doorMotion == DeskDoorMotion::InThenUp) ? kDisk2cDoorFrontClearMm : 0.0f;
+    }
+
+    // And how far above its own lid the open door reaches, which is how much
+    // air whatever stands on this drive has to leave it.
+    float  DoorRiseMm () const
+    {
+        return (m_doorMotion == DeskDoorMotion::InThenUp) ? kDisk2cDoorUpMm : 0.0f;
     }
 
     // The door's pole: the X-axis line it TURNS ABOUT. Not a hinge, and not on
@@ -423,7 +434,7 @@ private:
     // The write-protect badge, its top-right corner where the caller says.
     // Both drives carry it and their faces are different heights, so the
     // corner is an argument rather than a constant.
-    void     BuildPadlockStamp  (float rightX, float topZ);
+    void     BuildPadlockStamp  (float rightX, float topZ, float frontY);
 
     // A mask stamped as a solid with a SMOOTHED outline and a rounded top
     // edge -- what turns a coarse bitmask into a mark that reads as molded

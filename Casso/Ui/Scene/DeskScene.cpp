@@ -163,7 +163,7 @@ Error:
 void DeskScene::BuildDerivedGeometry()
 {
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
-    BuildLampGlow (m_drive,   kDriveGlowRgb,   m_driveGlowVerts);
+    BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
     BuildContactShadow (m_monitor, kMonitorShadowMarginSideMm, kMonitorShadowMarginDepthMm,
                         m_monitorShadowVerts);
@@ -202,6 +202,7 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.monitorFrontY = m_monitor.FrontPlaneY();
     metrics.driveFrontY   = m_drive.FrontPlaneY();
     metrics.driveDoorClearMm = m_drive.DoorFrontClearanceMm();
+    metrics.driveDoorRiseMm  = m_drive.DoorRiseMm();
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
@@ -396,17 +397,24 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
     {
         const DeskLampAnchor & anchor = model.Lamps().front();
 
-        // The source sits at the lens's own most-proud point, and that is
-        // enough BECAUSE THE LENS ACTUALLY PROTRUDES. The shader weighs each
-        // surface by dot(n, L), so a lamp coplanar with the faceplate lies in
-        // that plane and lights none of it; a domed LED standing 3 mm off the
-        // face gives every direction a real component along the face's normal.
+        // The shader weighs each surface by dot(n, L), so a lamp coplanar with
+        // the faceplate lies in that plane and lights none of it. Something
+        // has to stand the source off the face.
         //
-        // This was briefly a renderer-side standoff constant instead, which
-        // was the wrong place: the protrusion is a fact about the part, so
-        // the part should carry it and every device gets it for free.
+        // THE PART CANNOT ALWAYS BE THAT SOMETHING. It was, for a while, on
+        // the reasoning that a protrusion is a fact about the part and so the
+        // part should carry it -- which is true of the Disk II, whose LED is a
+        // genuine 5 mm dome. It is false of the //c family, whose indicators
+        // are matte plastic windows lying flush in the panel. Asking those to
+        // protrude meant modeling a bump that is not on the hardware, to solve
+        // a problem that was never geometry's.
+        //
+        // So both: the source stands off the lens's BACK face by a fixed
+        // amount, and never sits behind the lens's front. A flush window gets
+        // its light lifted out of the panel plane; the Disk II's dome already
+        // reaches further than that and min() leaves it exactly where it was.
         lighting.lampPos[0] = anchor.center[0];
-        lighting.lampPos[1] = anchor.frontY;
+        lighting.lampPos[1] = std::min (anchor.frontY, anchor.backY - kLampLightStandoffMm);
         lighting.lampPos[2] = anchor.center[2];
 
         lighting.lampDir[0] =  0.0f;
@@ -1114,7 +1122,8 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
         // its own coordinates and Load() put the room's fixtures into them,
         // so a drive at the right of the desk sees the same two ceiling
         // lights from a different place than the monitor above it does.
-        SetModelLighting (m_drive, comp.driveWorld[drive], m_driveActive[drive], kDriveGlowRgb);
+        SetModelLighting (m_drive, comp.driveWorld[drive], m_driveActive[drive],
+                          DriveGlowRgb (m_drive.Kind()));
 
         hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
                                     m_drive.OpaqueVerts().data(),

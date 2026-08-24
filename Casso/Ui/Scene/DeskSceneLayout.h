@@ -61,6 +61,12 @@ struct DeskSceneMetrics
     // monitor there for it to hit.
     float                 driveDoorClearMm = 0.0f;
 
+    // And how far ABOVE its own lid the same door reaches. A latch that rises
+    // needs air over it as well as room in front, and what is directly over
+    // the drives in this stack is the monitor's underside. Zero for a door
+    // that stays inside its case.
+    float                 driveDoorRiseMm  = 0.0f;
+
     // Ground-plane clearance each device's contact shadow needs, in that
     // device's model mm (side, front-to-back). The containment solve counts
     // it as part of the scene: a shadow lies on the floor BEYOND its device
@@ -224,6 +230,10 @@ public:
     static constexpr float  kDriveDeskGapMm        = 45.0f;    // monitor front to drive back
 
     static constexpr float  kDriveGapMm            = 32.0f;    // between the two drives
+
+    // Air over a risen door, on top of the rise itself. Enough that the gap
+    // reads as a gap rather than as two parts just failing to touch.
+    static constexpr float  kDoorRiseMarginMm      =  6.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
     // Field of view is SOLVED rather than fixed, because the eye position is

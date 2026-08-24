@@ -176,18 +176,19 @@ static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
 // The //c drive's own, from cad_disk2c.py: a 152 x 46 x 216 case -- a flat
-// slab, about a quarter of its width tall -- whose slot sits at z 25..29.5.
+// slab, about a quarter of its width tall -- split two thirds up, with the
+// slot sitting on the seam at z 30.7..35.2.
 //
-// IT TAKES TWO BOXES, because the eject furniture is an L. The slot band runs
-// the full width, with the open notch beneath it that a finger goes into. The
-// latch stands in the middle third of that width and carries on UP through
-// the top of the case, so a click on the part of it above the slot -- which
-// is most of what you see -- has to eject too. One box around the pair would
-// be a rectangle covering the whole face, and would swallow the padlock.
-static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 12.0f };
-static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 31.0f };
-static constexpr float   s_kDisk2cLatchMin[3] = {  54.0f, -8.0f, 29.5f };
-static constexpr float   s_kDisk2cLatchMax[3] = {  98.0f,  3.0f, 46.0f };
+// IT TAKES TWO BOXES, and they are an L rather than one rectangle. The slot
+// band runs the full width. The notch column is narrow, and it is the whole
+// of the drive's height: the open stretch below the slot that a finger goes
+// into, the latch above it, and the latch's top out over the lid. Boxing the
+// two as one rectangle would claim the entire face -- including the plain
+// corners, where the padlock lives and a click means browse.
+static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 29.0f };
+static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 36.5f };
+static constexpr float   s_kDisk2cLatchMin[3] = {  52.0f, -8.0f, 18.0f };
+static constexpr float   s_kDisk2cLatchMax[3] = { 100.0f,  3.0f, 46.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
 static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
 
@@ -217,12 +218,18 @@ static constexpr float   s_kPadlockBodyH     =  9.4f;
 static constexpr float   s_kPadlockArchH     =  6.4f;
 // WHERE it goes is the caller's, because it is the same badge on two drives
 // of different heights. The Disk II holds its top-right corner at the face
-// margin. The //c has no room there -- its slot runs nearly the full width at
-// two thirds height -- so it takes the clear strip above the slot instead.
+// margin.
+//
+// The //c has no corner to spare on that side. Its slot runs nearly the full
+// width, the notch column takes the middle from the desk to the lid, and the
+// `/` indicator has the lower right -- and once the halves split two thirds
+// up, the strip left above the slot is under 11 mm on a badge that needs 16.
+// So it takes the LOWER LEFT, which is the one stretch of this face nothing
+// else is on, and which no eject box reaches across.
 static constexpr float   s_kDiskIiPadlockX1  = s_kFaceWmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
 static constexpr float   s_kDiskIiPadlockZ1  = s_kFaceHmm - s_kFaceMarginMm - s_kPadlockOutlineMm;
-static constexpr float   s_kDisk2cPadlockX1  = 139.65f;
-static constexpr float   s_kDisk2cPadlockZ1  =  45.20f;
+static constexpr float   s_kDisk2cPadlockX1  = 26.0f;
+static constexpr float   s_kDisk2cPadlockZ1  = 26.0f;
 static constexpr float   s_kPadlockCornerR   =  1.35f;   // the body's soft corners
 static constexpr float   s_kPadlockShackleR  =  3.05f;   // the U's outer radius
 static constexpr float   s_kPadlockShackleT  =  1.35f;   // the U's stock thickness
@@ -239,10 +246,21 @@ static constexpr float   s_kPadlockHoleZ0Up  =  2.9f;
 // under a screen pixel at any zoom the scene offers.
 static constexpr float   s_kPadlockCellMm    = 0.05f;
 
-static constexpr float   s_kPadlockOutlineY  = -1.90f;
-static constexpr float   s_kPadlockShackleY  = -1.95f;
-static constexpr float   s_kPadlockBodyY     = -2.00f;
-static constexpr float   s_kPadlockHoleY     = -2.05f;
+// The badge's four layers, as offsets from the FACE IT SITS ON. Depth used
+// to be absolute, which quietly assumed every drive's faceplate was where the
+// Disk II's is -- and the //c's front is 0.6 mm further forward than that, so
+// the whole badge was BURIED IN THE CASE. All that showed of it was the
+// scrap crossing the slot's opening and a crescent up where the lid's edge
+// rounds back past y = 0, which is exactly the "weird gold object" it looked
+// like. A mark on a face has to be placed relative to that face.
+static constexpr float   s_kPadlockOutlineDy = 0.00f;
+static constexpr float   s_kPadlockShackleDy = 0.05f;
+static constexpr float   s_kPadlockBodyDy    = 0.10f;
+static constexpr float   s_kPadlockHoleDy    = 0.15f;
+
+// Where each drive's badge floats: a hair in front of the face it marks.
+static constexpr float   s_kDiskIiPadlockY   = -1.90f;
+static constexpr float   s_kDisk2cPadlockY   = -2.55f;
 
 // Slack around the padlock's hit box: the badge is ~10 mm across and the
 // tooltip should answer a deliberate hover, not demand marksmanship.
@@ -640,7 +658,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         // and "disk ][" belongs to a drive this is not.
         m_doorMotion = DeskDoorMotion::InThenUp;
 
-        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1);
+        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1, s_kDisk2cPadlockY);
     }
 
     if (kind == DeskDeviceKind::DiskII)
@@ -655,7 +673,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         m_doorPivotZ  = kDiskIiDoorPoleZ;
         m_doorOpenRad = kDiskIiDoorOpenRad;
 
-        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1);
+        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1, s_kDiskIiPadlockY);
 
         // The cassowary (lower-right, the 2D widget's mark) and the IN-USE
         // label pointing at the LED. The DRIVE-number badge text is stamped
@@ -685,6 +703,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             anchor.center[1]   = (lo[1] + hi[1]) * 0.5f;
             anchor.center[2]   = (lo[2] + hi[2]) * 0.5f;
             anchor.frontY      = lo[1];                     // most proud (viewer at -Y)
+            anchor.backY       = hi[1];                     // the panel side of the lens
             anchor.radiusX     = (hi[0] - lo[0]) * 0.5f;
             anchor.radiusZ     = (hi[2] - lo[2]) * 0.5f;
             anchor.firstVertex = 0;
@@ -1382,8 +1401,9 @@ void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ)
+void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ, float frontY)
 {
+    const float  outY   = frontY - s_kPadlockOutlineDy;
     const float  bodyX1 = rightX;
     const float  bodyX0 = bodyX1 - s_kPadlockBodyW;
     const float  archZ1 = topZ;
@@ -1401,7 +1421,7 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ)
     // a second time beside it -- which is how a badge and its tooltip target
     // come to disagree.
     m_padlockMin[0] = bodyX0;
-    m_padlockMin[1] = s_kPadlockHoleY;
+    m_padlockMin[1] = frontY - s_kPadlockHoleDy;
     m_padlockMin[2] = bodyZ0;
     m_padlockMax[0] = bodyX1;
     m_padlockMax[1] = 0.0f;
@@ -1519,22 +1539,22 @@ void DeskSceneModel::BuildPadlockStamp (float rightX, float topZ)
         }
     };
 
-    rasterize (s_kPadlockOutlineY, s_kPadlockOutline, [&] (float x, float z)
+    rasterize (outY, s_kPadlockOutline, [&] (float x, float z)
     {
         return shackle (x, z, s_kPadlockOutlineMm) || body (x, z, s_kPadlockOutlineMm);
     });
 
-    rasterize (s_kPadlockShackleY, s_kPadlockShade, [&] (float x, float z)
+    rasterize (frontY - s_kPadlockShackleDy, s_kPadlockShade, [&] (float x, float z)
     {
         return shackle (x, z, 0.0f);
     });
 
-    rasterize (s_kPadlockBodyY, s_kPadlockFill, [&] (float x, float z)
+    rasterize (frontY - s_kPadlockBodyDy, s_kPadlockFill, [&] (float x, float z)
     {
         return body (x, z, 0.0f);
     });
 
-    rasterize (s_kPadlockHoleY, s_kPadlockHole, keyhole);
+    rasterize (frontY - s_kPadlockHoleDy, s_kPadlockHole, keyhole);
 }
 
 
@@ -1994,8 +2014,8 @@ void DeskSceneModel::AddRegionBoxes()
     box.region = DriveWidgetRegion::Eject;
     m_regions.push_back (box);
 
-    // The //c's second eject box: the latch's column above the slot, which is
-    // the part of it a hand actually goes for.
+    // The //c's second eject box: the notch column, which is the finger
+    // recess and the latch and the latch's top all in one line.
     if (m_kind == DeskDeviceKind::Disk2c)
     {
         memcpy (box.boxMin, s_kDisk2cLatchMin, sizeof (box.boxMin));

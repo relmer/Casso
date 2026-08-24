@@ -725,6 +725,7 @@ private:
     // the thing being inspected off toward an edge exactly as it got big
     // enough to look at.
     void    ZoomSceneAt          (POINT clientPt, float factor);
+    DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
 
     // Put the framing back to the fitted composition.
     void    ResetSceneView       ();
@@ -751,6 +752,10 @@ private:
     // proportion at every zoom -- a fixed additive step feels fast when close
     // in and useless when far out.
     static constexpr float  s_kSceneZoomStep = 1.15f;
+
+    // How far one wheel notch pans, in units of the pan range -- which runs
+    // -1..1 across the viewport, the same units the touch pan works in.
+    static constexpr float  s_kScenePanStep  = 0.12f;
 
     // While the scene owns the drives, the 2D widgets stay hidden (they keep
     // mirroring state for the //c switch strip) and the drag-drop hit rects

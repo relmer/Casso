@@ -167,6 +167,11 @@ public:
     // Short of 1 because the bound is a flat box and the case's corners are
     // rounded away from it.
     static constexpr float  kGlowEdgeMargin    = 0.82f;
+    // A LAMP'S COLOR BELONGS TO THE PART, not to the class of device. The Disk
+    // II's in-use LED is red; the Disk IIc's activity indicator is green, and
+    // the same green as the Monitor //c's power lamp -- on that machine they
+    // are the same indicator in two housings, which is why one constant
+    // serves both and the //c drive does not get a shade of its own.
     static constexpr float  kMonitorGlowRgb[3] = { 0.400f, 1.000f, 0.520f };
     static constexpr float  kDriveGlowRgb[3]   = { 1.000f, 0.260f, 0.180f };
 
@@ -175,6 +180,27 @@ public:
     // unity lands ~1.5/255 on matte black plastic. Applied to the light only,
     // never to the glowing bulb.
     static constexpr float  kLampLightGain     = 16.0f;
+
+    // How far in front of its own back face a lamp's LIGHT sits, as a floor.
+    //
+    // The standoff is the light's, not the part's. A real indicator is a matte
+    // plastic window lying flush in the panel, and the shader weighs every
+    // surface by dot(n, L) -- so a source in the plane of the face lights none
+    // of it, and the model had been growing a millimeter of bump purely to
+    // give the math something to work with. That is a lighting constant
+    // wearing geometry's clothes. Now the lens can be as flush as the real one
+    // is and the light stands off by itself.
+    //
+    // A FLOOR rather than an offset, so this does not shove lamps that already
+    // protrude: the Disk II's LED is a genuine dome and keeps its own
+    // position, because min() of the two leaves it where it was.
+    static constexpr float  kLampLightStandoffMm = 2.5f;
+
+    // Which color a drive's lamp burns, given the drive.
+    static constexpr const float *  DriveGlowRgb (DeskDeviceKind kind)
+    {
+        return (kind == DeskDeviceKind::Disk2c) ? kMonitorGlowRgb : kDriveGlowRgb;
+    }
 
     // Contact shadow: what grounds a device. Without one every model reads as
     // pasted onto the backdrop rather than standing on a desk -- the scene has
