@@ -366,7 +366,7 @@ public:
 
         Assert::IsTrue (help.find ("Read a file from the disk") != std::string::npos,
                         L"get says which way it goes, on its own line");
-        Assert::IsTrue (help.find ("Write a host file to the disk") != std::string::npos,
+        Assert::IsTrue (help.find ("Write a file from the host to the disk") != std::string::npos,
                         L"and so does put");
     }
 
@@ -444,7 +444,7 @@ public:
         //  composed one logical line per paragraph and folded to the
         //  reader's terminal at print time, so where a sentence breaks is
         //  the terminal's business and not a fact about the help.
-        Assert::IsTrue (help.find ("defaults to the host file's own name") != std::string::npos,
+        Assert::IsTrue (help.find ("defaults to the name it has on the host") != std::string::npos,
                         L"--as has a default and the help states it");
         Assert::IsTrue (help.find ("only type the guest will RUN") != std::string::npos,
                         L"--type has one too, and --basic overrides it");

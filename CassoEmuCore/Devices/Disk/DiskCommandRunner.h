@@ -171,7 +171,7 @@ public:
                            DiskCommandResult        & result);
 
     //
-    //  Lays a host file into an image at a track and a DOS logical sector,
+    //  Lays a file from the host into an image at a track and a DOS logical sector,
     //  with no filesystem involved.
     //
     //  FOR THE DISKS THAT HAVE NO FILESYSTEM TO PUT A FILE INTO. A demo that
@@ -375,7 +375,7 @@ private:
                                      Byte                     & outType,
                                      DiskCommandResult        & result);
 
-    //  The bytes a host file becomes on the disk, with whatever conversion was
+    //  The bytes a file from the host becomes on the disk, with whatever conversion was
     //  asked for already applied. Refuses a conversion this build cannot do.
     static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
                                      VolumeKind                  kind,

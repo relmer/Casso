@@ -103,7 +103,7 @@ struct DiskCommandHelp
 static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
 {
     { "list | cat | catalog | dir | ls",
-      "Show files on the disk: name, type, size, lock state, free space, and any damage found",
+      "Show what is on the disk",
       "CassoCli disk list <image>",
       nullptr,
       "A listing shows every column the volume records, so a ProDOS row carries eof= and"
@@ -121,7 +121,7 @@ static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
 
     { "put | write",
-      "Write a host file to the disk",
+      "Write a file from the host to the disk",
       "CassoCli disk put <image> <file> [%Las <path>] [%Ltype <t>] [%Laddr $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
       "  %Las <path>             Name the placed file this on the disk\n"
@@ -130,8 +130,8 @@ static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
       "  %Laddr $XXXX            Load address for a placed binary\n"
       "  %Ltext                  Convert the high-bit encoding and the line endings\n"
       "  %Lbasic                 Convert to and from an Applesoft listing\n",
-      "%Las is the name the file takes on the disk, and defaults to the host file's own"
-      " name. %Ltype is what the catalog records, and defaults to a binary, or to"
+      "%Las is the name the file takes on the disk, and defaults to the name it has"
+      " on the host. %Ltype is what the catalog records, and defaults to a binary, or to"
       " Applesoft under %Lbasic, which is the only type the guest will RUN. %Laddr is the"
       " load address a binary carries: a DOS 3.3 B or a ProDOS BIN is refused without one,"
       " every other type ignores it, and %Lbasic refuses it outright because Applesoft"
@@ -139,7 +139,7 @@ static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Laddr $6000" },
 
     { "delete | del | rm",
-      "Delete a file from the disk and return the space it alone claimed",
+      "Delete a file from the disk",
       "CassoCli disk delete <image> <path>",
       nullptr,
       nullptr,
@@ -193,7 +193,8 @@ static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
 
     { "stamp",
-      "Lay a host file into the image at a track and a sector, with no filesystem involved",
+      "Lay a file from the host into the image at a track and a sector, with no"
+      " filesystem involved",
       "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
       "  %Ltrack <n>             Which track to write at, 0 to 34\n"
       "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The\n"
@@ -300,7 +301,7 @@ std::string DiskCommandRunner::ApplyPrefixes (const std::string & text, char fla
 //
 //  THE DESCRIPTIONS CARRY THE DIRECTION, which is why nothing here explains that
 //  put and get are named from the disk's point of view. "Read a file FROM the
-//  disk" and "Write a host file TO the disk" leave nothing for that sentence to
+//  disk" and "Write a file FROM the host TO the disk" leave nothing for that
 //  add; it existed to rescue two command names that the descriptions now state
 //  outright.
 //
@@ -1128,7 +1129,7 @@ void DiskCommandRunner::RefuseCommit (
 //
 //  WHICH LINE, AND THE LINE ITSELF. A number on its own is useless against a
 //  file numbered by tens, and useless in the other direction too: a program
-//  read off a disk has line numbers the host file does not have. So the number
+//  read off a disk has line numbers the file on the host does not have. So the number
 //  is given when there is one, the file's own position when there is not, and
 //  the offending text is quoted underneath whenever it is known.
 //
@@ -1707,7 +1708,7 @@ Error:
 //
 //  DiskCommandRunner::OnDiskNameFor
 //
-//  --as when the caller gave one, and otherwise the host file's own last
+//  --as when the caller gave one, and otherwise the last component of the
 //  component. Nothing is stripped or shortened on the way: the caller already
 //  chose that name, and inventing a different one would leave them looking for
 //  a file the catalog does not hold. A name the filesystem cannot store is
@@ -1838,7 +1839,7 @@ Error:
 //
 //  DiskCommandRunner::BuildPutPayload
 //
-//  What the host file becomes on the disk.
+//  What a file from the host becomes on the disk.
 //
 //  VERBATIM IS THE ABSENCE OF A CHARACTER CONVERSION AND NOTHING MORE. The
 //  bytes go down as they came in; the length and whatever header the type
@@ -1899,7 +1900,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
                 // quote pasted into a listing looks identical to a plain one in
                 // an editor, and "somewhere in this file" is not actionable.
                 snprintf (note, sizeof (note),
-                          "byte %u of the host file has no Apple II text representation, "
+                          "byte %u of the file has no Apple II text representation, "
                           "so nothing was converted\n",
                           (unsigned) badOffset);
 
@@ -2016,12 +2017,12 @@ Error:
 //
 //  DiskCommandRunner::RunPut
 //
-//  Placing a host file on the disk: read it, convert it if asked, let the
+//  Placing a file from the host on the disk: read it, convert it if asked, let the
 //  filesystem compute the whole new volume, render that back into the container
 //  and commit it.
 //
 //  NOTHING IS WRITTEN UNTIL EVERY DECISION HAS BEEN MADE. Each refusal below --
-//  no such host file, a type nobody recognizes, a name the catalog cannot
+//  no such file on the host, a type nobody recognizes, a name the catalog cannot
 //  store, a locked file, a volume with no room -- happens with the image on
 //  disk untouched, because the only thing this path can commit is a finished
 //  buffer.
@@ -2043,7 +2044,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     if (!named)
     {
-        result.diagnostics    += "Error: no host file named to place\n"
+        result.diagnostics    += "Error: no file named to place\n"
                                  "       put takes the file to copy onto the disk\n";
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
@@ -3099,7 +3100,7 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 //
 //  DiskCommandRunner::RunStamp
 //
-//  A host file laid into an image at a track and a DOS logical sector.
+//  A file from the host laid into an image at a track and a DOS logical sector.
 //
 //  NO FILESYSTEM IS INVOLVED, WHICH IS THE POINT. A demo that boots its own
 //  loader and reads fixed tracks has no catalog to make an entry in and no
@@ -3133,7 +3134,7 @@ void DiskCommandRunner::RunStamp (const CommandLineOptions & options, DiskComman
 
     if (options.disk.hostFile.empty())
     {
-        result.diagnostics    += "Error: no host file named to stamp\n"
+        result.diagnostics    += "Error: no file named to stamp\n"
                                  "       stamp takes the image and the file to lay into it\n";
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
