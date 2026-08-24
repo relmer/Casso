@@ -3,6 +3,7 @@
 #include "Cli/CliMain.h"
 #include "Cli/AssemblerMode.h"
 #include "Cli/ArtifactWriter.h"
+#include "Cli/CommandLine.h"
 #include "AssemblerTypes.h"
 #include "As65ExitStatus.h"
 #include "CommandLineParser.h"
@@ -886,6 +887,37 @@ namespace CliSwitchCoverageTests
             Assert::AreEqual (As65ExitStatus::kBadCommandLine,
                               Run ({ "CassoCli", "as65", "p.a65", "-version" }),
                               L"as65 -version");
+        }
+
+        //  A REFUSAL'S PAGE AND ITS REASON GO DOWN ONE STREAM.
+        //
+        //  They used to be split: the page to stdout, the reason to stderr,
+        //  with stdout flushed between them so the order written would be the
+        //  order read. It is not, and cannot be made to be. A terminal reads
+        //  the two pipes on two threads, and the reason arrived spliced into
+        //  the middle of the examples, four lines above where the page ended.
+        //  Each half was correct in isolation, which is why redirecting either
+        //  one to a file on its own showed nothing wrong.
+        //
+        //  THE MECHANISM IS WHAT IS ASSERTED HERE, not the bytes. Capturing
+        //  the real streams means rebinding the process's stdout and stderr,
+        //  which takes the test host's own reporting down with it: measured,
+        //  the run lost its result summary entirely. The printers each open
+        //  one of these guards as their first statement.
+        TEST_METHOD (TheUsageStreamFollowsTheGuard_AndIsRestored)
+        {
+            Assert::IsTrue (CommandLine::UsageStream() == stdout,
+                            L"usage is ordinary output by default");
+
+            {
+                CommandLine::UsageOnErrorStream  toTheErrorStream;
+
+                Assert::IsTrue (CommandLine::UsageStream() == stderr,
+                                L"and goes where the reason goes while a refusal is printing");
+            }
+
+            Assert::IsTrue (CommandLine::UsageStream() == stdout,
+                            L"and is put back, so an asked-for page stays pipeable");
         }
 
         //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it

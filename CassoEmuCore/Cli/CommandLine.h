@@ -71,6 +71,40 @@ public:
     //  with. Both live on the options, so the caller hands over the whole
     //  parse rather than picking two fields out of it and deciding again.
     static void                PrintUsage                (const CommandLineOptions & options);
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  UsageOnErrorStream
+    //
+    //  Sends every line of usage to the error stream while it is alive.
+    //
+    //  A PAGE PRINTED AS PART OF A REFUSAL BELONGS WHERE ITS REASON GOES.
+    //  Splitting them was correct on paper and wrong on a screen: the page went
+    //  to stdout, stdout was flushed, and only then was a word of the reason
+    //  written, and a terminal reading the two pipes on two threads still
+    //  spliced the reason into the middle of the examples. Nothing a writer
+    //  does can order two streams for a reader; one stream can only arrive in
+    //  the order it was written.
+    //
+    //  A refusal is not output anybody pipes into another tool, so putting its
+    //  page on the error stream costs nothing and is what most tools do.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    //  Where usage is going right now. Exposed so the guard above can be
+    //  asserted without a test rebinding the process's own handles, which
+    //  takes the test runner's reporting down with it.
+    static std::FILE *         UsageStream();
+
+    class UsageOnErrorStream
+    {
+    public:
+        UsageOnErrorStream();
+        ~UsageOnErrorStream();
+
+        UsageOnErrorStream (const UsageOnErrorStream &)             = delete;
+        UsageOnErrorStream & operator= (const UsageOnErrorStream &) = delete;
+    };
     static void                PrintVersion              ();
 
     //  What the tool is called, which build this is, and who holds the
