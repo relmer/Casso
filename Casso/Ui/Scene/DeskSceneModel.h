@@ -191,7 +191,11 @@ public:
     // middle it tilted like a flap. The part does neither. A rotation cannot
     // express this however its pole is placed, so the motion has to be a
     // choice the model makes rather than something every door shares.
-    static constexpr float  kDisk2cDoorInMm  = 4.5f;
+    //
+    // The IN leg is exactly how far the latch stands proud of the face, so
+    // the press seats it flush in its notch and the rise starts from there.
+    // Any further and it would travel through the notch's back wall.
+    static constexpr float  kDisk2cDoorInMm  = 1.5f;
     static constexpr float  kDisk2cDoorUpMm  = 13.0f;
 
     // And BECAUSE it rises, the row has to stand clear of whatever is stacked

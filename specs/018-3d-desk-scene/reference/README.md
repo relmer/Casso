@@ -45,6 +45,31 @@ Twelve photographs, supplied 2026-08-23:
   because the model got it wrong twice, both times as a rotation, since a
   rotation was the only door motion the scene knew.
 
+### Reported, not photographed
+
+Construction the photographs show the RESULT of but cannot explain, given by
+somebody who has handled one. Written down for the same reason the latch's
+travel is: a photograph shows a line across the case, and only a person can
+tell you whether it is a seam, a shadow, or a scratch.
+
+- **The latch is a THIRD of the slot's width**, dividing the opening into
+  three equal parts. Its notch is a little wider so it travels freely.
+- **The notch runs UP THROUGH THE TOP** of the drive and on along the lid.
+- **The latch fills it from the top of the drive down to the bottom of the
+  slot** when closed -- which leaves the notch open below the slot. That open
+  stretch IS the finger recess. There is no separate pocket.
+- **The slot is beveled at 45 degrees all round**, to guide a diskette in.
+- **Every edge is generously rounded**, about an eighth of an inch.
+- **The case is two halves meeting at the plane of the slot**, with about half
+  a millimeter of gap showing all the way round.
+- **The lower half tapers inward on the left and right only** -- some two
+  millimeters over the whole, so a millimeter a side -- from the split down to
+  the base. The front and back stay plumb.
+- **Two feet, not four**, running across the front and the back: a rectangle
+  with a half-round at each end, a quarter inch tall and half an inch deep,
+  set half an inch in from the nearest face and from both sides. A round
+  rubber pad sits at each rounded end, inside its circumference.
+
 ### Not established by these photographs
 
 - **Overall dimensions**, still. But two of the three are now much better

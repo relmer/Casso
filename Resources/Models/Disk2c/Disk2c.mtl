@@ -53,102 +53,32 @@ Ka 0 0 0
 Kd 0.17 0.45 0.85
 d 1
 
-newmtl vent0
+newmtl pad_front_19
 Ka 0 0 0 
-Kd 0.055 0.055 0.062
+Kd 0.18 0.176 0.17
 d 1
 
-newmtl vent1
+newmtl pad_front_133
 Ka 0 0 0 
-Kd 0.055 0.055 0.062
+Kd 0.18 0.176 0.17
 d 1
 
-newmtl vent2
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent3
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent4
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent5
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent6
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent7
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent8
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent9
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent10
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent11
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent12
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl vent13
-Ka 0 0 0 
-Kd 0.055 0.055 0.062
-d 1
-
-newmtl footbar22
-Ka 0 0 0 
-Kd 0.884 0.874 0.846
-d 1
-
-newmtl foot24_22
+newmtl foot_front
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1
 
-newmtl foot128_22
+newmtl pad_rear_19
 Ka 0 0 0 
-Kd 0.32 0.31 0.3
+Kd 0.18 0.176 0.17
 d 1
 
-newmtl footbar194
+newmtl pad_rear_133
 Ka 0 0 0 
-Kd 0.884 0.874 0.846
+Kd 0.18 0.176 0.17
 d 1
 
-newmtl foot24_194
-Ka 0 0 0 
-Kd 0.32 0.31 0.3
-d 1
-
-newmtl foot128_194
+newmtl foot_rear
 Ka 0 0 0 
 Kd 0.32 0.31 0.3
 d 1

@@ -176,10 +176,18 @@ static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
 // The //c drive's own, from cad_disk2c.py: a 152 x 46 x 216 case -- a flat
-// slab, about a quarter of its width tall -- whose slot sits at z 25..29.5
-// with the latch below and through it. The eject zone spans the pair.
-static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 11.0f };
+// slab, about a quarter of its width tall -- whose slot sits at z 25..29.5.
+//
+// IT TAKES TWO BOXES, because the eject furniture is an L. The slot band runs
+// the full width, with the open notch beneath it that a finger goes into. The
+// latch stands in the middle third of that width and carries on UP through
+// the top of the case, so a click on the part of it above the slot -- which
+// is most of what you see -- has to eject too. One box around the pair would
+// be a rectangle covering the whole face, and would swallow the padlock.
+static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 12.0f };
 static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 31.0f };
+static constexpr float   s_kDisk2cLatchMin[3] = {  54.0f, -8.0f, 29.5f };
+static constexpr float   s_kDisk2cLatchMax[3] = {  98.0f,  3.0f, 46.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
 static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
 
@@ -1971,7 +1979,7 @@ void DeskSceneModel::AddRegionBoxes()
 
     // Per drive, because the two faces are laid out differently and a box
     // measured against the wrong one is a click that lands nowhere. The
-    // //c's eject zone wraps its slot and the flip lever under it.
+    // //c's eject zone wraps its slot and the open notch beneath it.
     if (m_kind == DeskDeviceKind::Disk2c)
     {
         memcpy (box.boxMin, s_kDisk2cEjectMin, sizeof (box.boxMin));
@@ -1985,6 +1993,17 @@ void DeskSceneModel::AddRegionBoxes()
 
     box.region = DriveWidgetRegion::Eject;
     m_regions.push_back (box);
+
+    // The //c's second eject box: the latch's column above the slot, which is
+    // the part of it a hand actually goes for.
+    if (m_kind == DeskDeviceKind::Disk2c)
+    {
+        memcpy (box.boxMin, s_kDisk2cLatchMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk2cLatchMax, sizeof (box.boxMax));
+
+        box.region = DriveWidgetRegion::Eject;
+        m_regions.push_back (box);
+    }
 
     // The padlock ranks BELOW eject and above body. Its box overlaps the top
     // of the eject zone, and declaration order is precedence -- listing it

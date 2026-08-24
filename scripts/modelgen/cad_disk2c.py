@@ -1,28 +1,31 @@
 """Apple Disk IIc (A2M4050Z) as a real solid model. The low off-white unit
-styled to match the //c, 152 x 216 x 46 mm (W x D x H). X right, Y back,
-Z up; front face at y = -2.5.
+styled to match the //c, 152 x 216 x 46 mm (W x D x H) over a pair of feet.
+X right, Y back, Z up; front face at y = -2.5.
 
 MODELED FROM PHOTOGRAPHS -- see specs/018-3d-desk-scene/reference/README.md,
-which names them and says what each one settles. The shape this replaces
-was a generic low box with a full-width slot and a lever under it, which is
-not what the drive looks like at all:
+which names them and says what each one settles.
 
-  - the LID IS A RIB FIELD, nineteen long grooves running front to back over
-    most of it. Plain, the lid is the one surface that could belong to any
-    beige box of the period; ribbed, it is a Disk IIc from across the room.
-  - the SLOT IS TWO SEGMENTS, split by a central latch that stands proud of
-    the face and rises up over the lid's leading edge. A full-width slot with
-    a lever below it is a Disk II's arrangement wearing the wrong colors.
-  - a FINGER RECESS steps back under the latch.
-  - the `/` glyph marks the indicator at the lower right, the same mark the
-    Monitor //c carries beside its lamp.
-  - the LOGO IS ON THE LID at the rear-left, not on the front.
+The front is one composition and the pieces only make sense together:
+
+  - a NOTCH is sunk into the face, slightly wider than the latch, running from
+    below the slot up and THROUGH THE TOP of the drive, where it carries on a
+    short way along the lid.
+  - the LATCH sits in it, a third of the slot wide, spanning from the top of
+    the drive down to the bottom of the slot when closed. What is left below
+    it is open notch -- which is the finger recess, not a separate feature
+    somebody added under a lever.
+  - the SLOT is BEVELED at 45 degrees all round, because a diskette has to be
+    guided into it by hand.
+
+The case is TWO HALVES meeting at the plane of the slot, with a fine gap
+between them running the whole way round, and the lower half tapers inward to
+its base on the left and right only. Feet run across the front and the back
+rather than sitting at the corners, with a rubber pad at each rounded end.
 
 Sub-mesh identity is by part NAME: `lever` and `tab` are the door assembly the
-scene swings on eject, `lamp` is the activity indicator, `slot` the opening.
-Their colors are therefore free to be the finish the photographs show rather
-than the marker values they used to have to carry -- which is why the latch is
-a shade off the case here instead of the much darker platinum-era marker.
+scene moves on eject, `lamp` is the activity indicator, `slot` the opening.
+Their colors are free to be the finish the photographs show -- which is why
+the latch is a //c keycap's gray rather than a marker value.
 """
 
 import cadquery as cq
@@ -30,29 +33,35 @@ from cadkit import KD, Model
 
 # ---------------------------------------------------------------- dimensions
 #
-# THE HEIGHT WAS THE ERROR ALL ALONG, and it is the one that made the thing
-# unrecognizable. At 70 mm on a 152 mm case this was a chunky box; the drive
-# is a flat SLAB, about a quarter of its own width tall. Every photograph
-# agrees -- the side elevation is a band, the front face is far wider than it
-# is high -- and no amount of correct detail on a case the wrong shape reads
-# as the right machine.
+# THE HEIGHT WAS THE ERROR THAT MATTERED. At 70 mm on a 152 mm case this was a
+# chunky box; the drive is a flat SLAB, about a quarter of its own width tall.
+# No amount of correct detail on a case of the wrong shape reads as the right
+# machine.
 #
-# The DEPTH goes back to where it started. Reading two tightly-cropped
-# underside shots, I took the IMAGE's aspect for the drive's and concluded
-# the case was a fifth too long. A later underside with real margin around it
-# measures about 1.45 -- which is where 216 already was. The lesson is narrow
-# and worth keeping: an aspect read off a photograph is only the subject's
-# aspect if the subject's own bounding box is visible in it.
+# The DEPTH went wrong and came back. Reading two underside shots cropped
+# tightly to the drive, I took the IMAGE's aspect for the SUBJECT's and
+# shortened the case by a fifth. A later underside with real margin around it
+# measures about 1.45, which is where 216 already was. An aspect read off a
+# photograph is only the subject's aspect if the subject's own bounding box is
+# in the frame.
 #
 # Still not measured. A tape on a real one settles all three.
 W, H, D = 152.0, 46.0, 216.0
 
+INCH = 25.4
+
+# A generous round on every edge -- an eighth of an inch. Molded ABS of this
+# era has no crisp arrises anywhere, and too tight a radius is most of what
+# made earlier passes read as a rendering rather than a thing.
+EDGE_R = INCH / 8.0
+CORNER_R = 4.5                    # the vertical corners, which are softer still
+
 # Warm off-white, not the //e era's platinum: the photographs show a case that
-# matches the //c's own cream, and the latch a cool gray against it.
+# matches the //c's own cream.
 CASE    = (0.884, 0.874, 0.846)
-CASE_DK = (0.812, 0.803, 0.778)
 SLOT_DK = (0.055, 0.055, 0.062)
 FOOT    = (0.320, 0.310, 0.300)
+PAD     = (0.180, 0.176, 0.170)
 
 # The latch is GRAY -- a //c keycap's gray, plainly a different part from the
 # case rather than a tint of it. Made a shade off the cream it vanished into
@@ -68,26 +77,46 @@ RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
 
 SLOT_Z0, SLOT_Z1 = 25.0, 29.5     # the disk opening
 SLOT_X0, SLOT_X1 = 16.0, W - 16.0
+SLOT_BEVEL       = 2.0            # the 45-degree lead-in, all four sides
 
-LATCH_W      = 21.0               # the central block that splits the slot
+# A THIRD OF THE SLOT, which divides the opening into three equal parts:
+# segment, latch, segment. Written as the fraction rather than the answer, so
+# the proportion survives the slot being resized.
+LATCH_W      = (SLOT_X1 - SLOT_X0) / 3.0
 LATCH_X0     = (W - LATCH_W) * 0.5
-LATCH_Z0     = SLOT_Z0 - 12.0
-LATCH_PROUD  = 4.2                # how far it stands off the face
-LATCH_R      = 2.0
+LATCH_PROUD  = 1.5                # how far it stands off the face
 
-RECESS_W     = 34.0               # the finger pull under the latch
-RECESS_H     =  8.0
-RECESS_D     = 3.0
+# The notch is a little wider than the latch so the latch travels freely in
+# it, and it runs from below the slot up over the top and back along the lid.
+NOTCH_W      = LATCH_W + 4.0
+NOTCH_X0     = (W - NOTCH_W) * 0.5
+NOTCH_Z0     = 13.0               # its floor, well below the slot
+NOTCH_D      = 5.0                # how far into the front face
+NOTCH_LID    = 16.0               # how far back along the lid
+NOTCH_LID_D  = 4.0                # how far down into the lid
 
 # The indicator. A slash, because that is the glyph Apple molded there and the
-# same one the Monitor //c wears beside its lamp -- a round pilot light would
-# be a different machine's idea. It stands proud for the reason every lamp in
-# this scene does: the shader weighs each surface by dot(n, L), so a lens in
-# the plane of the panel lights nothing.
+# same one the Monitor //c wears beside its lamp. It stands proud for the
+# reason every lamp in this scene does: the shader weighs each surface by
+# dot(n, L), so a lens in the plane of the panel lights nothing.
 LAMP_W, LAMP_H = 2.0, 8.0
 LAMP_X, LAMP_Z = W - 24.0, 7.0
-LAMP_LEAN      = 2.4              # the slash's top-right offset
+LAMP_LEAN      = 2.4
 LAMP_PROUD     = 1.0
+
+# ------------------------------------------------------------- the two halves
+#
+# They meet at the PLANE OF THE SLOT, and the join shows: a fine gap running
+# the whole way round the case. Cut as a groove rather than built as two
+# solids with air between them -- a real gap would look through the drive.
+SPLIT_Z   = SLOT_Z0
+SEAM_GAP  = 0.5
+SEAM_DEEP = 0.8
+
+# The lower half draws in toward its base on the LEFT AND RIGHT ONLY -- two
+# millimeters over the whole, so a millimeter a side. The front and back stay
+# plumb.
+TAPER = 1.0
 
 # --------------------------------------------------------------------- the lid
 
@@ -99,23 +128,47 @@ RIB_X1    = W - 14.0
 RIB_Y0    = 40.0                  # clear of the front's plain band
 RIB_Y1    = D - 20.0
 
+# ------------------------------------------------------------------- the feet
+#
+# Two of them, across the front and the back, not four at the corners: a
+# rectangle with a half-round at each end, extruded. A quarter inch tall, half
+# an inch deep, set half an inch in from the face it is nearest and from both
+# sides.
+FOOT_H     = INCH / 4.0
+FOOT_D     = INCH / 2.0
+FOOT_INSET = INCH / 2.0
+FOOT_R     = FOOT_D / 2.0
+PAD_R      = 5.0                  # inside the half-round's own circumference
+PAD_H      = 1.2
+
 m = Model()
 
 # --------------------------------------------------------------------- case
 
-# Vertical corners first, then the whole top rim in one pass. Filleting the
-# three edge directions in turn asks OCC to round edges the earlier rounds
-# already consumed, and it refuses the lot rather than the one.
 case = (cq.Workplane("XY")
         .box(W, D + 2.5, H, centered=(False, False, False))
         .translate((0.0, -2.5, 0.0))
-        .edges("|Z").fillet(4.5))
+        .edges("|Z").fillet(CORNER_R))
 
-case = case.edges(">Z").fillet(2.0)
+case = case.edges(">Z").fillet(EDGE_R)
+case = case.edges("<Z").fillet(EDGE_R)
+
+# The lower half's taper: a wedge off each flank, full at the base and nothing
+# by the time it reaches the split. Cut after the rounds, so what it leaves is
+# a clean drafted flank rather than a rounded edge sliced through at an angle.
+for sign, x0 in ((-1.0, 0.0), (1.0, W)):
+    case = case.cut(
+        cq.Workplane("XZ", origin=(0.0, 0.0, 0.0))
+          .polyline([(x0 - sign * 10.0, -10.0),
+                     (x0 + sign * TAPER, -10.0),
+                     (x0 - sign * 10.0, SPLIT_Z)])
+          .close()
+          .extrude(-(D + 20.0))
+          .translate((0.0, D + 10.0, 0.0)))
 
 # The lid's ribs: long shallow grooves front to back. Cut rather than laid on,
 # so each one has walls that take the light differently from the lid between
-# them -- painted stripes read as two tones of the same flat surface.
+# them -- painted stripes read as two tones of one flat surface.
 for i in range(RIB_N):
     x = RIB_X0 + (RIB_X1 - RIB_X0 - RIB_W) * i / float(RIB_N - 1)
     case = case.cut(
@@ -123,25 +176,6 @@ for i in range(RIB_N):
           .box(RIB_W, RIB_Y1 - RIB_Y0, RIB_DEEP + 2.0, centered=(False, False, False))
           .translate((x, RIB_Y0, H - RIB_DEEP))
           .edges("|Z").fillet(RIB_W * 0.45))
-
-# The finger recess under the latch, and the slot itself, both cut from the
-# front. The slot is ONE cut -- the latch standing in front of it is what
-# makes it read as two.
-case = case.cut(
-    cq.Workplane("XY")
-      .box(RECESS_W, RECESS_D + 2.0, RECESS_H, centered=(False, False, False))
-      .translate(((W - RECESS_W) * 0.5, -2.5, LATCH_Z0 - RECESS_H))
-      .edges("|Y").fillet(2.0))
-
-# THE SLOT IS A HOLE, so the case has to give it up. A dark solid left sitting
-# inside solid case is buried, not an opening -- the lesson the Disk II's slot
-# taught twice.
-case = case.cut(
-    cq.Workplane("XY")
-      .box(SLOT_X1 - SLOT_X0, 14.0, SLOT_Z1 - SLOT_Z0, centered=(False, False, False))
-      .translate((SLOT_X0, -3.0, SLOT_Z0)))
-
-# ------------------------------------------------------------------ the rear
 
 # A grille along the TOP edge of the back face. Never seen in this scene, and
 # in the model because the drive has one.
@@ -152,34 +186,87 @@ for i in range(20):
           .box(2.0, 6.0, H * 0.30, centered=(False, False, False))
           .translate((x, D - 3.0, H * 0.58)))
 
+# THE NOTCH: down the front and on over the top, one L-shaped cut. Its lower
+# reach is the finger recess -- there is no separate pocket, the latch simply
+# does not come down that far.
+case = case.cut(
+    cq.Workplane("XY")
+      .box(NOTCH_W, NOTCH_D + 0.5, (H + 2.0) - NOTCH_Z0, centered=(False, False, False))
+      .translate((NOTCH_X0, -3.0, NOTCH_Z0)))
+
+case = case.cut(
+    cq.Workplane("XY")
+      .box(NOTCH_W, NOTCH_LID + 0.5, NOTCH_LID_D + 2.0, centered=(False, False, False))
+      .translate((NOTCH_X0, -3.0, H - NOTCH_LID_D)))
+
+# THE SLOT, beveled at forty-five degrees all round. Lofted from a mouth one
+# bevel bigger than the opening back to the opening itself, because that is
+# what the lead-in is: a diskette is pushed in by hand and the chamfer is what
+# finds the hole for you. Built as the shape rather than chamfered afterwards,
+# for the reason the Disk II's is -- a mis-picked edge renders as "off".
+slot_cx = (SLOT_X0 + SLOT_X1) * 0.5
+slot_cz = (SLOT_Z0 + SLOT_Z1) * 0.5
+slot_w  = SLOT_X1 - SLOT_X0
+slot_h  = SLOT_Z1 - SLOT_Z0
+
+case = case.cut(
+    cq.Workplane("XZ", origin=(slot_cx, -2.5, slot_cz))
+      .rect(slot_w + SLOT_BEVEL * 2.0, slot_h + SLOT_BEVEL * 2.0)
+      .workplane(offset=-SLOT_BEVEL)
+      .rect(slot_w, slot_h)
+      .loft())
+
+case = case.cut(
+    cq.Workplane("XY")
+      .box(slot_w, 16.0, slot_h, centered=(False, False, False))
+      .translate((SLOT_X0, -2.5 + SLOT_BEVEL, SLOT_Z0)))
+
+# THE SEAM. A groove around the whole perimeter at the split, rather than two
+# solids with daylight between them: the halves overlap inside a real drive,
+# and modeling the gap as a hole would let the background through it.
+case = case.cut(
+    cq.Workplane("XY")
+      .box(W + 20.0, D + 22.5, SEAM_GAP, centered=(False, False, False))
+      .translate((-10.0, -12.5, SPLIT_Z - SEAM_GAP))
+      .cut(cq.Workplane("XY")
+             .box(W - SEAM_DEEP * 2.0, (D + 2.5) - SEAM_DEEP * 2.0, SEAM_GAP + 2.0,
+                  centered=(False, False, False))
+             .translate((SEAM_DEEP, -2.5 + SEAM_DEEP, SPLIT_Z - SEAM_GAP - 1.0))))
+
 m.add("case", case, CASE)
 
 # ------------------------------------------------- faceplate furniture
 
-# The slot: a dark void behind the face, spanning the full opening. The latch
-# sits in front of its middle.
+# The slot's dark interior, behind the bevel.
 m.add("slot",
       cq.Workplane("XY")
-        .box(SLOT_X1 - SLOT_X0, 12.0, SLOT_Z1 - SLOT_Z0, centered=(False, False, False))
-        .translate((SLOT_X0, -0.4, SLOT_Z0)),
+        .box(slot_w, 14.0, slot_h, centered=(False, False, False))
+        .translate((SLOT_X0, -2.5 + SLOT_BEVEL + 0.6, SLOT_Z0)),
       SLOT_DK)
 
-# The latch. It carries the door identity, so this is the piece the scene
-# swings on eject -- and it rises over the lid's leading edge, which is what
-# gives it something to be gripped by.
+# THE LATCH, closed: from the top of the drive down to the bottom of the slot,
+# sitting in the notch and standing a little proud of the face. It carries the
+# door identity, so this is the piece the scene moves on eject.
 latch = (cq.Workplane("XY")
-         .box(LATCH_W, LATCH_PROUD + 2.5, (H + 1.5) - LATCH_Z0, centered=(False, False, False))
-         .translate((LATCH_X0, -2.5 - LATCH_PROUD, LATCH_Z0))
-         .edges("|Y").fillet(LATCH_R))
+         .box(LATCH_W, LATCH_PROUD + NOTCH_D, H - SLOT_Z0, centered=(False, False, False))
+         .translate((LATCH_X0, -2.5 - LATCH_PROUD, SLOT_Z0))
+         .edges("|Y").fillet(1.6))
+
+# Its top runs back along the lid in the notch's upper leg, which is what a
+# thumb pushes on.
+latch = latch.union(
+    cq.Workplane("XY")
+      .box(LATCH_W, NOTCH_LID - 2.0, NOTCH_LID_D + 0.6, centered=(False, False, False))
+      .translate((LATCH_X0, -2.5, H - NOTCH_LID_D))
+      .edges("|Z").fillet(1.6))
 
 m.add("lever", latch, LATCH)
 
-# The grip: a shallower step across the latch's lower half, which is the part
-# a thumb actually bears on.
+# The thumb pad on its front, a shallow step across the lower half.
 m.add("tab",
       cq.Workplane("XY")
-        .box(LATCH_W - 6.0, 1.4, 13.0, centered=(False, False, False))
-        .translate((LATCH_X0 + 3.0, -2.5 - LATCH_PROUD - 1.4, LATCH_Z0 + 3.0))
+        .box(LATCH_W - 8.0, 1.2, 9.0, centered=(False, False, False))
+        .translate((LATCH_X0 + 4.0, -2.5 - LATCH_PROUD - 1.2, SLOT_Z1 + 3.0))
         .edges("|Y").fillet(1.0),
       GRIP)
 
@@ -208,32 +295,29 @@ for i, c in enumerate(RAINBOW):
 
 # ---------------------------------------------------------------- underside
 
-# Vent slots, the same field as the lid but open. Under the drive, so this is
-# a matter of the part being what it is rather than of being seen.
-for i in range(14):
-    x = 20.0 + (W - 40.0 - 2.2) * i / 13.0
-    m.add(f"vent{i}",
-          cq.Workplane("XY")
-            .box(2.2, D * 0.42, 0.8, centered=(False, False, False))
-            .translate((x, D * 0.30, -0.4)),
-          SLOT_DK)
+for name, fy in (("front", -2.5 + FOOT_INSET + FOOT_R), ("rear", D - FOOT_INSET - FOOT_R)):
+    x0 = FOOT_INSET + FOOT_R
+    x1 = W - FOOT_INSET - FOOT_R
 
-# Feet: round pads on two raised bars across the underside, front and rear,
-# which is how the photographs show them -- not four pads loose on a flat
-# bottom. The ground footprint the contact shadow is sized from.
-for fy in (22.0, D - 22.0):
-    m.add(f"footbar{fy:.0f}",
-          cq.Workplane("XY")
-            .box(W - 44.0, 13.0, 1.6, centered=(False, False, False))
-            .translate((22.0, fy - 6.5, -1.6))
-            .edges("|Z").fillet(4.0),
-          CASE)
+    foot = (cq.Workplane("XY")
+            .box(x1 - x0, FOOT_D, FOOT_H, centered=(False, False, False))
+            .translate((x0, fy - FOOT_R, -FOOT_H)))
 
-    for fx in (24.0, W - 24.0):
-        m.add(f"foot{fx:.0f}_{fy:.0f}",
-              cq.Workplane("XY").cylinder(2.0, 7.0, centered=(True, True, False))
-                .translate((fx, fy, -2.0 - 1.6)),
-              FOOT)
+    for fx in (x0, x1):
+        foot = foot.union(
+            cq.Workplane("XY")
+              .cylinder(FOOT_H, FOOT_R, centered=(True, True, False))
+              .translate((fx, fy, -FOOT_H)))
+
+        # The rubber pad at each end, inside the half-round's own circle.
+        m.add(f"pad_{name}_{fx:.0f}",
+              cq.Workplane("XY")
+                .cylinder(PAD_H, PAD_R, centered=(True, True, False))
+                .translate((fx, fy, -FOOT_H - PAD_H)),
+              PAD)
+
+    m.add(f"foot_{name}", foot, FOOT)
+
 
 if __name__ == "__main__":
     import os
