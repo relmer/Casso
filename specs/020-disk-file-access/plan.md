@@ -171,7 +171,7 @@ CassoEmuCore/Devices/Disk/
                                  #   line cannot link. Downloading stays in the GUI
 
 CassoCore/
-├── CommandLineOptions.h         # EXTEND — Disk subcommand + DiskVerb + operands
+├── CommandLineOptions.h         # EXTEND — Disk subcommand + DiskCommand + operands
 ├── CommandLineParser.h/.cpp     # EXTEND — ONE table row, ONE arm, ParseDiskOptions
 ├── AppleTextCodec.h/.cpp        # NEW — host text <-> high ASCII, line endings
 └── ApplesoftTokenizer.h/.cpp    # NEW — listing <-> tokenized form (US6, P3)
@@ -251,7 +251,7 @@ independently testable increment, which is what the task breakdown needs and
 what this sketch was not. The dependency order is identical either way, only the
 grouping differs. Mapping: A → tasks Phase 2; B and C → split across tasks
 Phases 3 (readers) and 4 (writers + delete); D → split across the same two, since
-the CLI verbs land with the story they serve; E → Phase 5; F → Phases 6 and 7;
+the CLI commands land with the story they serve; E → Phase 5; F → Phases 6 and 7;
 G → Phase 8.
 
 **Phase A, Foundational (blocks everything).**

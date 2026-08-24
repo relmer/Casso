@@ -370,12 +370,12 @@ public:
         return built;
     }
 
-    static CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Verb verb)
+    static CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Command command)
     {
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = verb;
+        options.disk.command      = command;
         options.disk.imagePath = kImagePath;
 
         return options;
@@ -389,7 +389,7 @@ public:
                                         bool                       hasLoadAddress)
     {
         FakeDiskFileIo      io;
-        CommandLineOptions  put = MakeOptions (CommandLineOptions::DiskOptions::Verb::Put);
+        CommandLineOptions  put = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
 
         io.files[kImagePath]  = image;
         io.stamps[kImagePath] = FileStamp { image.size(), 100 };
@@ -417,7 +417,7 @@ public:
     static std::vector<Byte> SetStartupTo (const std::vector<Byte> & image, const char * name)
     {
         FakeDiskFileIo      io;
-        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot);
+        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Command::Boot);
 
         io.files[kImagePath]  = image;
         io.stamps[kImagePath] = FileStamp { image.size(), 100 };

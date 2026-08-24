@@ -591,8 +591,8 @@ void CommandLine::PrintMerlinPage (char prefix)
 //  says how to ask about one, and the detail waits behind that question.
 //
 //  `disk` HAS NO ARM HERE, and its absence is the design. Its page is answered
-//  by DiskCommandRunner as the Help verb of the disk grammar, beside every other
-//  disk verb's output, which is what lets it be built and tested next to the
+//  by DiskCommandRunner as the Help command of the disk grammar, beside every other
+//  disk command's output, which is what lets it be built and tested next to the
 //  code it describes.
 //
 //  EVERY PAGE IS WRITTEN WITH THE PREFIX THE READER CHOSE. `/?` means the page
@@ -639,12 +639,12 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
 //
 //  A REFUSAL PRINTS A PAGE TOO, and it has to be the same page a help request
 //  would have printed. `disk get img.dsk A B` used to answer with two lines
-//  naming the surplus argument and nothing else, so a reader who had the verb's
+//  naming the surplus argument and nothing else, so a reader who had the command's
 //  operands wrong was told they were wrong and not what the right ones are. The
 //  answer to "you typed this wrong" is the grammar.
 //
 //  The disk page is the runner's, because the disk grammar's help is composed
-//  where its verbs are. Everything else is one of the three above.
+//  where its commands are. Everything else is one of the three above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

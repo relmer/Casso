@@ -298,7 +298,7 @@ What the shell needs to land a computed image safely (FR-013, FR-036, R-007).
 ## StartupProgram
 
 **Terminology.** The user-facing term is **boot program**, which is what the spec
-and the help text say and what the `boot` verb sets. `SetStartupProgram` is the
+and the help text say and what the `boot` command sets. `SetStartupProgram` is the
 API name only, chosen because "boot" is already overloaded in this codebase by
 boot blocks, boot sectors, and the boot payload. R-003's "greeting" is DOS 3.3's
 own name for its instance of the concept and appears only when describing that

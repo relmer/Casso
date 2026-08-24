@@ -600,7 +600,7 @@ namespace CommandLineTests
             Assert::IsTrue (run.showHelp,    L"CassoCli run ?");
             Assert::IsTrue (run.helpPage    == CommandLineOptions::HelpPage::Run);
 
-            Assert::IsTrue (disk.disk.verb  == CommandLineOptions::DiskOptions::Verb::Help,
+            Assert::IsTrue (disk.disk.command  == CommandLineOptions::DiskOptions::Command::Help,
                             L"CassoCli disk ?");
         }
 
@@ -616,8 +616,8 @@ namespace CommandLineTests
 
             Assert::IsFalse (extra.showHelp, L"a source and a ? is not a help request");
 
-            Assert::IsTrue (named.disk.verb == CommandLineOptions::DiskOptions::Verb::Get,
-                            L"the verb still reads as get");
+            Assert::IsTrue (named.disk.command == CommandLineOptions::DiskOptions::Command::Get,
+                            L"the command still reads as get");
             Assert::AreEqual (std::string ("?"), named.disk.path,
                               L"and the ? is the path it was typed as");
         }
@@ -712,8 +712,8 @@ namespace CommandLineTests
         //  printer, which is what lets it be assembled and tested beside the
         //  code it describes. So a disk help request must NOT set showHelp:
         //  doing so would have the executable print a general page over it and
-        //  never dispatch the verb.
-        TEST_METHOD (DiskTakesAHelpRequestInEverySpelling_AndItStaysAVerbOfTheDiskGrammar)
+        //  never dispatch the command.
+        TEST_METHOD (DiskTakesAHelpRequestInEverySpelling_AndItStaysACommandOfTheDiskGrammar)
         {
             for (const std::string & form : Forms())
             {
@@ -721,7 +721,7 @@ namespace CommandLineTests
 
                 Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk,
                     (L"left the disk grammar: " + Widen (form)).c_str());
-                Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
+                Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Help,
                     (L"not read as a help request: " + Widen (form)).c_str());
                 Assert::IsFalse (opts.showHelp,
                     (L"the general page would be printed over it: " + Widen (form)).c_str());
@@ -1921,10 +1921,10 @@ namespace CommandLineTests
                               L"and the image it did name is untouched");
         }
 
-        //  Every verb that names a file gets two operands and no more.
-        TEST_METHOD (Disk_TheFileVerbsTakeTwoOperandsAndNoMore)
+        //  Every command that names a file gets two operands and no more.
+        TEST_METHOD (Disk_TheFileCommandsTakeTwoOperandsAndNoMore)
         {
-            struct { const char * verb; const char * second; }  kCases[] =
+            struct { const char * command; const char * second; }  kCases[] =
             {
                 { "get",    "PROG"     },
                 { "put",    "prog.bin" },
@@ -1934,38 +1934,38 @@ namespace CommandLineTests
 
             for (const auto & test : kCases)
             {
-                ArgVector           two  = { "CassoCli", "disk", test.verb, "my.dsk", test.second };
+                ArgVector           two  = { "CassoCli", "disk", test.command, "my.dsk", test.second };
                 CommandLineOptions  ok   = CommandLineParser::Parse (two.Count(), two.Data(), NoProbe());
 
                 Assert::IsTrue (ok.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                    (std::wstring (L"two operands is the shape of: ") + Widen (test.verb)).c_str());
+                    (std::wstring (L"two operands is the shape of: ") + Widen (test.command)).c_str());
 
-                ArgVector           three = { "CassoCli", "disk", test.verb, "my.dsk", test.second, "extra" };
+                ArgVector           three = { "CassoCli", "disk", test.command, "my.dsk", test.second, "extra" };
                 CommandLineOptions  bad   = CommandLineParser::Parse (three.Count(), three.Data(), NoProbe());
 
                 Assert::IsTrue (bad.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                    (std::wstring (L"and a third is refused by: ") + Widen (test.verb)).c_str());
+                    (std::wstring (L"and a third is refused by: ") + Widen (test.command)).c_str());
             }
         }
 
-        //  A VERB THE TABLE DOES NOT KNOW IS LEFT ALONE. The runner reports that
-        //  in its own words -- "unknown disk verb -- try: ..." -- and a
+        //  A COMMAND THE TABLE DOES NOT KNOW IS LEFT ALONE. The runner reports that
+        //  in its own words -- "unknown disk command -- try: ..." -- and a
         //  complaint about operand three instead would answer a question nobody
         //  asked.
-        TEST_METHOD (Disk_AnUnknownVerb_IsNotDiagnosedAsAnOperandCount)
+        TEST_METHOD (Disk_AnUnknownCommand_IsNotDiagnosedAsAnOperandCount)
         {
             //  `format` USED TO BE THE WORD HERE and is now an alias for init, which
-            //  made this test assert the operand rule against a verb that has one.
+            //  made this test assert the operand rule against a command that has one.
             ArgVector           args = { "CassoCli", "disk", "frobnicate", "my.dsk", "PROG", "extra" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                            L"the verb is what is wrong here, and the runner says so");
+                            L"the command is what is wrong here, and the runner says so");
         }
 
-        //  The operand count is the verb's, so an alias has to carry the same
+        //  The operand count is the command's, so an alias has to carry the same
         //  one the descriptive word does.
-        TEST_METHOD (Disk_AnAliasCarriesItsVerbsOperandCount)
+        TEST_METHOD (Disk_AnAliasCarriesItsCommandsOperandCount)
         {
             ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk", "PROG" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
@@ -2751,7 +2751,7 @@ namespace CommandLineTests
     //  DiskSubcommandTests
     //
     //  The `disk` grammar. Its options are NESTED rather than flattened into the
-    //  top-level struct, because a verb, an image path, and an encoding selector
+    //  top-level struct, because a command, an image path, and an encoding selector
     //  mean nothing to any other subcommand -- and nothing already in that struct
     //  means anything to `disk`. Every assertion here goes through `opts.disk`,
     //  which is the boundary being kept visible.
@@ -2767,21 +2767,21 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk);
-            Assert::IsTrue (opts.disk.verb  == CommandLineOptions::DiskOptions::Verb::List);
+            Assert::IsTrue (opts.disk.command  == CommandLineOptions::DiskOptions::Command::List);
             Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath);
         }
 
-        TEST_METHOD (Disk_TerseAliasesResolveToTheDescriptiveVerbs)
+        TEST_METHOD (Disk_TerseAliasesResolveToTheDescriptiveCommands)
         {
             // `ls` and `rm` are what fingers type; the descriptive words are
-            // what help displays. They must be the same verb, not two.
+            // what help displays. They must be the same command, not two.
             ArgVector           lsArgs = { "CassoCli", "disk", "ls", "my.dsk" };
             ArgVector           rmArgs = { "CassoCli", "disk", "rm", "my.dsk", "PROG" };
             CommandLineOptions  ls     = CommandLineParser::Parse (lsArgs.Count(), lsArgs.Data(), NoProbe());
             CommandLineOptions  rm     = CommandLineParser::Parse (rmArgs.Count(), rmArgs.Data(), NoProbe());
 
-            Assert::IsTrue (ls.disk.verb == CommandLineOptions::DiskOptions::Verb::List);
-            Assert::IsTrue (rm.disk.verb == CommandLineOptions::DiskOptions::Verb::Delete);
+            Assert::IsTrue (ls.disk.command == CommandLineOptions::DiskOptions::Command::List);
+            Assert::IsTrue (rm.disk.command == CommandLineOptions::DiskOptions::Command::Delete);
         }
 
         TEST_METHOD (Disk_CatListsTheDisk_BecauseThatIsWhatCatDoesOnAnAppleII)
@@ -2794,17 +2794,17 @@ namespace CommandLineTests
             ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::List);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::List);
         }
 
-        TEST_METHOD (Disk_AWordThatIsNoVerbAtAll_StillResolvesToNothing)
+        TEST_METHOD (Disk_AWordThatIsNoCommandAtAll_StillResolvesToNothing)
         {
             // The aliases widened the table; they must not have turned it into
             // one that accepts anything.
             ArgVector           args = { "CassoCli", "disk", "frobnicate", "my.dsk" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::None);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::None);
         }
 
         TEST_METHOD (Disk_GetTakesAnOnDiskPathAndAnOutputFile)
@@ -2812,7 +2812,7 @@ namespace CommandLineTests
             ArgVector           args = { "CassoCli", "disk", "get", "my.dsk", "PROG", "--out", "prog.bin" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Get);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Get);
             Assert::AreEqual (std::string ("my.dsk"),   opts.disk.imagePath);
             Assert::AreEqual (std::string ("PROG"),     opts.disk.path);
             Assert::AreEqual (std::string ("prog.bin"), opts.disk.hostFile);
@@ -2820,13 +2820,13 @@ namespace CommandLineTests
 
         TEST_METHOD (Disk_PutsSecondOperandIsAHostFileNotAnOnDiskPath)
         {
-            // The asymmetry is inherent: put is the only verb whose second
+            // The asymmetry is inherent: put is the only command whose second
             // operand lives on the host. --as names the file on the disk.
             ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin",
                                          "--as", "PROG", "--type", "B", "--addr", "$6000" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Put);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Put);
             Assert::AreEqual (std::string ("prog.bin"), opts.disk.hostFile);
             Assert::AreEqual (std::string ("PROG"),     opts.disk.path);
             Assert::AreEqual (std::string ("B"),        opts.disk.typeName);
@@ -2949,7 +2949,7 @@ namespace CommandLineTests
             Assert::AreEqual ((Word) 0x8000, opts.loadAddress, L"the assembler default is untouched");
         }
 
-        TEST_METHOD (Disk_AcceptsEveryAliasTheHelpOffers_ForTheVerbItAliases)
+        TEST_METHOD (Disk_AcceptsEveryAliasTheHelpOffers_ForTheCommandItAliases)
         {
             //  THREE HABITS, ALL OF THEM REAL. `catalog` and `cat` are the
             //  words the machines themselves answer to, so anyone who used one
@@ -2957,22 +2957,22 @@ namespace CommandLineTests
             //  host shell trained them to type; `ls` and `rm` are what a Unix
             //  shell did. A sweep rather than a sample, because an alias in the
             //  table and not in the grammar is exactly what this catches.
-            struct { const char * word; CommandLineOptions::DiskOptions::Verb verb; }
+            struct { const char * word; CommandLineOptions::DiskOptions::Command command; }
             kSpellings[] =
             {
-                { "list",    CommandLineOptions::DiskOptions::Verb::List   },
-                { "ls",      CommandLineOptions::DiskOptions::Verb::List   },
-                { "dir",     CommandLineOptions::DiskOptions::Verb::List   },
-                { "cat",     CommandLineOptions::DiskOptions::Verb::List   },
-                { "catalog", CommandLineOptions::DiskOptions::Verb::List   },
-                { "get",     CommandLineOptions::DiskOptions::Verb::Get    },
-                { "read",    CommandLineOptions::DiskOptions::Verb::Get    },
-                { "put",     CommandLineOptions::DiskOptions::Verb::Put    },
-                { "write",   CommandLineOptions::DiskOptions::Verb::Put    },
-                { "delete",  CommandLineOptions::DiskOptions::Verb::Delete },
-                { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
-                { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
-                { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
+                { "list",    CommandLineOptions::DiskOptions::Command::List   },
+                { "ls",      CommandLineOptions::DiskOptions::Command::List   },
+                { "dir",     CommandLineOptions::DiskOptions::Command::List   },
+                { "cat",     CommandLineOptions::DiskOptions::Command::List   },
+                { "catalog", CommandLineOptions::DiskOptions::Command::List   },
+                { "get",     CommandLineOptions::DiskOptions::Command::Get    },
+                { "read",    CommandLineOptions::DiskOptions::Command::Get    },
+                { "put",     CommandLineOptions::DiskOptions::Command::Put    },
+                { "write",   CommandLineOptions::DiskOptions::Command::Put    },
+                { "delete",  CommandLineOptions::DiskOptions::Command::Delete },
+                { "rm",      CommandLineOptions::DiskOptions::Command::Delete },
+                { "del",     CommandLineOptions::DiskOptions::Command::Delete },
+                { "boot",    CommandLineOptions::DiskOptions::Command::Boot   },
             };
 
             for (const auto & form : kSpellings)
@@ -2980,7 +2980,7 @@ namespace CommandLineTests
                 ArgVector           args = { "CassoCli", "disk", form.word, "my.dsk" };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-                Assert::IsTrue (opts.disk.verb == form.verb,
+                Assert::IsTrue (opts.disk.command == form.command,
                     (std::wstring (L"unrecognized form: ") +
                      std::wstring (form.word, form.word + strlen (form.word))).c_str());
 
@@ -2988,12 +2988,12 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (18), CommandLineParser::GetAllDiskVerbs().size(),
+            Assert::AreEqual (size_t (18), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 
-        //  `disk --help` used to reach the verb table, be told `--help` is not
-        //  a verb, and answer a question about the grammar with a complaint
+        //  `disk --help` used to reach the command table, be told `--help` is not
+        //  a command, and answer a question about the grammar with a complaint
         //  about the grammar. Help was recognized only as argv[1].
         //
         //  `-h` IS AMONG THEM AND IS SAFE HERE. The page height it collides
@@ -3010,7 +3010,7 @@ namespace CommandLineTests
                 ArgVector           args = { "CassoCli", "disk", form };
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-                Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help,
+                Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Help,
                     (std::wstring (L"not read as a help request: ") +
                      std::wstring (form, form + strlen (form))).c_str());
             }
@@ -3026,15 +3026,15 @@ namespace CommandLineTests
             Assert::AreEqual ('/', opts.flagPrefix);
         }
 
-        //  A verb standing before it does not make the request go away: a
+        //  A command standing before it does not make the request go away: a
         //  reader who has typed half a command and wants the grammar back adds
         //  --help to the end of what they have.
-        TEST_METHOD (Disk_HelpRequestAfterAVerb_IsStillAHelpRequest)
+        TEST_METHOD (Disk_HelpRequestAfterACommand_IsStillAHelpRequest)
         {
             ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "--help" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Help);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Help);
         }
 
         //  THE ONE THING THE HELP FORMS MUST NOT SWALLOW. A ProDOS path
@@ -3044,7 +3044,7 @@ namespace CommandLineTests
             ArgVector           args = { "CassoCli", "disk", "get", "d.po", "/HELP/STARTUP" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
-            Assert::IsTrue (opts.disk.verb == CommandLineOptions::DiskOptions::Verb::Get);
+            Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Get);
             Assert::AreEqual (std::string ("/HELP/STARTUP"), opts.disk.path);
         }
 

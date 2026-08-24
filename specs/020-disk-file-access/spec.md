@@ -42,7 +42,7 @@ the migration.
 - Q: How is an unwritable track identified, by detecting copy protection? → A: No. Detect standard-ness and refuse anything not provably standard; never enumerate protection schemes. The posture is fail-safe.
 - Q: How far does the all-or-nothing guarantee in FR-013 extend? → A: To crash safety. Build the complete image in memory or fail, then commit via a uniquely named temp file and an atomic replace.
 - Q: How should the tool detect that a target image is in use by a running emulator? → A: It should not; that scenario is already out of scope per the Assumptions, and the emulator holds no handle to detect. Document the hazard, keep a best-effort probe for other holders, and re-verify the file has not changed between read and write.
-- Q: What second-level verbs does the `disk` subcommand use? → A: Descriptive canonical verbs (`list`, `put`, `get`, `delete`, `boot`) with terse aliases (`ls`, `rm`). No `cat`.
+- Q: What second-level commands does the `disk` subcommand use? → A: Descriptive canonical commands (`list`, `put`, `get`, `delete`, `boot`) with terse aliases (`ls`, `rm`). No `cat`.
 - Q: What does the tool return when a volume is damaged but partly readable? → A: Three states on the tool's existing exit-status vocabulary, 0 clean, 1 succeeded with complaints, 2 produced no output.
 - Q: What does delete do when a file's sector chain is damaged, refuse, or free what is readable and leak the rest? → A: Neither blindly. Free only what the catalog proves the file uniquely owns, report the rest as leaked, and keep the file removable so a damaged file cannot strand the volume.
 - Q: Are files addressed by bare name or by path? → A: By path from the first pass, so subdirectory support is a filled-in capability rather than a later signature change.
@@ -276,7 +276,7 @@ list it back.
    is formatted and immediately writable, and its container follows the name's
    extension unless one is named explicitly.
 2. **Given** an image that already exists, **When** the developer runs `create` against
-   it, **Then** the operation is refused rather than overwriting it, and names the verb
+   it, **Then** the operation is refused rather than overwriting it, and names the command
    that does mean it.
 3. **Given** an image that already exists, **When** the developer formats it again,
    **Then** its contents are discarded and its container is unchanged, and no option is
@@ -442,8 +442,8 @@ list it back.
 
 - **FR-029**: Every capability above MUST be reachable from the command-line tool
   using subcommand-style invocation consistent with the existing tool: a single
-  `disk` subcommand carrying second-level verbs.
-- **FR-030**: The second-level verbs MUST be descriptive words (`list`, `put`,
+  `disk` subcommand carrying second-level commands.
+- **FR-030**: The second-level commands MUST be descriptive words (`list`, `put`,
   `get`, `delete`, `boot`) and MUST additionally accept the terse aliases `ls`
   for `list` and `rm` for `delete`. Help output MUST display the descriptive
   form. `put` and `get` are named from the disk's perspective, which is what
@@ -554,7 +554,7 @@ them is the correct behavior, not a gap.
 - **SC-002**: A developer new to Casso can complete that loop for the first time
   using only the tool's own help output, without consulting external documentation.
   Mechanically checkable form: the help output contains a copy-pasteable worked
-  example covering assemble → place → boot, and every verb and option used in
+  example covering assemble → place → boot, and every command and option used in
   that example appears in the same help output. Whether a newcomer *succeeds* is a
   review gate, not a test; the checkable part is that the material is there.
 - **SC-003**: Files placed by Casso are read correctly by the guest operating

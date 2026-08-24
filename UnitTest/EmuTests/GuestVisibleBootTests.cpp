@@ -257,12 +257,12 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    static CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Verb verb)
+    static CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Command command)
     {
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = verb;
+        options.disk.command      = command;
         options.disk.imagePath = kImagePath;
 
         return options;
@@ -272,7 +272,7 @@ public:
     //  Both through the runner, over an in-memory platform; the bytes handed
     //  back are what a commit actually wrote.
     //
-    //  THE OPTION IS THE CONTROL. Booting the same disk WITHOUT the boot verb
+    //  THE OPTION IS THE CONTROL. Booting the same disk WITHOUT the boot command
     //  is what proves the evidence below comes from the setting rather than
     //  from anything else on the disk: the program is present either way, so a
     //  test that only ever booted the configured image could not tell "the
@@ -287,8 +287,8 @@ public:
                                             int                        bootStatus)
     {
         FakeDiskFileIo      io;
-        CommandLineOptions  put  = MakeOptions (CommandLineOptions::DiskOptions::Verb::Put);
-        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot);
+        CommandLineOptions  put  = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Command::Boot);
 
         io.files[kImagePath]  = image;
         io.stamps[kImagePath] = FileStamp { image.size(), 100 };
@@ -424,7 +424,7 @@ public:
     static std::vector<Byte> SetStartupTo (const std::vector<Byte> & image, const char * name)
     {
         FakeDiskFileIo      io;
-        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot);
+        CommandLineOptions  boot = MakeOptions (CommandLineOptions::DiskOptions::Command::Boot);
 
         io.files[kImagePath]  = image;
         io.stamps[kImagePath] = FileStamp { image.size(), 100 };

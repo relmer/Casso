@@ -144,7 +144,7 @@ public:
         CommandLineOptions  options;
 
         options.subcommand          = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb           = CommandLineOptions::DiskOptions::Verb::Put;
+        options.disk.command           = CommandLineOptions::DiskOptions::Command::Put;
         options.disk.imagePath      = kImagePath;
         options.disk.hostFile       = kHostFile;
         options.disk.path           = onDiskName;

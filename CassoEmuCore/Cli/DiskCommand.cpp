@@ -15,7 +15,7 @@
 //  DiskCommand::Run
 //
 //  Deliberately decision-free. Every branch that could be taken wrongly -- which
-//  verb, which filesystem, whether a result is safe, what the status should be,
+//  command, which filesystem, whether a result is safe, what the status should be,
 //  how to word a failure -- was made by the runner, which the test assembly can
 //  reach. If a condition ever appears in this function, it belongs there
 //  instead.
@@ -79,8 +79,8 @@ int DiskCommand::Run (const CommandLineOptions & options)
     }
 
     //  A COMMAND LINE THIS GRAMMAR CANNOT READ IS ANSWERED WITH THE GRAMMAR.
-    //  An unknown verb used to earn one line naming the twelve that exist and
-    //  nothing about what any of them takes, so a reader who had the verb wrong
+    //  An unknown command used to earn one line naming the twelve that exist and
+    //  nothing about what any of them takes, so a reader who had the command wrong
     //  learned its name and then had to ask a second question to learn its
     //  operands. The page goes first and the diagnostic last, the same order
     //  every other refusal uses: the reader sees the bottom of the screen.

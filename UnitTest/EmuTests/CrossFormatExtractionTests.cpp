@@ -332,7 +332,7 @@ public:
         io.stamps[kWozPath] = FileStamp { imageBytes.size(), 100 };
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::List;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::List;
         options.disk.imagePath = kWozPath;
 
         return runner.Run (options);
@@ -402,7 +402,7 @@ public:
         io.stamps[kWozPath] = FileStamp { woz.size(), 100 };
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Get;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Get;
         options.disk.imagePath = kWozPath;
         options.disk.path      = "MAKE DUMP";
 

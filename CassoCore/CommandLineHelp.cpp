@@ -58,7 +58,7 @@ std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
     }
     else if (mode == CommandLineOptions::Subcommand::Disk)
     {
-        line = "  CassoCli disk <verb> <image> [...]         Read and write disk images";
+        line = "  CassoCli disk <command> <image> [...]         Read and write disk images";
     }
     else if (mode == CommandLineOptions::Subcommand::Merlin)
     {
@@ -168,7 +168,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         { "as65 "   + lp + "help", "AS65 options, output formats and listings" },
         { "merlin " + lp + "help", "Merlin options, and where the supported subset ends" },
         { "run "    + lp + "help", "Run options: load address, entry point, limits" },
-        { "disk "   + lp + "help", "Disk verbs, their options, and a worked example" },
+        { "disk "   + lp + "help", "Disk commands, their options, and a worked example" },
         { lp + "version",          "Version information" },
     };
 

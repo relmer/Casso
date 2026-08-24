@@ -19,7 +19,7 @@
 //
 //  That rationale holds for the assembler-shaped subcommands, which genuinely
 //  do share an input file, an output file, a fill byte, and addresses. It does
-//  NOT hold for `disk`: a verb, an image path, a file name, and an encoding
+//  NOT hold for `disk`: a command, an image path, a file name, and an encoding
 //  selector mean nothing to any other subcommand, and nothing already here
 //  means anything to `disk`. Flattening eight unrelated fields in would leave
 //  the paragraph above technically present and quietly untrue -- "most fields
@@ -90,9 +90,9 @@ struct CommandLineOptions
     //  source file still assembled, which made the top level as65 mode; the
     //  top level names a mode and runs nothing now, so it names no grammar.
     //
-    //  `disk` IS ABSENT ON PURPOSE. Its help is a verb of the disk grammar
-    //  (DiskOptions::Verb::Help) and is answered by the runner that answers
-    //  every other disk verb, which is what lets it be built and tested beside
+    //  `disk` IS ABSENT ON PURPOSE. Its help is a command of the disk grammar
+    //  (DiskOptions::Command::Help) and is answered by the runner that answers
+    //  every other disk command, which is what lets it be built and tested beside
     //  the code it describes.
     //
     //  ONE ARM PER GRAMMAR, Merlin included. Its flags, its examples and where
@@ -106,11 +106,11 @@ struct CommandLineOptions
     //
     struct DiskOptions
     {
-        //  Help is not a verb the grammar table holds -- it is what `disk
+        //  Help is not a command the grammar table holds -- it is what `disk
         //  --help` resolves to. Keeping it out of that table is deliberate:
-        //  the table is swept to check every verb is described in the help,
+        //  the table is swept to check every command is described in the help,
         //  and the help request is not one of the things being described.
-        enum class Verb      { None, List, Get, Put, Delete, Boot, Create, Init, Stamp, Help };
+        enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init, Stamp, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -124,12 +124,12 @@ struct CommandLineOptions
         //  to read in the help for no capability at all.
         enum class Encoding  { Verbatim, Text, Basic };
 
-        Verb         verb           = Verb::None;
-        Encoding     encoding       = Encoding::Verbatim;
-        //  The verb as it was typed, kept so a refusal can quote it. The
+        Command   command  = Command::None;
+        Encoding  encoding = Encoding::Verbatim;
+        //  The command as it was typed, kept so a refusal can quote it. The
         //  enum above cannot: every word this grammar does not have maps
-        //  to the same None, so "unknown disk verb" could not say which.
-        std::string  verbWord;
+        //  to the same None, so "unknown disk command" could not say which.
+        std::string  commandWord;
 
         std::string  imagePath;                        // the disk image
         std::string  path;                             // the file ON the disk

@@ -79,13 +79,13 @@ public:
         CommandLineOptions::Subcommand     token;
     };
 
-    // One row of the disk-verb table, nested for the same reason
+    // One row of the disk-command table, nested for the same reason
     // SubcommandName is: a bare struct in the .cpp would have external linkage
     // that no keyword can take away.
-    struct DiskVerbName
+    struct DiskCommandName
     {
-        const char                            *  name;
-        CommandLineOptions::DiskOptions::Verb    verb;
+        const char                                * name;
+        CommandLineOptions::DiskOptions::Command    command;
     };
 
     //  The column width a bare -w selects. Named rather than written twice,
@@ -349,9 +349,9 @@ public:
     static bool         EndsWith         (const std::string & str, const std::string & suffix);
     static std::string  StripExtension   (const std::string & path);
 
-    // Every accepted disk verb, aliases included, for the same reason -- and
+    // Every accepted disk command, aliases included, for the same reason -- and
     // because the help output has to describe all of them.
-    static std::span<const DiskVerbName>    GetAllDiskVerbs();
+    static std::span<const DiskCommandName>    GetAllDiskCommands();
 
     //  The long options each grammar takes, in the order the tables hold them
     //  and without their `--`.
@@ -369,7 +369,7 @@ public:
     //  for the refusal an argument that is none of them earns.
     //
     //  Read from the parser's own table rather than retyped, for the reason
-    //  DiskCommandRunner::DescribeAcceptedVerbs already gives: a retyped list
+    //  DiskCommandRunner::DescribeAcceptedCommands already gives: a retyped list
     //  is a list that goes stale, and the one place it shows is a suggestion
     //  that omits the option the user was reaching for.
     static std::string  DescribeDiskOptions();
@@ -496,13 +496,13 @@ private:
 
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
-    static CommandLineOptions::DiskOptions::Verb  LookUpDiskVerb (const std::string & word);
+    static CommandLineOptions::DiskOptions::Command  LookUpDiskCommand (const std::string & word);
 
-    //  How many operands a disk verb has a use for, and the descriptive word
-    //  the help writes it with. An operand past the count is one the verb would
+    //  How many operands a disk command has a use for, and the descriptive word
+    //  the help writes it with. An operand past the count is one the command would
     //  otherwise read and discard.
-    static int           DiskOperandCount (CommandLineOptions::DiskOptions::Verb verb);
-    static const char *  DiskVerbWord     (CommandLineOptions::DiskOptions::Verb verb);
+    static int           DiskOperandCount (CommandLineOptions::DiskOptions::Command command);
+    static const char *  DiskCommandWord     (CommandLineOptions::DiskOptions::Command command);
 
     //  An argument reduced to the `--` form the grammars test for, so
     //  `/out` and `--out` reach the same arm. Only an exact option name from

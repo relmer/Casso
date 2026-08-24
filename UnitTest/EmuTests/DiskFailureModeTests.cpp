@@ -153,7 +153,7 @@ public:
         DiskCommandResult   listing;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::List;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::List;
         options.disk.imagePath = imagePath;
 
         listing = reader.Run (options);
@@ -282,7 +282,7 @@ public:
         CommandLineOptions  options;
 
         options.subcommand          = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb           = CommandLineOptions::DiskOptions::Verb::Put;
+        options.disk.command           = CommandLineOptions::DiskOptions::Command::Put;
         options.disk.imagePath      = image;
         options.disk.hostFile       = kHostFile;
         options.disk.path           = asName;
@@ -314,7 +314,7 @@ public:
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Delete;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Delete;
         options.disk.imagePath = image;
         options.disk.path      = path;
 
@@ -645,7 +645,7 @@ public:
     TEST_METHOD (ATargetThatMovedSinceItWasRead_RefusesThePutAndLeavesAMountableImageUnchanged)
     {
         // The fake perturbs the stamp RECORDED at read rather than the one
-        // observed at commit, because the whole verb runs in one call and the
+        // observed at commit, because the whole command runs in one call and the
         // read is the first stat it makes. The comparison reached is the same
         // one either way: it asks whether the two disagree, not which moved.
         FakeDiskFileIo     io;

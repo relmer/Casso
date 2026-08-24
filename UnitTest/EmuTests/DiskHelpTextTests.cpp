@@ -150,7 +150,7 @@ public:
     //
     //  A plain find() is not the question being asked, and the difference is
     //  not academic: renaming the `rm` alias to `del` left every assertion here
-    //  green, because `delete` contains `del`. A verb the grammar accepts and
+    //  green, because `delete` contains `del`. A command the grammar accepts and
     //  the help never mentions was invisible to the sweep meant to find exactly
     //  that. Dashes count as part of a token so `-o` cannot be answered by the
     //  `-o` inside `--out`.
@@ -242,20 +242,20 @@ public:
         }
     }
 
-    TEST_METHOD (HelpText_EveryVerbTheDiskGrammarAccepts_AppearsInTheHelp)
+    TEST_METHOD (HelpText_EveryCommandTheDiskGrammarAccepts_AppearsInTheHelp)
     {
-        std::string  help  = DiskCommandRunner::BuildHelpText();
-        auto         verbs = CommandLineParser::GetAllDiskVerbs();
+        std::string  help     = DiskCommandRunner::BuildHelpText();
+        auto         commands = CommandLineParser::GetAllDiskCommands();
 
         //  A sweep of the parser's own table rather than a list retyped here:
-        //  a verb added to the grammar and left out of the help is a capability
+        //  a command added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (18), verbs.size(), L"eight verbs and ten aliases");
+        Assert::AreEqual (size_t (18), commands.size(), L"eight commands and ten aliases");
 
-        for (const auto & verb : verbs)
+        for (const auto & command : commands)
         {
-            Assert::IsTrue (ContainsAsWholeToken (help, verb.name),
-                            (L"undocumented verb: " + Widen (verb.name)).c_str());
+            Assert::IsTrue (ContainsAsWholeToken (help, command.name),
+                            (L"undocumented command: " + Widen (command.name)).c_str());
         }
     }
 
@@ -354,15 +354,15 @@ public:
     }
 
     //  The old help carried a paragraph explaining that `put` and `get` are
-    //  named from the disk's point of view. It was there to rescue two verb
+    //  named from the disk's point of view. It was there to rescue two command
     //  names the descriptions did not state the direction of; the descriptions
     //  state it now, so the paragraph is redundant rather than merely wordy.
-    TEST_METHOD (HelpText_PutsTheDirectionInTheVerbDescriptions_NotInAParagraphExcusingTheNames)
+    TEST_METHOD (HelpText_PutsTheDirectionInTheCommandDescriptions_NotInAParagraphExcusingTheNames)
     {
         std::string  help = DiskCommandRunner::BuildHelpText();
 
         Assert::IsTrue (help.find ("point of view") == std::string::npos,
-                        L"the paragraph excusing the two verb names is gone");
+                        L"the paragraph excusing the two command names is gone");
 
         Assert::IsTrue (help.find ("Read a file from the disk") != std::string::npos,
                         L"get says which way it goes, on its own line");
@@ -370,26 +370,31 @@ public:
                         L"and so does put");
     }
 
-    //  Every alias of a verb leads the line that describes it, so a reader
+    //  Every alias of a command leads the line that describes it, so a reader
     //  scanning the left margin for the word they already have in mind finds it
     //  there rather than in an "also written" clause at the end of a sentence
     //  about a word they do not use.
-    TEST_METHOD (HelpText_LeadsEachVerbLineWithEveryAlias_NotWithAnAlsoSpelledFootnote)
+    TEST_METHOD (HelpText_LeadsEachCommandLineWithEveryAlias_NotWithAnAlsoSpelledFootnote)
     {
         std::string   help    = DiskCommandRunner::BuildHelpText();
+        //  THE PLAIN NAME LEADS AND THE ALIASES FOLLOW IT. Both orders put
+        //  every spelling on the line, which is what this test is for; what
+        //  decided it is that the block below each entry writes its grammar as
+        //  `CassoCli disk list <image>`, and a contents line that opened on
+        //  `cat` sent a reader looking for a `cat` heading that is not there.
         const char *  leads[] =
         {
-            "  cat | catalog | dir | list | ls   ",
-            "  read | get                        ",
-            "  write | put                       ",
-            "  del | delete | rm                 ",
+            "  list | cat | catalog | dir | ls   ",
+            "  get | read                        ",
+            "  put | write                       ",
+            "  delete | del | rm                 ",
             "  boot                              ",
         };
 
         for (const char * lead : leads)
         {
             Assert::IsTrue (help.find (lead) != std::string::npos,
-                            (L"verb line missing or misaligned: " + Widen (lead)).c_str());
+                            (L"command line missing or misaligned: " + Widen (lead)).c_str());
         }
 
         Assert::IsTrue (help.find ("Also written") == std::string::npos,
@@ -409,7 +414,7 @@ public:
         //  It sits under its own flag rather than closing the section. A reader
         //  who has just read the --basic row has stopped looking two paragraphs
         //  down, which is where this used to be.
-        Assert::IsTrue (help.find ("--basic                Convert to and from an Applesoft listing\n"
+        Assert::IsTrue (help.find ("--basic                 Convert to and from an Applesoft listing\n"
                                    "\n  --basic is real tokenization") != std::string::npos,
                         L"and it follows the row it explains");
 
@@ -586,15 +591,15 @@ public:
                         L"and so is the sentence that explained it away");
     }
 
-    //  `disk --help` printed "unknown disk verb" on the error stream and exited
+    //  `disk --help` printed "unknown disk command" on the error stream and exited
     //  2 -- a refusal, for a question the tool knows the answer to.
-    TEST_METHOD (HelpVerb_PrintsTheDiskHelpOnOutput_AndSucceeds)
+    TEST_METHOD (HelpCommand_PrintsTheDiskHelpOnOutput_AndSucceeds)
     {
         CommandLineOptions  options;
         FakeDiskFileIo      fileIo;
         DiskCommandRunner   runner (fileIo);
 
-        options.disk.verb = CommandLineOptions::DiskOptions::Verb::Help;
+        options.disk.command = CommandLineOptions::DiskOptions::Command::Help;
 
         DiskCommandResult  result = runner.Run (options);
 
@@ -604,13 +609,13 @@ public:
                           L"the disk section of the help, on the output stream");
     }
 
-    TEST_METHOD (HelpVerb_SpellsItselfWithThePrefixTheReaderTyped)
+    TEST_METHOD (HelpCommand_SpellsItselfWithThePrefixTheReaderTyped)
     {
         CommandLineOptions  options;
         FakeDiskFileIo      fileIo;
         DiskCommandRunner   runner (fileIo);
 
-        options.disk.verb  = CommandLineOptions::DiskOptions::Verb::Help;
+        options.disk.command  = CommandLineOptions::DiskOptions::Command::Help;
         options.flagPrefix = '/';
 
         DiskCommandResult  result = runner.Run (options);
@@ -618,15 +623,15 @@ public:
         Assert::AreEqual (DiskCommandRunner::BuildHelpText ('/'), result.output);
     }
 
-    //  EVERY VERB THE GRAMMAR TAKES IS ON THE PAGE A REFUSAL PRINTS.
+    //  EVERY COMMAND THE GRAMMAR TAKES IS ON THE PAGE A REFUSAL PRINTS.
     //
     //  The refusal itself used to carry the list, and named the five original
-    //  verbs long after eight aliases were added, so a user who mistyped
+    //  commands long after eight aliases were added, so a user who mistyped
     //  `catalog` was told to try five words that did not include it. It names
-    //  only what the user typed now, and the page above it carries the verbs.
+    //  only what the user typed now, and the page above it carries the commands.
     //  So the claim moves here, onto the page, and is still swept from the
     //  grammar's own table rather than from a list written out again.
-    TEST_METHOD (EveryVerbTheGrammarTakes_IsOnThePageARefusalPrints)
+    TEST_METHOD (EveryCommandTheGrammarTakes_IsOnThePageARefusalPrints)
     {
         CommandLineOptions  options;
         FakeDiskFileIo      fileIo;
@@ -634,32 +639,32 @@ public:
         DiskCommandResult   result = runner.Run (options);
         std::string         page   = DiskCommandRunner::BuildHelpText();
 
-        Assert::AreEqual (2, result.exitStatus, L"a word that names no verb produces nothing");
+        Assert::AreEqual (2, result.exitStatus, L"a word that names no command produces nothing");
         Assert::IsTrue (result.badCommandLine, L"and the edge is told to print the page");
 
-        for (const auto & verb : CommandLineParser::GetAllDiskVerbs())
+        for (const auto & command : CommandLineParser::GetAllDiskCommands())
         {
-            Assert::IsTrue (ContainsAsWholeToken (page, verb.name),
-                            (L"the page does not offer: " + Widen (verb.name)).c_str());
+            Assert::IsTrue (ContainsAsWholeToken (page, command.name),
+                            (L"the page does not offer: " + Widen (command.name)).c_str());
         }
     }
 
     TEST_METHOD (HelpText_PutsTheExampleAfterTheOptions_NotBetweenThem)
     {
         std::string  help     = DiskCommandRunner::BuildHelpText();
-        size_t       verbs    = help.find ("CassoCli disk list");
-        size_t       options  = help.find ("Write an extracted file here");
+        size_t       commands = help.find ("CassoCli disk list");
+        size_t       options  = help.find ("Write the extracted file here");
         size_t       example  = help.find (CommandLineHelp::kExampleHeading);
 
-        //  Overview, then options, then the worked loop. The old order put the
-        //  example in the middle, where a reader scanning for a flag walks over
-        //  it and a reader who wants it has to scroll back.
-        Assert::IsTrue (verbs   != std::string::npos, L"the grammar is there");
-        Assert::IsTrue (options != std::string::npos, L"so are the options");
-        Assert::IsTrue (example != std::string::npos, L"so is the example");
+        //  Grammar, then that command's options, then the worked loop last.
+        //  The loop closes the page because it is the one thing no single
+        //  command shows; each command's own example sits in its own block.
+        Assert::IsTrue (commands != std::string::npos, L"the grammar is there");
+        Assert::IsTrue (options  != std::string::npos, L"so are the options");
+        Assert::IsTrue (example  != std::string::npos, L"so is the example");
 
-        Assert::IsTrue (verbs < options, L"the grammar comes before the options");
-        Assert::IsTrue (options < example, L"and the example comes after both");
+        Assert::IsTrue (commands < options, L"the grammar comes before the options");
+        Assert::IsTrue (options < example, L"and the loop comes after both");
     }
 
     //

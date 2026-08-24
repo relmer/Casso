@@ -468,7 +468,7 @@ the core library and made table-driven so both features could extend them
 additively. `UnitTest/CommandLineTests.cpp` pins current behavior; breaking those
 tests breaks the other feature.
 
-**Verb vocabulary** (FR-030): descriptive canonical verbs `list`, `put`, `get`,
+**Command vocabulary** (FR-030): descriptive canonical commands `list`, `put`, `get`,
 `delete`, `boot`, with terse aliases `ls` and `rm`. Help displays the descriptive
 form. `put` / `get` are unambiguous because they are named from the *disk's*
 perspective, which also happens to match the mnemonics of the tool developers are
@@ -726,7 +726,7 @@ discarded.
 **Method.** Every parameter-taking option in each grammar was invoked bare,
 with an unreadable value, and with a value it could not consume in full; every
 grammar was invoked with one more positional than it has slots for; every
-option was invoked under a verb that does not serve it. Each case was measured
+option was invoked under a command that does not serve it. Each case was measured
 against the built binary before anything was changed.
 
 **Fixed**; see T115–T122.
@@ -734,13 +734,13 @@ against the built binary before anything was changed.
 **Left for the owner, because each is a grammar decision rather than a defect
 with one obvious answer:**
 
-1. **A disk option is accepted under every verb, and two of them repurpose an
+1. **A disk option is accepted under every command, and two of them repurpose an
    operand.** `--as` and the second positional write the same field, so
    `disk get img BASIC --as STARTUP` extracts STARTUP and never mentions
    BASIC; `--out` and `put`'s second positional likewise, so
    `disk put img aaa.txt --out bbb.txt` puts bbb.txt. `--type` and `--addr` on
-   `list` are accepted and ignored at exit 0. The fix is per-verb option
-   applicability (a table of which options each verb serves, and a refusal for
+   `list` are accepted and ignored at exit 0. The fix is per-command option
+   applicability (a table of which options each command serves, and a refusal for
    the rest) which is a shape decision, not a repair.
 2. **The `--name=value` long-option form is claimed and not implemented.**
    `CanonicalLongFlag` carries an attached value across, on the stated grounds

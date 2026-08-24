@@ -16,7 +16,7 @@
 enum class VolumeKind;
 
 //  BlankDiskBuilder.h is kept out for the same reason, and the create and init
-//  verbs take everything from it by reference, so opaque declarations are all
+//  commands take everything from it by reference, so opaque declarations are all
 //  this header needs. Including it built the library fine and broke the console
 //  project, which is the failure mode the note above is about.
 enum class DiskFormat;
@@ -48,7 +48,7 @@ struct DiskCommandResult
     int           exitStatus  = 0;
 
     //  Set when what was WRONG was the command line rather than the disk:
-    //  a verb this grammar does not have, an operand it needed and did not
+    //  a command this grammar does not have, an operand it needed and did not
     //  get, an encoding nobody offers. The edge prints the disk page ahead
     //  of the diagnostic for these and not for the rest, because "PROG is
     //  not on this volume" is answered by a listing and not by a grammar.
@@ -68,7 +68,7 @@ struct DiskCommandResult
 //
 //  DiskCommandRunner
 //
-//  Every decision a disk command makes: which verb, which filesystem, whether
+//  Every decision a disk command makes: which command, which filesystem, whether
 //  the result is safe to commit, what to say when it is not, and which exit
 //  status the whole thing earns.
 //
@@ -131,7 +131,7 @@ public:
 
     //  Loads the image, identifies its filesystem and records its stamp, or
     //  explains why not.
-    //  `requireFilesystem` is what every verb but `stamp` wants: a disk with
+    //  `requireFilesystem` is what every command but `stamp` wants: a disk with
     //  no catalog is nothing they can act on, so identifying none is a
     //  refusal. `stamp` writes to a track and a sector and asks nothing of
     //  the filesystem, so for it an unrecognized disk is an ordinary one.
@@ -145,7 +145,7 @@ public:
     //
     //  Makes a new image file, or reformats one that is already there.
     //
-    //  TWO VERBS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
+    //  TWO COMMANDS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
     //  file that did not exist and decides its container; `init` finds the
     //  container already decided by the file it was handed and only rewrites
     //  what is inside it. So `create` takes --type and `init` does not, and
@@ -264,7 +264,7 @@ public:
         "    1  Carried out, with something worth saying: a listing cut short by\n"
         "       damage, a file delivered with unreadable sectors as zeros, or a\n"
         "       startup program a booting DOS 3.3 will not actually run.\n"
-        "    2  Nothing was done: a verb or an option that was refused, an image\n"
+        "    2  Nothing was done: a command or an option that was refused, an image\n"
         "       that cannot be read or holds no filesystem, a file that is not on\n"
         "       the volume, or a write the volume or the host refused. The image is\n"
         "       byte-for-byte as it was.";
@@ -292,7 +292,9 @@ public:
     //  kInUseHelpText already gives: the test assembly does not link the console
     //  executable, so help written there is help nothing can check.
     //
+    static std::string  ApplyPrefixes      (const std::string & text, char flagPrefix);
     static std::string  BuildSubcommandHelp (char flagPrefix);
+    static std::string  BuildCommandBlocks  (char flagPrefix);
     static std::string  BuildOptionsHelp    (char flagPrefix);
     static std::string  BuildExampleHelp    (char flagPrefix);
 
@@ -308,20 +310,20 @@ public:
     //  supply a version first.
     static std::string  BuildHelpText (char flagPrefix = '-', const std::string & banner = "");
 
-    //  The banner the Help verb prints above the page, handed over by whoever
+    //  The banner the Help command prints above the page, handed over by whoever
     //  built the runner. Empty means no banner, which is what every caller that
     //  is not the console executable wants.
     void  SetBanner (const std::string & banner);
 
-    //  Every verb the grammar accepts, aliases included and comma-separated,
+    //  Every command the grammar accepts, aliases included and comma-separated,
     //  for the refusal a word that is none of them earns.
     //
     //  Read from the parser's own table rather than retyped, because a retyped
     //  list is a list that goes stale: the aliases were added to the grammar
-    //  and the refusal went on naming the five original verbs, so a user who
+    //  and the refusal went on naming the five original commands, so a user who
     //  mistyped `catalgo` was told to try `list, get, put, delete, boot` and
     //  never learned that `catalog` was there all along.
-    static std::string  DescribeAcceptedVerbs();
+    static std::string  DescribeAcceptedCommands();
 
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);

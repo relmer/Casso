@@ -22,8 +22,8 @@ if (named == CommandLineOptions::Subcommand::Disk)
 }
 ```
 
-`CommandLineOptions` gains a `Disk` enum value, a `DiskVerb` enum, and the
-verb's operands. Nothing existing changes shape, so both features extend the
+`CommandLineOptions` gains a `Disk` enum value, a `DiskCommand` enum, and the
+command's operands. Nothing existing changes shape, so both features extend the
 struct without a blind merge.
 
 ## Grammar
@@ -77,7 +77,7 @@ than absorbed in either direction.
 ## Options nest rather than flatten
 
 `disk` is the first subcommand to break `CommandLineOptions`' stated rationale
-for a flat struct, and the resolution was to nest, `options.disk.verb`,
+for a flat struct, and the resolution was to nest, `options.disk.command`,
 `options.disk.imagePath`, and so on, inside a `DiskOptions` member.
 
 The flat shape was chosen when every option belonged to the assembler and the

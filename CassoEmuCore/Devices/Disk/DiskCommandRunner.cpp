@@ -68,33 +68,140 @@ static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
 
 
 
-static constexpr const char *  s_kppszDiskOptions[][2] =
+//
+//  Every disk command, and everything the page says about it.
+//
+//  ONE BLOCK PER COMMAND, because the page used to be four lists that a reader
+//  had to join up themselves: the commands in one place, a grammar line in
+//  another, every option of every command in one flat table, and the prose
+//  explaining them somewhere below that. Answering "what can put do" meant
+//  reading the whole page and filtering it, and the filtering was the reader's
+//  job because the type option means one thing under put and a different thing
+//  under create and the table could only say both at once.
+//
+//  `%L` AND `%S` STAND IN FOR THE PREFIXES the reader asked for, long and
+//  short. Written out, every row would have to be built by concatenation and
+//  the table would stop being readable as the page it produces.
+//
+//  The examples belong to their commands for the same reason the options do. A
+//  worked loop still closes the page, because the loop is the thing no single
+//  command demonstrates.
+//
+struct DiskCommandHelp
 {
-    { "out <file>", "Write an extracted file here, not to standard output" },
-    { "as <path>",  "Name the placed file this on the disk" },
-    { "type <t>",   "put: the file type the catalog records. DOS 3.3 takes T, I, A, "
-                    "B or R; ProDOS takes TXT, BIN, BAS or SYS. create: the container "
-                    "instead -- dsk, do, po or woz, taken from the name's extension "
-                    "when not given" },
-    { "addr $XXXX", "Load address for a placed binary" },
-    { "format <f>", "create, init: dos33, prodos or none. Defaults to dos33" },
-    { "volume <v>", "create, init: a DOS 3.3 volume number, 1 to 254, or a ProDOS "
-                    "volume name" },
-    { "bootable <image>",
-                    "create, init: copy an operating system on from this DOS 3.3 master "
-                    "or ProDOS system disk, so the disk boots. Alone, it uses the master "
-                    "the emulator already downloaded" },
-    { "boot <file>",
-                    "create: make a disk that starts this binary with no operating "
-                    "system at all. It must load between $0900 and $BFFF, and the addr "
-                    "option is how you say where" },
-    { "entry <addr>",
-                    "create: start a --boot binary here rather than at its load address" },
-    { "track <n>",  "stamp: which track to write at, 0 to 34" },
-    { "sector <n>", "stamp: which DOS logical sector to start at, 0 to 15. The bytes "
-                    "run on into the next track if they do not fit" },
-    { "text",       "Convert the high-bit encoding and the line endings" },
-    { "basic",      "Convert to and from an Applesoft listing" },
+    const char *  forms;         // every accepted spelling, the plain one first
+    const char *  summary;       // one line, for the list at the top
+    const char *  grammar;       // where the operands go
+    const char *  options;       // the options this command takes, or nothing
+    const char *  discussion;    // what no option row can state, or nothing
+    const char *  example;       // one line that does something real
+};
+
+
+
+
+static constexpr DiskCommandHelp  s_kDiskCommandHelp[] =
+{
+    { "list | cat | catalog | dir | ls",
+      "Show files on the disk: name, type, size, lock state, free space, and any damage found",
+      "CassoCli disk list <image>",
+      nullptr,
+      "A listing shows every column the volume records, so a ProDOS row carries eof= and"
+      " aux=, the exact length of a file and the address a binary loads at. DOS 3.3"
+      " records neither.",
+      "CassoCli disk list mydisk.dsk" },
+
+    { "get | read",
+      "Read a file from the disk, to standard output or to %Lout <file>",
+      "CassoCli disk get <image> <path> [%Lout <file>] [%Ltext | %Lbasic]",
+      "  %Lout <file>            Write the extracted file here, not to standard output\n"
+      "  %Ltext                  Convert the high-bit encoding and the line endings\n"
+      "  %Lbasic                 Convert to and from an Applesoft listing\n",
+      nullptr,
+      "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
+
+    { "put | write",
+      "Write a host file to the disk",
+      "CassoCli disk put <image> <file> [%Las <path>] [%Ltype <t>] [%Laddr $XXXX]\n"
+      "                                 [%Ltext | %Lbasic]",
+      "  %Las <path>             Name the placed file this on the disk\n"
+      "  %Ltype <t>              The file type the catalog records. DOS 3.3 takes T, I,\n"
+      "                          A, B or R; ProDOS takes TXT, BIN, BAS or SYS\n"
+      "  %Laddr $XXXX            Load address for a placed binary\n"
+      "  %Ltext                  Convert the high-bit encoding and the line endings\n"
+      "  %Lbasic                 Convert to and from an Applesoft listing\n",
+      "%Las is the name the file takes on the disk, and defaults to the host file's own"
+      " name. %Ltype is what the catalog records, and defaults to a binary, or to"
+      " Applesoft under %Lbasic, which is the only type the guest will RUN. %Laddr is the"
+      " load address a binary carries: a DOS 3.3 B or a ProDOS BIN is refused without one,"
+      " every other type ignores it, and %Lbasic refuses it outright because Applesoft"
+      " keeps its program at $0801 and nowhere else.",
+      "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Laddr $6000" },
+
+    { "delete | del | rm",
+      "Delete a file from the disk and return the space it alone claimed",
+      "CassoCli disk delete <image> <path>",
+      nullptr,
+      nullptr,
+      "CassoCli disk delete mydisk.dsk OLDPROG" },
+
+    { "boot",
+      "Set the program that runs when the disk is booted",
+      "CassoCli disk boot <image> <path>",
+      nullptr,
+      "The program has to be on the volume already, named as the catalog records it, and"
+      " the image has to carry an operating system on the tracks a boot reads. On ProDOS"
+      " it must be a file of type SYS, and not the kernel itself. On DOS 3.3 the boot"
+      " command is RUN, so an Applesoft or Integer program runs. Anything else is set,"
+      " reported, and the disk boots without running it.",
+      "CassoCli disk boot mydisk.dsk STARTUP" },
+
+    { "create | new",
+      "Make a new image file, formatted and ready to write to",
+      "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
+      "                               [%Lbootable [<image>]]\n"
+      "                               [%Lboot <file> [%Laddr $XXXX] [%Lentry <addr>]]",
+      "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the\n"
+      "                          name's extension when not given\n"
+      "  %Lformat <f>            dos33, prodos or none. Defaults to dos33\n"
+      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS\n"
+      "                          volume name\n"
+      "  %Lbootable [<image>]    Copy an operating system on from this DOS 3.3 master\n"
+      "                          or ProDOS system disk, so the disk boots. Alone, it\n"
+      "                          uses the master the emulator already downloaded\n"
+      "  %Lboot <file>           Make a disk that starts this binary with no operating\n"
+      "                          system at all. It must load between $0900 and $BFFF\n"
+      "  %Laddr $XXXX            Where a %Lboot binary loads\n"
+      "  %Lentry <addr>          Start a %Lboot binary here rather than at its load\n"
+      "                          address\n",
+      "It refuses to write over an image that is already there; init is the command for"
+      " meaning it. %Lboot and %Lbootable are the two ways to make a disk start something"
+      " and cannot both be asked for: one puts an operating system on, the other puts a"
+      " loader on instead of one.",
+      "CassoCli disk create mydisk.dsk %Lbootable" },
+
+    { "init | format",
+      "Format an image that is already there, discarding everything on it",
+      "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
+      "  %Lformat <f>            dos33, prodos or none. Defaults to dos33\n"
+      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS\n"
+      "                          volume name\n"
+      "  %Lbootable [<image>]    Copy an operating system on, as create does\n",
+      "The container is taken as it is found, so there is no %Ltype here: an image that"
+      " already exists already is one. Wanting a different container means wanting a"
+      " different file, which is create.",
+      "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
+
+    { "stamp",
+      "Lay a host file into the image at a track and a sector, with no filesystem involved",
+      "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
+      "  %Ltrack <n>             Which track to write at, 0 to 34\n"
+      "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The\n"
+      "                          bytes run on into the next track if they do not fit\n",
+      "For a disk that boots its own loader and reads fixed tracks, where there is no"
+      " catalog to put anything in. The sector is the LOGICAL one; the interleave is"
+      " applied for you, so the bytes land where a running Apple II would look for them.",
+      "CassoCli disk stamp boot.dsk loader.bin %Ltrack 0 %Lsector 0" },
 };
 
 
@@ -133,10 +240,56 @@ void DiskCommandRunner::SetBanner (const std::string & banner)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyPrefixes
+//
+//  Puts the reader's own prefixes into a line of help.
+//
+//  The tables above are written with %L and %S so they stay readable as the
+//  page they produce. A reader who typed /help is answered in slashes
+//  throughout, which is the whole reason the placeholder exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::ApplyPrefixes (const std::string & text, char flagPrefix)
+{
+    std::string  longPrefix  = CommandLineHelp::LongPrefix  (flagPrefix);
+    std::string  shortPrefix = CommandLineHelp::ShortPrefix (flagPrefix);
+    std::string  out;
+
+
+
+    for (size_t i = 0; i < text.size(); i++)
+    {
+        bool  isPlaceholder = text[i] == '%' && (i + 1) < text.size();
+
+        if (isPlaceholder && text[i + 1] == 'L')
+        {
+            out += longPrefix;
+            i++;
+        }
+        else if (isPlaceholder && text[i + 1] == 'S')
+        {
+            out += shortPrefix;
+            i++;
+        }
+        else
+        {
+            out += text[i];
+        }
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildSubcommandHelp
 //
-//  One line per verb -- every form of it, then what it does -- and then the
-//  grammar showing where the operands go.
+//  One line per command: every form of it, then what it does.
 //
 //  EVERY ALIAS LEADS THE LINE IT BELONGS TO rather than trailing it in an "also
 //  written" clause. A person coming from an Apple II reaches for CATALOG, one
@@ -148,45 +301,102 @@ void DiskCommandRunner::SetBanner (const std::string & banner)
 //  THE DESCRIPTIONS CARRY THE DIRECTION, which is why nothing here explains that
 //  put and get are named from the disk's point of view. "Read a file FROM the
 //  disk" and "Write a host file TO the disk" leave nothing for that sentence to
-//  add; it existed to rescue two verb names that the descriptions now state
+//  add; it existed to rescue two command names that the descriptions now state
 //  outright.
+//
+//  This is the contents list. What each command takes is under its own heading
+//  further down, which is where a reader goes once they know which one they
+//  want.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 {
-    std::string  lp = CommandLineHelp::LongPrefix (flagPrefix);
+    const size_t  kDescriptionColumn = 36;
+    std::string   text;
 
 
 
-    return
-        "  cat | catalog | dir | list | ls   Show files on the disk: name, type,\n"
-        "                                    size, lock state, free space, and any\n"
-        "                                    damage found\n"
-        "  read | get                        Read a file from the disk, to standard\n"
-        "                                    output or to " + lp + "out <file>\n"
-        "  write | put                       Write a host file to the disk\n"
-        "  del | delete | rm                 Delete a file from the disk and return\n"
-        "                                    the space it alone claimed\n"
-        "  boot                              Set the program that runs when the disk\n"
-        "                                    is booted\n"
-        "  create | new                      Make a new image file, formatted and\n"
-        "                                    ready to write to\n"
-        "  init | format                     Format an image that is already there,\n"
-        "                                    discarding everything on it\n"
-        "  stamp                             Lay a host file into the image at a\n"
-        "                                    track and a sector, with no filesystem\n"
-                                          "    involved\n"
-        "\n"
-        "  CassoCli disk " + lp + "help\n"
-        "  CassoCli disk list   <image>\n"
-        "  CassoCli disk get    <image> <path> [" + lp + "out <file>]"
-                 " [" + lp + "text | " + lp + "basic]\n"
-        "  CassoCli disk put    <image> <file> [" + lp + "as <path>] ["
-                 + lp + "type <t>] [" + lp + "addr $XXXX]\n"
-        "                                      [" + lp + "text | " + lp + "basic]\n"
-        "  CassoCli disk delete <image> <path>\n"
-        "  CassoCli disk boot   <image> <path>\n";
+    for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
+    {
+        std::string  line = "  " + std::string (entry.forms);
+
+        while (line.size() < kDescriptionColumn)
+        {
+            line += " ";
+        }
+
+        text += ApplyPrefixes (line + entry.summary, flagPrefix) + "\n";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildCommandBlocks
+//
+//  Each command, with its grammar, its own options, what no option row can
+//  state, and one example that does something real.
+//
+//  THE OPTIONS BELONG TO THE COMMAND rather than to a table of all of them.
+//  A flat table cannot say that type names a file type under put and a
+//  container under create, so it said both in one row and left the reader to
+//  work out which half applied. Two rows under two headings say it once each.
+//
+//  An option shared by two commands is written under both. That is the point:
+//  a reader looking at put should not have to know that get has a text option
+//  in order to find out that put does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildCommandBlocks (char flagPrefix)
+{
+    std::string  text;
+
+
+
+    for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
+    {
+        text += "\n";
+        text += ApplyPrefixes (entry.forms, flagPrefix) + "\n";
+        text += ApplyPrefixes (std::string ("  ") + entry.grammar, flagPrefix) + "\n";
+
+        if (entry.options != nullptr)
+        {
+            text += "\n";
+            text += ApplyPrefixes (entry.options, flagPrefix);
+        }
+
+        if (entry.discussion != nullptr)
+        {
+            text += "\n  ";
+            text += ApplyPrefixes (entry.discussion, flagPrefix);
+            text += "\n";
+        }
+
+        //  The round-trip promise is quoted from the tokenizer that keeps it,
+        //  so the claim on the page cannot drift from the code making it.
+        if (std::string (entry.forms).find ("get") != std::string::npos)
+        {
+            text += "\n  ";
+            text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
+            text += "\n";
+            text += ApplyPrefixes (
+                "\n  Naming neither conversion moves the bytes unchanged, which is what"
+                " makes extract, edit and replace safe. The length and whatever header the"
+                " type carries are still applied, because those record where a file ENDS.\n",
+                flagPrefix);
+        }
+
+        text += ApplyPrefixes (std::string ("\n  Example:\n    ") + entry.example, flagPrefix) + "\n";
+    }
+
+    return text;
 }
 
 
@@ -197,23 +407,15 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 //
 //  DiskCommandRunner::BuildOptionsHelp
 //
-//  The disk options, each beside the verb that uses it, and then the three
-//  things no single option row can state: what --basic promises, what put's
-//  three naming options default to, and what boot will refuse.
+//  The statuses this subcommand exits with.
 //
-//  THE --basic PARAGRAPH FOLLOWS ITS OWN FLAG rather than closing the section.
-//  It used to sit under the exit statuses, two paragraphs below the row it
-//  explains, which is where a reader who has just read `Convert to and from an
-//  Applesoft listing` has already stopped looking. `basic` is deliberately the
-//  last row of the table so the two are adjacent.
-//
-//  EXIT STATUSES ARE BACK, AND ARE THIS SUBCOMMAND'S OWN. They spent a while
-//  stated once at the top of the page for every mode, on the belief that the
-//  three modes agreed; they do not. An assembly error exits 2 under the
-//  assembler and 1 under `run`, and status 1 means "the output was written
-//  anyway" in one mode and "nothing ran" in another. So each mode states its
-//  own, under itself, and this is disk's -- see kExitStatusHelpText below for
-//  the wording and DiskCommandRunner for what assigns each one.
+//  EXIT STATUSES ARE THIS SUBCOMMAND'S OWN. They spent a while stated once at
+//  the top of the page for every mode, on the belief that the three modes
+//  agreed; they do not. An assembly error exits 2 under the assembler and 1
+//  under `run`, and status 1 means "the output was written anyway" in one mode
+//  and "nothing ran" in another. So each mode states its own, under itself, and
+//  this is disk's -- see kExitStatusHelpText below for the wording and
+//  DiskCommandRunner for what assigns each one.
 //
 //  NOT THE IN-USE PROBE, THOUGH. A locked image is refused by name where it
 //  happens ("is open in another program. Close it and try again"), which is
@@ -224,57 +426,15 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 {
-    const size_t  kDescriptionColumn = 25;
-    std::string   lp                 = CommandLineHelp::LongPrefix (flagPrefix);
-    std::string   text;
+    std::string  text = "Exit codes:\n";
 
 
 
-    for (const auto & entry : s_kppszDiskOptions)
-    {
-        std::string  line = "  " + lp + entry[0];
-
-        while (line.size() < kDescriptionColumn)
-        {
-            line += " ";
-        }
-
-        text += line + entry[1] + "\n";
-    }
-
-    text += "\n  ";
-    text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
-    text += "\n";
-
-    text +=
-        "\n"
-        "  Naming neither conversion moves the bytes unchanged, which is what makes"
-        " extract, edit and replace safe. The length and whatever header the type"
-        " carries are still applied, because those record where a file ENDS.\n"
-        "\n"
-        "  A listing shows every column the volume records, so a ProDOS row carries"
-        " eof= and aux=, the exact length of a file and the address a binary"
-        " loads at. DOS 3.3 records neither.\n"
-        "\n"
-        "  write | put: " + lp + "as is the name the file takes on the disk, and defaults"
-        " to the host file's own name. " + lp + "type is what the catalog records, and"
-        " defaults to a binary, or to Applesoft under " + lp + "basic, which is the only"
-        " type the guest will RUN. " + lp + "addr is the load address a binary carries: a"
-        " DOS 3.3 B or a ProDOS BIN is refused without one, every other type ignores"
-        " it, and " + lp + "basic refuses it outright because Applesoft keeps its program"
-        " at $0801 and nowhere else.\n"
-        "\n"
-        "  boot: the program has to be on the volume already, named as the catalog"
-        " records it, and the image has to carry an operating system on the tracks a"
-        " boot reads. On ProDOS it must be a file of type SYS, and not the kernel"
-        " itself. On DOS 3.3 the boot command is RUN, so an Applesoft or Integer"
-        " program runs. Anything else is set, reported, and the disk boots without"
-        " running it.\n"
-        "\n"
-        "Exit codes:\n";
+    //  The statuses read the same in either prefix; the parameter
+    //  is here because every other page builder takes one.
+    (void) flagPrefix;
 
     text += kExitStatusHelpText;
-    text += "\n";
 
     return text;
 }
@@ -287,10 +447,10 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //
 //  DiskCommandRunner::BuildExampleHelp
 //
-//  THE EXAMPLE IS THE POINT. A flag reference tells a reader what each switch
-//  writes and leaves them to guess the order and the combination, and the two
-//  traps below are exactly what they would guess wrong. So the example runs the
-//  loop end to end and then says why two of its steps look the way they do.
+//  THE LOOP IS THE ONE THING NO SINGLE COMMAND SHOWS. Every command carries its
+//  own example now, under its own heading; what is left for the end of the page
+//  is the sequence, which is what a reader who has never used the tool actually
+//  needs and which no per-command example can demonstrate.
 //
 //  THE COMMANDS THEMSELVES COME FROM CommandLineHelp, because the general page
 //  shows the same loop -- it is the one thing on that page that is not a table
@@ -309,10 +469,6 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  field, which runs an Applesoft or Integer program, so naming a binary there
 //  sets the name and boots without running it. The example places a one-line
 //  greeting that BRUNs the binary, which is what actually closes the loop.
-//
-//  It goes LAST on this page, after every option group, because it is the part
-//  a reader returns to once they know what the flags are -- and because a
-//  worked loop sitting between two flag tables interrupts both.
 //
 //  `--disk1` keeps the `--` form whatever the reader asked for, here as in
 //  the commands themselves: it is the emulator's flag rather than this tool's.
@@ -351,16 +507,8 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 //
 //  DiskCommandRunner::BuildHelpText
 //
-//  The whole disk page: what the subcommand takes, what each verb does, every
-//  option, and the worked loop.
-//
-//  IT IS A PAGE RATHER THAN A SECTION NOW, which is why the headings are here.
-//  The three pieces used to be poured into a single page between the assembler
-//  and run options, and whatever printed them supplied the headings that said
-//  where one ended. Nothing prints them interleaved any more -- a reader
-//  reaches this by asking `disk` for help -- so the piece that owns the text
-//  owns the headings too, and the usage line comes from CommandLineHelp so this
-//  page and the general page cannot describe `disk` differently.
+//  The whole page: what the subcommand is for, the commands it takes, each one
+//  in detail, the statuses, and the loop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -370,9 +518,9 @@ std::string DiskCommandRunner::BuildHelpText (char flagPrefix, const std::string
          + "Usage:\n"
          + CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n"
            "\n"
-           "Disk verbs:\n"
-         + BuildSubcommandHelp (flagPrefix) + "\n"
-           "Disk options:\n"
+           "Disk commands:\n"
+         + BuildSubcommandHelp (flagPrefix)
+         + BuildCommandBlocks  (flagPrefix) + "\n"
          + BuildOptionsHelp    (flagPrefix) + "\n"
          + BuildExampleHelp    (flagPrefix);
 }
@@ -383,29 +531,29 @@ std::string DiskCommandRunner::BuildHelpText (char flagPrefix, const std::string
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::DescribeAcceptedVerbs
+//  DiskCommandRunner::DescribeAcceptedCommands
 //
-//  The verb table read out in the order it is written, which is each verb
+//  The command table read out in the order it is written, which is each command
 //  followed by its own aliases -- so the suggestion a user is offered groups
 //  the way the help does rather than alphabetically, where `cat` would land
 //  three words from `catalog`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::DescribeAcceptedVerbs()
+std::string DiskCommandRunner::DescribeAcceptedCommands()
 {
     std::string  text;
 
 
 
-    for (const auto & verb : CommandLineParser::GetAllDiskVerbs())
+    for (const auto & command : CommandLineParser::GetAllDiskCommands())
     {
         if (!text.empty())
         {
             text += ", ";
         }
 
-        text += verb.name;
+        text += command.name;
     }
 
     return text;
@@ -2165,13 +2313,13 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 //
 //  DiskCommandRunner::Run
 //
-//  A verb this build does not implement reports failure rather than doing
+//  A command this build does not implement reports failure rather than doing
 //  nothing quietly, so an absent capability cannot be mistaken for a completed
 //  operation.
 //
-//  A HELP REQUEST IS A VERB HERE, and it is answered on the output stream with
+//  A HELP REQUEST IS A COMMAND HERE, and it is answered on the output stream with
 //  a clean status. It used to be recognized only as the FIRST argument of the
-//  whole command line, so `disk --help` offered `--help` to the verb table and
+//  whole command line, so `disk --help` offered `--help` to the command table and
 //  answered a request for the grammar by refusing to run and complaining about
 //  the grammar -- exit 2 for a question the tool knows the answer to.
 //
@@ -2198,49 +2346,49 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
         return result;
     }
 
-    switch (options.disk.verb)
+    switch (options.disk.command)
     {
-        case CommandLineOptions::DiskOptions::Verb::List:
+        case CommandLineOptions::DiskOptions::Command::List:
             RunList (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Get:
+        case CommandLineOptions::DiskOptions::Command::Get:
             RunGet (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Put:
+        case CommandLineOptions::DiskOptions::Command::Put:
             RunPut (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Delete:
+        case CommandLineOptions::DiskOptions::Command::Delete:
             RunDelete (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Boot:
+        case CommandLineOptions::DiskOptions::Command::Boot:
             RunBoot (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Stamp:
+        case CommandLineOptions::DiskOptions::Command::Stamp:
             RunStamp (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Create:
+        case CommandLineOptions::DiskOptions::Command::Create:
             RunCreate (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Init:
+        case CommandLineOptions::DiskOptions::Command::Init:
             RunInit (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Verb::Help:
+        case CommandLineOptions::DiskOptions::Command::Help:
             result.output     += BuildHelpText (options.flagPrefix, m_banner);
             result.exitStatus  = kClean;
             break;
 
         default:
-            result.diagnostics    += options.disk.verbWord.empty()
-                                         ? std::string ("Error: no disk verb given\n")
-                                         : "Error: unknown disk verb: " + options.disk.verbWord + "\n";
+            result.diagnostics    += options.disk.commandWord.empty()
+                                         ? std::string ("Error: no disk command given\n")
+                                         : "Error: unknown disk command: " + options.disk.commandWord + "\n";
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
             break;
@@ -2695,9 +2843,9 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 //  A new image file, of a container this tool decides here.
 //
 //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
-//  keystroke from a disk they no longer have, and `create` is the verb they
+//  keystroke from a disk they no longer have, and `create` is the command they
 //  reach for when they are not thinking about what is already there. The
-//  refusal names `init`, which is the verb for meaning it.
+//  refusal names `init`, which is the command for meaning it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2883,7 +3031,7 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
 //  A disk that is already there, formatted again.
 //
 //  THE CONTAINER IS NOT A CHOICE HERE. It was decided when the file was made,
-//  and this verb rewrites what is INSIDE it -- so `init` takes no --type, and
+//  and this command rewrites what is INSIDE it -- so `init` takes no --type, and
 //  a reader who wants a different container wants a different file, which is
 //  what `create` makes.
 //
@@ -3020,7 +3168,7 @@ void DiskCommandRunner::RunStamp (const CommandLineOptions & options, DiskComman
 
     //  A disk with no filesystem is the ordinary case here rather than a
     //  refusal: a demo that boots its own loader has no catalog, and that
-    //  is exactly the disk this verb exists to write.
+    //  is exactly the disk this command exists to write.
     hr = OpenImage (options.disk.imagePath, opened, result, false);
 
     if (FAILED (hr))

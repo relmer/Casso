@@ -12,7 +12,7 @@
 
 With disk file access in place, Casso can put files on disks and take them off
 from the command line. This feature gives that capability a face, and completes
-the verb set.
+the command set.
 
 The point is not merely a nicer-looking AppleCommander. Every existing Apple II
 disk tool is a separate program pointed at a file: it opens an image, edits it,
@@ -103,7 +103,7 @@ file is listed and loadable.
 
 ---
 
-### User Story 3 - Complete the file-management verb set (Priority: P3)
+### User Story 3 - Complete the file-management command set (Priority: P3)
 
 A user renames files, locks and unlocks them, creates and removes directories on
 ProDOS volumes, renames the volume itself, and extracts every file at once, from
@@ -174,7 +174,7 @@ and can consume listings as structured data rather than parsing formatted text.
 **Why this priority**: Parity between the interface and the command line is a
 project principle, not an optional extra. Structured output is what makes disk
 contents usable in a pipeline. It ranks with inspection because the essential
-scripting verbs already arrived with the build-loop feature.
+scripting commands already arrived with the build-loop feature.
 
 **Independent Test**: Perform each operation from the command line against a test
 image and confirm the result matches what the graphical manager produces; parse a

@@ -51,13 +51,13 @@ public:
         io.stamps[asPath] = FileStamp { bytes.size(), 100 };
     }
 
-    CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Verb verb,
+    CommandLineOptions MakeOptions (CommandLineOptions::DiskOptions::Command command,
                                     const char * image = kImage)
     {
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = verb;
+        options.disk.command      = command;
         options.disk.imagePath = image;
 
         return options;
@@ -110,7 +110,7 @@ public:
 
         SeedRealDisk (io);
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
             L"a disk that shipped must list cleanly");
@@ -146,7 +146,7 @@ public:
 
         SeedRealDisk (io);
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
         Assert::IsTrue (result.output.find ("sectors free of 560") != std::string::npos,
             L"the listing states free space against the volume's capacity");
@@ -160,7 +160,7 @@ public:
 
         SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", "C:\\disks\\merlin.po.dsk");
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                           "C:\\disks\\merlin.po.dsk"));
 
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
@@ -212,7 +212,7 @@ public:
         // which is what makes extraction pipeable.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
@@ -231,7 +231,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
@@ -268,7 +268,7 @@ public:
         // carries a comment saying why it must not be removed.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult   result;
         int                 lineFeeds = 0;
 
@@ -292,7 +292,7 @@ public:
         // Putting it on the diagnostic stream keeps piped output byte-exact.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
@@ -310,7 +310,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
@@ -332,7 +332,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.empty());
@@ -352,7 +352,7 @@ public:
         io.files[kImage]  = noise;
         io.stamps[kImage] = FileStamp { noise.size(), 1 };
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.empty(), L"and nothing is offered as a catalog");
@@ -378,8 +378,8 @@ public:
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Stamp;
-        options.disk.verbWord  = "stamp";
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Stamp;
+        options.disk.commandWord  = "stamp";
         options.disk.imagePath = image;
         options.disk.hostFile  = file;
         options.disk.track     = track;
@@ -394,7 +394,7 @@ public:
     //  is about to replace against the one that was read, and refuses when it
     //  cannot: an image seeded with contents and no stamp is one the runner
     //  will decline to write, which is correct of it and easy to mistake for
-    //  a bug in the verb under test.
+    //  a bug in the command under test.
     static void SeedBlankImage (FakeDiskFileIo & io, const char * path)
     {
         FileStamp  stamp;
@@ -409,7 +409,7 @@ public:
 
     //  LOGICAL SECTOR 1 IS NOT AT FILE OFFSET 256. It is at the offset the
     //  interleave puts it, which for DOS 3.3 is physical position 7. This is
-    //  the assertion that would fail if the verb wrote sequentially.
+    //  the assertion that would fail if the command wrote sequentially.
     TEST_METHOD (Stamp_PlacesBytesWhereTheInterleavePutsThem)
     {
         FakeDiskFileIo     io;
@@ -692,18 +692,18 @@ public:
         Assert::IsFalse (io.Exists ("boot.dsk"));
     }
 
-    //  IT ASKS FOR THE PAGE RATHER THAN LISTING THE VERBS ITSELF.
+    //  IT ASKS FOR THE PAGE RATHER THAN LISTING THE COMMANDS ITSELF.
     //
     //  The refusal used to name all twelve, which put the same list on the
     //  screen twice once the edge started printing the disk page above it.
     //  What the refusal owes the reader now is which word it could not read;
-    //  what the verbs ARE is the page's job, and a sweep over the grammar's
+    //  what the commands ARE is the page's job, and a sweep over the grammar's
     //  own table already holds the page to it.
     ////////////////////////////////////////////////////////////////////////////
     //
     //  create and init.
     //
-    //  The verbs that make a disk rather than edit one, and the pair the worked
+    //  The commands that make a disk rather than edit one, and the pair the worked
     //  example needed: every step of it began `disk put mydisk.dsk`, and
     //  nothing anywhere made mydisk.dsk.
     //
@@ -714,8 +714,8 @@ public:
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.verb      = CommandLineOptions::DiskOptions::Verb::Create;
-        options.disk.verbWord  = "create";
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.commandWord  = "create";
         options.disk.imagePath = path;
 
         return options;
@@ -735,7 +735,7 @@ public:
 
     //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
     //  keystroke from a disk they no longer have, and the refusal names the
-    //  verb for meaning it.
+    //  command for meaning it.
     TEST_METHOD (Create_RefusesToReplaceAnImageThatIsAlreadyThere)
     {
         FakeDiskFileIo     io;
@@ -746,7 +746,7 @@ public:
         Assert::AreEqual (DiskCommandRunner::kClean,    first.exitStatus);
         Assert::AreEqual (DiskCommandRunner::kNoOutput, second.exitStatus);
         Assert::IsTrue (second.diagnostics.find ("init") != std::string::npos,
-                        L"and points at the verb that does mean it");
+                        L"and points at the command that does mean it");
     }
 
     //  The container follows the name when --type is not given, which is what
@@ -809,13 +809,13 @@ public:
         CommandLineOptions  options = MakeCreate ("missing.dsk");
         DiskCommandResult   result;
 
-        options.disk.verb     = CommandLineOptions::DiskOptions::Verb::Init;
-        options.disk.verbWord = "init";
+        options.disk.command     = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.commandWord = "init";
         result                = runner.Run (options);
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("create") != std::string::npos,
-                        L"and points at the verb that makes one");
+                        L"and points at the command that makes one");
     }
 
     //  THE CONTAINER IS NOT A CHOICE UNDER init. It was decided when the file
@@ -829,8 +829,8 @@ public:
 
         runner.Run (options);
 
-        options.disk.verb          = CommandLineOptions::DiskOptions::Verb::Init;
-        options.disk.verbWord      = "init";
+        options.disk.command          = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.commandWord      = "init";
         options.disk.containerType = "woz";
         result                     = runner.Run (options);
 
@@ -838,14 +838,14 @@ public:
         Assert::IsTrue (result.badCommandLine);
     }
 
-    TEST_METHOD (UnknownVerb_AsksForThePageInsteadOfListingTheVerbsAgain)
+    TEST_METHOD (UnknownCommand_AsksForThePageInsteadOfListingTheCommandsAgain)
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::None);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::None);
         DiskCommandResult   result;
 
-        options.disk.verbWord = "frobnicate";
+        options.disk.commandWord = "frobnicate";
 
         result = runner.Run (options);
 
@@ -855,7 +855,7 @@ public:
         Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
             L"and the refusal names the word that could not be read");
         Assert::IsTrue (result.diagnostics.find ("catalog") == std::string::npos,
-            L"without repeating the page's own verb list under it");
+            L"without repeating the page's own command list under it");
     }
 
     //
@@ -873,7 +873,7 @@ public:
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::List);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
         DiskCommandResult   result;
 
         SeedRealDisk (io);
@@ -905,7 +905,7 @@ public:
 
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                                    kProDosImage);
         DiskCommandResult   result;
 
@@ -935,7 +935,7 @@ public:
 
         SeedRealDisk (io);
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
         Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find (" B 004 MERLIN\n") != std::string::npos,
@@ -951,7 +951,7 @@ public:
         // editor opens, and asked for verbatim it must arrive untouched.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions  options   = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult   verbatim;
         DiskCommandResult   converted;
         size_t              highBytes = 0;
@@ -1000,7 +1000,7 @@ public:
         // by the terminator alone would happily produce a listing here.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  result;
 
         SeedRealDisk (io);
@@ -1380,7 +1380,7 @@ public:
         // same bytes.
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get);
+        CommandLineOptions options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
         DiskCommandResult  piped;
         DiskCommandResult  written;
 
@@ -1403,7 +1403,7 @@ public:
     //  ------------------------------------------------------------------
     //  put and delete.
     //
-    //  These are the first verbs that change a user's disk, so every refusal
+    //  These are the first commands that change a user's disk, so every refusal
     //  below asserts the image is byte-for-byte what it was rather than
     //  merely that an error came back -- an error verdict is satisfied by a
     //  half-written image.
@@ -1471,7 +1471,7 @@ public:
                                        const char * hostFile,
                                        const char * asName)
     {
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Put, image);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Put, image);
 
         options.disk.hostFile = hostFile;
 
@@ -1485,7 +1485,7 @@ public:
 
     CommandLineOptions MakeDeleteOptions (const char * image, const char * path)
     {
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Delete, image);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Delete, image);
 
         options.disk.path = path;
 
@@ -1502,7 +1502,7 @@ public:
                                                  = CommandLineOptions::DiskOptions::Encoding::Verbatim)
     {
         DiskCommandRunner   reader (io);
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Get, image);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Get, image);
 
         options.disk.path     = path;
         options.disk.encoding = encoding;
@@ -1514,7 +1514,7 @@ public:
     {
         DiskCommandRunner  reader (io);
 
-        return reader.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, image)).output;
+        return reader.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, image)).output;
     }
 
     void AssertImageMatches (FakeDiskFileIo & io, const char * path, const vector<Byte> & expected)
@@ -1926,7 +1926,7 @@ public:
 
         {
             DiskCommandRunner   reader (io);
-            CommandLineOptions  listOptions = MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+            CommandLineOptions  listOptions = MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                                            kProDosImage);
 
             listing = reader.Run (listOptions).output;
@@ -2225,7 +2225,7 @@ public:
         DiskCommandRunner   reader (io);
         DiskCommandResult   result;
         DiskCommandResult   readBack;
-        CommandLineOptions  listing  = MakeOptions (CommandLineOptions::DiskOptions::Verb::List, kProImage);
+        CommandLineOptions  listing  = MakeOptions (CommandLineOptions::DiskOptions::Command::List, kProImage);
         vector<Byte>        payload  = MakePayload();
 
         SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kProImage);
@@ -2478,7 +2478,7 @@ public:
 
     CommandLineOptions MakeBootOptions (const char * image, const char * path)
     {
-        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot, image);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Boot, image);
 
         options.disk.path = path;
 
@@ -2589,7 +2589,7 @@ public:
 
         SeedRealDisk (io);
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::Boot));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::Boot));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("no program named") != std::string::npos);
@@ -2733,7 +2733,7 @@ public:
         io.files[path]  = image;
         io.stamps[path] = FileStamp { image.size(), 100 };
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, path));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, path));
 
         Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kNoFilesystemText)
                             != std::string::npos,
@@ -2771,7 +2771,7 @@ public:
         io.files[path]  = image;
         io.stamps[path] = FileStamp { image.size(), 100 };
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List, path));
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, path));
 
         Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 is blank")
                             != std::string::npos,
@@ -2797,7 +2797,7 @@ public:
         io.files[path]  = image;
         io.stamps[path] = FileStamp { image.size(), 100 };
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                           path.c_str()));
 
         Assert::IsTrue (result.diagnostics.find (path) != std::string::npos,
@@ -2815,7 +2815,7 @@ public:
         DiskCommandRunner   runner (io);
         DiskCommandResult   result;
 
-        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Verb::List,
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                           "C:\\disks\\absent.dsk"));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);

@@ -25,7 +25,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 
 
 //
-//  Second-level verbs of the `disk` subcommand. Descriptive words are what help
+//  Second-level commands of the `disk` subcommand. Descriptive words are what help
 //  displays; every other word on the same row is an alias accepted because
 //  somebody will type it.
 //
@@ -40,26 +40,26 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 //  platform above the literal command of the machine this tool exists to serve,
 //  and the machine wins: on an Apple II, CAT lists the disk.
 //
-static constexpr CommandLineParser::DiskVerbName  s_kDiskVerbs[] =
+static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
 {
-    { "list",    CommandLineOptions::DiskOptions::Verb::List   },
-    { "ls",      CommandLineOptions::DiskOptions::Verb::List   },
-    { "dir",     CommandLineOptions::DiskOptions::Verb::List   },
-    { "cat",     CommandLineOptions::DiskOptions::Verb::List   },
-    { "catalog", CommandLineOptions::DiskOptions::Verb::List   },
-    { "get",     CommandLineOptions::DiskOptions::Verb::Get    },
-    { "read",    CommandLineOptions::DiskOptions::Verb::Get    },
-    { "put",     CommandLineOptions::DiskOptions::Verb::Put    },
-    { "write",   CommandLineOptions::DiskOptions::Verb::Put    },
-    { "delete",  CommandLineOptions::DiskOptions::Verb::Delete },
-    { "rm",      CommandLineOptions::DiskOptions::Verb::Delete },
-    { "del",     CommandLineOptions::DiskOptions::Verb::Delete },
-    { "boot",    CommandLineOptions::DiskOptions::Verb::Boot   },
-    { "create",  CommandLineOptions::DiskOptions::Verb::Create },
-    { "new",     CommandLineOptions::DiskOptions::Verb::Create },
-    { "init",    CommandLineOptions::DiskOptions::Verb::Init   },
-    { "stamp",   CommandLineOptions::DiskOptions::Verb::Stamp  },
-    { "format",  CommandLineOptions::DiskOptions::Verb::Init   },
+    { "list",    CommandLineOptions::DiskOptions::Command::List   },
+    { "ls",      CommandLineOptions::DiskOptions::Command::List   },
+    { "dir",     CommandLineOptions::DiskOptions::Command::List   },
+    { "cat",     CommandLineOptions::DiskOptions::Command::List   },
+    { "catalog", CommandLineOptions::DiskOptions::Command::List   },
+    { "get",     CommandLineOptions::DiskOptions::Command::Get    },
+    { "read",    CommandLineOptions::DiskOptions::Command::Get    },
+    { "put",     CommandLineOptions::DiskOptions::Command::Put    },
+    { "write",   CommandLineOptions::DiskOptions::Command::Put    },
+    { "delete",  CommandLineOptions::DiskOptions::Command::Delete },
+    { "rm",      CommandLineOptions::DiskOptions::Command::Delete },
+    { "del",     CommandLineOptions::DiskOptions::Command::Delete },
+    { "boot",    CommandLineOptions::DiskOptions::Command::Boot   },
+    { "create",  CommandLineOptions::DiskOptions::Command::Create },
+    { "new",     CommandLineOptions::DiskOptions::Command::Create },
+    { "init",    CommandLineOptions::DiskOptions::Command::Init   },
+    { "stamp",   CommandLineOptions::DiskOptions::Command::Stamp  },
+    { "format",  CommandLineOptions::DiskOptions::Command::Init   },
 };
 
 
@@ -553,27 +553,27 @@ std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabyt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LookUpDiskVerb
+//  LookUpDiskCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandLineOptions::DiskOptions::Verb CommandLineParser::LookUpDiskVerb (const std::string & word)
+CommandLineOptions::DiskOptions::Command CommandLineParser::LookUpDiskCommand (const std::string & word)
 {
-    CommandLineOptions::DiskOptions::Verb  verb = CommandLineOptions::DiskOptions::Verb::None;
-    size_t                                 i    = 0;
+    CommandLineOptions::DiskOptions::Command  command = CommandLineOptions::DiskOptions::Command::None;
+    size_t                                    i       = 0;
 
 
 
-    for (i = 0; i < std::size (s_kDiskVerbs); i++)
+    for (i = 0; i < std::size (s_kDiskCommands); i++)
     {
-        if (word == s_kDiskVerbs[i].name)
+        if (word == s_kDiskCommands[i].name)
         {
-            verb = s_kDiskVerbs[i].verb;
+            command = s_kDiskCommands[i].command;
             break;
         }
     }
 
-    return verb;
+    return command;
 }
 
 
@@ -811,43 +811,43 @@ std::vector<std::string> CommandLineParser::RejoinShellSplitArguments (int argc,
 //
 //  DiskOperandCount
 //
-//  How many positional operands a disk verb HAS A USE FOR.
+//  How many positional operands a disk command HAS A USE FOR.
 //
-//  It differs by verb and always has: `list` names a disk and nothing else,
-//  while every other verb names a disk and a file. The count was never written
-//  down, so the parser filled two slots for every verb and the verbs that read
+//  It differs by command and always has: `list` names a disk and nothing else,
+//  while every other command names a disk and a file. The count was never written
+//  down, so the parser filled two slots for every command and the commands that read
 //  only one discarded the other in silence -- `disk list img.dsk PROG` catalogs
 //  the disk and never says that PROG went nowhere.
 //
-//  Zero means "do not enforce a count", which is the honest answer for the verb
-//  that was not recognized and for a help request. An unknown verb is reported
+//  Zero means "do not enforce a count", which is the honest answer for the command
+//  that was not recognized and for a help request. An unknown command is reported
 //  by the runner in its own words, and preempting that with a complaint about
 //  operand three would answer the wrong question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb verb)
+int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Command command)
 {
     int  count = 0;
 
 
 
-    switch (verb)
+    switch (command)
     {
     //  Create and init name an image and nothing else. Everything they take
     //  beyond that arrives as an option, so a second operand is a mistake
     //  and is refused rather than dropped.
-    case CommandLineOptions::DiskOptions::Verb::List:
-    case CommandLineOptions::DiskOptions::Verb::Create:
-    case CommandLineOptions::DiskOptions::Verb::Init:
+    case CommandLineOptions::DiskOptions::Command::List:
+    case CommandLineOptions::DiskOptions::Command::Create:
+    case CommandLineOptions::DiskOptions::Command::Init:
         count = 1;
         break;
 
-    case CommandLineOptions::DiskOptions::Verb::Get:
-    case CommandLineOptions::DiskOptions::Verb::Put:
-    case CommandLineOptions::DiskOptions::Verb::Delete:
-    case CommandLineOptions::DiskOptions::Verb::Boot:
-    case CommandLineOptions::DiskOptions::Verb::Stamp:
+    case CommandLineOptions::DiskOptions::Command::Get:
+    case CommandLineOptions::DiskOptions::Command::Put:
+    case CommandLineOptions::DiskOptions::Command::Delete:
+    case CommandLineOptions::DiskOptions::Command::Boot:
+    case CommandLineOptions::DiskOptions::Command::Stamp:
         count = 2;
         break;
 
@@ -865,23 +865,23 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Verb v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskVerbWord
+//  DiskCommandWord
 //
-//  The descriptive word a verb is written with, read from the table rather than
-//  retyped so a diagnostic cannot name a verb the grammar no longer has. The
-//  first row carrying a verb is its descriptive form; the rest are aliases.
+//  The descriptive word a command is written with, read from the table rather than
+//  retyped so a diagnostic cannot name a command the grammar no longer has. The
+//  first row carrying a command is its descriptive form; the rest are aliases.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * CommandLineParser::DiskVerbWord (CommandLineOptions::DiskOptions::Verb verb)
+const char * CommandLineParser::DiskCommandWord (CommandLineOptions::DiskOptions::Command command)
 {
     const char *  word = "disk";
 
 
 
-    for (const DiskVerbName & entry : s_kDiskVerbs)
+    for (const DiskCommandName & entry : s_kDiskCommands)
     {
-        if (entry.verb == verb)
+        if (entry.command == command)
         {
             word = entry.name;
             break;
@@ -1021,9 +1021,9 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //      disk delete <image> <path>
 //      disk boot   <image> <path>
 //
-//  Positional meaning depends on the verb: `put` names a HOST file to place and
-//  optionally renames it with --as, while every other verb names a file already
-//  on the disk. That asymmetry is inherent -- put is the only verb whose second
+//  Positional meaning depends on the command: `put` names a HOST file to place and
+//  optionally renames it with --as, while every other command names a file already
+//  on the disk. That asymmetry is inherent -- put is the only command whose second
 //  operand lives on the host -- so it is spelled out rather than smoothed over.
 //
 //  Each option is also accepted with a `/` prefix, because the usage text
@@ -1045,7 +1045,7 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  suggestion names the flags it does have.
 //
 //  AN EXTRA OPERAND IS REFUSED ON THE SAME GROUND, and the count comes from the
-//  VERB -- see DiskOperandCount. Two slots were filled whatever the verb, so
+//  COMMAND -- see DiskOperandCount. Two slots were filled whatever the command, so
 //  `disk list img.dsk PROG` filled a slot `list` does not read and `disk get
 //  img.dsk PROG extra` filled none at all; both exited 0 having said nothing.
 //
@@ -1065,8 +1065,8 @@ void CommandLineParser::ParseDiskOptions (
 
 
     //  A help request anywhere in the disk arguments wins outright, and is
-    //  looked for BEFORE the verb: `disk --help` would otherwise offer
-    //  `--help` to the verb table, be told it is not a verb, and answer a
+    //  looked for BEFORE the command: `disk --help` would otherwise offer
+    //  `--help` to the command table, be told it is not a command, and answer a
     //  request for the grammar with a complaint about the grammar.
     //  The lone `?` is looked for the other way round -- across the whole tail
     //  at once rather than one argument at a time -- because it is a request
@@ -1089,18 +1089,18 @@ void CommandLineParser::ParseDiskOptions (
 
     if (wantsHelp)
     {
-        options.disk.verb = CommandLineOptions::DiskOptions::Verb::Help;
+        options.disk.command = CommandLineOptions::DiskOptions::Command::Help;
         return;
     }
 
     if (i < argc)
     {
-        options.disk.verb     = LookUpDiskVerb (argv[i]);
-        options.disk.verbWord = argv[i];
+        options.disk.command     = LookUpDiskCommand (argv[i]);
+        options.disk.commandWord = argv[i];
         i++;
     }
 
-    limit = DiskOperandCount (options.disk.verb);
+    limit = DiskOperandCount (options.disk.command);
 
     for ( ; i < argc; i++)
     {
@@ -1133,14 +1133,14 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        //  `--type` NAMES TWO DIFFERENT THINGS, one per verb, and the verb
+        //  `--type` NAMES TWO DIFFERENT THINGS, one per command, and the command
         //  is always already known here. Under `put` it is the file type the
         //  catalog records; under `create` it is the container the image is
         //  written as. They never appear on the same command line, so one
         //  word serves both and the help says which is which under each.
         if (arg == "--type" && hasValue)
         {
-            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Create)
+            if (options.disk.command == CommandLineOptions::DiskOptions::Command::Create)
             {
                 options.disk.containerType = argv[i + 1];
             }
@@ -1318,21 +1318,21 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        //  AN OPERAND THE VERB HAS NO SLOT FOR IS REFUSED, and the count is the
-        //  verb's own -- `list` names a disk, everything else names a disk and
-        //  a file. Two slots were filled for every verb regardless, so the
-        //  verbs that read one discarded the other without a word: `disk list
+        //  AN OPERAND THE COMMAND HAS NO SLOT FOR IS REFUSED, and the count is the
+        //  command's own -- `list` names a disk, everything else names a disk and
+        //  a file. Two slots were filled for every command regardless, so the
+        //  commands that read one discarded the other without a word: `disk list
         //  img.dsk PROG` catalogs the whole disk and never mentions PROG, and
         //  `disk get img.dsk PROG extra` extracts PROG and never mentions
         //  extra. Both exited 0.
         //
-        //  A verb the table did not recognize is left alone, count zero. The
+        //  A command the table did not recognize is left alone, count zero. The
         //  runner reports that in its own words, and a complaint about operand
         //  three would answer a question nobody asked.
         if (limit > 0 && positional >= limit)
         {
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
-                              << "       `disk " << DiskVerbWord (options.disk.verb) << "` takes "
+                              << "       `disk " << DiskCommandWord (options.disk.command) << "` takes "
                               << (limit == 1 ? "the image and nothing else\n"
                                      : "the image and one file\n");
 
@@ -1348,13 +1348,13 @@ void CommandLineParser::ParseDiskOptions (
         }
         else if (positional == 1)
         {
-            // `put` and `stamp` take a HOST file here; every other verb takes
+            // `put` and `stamp` take a HOST file here; every other command takes
             // a path on the disk. --as may override the on-disk name
             // afterwards. Stamp has no on-disk name at all: it writes to a
             // track and a sector, and the disk it writes to may have no
             // filesystem to hold a name in.
-            if (options.disk.verb == CommandLineOptions::DiskOptions::Verb::Put
-             || options.disk.verb == CommandLineOptions::DiskOptions::Verb::Stamp)
+            if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Stamp)
             {
                 options.disk.hostFile = arg;
             }
@@ -1389,18 +1389,18 @@ std::span<const CommandLineParser::SubcommandName> CommandLineParser::GetAllSubc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAllDiskVerbs
+//  GetAllDiskCommands
 //
-//  Every verb the disk grammar accepts, aliases included, so a test can sweep
+//  Every command the disk grammar accepts, aliases included, so a test can sweep
 //  the whole table rather than a hand-picked sample. What it is for is the help
-//  output: a verb added here and not described there is a capability the user
+//  output: a command added here and not described there is a capability the user
 //  cannot find, and only a sweep of this table can notice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const CommandLineParser::DiskVerbName> CommandLineParser::GetAllDiskVerbs()
+std::span<const CommandLineParser::DiskCommandName> CommandLineParser::GetAllDiskCommands()
 {
-    return std::span<const DiskVerbName> (s_kDiskVerbs);
+    return std::span<const DiskCommandName> (s_kDiskCommands);
 }
 
 

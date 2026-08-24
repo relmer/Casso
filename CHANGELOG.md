@@ -17,7 +17,7 @@ Entries before versioning was introduced use dates only.
   failed at step two. `create` writes a new image and decides its container,
   from `--type` or from the name's extension; `init` reformats one that is
   already there and takes the container as it finds it. `create` refuses to
-  write over something that exists and names `init` as the verb for meaning it.
+  write over something that exists and names `init` as the command for meaning it.
   Both take `--format dos33|prodos|none` and `--volume`, which is a number
   under DOS 3.3 and a name under ProDOS: which one the word is read as follows
   from the format rather than from how the word looks, or a ProDOS volume
@@ -121,7 +121,7 @@ Entries before versioning was introduced use dates only.
   has its own header loaded as code where the program should begin; and set the
   boot program to an Applesoft greeting that `BRUN`s the binary, because a
   booting DOS 3.3 RUNs its greeting. The example and the help are checked
-  against each other, every verb the grammar accepts and every option the
+  against each other, every command the grammar accepts and every option the
   example types has to appear in the same help output.
 - **`--basic`: an Applesoft listing written as host text becomes a program the
   guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
@@ -165,6 +165,18 @@ Entries before versioning was introduced use dates only.
   getting the same 143,360 bytes is evidence rather than a tautology.
 
 ### Changed
+- **The disk page is one block per command, and the second words are called
+  commands.** The page was four lists a reader had to join up themselves: the
+  commands in one place, a grammar line in another, every option of every
+  command in one flat table, and the prose explaining them below that.
+  Answering "what can `put` do" meant reading the whole page and filtering it,
+  and the filtering could not be done reliably: `--type` names a file type
+  under `put` and a container under `create`, so the one row had to say both at
+  once. Each command now carries its own grammar, its own options, the
+  paragraph that belongs to it, and an example that does something real. The
+  worked loop still closes the page, because the sequence is the one thing no
+  single command demonstrates. `verb` is `command` throughout the source and
+  the docs, which is what the help called them anyway.
 - **The executable is a shim, and everything it used to do is in the library.**
   `CassoCli.exe` was 3,639 lines of parsing, dispatch, page composition and
   exit-code decisions, none of which the test assembly links and therefore none
@@ -186,7 +198,7 @@ Entries before versioning was introduced use dates only.
   script that invokes the tool wrongly has to fail.
 - **A bad command line is answered with the grammar, not one line.** `disk get
   img.dsk A B` said `surplus argument: B` and stopped, so a reader who had a
-  verb's operands wrong learned they were wrong and not what the right ones
+  command's operands wrong learned they were wrong and not what the right ones
   are. Every refusal now prints the page belonging to the mode that was named,
   then the reason, last, so the reason is the line left on screen.
 - **A lone `?` opens the general page.** It opened the assembler's while a bare
@@ -194,7 +206,7 @@ Entries before versioning was introduced use dates only.
   dialect is required now, so the top level names no grammar and `?` asks the
   same question `--help` does. `CassoCli as65 ?` opens the assembler's page.
 - The help says **mode** rather than subcommand throughout, and the disk page
-  calls its own second words **verbs**, because that is what they are.
+  calls its own second words **commands**, because that is what they are.
 
 - **The assembler's exit codes now match AS65's exactly.** AS65 documents
   `1 - Incorrect parameter specified on the commandline`; this tool spent 1 on
@@ -238,7 +250,7 @@ Entries before versioning was introduced use dates only.
   are trying to do rather than alphabetically, which had put `-c`, `-l`, `-m`
   and `-p` four places apart while they all shape the same listing; output and
   listing options nest under assembly, since neither applies to `run` or `disk`;
-  the disk verbs lead with every form they accept (`cat | catalog | dir | list |
+  the disk commands lead with every form they accept (`cat | catalog | dir | list |
   ls`) rather than trailing aliases in an "also written" clause; and each group
   carries its own example. The assembly page opens with an AS65 compatibility
   section, stating the grammar rules that hold for every command line on it (
@@ -379,7 +391,7 @@ Entries before versioning was introduced use dates only.
   `cat` now list a disk, because those are the literal DOS 3.3 and ProDOS
   commands; `dir` and `del` are there for the habits a host shell teaches, and
   `read` and `write` alias `get` and `put`. `ls` and `rm` already worked. The
-  primary verbs are unchanged.
+  primary commands are unchanged.
 - **An explicit output-format flag now wins over the filename's extension.**
   Extension matching remains as the fallback when no flag is given, so AS65-era
   scripts naming a `.s19` or `.hex` output keep working. Previously the
@@ -499,7 +511,7 @@ Entries before versioning was introduced use dates only.
 
 - **A command line the tool cannot read is answered with the grammar, not with
   one line.** `CassoCli disk get img.dsk A B` said `surplus argument: B` and
-  stopped, so a reader who had a verb's operands wrong was told they were wrong
+  stopped, so a reader who had a command's operands wrong was told they were wrong
   and not what the right ones are. Every refusal now prints the page belonging
   to the mode that was named (the assembler's, Merlin's, `run`'s or `disk`'s)
   and then the reason, last, so the reason is the line left on screen. An
@@ -516,7 +528,7 @@ Entries before versioning was introduced use dates only.
   something the tool did not do was told it had worked. All three grammars
   dropped a surplus argument: assembling took the first bare argument as the
   source and discarded the rest, and `disk` filled two operand slots whatever
-  the verb, so `disk list img.dsk PROG` cataloged the whole disk without
+  the command, so `disk list img.dsk PROG` cataloged the whole disk without
   mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
   mentioning `extra`. Each is now refused at the status its own mode documents
   for a command line that was refused, **1** for the assembling modes, which
@@ -599,13 +611,13 @@ Entries before versioning was introduced use dates only.
   the width of the screen, not of the listing; it is the one column that does
   not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift
   from both authorities at once.
-- **`CassoCli disk --help` prints help.** It printed `unknown disk verb` and
+- **`CassoCli disk --help` prints help.** It printed `unknown disk command` and
   exited 2, because `--help` was recognized only as the very first argument. It
   is now understood anywhere in a `disk` command line, in every form and
   either prefix (`--help`, `-help`, `-?`, `/help`, `/?`), and prints the disk
   section of the help with a clean exit status. A ProDOS path such as
   `/HELP/STARTUP` is still a path.
-- **The unknown-verb message lists the verbs that exist.** It still named the
+- **The unknown-command message lists the commands that exist.** It still named the
   five original ones after eight aliases had been added, so mistyping `catalog`
   got you a suggestion of five words that did not include `catalog`. It is now
   read from the grammar itself.

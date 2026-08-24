@@ -154,11 +154,11 @@ int CliMain (int argc, char * argv[])
         hr = RunMode::Run (options, exitCode);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Disk
-             && options.disk.verb == CommandLineOptions::DiskOptions::Verb::Help)
+             && options.disk.command == CommandLineOptions::DiskOptions::Command::Help)
     {
         // ASKED FOR HERE RATHER THAN FETCHED FROM THE RUNNER, so it folds.
         //
-        // `disk --help` resolves to a verb of the disk grammar, so it used to
+        // `disk --help` resolves to a command of the disk grammar, so it used to
         // arrive as the runner's `output` and go to the console the way a
         // catalog listing does: verbatim, because a listing is a table and
         // reflowing one would destroy it. The page is prose and wants the

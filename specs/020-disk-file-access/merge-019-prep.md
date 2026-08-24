@@ -100,7 +100,7 @@ beside the as65 one, most likely, with `DialectHelp` feeding it.
 ### 4. 019 has never heard of `disk`
 
 Its subcommand table is `as65`, `merlin`, `run`, zero references to
-`Subcommand::Disk`. Every disk row, verb and help page is 020's alone and should
+`Subcommand::Disk`. Every disk row, command and help page is 020's alone and should
 survive the merge untouched. The risk is the opposite one: taking 019's version of
 a shared table and silently dropping the disk rows.
 
@@ -130,7 +130,7 @@ every page renders identically at 80 columns, and the one line that WAS unwrappe
 **The disk page was deliberately left printing through `std::cout`.**
 `DiskCommandRunner`'s `result.output` carries catalogs and listings as well as
 help, and those have column layouts that folding must not touch. Routing only the
-Help verb's output through `PrintUsageBlock` is a small, separable change for the
+Help command's output through `PrintUsageBlock` is a small, separable change for the
 merge session; it needs the runner to distinguish help from a listing, which it
 does not today.
 
