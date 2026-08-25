@@ -465,6 +465,71 @@ public:
         Assert::AreEqual (0.0f, open[0].y, 0.5f);
     }
 
+    //
+    //  THE //c's LATCH TRAVELS A PATH, and what this pins down is that the
+    //  path has no corner in it. It reported as a stutter partway through the
+    //  eject animation, and there were two reasons for one symptom:
+    //
+    //    - the two legs are 4 mm and 13 mm and each got HALF the timeline, so
+    //      the latch crawled back and then trebled its speed going up.
+    //    - and it turned ninety degrees between two frames.
+    //
+    //  Splitting by distance fixes the first. Only an arc fixes the second,
+    //  and the second is the one the eye actually catches -- so that is what
+    //  this measures: the angle between one frame's step and the next, over a
+    //  sampling finer than the animation will ever be drawn at. The old path
+    //  turns 90 degrees in a single step. Anything that reintroduces a corner
+    //  will show up here as tens of degrees, whatever it does to the speed.
+    //
+    TEST_METHOD (Sliding_Door_Turns_Its_Corner_As_An_Arc_Not_A_Kink)
+    {
+        constexpr int    kSamples    = 128;
+        constexpr float  kMaxTurnDeg = 15.0f;
+
+        std::vector<Dxui3DRenderer::Vertex>   base (1);
+        std::vector<float>                    py (kSamples + 1);
+        std::vector<float>                    pz (kSamples + 1);
+        float                                 worstDeg = 0.0f;
+
+        for (int i = 0; i <= kSamples; i++)
+        {
+            std::vector<Dxui3DRenderer::Vertex>   at;
+
+            DeskSceneModel::SlideDoorVerts (base,
+                                            DeskSceneModel::kDisk2cDoorInMm,
+                                            DeskSceneModel::kDisk2cDoorUpMm,
+                                            (float) i / (float) kSamples,
+                                            at);
+            py[i] = at[0].y;
+            pz[i] = at[0].z;
+        }
+
+        // Ends where it is supposed to, or the rest of this measures a path to
+        // the wrong place very smoothly.
+        Assert::AreEqual (DeskSceneModel::kDisk2cDoorInMm, py[kSamples], 1e-3f);
+        Assert::AreEqual (DeskSceneModel::kDisk2cDoorUpMm, pz[kSamples], 1e-3f);
+
+        for (int i = 0; i + 2 <= kSamples; i++)
+        {
+            float  ay = py[i + 1] - py[i];
+            float  az = pz[i + 1] - pz[i];
+            float  by = py[i + 2] - py[i + 1];
+            float  bz = pz[i + 2] - pz[i + 1];
+            float  la = std::sqrt (ay * ay + az * az);
+            float  lb = std::sqrt (by * by + bz * bz);
+
+            if (la > 1e-6f && lb > 1e-6f)
+            {
+                float  dot = std::clamp ((ay * by + az * bz) / (la * lb), -1.0f, 1.0f);
+
+                worstDeg = (std::max) (worstDeg, std::acos (dot) * 180.0f / 3.14159265f);
+            }
+        }
+
+        Assert::IsTrue (worstDeg < kMaxTurnDeg,
+                        L"the door's path turns a corner instead of an arc");
+    }
+
     // The far end has to FIT: the notch is 35.7 mm deep, and a door that swings
     // deeper than that would pass through the back of its own pocket.
     TEST_METHOD (Door_Fully_Open_Stays_Within_The_Notch_Depth)

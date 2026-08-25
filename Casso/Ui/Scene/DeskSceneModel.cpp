@@ -167,6 +167,13 @@ static constexpr float   s_kWordThickMm   = 0.30f;
 // than as an edge rolling over.
 static constexpr float   s_kWordRollMm    = 0.25f;
 
+// The radius the door's path turns through, in mm, where its two legs meet.
+// Clamped to the shorter leg by the caller, so a tiny travel still turns
+// rather than rounding past its own end. Two millimeters is a curve at 350 ms
+// and sixty frames while still leaving the motion plainly in-then-up rather
+// than one diagonal.
+static constexpr float   s_kDoorCornerMm = 2.0f;
+
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
@@ -1610,9 +1617,27 @@ void DeskSceneModel::PoseDoor (float progress, std::vector<Dxui3DRenderer::Verte
 //  Straight in, then straight up. No rotation anywhere in it.
 //
 //  TWO LEGS, not a diagonal: the latch has to be clear of the face before it
-//  can rise, so it travels back over the first half of the motion and up over
-//  the second. A single interpolated move would drag it up through the case
-//  front it is still sitting against.
+//  can rise, so it travels back and then up. A single interpolated move would
+//  drag it up through the case front it is still sitting against.
+//
+//  BUT NOT HALF THE TIME EACH, which is what made the corner stutter. The
+//  legs are 4 mm and 13 mm long; giving each half the animation ran the first
+//  at a crawl and then trebled the speed at the turn. The corner has to be
+//  split by DISTANCE, not by count -- then the latch travels at one speed the
+//  whole way and the turn is a turn rather than a lurch.
+//
+//  So the motion is walked as a PATH AT CONSTANT SPEED rather than as two
+//  interpolations sharing a timeline: straight leg, quarter arc, straight
+//  leg, stepped along by arc length. The arc is there because even at one
+//  speed a right-angle turn taken between two frames changes direction
+//  instantaneously, and the eye reads that as a hitch whatever the speed is
+//  doing. Overlapping two eased legs was tried first and still dipped thirty
+//  percent through the corner -- the in-leg is coasting to rest exactly while
+//  the up-leg is only starting to move. An arc has no such gap in it.
+//
+//  One smoothstep over the whole path eases the start and the stop, because
+//  the caller's progress is raw elapsed-over-duration -- see
+//  DriveWidgetState::TickDoorAnimation -- and nothing else will.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1622,9 +1647,41 @@ void DeskSceneModel::SlideDoorVerts (const std::vector<Dxui3DRenderer::Vertex> &
                                      float                                       progress,
                                      std::vector<Dxui3DRenderer::Vertex>       & out)
 {
-    float   t  = (std::min) (1.0f, (std::max) (0.0f, progress));
-    float   dy = inMm * (std::min) (1.0f, t * 2.0f);
-    float   dz = upMm * (std::max) (0.0f, t * 2.0f - 1.0f);
+    // Magnitudes here, signs at the end: the path is built in the first
+    // quadrant and mirrored onto whichever way the caller's legs run.
+    float   signY = (inMm < 0.0f) ? -1.0f : 1.0f;
+    float   signZ = (upMm < 0.0f) ? -1.0f : 1.0f;
+    float   legY  = std::fabs (inMm);
+    float   legZ  = std::fabs (upMm);
+    float   bend  = (std::min) (s_kDoorCornerMm, (std::min) (legY, legZ));
+    float   runY  = legY - bend;
+    float   arc   = 1.5707963f * bend;
+    float   runZ  = legZ - bend;
+    float   walk  = runY + arc + runZ;
+    float   t     = std::clamp (progress, 0.0f, 1.0f);
+    float   here  = walk * (t * t * (3.0f - 2.0f * t));
+    float   dy    = 0.0f;
+    float   dz    = 0.0f;
+
+    if (here <= runY)
+    {
+        dy = here;
+    }
+    else if (here <= runY + arc)
+    {
+        float  turned = (here - runY) / (std::max) (bend, 1e-4f);
+
+        dy = runY + bend * std::sin (turned);
+        dz = bend * (1.0f - std::cos (turned));
+    }
+    else
+    {
+        dy = legY;
+        dz = bend + (here - runY - arc);
+    }
+
+    dy *= signY;
+    dz *= signZ;
 
 
 

@@ -134,8 +134,9 @@ LATCH_SUNK   = 3.0                # how far it reaches back into the notch
 # gradient and has no edge in it anywhere.
 LATCH_SLOT_BEV = 1.6
 
-# The notch is a little wider than the latch so the latch travels freely in
-# it, and it runs from below the slot up over the top and back along the lid.
+# The notch is a HAIR wider than the latch -- half a millimeter a side, the
+# gap a molded part actually leaves around a moving one -- and it runs from
+# below the slot up over the top and back along the lid.
 #
 # It is DEEPER than the latch is thick, and deliberately: pressing eject
 # pushes the latch back into the drive before it rises, and the difference
@@ -144,7 +145,7 @@ LATCH_SLOT_BEV = 1.6
 # number apiece in two files is how the latch came to travel through the back
 # of its own notch.
 LATCH_TRAVEL_IN = 4.0             # mirrored by kDisk2cDoorInMm
-NOTCH_W      = LATCH_W + 4.0
+NOTCH_W      = LATCH_W + 1.0
 NOTCH_X0     = (W - NOTCH_W) * 0.5
 NOTCH_Z0     = SLOT_Z0 - 12.0     # its floor, well below the slot
 NOTCH_D      = LATCH_SUNK + LATCH_TRAVEL_IN + 1.5
