@@ -32,11 +32,16 @@ three-quarter showing the label and the back panel, and two side elevations.
 ### Dimensions
 
 9.5 x 7.3 x 10.2 inches (W x H x D), 11 lb -- the published figures. The
-picture size is NOT published: some spec sheets repeat a 9.1-inch viewable,
-which cannot be right on a case 9.5 inches wide, and the front photograph's
-bezel is far too wide for it. The model uses 168 x 126 mm, a 210 mm (8.3 inch)
-diagonal, which is what a 9-inch tube shows and what the photograph's
-proportions support. A tape on a real one would settle it.
+picture size is NOT published, and it is not what sets the opening here.
+THE BORDERS DO. The frame reads as a frame when its left, right and top bands
+are one width, so those are the numbers -- 26 mm, with a deeper 34 mm chin
+because the marks live in it -- and the aperture is whatever they leave.
+
+Driving it the other way, from a 4:3 tube, put the side bands half again as
+wide as the top and the whole front read as a letterbox. The aperture that
+falls out is wider than 4:3, which is right: what shows inside the bezel is
+the tube's whole glass, black mask included, and the scene fits the picture
+inside that. A tape on a real one would settle the tube itself.
 
 ### Not established
 

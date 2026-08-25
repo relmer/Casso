@@ -48,21 +48,33 @@ W, D, H = 9.5 * INCH, 10.2 * INCH, 7.3 * INCH
 # the electronics box behind it.
 FRONT_D = 0.47 * D
 
-R_CASE  = 24.0                    # the front mass's corner radius, in the face
-SHOULDER = 10.0                   # how far the bezel plate is inset from the case
-RISE     = 5.5                    # how far it stands proud of the case front
+R_CASE  = 16.0                    # the front mass's corner radius, in the face
+
+# THE BEZEL ANGLES FORWARD, and it has to do so over most of its width or it
+# does not read as angled at all. It was a 10 mm roll onto 27 mm of flat land,
+# which is a flat bezel with a rounded edge. Half again as wide and half again
+# as much rise gives a band you can see leaning toward you, with just enough
+# land left around the opening to sit the marks on.
+SHOULDER = 14.0                   # how far the bezel plate is inset from the case
+RISE     = 8.0                    # how far it stands proud of the case front
 CAP_STEPS = 7                     # facets in the roll-over from plate to case
 
-# The screen. A 9-inch tube shows about 8.3 inches corner to corner, which at
-# 4:3 is this -- 210 mm diagonal. The published "9 inch" is the tube, not the
-# picture, and the bezel is far too wide in the photographs for the 9.1-inch
-# viewable some spec sheets repeat.
-SCR_W, SCR_H = 168.0, 126.0
-CHIN         = 34.0               # below the opening: deeper than the top band
+# THE OPENING IS SET BY ITS BORDERS, not by a picture aspect. The frame reads
+# as a frame when its left, right and top bands are the same width -- so those
+# are the numbers, and the aperture is whatever they leave. Sized from a 4:3
+# tube instead, the side bands came out half again as wide as the top and the
+# whole front looked like a letterbox.
+#
+# The aperture is wider than 4:3 as a result, which is fine and is what the
+# photograph shows: what you see inside the bezel is the tube's whole glass,
+# black mask included, and the scene fits the picture inside that.
+BAND = 26.0                       # left, right and top -- all one width
+CHIN = 34.0                       # deeper, because the marks live in it
 
-OX0, OX1 = (W - SCR_W) * 0.5, (W + SCR_W) * 0.5
-OZ0, OZ1 = CHIN, CHIN + SCR_H
-R_OPEN   = 18.0                   # the opening's own corners, generously round
+OX0, OX1 = BAND, W - BAND
+OZ0, OZ1 = CHIN, H - BAND
+SCR_W, SCR_H = OX1 - OX0, OZ1 - OZ0
+R_OPEN   = 9.0                    # the opening's own corners: softened, not rounded off
 
 LIP      = 5.0                    # the recess mouth, out from the opening
 GLASS_IN = 5.0                    # glass inset from the opening
@@ -155,7 +167,7 @@ shell = cq.Workplane(obj=cq.Solid.makeLoft(cap_sections, True))
 # filleting the pair returns a solid OCC reports as INVALID. Nothing throws;
 # the booleans after it just quietly stop working, and the screen recess ends
 # up not cut. Fillet it while it is still the only thing there.
-shell = shell.edges(">Y").fillet(8.0)
+shell = shell.edges(">Y").fillet(5.0)
 
 # The electronics box behind it. It overlaps well into the housing, so the
 # union has no coincident faces to trip over.
@@ -166,7 +178,7 @@ shell = shell.union(
         cq.Vector(0.0, D - REAR_Y0, 0.0))))
 
 # And the box's own back rim.
-shell = shell.edges(">Y").fillet(6.0)
+shell = shell.edges(">Y").fillet(4.0)
 
 # THE SCREEN RECESS. Lofted from the plate's hole back to the opening, both
 # rounded, so the lip is the cut's own wall and the interior corners are
