@@ -7,12 +7,25 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
-**Active spec: `specs/020-disk-file-access`** (Draft) — disk file access for the
+**Active spec: `specs/024-mockingboard-speech`** (Planned, GH #123) — the
+Mockingboard's SSI-263 voice chip, plus a sound-only (Mockingboard A) /
+sound+speech (Mockingboard C) variant split with the C as the default for the
+][+, //e, and //e Enhanced. Plan: `specs/024-mockingboard-speech/plan.md`, with
+`research.md`, `data-model.md`, `contracts/`, and `quickstart.md` beside it. Next
+step is `/speckit-tasks`.
+
+Two Phase 0 findings a later session should not have to rediscover: the
+`Via6522` control-line seam **does not exist** (PCR is stored but inert, and
+nothing can drive CA1/CB1 from outside), and the voice chip's parameter tables
+must come from the SSI-263 datasheet — which is the feature's highest-value
+input and is **not yet in hand**. See `research.md` F1 and PENDING-1.
+
+**Also open: `specs/020-disk-file-access`** (Draft) — disk file access for the
 build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
 `disk` subcommand, and boot configuration. Next step is `/speckit-clarify` or
 `/speckit-plan`.
 
-Four further specs are drafted but NOT started, each to be picked up in its
+Three further specs are drafted but NOT started, each to be picked up in its
 own session:
 
 - `specs/021-disk-manager` — graphical disk manager, live editing of the mounted
@@ -23,12 +36,8 @@ own session:
 - `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Builds on
   019's dialect mechanism, which has shipped; full compatibility needs a linker
   (GH #58).
-- `specs/024-mockingboard-speech` (GH #123) — the SSI-263 voice chip, picking up
-  the item GH #66 deferred, plus a sound-only (Mockingboard A) / sound+speech
-  (Mockingboard C) variant split with the C as the default for the ][+, //e, and
-  //e Enhanced. Depends on nothing; branch `024-mockingboard-speech`.
 
-A fifth is planned but not yet written: **per-slot card configuration**
+A fourth is not yet written: **per-slot card configuration**
 (GH #124) — a Hardware-tab dropdown selecting any supported card for any slot,
 with default slot assignments modeling period-typical install locations. It is
 where users will pick between the Mockingboard A and C, but 024 does not depend
