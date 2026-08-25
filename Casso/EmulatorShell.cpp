@@ -662,7 +662,7 @@ EmulatorShell::~EmulatorShell()
             m_refs.keyboard->SetInputEventSink (nullptr);
         }
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
@@ -1778,7 +1778,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     // elsewhere. The switch strip re-reads the device on its next
     // SyncSwitchBarState.
     {
-        Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+        Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
 
         if (iieKbd != nullptr)
         {
@@ -4519,7 +4519,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
 
 void EmulatorShell::SyncSwitchBarState()
 {
-    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
     bool               diskOn = false;
 
 
@@ -4573,7 +4573,7 @@ const Byte * EmulatorShell::AuxRamBuffer() const
 
 void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 {
-    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
 
 
 
@@ -5998,7 +5998,7 @@ bool EmulatorShell::ShouldPublishFrame()
 uint32_t EmulatorShell::ComputeVideoModeSig()
 {
     uint32_t                  sig = 0;
-    Apple2eSoftSwitchBank *   iie = nullptr;
+    Apple2eSoftSwitchBank *   iie = m_refs.iieSoftSwitches;
 
 
 
@@ -6008,8 +6008,6 @@ uint32_t EmulatorShell::ComputeVideoModeSig()
         sig |= m_refs.softSwitches->IsMixedMode()    ? 0x02u : 0u;
         sig |= m_refs.softSwitches->IsPage2()        ? 0x04u : 0u;
         sig |= m_refs.softSwitches->IsHiresMode()    ? 0x08u : 0u;
-
-        iie = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
 
         if (iie != nullptr)
         {
@@ -6335,32 +6333,40 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+    // Nothing to render before a machine is built, or after one is torn
+    // down. The modes are created and cleared together, so text40 answers
+    // for all of them and every use below can go straight to m_refs.
+    if (m_refs.text40 == nullptr)
+    {
+        return;
+    }
+
     // A color monitor renders text white; the monochrome monitors keep the
     // text renderer's green here and the post-render tint below recolors the
-    // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
-    // text mode and [4] (when present) the 80-col mode. Flash state is pushed
-    // in from emulated time (Render no longer self-advances it) so the blink
+    // whole frame to the selected phosphor. Flash state is pushed in from
+    // emulated time (Render no longer self-advances it) so the blink
     // survives the render-skip gate.
     {
         uint32_t textOnColor = (color == ColorMode::Color)
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
                                    : s_kMonoSourceTextBgra;
 
-        if (!m_videoModes.empty())
-        {
-            AppleTextMode *  text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
+        m_refs.text40->SetOnColor    (textOnColor);
+        m_refs.text40->SetFlashState (flashOn);
 
-            text40->SetOnColor    (textOnColor);
-            text40->SetFlashState (flashOn);
-        }
+        m_refs.text80->SetOnColor    (textOnColor);
+        m_refs.text80->SetFlashState (flashOn);
 
-        if (m_videoModes.size() > 4)
-        {
-            Apple80ColTextMode *  text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
+        // Both graphics modes decode from the dots differently per monitor,
+        // so they need the monitor type rather than a tint of one decode.
+        // In both cases the color decode has already discarded what a
+        // monochrome monitor would show -- DHR collapses each 4-dot cell to
+        // one palette entry, and hi-res folds the half-dot shift into a
+        // color pair -- so no amount of post-tinting brings it back.
+        bool monoMonitor = (color != ColorMode::Color);
 
-            text80->SetOnColor    (textOnColor);
-            text80->SetFlashState (flashOn);
-        }
+        m_refs.hiRes->SetMonochrome       (monoMonitor);
+        m_refs.doubleHiRes->SetMonochrome (monoMonitor);
     }
 
     m_machineManager->SelectVideoMode();
@@ -6371,19 +6377,14 @@ void EmulatorShell::RenderFramebuffer()
     // would darken every frame. (2) A change of active mode means the buffer
     // last held graphics / another mode, so no text row can be trusted. Steady
     // color text hits neither and lets AppleTextMode redraw only changed rows.
-    if (!m_videoModes.empty())
     {
         bool forceFullText = (color != ColorMode::Color)
                           || (m_refs.activeVideoMode != m_prevActiveVideoMode);
 
         if (forceFullText)
         {
-            static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
-
-            if (m_videoModes.size() > 4)
-            {
-                static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->InvalidateCache();
-            }
+            m_refs.text40->InvalidateCache();
+            m_refs.text80->InvalidateCache();
         }
     }
 
@@ -6407,35 +6408,31 @@ void EmulatorShell::RenderFramebuffer()
     // we route through Apple80ColTextMode::RenderRowRange; otherwise through
     // AppleTextMode::RenderRowRange. Both share a single composed code path
     // (no branched duplicated render logic).
-    if (m_mixedMode && m_graphicsMode && !m_videoModes.empty())
+    if (m_mixedMode && m_graphicsMode)
     {
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode();
+        bool  use80Col = m_refs.iieSoftSwitches != nullptr
+                      && m_refs.iieSoftSwitches->Is80ColMode();
 
-        if (use80Col && m_videoModes.size() > 4)
+        if (use80Col)
         {
-            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
-
-            text80->SetPage2 (false);
-            text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    nullptr,
-                                    m_cpuFramebuffer.data(),
-                                    kFramebufferWidth,
-                                    kFramebufferHeight);
+            m_refs.text80->SetPage2 (false);
+            m_refs.text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                           nullptr,
+                                           m_cpuFramebuffer.data(),
+                                           kFramebufferWidth,
+                                           kFramebufferHeight);
         }
         else
         {
-            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
-
-            text40->SetPage2 (m_page2);
-            text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    nullptr,
-                                    m_cpuFramebuffer.data(),
-                                    kFramebufferWidth,
-                                    kFramebufferHeight);
+            m_refs.text40->SetPage2 (m_page2);
+            m_refs.text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                           nullptr,
+                                           m_cpuFramebuffer.data(),
+                                           kFramebufferWidth,
+                                           kFramebufferHeight);
         }
     }
 
@@ -7396,7 +7393,7 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto *  iieKbd = m_refs.iieKeyboard;
 
 
 
@@ -7610,7 +7607,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 {
     HRESULT   hr     = S_OK;
-    auto    * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto    * iieKbd = m_refs.iieKeyboard;
     bool      lAlt   = false;
     bool      rAlt   = false;
 
@@ -7938,7 +7935,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
     bool  driveJoystick = m_arrowsJoystick &&
-                          (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                          (m_refs.iieSoftSwitches != nullptr ||
                            m_refs.gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
@@ -8041,15 +8038,14 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // so MapTypedChar can skip the remap and avoid double-translating).
             // Clipboard paste feeds KeyPress directly (not this path), so pasted
             // text is never remapped -- matching the hardware encoder.
-            auto  * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+            Byte  code = static_cast<Byte> (ch);
 
-            if (iieKbd != nullptr)
+            if (m_refs.iieKeyboard != nullptr)
             {
-                iieKbd->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
-            }
+                m_refs.iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
 
-            Byte    code   = (iieKbd != nullptr) ? iieKbd->MapTypedChar (static_cast<Byte> (ch))
-                                                 : static_cast<Byte> (ch);
+                code = m_refs.iieKeyboard->MapTypedChar (code);
+            }
 
             m_refs.keyboard->KeyPress (code);
             m_refs.keyboard->BeginKeyRepeat (code);
@@ -8108,7 +8104,7 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto   * iieSw    = m_refs.iieSoftSwitches;
     auto   * gamePort = m_refs.gamePort;
     bool     left     = false;
     bool     right    = false;
@@ -8193,7 +8189,7 @@ Error:
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto   * iieKbd   = m_refs.iieKeyboard;
     auto   * gamePort = m_refs.gamePort;
     bool     button0  = false;
     bool     button1  = false;
@@ -8301,8 +8297,8 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::SetArrowsJoystick (bool on)
 {
-    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * iieSw    = m_refs.iieSoftSwitches;
+    auto * iieKbd   = m_refs.iieKeyboard;
     auto * gamePort = m_refs.gamePort;
 
 
@@ -8372,7 +8368,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 {
-    auto             * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto             * iieSw = m_refs.iieSoftSwitches;
     InputMappingMode   prev  = m_pointerMode;
 
 
@@ -8806,7 +8802,7 @@ Error:
 
 void EmulatorShell::PushPaddlePosition()
 {
-    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieSw    = m_refs.iieSoftSwitches;
     auto * gamePort = m_refs.gamePort;
     Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
     Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
@@ -8842,7 +8838,7 @@ void EmulatorShell::PushPaddlePosition()
 
 void EmulatorShell::PushPaddleButton (int index, bool pressed)
 {
-    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto * iieKbd   = m_refs.iieKeyboard;
     auto * gamePort = m_refs.gamePort;
 
 
@@ -8928,7 +8924,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
     bool  isFireKey = m_arrowsJoystick &&
-                      (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                      (m_refs.iieSoftSwitches != nullptr ||
                        m_refs.gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');
 
@@ -9841,7 +9837,7 @@ void EmulatorShell::OpenInputDebugDialog()
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
@@ -9910,7 +9906,7 @@ void EmulatorShell::AttachDebugSinksIfOpen()
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());

@@ -281,11 +281,29 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             devCfg.type == "apple2e-keyboard")
         {
             m_shell.m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
+
+            // Resolve the derived //e pointer here, where the configured
+            // device type already says which keyboard was built, rather than
+            // dynamic_cast-ing it back out of the base pointer at each use.
+            if (devCfg.type == "apple2e-keyboard")
+            {
+                m_shell.m_refs.iieKeyboard =
+                    static_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+            }
         }
         else if (devCfg.type == "apple2-softswitches" ||
                  devCfg.type == "apple2e-softswitches")
         {
             m_shell.m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+
+            // Resolve the derived //e pointer here, where the configured
+            // device type already says which bank was built, rather than
+            // dynamic_cast-ing it back out of the base pointer at each use.
+            if (devCfg.type == "apple2e-softswitches")
+            {
+                m_shell.m_refs.iieSoftSwitches =
+                    static_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+            }
         }
         else if (devCfg.type == "apple2-gameport")
         {
@@ -304,38 +322,48 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // the softswitch (the keyboard's range $C000-$C063 would otherwise
     // eat it).
     {
-        auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
-        auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieKbd = m_shell.m_refs.iieKeyboard;
+        auto * iieSw  = m_shell.m_refs.iieSoftSwitches;
 
-        if (iieKbd != nullptr && iieSw != nullptr)
+        // One test per device, with everything that device owns wired inside
+        // it. The sibling link needs both, so it nests rather than adding a
+        // second test of either -- the machines that have one of these have
+        // the other, but nothing here depends on that.
+        if (iieKbd != nullptr)
         {
-            iieKbd->SetSoftSwitchSibling (iieSw);
-            iieSw->SetKeyboard           (iieKbd);
+            if (iieSw != nullptr)
+            {
+                iieKbd->SetSoftSwitchSibling (iieSw);
+                iieSw->SetKeyboard           (iieKbd);
+            }
+
+            if (m_shell.m_refs.speaker != nullptr)
+            {
+                iieKbd->SetSpeakerSibling (m_shell.m_refs.speaker);
+            }
+
+            if (m_shell.m_mmu != nullptr)
+            {
+                iieKbd->SetMmu (m_shell.m_mmu.get());
+            }
+
+            if (m_shell.m_videoTiming != nullptr)
+            {
+                iieKbd->SetVideoTiming (m_shell.m_videoTiming.get());
+            }
         }
 
-        if (iieKbd != nullptr && m_shell.m_refs.speaker != nullptr)
+        if (iieSw != nullptr)
         {
-            iieKbd->SetSpeakerSibling (m_shell.m_refs.speaker);
-        }
+            if (m_shell.m_videoTiming != nullptr)
+            {
+                iieSw->SetVideoTiming (m_shell.m_videoTiming.get());
+            }
 
-        if (iieKbd != nullptr && m_shell.m_mmu != nullptr)
-        {
-            iieKbd->SetMmu (m_shell.m_mmu.get());
-        }
-
-        if (iieKbd != nullptr && m_shell.m_videoTiming != nullptr)
-        {
-            iieKbd->SetVideoTiming (m_shell.m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_shell.m_videoTiming != nullptr)
-        {
-            iieSw->SetVideoTiming (m_shell.m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_shell.m_mmu != nullptr)
-        {
-            iieSw->SetMmu (m_shell.m_mmu.get());
+            if (m_shell.m_mmu != nullptr)
+            {
+                iieSw->SetMmu (m_shell.m_mmu.get());
+            }
         }
     }
 
@@ -343,15 +371,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
     if (m_shell.m_mmu != nullptr && m_shell.m_refs.mainRamDev != nullptr)
     {
-        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-
         HRESULT hrMmu = m_shell.m_mmu->Initialize (
             &m_shell.m_memoryBus,
             m_shell.m_refs.mainRamDev,
             nullptr,
             nullptr,
             nullptr,
-            iieSw);
+            m_shell.m_refs.iieSoftSwitches);
 
         if (FAILED (hrMmu))
         {
@@ -520,8 +546,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get());
             }
 
-            iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
-            iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+            iieKbd = m_shell.m_refs.iieKeyboard;
+            iieSw = m_shell.m_refs.iieSoftSwitches;
 
             if (iieKbd != nullptr)
             {
@@ -855,14 +881,14 @@ void MachineManager::WireLanguageCard()
             m_shell.m_mmu->SetLanguageCard (lc);
         }
 
-        iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+        iieKbd = m_shell.m_refs.iieKeyboard;
 
         if (iieKbd != nullptr)
         {
             iieKbd->SetLanguageCard (lc);
         }
 
-        iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        iieSw = m_shell.m_refs.iieSoftSwitches;
 
         if (iieSw != nullptr)
         {
@@ -940,7 +966,7 @@ void MachineManager::WireApple2cRomBank()
 
 
     Apple2eMmu            * mmu      = m_shell.m_mmu.get();
-    Apple2eSoftSwitchBank * sw       = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    Apple2eSoftSwitchBank * sw       = m_shell.m_refs.iieSoftSwitches;
     LanguageCard          * lc       = nullptr;
     std::vector<Byte>       fileBytes;
     size_t                  twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
@@ -1111,17 +1137,18 @@ void MachineManager::RebuildBankingPages()
 //
 //  CreateVideoModes
 //
-//  Builds all five renderers up front and installs 40-column text as the
-//  active one.
-//
-//  The order is a CONTRACT, not a construction convenience -- callers index
-//  this vector positionally (0 text40, 1 lo-res, 2 hi-res, 3 double hi-res,
-//  4 text80), so inserting a mode anywhere but the end would silently
-//  re-point every existing lookup.
+//  Builds all five renderers up front, publishes each one by name in
+//  m_refs, and installs 40-column text as the active one.
 //
 //  Every mode is created regardless of machine, because SelectVideoMode
 //  switches between them per frame from the soft-switch state and cannot
 //  afford to construct one mid-render.
+//
+//  m_videoModes owns them; m_refs names them. This is the ONLY function that
+//  touches the vector's contents, so its order carries no meaning and adding
+//  a mode cannot disturb the existing ones -- which was not true while every
+//  caller reached in by index and downcast to whatever it believed that slot
+//  held.
 //
 //  Aux memory is wired into the two modes that read it -- 80-column text and
 //  double hi-res -- only when an MMU actually provides it, so a ][+ gets the
@@ -1134,8 +1161,8 @@ void MachineManager::RebuildBankingPages()
 
 void MachineManager::CreateVideoModes()
 {
-    auto                                     textMode        = std::make_unique<AppleTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
-    Byte                                   * auxBuf          = nullptr;
+    Byte *                                   auxBuf          = nullptr;
+    std::unique_ptr<AppleTextMode>           textMode;
     std::unique_ptr<AppleLoResMode>          loResMode;
     std::unique_ptr<AppleHiResMode>          hiResMode;
     std::unique_ptr<AppleDoubleHiResMode>    doubleHiResMode;
@@ -1143,34 +1170,42 @@ void MachineManager::CreateVideoModes()
 
 
 
-    m_shell.m_refs.activeVideoMode = textMode.get();
-    m_shell.m_videoModes.push_back (std::move (textMode));
-
-    loResMode = std::make_unique<AppleLoResMode> (m_shell.m_memoryBus);
-    m_shell.m_videoModes.push_back (std::move (loResMode));
-
-    hiResMode = std::make_unique<AppleHiResMode> (m_shell.m_memoryBus);
-    m_shell.m_videoModes.push_back (std::move (hiResMode));
-
+    textMode        = std::make_unique<AppleTextMode>        (m_shell.m_memoryBus, m_shell.m_charRom);
+    loResMode       = std::make_unique<AppleLoResMode>       (m_shell.m_memoryBus);
+    hiResMode       = std::make_unique<AppleHiResMode>       (m_shell.m_memoryBus);
     doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
-    m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
+    text80          = std::make_unique<Apple80ColTextMode>   (m_shell.m_memoryBus, m_shell.m_charRom);
 
-    // Index 4: 80-column text (used on //e). Wired with aux memory
-    // from the Apple2eMmu when present.
-    text80 = std::make_unique<Apple80ColTextMode> (m_shell.m_memoryBus, m_shell.m_charRom);
+    m_shell.m_refs.text40      = textMode.get();
+    m_shell.m_refs.loRes       = loResMode.get();
+    m_shell.m_refs.hiRes       = hiResMode.get();
+    m_shell.m_refs.doubleHiRes = doubleHiResMode.get();
+    m_shell.m_refs.text80      = text80.get();
+
+    m_shell.m_refs.activeVideoMode = m_shell.m_refs.text40;
 
     auxBuf = GetAuxRamBuffer();
 
     if (auxBuf != nullptr)
     {
-        // DHR also needs aux memory access (FR-019). Index 3 =
-        // AppleDoubleHiResMode.
-        auto *  dhr = static_cast<AppleDoubleHiResMode *> (m_shell.m_videoModes[3].get());
+        text80->SetAuxMemory          (auxBuf);
+        doubleHiResMode->SetAuxMemory (auxBuf);
 
-        text80->SetAuxMemory (auxBuf);
-        dhr->SetAuxMemory (auxBuf);
+        // DHR needs BOTH banks at once, so it takes main RAM directly too.
+        // The bus cannot serve the main half: its $2000-$3FFF pages follow
+        // live banking and point at aux under 80STORE+HIRES+PAGE2, which
+        // made DHR render the aux bytes into both halves of every pair.
+        // This is the same buffer the MMU treats as main.
+        if (m_shell.m_refs.mainRamDev != nullptr)
+        {
+            doubleHiResMode->SetMainMemory (m_shell.m_refs.mainRamDev->GetData());
+        }
     }
 
+    m_shell.m_videoModes.push_back (std::move (textMode));
+    m_shell.m_videoModes.push_back (std::move (loResMode));
+    m_shell.m_videoModes.push_back (std::move (hiResMode));
+    m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
     m_shell.m_videoModes.push_back (std::move (text80));
 }
 
@@ -1358,7 +1393,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // $C064-$C067 countdown) off the same CPU bus-cycle accumulator so a
     // paddle read measures elapsed cycles since the strobe.
     {
-        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieSw = m_shell.m_refs.iieSoftSwitches;
 
         if (iieSw != nullptr)
         {
@@ -1656,7 +1691,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     {
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+        auto * iieSwitches = m_shell.m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
@@ -1970,11 +2005,14 @@ void MachineManager::SelectVideoMode()
 {
     bool                     is80ColMode     = false;
     bool                     altCharSet      = false;
-    Apple2eSoftSwitchBank  * iieSoftSwitches = nullptr;
+    bool                     doubleHiRes     = false;
+    Apple2eSoftSwitchBank *  iieSoftSwitches = m_shell.m_refs.iieSoftSwitches;
 
 
 
-    if (m_shell.m_videoModes.size() < 3)
+    // No machine built yet, or one torn down. The modes are created and
+    // cleared together, so text40 answers for all of them.
+    if (m_shell.m_refs.text40 == nullptr)
     {
         return;
     }
@@ -1988,55 +2026,44 @@ void MachineManager::SelectVideoMode()
         m_shell.m_hiresMode    = m_shell.m_refs.softSwitches->IsHiresMode();
     }
 
-    // When 80STORE is active on the //e, $C054/$C055 control aux/main
-    // memory selection -- not page 1/page 2. Suppress page2 for video
-    // rendering.
-    iieSoftSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-
-    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
+    // Everything the //e bank contributes, gathered under one test: it is
+    // null on a ][ / ][+, where the defaults above are the right answer.
+    if (iieSoftSwitches != nullptr)
     {
-        m_shell.m_page2 = false;
-    }
+        // When 80STORE is active, $C054/$C055 control aux/main memory
+        // selection -- not page 1/page 2. Suppress page2 for rendering.
+        if (iieSoftSwitches->Is80Store())
+        {
+            m_shell.m_page2 = false;
+        }
 
-    is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    altCharSet = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
+        is80ColMode = iieSoftSwitches->Is80ColMode();
+        altCharSet  = iieSoftSwitches->IsAltCharSet();
+        doubleHiRes = iieSoftSwitches->IsDoubleHiRes();
+    }
 
     // Select video mode based on soft switch state
     if (!m_shell.m_graphicsMode)
     {
         // Text mode: use 80-col on //e if enabled, else 40-col
-        if (is80ColMode && m_shell.m_videoModes.size() > 4)
-        {
-            m_shell.m_refs.activeVideoMode = m_shell.m_videoModes[4].get();
-        }
-        else
-        {
-            m_shell.m_refs.activeVideoMode = m_shell.m_videoModes[0].get();
-        }
+        m_shell.m_refs.activeVideoMode = is80ColMode
+                                             ? static_cast<VideoOutput *> (m_shell.m_refs.text80)
+                                             : static_cast<VideoOutput *> (m_shell.m_refs.text40);
     }
     else if (!m_shell.m_hiresMode)
     {
         // Lo-res graphics
-        m_shell.m_refs.activeVideoMode = m_shell.m_videoModes[1].get();
+        m_shell.m_refs.activeVideoMode = m_shell.m_refs.loRes;
     }
     else
     {
-        // Hi-res graphics -- use DHR (index 3) when DHIRES + 80COL are
-        // both active on the //e (FR-019, audit M8). Otherwise standard
-        // hi-res (index 2).
-        bool useDhr = iieSoftSwitches != nullptr
-                   && iieSoftSwitches->IsDoubleHiRes()
-                   && is80ColMode
-                   && m_shell.m_videoModes.size() > 3;
+        // Hi-res graphics -- double hi-res needs DHIRES *and* 80COL together
+        // on the //e (FR-019, audit M8). Otherwise standard hi-res.
+        bool useDhr = doubleHiRes && is80ColMode;
 
-        if (useDhr)
-        {
-            m_shell.m_refs.activeVideoMode = m_shell.m_videoModes[3].get();
-        }
-        else
-        {
-            m_shell.m_refs.activeVideoMode = m_shell.m_videoModes[2].get();
-        }
+        m_shell.m_refs.activeVideoMode = useDhr
+                                             ? static_cast<VideoOutput *> (m_shell.m_refs.doubleHiRes)
+                                             : static_cast<VideoOutput *> (m_shell.m_refs.hiRes);
     }
 
     // Pass page2 state to the active renderer
@@ -2046,14 +2073,10 @@ void MachineManager::SelectVideoMode()
     }
 
     // Keep text mode page2-aware for mixed-mode overlay rendering
-    m_shell.m_videoModes[0]->SetPage2 (m_shell.m_page2);
+    m_shell.m_refs.text40->SetPage2 (m_shell.m_page2);
 
     // Propagate ALTCHARSET to both text-mode renderers.
-    static_cast<AppleTextMode *> (m_shell.m_videoModes[0].get())->SetAltCharSet (altCharSet);
-
-    if (m_shell.m_videoModes.size() > 4)
-    {
-        static_cast<Apple80ColTextMode *> (m_shell.m_videoModes[4].get())->SetAltCharSet (altCharSet);
-    }
+    m_shell.m_refs.text40->SetAltCharSet (altCharSet);
+    m_shell.m_refs.text80->SetAltCharSet (altCharSet);
 }
 
