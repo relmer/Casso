@@ -43,16 +43,16 @@ static constexpr float   s_kMonitorRestMm = 96.0f;
 // Brand stamp placement on the Monitor //c's chin (model mm): the cassowary
 // spans this box, proud of the bezel plate's front face.
 //
-// TIED TO cad_monitor2c.py's PLATE. The plate is the flat land the bezel's
-// forward slope ends at -- it starts SHOULDER (14 mm) in from the case
-// outline and runs to the screen opening at z 34, so the chin's flat band is
-// z 14..34 and a mark has to live inside it. Put it lower and it lands on the
-// slope, where a flat stamp either floats off the surface or sinks into it.
-// The front Y is the plate face (-RISE) plus the stamp's own standoff.
+// TIED TO cad_monitor2c.py's FLAT FRAME. The front is a flat frame that then
+// angles in toward the tube; the chin's flat band runs from the outer roll's
+// tangent (about z 4.8) to where the slope's own roll begins (about z 18.7),
+// and a mark has to live inside that. Put it higher and it lands on the
+// slope, where a flat stamp sinks into the surface at one end. The front Y is
+// the frame plane (FRONT_Y = -EDGE_R) plus the stamp's own standoff.
 static constexpr float   s_kBrandLeftMm   =  30.0f;
-static constexpr float   s_kBrandTopZMm   =  31.0f;
-static constexpr float   s_kBrandHeightMm =  14.0f;
-static constexpr float   s_kBrandFrontY   =  -8.6f;
+static constexpr float   s_kBrandTopZMm   =  17.0f;
+static constexpr float   s_kBrandHeightMm =  11.0f;
+static constexpr float   s_kBrandFrontY   =  -5.4f;
 
 // The Monitor II's mark: low on the right reveal, on the axis the MODEL
 // names through its brand anchor -- the reveal's center line, which is the
