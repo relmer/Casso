@@ -8,6 +8,16 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.18.1] — monochrome graphics fidelity
+
+The green, amber, and white monitors were showing a tinted copy of what a
+*color* monitor makes from the dots — and that decode has already thrown away
+exactly the detail a monochrome monitor exists to show. Both graphics modes
+now decode for the monitor you picked. Surfaced by
+[(Apple IIe) Sixies](https://dskilton.itch.io/apple-sixies), which asks for
+"560x192 monochrome double-hi-resolution graphics" and was unreadable on
+every monitor Casso offered.
+
 ### Fixed
 - **Hi-res on a monochrome monitor now shows the 560 half-dot stream.** Green,
   amber, and white monitors used to luminance-tint the artifact-color decode,
@@ -44,6 +54,7 @@ Entries before versioning was introduced use dates only.
   brightness. The color monitor is unchanged.
 
 ### Changed
+- internal: the shell addresses its video modes and its //e keyboard / soft-switch bank by name instead of by position in a vector and by repeated downcast — the positional lookups made every use site restate which slot held which renderer, and the `size()` guards around them were unreachable
 - internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
 
 ## [1.18.0] — Merlin assembler dialect
