@@ -6,8 +6,9 @@ The consumer of this contract is 6502 code running inside the emulator. It is th
 contract that matters most in the feature, because every compatibility
 requirement (FR-007, FR-014, FR-016, FR-017) is a statement about it.
 
-Entries marked **PENDING-2** await the board schematics; **PENDING-1** awaits the
-chip datasheet. Their presence is fixed, their addresses and encodings are not.
+Entries marked **PENDING-2** await the board schematics. **PENDING-1 is resolved**
+— the chip's register interface below is transcribed from its datasheet (T001),
+with two residual gaps flagged inline where OCR could not recover a graphic.
 
 ---
 
@@ -43,19 +44,104 @@ A variant remains available (User Story 3).
 
 ---
 
-## Voice chip register interface (**PENDING-1**)
+## Voice chip register interface
 
-Shape that can be relied on for structuring code; encodings come from the
-datasheet.
+Transcribed from the SSI-263A datasheet (T001). Five eight-bit registers,
+selected by a three-bit address `RS2–RS0`.
 
-| Function | Direction | Notes |
+| Addr | Register | Fields |
 |---|---|---|
-| Phoneme + duration | Write | Selects what sounds and for how long |
-| Inflection | Write | Pitch contour |
-| Rate | Write | Speaking rate |
-| Amplitude / transition | Write | Loudness, and how formants glide between phonemes |
-| Filter frequency | Write | Spectral shaping |
-| Request / ready status | Read | Appears as a high-order bit |
+| 0 | Duration / Phoneme | `DR1,DR0` (bits 7:6) relative phoneme duration; `P5–P0` (bits 5:0) phoneme select |
+| 1 | Inflection | `I11–I0` inflection target frequency / immediate pitch |
+| 2 | Rate / Inflection | `R3–R0` speech rate; remaining inflection bits |
+| 3 | Control / Articulation / Amplitude | `CTL` control bit; `T2–T0` articulation (formant movement rate); `A3–A0` audio amplitude |
+| 4 | Filter Frequency | `FF7–FF0` switched-capacitor vocal-tract filter clock |
+
+> **Verify before coding**: the datasheet's *Register Input Formats* table is a
+> graphic and did not survive OCR. The **field names and their meanings above are
+> certain**; the exact bit positions of the inflection fields split across
+> registers 1 and 2 are **not yet recovered** and must be read off the PDF page
+> image. Everything else in this section is from running text and is reliable.
+
+### Published formulas
+
+All are relative to `XCK`, the external clock (800 kHz–1 MHz nominal with `DIV2`
+low, twice that with `DIV2` high; the datasheet suggests a 3.5795 MHz colorburst
+crystal divided by two).
+
+```text
+Frame Duration      = 4096 × (16 − R) / XCK          R = Rate register value
+Phoneme Duration    = Frame Duration × (4 − D)       D = Duration register value
+Inflection Frequency = XCK / (8 × (4096 − I))        I = Inflection register value
+Filter Frequency    = XCK / (2 × (256 − FF))         FF = Filter register value
+```
+
+Typical values the datasheet names: rate `$A`, articulation `5`, inflection for
+~90 Hz, filter clock ~20 kHz.
+
+### Mode selection — how A/R is armed and disabled
+
+Modes latch on a `CTL` **1 → 0 transition**, taking the operating mode from the
+`DR1`/`DR0` bits at that moment:
+
+| DR1 | DR0 | Mode |
+|---|---|---|
+| HI | HI | A/R active; phoneme timing; transitioned inflection — *the most commonly used mode* |
+| HI | LO | A/R active; phoneme timing; immediate inflection |
+| LO | HI | A/R active; frame timing; immediate inflection |
+| LO | LO | **Disables the A/R output only**; leaves the previous A/R response otherwise unchanged |
+
+`CTL` = 1 puts the device in **Power Down**: excitation sources and analog
+circuits off, register contents retained, **A/R output disabled**. It is set high
+by `PD/RST` going low **and on power-up**.
+
+**This discharges FR-015 directly.** Quiescence-until-programmed is not emulator
+policy invented for safety — the real part powers up with `CTL` set, silent and
+not requesting, and stays that way until software drives `CTL` low. Model that
+and the requirement falls out.
+
+### Reading the chip
+
+`D7` becomes an output carrying the **inverted state of A/R** when the device is
+read (`R/W` high, `CS1` = 0, `CS0` = 1). **The register address bits are ignored
+on read** — every address in the chip's range returns the same status bit. Only
+`D7` is driven.
+
+### A/R behavior
+
+Open-collector output. Transitions **high → low once the phoneme has been
+generated**, and is documented as usable as an interrupt request for new phoneme
+data. The datasheet notes that several milliseconds may elapse between request
+and load with no detectable degradation in speech quality — useful latitude for
+the emulated timing.
+
+### Phoneme chart — 64 codes
+
+`$00`–`$3F` via `P5–P0`. Datasheet hex codes are shown with the duration bits
+zero, so they are the phoneme numbers directly.
+
+| | | | | | | |
+|---|---|---|---|---|---|---|
+| `00` PA *(pause)* | `01` E | `02` EI | `03` Y | `04` IY | `05` AY | `06` IE |
+| `07` I | `08` A | `09` AI | `0A` EH | `0B` EH1 | `0C` AE | `0D` AE1 |
+| `0E` AH | `0F` AH1 | `10` AW | `11` O | `12` OU | `13` OO | `14` IU |
+| `15` I1 | `16` U | `17` U1 | `18` UH | `19` UH1 | `1A` UH2 | `1B` UH3 |
+| `1C` ER | `1D` R | `1E` R1 | `1F` R2 | `20` L | `21` L1 | `22` LF |
+| `23` W | `24` B | `25` D | `26` KV | `27` P | `28` T | `29` K |
+| `2A` HV *(hold vocal)* | `2B` HVC | `2C` HF | `2D` HFC | `2E` HN | `2F` Z | `30` S |
+| `31` J | `32` SCH | `33` V | `34` F | `35` THV | `36` TH | `37` M |
+| `38` N | `39` NG | `3A` — | `3B` — | `3C` — | `3D` — | `3E` E2 |
+| `3F` LB | | | | | | |
+
+Codes `$3A`–`$3D` are non-English phonemes (German and French examples in the
+chart) whose symbols OCR'd unreliably; read them off the PDF before use. A few
+others were corrected from obvious OCR damage — `04` and `17` in particular —
+and the whole chart should be checked against the page image before it becomes
+a table in code.
+
+Note `$2A`–`$2E` are *hold* states (vocal, vocal closure, fricative closure,
+nasal) rather than sounds, which matters for the state machine: they sustain
+rather than articulate.
 
 ### Behavioral guarantees, independent of encoding
 
