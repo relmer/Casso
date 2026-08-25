@@ -299,6 +299,158 @@ namespace Via6522TestNs
         }
 
 
+        TEST_METHOD (Ca1FallingEdgeSetsFlag)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegPcr, 0);          // CA1 falling edge
+
+            via.SetCa1 (true);
+            Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqCa1),
+                              L"Idle-high line must not raise a flag");
+
+            via.SetCa1 (false);
+            Assert::AreEqual ((int) Via6522::kIrqCa1, (int) (via.GetIfr() & Via6522::kIrqCa1),
+                              L"Falling edge must latch the CA1 flag");
+        }
+
+
+        TEST_METHOD (Ca1EdgeSelectFollowsPcr)
+        {
+            Via6522   viaFall;
+            Via6522   viaRise;
+
+
+
+            viaFall.WriteRegister (Via6522::kRegPcr, 0);
+            viaRise.WriteRegister (Via6522::kRegPcr, Via6522::kPcrCa1Rising);
+
+            // Same stimulus, opposite configured edge: exactly one must latch.
+            viaFall.SetCa1 (false);
+            viaRise.SetCa1 (false);
+
+            Assert::AreEqual ((int) Via6522::kIrqCa1, (int) (viaFall.GetIfr() & Via6522::kIrqCa1),
+                              L"Falling-edge VIA must latch on a high-to-low transition");
+            Assert::AreEqual (0, (int) (viaRise.GetIfr() & Via6522::kIrqCa1),
+                              L"Rising-edge VIA must ignore a high-to-low transition");
+
+            viaRise.SetCa1 (true);
+            Assert::AreEqual ((int) Via6522::kIrqCa1, (int) (viaRise.GetIfr() & Via6522::kIrqCa1),
+                              L"Rising-edge VIA must latch on a low-to-high transition");
+        }
+
+
+        TEST_METHOD (Cb1UsesItsOwnPcrBit)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegPcr, Via6522::kPcrCb1Rising);
+
+            via.SetCb1 (false);
+            Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqCb1),
+                              L"CB1 configured rising must ignore a falling edge");
+
+            via.SetCb1 (true);
+            Assert::AreEqual ((int) Via6522::kIrqCb1, (int) (via.GetIfr() & Via6522::kIrqCb1),
+                              L"CB1 must latch on its configured edge");
+        }
+
+
+        TEST_METHOD (Ca1FlagClearsOnPortAAccessButNotNoHandshakeAlias)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegPcr, 0);
+
+            via.SetCa1 (false);
+            via.ReadRegister (Via6522::kRegOraNh);
+            Assert::AreEqual ((int) Via6522::kIrqCa1, (int) (via.GetIfr() & Via6522::kIrqCa1),
+                              L"$F is the no-handshake alias and must NOT clear CA1");
+
+            via.ReadRegister (Via6522::kRegOra);
+            Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqCa1),
+                              L"Reading ORA must clear the CA1 flag");
+        }
+
+
+        TEST_METHOD (Ca1InterruptVectorsAndAcknowledgeDoesNotRelatch)
+        {
+            ViaTestCpu            cpu;
+            InterruptController   ic (&cpu);
+            Via6522               via;
+
+
+
+            via.AttachInterruptController (&ic);
+
+            via.WriteRegister (Via6522::kRegPcr, 0);
+            via.WriteRegister (Via6522::kRegIer,
+                               static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqCa1));
+
+            via.SetCa1 (false);
+            Assert::IsTrue (cpu.IrqAsserted(),
+                            L"An enabled CA1 edge must drive the shared IRQ line");
+
+            via.ReadRegister (Via6522::kRegOra);
+            Assert::IsFalse (cpu.IrqAsserted(),
+                             L"Acknowledging must de-assert the line");
+
+            // The line is still low. A level that never transitions again must
+            // not re-latch -- the flag is edge-triggered, not level-triggered.
+            via.Tick (1000);
+            Assert::IsFalse (cpu.IrqAsserted(),
+                             L"A held-low line must not spuriously re-latch");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  UndrivenControlLinesChangeNothing
+        //
+        //  The compatibility hinge for the Mockingboard A/C split (spec 024
+        //  R13). A card with no handshaking peripheral never calls SetCa1 or
+        //  SetCb1, so the lines sit at their idle-high reset value, no edge is
+        //  ever seen, and the VIA cannot acquire an interrupt source it did not
+        //  have before control lines were modeled.
+        //
+        //  Enabling EVERY interrupt source and running the timers is the point:
+        //  if anything about the control-line machinery could raise a flag on
+        //  its own, this is where it would show.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UndrivenControlLinesChangeNothing)
+        {
+            ViaTestCpu            cpu;
+            InterruptController   ic (&cpu);
+            Via6522               via;
+            Byte                  ifr = 0;
+
+
+
+            via.AttachInterruptController (&ic);
+
+            via.WriteRegister (Via6522::kRegIer, static_cast<Byte> (Via6522::kIerSetClear | 0x7F));
+
+            via.Tick (100000);
+
+            ifr = via.GetIfr();
+
+            Assert::AreEqual (0, (int) (ifr & Via6522::kIrqCa1),
+                              L"An undriven CA1 must never latch");
+            Assert::AreEqual (0, (int) (ifr & Via6522::kIrqCb1),
+                              L"An undriven CB1 must never latch");
+            Assert::IsFalse (cpu.IrqAsserted(),
+                             L"No timer armed and no line driven must leave the IRQ line idle");
+        }
+
+
     private:
         static void EnableTimer1Irq (Via6522 & via)
         {
