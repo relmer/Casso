@@ -8,56 +8,6 @@ Ka 0 0 0
 Kd 0.055 0.055 0.062
 d 1
 
-newmtl vent0
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent1
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent2
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent3
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent4
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent5
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent6
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent7
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent8
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
-newmtl vent9
-Ka 0 0 0 
-Kd 0.78 0.772 0.745
-d 1
-
 newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24

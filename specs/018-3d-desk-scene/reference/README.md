@@ -3,6 +3,47 @@
 Where the models' shapes come from. A generator that says "from photographs"
 and does not say WHICH is a generator nobody can check.
 
+## Monitor //c (order A2M4090, model G0905)
+
+Four photographs, supplied 2026-08-25: a straight-on front, a rear
+three-quarter showing the label and the back panel, and two side elevations.
+
+| View | What it settles |
+|------|-----------------|
+| Front, straight on | The bezel's width, its slope in toward the screen, the screen's rounded corners, the rainbow logo at the chin's left and the `/` indicator at its right |
+| Rear three-quarter | The two-mass case; the louvered lid; the molded carrying handle at the very back; the rear panel's mains inlet, four trim controls and screw; the label (`Order No. A2M4090`, `Model No. G0905`, made in Korea) |
+| Side elevation x2 | The proportion of the two masses -- the tube housing about half the depth and the full height, the electronics box behind it much shorter -- and the louvers running along the flanks |
+
+### What they establish
+
+- **The front has no edges anywhere.** The bezel plate stands proud and rolls
+  back to the case through a quarter-round that carries around the whole
+  perimeter AND THROUGH THE CORNERS: the left flank's angle sweeps into the
+  top's rather than meeting it at a crease. The model used to loft sharp
+  rectangles, which put a hard diagonal at each corner.
+- **The bezel is wide**, and the overhang from its face to the glass is
+  SHALLOW -- the tube sits close behind it.
+- **The screen's interior corners are curves**, not mitres.
+- **The case is two masses**, the tube housing and a shorter, narrower
+  electronics box behind it, meeting at a step rather than a taper.
+- **The box is louvered** along both flanks and across its lid, with a molded
+  carrying handle sunk into the lid at the very back.
+
+### Dimensions
+
+9.5 x 7.3 x 10.2 inches (W x H x D), 11 lb -- the published figures. The
+picture size is NOT published: some spec sheets repeat a 9.1-inch viewable,
+which cannot be right on a case 9.5 inches wide, and the front photograph's
+bezel is far too wide for it. The model uses 168 x 126 mm, a 210 mm (8.3 inch)
+diagonal, which is what a 9-inch tube shows and what the photograph's
+proportions support. A tape on a real one would settle it.
+
+### Not established
+
+- **Which flank the power switch is on.** Both side photographs show one, and
+  they appear to be opposite sides; one of the two is being misread. Modeled
+  on the left, and invisible in this scene either way.
+
 ## Disk IIc (A2M4050Z)
 
 Twelve photographs, supplied 2026-08-23:
