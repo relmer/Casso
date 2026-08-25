@@ -340,6 +340,52 @@ critical path.
 plus an extraction worth publishing back to the community that made the die shots
 available in the first place.
 
+### D11c — Spike result (2026-08-25): the array is there, and it is legible
+
+Ran against the 7000 × 5803 published image. **Encouraging, and not yet
+sufficient.**
+
+**The parameter ROM is located.** A block of strongly periodic texture occupies
+native coordinates **x 2350–3645, y 3100–3745** — visually distinct from the
+surrounding logic, which is irregular. Autocorrelation gives a **column pitch of
+19.0 px** (peaks at 19 and 38) and a **row pitch of ~13.3 px** (peaks at 13, 27,
+40, 53 — a fundamental with three harmonics, so the earlier 27 px reading was a
+double-period artifact).
+
+**Its geometry matches the expected ROM almost exactly:**
+
+| | Measured | Expected |
+|---|---|---|
+| Columns | **68** | 64 phonemes (+ spares / dummy columns, which are conventional) |
+| Rows | **48** | 12 control parameters × 4 bits = **48** |
+
+The 48 is the persuasive number. The patent describes twelve control-signal
+parameters per phoneme, and secondary sources describe the formant parameters as
+4-bit — 12 × 4 = 48 rows, measured independently from image periodicity. Treat
+this as strong corroboration rather than proof; the mapping of rows to specific
+parameters is still unverified.
+
+**The cells are not obscured.** Metal is intact, but the programming features are
+visible *through* it — this is contact/via-programmed ROM, where presence or
+absence of a contact encodes the bit, and that is exactly the case that survives
+an un-delayered shot. Implant programming, the failure mode that would have ended
+route C outright, is ruled out.
+
+**But this resolution is marginal.** At 19 × 13.3 px per cell, the programming
+features are only a few pixels across. A naive per-cell contrast metric returned
+93% of cells as set, which is not plausible ROM content — it was measuring stripe
+edges, not contacts. Reliable extraction needs a proper cell template, and
+realistically more pixels.
+
+**No bits were extracted, and none should be claimed.** The spike's question was
+whether cells are distinguishable; the answer is that they are present and
+visible but under-resolved at 40% of the master's linear resolution.
+
+**Recommendation: escalate (T057).** The full 17,265 × 14,313 master would give
+roughly **47 px column and 33 px row pitch** — a different proposition entirely,
+and very likely sufficient. The master exists; it is simply not published.
+Requesting it is a message, not a project.
+
 ### D11-prior — the options as originally framed
 
 D10a means the acoustic-fidelity target is a scope decision, not a research task.
