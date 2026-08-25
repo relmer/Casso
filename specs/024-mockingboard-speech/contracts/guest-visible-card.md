@@ -49,19 +49,52 @@ A variant remains available (User Story 3).
 Transcribed from the SSI-263A datasheet (T001). Five eight-bit registers,
 selected by a three-bit address `RS2–RS0`.
 
-| Addr | Register | Fields |
-|---|---|---|
-| 0 | Duration / Phoneme | `DR1,DR0` (bits 7:6) relative phoneme duration; `P5–P0` (bits 5:0) phoneme select |
-| 1 | Inflection | `I11–I0` inflection target frequency / immediate pitch |
-| 2 | Rate / Inflection | `R3–R0` speech rate; remaining inflection bits |
-| 3 | Control / Articulation / Amplitude | `CTL` control bit; `T2–T0` articulation (formant movement rate); `A3–A0` audio amplitude |
-| 4 | Filter Frequency | `FF7–FF0` switched-capacitor vocal-tract filter clock |
+Read directly off the datasheet's *Register Input Formats* table (page image, not
+OCR). `X` = don't care.
 
-> **Verify before coding**: the datasheet's *Register Input Formats* table is a
-> graphic and did not survive OCR. The **field names and their meanings above are
-> certain**; the exact bit positions of the inflection fields split across
-> registers 1 and 2 are **not yet recovered** and must be read off the PDF page
-> image. Everything else in this section is from running text and is reliable.
+| RS2 | RS1 | RS0 | Register | D7 | D6 | D5 | D4 | D3 | D2 | D1 | D0 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| LO | LO | LO | Duration/Phoneme (DR/P) | `DR1` | `DR0` | `P5` | `P4` | `P3` | `P2` | `P1` | `P0` |
+| LO | LO | HI | Inflection (I) | `I10` | `I9` | `I8` | `I7` | `I6` | `I5` | `I4` | `I3` |
+| LO | HI | LO | Rate/Inflection (R/I) | `R3` | `R2` | `R1` | `R0` | `I11` | `I2` | `I1` | `I0` |
+| LO | HI | HI | Control/Articulation/Amplitude (C/A/A) | `CTL` | `T2` | `T1` | `T0` | `A3` | `A2` | `A1` | `A0` |
+| HI | X | X | Filter Frequency (F) | `F7` | `F6` | `F5` | `F4` | `F3` | `F2` | `F1` | `F0` |
+
+**Two decode consequences that are easy to get wrong:**
+
+1. **The 12-bit inflection value is scattered across two registers, non-contiguously.**
+   `I11` sits alone at register 2 bit 3, `I10–I3` occupy all of register 1, and
+   `I2–I0` occupy register 2 bits 2–0. Reassembly is therefore:
+
+   ```text
+   I = (reg2 & 0x08) << 8   |   reg1 << 3   |   (reg2 & 0x07)
+       ^ I11 -> bit 11          ^ I10..I3       ^ I2..I0
+   ```
+
+2. **`RS2` high selects Filter Frequency regardless of `RS1`/`RS0`.** Register
+   addresses 4, 5, 6, and 7 all alias to the same filter register — there are
+   five registers in eight address slots.
+
+Field meanings, from the same page: `DR1,DR0` phoneme duration · `P5–P0` phoneme
+select · `I11–I0` inflection target frequency and rate of change · `R3–R0` rate
+of speech · `CTL` A/R response mode, in conjunction with `DR1`/`DR0`, also set
+directly by `PD/RST` · `T2–T0` rate of movement of formant position for
+articulation · `A3–A0` output audio amplitude · `F7–F0` frequency of all vocal
+tract filters.
+
+Typical settings the datasheet names: rate `$A`, articulation `5`, amplitude
+`$C`, inflection for ~90 Hz, filter clock ~20 kHz.
+
+### Relevant pin behavior
+
+| Pin | | |
+|---|---|---|
+| 4 | `A/R` | Acknowledge/Request Not — open-collector, changes **high → low after the phoneme is generated**; may be used as an interrupt request for new phoneme data |
+| 17 | `D7` | MSB of the bus. **Bidirectional — the inverse of pin 4 when read is high** |
+| 18 | `PD/RST` (active low) | Power Down — silences audio and retains DC bias without disturbing register contents. **Disables A/R output** |
+| 21 | `R/W` | Write active low to load registers. **Read active high but enables `D7` only** |
+| 22 | `XCK` | Clock input, ≈1 or 2 MHz |
+| 23 | `DIV2` (active high) | Divide external clock by two, for a ≈2 MHz input |
 
 ### Published formulas
 
@@ -120,28 +153,30 @@ the emulated timing.
 `$00`–`$3F` via `P5–P0`. Datasheet hex codes are shown with the duration bits
 zero, so they are the phoneme numbers directly.
 
-| | | | | | | |
-|---|---|---|---|---|---|---|
-| `00` PA *(pause)* | `01` E | `02` EI | `03` Y | `04` IY | `05` AY | `06` IE |
-| `07` I | `08` A | `09` AI | `0A` EH | `0B` EH1 | `0C` AE | `0D` AE1 |
-| `0E` AH | `0F` AH1 | `10` AW | `11` O | `12` OU | `13` OO | `14` IU |
-| `15` I1 | `16` U | `17` U1 | `18` UH | `19` UH1 | `1A` UH2 | `1B` UH3 |
-| `1C` ER | `1D` R | `1E` R1 | `1F` R2 | `20` L | `21` L1 | `22` LF |
-| `23` W | `24` B | `25` D | `26` KV | `27` P | `28` T | `29` K |
-| `2A` HV *(hold vocal)* | `2B` HVC | `2C` HF | `2D` HFC | `2E` HN | `2F` Z | `30` S |
-| `31` J | `32` SCH | `33` V | `34` F | `35` THV | `36` TH | `37` M |
-| `38` N | `39` NG | `3A` — | `3B` — | `3C` — | `3D` — | `3E` E2 |
-| `3F` LB | | | | | | |
+Transcribed from the page image. Example words in parentheses.
 
-Codes `$3A`–`$3D` are non-English phonemes (German and French examples in the
-chart) whose symbols OCR'd unreliably; read them off the PDF before use. A few
-others were corrected from obvious OCR damage — `04` and `17` in particular —
-and the whole chart should be checked against the page image before it becomes
-a table in code.
+| | | | |
+|---|---|---|---|
+| `00` PA *(pause)* | `10` AW *(office)* | `20` L *(lift)* | `30` S *(same)* |
+| `01` E *(meet)* | `11` O *(store)* | `21` L1 *(play)* | `31` J *(measure)* |
+| `02` E1 *(bent)* | `12` OU *(boat)* | `22` LF *(fall, final)* | `32` SCH *(ship)* |
+| `03` Y *(before)* | `13` OO *(look)* | `23` W *(water)* | `33` V *(very)* |
+| `04` YI *(year)* | `14` IU *(you)* | `24` B *(bag)* | `34` F *(four)* |
+| `05` AY *(please)* | `15` IU1 *(could)* | `25` D *(paid)* | `35` THV *(there)* |
+| `06` IE *(any)* | `16` U *(tune)* | `26` KV *(tag, glottal stop)* | `36` TH *(with)* |
+| `07` I *(six)* | `17` U1 *(cartoon)* | `27` P *(pen)* | `37` M *(more)* |
+| `08` A *(made)* | `18` UH *(wonder)* | `28` T *(tart)* | `38` N *(nine)* |
+| `09` AI *(care)* | `19` UH1 *(love)* | `29` K *(kit)* | `39` NG *(rang)* |
+| `0A` EH *(nest)* | `1A` UH2 *(what)* | `2A` HV *(hold vocal)* | `3A` :A *(märchen, German)* |
+| `0B` EH1 *(belt)* | `1B` UH3 *(nut)* | `2B` HVC *(hold vocal closure)* | `3B` :OH *(löwe, French)* |
+| `0C` AE *(dad)* | `1C` ER *(bird)* | `2C` HF *(heart)* | `3C` :U *(fünf, German)* |
+| `0D` AE1 *(after)* | `1D` R *(roof)* | `2D` HFC *(hold fricative closure)* | `3D` :UH *(menu, French)* |
+| `0E` AH *(got)* | `1E` R1 *(rug)* | `2E` HN *(hold nasal)* | `3E` E2 *(bitte, German)* |
+| `0F` AH1 *(father)* | `1F` R2 *(mutter, German)* | `2F` Z *(zero)* | `3F` LB *(lube)* |
 
-Note `$2A`–`$2E` are *hold* states (vocal, vocal closure, fricative closure,
-nasal) rather than sounds, which matters for the state machine: they sustain
-rather than articulate.
+`$2A`–`$2E` are **hold** states — vocal, vocal closure, fricative closure, nasal —
+rather than sounds. They sustain rather than articulate, which the state machine
+must treat differently from an ordinary phoneme.
 
 ### Behavioral guarantees, independent of encoding
 
