@@ -8038,15 +8038,14 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // so MapTypedChar can skip the remap and avoid double-translating).
             // Clipboard paste feeds KeyPress directly (not this path), so pasted
             // text is never remapped -- matching the hardware encoder.
-            auto  * iieKbd = m_refs.iieKeyboard;
+            Byte  code = static_cast<Byte> (ch);
 
-            if (iieKbd != nullptr)
+            if (m_refs.iieKeyboard != nullptr)
             {
-                iieKbd->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
-            }
+                m_refs.iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
 
-            Byte    code   = (iieKbd != nullptr) ? iieKbd->MapTypedChar (static_cast<Byte> (ch))
-                                                 : static_cast<Byte> (ch);
+                code = m_refs.iieKeyboard->MapTypedChar (code);
+            }
 
             m_refs.keyboard->KeyPress (code);
             m_refs.keyboard->BeginKeyRepeat (code);

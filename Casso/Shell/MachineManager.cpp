@@ -325,35 +325,45 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         auto * iieKbd = m_shell.m_refs.iieKeyboard;
         auto * iieSw  = m_shell.m_refs.iieSoftSwitches;
 
-        if (iieKbd != nullptr && iieSw != nullptr)
+        // One test per device, with everything that device owns wired inside
+        // it. The sibling link needs both, so it nests rather than adding a
+        // second test of either -- the machines that have one of these have
+        // the other, but nothing here depends on that.
+        if (iieKbd != nullptr)
         {
-            iieKbd->SetSoftSwitchSibling (iieSw);
-            iieSw->SetKeyboard           (iieKbd);
+            if (iieSw != nullptr)
+            {
+                iieKbd->SetSoftSwitchSibling (iieSw);
+                iieSw->SetKeyboard           (iieKbd);
+            }
+
+            if (m_shell.m_refs.speaker != nullptr)
+            {
+                iieKbd->SetSpeakerSibling (m_shell.m_refs.speaker);
+            }
+
+            if (m_shell.m_mmu != nullptr)
+            {
+                iieKbd->SetMmu (m_shell.m_mmu.get());
+            }
+
+            if (m_shell.m_videoTiming != nullptr)
+            {
+                iieKbd->SetVideoTiming (m_shell.m_videoTiming.get());
+            }
         }
 
-        if (iieKbd != nullptr && m_shell.m_refs.speaker != nullptr)
+        if (iieSw != nullptr)
         {
-            iieKbd->SetSpeakerSibling (m_shell.m_refs.speaker);
-        }
+            if (m_shell.m_videoTiming != nullptr)
+            {
+                iieSw->SetVideoTiming (m_shell.m_videoTiming.get());
+            }
 
-        if (iieKbd != nullptr && m_shell.m_mmu != nullptr)
-        {
-            iieKbd->SetMmu (m_shell.m_mmu.get());
-        }
-
-        if (iieKbd != nullptr && m_shell.m_videoTiming != nullptr)
-        {
-            iieKbd->SetVideoTiming (m_shell.m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_shell.m_videoTiming != nullptr)
-        {
-            iieSw->SetVideoTiming (m_shell.m_videoTiming.get());
-        }
-
-        if (iieSw != nullptr && m_shell.m_mmu != nullptr)
-        {
-            iieSw->SetMmu (m_shell.m_mmu.get());
+            if (m_shell.m_mmu != nullptr)
+            {
+                iieSw->SetMmu (m_shell.m_mmu.get());
+            }
         }
     }
 
@@ -361,15 +371,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
     if (m_shell.m_mmu != nullptr && m_shell.m_refs.mainRamDev != nullptr)
     {
-        auto * iieSw = m_shell.m_refs.iieSoftSwitches;
-
         HRESULT hrMmu = m_shell.m_mmu->Initialize (
             &m_shell.m_memoryBus,
             m_shell.m_refs.mainRamDev,
             nullptr,
             nullptr,
             nullptr,
-            iieSw);
+            m_shell.m_refs.iieSoftSwitches);
 
         if (FAILED (hrMmu))
         {
@@ -1997,6 +2005,7 @@ void MachineManager::SelectVideoMode()
 {
     bool                     is80ColMode     = false;
     bool                     altCharSet      = false;
+    bool                     doubleHiRes     = false;
     Apple2eSoftSwitchBank *  iieSoftSwitches = m_shell.m_refs.iieSoftSwitches;
 
 
@@ -2017,16 +2026,21 @@ void MachineManager::SelectVideoMode()
         m_shell.m_hiresMode    = m_shell.m_refs.softSwitches->IsHiresMode();
     }
 
-    // When 80STORE is active on the //e, $C054/$C055 control aux/main
-    // memory selection -- not page 1/page 2. Suppress page2 for video
-    // rendering.
-    if (iieSoftSwitches != nullptr && iieSoftSwitches->Is80Store())
+    // Everything the //e bank contributes, gathered under one test: it is
+    // null on a ][ / ][+, where the defaults above are the right answer.
+    if (iieSoftSwitches != nullptr)
     {
-        m_shell.m_page2 = false;
-    }
+        // When 80STORE is active, $C054/$C055 control aux/main memory
+        // selection -- not page 1/page 2. Suppress page2 for rendering.
+        if (iieSoftSwitches->Is80Store())
+        {
+            m_shell.m_page2 = false;
+        }
 
-    is80ColMode = iieSoftSwitches != nullptr && iieSoftSwitches->Is80ColMode();
-    altCharSet  = iieSoftSwitches != nullptr && iieSoftSwitches->IsAltCharSet();
+        is80ColMode = iieSoftSwitches->Is80ColMode();
+        altCharSet  = iieSoftSwitches->IsAltCharSet();
+        doubleHiRes = iieSoftSwitches->IsDoubleHiRes();
+    }
 
     // Select video mode based on soft switch state
     if (!m_shell.m_graphicsMode)
@@ -2045,9 +2059,7 @@ void MachineManager::SelectVideoMode()
     {
         // Hi-res graphics -- double hi-res needs DHIRES *and* 80COL together
         // on the //e (FR-019, audit M8). Otherwise standard hi-res.
-        bool useDhr = iieSoftSwitches != nullptr
-                   && iieSoftSwitches->IsDoubleHiRes()
-                   && is80ColMode;
+        bool useDhr = doubleHiRes && is80ColMode;
 
         m_shell.m_refs.activeVideoMode = useDhr
                                              ? static_cast<VideoOutput *> (m_shell.m_refs.doubleHiRes)
