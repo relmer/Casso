@@ -117,9 +117,21 @@ static Byte ReadDhrByte (
 //  Apple //e Double Hi-Res 560x192. Each scanline is 80 bytes total —
 //  40 from aux RAM and 40 from main RAM, interleaved aux-first per byte
 //  position: aux[$2000], main[$2000], aux[$2001], main[$2001], ...
-//  Each byte contributes 7 horizontal dots (bit 7 unused). 4 consecutive
-//  dots form a 4-bit nibble that indexes the 16-color DHR palette
-//  (FR-019, audit M8 closure).
+//  Each byte contributes 7 horizontal dots (bit 7 unused).
+//
+//  Pass 1 unpacks a scanline into its 560 dots. Pass 2 turns those dots
+//  into pixels, and which pass 2 runs depends on the monitor:
+//
+//    color        4 consecutive dots form a nibble indexing the 16-color
+//                 DHR palette, replicated across the cell's 4 dots
+//                 (140 color cells across).
+//    monochrome   each dot is its own pixel, lit or dark (560 across).
+//
+//  The color decode is lossy by nature -- it throws away which of the four
+//  dots in a cell were lit and keeps only how many and in what arrangement.
+//  That is correct for a color monitor, where NTSC does the same thing, but
+//  it destroys art authored as 560x192 monochrome. So the monochrome path is
+//  not a tint of the color path; it has to decode from the dots.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,10 +141,12 @@ void AppleDoubleHiResMode::Render (
     int          fbWidth,
     int          fbHeight)
 {
-    static constexpr int kDhrPixelsPerScanline = 560;
-    static constexpr int kDhrScanlines         = 192;
-    static constexpr int kBytesPerScanline     = 40;
-    static constexpr int kBitsPerByte          = 7;
+    static constexpr int      kDhrPixelsPerScanline = 560;
+    static constexpr int      kDhrScanlines         = 192;
+    static constexpr int      kBytesPerScanline     = 40;
+    static constexpr int      kBitsPerByte          = 7;
+    static constexpr uint32_t kMonoOn               = 0xFFFFFFFF;
+    static constexpr uint32_t kMonoOff              = 0xFF000000;
 
 
 
@@ -173,13 +187,34 @@ void AppleDoubleHiResMode::Render (
             }
         }
 
-        // Pass 2: group 4 consecutive dots into a nibble that indexes
+        // Scanlines are doubled vertically, so 192 emulated lines fill the
+        // 384-line framebuffer and DHR matches the other modes' geometry.
+        fbY = scanline * 2;
+
+        if (m_monochrome)
+        {
+            // Pass 2, monochrome: one dot, one pixel. Lit dots are white so
+            // the shell's phosphor tint reaches full brightness on green and
+            // amber monitors as well as white.
+            for (fbX = 0; fbX < kDhrPixelsPerScanline; fbX++)
+            {
+                color = dots[fbX] ? kMonoOn : kMonoOff;
+
+                if (fbX < fbWidth && fbY + 1 < fbHeight)
+                {
+                    framebuffer[fbY       * fbWidth + fbX] = color;
+                    framebuffer[(fbY + 1) * fbWidth + fbX] = color;
+                }
+            }
+
+            continue;
+        }
+
+        // Pass 2, color: group 4 consecutive dots into a nibble that indexes
         // the 16-color palette. Each color cell is 4 dots wide; we
         // replicate the same color across all 4 dots in the cell so
         // the framebuffer renders true 16-color DHR (560 horizontal
         // dots, 140 color cells).
-        fbY = scanline * 2;
-
         for (int cell = 0; cell + 3 < kDhrPixelsPerScanline; cell += 4)
         {
             paletteIdx = (dots[cell + 0] ? 1 : 0)

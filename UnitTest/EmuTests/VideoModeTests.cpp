@@ -1275,4 +1275,150 @@ public:
         Assert::AreEqual (static_cast<Word> (0x2000), dhr.GetActivePageAddress (false));
         Assert::AreEqual (static_cast<Word> (0x4000), dhr.GetActivePageAddress (true));
     }
+
+    // A color monitor is the default, since that is what the shell selects
+    // until the user picks a phosphor.
+    TEST_METHOD (DHR_ColorMonitorIsTheDefault)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        AppleDoubleHiResMode dhr (bus);
+
+        Assert::IsFalse (dhr.IsMonochrome(),
+            L"DHR must start on the color decode");
+    }
+
+    // One lit dot must light exactly one pixel on a monochrome monitor. The
+    // color decode widens it to the whole 4-dot cell, which is what makes
+    // 560x192 monochrome artwork unreadable through it.
+    TEST_METHOD (DHR_Monochrome_LightsOneDotPerPixel)
+    {
+        const int              fbW  = 560;
+        const int              fbH  = 384;
+        std::vector<uint32_t>  fb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<Byte>      auxBuf (0x10000, 0x00);
+
+
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word addr = 0x2000; addr < 0x4000; addr++)
+        {
+            bus.WriteByte (addr, 0x00);
+        }
+
+        // Bit 0 of the aux byte is dot 0; bit 0 of the main byte is dot 7.
+        // Everything else on scanline 0 stays dark.
+        auxBuf[0x2000] = 0x01;
+        bus.WriteByte (0x2000, 0x01);
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory  (auxBuf.data());
+        dhr.SetPage2      (false);
+        dhr.SetMonochrome (true);
+
+        dhr.Render (nullptr, fb.data(), fbW, fbH);
+
+        Assert::AreEqual (0xFFFFFFFFu, fb[0],
+            L"Dot 0 (aux bit 0) must be lit");
+        Assert::AreEqual (0xFFFFFFFFu, fb[7],
+            L"Dot 7 (main bit 0) must be lit");
+
+        for (int x = 1; x < 7; x++)
+        {
+            Assert::AreEqual (0xFF000000u, fb[x],
+                L"A lit dot must not spread across its 4-dot color cell");
+        }
+
+        for (int x = 8; x < 14; x++)
+        {
+            Assert::AreEqual (0xFF000000u, fb[x],
+                L"A lit dot must not spread across its 4-dot color cell");
+        }
+
+        // Scanlines are still doubled, so row 1 repeats row 0.
+        Assert::AreEqual (0xFFFFFFFFu, fb[fbW + 0], L"Row 1 must repeat scanline 0");
+        Assert::AreEqual (0xFF000000u, fb[fbW + 1], L"Row 1 must repeat scanline 0");
+    }
+
+    // The dither patterns that monochrome DHR art shades with survive on a
+    // monochrome monitor and collapse on a color one. Asserting both halves
+    // together is the point: it is the DIFFERENCE that was missing, not
+    // either decode on its own.
+    TEST_METHOD (DHR_Monochrome_KeepsDitherThatColorCollapses)
+    {
+        const int              fbW      = 560;
+        const int              fbH      = 384;
+        std::vector<uint32_t>  monoFb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<uint32_t>  colorFb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<Byte>      auxBuf (0x10000, 0x00);
+        int                    monoEdges = 0;
+        const Byte             kDither   = 0x55;
+
+
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word addr = 0x2000; addr < 0x4000; addr++)
+        {
+            bus.WriteByte (addr, 0x00);
+        }
+
+        // 0b1010101 in both halves: alternating dots, which is the shading
+        // dither monochrome DHR art is built from and exactly what the 4-dot
+        // cell decode cannot represent.
+        //
+        // The alternation is NOT uniform across the byte pair -- aux bit 6
+        // (dot 6) and main bit 0 (dot 7) are both set, so the two lit dots
+        // meet at the seam. That is the hardware's interleave showing
+        // through, so the expectation is derived from the bytes rather than
+        // assumed to be a clean every-other-dot pattern.
+        auxBuf[0x2000] = kDither;
+        bus.WriteByte (0x2000, kDither);
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory (auxBuf.data());
+        dhr.SetPage2     (false);
+
+        dhr.SetMonochrome (true);
+        dhr.Render (nullptr, monoFb.data(), fbW, fbH);
+
+        dhr.SetMonochrome (false);
+        dhr.Render (nullptr, colorFb.data(), fbW, fbH);
+
+        // Dots 0-6 come from the aux byte's bits 0-6, dots 7-13 from the
+        // main byte's bits 0-6.
+        for (int x = 0; x < 14; x++)
+        {
+            bool     lit      = (kDither & (1 << (x % 7))) != 0;
+            uint32_t expected = lit ? 0xFFFFFFFFu : 0xFF000000u;
+
+            Assert::AreEqual (expected, monoFb[x],
+                L"Monochrome DHR must reproduce the dither dot for dot");
+        }
+
+        // Count lit/dark edges across the byte pair. Monochrome resolves
+        // every dot; the color decode paints uniform 4-dot cells, so it can
+        // never show an edge at an odd offset inside a cell.
+        for (int x = 1; x < 14; x++)
+        {
+            if (monoFb[x] != monoFb[x - 1]) { monoEdges++; }
+        }
+
+        // 13 boundaries, all alternating except the seam at dot 6/7.
+        Assert::AreEqual (12, monoEdges,
+            L"Monochrome DHR must resolve an edge at every dot but the seam");
+
+        for (int x = 1; x < 4; x++)
+        {
+            Assert::AreEqual (colorFb[0], colorFb[x],
+                L"The color decode paints one color across a whole 4-dot cell");
+        }
+    }
 };

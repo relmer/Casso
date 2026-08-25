@@ -8,6 +8,18 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+- **Double hi-res on a monochrome monitor now decodes all 560 dots.** The
+  green, amber, and white monitors used to tint the 16-color decode rather
+  than decode differently, and that decode has already thrown the detail
+  away: it collapses each group of four dots to one color, so a lone lit dot
+  came out as a four-dot-wide colored block that tinting could only turn into
+  a four-dot-wide gray block. Software written for 560x192 monochrome — which
+  is most DHR artwork, since shading it means dithering at single-dot
+  resolution — was unreadable on every monitor Casso offered. Monochrome
+  monitors now decode one dot per pixel, and lit dots reach full phosphor
+  brightness. The color monitor is unchanged.
+
 ### Changed
 - internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
 
