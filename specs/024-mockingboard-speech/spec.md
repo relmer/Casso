@@ -285,6 +285,11 @@ separately, measure idle cost with the voice chip present and unprogrammed.
 - **FR-022**: The release notes and user-facing documentation MUST state that the
   emulated Mockingboard is now the sound+speech model by default, and how to
   select the sound-only card.
+- **FR-023**: Where the voice's acoustic data is known not to be the emulated
+  part's own, that MUST be disclosed rather than presented as fidelity — in the
+  release notes, and in the source beside the data itself. A user comparing
+  Casso against real hardware and hearing a difference is entitled to know
+  whether it is a bug we would fix or a limitation we already understand.
 
 ### Key Entities
 
@@ -388,13 +393,20 @@ unsatisfiable while looking rigorous.
   smoke test for the music chip, and the speech equivalent belongs beside it.
   Only SC-001d genuinely requires period titles, and only for sign-off of User
   Story 1.
-- **Formant targets come from the published record, then are tuned by
-  measurement.** The chip's datasheet documents its registers, phonemes, and
-  timing but no formant values; those are internal to the part. The public
-  literature on this chip family — its designers' patents and their conference
-  paper describing the hardware — is the primary source, with general acoustic
-  phonetics filling any gap, and a reference recording used to refine the result.
-  Work begins from the literature rather than waiting on a recording.
+- **The emulated part's own acoustic data does not exist publicly.** Its
+  datasheet documents registers, phonemes, and timing but no formant values;
+  those live in an internal ROM that has never been extracted. Every existing
+  emulator of this card substitutes the data from the *earlier, related* chip,
+  whose ROM was extracted decades ago — an approximation their own communities
+  describe as inaccurate, the two parts having 64 phonemes in different orders
+  that do not map one-to-one.
+- **Casso ships that same substitution initially, and says so** (FR-023). The
+  formant table is treated as a swappable input so accuracy can improve later
+  without rework: two routes to the real data remain open — reading the ROM from
+  published die photographs, or measuring all 64 phonemes from real hardware —
+  and either supersedes the substitute in place. This is the one place in the
+  feature where Casso knowingly ships less than full fidelity, which is exactly
+  why it is disclosed rather than assumed away.
 - **A reference recording must be one we obtain independently.** Other emulators'
   phoneme assets are convenient and are the wrong answer: they are copyleft-
   licensed, and deriving formant data from them would be derivation from a

@@ -272,7 +272,45 @@ its tone counterpart does — that file's header already articulates the pattern
 a steady tone proves the path end-to-end, silence localizes the fault to the
 host. It is the artifact that unblocks all development on User Story 1.
 
-### D11 — OPEN: how accurate do we intend to be? *(needs a decision)*
+### D11 — DECIDED (2026-08-25): ship on A, spike C, keep B as the fallback
+
+**Decision**: Build on **route A**, then run **route C as a bounded spike** to
+see whether the parameter ROM is readable from the published die photographs. If
+C succeeds it supersedes both others. If it fails, **route B** stays available —
+but sourced as a community recording rather than a hardware purchase, since no
+SSI-263 hardware is on hand.
+
+**Ordering rationale**: all three routes produce the same artifact — a formant
+table — and share all their code, so the route only determines where the numbers
+come from and can change late without rework. A ships. C is cheap to *evaluate*
+and, if it works, is the definitive answer and a genuine first. B is the
+fallback rather than the primary because it has a hardware dependency the project
+does not currently satisfy.
+
+**On C's feasibility — the honest position.** The published die shot is
+**17,265 × 14,313**, stitched from 203 images (~247 megapixels), which is ample
+resolution to resolve individual ROM cells. Two unknowns decide it, and neither
+can be settled without looking at the images:
+
+1. **Layer state.** If the published shot is top-metal-intact, the ROM array is
+   probably obscured — mask ROMs are typically encoded below the metal. If the
+   die was delayered, the array may be directly legible.
+2. **Programming method.** If the ROM is *implant*-programmed rather than
+   contact- or diffusion-programmed, the bits are **optically invisible at any
+   resolution** without staining or alternative imaging. This is a known dead end
+   in ROM extraction and would end route C regardless of image quality.
+
+**Spike shape**: bounded, and it answers a yes/no. Obtain the die images, locate
+the parameter ROM array (the patent's description — 64 phonemes × 12 control
+parameters — gives its expected size and regular structure, which is what makes
+it findable), and determine whether individual cells are distinguishable. Stop at
+that answer. Do not begin transcription inside the spike.
+
+**Value if C succeeds**: correct SSI-263 speech, which no emulator currently has,
+plus an extraction worth publishing back to the community that made the die shots
+available in the first place.
+
+### D11-prior — the options as originally framed
 
 D10a means the acoustic-fidelity target is a scope decision, not a research task.
 Three routes, and they differ by more than an order of magnitude in effort:
@@ -283,23 +321,11 @@ Three routes, and they differ by more than an order of magnitude in effort:
 | **B — Measure real hardware** | Record all 64 phonemes from a real SSI-263 and extract formant targets by spectral analysis | Medium. Needs hardware access and signal-processing work, no decapping | Genuinely accurate for this part. Achievable without novel reverse engineering |
 | **C — Extract the ROM from the die** | Read the parameter ROM off the published visual6502 die photographs | High, and speculative | The definitive answer, and a first — nobody has published this |
 
-**Route B is the recommendation.** It reaches real SSI-263 accuracy — which no
-emulator currently has — without depending on decapping work that may not be
-tractable from existing photographs. It also folds neatly into the plan: PENDING-3
-already calls for a reference recording, and B is that recording made systematic
-(all 64 phonemes rather than one phrase).
-
-**Route A is the honest fallback** and a reasonable place to start: it gets
-speech working end-to-end while the recording is sought, and B can refine it in
-place afterward without rework, since both feed the same formant tables.
-
-**Route C should not be committed to**, but is worth noting: the die shots are
-public, and if the ROM array proves visually readable the result would be a
-contribution back to the wider community, not just to Casso.
-
-This is the one genuinely open scope question in the feature. It does not block
-starting — A and B share all their code and differ only in where the numbers come
-from.
+**B was initially recommended on the assumption hardware could be reached.** It
+cannot, currently — see D11 for the resolved ordering. B requires a physical
+SSI-263 being driven and recorded; it does not require *us* to own one, since a
+community member with a Mockingboard C recording a prescribed phoneme sequence
+satisfies it equally, which turns B from a purchase into a request.
 
 ---
 
@@ -352,10 +378,11 @@ transition behavior, for the D5 synthesis model.
 parameter ROM has never been extracted, and every existing emulator approximates
 it with the wrong chip's data. This is not a document we have failed to find.
 
-**Resolution path**: D11 route B — measure all 64 phonemes from real hardware —
-with D11 route A (SC-01A data, as the other emulators use) as the starting point
-so development is never blocked. D9's literature ordering still supplies the
-model structure and sanity bounds.
+**Resolution path**: D11 — ship on route A (SC-01A data mapped over, as the
+other emulators do), then spike route C to see whether the parameter ROM is
+legible in the published die photographs. Route B is the fallback if C fails,
+sourced as a community recording. D9's literature ordering supplies the model
+structure and sanity bounds throughout.
 
 **Not excluded**: reading MAME's and AppleWin's source, per the corrected D10.
 Only copying their code is out. `sc01a.bin` itself is chip data rather than
@@ -391,9 +418,11 @@ more likely to succeed than hunting for an existing archived capture. Ask for a
 specific authored phoneme sequence rather than "some speech", so the recording is
 directly comparable to our own output.
 
-**Scope note**: under D11 route B this recording becomes systematic — all 64
-phonemes, not one phrase — since it is then the primary source for the formant
-tables rather than only a tuning pass.
+**Scope note**: for SC-001c a single phrase suffices. If D11 falls back to route
+B, the same request becomes systematic — all 64 phonemes — because the recording
+is then the primary source for the formant tables rather than a tuning pass.
+Worth asking for the full set up front either way; it costs the volunteer little
+more and removes a second round trip.
 
 **Blocks**: D9 step 3 (tuning), SC-001b's final targets, and SC-001c. **Does not block** starting the
 synthesizer from the literature — that is exactly why D9 is ordered as it is.
@@ -430,7 +459,7 @@ it via D8.
 | D9 | Formant sources: patents → phonetics → measurement | Decided |
 | D10 | Read prior art freely; never copy their code | Decided (corrected) |
 | D10a | Formant data provenance: SC-01A ROM dump, **wrong chip**; SC-02 never extracted | Confirmed |
-| D11 | Accuracy target: A match-state-of-art / B measure hardware / C read the die | ⚠️ **OPEN — needs a decision** |
+| D11 | Accuracy: ship on **A**, spike **C**, keep **B** as community-recording fallback | ✅ Decided |
 | P1 | Register model, phoneme set, timing formulas, A/R | ✅ **RESOLVED** — datasheet in hand |
 | P1b | Per-phoneme formant targets | Open — worked via D9, blocks nothing |
 | P2 | Board decode range + request-line wiring | **PENDING** — schematics |

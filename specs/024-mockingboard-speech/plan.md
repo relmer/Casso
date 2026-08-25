@@ -155,18 +155,25 @@ evidence exists before the risky change does.
 | 1 | **Baseline capture** — full slot-page sweep and audio render of the sound-only card, as it ships today | Quickstart Stage 1 green *before* any change | — |
 | 2 | **VIA control-line seam** (F1) — input state, PCR edge selection, IFR latching, and the R13 no-op proof | Quickstart Stage 2 | — |
 | 3a | **Chip behavioral core** (D5) — five-register file, all 64 phoneme codes, duration and filter formulas, A/R assert and disable | Quickstart Stage 3 | — *(datasheet in hand)* |
-| 3b | **Formant synthesis** (D5, D9) — resonator bank, excitation, transition; targets from the patent literature and phonetics | Quickstart Stage 3 acoustic checks | PENDING-1b sourcing |
+| 3b | **Formant synthesis** (D5, D9) — resonator bank, excitation, transition; tables loaded from SC-01A data mapped onto SSI-263 phoneme ordering (D11 route A) | Quickstart Stage 3 acoustic checks | — |
 | 4 | **Card integration** (D2, D3) — variant, speech decode prefix, request line into the VIA seam | Stage 1 re-run green | 2, 3a, PENDING-2 |
 | 5 | **Audio path** (D4, F2) — third source, recomputed gain budget | Stage 4 audio checks | 3b |
 | 6 | **Registration and profiles** (D1) — second device type, three profile edits, Hardware tab naming | Contract C1–C3, P1–P3 | 4 |
 | 7 | **Smoke test program** (D8) | Quickstart Stage 4 | 4, 5, 6 |
-| 8 | **Tuning against a recording** (D9 step 3) | Stage 5 | PENDING-3 |
-| 9 | **Titles** | Stage 6 | PENDING-4 |
+| 8 | **Titles** | Stage 6 | PENDING-4 |
+| — | **Die-shot spike** (D11 route C) — is the parameter ROM legible? | A yes/no answer, nothing more | Runs independently, any time |
+| — | **Recording** (D11 route B fallback, and SC-001c) | Stage 5 | Community volunteer |
 
-**Step 3 split in two** once the datasheet arrived. 3a is fully specified today
-and blocks on nothing — registers, phoneme codes, and both published formulas
-are in hand. Only 3b needs the formant literature, and D9's ordering means even
-that starts from published sources rather than waiting on a recording.
+**Nothing on the critical path blocks.** Step 3 split in two once the datasheet
+arrived: 3a is fully specified today, and 3b now ships on route A's tables rather
+than waiting on sourcing. The formant table is a **swappable input** — every
+route produces the same artifact and feeds the same code — so C or B can land
+later and improve accuracy in place, with no rework and no reordering.
+
+**The die-shot spike is deliberately outside the sequence.** It answers one
+question — are individual ROM cells distinguishable in the published images —
+and stops there. It is not a dependency of anything, and it must not be allowed
+to become one; route A ships regardless of its outcome.
 
 **Step 1 is not ceremony.** SC-002 compares against previous-release behavior, so
 the comparison basis has to be captured before the tree changes. It is also the
@@ -190,8 +197,9 @@ not leak into the card, the VIA, or the audio path.
 | Risk | Mitigation |
 |---|---|
 | ~~The datasheet proves hard to obtain~~ — **retired.** Obtained, and it revealed the real risk below | — |
-| **Formant targets are not published for this part** (PENDING-1b) — the datasheet documents none, so the acoustic layer has no single authoritative source | D9's ordered sourcing: patent literature and the designer's paper first, acoustic phonetics for gaps, measurement to refine. Progress does not block on any one of them. The danger is not scarcity but *plausibility* — an invented table would look right and be wrong, which is exactly how PENDING-1 nearly went |
-| **Clean-room contamination** — the two emulators that have solved this are both copyleft, and one of them plausibly holds hardware-recorded phoneme assets that would be very convenient as acoustic ground truth | D10: their source is not opened at all, and acoustic targets come from documents and from a recording we obtain ourselves. Output-versus-output comparison for intelligibility remains fine |
+| **The SSI-263's formant data does not exist publicly, in any license** (D10a) — its parameter ROM has never been extracted, and every existing emulator substitutes the SC-01's | D11: ship on route A, the same substitution the others make, with the table as a swappable input. Accuracy improves later via C or B without rework. **The known-wrong data is disclosed rather than presented as fidelity** — see below |
+| **Route C proves impossible** — the ROM may be under metal in the published shots, or implant-programmed and optically invisible at any resolution | Scoped as a yes/no spike outside the sequence, not a dependency. Route B remains, and route A already ships |
+| **Route B needs hardware nobody on the project has** | Satisfiable by a community volunteer recording a prescribed phoneme set — a request rather than a purchase. Not on the critical path |
 | **The removed `$Cn40` mirror breaks a title** | The A variant remains available (User Story 3) and unchanged (D3), so the escape hatch ships with the risk |
 | **A music player dispatches on "the VIA interrupted"** | Discharged structurally by R13 + I1/I2 rather than by testing: the A never drives a control line, and an unprogrammed C never asserts |
 | **Gain budget regression** (F2) — a third source into a headroom figure sized for two | SC-008 gates it; the existing `kMasterGain` comment documents the original arithmetic to redo |
