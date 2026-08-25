@@ -41,7 +41,17 @@ param(
     [switch]$LegacyLayout,
 
     # Build the image both ways and report whether they are identical.
-    [switch]$Compare
+    [switch]$Compare,
+
+    #  Rebuild and COMPARE, writing nothing.
+    #
+    #  The drift check used to live in BootDiskTests, which read the committed
+    #  image and failed when it did not match what the test had just built.
+    #  That made a unit test report on the state of the working tree: it failed
+    #  on a tree that was perfectly correct except that nobody had re-run this
+    #  script. The question belongs here, where the disk is built, and CI can
+    #  ask it without a test touching the file at all.
+    [switch]$Verify
 )
 
 $ErrorActionPreference = 'Stop'
@@ -259,9 +269,10 @@ function Build-LayoutInPowerShell {
         }
     }
 
-    $dskPath = Join-Path $demoDir 'casso-rocks.dsk'
-    [System.IO.File]::WriteAllBytes($dskPath, $image)
-
+    #  BUILDS AND RETURNS, NEVER WRITES. It used to write the image here as
+    #  well, which made -Verify compare the file against what it had just
+    #  put there: it reported a match on a disk with a whole track zeroed.
+    #  Every caller that wants the bytes on disk writes them itself.
     return ,$image
 }
 
@@ -321,6 +332,54 @@ function Build-LayoutWithCassoCli {
 Write-Host "Laying out .dsk image..." -ForegroundColor Cyan
 
 $dskPath = Join-Path $demoDir "casso-rocks.dsk"
+
+if ($Verify) {
+    #  Built in memory and compared. The PowerShell layout is used because it
+    #  is the one that writes nothing: the CassoCli path lays the image down
+    #  with `disk create` and `disk stamp`, which is a write by construction.
+    $expected = Build-LayoutInPowerShell
+
+    if (-not (Test-Path $dskPath)) {
+        throw "$dskPath is missing. Run scripts/BuildDemoDisk.ps1 to build it."
+    }
+
+    $actual = [System.IO.File]::ReadAllBytes($dskPath)
+    $same   = ($expected.Length -eq $actual.Length)
+    $firstDifference = -1
+
+    if ($same) {
+        for ($i = 0; $i -lt $expected.Length; $i++) {
+            if ($expected[$i] -ne $actual[$i]) {
+                $same = $false
+                $firstDifference = $i
+                break
+            }
+        }
+    }
+
+    if (-not $same) {
+        Write-Host ''
+        Write-Host "casso-rocks.dsk is not what the sources build." -ForegroundColor Red
+
+        if ($firstDifference -ge 0) {
+            $track  = [int][Math]::Floor($firstDifference / 4096)
+            $sector = [int][Math]::Floor(($firstDifference % 4096) / 256)
+            Write-Host ("  first difference at byte {0}: track {1}, sector {2}" -f `
+                        $firstDifference, $track, $sector) -ForegroundColor Yellow
+        }
+        else {
+            Write-Host ("  committed {0} bytes, sources build {1}" -f `
+                        $actual.Length, $expected.Length) -ForegroundColor Yellow
+        }
+
+        Write-Host '  Run scripts/BuildDemoDisk.ps1 to rebuild it.' -ForegroundColor Yellow
+        Write-Host ''
+        exit 1
+    }
+
+    Write-Host "casso-rocks.dsk matches what the sources build." -ForegroundColor Green
+    exit 0
+}
 
 if ($Compare) {
     #  Both methods, and whether they agree. Checking them against each

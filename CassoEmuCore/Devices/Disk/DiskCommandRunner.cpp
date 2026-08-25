@@ -117,18 +117,18 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     { "put | write",
       "Write a file from the host to the disk",
-      "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Laddr $XXXX]\n"
+      "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
       "  %Las <name>             Store the file under this name. Without it, the name it already has on the host. Neither filesystem here takes a path: ProDOS subdirectories are not supported yet\n"
       "  %Ltype <t>              What the catalog records. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS. Without it, the type is read from the file's own contents, and anything unrecognized is stored as a binary\n"
-      "  %Laddr $XXXX            The address a binary loads at. A binary is refused without one, because the address is part of the file; every other type ignores it\n"
+      "  %Lload $XXXX            The address a binary loads at. A binary is refused without one, because the address is part of the file; every other type ignores it\n"
       "  %Ltext                  Convert the host's text to the disk's: set the high bit on every byte, and turn the line endings into the CR the Apple II expects\n"
       "  %Lbasic                 Tokenize an Applesoft listing into the byte stream the guest stores and runs\n",
       "%Lbasic STORES APPLESOFT, and Applesoft is the one type a DOS 3.3 disk's RUN"
       " command will execute -- so a program placed under any other type is a program"
-      " the guest will not start. It refuses %Laddr outright, because Applesoft keeps its"
+      " the guest will not start. It refuses %Lload outright, because Applesoft keeps its"
       " program at $0801 and nowhere else.",
-      "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Laddr $6000" },
+      "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" },
 
     { "delete | del | rm",
       "Delete a file from the disk",
@@ -464,7 +464,7 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  belongs to this page alone: every flag it explains is described on this page
 //  and nowhere else.
 //
-//  The first trap is the header. `--dos-bin` and `put --addr` each write a DOS
+//  The first trap is the header. `--dos-bin` and `put --load` each write a DOS
 //  3.3 four-byte header, and a file carrying both loads its own header at the
 //  load address -- where a `BRUN` executes it. The stale header's first byte is
 //  the low half of the load address, which for anything in page $60 and below is
@@ -1227,7 +1227,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))
     {
-        return "is a binary, which has to be told where it loads. Give --addr $XXXX";
+        return "is a binary, which has to be told where it loads. Give --load $XXXX";
     }
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED))
@@ -1772,7 +1772,7 @@ static constexpr size_t  s_kLinesThatProveAChain = 3;
 //  INTEGER BASIC IS THE SAME SHAPE INSIDE OUT: a leading LENGTH byte rather
 //  than a trailing zero. Walked the same way, to the same exact landing.
 //
-//  A DOS 3.3 FOUR-BYTE HEADER IS DELIBERATELY NOT READ AS A TYPE. `put --addr`
+//  A DOS 3.3 FOUR-BYTE HEADER IS DELIBERATELY NOT READ AS A TYPE. `put --load`
 //  writes that header itself, so a file already carrying one is the doubled-
 //  header mistake the worked example warns about, and quietly agreeing with it
 //  would file bytes the guest runs as code.
@@ -2084,7 +2084,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
                 // and nowhere else, so an address here is a request that cannot
                 // be honored. Accepting and ignoring it would place the program
                 // and leave the caller believing it loads somewhere it does not.
-                result.diagnostics += "--addr means nothing with --basic: "
+                result.diagnostics += "--load means nothing with --basic: "
                                       "an Applesoft program always loads at $0801\n";
                 result.exitStatus   = kNoOutput;
                 hr                  = HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER);
@@ -3148,7 +3148,7 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
         return;
     }
 
-    //  The load address is the one the binary was assembled for, and --addr is
+    //  The load address is the one the binary was assembled for, and --load is
     //  how the caller says so. The entry follows it unless named separately.
     if (options.disk.hasLoadAddress)
     {

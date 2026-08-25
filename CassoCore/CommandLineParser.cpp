@@ -221,7 +221,6 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "out",
     "as",
     "type",
-    "addr",
     "text",
     "basic",
     "format",
@@ -246,10 +245,15 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 };
 
 
+//  `--load` AND `--exec` MEAN THE SAME THING IN EVERY MODE THAT HAS THEM.
+//  Where the bytes go, and where the machine starts running. `run` called the
+//  second one `--entry` and `disk create` called the pair `--addr`/`--entry`,
+//  and `disk put` called a third thing `--addr` as well: three names for two
+//  ideas, and one name for two of them.
 static constexpr const char *  s_kpszRunLongOptions[] =
 {
     "load",
-    "entry",
+    "exec",
     "stop",
     "max-cycles",
     "reset-vector",
@@ -904,14 +908,14 @@ const char * CommandLineParser::DiskCommandWord (CommandLineOptions::DiskOptions
 //
 //  Asked only when such an option ended the command line with nothing after it.
 //  Without this the argument fell into the unknown-option refusal, which told
-//  the reader "unknown disk option: --addr" and then listed `--addr` among the
+//  the reader "unknown disk option: --load" and then listed `--load` among the
 //  options to try instead -- a message that contradicts itself in two lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
-    return arg == "--out"  || arg == "--as"   || arg == "--type" || arg == "--addr"
+    return arg == "--out"  || arg == "--as"   || arg == "--type"
         || arg == "--load" || arg == "--exec";
 }
 
@@ -935,7 +939,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 {
     return arg == "-o"     || arg == "-l"     || arg == "--fill" ||
-           arg == "--load" || arg == "--entry" || arg == "--stop" ||
+           arg == "--load" || arg == "--exec" || arg == "--stop" ||
            arg == "--max-cycles";
 }
 
@@ -1018,7 +1022,7 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //
 //      disk list   <image>
 //      disk get    <image> <path> [--out <file>] [--text | --basic]
-//      disk put    <image> <file> [--as <path>] [--type <t>] [--addr $XXXX]
+//      disk put    <image> <file> [--as <name>] [--type <t>] [--load $XXXX]
 //                                 [--text | --basic]
 //      disk delete <image> <path>
 //      disk boot   <image> <path>
@@ -1275,39 +1279,6 @@ void CommandLineParser::ParseDiskOptions (
             else
             {
                 Refusal (options) << "Error: " << argv[i + 1] << " is not an address\n"
-                                  << "       write it as $XXXX\n";
-
-                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-            }
-
-            i++;
-            continue;
-        }
-
-        //  AN ADDRESS THAT COULD NOT BE READ IS REFUSED, NOT DROPPED. It was
-        //  dropped, and the result was a message that contradicted the command
-        //  line it was answering: `disk put img prog.bin --addr zzz` said "is a
-        //  binary, which has to be told where it loads -- give --addr $XXXX" to
-        //  somebody who had just given --addr. The value they typed was gone,
-        //  so the runner saw a command line with no address on it at all.
-        //
-        //  This is the rule the rest of the tool already states -- Refused
-        //  covers "a value that could not be read" -- and `run` applies it to
-        //  every address it takes. This one option was the exception.
-        if (arg == "--addr" && hasValue)
-        {
-            Word     address = 0;
-            HRESULT  hr      = ParseAddress (argv[i + 1], address);
-
-            if (SUCCEEDED (hr))
-            {
-                options.disk.loadAddress    = address;
-                options.disk.hasLoadAddress = true;
-            }
-            else
-            {
-                Refusal (options) << "Error: " << argv[i + 1]
-                                  << " is not an address\n"
                                   << "       write it as $XXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
@@ -3360,7 +3331,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }
-        else if (IsLongOption (arg, "--entry", options) && argIndex + 1 < argc)
+        else if (IsLongOption (arg, "--exec", options) && argIndex + 1 < argc)
         {
             hr = ParseAddress (argv[++argIndex], options.entryAddress);
 

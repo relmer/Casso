@@ -135,7 +135,7 @@ struct CommandLineOptions
         std::string  path;                             // the file ON the disk
         std::string  hostFile;                         // source for put, --out for get
         std::string  typeName;                         // --type, as the user wrote it
-        Word         loadAddress    = 0;               // --addr
+        Word         loadAddress    = 0;               // --load
         bool         hasLoadAddress = false;           // $0000 is a legal address
 
         //
@@ -163,7 +163,7 @@ struct CommandLineOptions
         std::string  bootableFrom;                     // --bootable <os image>, when named
         std::string  directBootFile;                   // --boot <binary>
 
-        //  --entry, for a direct-boot payload whose first byte is not its
+        //  --exec, for a direct-boot payload whose first byte is not its
         //  first instruction. A header, a jump table or a length word at the
         //  front is ordinary, and making the entry follow the load address
         //  would force such a payload to be rebuilt just to boot.

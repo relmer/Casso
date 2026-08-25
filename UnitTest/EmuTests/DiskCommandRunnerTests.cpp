@@ -2166,7 +2166,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("--addr") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("--load") != std::string::npos,
             L"the message must name the flag that would fix it");
 
         AssertNamesNoPlatformCode (result.diagnostics);

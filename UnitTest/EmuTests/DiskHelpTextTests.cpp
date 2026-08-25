@@ -250,7 +250,7 @@ public:
         Assert::AreEqual (std::string ("  CassoCli as65 prog.a65 -oprog.bin"),
                           lines[1], L"assemble");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk prog.bin"
-                                       " --as PROG --type B --addr $6000"),
+                                       " --as PROG --type B --load $6000"),
                           lines[2], L"place the program");
         Assert::AreEqual (std::string ("  CassoCli disk put mydisk.dsk greet.bas"
                                        " --as STARTUP --basic"),
@@ -269,7 +269,7 @@ public:
         std::string               rest    = HelpWithoutExampleCommands (help);
         std::vector<std::string>  options = OptionsUsedByExample (help);
         std::vector<std::string>  expected { "--bootable", "-o", "--as", "--type",
-                                             "--addr", "--basic", "--machine", "--disk1" };
+                                             "--load", "--basic", "--machine", "--disk1" };
 
         //  The exact set, not merely a non-empty one. A scanner that found
         //  nothing, or found only the first line's two, would satisfy the loop

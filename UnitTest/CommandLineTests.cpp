@@ -1311,7 +1311,7 @@ namespace CommandLineTests
         //  somewhere other than where it was told to.
         TEST_METHOD (RunValue_ItCouldNotRead_IsRefused)
         {
-            const char *  kFlags[] = { "--load", "--entry", "--stop", "--max-cycles", "--fill" };
+            const char *  kFlags[] = { "--load", "--exec", "--stop", "--max-cycles", "--fill" };
 
             for (const char * flag : kFlags)
             {
@@ -1492,7 +1492,7 @@ namespace CommandLineTests
                 { "CassoCli", "run",    "a.bin",    "--stop" },
                 { "CassoCli", "disk",   "list",     "img.dsk", "--bogus" },
                 { "CassoCli", "disk",   "get",      "img.dsk", "A", "B" },
-                { "CassoCli", "disk",   "put",      "img.dsk", "f", "--addr", "nonsense" },
+                { "CassoCli", "disk",   "put",      "img.dsk", "f", "--load", "nonsense" },
             };
 
             for (const std::vector<const char *> & typed : refused)
@@ -2002,7 +2002,7 @@ namespace CommandLineTests
         //  was answering.
         TEST_METHOD (Disk_AnAddressThatCouldNotBeRead_IsRefused)
         {
-            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "zzz" };
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--load", "zzz" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue  (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
@@ -2011,7 +2011,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Disk_AnAddressThatCouldBeRead_IsStillTaken)
         {
-            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "$6000" };
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--load", "$6000" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue   (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
@@ -2024,7 +2024,7 @@ namespace CommandLineTests
         //  --addr", followed by a list of options to try with `--addr` in it.
         TEST_METHOD (Disk_AnOptionWithNoValueLeft_IsStillRefused)
         {
-            const char *  kNeedsValue[] = { "--out", "--as", "--type", "--addr" };
+            const char *  kNeedsValue[] = { "--out", "--as", "--type", "--load" };
 
             for (const char * flag : kNeedsValue)
             {
@@ -2041,7 +2041,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Run_AnOptionWithNoValueLeft_IsStillRefused)
         {
-            const char *  kNeedsValue[] = { "-o", "-l", "--fill", "--load", "--entry",
+            const char *  kNeedsValue[] = { "-o", "-l", "--fill", "--load", "--exec",
                                             "--stop", "--max-cycles" };
 
             for (const char * flag : kNeedsValue)
@@ -2823,7 +2823,7 @@ namespace CommandLineTests
             // The asymmetry is inherent: put is the only command whose second
             // operand lives on the host. --as names the file on the disk.
             ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin",
-                                         "--as", "PROG", "--type", "B", "--addr", "$6000" };
+                                         "--as", "PROG", "--type", "B", "--load", "$6000" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Put);
@@ -2837,7 +2837,7 @@ namespace CommandLineTests
         TEST_METHOD (Disk_LoadAddressZeroIsDistinguishableFromUnspecified)
         {
             // $0000 is a legal load address, which is why the has-flag exists.
-            ArgVector           given  = { "CassoCli", "disk", "put", "my.dsk", "p.bin", "--addr", "$0000" };
+            ArgVector           given  = { "CassoCli", "disk", "put", "my.dsk", "p.bin", "--load", "$0000" };
             ArgVector           absent = { "CassoCli", "disk", "put", "my.dsk", "p.bin" };
             CommandLineOptions  a      = CommandLineParser::Parse (given.Count(),  given.Data(),  NoProbe());
             CommandLineOptions  b      = CommandLineParser::Parse (absent.Count(), absent.Data(), NoProbe());
@@ -2940,7 +2940,7 @@ namespace CommandLineTests
             // The whole point of nesting. A disk invocation must leave the
             // assembler-shaped fields at their defaults, so a later reader
             // cannot mistake one subcommand's state for another's.
-            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--addr", "$6000" };
+            ArgVector           args = { "CassoCli", "disk", "put", "my.dsk", "prog.bin", "--load", "$6000" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue   (opts.inputFile.empty(),  L"disk does not set the assembler's input");
@@ -3078,9 +3078,9 @@ namespace CommandLineTests
         TEST_METHOD (Disk_TakesEitherPrefixOnTheValueTakingOptionsToo)
         {
             ArgVector           slashArgs = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
-                                              "/as", "PROG", "/type", "B", "/addr", "$6000" };
+                                              "/as", "PROG", "/type", "B", "/load", "$6000" };
             ArgVector           dashArgs  = { "CassoCli", "disk", "put", "my.dsk", "p.bin",
-                                              "--as", "PROG", "--type", "B", "--addr", "$6000" };
+                                              "--as", "PROG", "--type", "B", "--load", "$6000" };
             CommandLineOptions  slashed   = CommandLineParser::Parse (slashArgs.Count(), slashArgs.Data(), NoProbe());
             CommandLineOptions  dashed    = CommandLineParser::Parse (dashArgs.Count(),  dashArgs.Data(),  NoProbe());
 

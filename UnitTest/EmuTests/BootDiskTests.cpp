@@ -526,40 +526,28 @@ public:
                 L"After cycling past last mode, demo must JMP into ROM "
                 L"($D000+, typically the Applesoft cold start at $E000)");
 
-            //  THE COMMITTED IMAGE IS COMPARED, NEVER WRITTEN.
+            //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //
-            //  This used to overwrite Apple2/Demos/casso-rocks.dsk with the
-            //  image it had just built, called out in the code as a deliberate
-            //  side effect. It normally wrote byte-identical content, so git
-            //  stayed clean and the only trace was a moved mtime -- and on
-            //  2026-08-24 it wrote a DIFFERENT image, with track 2 zeroed:
-            //  2040 bytes, all sixteen sectors, exactly the nonzero content of
-            //  the second half of dhgr-cassowary-aux.bin. An exact match on
-            //  that half means the image was built without it rather than
-            //  scribbled on afterwards, and a corrupted binary asset went into
-            //  the working tree from a test run.
+            //  This used to WRITE Apple2/Demos/casso-rocks.dsk with the image
+            //  it had just built, on every run, called out as a deliberate
+            //  side effect. It normally wrote the same bytes back, so git
+            //  stayed clean and the only trace was a moved mtime -- until a
+            //  run that built a different image and left a corrupted binary
+            //  asset in the tree.
             //
-            //  A test that writes into the tree it is testing can do that. So
-            //  this one asserts instead: the committed image must equal the
-            //  one just built, and a mismatch says which script rebuilds it.
-            //  The drift protection is the same and there is no write.
-            fs::path           committed = src.parent_path() / "casso-rocks.dsk";
-            std::ifstream      onDisk (committed, std::ios::binary);
-            std::vector<Byte>  stored;
-
-            Assert::IsTrue (onDisk.good(),
-                L"Apple2/Demos/casso-rocks.dsk is missing; run scripts/BuildDemoDisk.ps1");
-
-            stored.assign (std::istreambuf_iterator<char> (onDisk),
-                           std::istreambuf_iterator<char> ());
-
-            Assert::AreEqual (raw.size(), stored.size(),
-                L"the committed casso-rocks.dsk is a different size from the one this "
-                L"test just built -- run scripts/BuildDemoDisk.ps1 to rebuild it");
-
-            Assert::IsTrue (stored == raw,
-                L"the committed casso-rocks.dsk differs from the one this test just "
-                L"built -- run scripts/BuildDemoDisk.ps1 to rebuild it");
+            //  Replacing the write with a READ of the same file was still
+            //  wrong. A test that fails because a checked-in artifact is stale
+            //  is a test reporting on the state of the machine it is running
+            //  on, and this one would fail on a tree that is perfectly
+            //  correct except that somebody has not re-run a script.
+            //
+            //  WHETHER THE COMMITTED DISK IS UP TO DATE IS A BUILD QUESTION,
+            //  and it is asked where the disk is built:
+            //  `scripts/BuildDemoDisk.ps1 -Verify` rebuilds it and compares
+            //  without writing. What this test is for is upstream of that --
+            //  the demo assembles, boots, and paints what it should -- and it
+            //  has already asserted all of it above, from an image held in
+            //  memory and never written down.
         }
     }
 

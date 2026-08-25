@@ -112,7 +112,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
         "  CassoCli disk create mydisk.dsk " + lp + "bootable\n"
         "  CassoCli as65 prog.a65 " + sp + "oprog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
-                 + lp + "type B " + lp + "addr $6000\n"
+                 + lp + "type B " + lp + "load $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
         "  CassoCli disk boot mydisk.dsk STARTUP\n"
         "  Casso.exe --machine Apple2e --disk1 mydisk.dsk\n";
@@ -167,7 +167,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     {
         { "as65 "   + lp + "help", "AS65 options, output formats and listings" },
         { "merlin " + lp + "help", "Merlin options, and where the supported subset ends" },
-        { "run "    + lp + "help", "Run options: load address, entry point, limits" },
+        { "run "    + lp + "help", "Run options: load address, where execution starts, limits" },
         { "disk "   + lp + "help", "Disk commands, their options, and a worked example" },
         { lp + "version",          "Version information" },
     };

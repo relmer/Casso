@@ -246,10 +246,10 @@ namespace CliSwitchCoverageTests
               { return o.hasLoadAddress && o.loadAddress == 0x2000; },
               "--load places the image" },
 
-            { "run", "entry", { "CassoCli", "run", "p.bin", "--entry", "$2010" },
+            { "run", "exec", { "CassoCli", "run", "p.bin", "--exec", "$2010" },
               [] (const CommandLineOptions & o)
               { return o.hasEntryAddress && o.entryAddress == 0x2010; },
-              "--entry starts it somewhere other than the load address" },
+              "--exec starts it somewhere other than the load address" },
 
             { "run", "stop", { "CassoCli", "run", "p.bin", "--stop", "$2100" },
               [] (const CommandLineOptions & o)
@@ -298,10 +298,10 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.containerType == "woz"; },
               "--type picks the container" },
 
-            { "disk", "addr", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--addr", "$0800" },
+            { "disk", "load", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--load", "$0800" },
               [] (const CommandLineOptions & o)
               { return o.disk.hasLoadAddress && o.disk.loadAddress == 0x0800; },
-              "--addr gives a binary its load address" },
+              "--load gives a binary its load address" },
 
             { "disk", "text", { "CassoCli", "disk", "get", "d.dsk", "README", "--text" },
               [] (const CommandLineOptions & o)
@@ -1078,7 +1078,7 @@ namespace CliSwitchCoverageTests
             const char *  kBad[][5] =
             {
                 { "CassoCli", "run",  "p.bin", "--load",  "nonsense" },
-                { "CassoCli", "run",  "p.bin", "--entry", "nonsense" },
+                { "CassoCli", "run",  "p.bin", "--exec", "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--stop",  "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--fill",  "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--max-cycles", "nonsense" },
@@ -1104,7 +1104,7 @@ namespace CliSwitchCoverageTests
 
             //  and its addresses are hex, written the way the message says.
             CommandLineOptions  addr =
-                ParseOf ({ "CassoCli", "disk", "put", "d.dsk", "p.bin", "--addr", "nonsense" });
+                ParseOf ({ "CassoCli", "disk", "put", "d.dsk", "p.bin", "--load", "nonsense" });
 
             Assert::IsFalse (addr.refusalMessage.empty(), L"--addr took a value it cannot read");
         }

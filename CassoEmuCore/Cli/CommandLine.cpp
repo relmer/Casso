@@ -29,7 +29,7 @@
 static const char *  s_kRunOptionLines[] =
 {
     "  {0}load <addr>{1}          Load address (default: $8000)",
-    "  {0}entry <addr>{1}         Entry point address",
+    "  {0}exec <addr>{1}          Where execution starts. Defaults to the load address",
     "  {0}reset-vector{1}         Use reset vector at $FFFC/$FFFD",
     "  {0}stop <addr>{1}          Stop when PC reaches address",
     "  {0}max-cycles <n>{1}       Maximum cycles before stopping",
