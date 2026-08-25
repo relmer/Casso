@@ -403,6 +403,42 @@ SSI-263 being driven and recorded; it does not require *us* to own one, since a
 community member with a Mockingboard C recording a prescribed phoneme sequence
 satisfies it equally, which turns B from a purchase into a request.
 
+### D12 — The formant table is a fetched asset, not repo content (T003)
+
+**Decision**: Treat the route-A parameter data exactly as Casso already treats
+every other chip ROM — **fetched on demand with user consent, never committed**.
+
+**Rationale**: `scripts/FetchRoms.ps1` downloads peripheral card ROMs rather than
+vendoring them, and `Casso/AssetBootstrap.cpp` fetches ROMs, sample disks, and
+Disk II audio on first launch with the user's agreement. The //e Enhanced
+firmware is already a managed download-on-demand asset. Chip ROM data is the
+same category of thing and gets the same treatment; there is no reason to invent
+a second mechanism, and committing a ROM image would be a departure from
+established practice rather than a convenience.
+
+**Shape**:
+
+| | |
+|---|---|
+| Identity | `sc01a.bin`, verified by its CRC32 (`fc416227`) — a checksum mismatch must fail loudly, not degrade silently, because wrong parameter data produces *plausible* wrong speech |
+| Storage | Alongside the other managed assets; absent by default |
+| Absence | The card must still construct and the sound half must work. Speech degrades to silence with a clear reason surfaced, never a crash or a hang — a user without the asset has a working Mockingboard A in all but name |
+| Swappability | Loaded through one seam so routes B and C can replace the source with no code change (D11) |
+
+**Two constraints inherited from elsewhere in this document:**
+
+- **It is the wrong chip's data** (D10a), so FR-023 requires the substitution be
+  disclosed both in the release notes and beside the loading code.
+- **It is chip data, not another project's code** (D10), which is what makes it
+  usable at all. That distinction is the whole reason this route exists, and it
+  should be stated where the asset is defined so a later reader does not
+  re-litigate it.
+
+**Open at implementation**: which URL the asset is fetched from. The file
+circulates widely; picking a stable, appropriately-licensed host is a task for
+whoever wires the bootstrap entry, not a decision this document can make
+usefully in advance.
+
 ---
 
 ## PENDING — must come from primary sources before implementation
