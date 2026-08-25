@@ -152,14 +152,14 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "Make a new image file, formatted and ready to write to",
       "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
       "                               [%Lbootable [<image>]]\n"
-      "                               [%Lboot <file> [%Laddr $XXXX] [%Lentry <addr>]]",
+      "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
       "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the name's extension when not given\n"
       "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33\n"
       "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
       "  %Lbootable [<image>]    Copy an operating system on, so the disk starts by itself. It finds the master for the format being written, so name an image only when you want a particular one\n"
       "  %Lboot <file>           Start this binary with no operating system on the disk at all. It must load between $0900 and $BFFF\n"
-      "  %Laddr $XXXX            Where a %Lboot binary is placed in memory\n"
-      "  %Lentry <addr>          Where it starts running once it is there. Defaults to the load address, and differs only for a payload that opens with data rather than code\n",
+      "  %Lload $XXXX            Where a %Lboot binary is placed in memory\n"
+      "  %Lexec $XXXX            Which address the machine jumps to once the binary is there. Defaults to the load address, and differs only for a payload that opens with data rather than code\n",
       "It refuses to write over an image that is already there; init is the command for"
       " meaning it. %Lboot and %Lbootable are the two ways to make a disk start something"
       " and cannot both be asked for: one puts an operating system on, the other puts a"
@@ -179,15 +179,18 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
 
     { "stamp",
-      "Write a file from the host at a track and sector, with no filesystem involved",
+      "Write a file at a fixed track and sector, for a disk with no catalog to file it in",
       "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
       "  %Ltrack <n>             Which track to write at, 0 to 34\n"
       "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The bytes run on into the next track if they do not fit\n",
-      "FOR A DISK WITH NO CATALOG TO PUT ANYTHING IN. A boot sector, a loader, and the"
-      " data a loader reads all live at fixed places on the disk rather than in a"
-      " filesystem, and put has nowhere to file them. stamp writes them where the running"
-      " machine will look. The sector is the LOGICAL one, so the interleave is applied"
-      " for you and the number you give is the number DOS would use.",
+      "A BOOT SECTOR, A LOADER, AND THE DATA A LOADER READS all live at fixed places on"
+      " the disk rather than in a filesystem. There is no catalog for put to file them"
+      " in and no name for the machine to look them up by: the running code goes to a"
+      " track and a sector because that is where it was told they would be. stamp is how"
+      " they get there, and it is what %Lformat none exists alongside, since a disk built"
+      " this way has no filesystem at all. The sector is the LOGICAL one, so the"
+      " interleave is applied for you and the number you give is the number DOS would"
+      " use.",
       "CassoCli disk stamp boot.dsk loader.bin %Ltrack 0 %Lsector 0" },
 };
 
@@ -1738,6 +1741,19 @@ std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options
 
 
 
+//  Integer BASIC stops numbering lines at 32767, so the high bit of a line
+//  number is clear and zero is not a line at all.
+static constexpr Word    s_kMaxIntegerLineNumber = 32767;
+
+
+//  How many links have to agree before a chain is a chain rather than a
+//  coincidence. One proves nothing on a short file.
+static constexpr size_t  s_kLinesThatProveAChain = 3;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskCommandRunner::DetectFileType
@@ -1826,6 +1842,18 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
     }
 
     //  Integer BASIC: a chain of length-prefixed lines, and DOS 3.3's alone.
+    //
+    //  TIGHTER THAN THE APPLESOFT WALK BECAUSE IT HAS LESS TO GO ON. Applesoft
+    //  carries a pointer per line that has to rise AND land on the last byte,
+    //  and measured over 200,000 random blobs it never once fired. Integer has
+    //  only a length byte, so a short file can chain to its own end by
+    //  accident: the same measurement put it at 0.39% on 16-byte blobs.
+    //
+    //  Two free constraints close that. A line number stops at 32767 on this
+    //  machine, so the high bit is clear and zero is not a line; and three
+    //  links have to agree rather than one. Re-measured, 0.39% becomes 0.0025%,
+    //  and what a rejected file falls back to is B, which is where it would
+    //  have gone anyway.
     at       = 0;
     lastLine = 0;
     seen     = 0;
@@ -1836,6 +1864,11 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
         Word  line   = (Word) (bytes[at + 1] | (bytes[at + 2] << 8));
 
         if (length < 4 || at + length > bytes.size())
+        {
+            break;
+        }
+
+        if (line == 0 || line > s_kMaxIntegerLineNumber)
         {
             break;
         }
@@ -1851,7 +1884,7 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
 
         if (at == bytes.size())
         {
-            return Dos33Volume::kTypeInteger;
+            return (seen >= s_kLinesThatProveAChain) ? Dos33Volume::kTypeInteger : (Byte) 0;
         }
     }
 

@@ -330,11 +330,17 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.directBootFile == "p.bin"; },
               "--boot makes a disk that starts a binary with no operating system" },
 
-            { "disk", "entry", { "CassoCli", "disk", "create", "d.dsk", "--boot", "p.bin",
-                                 "--entry", "$0910" },
+            { "disk", "load", { "CassoCli", "disk", "create", "d.dsk", "--boot", "p.bin",
+                                "--load", "$0900" },
+              [] (const CommandLineOptions & o)
+              { return o.disk.hasLoadAddress && o.disk.loadAddress == 0x0900; },
+              "--load places a --boot binary in memory" },
+
+            { "disk", "exec", { "CassoCli", "disk", "create", "d.dsk", "--boot", "p.bin",
+                                "--exec", "$0910" },
               [] (const CommandLineOptions & o)
               { return o.disk.hasEntryAddress && o.disk.entryAddress == 0x0910; },
-              "--entry starts the payload somewhere other than its first byte" },
+              "--exec starts the payload somewhere other than its first byte" },
 
             { "disk", "track", { "CassoCli", "disk", "stamp", "d.dsk", "p.bin", "--track", "3" },
               [] (const CommandLineOptions & o) { return o.disk.track == 3; },

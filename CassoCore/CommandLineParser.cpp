@@ -228,7 +228,8 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "volume",
     "bootable",
     "boot",
-    "entry",
+    "load",
+    "exec",
     "track",
     "sector",
 };
@@ -910,7 +911,8 @@ const char * CommandLineParser::DiskCommandWord (CommandLineOptions::DiskOptions
 
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
-    return arg == "--out" || arg == "--as" || arg == "--type" || arg == "--addr";
+    return arg == "--out"  || arg == "--as"   || arg == "--type" || arg == "--addr"
+        || arg == "--load" || arg == "--exec";
 }
 
 
@@ -1231,10 +1233,36 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  --load IS WHERE THE BINARY GOES AND --exec IS WHERE IT STARTS.
+        //  They were --addr and --entry, and read as the same thing twice:
+        //  --addr said "address" without saying which, and put's own --addr
+        //  meant a third thing on the same page. These say what they do.
+        if (arg == "--load" && hasValue)
+        {
+            Word     where = 0;
+            HRESULT  hr    = ParseAddress (argv[i + 1], where);
+
+            if (SUCCEEDED (hr))
+            {
+                options.disk.loadAddress    = where;
+                options.disk.hasLoadAddress = true;
+            }
+            else
+            {
+                Refusal (options) << "Error: " << argv[i + 1] << " is not an address\n"
+                                  << "       write it as $XXXX\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
+            i++;
+            continue;
+        }
+
         //  An entry that could not be read is refused rather than dropped, for
         //  the reason --addr gives: a dropped value leaves the runner answering
         //  a command line the caller did not type.
-        if (arg == "--entry" && hasValue)
+        if (arg == "--exec" && hasValue)
         {
             Word     entry = 0;
             HRESULT  hr    = ParseAddress (argv[i + 1], entry);
