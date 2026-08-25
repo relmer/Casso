@@ -1169,6 +1169,16 @@ void MachineManager::CreateVideoModes()
 
         text80->SetAuxMemory (auxBuf);
         dhr->SetAuxMemory (auxBuf);
+
+        // DHR needs BOTH banks at once, so it takes main RAM directly too.
+        // The bus cannot serve the main half: its $2000-$3FFF pages follow
+        // live banking and point at aux under 80STORE+HIRES+PAGE2, which
+        // made DHR render the aux bytes into both halves of every pair.
+        // This is the same buffer the MMU treats as main.
+        if (m_shell.m_refs.mainRamDev != nullptr)
+        {
+            dhr->SetMainMemory (m_shell.m_refs.mainRamDev->GetData());
+        }
     }
 
     m_shell.m_videoModes.push_back (std::move (text80));

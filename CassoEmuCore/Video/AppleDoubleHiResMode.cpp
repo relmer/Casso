@@ -80,28 +80,37 @@ Word AppleDoubleHiResMode::GetActivePageAddress (bool page2) const
 //
 //  ReadDhrByte
 //
-//  Helper: reads one byte from either aux memory (if useAux and aux is
-//  bound) or main memory (videoRam pointer or memory bus).
+//  Helper: reads one byte of one half of a DHR byte pair.
+//
+//  `direct` is the bank this half belongs to -- the aux buffer for the aux
+//  half, the main buffer for the main half. Both are wired straight to the
+//  RAM the //e MMU owns, and the bus is only a fallback for a renderer with
+//  no direct pointers.
+//
+//  Going straight to the banks is a CORRECTNESS requirement, not a shortcut.
+//  DHR needs main and aux at the same instant, but the bus page table for
+//  $2000-$3FFF follows live MMU banking: with 80STORE and HIRES set, PAGE2
+//  alone points that whole range at aux (Apple2eMmu::ResolveHires20_3F), and
+//  with 80STORE off it follows RAMRD. Reading the main half through the bus
+//  therefore returned the AUX byte for any program that left the switches
+//  pointing at aux while the frame was scanned, rendering aux into both
+//  halves of every 14-dot group.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static Byte ReadDhrByte (
-    bool         useAux,
-    const Byte * auxMem,
+    const Byte * direct,
     const Byte * videoRam,
     MemoryBus  & bus,
     Word         addr)
 {
-    // Preference order: aux (when this byte belongs there and aux is bound),
-    // then a direct main-RAM pointer, then the bus. The bus path is the slow
-    // fallback for a renderer with no direct pointers wired.
     Byte  value = 0;
 
 
 
-    if      (useAux && auxMem != nullptr) { value = auxMem[addr];       }
-    else if (videoRam != nullptr)         { value = videoRam[addr];     }
-    else                                  { value = bus.ReadByte (addr); }
+    if      (direct != nullptr)   { value = direct[addr];       }
+    else if (videoRam != nullptr) { value = videoRam[addr];     }
+    else                          { value = bus.ReadByte (addr); }
 
     return value;
 }
@@ -171,8 +180,8 @@ void AppleDoubleHiResMode::Render (
         {
             Word addr = static_cast<Word> (lineAddr + byteIdx);
 
-            auxByte  = ReadDhrByte (true,  m_auxMem, videoRam, m_bus, addr);
-            mainByte = ReadDhrByte (false, m_auxMem, videoRam, m_bus, addr);
+            auxByte  = ReadDhrByte (m_auxMem,  videoRam, m_bus, addr);
+            mainByte = ReadDhrByte (m_mainMem, videoRam, m_bus, addr);
 
             for (int bit = 0; bit < kBitsPerByte; bit++)
             {

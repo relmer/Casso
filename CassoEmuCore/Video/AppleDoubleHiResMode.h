@@ -46,6 +46,13 @@ public:
     // (aux supplies the first 7 dots, main supplies the next 7 dots).
     void SetAuxMemory (const Byte * auxMem) { m_auxMem = auxMem; }
 
+    // Main memory, wired straight to the RAM the MMU owns. DHR needs main
+    // and aux at the same instant, and the memory bus cannot supply that:
+    // its $2000-$3FFF pages follow live banking and can be pointing at aux
+    // when the frame is scanned. Reading main through the bus rendered aux
+    // into both halves of every byte pair whenever that happened.
+    void SetMainMemory (const Byte * mainMem) { m_mainMem = mainMem; }
+
     // Monochrome decode, pushed in by the shell from the selected monitor
     // rather than read from a soft switch -- no soft switch exists, because
     // on real hardware this is a property of the display, not the machine.
@@ -57,5 +64,6 @@ public:
 private:
     MemoryBus    & m_bus;
     const Byte   * m_auxMem     = nullptr;
+    const Byte   * m_mainMem    = nullptr;
     bool           m_monochrome = false;
 };

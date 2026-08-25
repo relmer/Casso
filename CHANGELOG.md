@@ -9,6 +9,29 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
+- **Hi-res on a monochrome monitor now shows the 560 half-dot stream.** Green,
+  amber, and white monitors used to luminance-tint the artifact-color decode,
+  so an isolated dot — violet or green on a color monitor — came out at about
+  57% brightness where hardware shows it fully lit, and the half-dot shift was
+  invisible because the color decode folds it into a palette pair instead.
+  Monochrome monitors now decode the dots: every lit dot is full brightness,
+  and a byte with bit 7 set paints half a dot to the right of one without,
+  which is the horizontal detail 280-pixel rendering cannot represent.
+
+  Expect this to look different, not just better. On artwork authored for a
+  *color* display — anything dithered to get violet and green — a monochrome
+  monitor is supposed to look harsh and washed out, which is exactly why
+  monochrome-targeted software dithers at dot resolution instead. Measured on
+  a dithered photograph, 94.6% of lit pixels change and mean lit brightness
+  rises from 157 to 255. The color monitor is untouched.
+- **Double hi-res no longer renders auxiliary memory into both halves of the
+  picture.** DHR needs main and aux RAM at the same instant, but it read its
+  main half through the memory bus — whose `$2000-$3FFF` pages follow live
+  MMU banking. With 80STORE and HIRES set, PAGE2 alone points that whole
+  range at aux, so any program that left the switches there while a frame was
+  scanned had the aux byte rendered into both halves of every 14-dot group
+  and never saw main memory at all. DHR now reads both banks directly, the
+  way it already read aux.
 - **Double hi-res on a monochrome monitor now decodes all 560 dots.** The
   green, amber, and white monitors used to tint the 16-color decode rather
   than decode differently, and that decode has already thrown the detail

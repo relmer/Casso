@@ -6362,16 +6362,23 @@ void EmulatorShell::RenderFramebuffer()
             text80->SetFlashState (flashOn);
         }
 
-        // Double hi-res decodes from the dots differently per monitor, so it
-        // needs the monitor type rather than a tint of one decode. The color
-        // decode collapses each 4-dot cell to one palette entry, which erases
-        // the dither patterns that 560x192 monochrome art is built from -- no
-        // amount of post-tinting brings those back. m_videoModes[3] is DHR.
+        // Both graphics modes decode from the dots differently per monitor,
+        // so they need the monitor type rather than a tint of one decode.
+        // In both cases the color decode has already discarded what a
+        // monochrome monitor would show -- DHR collapses each 4-dot cell to
+        // one palette entry, and hi-res folds the half-dot shift into a
+        // color pair -- so no amount of post-tinting brings it back.
+        // m_videoModes[2] is hi-res and [3] is DHR.
+        bool monoMonitor = (color != ColorMode::Color);
+
+        if (m_videoModes.size() > 2)
+        {
+            static_cast<AppleHiResMode *> (m_videoModes[2].get())->SetMonochrome (monoMonitor);
+        }
+
         if (m_videoModes.size() > 3)
         {
-            auto *  dhr = static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get());
-
-            dhr->SetMonochrome (color != ColorMode::Color);
+            static_cast<AppleDoubleHiResMode *> (m_videoModes[3].get())->SetMonochrome (monoMonitor);
         }
     }
 
