@@ -176,10 +176,17 @@ performed by sliding the filters from one phoneme's frequencies toward the next.
 That is D5, and it is what the emulator that reverse-engineered this chip family
 from die photographs concluded independently.
 
-### D10 — Prior art surveyed at the level of approach, never source
+### D10 — Read the prior art freely; the line is copying, not looking
 
-**Decision**: Record what other emulators do, from their public documentation,
-release notes, and issue trackers. **Do not read their source.**
+**Decision**: Read other emulators' sources, documentation, and issue trackers as
+much as is useful. **Do not copy their code into ours.** That is the whole rule.
+
+**On an earlier, wrong version of this decision**: this section previously said
+their source should not be opened at all, on the theory that "never looked" is
+the strongest posture. That is not the project's rule and it is not a good one —
+refusing to read buys no legal protection and forfeits real information. The most
+valuable thing in another project's file is often not its code but its
+**provenance**, which is exactly what produced the finding below.
 
 **Findings**:
 
@@ -199,18 +206,48 @@ release notes, and issue trackers. **Do not read their source.**
 - **Die photographs of the SSI-263P are publicly published** by visual6502, an
   independent primary source available to us directly.
 
-**Licensing boundary — this is the important part.** Both emulators are GPL-2.
-The constitution forbids copyleft dependencies and FR-002 forbids copying. The
-strongest clean-room posture is *not having looked*: **do not open MAME's
-`votrax.cpp` or AppleWin's speech sources at any point.** The patents, the
-datasheet, the ICASSP paper, and the die shots are all independently available
-and are what this feature is built from.
+**Licensing boundary**: both emulators are GPL-2, so their *code* stays out of
+ours. Their documentation, their approach, and — critically — the **provenance of
+their data** are all fair game and worth mining.
 
-A specific trap worth naming: AppleWin's phoneme samples are plausibly recorded
-from real hardware, which makes them tempting as acoustic ground truth. They are
-GPL-licensed assets in a GPL repository, and deriving formant tables from them
-would be derivation from a copyleft work. **Use a recording we make or obtain
-independently** (PENDING-3), not theirs.
+### D10a — Provenance of the formant data, and why it does not help us
+
+Tracing where MAME's formant values come from produced the most consequential
+finding in this research, and it is a negative one.
+
+**MAME does not contain the SC-01's formant tables. It reads them from
+`sc01a.bin` — a dump of the chip's own internal parameter ROM** (CRC32
+`fc416227`), extracted by decapping the part in 2007. The patent describes the
+structure this ROM holds: for each of the 64 phonemes, twelve control-signal
+parameters, including the formant frequencies and Q values.
+
+**That reframes the licensing question entirely.** A hardware ROM dump is not the
+creative work of a program that reads it, and it is not encumbered by that
+program's license. Casso already fetches Apple II ROM images as a matter of
+course. An MIT-licensed Python port of MAME's implementation exists and takes the
+same `sc01a.bin` as an external input, which is consistent with the file being
+treated as chip data rather than project code.
+
+**And then the finding that matters**: `sc01a.bin` is the **SC-01A's** ROM. The
+SSI-263A/SC-02 is a different part with **different phoneme data, and its
+parameter ROM has never been extracted.** MAME and AppleWin both approximate the
+SC-02 by mapping its phonemes onto SC-01 data — which their own communities
+describe as not producing accurate speech, the two chips having 64 phonemes in
+different orders that do not map 1:1.
+
+**There is therefore no upstream source to find, in any license, for the chip
+this feature emulates.** The data is still inside the part. What exists publicly:
+
+| Asset | Status |
+|---|---|
+| SC-01A parameter ROM (`sc01a.bin`) | Extracted 2007, freely circulating — **wrong chip** |
+| SSI-263A/SC-02 parameter ROM | **Never extracted** |
+| SSI-263P die photographs (visual6502) | Published, high resolution — the raw material, unextracted |
+| SSI-263A datasheet + programming guide | Available (PENDING-1) |
+| Votrax patents, ICASSP-78 paper | Available — structure, not this part's values |
+
+This is an open problem in the emulation community, not an oversight on our part.
+See D11 for what to do about it.
 
 ### D7 — Timing is driven by emulated cycles, sample rate is a rendering detail
 
@@ -234,6 +271,35 @@ disk acquisition, and isolates host-side faults from title-side faults exactly a
 its tone counterpart does — that file's header already articulates the pattern:
 a steady tone proves the path end-to-end, silence localizes the fault to the
 host. It is the artifact that unblocks all development on User Story 1.
+
+### D11 — OPEN: how accurate do we intend to be? *(needs a decision)*
+
+D10a means the acoustic-fidelity target is a scope decision, not a research task.
+Three routes, and they differ by more than an order of magnitude in effort:
+
+| Route | What it means | Cost | Result |
+|---|---|---|---|
+| **A — Match the state of the art** | Do what MAME and AppleWin do: drive the synthesis from SC-01A data mapped onto the SSI-263's phoneme ordering | Low. `sc01a.bin` is available and the mapping problem is understood | Speech that works and is recognizable, with the same known inaccuracy every other emulator has |
+| **B — Measure real hardware** | Record all 64 phonemes from a real SSI-263 and extract formant targets by spectral analysis | Medium. Needs hardware access and signal-processing work, no decapping | Genuinely accurate for this part. Achievable without novel reverse engineering |
+| **C — Extract the ROM from the die** | Read the parameter ROM off the published visual6502 die photographs | High, and speculative | The definitive answer, and a first — nobody has published this |
+
+**Route B is the recommendation.** It reaches real SSI-263 accuracy — which no
+emulator currently has — without depending on decapping work that may not be
+tractable from existing photographs. It also folds neatly into the plan: PENDING-3
+already calls for a reference recording, and B is that recording made systematic
+(all 64 phonemes rather than one phrase).
+
+**Route A is the honest fallback** and a reasonable place to start: it gets
+speech working end-to-end while the recording is sought, and B can refine it in
+place afterward without rework, since both feed the same formant tables.
+
+**Route C should not be committed to**, but is worth noting: the die shots are
+public, and if the ROM array proves visually readable the result would be a
+contribution back to the wider community, not just to Casso.
+
+This is the one genuinely open scope question in the feature. It does not block
+starting — A and B share all their code and differ only in where the numbers come
+from.
 
 ---
 
@@ -282,12 +348,18 @@ available); Votrax SC-02 / SSI-263A datasheet — bitsavers, `federalScrewWorks/
 **Needed**: Formant center frequencies and bandwidths per phoneme, plus
 transition behavior, for the D5 synthesis model.
 
-**Resolution path**: D9 — patents and the designer's ICASSP-78 paper first,
-published acoustic phonetics to fill gaps, then tuned against a measured
-reference. **Not blocked on any single document**, which is the point of the
-ordering: work can start from the literature and improve, rather than waiting.
+**Status after D10a**: *no public source exists for this part.* The SC-02/SSI-263
+parameter ROM has never been extracted, and every existing emulator approximates
+it with the wrong chip's data. This is not a document we have failed to find.
 
-**Explicitly excluded**: MAME's and AppleWin's source and assets (D10).
+**Resolution path**: D11 route B — measure all 64 phonemes from real hardware —
+with D11 route A (SC-01A data, as the other emulators use) as the starting point
+so development is never blocked. D9's literature ordering still supplies the
+model structure and sanity bounds.
+
+**Not excluded**: reading MAME's and AppleWin's source, per the corrected D10.
+Only copying their code is out. `sc01a.bin` itself is chip data rather than
+project code, and route A uses it on that basis.
 
 ### PENDING-2 — Where the chip is decoded in the slot page, and how its request line is wired
 
@@ -319,9 +391,9 @@ more likely to succeed than hunting for an existing archived capture. Ask for a
 specific authored phoneme sequence rather than "some speech", so the recording is
 directly comparable to our own output.
 
-**Do NOT use** AppleWin's phoneme samples as the reference, however convenient:
-they are GPL-licensed assets, and deriving formant tables from them is derivation
-from a copyleft work (D10).
+**Scope note**: under D11 route B this recording becomes systematic — all 64
+phonemes, not one phrase — since it is then the primary source for the formant
+tables rather than only a tuning pass.
 
 **Blocks**: D9 step 3 (tuning), SC-001b's final targets, and SC-001c. **Does not block** starting the
 synthesizer from the literature — that is exactly why D9 is ordered as it is.
@@ -356,7 +428,9 @@ it via D8.
 | D7 | Cycle-driven timing, host-rate rendering | Decided |
 | D8 | Boot-sector speech smoke test, early | Decided |
 | D9 | Formant sources: patents → phonetics → measurement | Decided |
-| D10 | Prior art surveyed by approach only; never their source | Decided |
+| D10 | Read prior art freely; never copy their code | Decided (corrected) |
+| D10a | Formant data provenance: SC-01A ROM dump, **wrong chip**; SC-02 never extracted | Confirmed |
+| D11 | Accuracy target: A match-state-of-art / B measure hardware / C read the die | ⚠️ **OPEN — needs a decision** |
 | P1 | Register model, phoneme set, timing formulas, A/R | ✅ **RESOLVED** — datasheet in hand |
 | P1b | Per-phoneme formant targets | Open — worked via D9, blocks nothing |
 | P2 | Board decode range + request-line wiring | **PENDING** — schematics |
