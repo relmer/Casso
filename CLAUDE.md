@@ -23,16 +23,16 @@ own session:
 - `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Builds on
   019's dialect mechanism, which has shipped; full compatibility needs a linker
   (GH #58).
-- `specs/024-mockingboard-speech` — the SSI-263 voice chip, picking up the item
-  GH #66 deferred, plus a sound-only (Mockingboard A) / sound+speech
+- `specs/024-mockingboard-speech` (GH #123) — the SSI-263 voice chip, picking up
+  the item GH #66 deferred, plus a sound-only (Mockingboard A) / sound+speech
   (Mockingboard C) variant split with the C as the default for the ][+, //e, and
   //e Enhanced. Depends on nothing; branch `024-mockingboard-speech`.
 
-A fifth is planned but not yet written: **per-slot card configuration** — a
-Hardware-tab dropdown selecting any supported card for any slot, with default
-slot assignments modeling period-typical install locations. It is where users
-will pick between the Mockingboard A and C, but 024 does not depend on it (024
-selects its variant by machine configuration).
+A fifth is planned but not yet written: **per-slot card configuration**
+(GH #124) — a Hardware-tab dropdown selecting any supported card for any slot,
+with default slot assignments modeling period-typical install locations. It is
+where users will pick between the Mockingboard A and C, but 024 does not depend
+on it (024 selects its variant by machine configuration).
 
 **Sequencing.** 021 needs 020's filesystem layer and 022 needs 020/021. 023's
 gate was 019's dialect mechanism (023 SC-006 requires that adding ca65 change

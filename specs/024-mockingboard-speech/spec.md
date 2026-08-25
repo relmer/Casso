@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Add the SSI-263 voice chip to the existing Mockingboard emulation, and make the sound+speech card the default. Two card variants: the sound-only Mockingboard A we ship today, and a new Mockingboard C. Compatibility with sound-only software is the headline requirement."
+**Input**: User description: "Add the SSI-263 voice chip to the existing Mockingboard emulation, and make the sound+speech card the default. Two card variants: the sound-only Mockingboard A we ship today, and a new Mockingboard C. Compatibility with sound-only software is the headline requirement." (Tracked by GitHub issue #123; picks up the item GH #66 deferred.)
 
 ## Overview
 
@@ -63,8 +63,8 @@ Both are avoidable, and the requirements below pin them down.
 
 ### Relationship to per-slot card configuration
 
-A follow-on feature will make each slot's occupant user-selectable from the
-Hardware tab, with default slot assignments modeling where people actually
+A follow-on feature (GH #124) will make each slot's occupant user-selectable from
+the Hardware tab, with default slot assignments modeling where people actually
 installed each card. That is where a user will *choose* between the A and the C,
 alongside choosing any card for any slot.
 
