@@ -3,11 +3,6 @@ Ka 0 0 0
 Kd 0.884 0.874 0.846
 d 1
 
-newmtl notch
-Ka 0 0 0 
-Kd 0.36 0.354 0.34
-d 1
-
 newmtl slot
 Ka 0 0 0 
 Kd 0.055 0.055 0.062
@@ -16,11 +11,6 @@ d 1
 newmtl lever
 Ka 0 0 0 
 Kd 0.7 0.692 0.668
-d 1
-
-newmtl tab
-Ka 0 0 0 
-Kd 0.655 0.648 0.625
 d 1
 
 newmtl lamp

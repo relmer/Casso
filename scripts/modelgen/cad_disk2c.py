@@ -15,15 +15,16 @@ The front is one composition and the pieces only make sense together:
     it is open notch -- which is the finger recess, not a separate feature
     somebody added under a lever.
   - the SLOT is BEVELED at 45 degrees all round, because a diskette has to be
-    guided into it by hand.
+    guided into it by hand, and the latch's own front leans back on the way
+    down so it draws out of that path rather than standing in it.
 
 The case is TWO HALVES meeting at the plane of the slot, with a fine gap
 between them running the whole way round, and the lower half tapers inward to
 its base on the left and right only. Feet run across the front and the back
 rather than sitting at the corners, with a rubber pad at each rounded end.
 
-Sub-mesh identity is by part NAME: `lever` and `tab` are the door assembly the
-scene moves on eject, `lamp` is the activity indicator, `slot` the opening.
+Sub-mesh identity is by part NAME: `lever` is the door the scene moves on
+eject, `lamp` is the activity indicator, `slot` the opening.
 Their colors are free to be the finish the photographs show -- which is why
 the latch is a //c keycap's gray rather than a marker value.
 """
@@ -80,14 +81,12 @@ CASE    = (0.884, 0.874, 0.846)
 SLOT_DK = (0.055, 0.055, 0.062)
 FOOT    = (0.320, 0.310, 0.300)
 PAD     = (0.180, 0.176, 0.170)
-RECESS  = (0.360, 0.354, 0.340)   # inside the latch's notch -- see "notch"
 
 # The latch is GRAY -- a //c keycap's gray, plainly a different part from the
 # case rather than a tint of it. Made a shade off the cream it vanished into
 # the front, which is the opposite of what it is: the one thing on this face
 # you are meant to find with a thumb.
 LATCH   = (0.700, 0.692, 0.668)
-GRIP    = (0.655, 0.648, 0.625)
 
 RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
            (0.91, 0.18, 0.14), (0.58, 0.25, 0.60), (0.17, 0.45, 0.85)]
@@ -121,11 +120,19 @@ LATCH_X0     = (W - LATCH_W) * 0.5
 LATCH_PROUD  = 1.5                # how far it stands off the face
 LATCH_SUNK   = 3.0                # how far it reaches back into the notch
 
-# Where the latch crosses the slot's opening it is BEVELED BACK, carrying the
-# slot's own 45-degree lead-in across the piece that interrupts it. A diskette
-# is aimed at the whole opening, and a flat block standing proud in the middle
-# of a chamfered mouth is a thing to catch on.
-LATCH_SLOT_BEV = 1.2
+# The latch's front LEANS BACK as it descends, so where it crosses the slot's
+# opening it has drawn away from the diskette's path -- the slot's own lead-in
+# carried across the piece that interrupts it, since a flat block standing
+# proud in the middle of a chamfered mouth is a thing to catch on.
+#
+# ONE PLANE over the latch's whole height, not a recessed band with a ramp on
+# top of it. The band version put a crease across the front at the slot's
+# bevel line, and a crease between two nearly-parallel flat faces is a drawn
+# line: flat shading gives each face one value, and the eye reads the boundary
+# as ink. Filleting it only made it two fainter lines. Spread over twenty
+# millimeters the same 1.6 mm of setback is four degrees, which shades as a
+# gradient and has no edge in it anywhere.
+LATCH_SLOT_BEV = 1.6
 
 # The notch is a little wider than the latch so the latch travels freely in
 # it, and it runs from below the slot up over the top and back along the lid.
@@ -141,7 +148,6 @@ NOTCH_W      = LATCH_W + 4.0
 NOTCH_X0     = (W - NOTCH_W) * 0.5
 NOTCH_Z0     = SLOT_Z0 - 12.0     # its floor, well below the slot
 NOTCH_D      = LATCH_SUNK + LATCH_TRAVEL_IN + 1.5
-NOTCH_LINE   = 0.5                # the recess lining's own thickness
 NOTCH_LID    = 16.0               # how far back along the lid
 NOTCH_LID_D  = 4.0                # how far down into the lid
 
@@ -172,6 +178,20 @@ SEAM_DEEP = 0.8
 # plumb.
 TAPER = 1.0
 
+# EVERY GROOVE'S MOUTH IS CHAMFERED rather than left as a bare arris. A sharp
+# edge between two flat faces is a hard boundary between two flat values and
+# nothing more; a chamfer is a third face with a normal of its own, so the
+# edge catches its own sliver of light and the groove reads as something cut
+# into a molding instead of drawn on one. Small -- three tenths of a
+# millimeter -- because it is a broken edge, not a feature.
+GROOVE_FLARE = 0.30
+
+# And the latch's own edges. All of them small, except the one where its top
+# meets its front: that one shares the case's radius, because the latch's top
+# IS the drive's top for those forty millimeters and two different radii meeting
+# in one line is the sort of thing that reads as a part that does not fit.
+LATCH_ROUND = 0.6
+
 # --------------------------------------------------------------------- the lid
 
 RIB_N     = 19
@@ -181,6 +201,18 @@ RIB_X0    = 22.0
 RIB_X1    = W - 14.0
 RIB_Y0    = 40.0                  # clear of the front's plain band
 RIB_Y1    = D - 20.0
+
+def MouthFlare(w, d, cx, cy, zMouth):
+    """The chamfer ring at the mouth of a groove cut down into a face at
+    zMouth: the groove's own footprint at the bottom, opened out by
+    GROOVE_FLARE at the surface. Unioned into the cutter, so what it leaves
+    behind is a broken edge rather than an arris."""
+    return (cq.Workplane("XY", origin=(cx, cy, zMouth - GROOVE_FLARE))
+            .rect(w, d)
+            .workplane(offset=GROOVE_FLARE)
+            .rect(w + GROOVE_FLARE * 2.0, d + GROOVE_FLARE * 2.0)
+            .loft())
+
 
 m = Model()
 
@@ -230,20 +262,29 @@ for sign, xEdge in ((-1.0, 0.0), (1.0, W)):
 # them -- painted stripes read as two tones of one flat surface.
 for i in range(RIB_N):
     x = RIB_X0 + (RIB_X1 - RIB_X0 - RIB_W) * i / float(RIB_N - 1)
+
     case = case.cut(
         cq.Workplane("XY")
           .box(RIB_W, RIB_Y1 - RIB_Y0, RIB_DEEP + 2.0, centered=(False, False, False))
           .translate((x, RIB_Y0, H - RIB_DEEP))
-          .edges("|Z").fillet(RIB_W * 0.45))
+          .edges("|Z").fillet(RIB_W * 0.45)
+          .union(MouthFlare(RIB_W, RIB_Y1 - RIB_Y0,
+                            x + RIB_W * 0.5, (RIB_Y0 + RIB_Y1) * 0.5, H)))
 
 # A grille along the TOP edge of the back face. Never seen in this scene, and
 # in the model because the drive has one.
 for i in range(20):
     x = 14.0 + (W - 28.0 - 2.0) * i / 19.0
+
     case = case.cut(
         cq.Workplane("XY")
           .box(2.0, 6.0, H * 0.30, centered=(False, False, False))
-          .translate((x, D - 3.0, H * 0.58)))
+          .translate((x, D - 3.0, H * 0.58))
+          .union(cq.Workplane("XZ", origin=(x + 1.0, D, H * 0.58 + H * 0.15))
+                   .rect(2.0 + GROOVE_FLARE * 2.0, H * 0.30 + GROOVE_FLARE * 2.0)
+                   .workplane(offset=GROOVE_FLARE)
+                   .rect(2.0, H * 0.30)
+                   .loft()))
 
 # THE NOTCH: down the front and on over the top, one L-shaped cut. Its lower
 # reach is the finger recess -- there is no separate pocket, the latch simply
@@ -298,31 +339,33 @@ case = case.cut(
              .translate((SEAM_DEEP, -2.5 + SEAM_DEEP, SPLIT_Z - SEAM_GAP * 0.5 - 1.0))
              .edges("|Z").fillet(CORNER_R - SEAM_DEEP)))
 
+# ...and its two lips broken, by a second ring a flare taller and a flare
+# shallower. Without it the seam is two hard arrises a half millimeter apart,
+# which at any distance is one gray line; with it each lip has a facet that
+# takes the light, and the joint reads as two parts meeting.
+case = case.cut(
+    cq.Workplane("XY")
+      .box(W + 20.0, D + 22.5, SEAM_GAP + GROOVE_FLARE * 2.0, centered=(False, False, False))
+      .translate((-10.0, -12.5, SPLIT_Z - SEAM_GAP * 0.5 - GROOVE_FLARE))
+      .cut(cq.Workplane("XY")
+             .box(W - GROOVE_FLARE * 2.0, (D + 2.5) - GROOVE_FLARE * 2.0,
+                  SEAM_GAP + GROOVE_FLARE * 2.0 + 2.0, centered=(False, False, False))
+             .translate((GROOVE_FLARE, -2.5 + GROOVE_FLARE,
+                         SPLIT_Z - SEAM_GAP * 0.5 - GROOVE_FLARE - 1.0))
+             .edges("|Z").fillet(CORNER_R - GROOVE_FLARE)))
+
 m.add("case", case, CASE)
 
-# THE NOTCH'S LINING, a shade the latch cannot be mistaken for.
+# THE NOTCH HAS NO LINING. It is a hollow in the case and it is the case's own
+# color, which is what a hollow in a molding is.
 #
-# With the latch open you are looking into the recess it came out of, and the
-# recess was case-colored -- which under the monitor's shadow lands on very
-# nearly the latch's own gray. The door's whole silhouette went with it: what
-# should read as a gray part standing out of a pale hollow read as one flat
-# area. This is the same trade the Disk II's plate recess makes and for the
-# same reason -- there is no ambient occlusion in this scene, so a hollow that
-# ought to darken itself has to be given the value instead.
-#
-# Open at the FRONT and the TOP, because those are the two ways out; a shell
-# rather than a fill, because the latch travels through the middle of it.
-notch_box = (cq.Workplane("XY")
-             .box(NOTCH_W, NOTCH_D, H - NOTCH_Z0, centered=(False, False, False))
-             .translate((NOTCH_X0, -2.5, NOTCH_Z0)))
-
-m.add("notch",
-      notch_box.cut(
-          cq.Workplane("XY")
-            .box(NOTCH_W - NOTCH_LINE * 2.0, NOTCH_D, (H - NOTCH_Z0) - NOTCH_LINE,
-                 centered=(False, False, False))
-            .translate((NOTCH_X0 + NOTCH_LINE, -3.0, NOTCH_Z0 + NOTCH_LINE))),
-      RECESS)
+# It was briefly painted a darker shade, to keep the latch readable against it
+# once the monitor's shadow fell across both -- and that fixed the reading by
+# telling a lie about the part, which is a trade worth refusing when there is
+# another way to buy the same thing. The other way is EDGES: the latch is
+# rounded on every arris now, so its outline carries a highlight of its own
+# and does not need the background to be a different color to be found. What
+# distinguishes a part from the hole it sits in is its edge, not its paint.
 
 # ------------------------------------------------- faceplate furniture
 
@@ -351,8 +394,6 @@ LID_BACK    = -2.5 + NOTCH_LID - 2.0
 LID_Z0      = H - NOTCH_LID_D
 LATCH_TOP   = H + 0.6
 BEV_Y       = LATCH_FRONT + LATCH_SLOT_BEV
-BEV_Z1      = SLOT_Z1 + SLOT_BEVEL
-BEV_Z2      = BEV_Z1 + LATCH_SLOT_BEV
 
 latch = (cq.Workplane("YZ")
          .polyline([(BEV_Y,       SLOT_Z0),
@@ -360,28 +401,25 @@ latch = (cq.Workplane("YZ")
                     (LATCH_BACK,  LID_Z0),
                     (LID_BACK,    LID_Z0),
                     (LID_BACK,    LATCH_TOP),
-                    (LATCH_FRONT, LATCH_TOP),
-                    (LATCH_FRONT, BEV_Z2),
-                    (BEV_Y,       BEV_Z1)])
+                    (LATCH_FRONT, LATCH_TOP)])
          .close()
          .extrude(LATCH_W)
          .translate((LATCH_X0, 0.0, 0.0)))
 
-m.add("lever", latch, LATCH)
+# The top-front arris FIRST and at the case's own radius, because for these
+# forty millimeters the latch's top is the drive's top, and two radii meeting
+# in one line reads as a part that does not fit. First because a big fillet
+# will not go in after the small ones have eaten the corners it needs.
+latch = latch.edges("|X and >Z and <Y").fillet(EDGE_R)
 
-# The thumb pad on its front. Placed and sized off the strip of latch that is
-# actually ABOVE the slot, because that is all there is to put it on -- pinned
-# to a fixed offset it ran off the top of the drive the moment the split
-# moved.
-# Above the bevel ramp, not across it -- pinned to the slot's top it floated
-# clear of a face that is still sloping back underneath it.
-TAB_Z0 = BEV_Z2 + 1.0
-m.add("tab",
-      cq.Workplane("XY")
-        .box(LATCH_W - 8.0, 1.2, (H - 2.0) - TAB_Z0, centered=(False, False, False))
-        .translate((LATCH_X0 + 4.0, -2.5 - LATCH_PROUD - 1.2, TAB_Z0))
-        .edges("|Y").fillet(1.0),
-      GRIP)
+# Then everything else, small. This is also what lets the notch behind it go
+# back to being case-colored: a rounded arris carries a highlight along the
+# whole silhouette, so the latch is found by its edge rather than by standing
+# on a darker background.
+latch = latch.edges("|X").fillet(LATCH_ROUND)
+latch = latch.edges("<X or >X").fillet(LATCH_ROUND)
+
+m.add("lever", latch, LATCH)
 
 # The indicator, leaning right like the glyph. Drawn in the FRONT plane and
 # extruded toward the viewer -- an XZ workplane's normal is -Y, so a positive
