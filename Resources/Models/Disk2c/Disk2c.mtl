@@ -60,7 +60,7 @@ d 1
 
 newmtl foot_front
 Ka 0 0 0 
-Kd 0.32 0.31 0.3
+Kd 0.884 0.874 0.846
 d 1
 
 newmtl pad_rear_19
@@ -75,6 +75,6 @@ d 1
 
 newmtl foot_rear
 Ka 0 0 0 
-Kd 0.32 0.31 0.3
+Kd 0.884 0.874 0.846
 d 1
 

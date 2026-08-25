@@ -79,7 +79,10 @@ FOOT_TOTAL = FOOT_H + PAD_H       # how far the drive stands off the desk
 # matches the //c's own cream.
 CASE    = (0.884, 0.874, 0.846)
 SLOT_DK = (0.055, 0.055, 0.062)
-FOOT    = (0.320, 0.310, 0.300)
+# The foot BARS are molded in with the case and are the case's own color; only
+# the PADS are rubber. They had been dark, which turned the underside into a
+# pair of black stripes -- a part that is the same molding as the shell around
+# it has no business being a different color from it.
 PAD     = (0.180, 0.176, 0.170)
 
 # The latch is GRAY -- a //c keycap's gray, plainly a different part from the
@@ -274,17 +277,28 @@ for i in range(RIB_N):
 
 # A grille along the TOP edge of the back face. Never seen in this scene, and
 # in the model because the drive has one.
+#
+# IT STOPS AT THE SEAM. The slots are molded into the TOP shell, so they end
+# where that shell does -- crossing the parting line would mean one slot cut
+# half into each half of a case that comes apart, which no molding does and
+# which reads, correctly, as a mistake. Measured off the split rather than off
+# the case height for the same reason everything else on this drive is: the
+# split is what they belong to, so they follow it if it ever moves.
+VENT_Z0 = SPLIT_Z + 1.5
+VENT_Z1 = H - EDGE_R - 1.0
+VENT_H  = VENT_Z1 - VENT_Z0
+
 for i in range(20):
     x = 14.0 + (W - 28.0 - 2.0) * i / 19.0
 
     case = case.cut(
         cq.Workplane("XY")
-          .box(2.0, 6.0, H * 0.30, centered=(False, False, False))
-          .translate((x, D - 3.0, H * 0.58))
-          .union(cq.Workplane("XZ", origin=(x + 1.0, D, H * 0.58 + H * 0.15))
-                   .rect(2.0 + GROOVE_FLARE * 2.0, H * 0.30 + GROOVE_FLARE * 2.0)
+          .box(2.0, 6.0, VENT_H, centered=(False, False, False))
+          .translate((x, D - 3.0, VENT_Z0))
+          .union(cq.Workplane("XZ", origin=(x + 1.0, D, VENT_Z0 + VENT_H * 0.5))
+                   .rect(2.0 + GROOVE_FLARE * 2.0, VENT_H + GROOVE_FLARE * 2.0)
                    .workplane(offset=GROOVE_FLARE)
-                   .rect(2.0, H * 0.30)
+                   .rect(2.0, VENT_H)
                    .loft()))
 
 # THE NOTCH: down the front and on over the top, one L-shaped cut. Its lower
@@ -468,7 +482,7 @@ for name, fy in (("front", -2.5 + FOOT_INSET + FOOT_R), ("rear", D - FOOT_INSET 
                 .translate((fx, fy, -FOOT_H - PAD_H)),
               PAD)
 
-    m.add(f"foot_{name}", foot, FOOT)
+    m.add(f"foot_{name}", foot, CASE)
 
 
 if __name__ == "__main__":
