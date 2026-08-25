@@ -287,10 +287,33 @@ and, if it works, is the definitive answer and a genuine first. B is the
 fallback rather than the primary because it has a hardware dependency the project
 does not currently satisfy.
 
-**On C's feasibility — the honest position.** The published die shot is
-**17,265 × 14,313**, stitched from 203 images (~247 megapixels), which is ample
-resolution to resolve individual ROM cells. Two unknowns decide it, and neither
-can be settled without looking at the images:
+**Asset availability — checked 2026-08-25.** The visual6502 page is reachable
+(its TLS certificate has expired, so plain HTTP with certificate checking
+disabled is required; the content is public static files and no credentials are
+involved). It publishes:
+
+| Asset | Size |
+|---|---|
+| Die shot, 1600 × 1326 JPG | 1.29 MB |
+| **Die shot, 7000 × 5803 JPG** | **24.7 MB** — the largest published |
+| Stitch map, 7000 × 5803 PNG | 974 kB |
+| `SSI_263A_Data_Sheet.pdf`, `_v2.pdf`, `SC_02_Data_Sheet.jpg` | — |
+| **`SSI_263A_Programming_Guide.pdf`** | — a *second* document beyond the datasheet; see PENDING-2 |
+
+**Two findings that lower C's odds:**
+
+1. **The full-resolution master is not published.** The stitch is 17,265 × 14,313,
+   but the largest available image is 7,000 × 5,803 — 40% linear, about 16% of
+   the captured pixels. The master exists (Christian Sattler stitched it) and
+   could be requested, but it is not a download.
+2. **There is no sign of delayering.** The page offers a single image series at
+   20× magnification, with no per-layer variants (no metal / poly / diffusion
+   sets) of the kind visual6502 publishes when a die has been delayered. That is
+   consistent with an as-is shot with metal intact — which is the case where the
+   ROM array is obscured.
+
+Two unknowns still decide it, and neither can be settled without looking at the
+images:
 
 1. **Layer state.** If the published shot is top-metal-intact, the ROM array is
    probably obscured — mask ROMs are typically encoded below the metal. If the
@@ -300,11 +323,18 @@ can be settled without looking at the images:
    resolution** without staining or alternative imaging. This is a known dead end
    in ROM extraction and would end route C regardless of image quality.
 
-**Spike shape**: bounded, and it answers a yes/no. Obtain the die images, locate
-the parameter ROM array (the patent's description — 64 phonemes × 12 control
-parameters — gives its expected size and regular structure, which is what makes
-it findable), and determine whether individual cells are distinguishable. Stop at
-that answer. Do not begin transcription inside the spike.
+**Spike shape**: bounded, and it answers a yes/no. Fetch the 24.7 MB die image,
+locate the parameter ROM array (the patent's description — 64 phonemes × 12
+control parameters — gives its expected size and regular structure, which is what
+makes it findable), and determine whether individual cells are distinguishable.
+Stop at that answer. Do not begin transcription inside the spike.
+
+**Escalation, only if the spike is encouraging**: if the array is visible but the
+published downsample is too coarse to read cells, ask visual6502 for the
+full-resolution master. If metal obscures it, ask whether a delayered set exists
+— they received *two* chips from the donor, so a second delayering may be
+possible. Both are community requests, not project work, and neither is on the
+critical path.
 
 **Value if C succeeds**: correct SSI-263 speech, which no emulator currently has,
 plus an extraction worth publishing back to the community that made the die shots
@@ -399,7 +429,18 @@ exactly which mirror the C removes (the Overview's first named compatibility
 risk) and which IFR bit software sees.
 
 **Primary source**: Sweet Micro Systems Mockingboard schematics (Apple II
-Documentation Project).
+Documentation Project); the ReActiveMicro Mockingboard wiki, which hosts
+schematics; and the Mockingboard Mini-Manual.
+
+**Additional lead found 2026-08-25**: visual6502 hosts an
+`SSI_263A_Programming_Guide.pdf` alongside the datasheet — a separate document
+that may cover host-side addressing and interfacing rather than only the chip.
+Read it before hunting schematics.
+
+**Empirical alternative, possibly better than the schematic**: disassemble the
+speech driver of a title that actually talks and observe which addresses it
+writes. That is evidence drawn from the exact population this feature must be
+compatible with, which a schematic cannot quite provide.
 
 ### PENDING-3 — A reference recording — PROMOTED to the critical path
 
