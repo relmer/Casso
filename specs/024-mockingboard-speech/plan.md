@@ -18,8 +18,18 @@ variant, with the C's speech decode written as a *prefix* over the A's existing
 path so the A executes the same code it executes today and compatibility is
 auditable by inspection rather than only by test (D2, D3). Model the chip as the
 formant synthesizer it is, so it responds correctly to the inflection and rate
-controls (D5), and verify it by **spectral assertion against the datasheet**
-rather than golden audio (D6).
+controls (D5), and verify it in **two layers** — behavioral conformance against
+published formulas, and acoustic content against measured targets — rather than
+by golden audio (D6).
+
+**The datasheet has since been obtained, and it moved the plan.** It supplies the
+five-register map, all 64 phoneme codes, and the duration and filter formulas —
+so the behavioral layer is better grounded than first specified. It supplies **no
+formant values whatsoever**; those are internal to the part. Formant targets
+therefore come from this chip family's patent literature and its designer's
+published paper, backed by acoustic phonetics and tuned against a recording
+(D9). A survey of other emulators (D10) confirmed the architecture and produced
+one hard rule: **their source is not to be opened**, both being copyleft.
 
 Phase 0 turned up one piece of foundational work that was not visible from the
 spec: **the VIA has no control-line input seam and its `PCR` register is inert**
@@ -144,12 +154,19 @@ evidence exists before the risky change does.
 |---|---|---|---|
 | 1 | **Baseline capture** — full slot-page sweep and audio render of the sound-only card, as it ships today | Quickstart Stage 1 green *before* any change | — |
 | 2 | **VIA control-line seam** (F1) — input state, PCR edge selection, IFR latching, and the R13 no-op proof | Quickstart Stage 2 | — |
-| 3 | **Chip core** (D5) — register file, phoneme advance, formant synthesis | Quickstart Stage 3 | PENDING-1 |
-| 4 | **Card integration** (D2, D3) — variant, speech decode prefix, request line into the VIA seam | Stage 1 re-run green | 2, 3, PENDING-2 |
-| 5 | **Audio path** (D4, F2) — third source, recomputed gain budget | Stage 4 audio checks | 3 |
+| 3a | **Chip behavioral core** (D5) — five-register file, all 64 phoneme codes, duration and filter formulas, A/R assert and disable | Quickstart Stage 3 | — *(datasheet in hand)* |
+| 3b | **Formant synthesis** (D5, D9) — resonator bank, excitation, transition; targets from the patent literature and phonetics | Quickstart Stage 3 acoustic checks | PENDING-1b sourcing |
+| 4 | **Card integration** (D2, D3) — variant, speech decode prefix, request line into the VIA seam | Stage 1 re-run green | 2, 3a, PENDING-2 |
+| 5 | **Audio path** (D4, F2) — third source, recomputed gain budget | Stage 4 audio checks | 3b |
 | 6 | **Registration and profiles** (D1) — second device type, three profile edits, Hardware tab naming | Contract C1–C3, P1–P3 | 4 |
 | 7 | **Smoke test program** (D8) | Quickstart Stage 4 | 4, 5, 6 |
-| 8 | **Intelligibility and titles** | Stages 5–6 | PENDING-3, PENDING-4 |
+| 8 | **Tuning against a recording** (D9 step 3) | Stage 5 | PENDING-3 |
+| 9 | **Titles** | Stage 6 | PENDING-4 |
+
+**Step 3 split in two** once the datasheet arrived. 3a is fully specified today
+and blocks on nothing — registers, phoneme codes, and both published formulas
+are in hand. Only 3b needs the formant literature, and D9's ordering means even
+that starts from published sources rather than waiting on a recording.
 
 **Step 1 is not ceremony.** SC-002 compares against previous-release behavior, so
 the comparison basis has to be captured before the tree changes. It is also the
@@ -162,7 +179,7 @@ gated on acquiring the datasheet.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| A formant synthesizer is substantially more complex than anything else in the device layer — an excitation source, a resonator bank, per-phoneme parameter tables, and transition interpolation, against the PSG's square waves and LFSR | It is the irreducible complexity of the thing being emulated. FR-003 requires the inflection and rate controls to actually vary the voice, and SC-001a requires the output to carry documented formant content — both are statements about a formant model | **Sampled phoneme playback** would be far simpler and would produce recognizable speech, but it cannot respond correctly to the control registers. It would pass a naive listening test while failing FR-003 and SC-001a, which is precisely the "sounds fine, isn't faithful" failure the restructured SC-001 exists to catch |
+| A formant synthesizer is substantially more complex than anything else in the device layer — an excitation source, a resonator bank, per-phoneme parameter tables, and transition interpolation, against the PSG's square waves and LFSR | It is the irreducible complexity of the thing being emulated. FR-003 requires the inflection and rate controls to actually vary the voice, and SC-001b requires the output to carry real formant content — both are statements about a formant model | **Sampled phoneme playback** would be far simpler and would produce recognizable speech, but it cannot respond correctly to the control registers. It would pass a naive listening test while failing FR-003 and SC-001b, which is precisely the "sounds fine, isn't faithful" failure the restructured SC-001 exists to catch. This is not hypothetical: per D10, it is the route the reference Apple II emulator took, and its own documentation names the resulting limitation — no inflection, no filters |
 
 No other principle required justification. The complexity is confined to one
 class whose interface is narrow — register writes in, samples out — so it does
@@ -172,7 +189,9 @@ not leak into the card, the VIA, or the audio path.
 
 | Risk | Mitigation |
 |---|---|
-| **The datasheet proves hard to obtain** (PENDING-1) — SC-001a and D5's tables depend on it entirely | Highest-value input in the feature; acquire before step 3. Steps 1, 2 proceed regardless. There is no honest fallback: guessed tables would look correct and be wrong |
+| ~~The datasheet proves hard to obtain~~ — **retired.** Obtained, and it revealed the real risk below | — |
+| **Formant targets are not published for this part** (PENDING-1b) — the datasheet documents none, so the acoustic layer has no single authoritative source | D9's ordered sourcing: patent literature and the designer's paper first, acoustic phonetics for gaps, measurement to refine. Progress does not block on any one of them. The danger is not scarcity but *plausibility* — an invented table would look right and be wrong, which is exactly how PENDING-1 nearly went |
+| **Clean-room contamination** — the two emulators that have solved this are both copyleft, and one of them plausibly holds hardware-recorded phoneme assets that would be very convenient as acoustic ground truth | D10: their source is not opened at all, and acoustic targets come from documents and from a recording we obtain ourselves. Output-versus-output comparison for intelligibility remains fine |
 | **The removed `$Cn40` mirror breaks a title** | The A variant remains available (User Story 3) and unchanged (D3), so the escape hatch ships with the risk |
 | **A music player dispatches on "the VIA interrupted"** | Discharged structurally by R13 + I1/I2 rather than by testing: the A never drives a control line, and an unprogrammed C never asserts |
 | **Gain budget regression** (F2) — a third source into a headroom figure sized for two | SC-008 gates it; the existing `kMasterGain` comment documents the original arithmetic to redo |

@@ -305,27 +305,42 @@ separately, measure idle cost with the voice chip present and unprogrammed.
 
 ### Measurable Outcomes
 
-Speech quality is verified at three levels rather than one. A single
+Speech quality is verified at four levels rather than one. A single
 intelligibility bar was considered and rejected: the voice chip is an early-1980s
 formant synthesizer whose authentic output is genuinely rough, so an absolute
 transcription target can be *passed by being better than the hardware* — which is
-a fidelity failure the criterion would have rewarded. The three criteria below
-separate what a machine can check forever, what a person must judge once, and
-what only real software exercises.
+a fidelity failure the criterion would have rewarded.
 
-- **SC-001a** *(automated, permanent)*: For every phoneme the chip supports, the
-  rendered output carries its documented acoustic content — the formant
-  frequencies named in the datasheet, for the documented duration — and the rate,
-  inflection, and amplitude controls shift that content in the documented
-  direction. Verified by assertion in the test suite with no audio fixtures and
-  no listener, in the manner the existing tone-frequency and DAC-monotonicity
-  checks already verify the music chip.
-- **SC-001b** *(human, one-time, comparative)*: Transcription accuracy on Casso's
+The criteria separate what a machine can check forever (SC-001a and SC-001b),
+what a person must judge once (SC-001c), and what only real software exercises
+(SC-001d). The first two are split from each other because **they have different
+sources of truth**: the chip's datasheet documents its registers, its phoneme
+codes, and its timing formulas, but publishes no formant values at all — those
+are internal to the part. Conflating the two would have made SC-001a
+unsatisfiable while looking rigorous.
+
+- **SC-001a** *(automated, permanent)*: The chip conforms to its published
+  specification — every one of its 64 phoneme codes is accepted, its register
+  set decodes correctly, its phoneme duration follows the documented duration
+  formula across every setting of the duration control, its filter frequency
+  follows the documented filter formula across that register's range, and its
+  ready/request signal asserts on phoneme completion and stays silent in the
+  documented disabled mode. Verified by assertion in the test suite with no audio
+  fixtures and no listener, in the manner the existing tone-frequency and
+  DAC-monotonicity checks already verify the music chip.
+- **SC-001b** *(automated, permanent)*: Each phoneme's rendered output carries
+  the formant content it should, measured as energy concentrated at that
+  phoneme's target frequencies rather than spread across the spectrum, and the
+  inflection, rate, and amplitude controls shift that content in the expected
+  direction. The targets come from the published record for this chip family and
+  from acoustic phonetics, refined against a reference recording — **not** from
+  the datasheet, which documents no formant values.
+- **SC-001c** *(human, one-time, comparative)*: Transcription accuracy on Casso's
   speech is within 10 percentage points of transcription accuracy on a reference
-  rendering of the same utterance, judged by listeners who have not seen the
+  recording of the same utterance, judged by listeners who have not seen the
   script. Stated as a margin rather than an absolute so that neither unusually
   clear nor unusually rough output can pass by diverging from the hardware.
-- **SC-001c** *(per-title)*: In every title of the speech acceptance set, speech
+- **SC-001d** *(per-title)*: In every title of the speech acceptance set, speech
   occurs at the moments the software intends, the software's phoneme-pacing loop
   advances to the end of each utterance, and no title stalls or hangs waiting on
   the chip. Verifiable even where the synthesized voice is hard to make out,
@@ -371,13 +386,21 @@ what only real software exercises.
   an authored phoneme sequence supplies perfect ground truth for SC-001a and
   needs no disks at all; the project already carries a directly analogous tone
   smoke test for the music chip, and the speech equivalent belongs beside it.
-  Only SC-001c genuinely requires period titles, and only for sign-off of User
+  Only SC-001d genuinely requires period titles, and only for sign-off of User
   Story 1.
-- **A reference rendering for SC-001b need not come from physical hardware.**
-  Comparing the same authored phoneme sequence against another emulator's output
-  is behavioral comparison, not derivation, and stays within the clean-room rule
-  in FR-002 — no third-party source is read or copied. A recording of real
-  hardware is preferable where one can be obtained, but is not a prerequisite.
+- **Formant targets come from the published record, then are tuned by
+  measurement.** The chip's datasheet documents its registers, phonemes, and
+  timing but no formant values; those are internal to the part. The public
+  literature on this chip family — its designers' patents and their conference
+  paper describing the hardware — is the primary source, with general acoustic
+  phonetics filling any gap, and a reference recording used to refine the result.
+  Work begins from the literature rather than waiting on a recording.
+- **A reference recording must be one we obtain independently.** Other emulators'
+  phoneme assets are convenient and are the wrong answer: they are copyleft-
+  licensed, and deriving formant data from them would be derivation from a
+  copyleft work. Comparing our *output* against another emulator's *output* to
+  judge intelligibility remains ordinary behavioral comparison and stays inside
+  FR-002 — but the acoustic targets themselves must not come from there.
 - **The speech acceptance set will be assembled from period titles known to drive
   Mockingboard speech**, with the manufacturer's own demo and utility software
   preferred where available: it was written to exhibit the chip and often speaks
@@ -407,11 +430,22 @@ what only real software exercises.
   that unblocks User Story 1 development: it is repo-original, needs no disk
   acquisition, and carries its own ground truth. It should exist early rather
   than as a polish task.
-- **Period speech software** — required only for SC-001c and only at User Story 1
-  sign-off, not for development. This is the one input the codebase cannot supply
-  on its own, and the reason SC-001a and SC-001b are deliberately structured not
-  to depend on it. Acquired disk images belong in the primary checkout rather
-  than a worktree, as existing test media do.
+- **The chip's published specification** — obtained. Supplies the register set,
+  all 64 phoneme codes, the duration and filter formulas, and the ready/request
+  behavior that SC-001a tests against.
+- **The published record on this chip family's synthesis** — its designers'
+  patents and their conference paper — plus standard acoustic phonetics
+  references. Supplies SC-001b's formant targets, which the datasheet does not.
+- **A reference recording of real hardware speaking known phonemes.** Needed to
+  refine those targets and to judge SC-001c. Realistically sourced from the
+  Apple II community, where the chip is still sold as a replacement part and
+  working boards remain in circulation; asking for a specific authored phoneme
+  sequence makes the result directly comparable to our own output.
+- **Period speech software** — required only for SC-001d and only at User Story 1
+  sign-off, not for development. Acquired disk images are commercial works that
+  cannot be committed; they belong in the primary checkout rather than a
+  worktree, as existing test media do, which makes this a local gate and never
+  an automated one.
 - **No new third-party dependency is anticipated.** Should one be proposed, the
   constitution's Approved Third-Party Dependencies allowlist governs, and adding
   to it is a constitution amendment.

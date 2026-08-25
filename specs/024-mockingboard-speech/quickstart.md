@@ -16,9 +16,10 @@ See [data-model.md](./data-model.md) for the entities and
 | Stage | Needs |
 |---|---|
 | 1–2 | Nothing beyond the repo |
-| 3 | The SSI-263 datasheet (research.md PENDING-1) |
+| 3, behavioral | Nothing — the datasheet is in hand (PENDING-1 resolved) |
+| 3, acoustic | Formant targets from the patent literature and phonetics (PENDING-1b) |
 | 4 | The speech smoke-test program (research.md D8) |
-| 5 | A reference rendering (PENDING-3) |
+| 5 | A reference recording (PENDING-3) |
 | 6 | Period speech titles (PENDING-4) — sign-off only |
 
 Build and run the suite:
@@ -67,20 +68,40 @@ seam (data-model R13), not of the voice chip.
 | Timer interrupts enabled, control line driven hard | Software enabling only timer interrupts is never vectored *(contract I3)* |
 | Sound-only card, extended run | No control-line interrupt is possible at all *(I1)* |
 
-## Stage 3 — The chip matches its datasheet
+## Stage 3 — The chip matches its specification
 
-The SC-001a gate. No fixtures, no listener.
+Two layers with different sources of truth (D6). No fixtures, no listener in
+either.
+
+### 3a — Behavioral conformance (SC-001a)
+
+Everything here is checkable against the datasheet, which is in hand. **This
+half blocks on nothing.**
 
 | Check | Expected |
 |---|---|
-| Each phoneme rendered in isolation | Energy concentrated at that phoneme's documented formant frequencies; in-band well above out-of-band *(D6)* |
-| Each phoneme's duration | Matches the documented span in emulated cycles |
-| Rate, inflection, amplitude sweeps | Shift the output in the documented direction *(FR-003)* |
+| All 64 phoneme codes `$00`–`$3F` | Accepted; none rejected or aliased |
+| Register decode | Five registers select correctly; field packing matches |
+| Phoneme duration, all four duration-control settings | Matches the published `Frame Duration × (4 − D)` relationship, in emulated cycles |
+| Filter frequency across the register range | Matches the published `XCK / [2 × (256 − FF)]` relationship |
+| Ready/request assertion | Asserts on phoneme completion; **stays silent in the documented disabled mode** *(FR-015)* |
 | Same utterance at two host sample rates, and at 1x / 2x / max | Identical emulated-cycle span *(G4, FR-005)* |
 | Two identically-programmed chips | Bit-identical streams *(R5)* |
 | Every reachable control combination, including absurd ones | Output stays in range; no click, screech, or crash *(R6)* |
 | Unprogrammed chip | Reports itself silent; contributes exactly zero *(R2, FR-020)* |
 | Reset mid-utterance | Silence immediately, not after the phoneme finishes *(R3, G5)* |
+
+### 3b — Acoustic content (SC-001b)
+
+| Check | Expected |
+|---|---|
+| Each phoneme rendered in isolation | Energy concentrated at that phoneme's target formant frequencies; in-band well above out-of-band *(D6)* |
+| Rate, inflection, amplitude sweeps | Shift the spectrum in the expected direction *(FR-003)* |
+| Transition between consecutive phonemes | Formants glide rather than jumping |
+
+> Targets come from the patent literature and acoustic phonetics (D9), **not**
+> from the datasheet — it publishes no formant values. They are refined at
+> Stage 5. Expect 3b to be revisited after tuning; 3a should never move.
 
 ## Stage 4 — First light on a real machine
 
@@ -107,23 +128,32 @@ Then exercise the audio integration (User Story 4):
 | Machine reset mid-utterance | Immediate silence *(FR-021)* |
 | Idle machine, C installed vs. A installed | No measurable CPU difference *(SC-004)* |
 
-## Stage 5 — Intelligibility, judged once
+## Stage 5 — Tune against a recording, then judge intelligibility
 
-The SC-001b gate. Needs a reference rendering (PENDING-3), which may come from
-real hardware or from another emulator — comparing *output* is behavioral
-comparison and stays inside FR-002's clean-room rule.
+Needs a reference recording of real hardware speaking known phonemes
+(PENDING-3). This stage does double duty, which is why that recording sits on
+the critical path rather than at sign-off.
 
-Play the same authored phoneme sequence from both. Have listeners who have not
-seen the script transcribe each. Casso's accuracy must land **within 10
-percentage points** of the reference's.
+**First, tune (D9 step 3).** Spectrally analyze the recording's phonemes and
+refine 3b's formant targets against what the hardware actually produces. Re-run
+Stage 3b afterward; 3a must be unaffected.
+
+**Then judge (SC-001c).** Play the same authored phoneme sequence from Casso and
+from the reference. Have listeners who have not seen the script transcribe each.
+Casso's accuracy must land **within 10 percentage points** of the reference's.
 
 > The margin is the point. A result that is dramatically *clearer* than the
 > reference fails, and should be investigated as infidelity rather than
 > celebrated — that is the whole reason SC-001 was restructured.
 
+> Another emulator's output is acceptable for the *intelligibility* comparison —
+> output-versus-output is ordinary behavioral comparison. It is **not** acceptable
+> as the tuning source: their phoneme assets are copyleft-licensed, and deriving
+> formant targets from them is derivation from a copyleft work (D10).
+
 ## Stage 6 — Real software
 
-The SC-001c gate, and User Story 1 sign-off. Needs the acceptance set
+The SC-001d gate, and User Story 1 sign-off. Needs the acceptance set
 (PENDING-4).
 
 | Check | Expected |

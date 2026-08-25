@@ -47,11 +47,11 @@ weighed and resolved into documented assumptions rather than blocking markers:
    speech-equipped boards carried and what surviving speech software targets. The
    Votrax SC-01 is explicitly scoped out.
 2. *How faithful the voice must sound* — resolved by splitting the question
-   across SC-001a/b/c rather than answering it with one number. See below.
+   across SC-001a/b/c/d rather than answering it with one number. See below.
 3. *Whether the sound-only variant survives* — resolved yes, as User Story 3, so
    the two-variant model matches the real product line.
 
-**Why speech quality is three criteria and not one.** The first draft of this
+**Why speech quality is four criteria and not one.** The first draft of this
 spec set a single bar: 90% of words correctly transcribed by an unfamiliar
 listener. That was withdrawn on review as actively wrong for a fidelity project.
 The voice chip is an early-1980s formant synthesizer whose authentic output is
@@ -62,20 +62,36 @@ otherwise machine-verified, and it presumed known-correct transcripts that for
 game software could only be obtained by listening first, which defeats the
 "unfamiliar listener" premise it rested on.
 
-SC-001a/b/c separate three things that were tangled together: what a machine can
-check forever (datasheet conformance, in the manner the music chip's existing
-tone-frequency and DAC-monotonicity tests already work), what a person must judge
-once (intelligibility, restated as a *margin against a reference* so divergence
-in either direction fails), and what only real software exercises (a title's
-pacing loop actually completing).
+The criteria separate things that were tangled together: what a machine can check
+forever (SC-001a behavioral conformance, SC-001b acoustic content), what a person
+must judge once (SC-001c intelligibility, restated as a *margin against a
+reference* so divergence in either direction fails), and what only real software
+exercises (SC-001d, a title's pacing loop actually completing).
 
-**Open dependency, now narrowed.** Period speech software is still the one input
-the repository cannot supply. The revision confines that dependency to SC-001c
-and to User Story 1 sign-off: SC-001a is satisfied by a repo-original boot-sector
-smoke test carrying its own ground truth, and SC-001b by comparison against a
-reference rendering that need not come from physical hardware. Development is
-therefore unblocked; only final sign-off is not. This is a sourcing problem, not
-a specification gap.
+**Revised again 2026-08-25, after the datasheet arrived.** The first restructure
+assumed a single automated criterion could be checked against "the formant
+frequencies named in the datasheet". The datasheet names none — it documents the
+register set, all 64 phoneme codes, and the duration and filter formulas, but the
+formant parameters are internal to the part and were never published. SC-001a was
+therefore unsatisfiable as written while looking perfectly rigorous.
+
+Splitting it into SC-001a (behavioral, checked against published formulas) and
+SC-001b (acoustic, checked against targets from the chip family's patent
+literature and from acoustic phonetics, refined by measurement) makes both
+honest. SC-001a is now *better* grounded than the original, since it tests real
+published formulas rather than an assumed table.
+
+**This is the second time a criterion on this feature failed on its source rather
+than its substance**, which is the pattern worth carrying forward: the risk in a
+hardware-fidelity spec is not writing an unmeasurable criterion, it is writing a
+measurable one whose reference data does not exist.
+
+**Open dependencies, now narrowed further.** Development blocks on nothing. The
+datasheet supplies SC-001a outright; SC-001b starts from published literature and
+improves; a reference recording (needed to refine SC-001b and to judge SC-001c)
+is on the critical path but not a prerequisite for starting; and period speech
+software gates only SC-001d and User Story 1 sign-off. All sourcing problems, no
+specification gaps.
 
 **Items marked incomplete require spec updates before `/speckit-clarify` or
 `/speckit-plan`.** None are outstanding.
