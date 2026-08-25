@@ -98,47 +98,48 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk list <image>",
       nullptr,
       "A listing shows every column the volume records, so a ProDOS row carries eof= and"
-      " aux=, the exact length of a file and the address a binary loads at. DOS 3.3"
+      " aux=: the exact length of a file, and the address a binary loads at. DOS 3.3"
       " records neither.",
       "CassoCli disk list mydisk.dsk" },
 
     { "get | read",
       "Read a file from the disk, to standard output or to %Lout <file>",
-      "CassoCli disk get <image> <path> [%Lout <file>] [%Ltext | %Lbasic]",
-      "  %Lout <file>            Write the extracted file here, not to standard output\n"
-      "  %Ltext                  Convert the high-bit encoding and the line endings\n"
-      "  %Lbasic                 Convert to and from an Applesoft listing\n",
-      nullptr,
+      "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
+      "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
+      "  %Ltext                  Convert the disk's text to the host's: clear the high bit every byte carries, and turn the CR line endings into the host's own\n"
+      "  %Lbasic                 Detokenize an Applesoft program into a listing you can read and edit\n",
+      "WITH NEITHER %Ltext NOR %Lbasic the bytes are copied exactly as the disk holds"
+      " them, which is what lets you take a file off, change it, and write it back"
+      " knowing this tool altered nothing in between. The file's recorded length and"
+      " whatever load-address header its type carries are still honored, because those"
+      " are what say where the file ends.",
       "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
 
     { "put | write",
       "Write a file from the host to the disk",
-      "CassoCli disk put <image> <file> [%Las <path>] [%Ltype <t>] [%Laddr $XXXX]\n"
+      "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Laddr $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
-      "  %Las <path>             Name the placed file this on the disk\n"
-      "  %Ltype <t>              The file type the catalog records. DOS 3.3 takes T, I,\n"
-      "                          A, B or R; ProDOS takes TXT, BIN, BAS or SYS\n"
-      "  %Laddr $XXXX            Load address for a placed binary\n"
-      "  %Ltext                  Convert the high-bit encoding and the line endings\n"
-      "  %Lbasic                 Convert to and from an Applesoft listing\n",
-      "%Las is the name the file takes on the disk, and defaults to the name it has"
-      " on the host. %Ltype is what the catalog records, and defaults to a binary, or to"
-      " Applesoft under %Lbasic, which is the only type the guest will RUN. %Laddr is the"
-      " load address a binary carries: a DOS 3.3 B or a ProDOS BIN is refused without one,"
-      " every other type ignores it, and %Lbasic refuses it outright because Applesoft"
-      " keeps its program at $0801 and nowhere else.",
+      "  %Las <name>             Store the file under this name. Without it, the name it already has on the host. Neither filesystem here takes a path: ProDOS subdirectories are not supported yet\n"
+      "  %Ltype <t>              What the catalog records. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS. Without it, the type is read from the file's own contents, and anything unrecognized is stored as a binary\n"
+      "  %Laddr $XXXX            The address a binary loads at. A binary is refused without one, because the address is part of the file; every other type ignores it\n"
+      "  %Ltext                  Convert the host's text to the disk's: set the high bit on every byte, and turn the line endings into the CR the Apple II expects\n"
+      "  %Lbasic                 Tokenize an Applesoft listing into the byte stream the guest stores and runs\n",
+      "%Lbasic STORES APPLESOFT, and Applesoft is the one type a DOS 3.3 disk's RUN"
+      " command will execute -- so a program placed under any other type is a program"
+      " the guest will not start. It refuses %Laddr outright, because Applesoft keeps its"
+      " program at $0801 and nowhere else.",
       "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Laddr $6000" },
 
     { "delete | del | rm",
       "Delete a file from the disk",
-      "CassoCli disk delete <image> <path>",
+      "CassoCli disk delete <image> <name>",
       nullptr,
       nullptr,
       "CassoCli disk delete mydisk.dsk OLDPROG" },
 
     { "boot",
       "Set the program that runs when the disk is booted",
-      "CassoCli disk boot <image> <path>",
+      "CassoCli disk boot <image> <name>",
       nullptr,
       "The program has to be on the volume already, named as the catalog records it, and"
       " the image has to carry an operating system on the tracks a boot reads. On ProDOS"
@@ -152,19 +153,13 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
       "                               [%Lbootable [<image>]]\n"
       "                               [%Lboot <file> [%Laddr $XXXX] [%Lentry <addr>]]",
-      "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the\n"
-      "                          name's extension when not given\n"
-      "  %Lformat <f>            dos33, prodos or none. Defaults to dos33\n"
-      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS\n"
-      "                          volume name\n"
-      "  %Lbootable [<image>]    Copy an operating system on from this DOS 3.3 master\n"
-      "                          or ProDOS system disk, so the disk boots. Alone, it\n"
-      "                          uses the master the emulator already downloaded\n"
-      "  %Lboot <file>           Make a disk that starts this binary with no operating\n"
-      "                          system at all. It must load between $0900 and $BFFF\n"
-      "  %Laddr $XXXX            Where a %Lboot binary loads\n"
-      "  %Lentry <addr>          Start a %Lboot binary here rather than at its load\n"
-      "                          address\n",
+      "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the name's extension when not given\n"
+      "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33\n"
+      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
+      "  %Lbootable [<image>]    Copy an operating system on, so the disk starts by itself. It finds the master for the format being written, so name an image only when you want a particular one\n"
+      "  %Lboot <file>           Start this binary with no operating system on the disk at all. It must load between $0900 and $BFFF\n"
+      "  %Laddr $XXXX            Where a %Lboot binary is placed in memory\n"
+      "  %Lentry <addr>          Where it starts running once it is there. Defaults to the load address, and differs only for a payload that opens with data rather than code\n",
       "It refuses to write over an image that is already there; init is the command for"
       " meaning it. %Lboot and %Lbootable are the two ways to make a disk start something"
       " and cannot both be asked for: one puts an operating system on, the other puts a"
@@ -174,25 +169,25 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
     { "init | format",
       "Format an image that is already there, discarding everything on it",
       "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
-      "  %Lformat <f>            dos33, prodos or none. Defaults to dos33\n"
-      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS\n"
-      "                          volume name\n"
+      "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33, whatever the disk held before\n"
+      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
       "  %Lbootable [<image>]    Copy an operating system on, as create does\n",
       "The container is taken as it is found, so there is no %Ltype here: an image that"
       " already exists already is one. Wanting a different container means wanting a"
-      " different file, which is create.",
+      " different file, which is create. This is the Apple II's own INIT, which formats"
+      " and writes a fresh empty catalog; every file on the disk is gone afterwards.",
       "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
 
     { "stamp",
-      "Lay a file from the host into the image at a track and a sector, with no"
-      " filesystem involved",
+      "Write a file from the host at a track and sector, with no filesystem involved",
       "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
       "  %Ltrack <n>             Which track to write at, 0 to 34\n"
-      "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The\n"
-      "                          bytes run on into the next track if they do not fit\n",
-      "For a disk that boots its own loader and reads fixed tracks, where there is no"
-      " catalog to put anything in. The sector is the LOGICAL one; the interleave is"
-      " applied for you, so the bytes land where a running Apple II would look for them.",
+      "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The bytes run on into the next track if they do not fit\n",
+      "FOR A DISK WITH NO CATALOG TO PUT ANYTHING IN. A boot sector, a loader, and the"
+      " data a loader reads all live at fixed places on the disk rather than in a"
+      " filesystem, and put has nowhere to file them. stamp writes them where the running"
+      " machine will look. The sector is the LOGICAL one, so the interleave is applied"
+      " for you and the number you give is the number DOS would use.",
       "CassoCli disk stamp boot.dsk loader.bin %Ltrack 0 %Lsector 0" },
 };
 
@@ -389,17 +384,13 @@ std::string DiskCommandRunner::BuildCommandBlocks (char flagPrefix)
         }
 
         //  The round-trip promise is quoted from the tokenizer that keeps it,
-        //  so the claim on the page cannot drift from the code making it.
+        //  so the claim on the page cannot drift from the code making it. It
+        //  belongs to get, which is the direction that can lose anything.
         if (std::string (entry.forms).find ("get") != std::string::npos)
         {
             text += "\n  ";
             text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
             text += "\n";
-            text += ApplyPrefixes (
-                "\n  Naming neither conversion moves the bytes unchanged, which is what"
-                " makes extract, edit and replace safe. The length and whatever header the"
-                " type carries are still applied, because those record where a file ENDS.\n",
-                flagPrefix);
         }
 
         text += ApplyPrefixes (std::string ("\n  Example:\n    ") + entry.example, flagPrefix) + "\n";
@@ -1749,6 +1740,130 @@ std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::DetectFileType
+//
+//  What a file's own bytes say it is, or 0 when they say nothing.
+//
+//  APPLESOFT IS A LINKED LIST AND THAT IS WHAT IS WALKED. Every line is a
+//  two-byte pointer to the next line, a two-byte line number, tokens, and a
+//  zero terminator; a zero pointer ends the program. Walking that chain with
+//  the pointers rising and the line numbers rising, and landing EXACTLY on the
+//  last byte of the file, is a structure arbitrary data does not have. The
+//  exact landing is what makes a false positive vanishingly unlikely: a binary
+//  whose first four bytes happen to look like a header still has to have every
+//  later line agree, and end where the file ends.
+//
+//  INTEGER BASIC IS THE SAME SHAPE INSIDE OUT: a leading LENGTH byte rather
+//  than a trailing zero. Walked the same way, to the same exact landing.
+//
+//  A DOS 3.3 FOUR-BYTE HEADER IS DELIBERATELY NOT READ AS A TYPE. `put --addr`
+//  writes that header itself, so a file already carrying one is the doubled-
+//  header mistake the worked example warns about, and quietly agreeing with it
+//  would file bytes the guest runs as code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind kind)
+{
+    bool    isDos    = kind == VolumeKind::Dos33;
+    size_t  at       = 0;
+    Word    previous = 0;
+    Word    lastLine = 0;
+    size_t  seen     = 0;
+
+
+
+    //  Applesoft: a chain of lines ending on a zero next-pointer.
+    //  Two bytes, not four: the chain ENDS on a bare zero pointer, and a
+    //  loop that demanded a whole line would walk past it and never see
+    //  the end of the program.
+    while (at + 2 <= bytes.size())
+    {
+        Word    next       = (Word) (bytes[at] | (bytes[at + 1] << 8));
+        Word    line       = 0;
+        size_t  terminator = at + 4;
+
+        if (next == 0)
+        {
+            //  The chain ends here, and it has to end WITH the file.
+            bool  landedOnTheEnd = (at + 2 == bytes.size());
+
+            if (landedOnTheEnd && seen > 0)
+            {
+                return isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
+            }
+
+            break;
+        }
+
+        if (at + 4 > bytes.size())
+        {
+            break;
+        }
+
+        line = (Word) (bytes[at + 2] | (bytes[at + 3] << 8));
+
+        //  Pointers rise, and so do line numbers.
+        if (next <= previous || (seen > 0 && line <= lastLine))
+        {
+            break;
+        }
+
+        while (terminator < bytes.size() && bytes[terminator] != 0)
+        {
+            terminator++;
+        }
+
+        if (terminator >= bytes.size())
+        {
+            break;
+        }
+
+        previous = next;
+        lastLine = line;
+        seen++;
+        at       = terminator + 1;
+    }
+
+    //  Integer BASIC: a chain of length-prefixed lines, and DOS 3.3's alone.
+    at       = 0;
+    lastLine = 0;
+    seen     = 0;
+
+    while (isDos && at + 3 <= bytes.size())
+    {
+        Byte  length = bytes[at];
+        Word  line   = (Word) (bytes[at + 1] | (bytes[at + 2] << 8));
+
+        if (length < 4 || at + length > bytes.size())
+        {
+            break;
+        }
+
+        if (seen > 0 && line <= lastLine)
+        {
+            break;
+        }
+
+        lastLine = line;
+        seen++;
+        at      += length;
+
+        if (at == bytes.size())
+        {
+            return Dos33Volume::kTypeInteger;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ResolveFileType
 //
 //  The two filesystems number their types differently and name them
@@ -1769,6 +1884,7 @@ std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options
 HRESULT DiskCommandRunner::ResolveFileType (
     const CommandLineOptions  & options,
     VolumeKind                  kind,
+    const vector<Byte>        & hostBytes,
     Byte                      & outType,
     DiskCommandResult         & result)
 {
@@ -1790,10 +1906,18 @@ HRESULT DiskCommandRunner::ResolveFileType (
         // to a default meant for a build loop's binaries.
         outType = isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
     }
+    else if (isText)
+    {
+        outType = isDos ? Dos33Volume::kTypeText : ProDosVolume::kTypeText;
+    }
     else
     {
-        outType = isDos ? (isText ? Dos33Volume::kTypeText  : Dos33Volume::kTypeBinary)
-                        : (isText ? ProDosVolume::kTypeText : ProDosVolume::kTypeBinary);
+        //  What the file says it is, and a binary when it says nothing.
+        Byte  detected = DetectFileType (hostBytes, kind);
+
+        outType = (detected != 0)
+                      ? detected
+                      : (isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary);
     }
 
     BAIL_OUT_IF (!named, S_OK);
@@ -1882,7 +2006,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
 
 
 
-    hr = ResolveFileType (options, kind, type, result);
+    hr = ResolveFileType (options, kind, hostBytes, type, result);
     CHR (hr);
 
     outPayload.type           = type;
@@ -2397,9 +2521,22 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
 
         default:
-            result.diagnostics    += options.disk.commandWord.empty()
-                                         ? std::string ("Error: no disk command given\n")
-                                         : "Error: unknown disk command: " + options.disk.commandWord + "\n";
+            //  NAMING NO COMMAND PRINTS THE PAGE AND SAYS NOTHING ELSE. There
+            //  is one thing a reader in that position needs and it is the list
+            //  of commands; a sentence telling them they gave none is a line
+            //  between them and it. The status is still 2, because nothing was
+            //  done: a script that reached here with an empty variable has to
+            //  be able to tell.
+            if (options.disk.commandWord.empty())
+            {
+                result.output += BuildHelpText (options.flagPrefix, m_banner);
+            }
+            else
+            {
+                result.diagnostics += "Error: unknown disk command: "
+                                    + options.disk.commandWord + "\n";
+            }
+
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
             break;

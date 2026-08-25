@@ -260,14 +260,14 @@ public:
     //  behavior are edited together and a test can read both.
     //
     static constexpr const char *  kExitStatusHelpText =
-        "    0  The command was carried out\n"
-        "    1  Carried out, with something worth saying: a listing cut short by\n"
-        "       damage, a file delivered with unreadable sectors as zeros, or a\n"
-        "       startup program a booting DOS 3.3 will not actually run.\n"
-        "    2  Nothing was done: a command or an option that was refused, an image\n"
-        "       that cannot be read or holds no filesystem, a file that is not on\n"
-        "       the volume, or a write the volume or the host refused. The image is\n"
-        "       byte-for-byte as it was.";
+        "    0  Success\n"
+        "    1  Success, with a warning: a listing cut short by damage, a file"
+        " delivered with unreadable sectors as zeros, or a startup program a booting"
+        " DOS 3.3 will not actually run\n"
+        "    2  Error, and nothing was done: a command or option refused, an image"
+        " that cannot be read or holds no filesystem, a file that is not on the"
+        " volume, or a write the volume or the host refused. The image is"
+        " byte-for-byte as it was";
 
     //  The sentence a listing gives when neither filesystem is there. Named so
     //  a test asserts on the wording a user reads rather than a paraphrase.
@@ -386,8 +386,18 @@ private:
 
     //  Which type byte a placement uses: what the caller named, or the sensible
     //  one for the conversion they asked for.
+    //  What a file's own bytes say it is, or 0 when they say nothing.
+    //
+    //  ONLY CONSULTED WHEN NOBODY NAMED A TYPE. A guess that overrode --type
+    //  would be a tool arguing with its operator, and one that fired on a
+    //  binary would file it where the guest cannot run it. Anything not
+    //  positively recognized stays a binary, which is what a build loop
+    //  produces and what the default has always been.
+    static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
+
     static HRESULT  ResolveFileType (const CommandLineOptions & options,
                                      VolumeKind                 kind,
+                                     const std::vector<Byte>  & hostBytes,
                                      Byte                     & outType,
                                      DiskCommandResult        & result);
 

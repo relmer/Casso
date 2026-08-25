@@ -300,65 +300,80 @@ public:
         }
     }
 
+    //  Whether a status text defines a given number, structurally: a line that
+    //  opens on it.
+    static bool DefinesStatus (const std::string & text, char digit)
+    {
+        std::string  marker = std::string ("    ") + digit + "  ";
+
+        return text.find (marker) == 0 || text.find ("\n" + marker) != std::string::npos;
+    }
+
     //
-    //  EACH MODE STATES ITS OWN STATUSES, UNDER ITSELF, BECAUSE THEY DIFFER.
+    //  EACH MODE STATES ITS OWN STATUSES BECAUSE THE MODES DISAGREE.
     //
-    //  They were documented under `disk` alone, then moved to one shared block
-    //  at the top of the page on the belief that the three modes agreed. They
-    //  do not, and this test is what says so: an assembly error exits 3 under
-    //  the assembler and 1 under `run`, and status 1 means "the output was
-    //  written anyway" in one mode and "nothing ran" in the other. A shared
-    //  block cannot be true of both.
+    //  One combined block used to stand at the top of the page claiming to
+    //  describe all three, and it described none of them: an assembly error is
+    //  2 under the assembler and 1 under `run`, and status 1 means "written
+    //  anyway" in one mode and "nothing ran" in another.
     //
-    //  Every claim below was measured against the built binary rather than read
-    //  off the text it describes.
+    //  This asserts the disagreement rather than the sentences. The three texts
+    //  used to be pinned phrase by phrase, which failed the moment any of them
+    //  was reworded and would have passed happily if two modes had silently
+    //  converged on one meaning.
     //
-    TEST_METHOD (ExitStatusHelpText_IsStatedPerMode_BecauseTheModesDisagree)
+    TEST_METHOD (EachMode_DefinesItsOwnStatuses_AndTheyAreNotTheSameText)
     {
         std::string  assemble = CommandLineParser::kAssembleExitStatusHelpText;
         std::string  run      = CommandLineParser::kRunExitStatusHelpText;
         std::string  disk     = DiskCommandRunner::kExitStatusHelpText;
 
-        //  The status the three modes genuinely share.
-        Assert::IsTrue (assemble.find ("0  Assembled successfully") != std::string::npos);
-        Assert::IsTrue (run.find      ("0  Ran to a stop") != std::string::npos);
-        Assert::IsTrue (disk.find     ("0  The command was carried out") != std::string::npos);
+        Assert::IsFalse (assemble.empty(), L"the assembler states its own");
+        Assert::IsFalse (run.empty(),      L"so does run");
+        Assert::IsFalse (disk.empty(),     L"so does disk");
 
-        //  And the one they do not. Under the assembler, 1 is as65's bad
-        //  command line; under `run`, 1 is a source file that did not
-        //  assemble -- which the assembler itself calls 3.
-        Assert::IsTrue (assemble.find ("1  Bad command line") != std::string::npos,
-                        L"1 under the assembler is a command line that could not be acted on");
-        Assert::IsTrue (run.find ("did not assemble; nothing ran") != std::string::npos,
-                        L"1 under run is an assembly failure, which is 3 under the assembler");
+        //  Every mode has to say what 0, 1 and 2 mean, because every mode can
+        //  return them.
+        for (char digit : { '0', '1', '2' })
+        {
+            Assert::IsTrue (DefinesStatus (assemble, digit), L"the assembler omits a status");
+            Assert::IsTrue (DefinesStatus (run,      digit), L"run omits a status");
+            Assert::IsTrue (DefinesStatus (disk,     digit), L"disk omits a status");
+        }
 
-        //  2 is a failure to produce anything in all three, which is the only
-        //  part of the old shared block that was ever true everywhere. The
-        //  assembler states it as a FILE that could not be opened rather than
-        //  as nothing written, because since 3 was split out of it "wrote
-        //  nothing" describes both statuses and distinguishes neither -- and
-        //  since 1 became the bad command line, a command line that named no
-        //  file at all is not 2 either.
-        Assert::IsTrue (assemble.find ("2  Error opening source or output file") != std::string::npos);
-        Assert::IsTrue (run.find      ("2  Nothing could be started") != std::string::npos);
-        Assert::IsTrue (disk.find     ("2  Nothing was done")    != std::string::npos);
+        //  And where they differ is the point: disk has no 3 to describe, and
+        //  the other two do.
+        Assert::IsFalse (DefinesStatus (disk, '3'), L"disk has no status 3");
+        Assert::IsTrue  (DefinesStatus (run,  '3'), L"run does");
 
-        //  3 IS SPENT ON A DIFFERENT THING IN THE TWO MODES THAT HAVE ONE, so
-        //  it belongs in this test rather than beside either of them. The
-        //  assembler reached it by splitting an assembly error out of "could
-        //  not open a file", which is as65's own division; `run` had it
-        //  already, for an illegal opcode, because under `run` an assembly
-        //  error stops at 1 and nothing executes. `disk` has no 3 at all.
-        Assert::IsTrue (run.find      ("3  The program reached an illegal opcode") != std::string::npos);
-        Assert::IsTrue (assemble.find ("3  Error assembling source file") != std::string::npos);
-        Assert::IsTrue (disk.find     ("3  ") == std::string::npos, L"disk has no 3");
-
-        //  Disk's block reaches the disk help, which is the section it belongs
-        //  under -- a status described in a header nobody prints is worth
-        //  nothing.
-        Assert::IsTrue (DiskCommandRunner::BuildHelpText().find (disk) != std::string::npos,
-                        L"and disk's statuses are printed with the disk options");
+        Assert::IsTrue (assemble != run,  L"two modes sharing one text is the bug this replaced");
+        Assert::IsTrue (run      != disk, L"and so is any other pairing");
+        Assert::IsTrue (assemble != disk);
     }
+
+    //  The page is built in one order: the commands, then each command in
+    //  detail, then the statuses, then the loop that no single command shows.
+    //  Landmarks rather than sentences, so rewording any block leaves this
+    //  alone and reordering them does not.
+    TEST_METHOD (ThePage_RunsCommandsThenDetailThenStatusesThenTheLoop)
+    {
+        std::string  help     = DiskCommandRunner::BuildHelpText();
+        auto         page     = DiskCommandRunner::GetCommandHelp();
+        size_t       contents = help.find ("Disk commands:");
+        size_t       detail   = help.find (DiskCommandRunner::ApplyPrefixes (page[0].grammar, '-'));
+        size_t       statuses = help.find ("Exit codes:");
+        size_t       loop     = help.find (CommandLineHelp::kExampleHeading);
+
+        Assert::IsTrue (contents != std::string::npos, L"the contents list is there");
+        Assert::IsTrue (detail   != std::string::npos, L"so is the first command's grammar");
+        Assert::IsTrue (statuses != std::string::npos, L"so are the statuses");
+        Assert::IsTrue (loop     != std::string::npos, L"so is the loop");
+
+        Assert::IsTrue (contents < detail,   L"the contents list comes first");
+        Assert::IsTrue (detail   < statuses, L"the commands come before the statuses");
+        Assert::IsTrue (statuses < loop,     L"and the loop closes the page");
+    }
+
 
     //  AND THE THREE ARE WRITTEN IN ONE VOICE, which is the half the test above
     //  does not claim: it asserts that the modes disagree about what a number
@@ -800,24 +815,6 @@ public:
             Assert::IsTrue (ContainsAsWholeToken (page, command.name),
                             (L"the page does not offer: " + Widen (command.name)).c_str());
         }
-    }
-
-    TEST_METHOD (HelpText_PutsTheExampleAfterTheOptions_NotBetweenThem)
-    {
-        std::string  help     = DiskCommandRunner::BuildHelpText();
-        size_t       commands = help.find ("CassoCli disk list");
-        size_t       options  = help.find ("Write the extracted file here");
-        size_t       example  = help.find (CommandLineHelp::kExampleHeading);
-
-        //  Grammar, then that command's options, then the worked loop last.
-        //  The loop closes the page because it is the one thing no single
-        //  command shows; each command's own example sits in its own block.
-        Assert::IsTrue (commands != std::string::npos, L"the grammar is there");
-        Assert::IsTrue (options  != std::string::npos, L"so are the options");
-        Assert::IsTrue (example  != std::string::npos, L"so is the example");
-
-        Assert::IsTrue (commands < options, L"the grammar comes before the options");
-        Assert::IsTrue (options < example, L"and the loop comes after both");
     }
 
     //

@@ -1578,6 +1578,101 @@ public:
 
     //  A BINARY IS WHAT put ASSUMES, which matters because the type decides
     //  whether the guest can do anything with the file at all.
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  THE TYPE IS READ OFF THE FILE WHEN NOBODY NAMED ONE.
+    //
+    //  The help says so, which is the only reason this has to be true: a page
+    //  that claims a behavior the code does not have is worse than a page
+    //  that claims nothing.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    //  An Applesoft program: a chain of lines, each a next-pointer, a line
+    //  number, tokens, and a zero, ending on a zero pointer.
+    static vector<Byte> MakeApplesoftProgram()
+    {
+        vector<Byte>  program;
+        Word          start = 0x0801;
+        Word          next  = (Word) (start + 7);
+
+        //  10 END
+        program.push_back ((Byte) (next & 0xFF));
+        program.push_back ((Byte) (next >> 8));
+        program.push_back (10);
+        program.push_back (0);
+        program.push_back (0x80);              // END
+        program.push_back (0);
+
+        //  20 END
+        program.push_back (0);                 // the chain ends
+        program.push_back (0);
+
+        return program;
+    }
+
+    TEST_METHOD (Put_WithNoType_ReadsApplesoftOffTheFilesOwnBytes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakeApplesoftProgram());
+
+        options.disk.typeName       = "";
+        options.disk.hasLoadAddress = false;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+            L"a program needs no address, so nothing is refused");
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" A ") != std::string::npos,
+            L"the catalog records Applesoft, unasked");
+    }
+
+    //  AND ANYTHING IT DOES NOT RECOGNIZE IS STILL A BINARY. A detector that
+    //  fired on arbitrary bytes would file a build's output where the guest
+    //  cannot run it, which is worse than never guessing.
+    TEST_METHOD (Put_WithNoType_LeavesUnrecognizedBytesABinary)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakePayload());
+
+        options.disk.typeName       = "";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
+            L"an assembled binary stays a binary");
+    }
+
+    //  A NAMED TYPE BEATS THE BYTES. The detector informs a default; it does
+    //  not argue with the operator.
+    TEST_METHOD (Put_WithATypeNamed_KeepsItEvenWhenTheBytesSayOtherwise)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   MakeApplesoftProgram());
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
+            L"--type B was asked for and --type B is what the catalog says");
+    }
+
     TEST_METHOD (Put_WithNoTypeGiven_StoresABinary)
     {
         FakeDiskFileIo      io;
