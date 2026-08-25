@@ -46,17 +46,36 @@ weighed and resolved into documented assumptions rather than blocking markers:
 1. *Which speech chip* — resolved to the SSI-263, since it is what the later
    speech-equipped boards carried and what surviving speech software targets. The
    Votrax SC-01 is explicitly scoped out.
-2. *How faithful the voice must sound* — resolved by making SC-001 a
-   transcription-accuracy test rather than a subjective similarity judgment.
+2. *How faithful the voice must sound* — resolved by splitting the question
+   across SC-001a/b/c rather than answering it with one number. See below.
 3. *Whether the sound-only variant survives* — resolved yes, as User Story 3, so
    the two-variant model matches the real product line.
 
-**One genuine open dependency.** SC-001 cannot be validated without period speech
-software, which the repository cannot supply and the emulator cannot synthesize
-for itself. This is recorded in both Assumptions and Dependencies and should be
-settled during `/speckit-plan`. It is a sourcing problem, not a specification
-gap — planning can proceed around it, but implementation of User Story 1 cannot
-be signed off without it.
+**Why speech quality is three criteria and not one.** The first draft of this
+spec set a single bar: 90% of words correctly transcribed by an unfamiliar
+listener. That was withdrawn on review as actively wrong for a fidelity project.
+The voice chip is an early-1980s formant synthesizer whose authentic output is
+rough, so an absolute intelligibility target can be **passed by sounding better
+than the hardware** — infidelity, rewarded. It was also unautomatable, requiring
+a listener on every regression run in a codebase whose emulation core is
+otherwise machine-verified, and it presumed known-correct transcripts that for
+game software could only be obtained by listening first, which defeats the
+"unfamiliar listener" premise it rested on.
+
+SC-001a/b/c separate three things that were tangled together: what a machine can
+check forever (datasheet conformance, in the manner the music chip's existing
+tone-frequency and DAC-monotonicity tests already work), what a person must judge
+once (intelligibility, restated as a *margin against a reference* so divergence
+in either direction fails), and what only real software exercises (a title's
+pacing loop actually completing).
+
+**Open dependency, now narrowed.** Period speech software is still the one input
+the repository cannot supply. The revision confines that dependency to SC-001c
+and to User Story 1 sign-off: SC-001a is satisfied by a repo-original boot-sector
+smoke test carrying its own ground truth, and SC-001b by comparison against a
+reference rendering that need not come from physical hardware. Development is
+therefore unblocked; only final sign-off is not. This is a sourcing problem, not
+a specification gap.
 
 **Items marked incomplete require spec updates before `/speckit-clarify` or
 `/speckit-plan`.** None are outstanding.

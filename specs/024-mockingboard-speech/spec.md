@@ -305,8 +305,32 @@ separately, measure idle cost with the voice chip present and unprogrammed.
 
 ### Measurable Outcomes
 
-- **SC-001**: A listener unfamiliar with the script can correctly transcribe at
-  least 90% of the words spoken by each title in the speech acceptance set.
+Speech quality is verified at three levels rather than one. A single
+intelligibility bar was considered and rejected: the voice chip is an early-1980s
+formant synthesizer whose authentic output is genuinely rough, so an absolute
+transcription target can be *passed by being better than the hardware* — which is
+a fidelity failure the criterion would have rewarded. The three criteria below
+separate what a machine can check forever, what a person must judge once, and
+what only real software exercises.
+
+- **SC-001a** *(automated, permanent)*: For every phoneme the chip supports, the
+  rendered output carries its documented acoustic content — the formant
+  frequencies named in the datasheet, for the documented duration — and the rate,
+  inflection, and amplitude controls shift that content in the documented
+  direction. Verified by assertion in the test suite with no audio fixtures and
+  no listener, in the manner the existing tone-frequency and DAC-monotonicity
+  checks already verify the music chip.
+- **SC-001b** *(human, one-time, comparative)*: Transcription accuracy on Casso's
+  speech is within 10 percentage points of transcription accuracy on a reference
+  rendering of the same utterance, judged by listeners who have not seen the
+  script. Stated as a margin rather than an absolute so that neither unusually
+  clear nor unusually rough output can pass by diverging from the hardware.
+- **SC-001c** *(per-title)*: In every title of the speech acceptance set, speech
+  occurs at the moments the software intends, the software's phoneme-pacing loop
+  advances to the end of each utterance, and no title stalls or hangs waiting on
+  the chip. Verifiable even where the synthesized voice is hard to make out,
+  because it measures the software's interaction with the chip rather than the
+  audio.
 - **SC-002**: Every title in the sound-only regression set produces audio
   indistinguishable from the previous release, verified by automated comparison
   of rendered output rather than by ear alone.
@@ -342,11 +366,24 @@ separately, measure idle cost with the voice chip present and unprogrammed.
   "Mockingboard C" rather than a chip part number. The card Casso ships today is
   described internally as an A/C; with speech present, the C name becomes
   accurate rather than aspirational.
+- **Validation is tiered so that acquiring period software gates as little as
+  possible.** A purpose-written boot-sector demo that drives the voice chip with
+  an authored phoneme sequence supplies perfect ground truth for SC-001a and
+  needs no disks at all; the project already carries a directly analogous tone
+  smoke test for the music chip, and the speech equivalent belongs beside it.
+  Only SC-001c genuinely requires period titles, and only for sign-off of User
+  Story 1.
+- **A reference rendering for SC-001b need not come from physical hardware.**
+  Comparing the same authored phoneme sequence against another emulator's output
+  is behavioral comparison, not derivation, and stays within the clean-room rule
+  in FR-002 — no third-party source is read or copied. A recording of real
+  hardware is preferable where one can be obtained, but is not a prerequisite.
 - **The speech acceptance set will be assembled from period titles known to drive
-  Mockingboard speech.** Acquiring usable images is a real prerequisite for
-  SC-001 and should be settled during planning, since the set cannot be
-  synthesized from the emulator's own output — validating a speech synthesizer
-  against speech it generated proves nothing.
+  Mockingboard speech**, with the manufacturer's own demo and utility software
+  preferred where available: it was written to exhibit the chip and often speaks
+  a documented phrase, which supplies a transcript that game software does not.
+  The set cannot be synthesized from Casso's own output — validating a speech
+  synthesizer against speech it generated proves nothing.
 - **The sound-only regression set is drawn from the titles already used to
   validate GH #66** — the music and effects titles named in its acceptance
   criteria — so SC-002 compares against known-good prior behavior.
@@ -364,8 +401,17 @@ separately, measure idle cost with the voice chip present and unprogrammed.
 - **GH #66 (closed, shipped in 1.7.0)** delivered the card, its timer/port
   emulation, its interrupt wiring, and its stereo audio path. This feature
   extends that work and explicitly picks up the item that issue deferred.
-- **Speech software for validation** — see Assumptions. This is the one
-  prerequisite the codebase cannot supply on its own.
+- **A purpose-written speech smoke test** — a boot-sector program that
+  unconditionally programs the voice chip with an authored phoneme sequence, in
+  the mold of the existing Mockingboard tone smoke test. This is the artifact
+  that unblocks User Story 1 development: it is repo-original, needs no disk
+  acquisition, and carries its own ground truth. It should exist early rather
+  than as a polish task.
+- **Period speech software** — required only for SC-001c and only at User Story 1
+  sign-off, not for development. This is the one input the codebase cannot supply
+  on its own, and the reason SC-001a and SC-001b are deliberately structured not
+  to depend on it. Acquired disk images belong in the primary checkout rather
+  than a worktree, as existing test media do.
 - **No new third-party dependency is anticipated.** Should one be proposed, the
   constitution's Approved Third-Party Dependencies allowlist governs, and adding
   to it is a constitution amendment.
