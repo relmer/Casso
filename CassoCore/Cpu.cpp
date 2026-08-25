@@ -93,6 +93,48 @@ void Cpu::EnableTrace (size_t capacity)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TracePeek
+//
+//  Read one byte for the trace: the byte the CPU would fetch, without
+//  disturbing anything.
+//
+//  It goes through the SAME read-page table the instruction fetch uses,
+//  because memory[] is the wrong buffer the moment an MMU re-points a page.
+//  On the //e and //c the MMU rebinds all of $0000-$BFFF from RAMRD / RAMWRT /
+//  ALTZP / 80STORE, so a trace that read memory[] printed operands from main
+//  RAM while the CPU executed from aux -- and a disassembly whose operands
+//  belong to a different bank is worse than none, because it reads as fact.
+//  This was visible in a //e trace of a stack-page disk loader, where a
+//  branch that plainly jumped backwards printed a forward operand.
+//
+//  A null page is I/O ($C000-$CFFF) or unmapped space, and those fall back to
+//  memory[] rather than the bus ON PURPOSE: a bus read of $C0xx toggles soft
+//  switches. Recording the machine must never change it, so the trace accepts
+//  a stale byte there instead of a side effect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Cpu::TracePeek (Word address) const
+{
+    if (m_readPages != nullptr)
+    {
+        const Byte *  page = m_readPages[address >> 8];
+
+        if (page != nullptr)
+        {
+            return page[address & 0xFF];
+        }
+    }
+
+    return memory[address];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TracePush
 //
 //  Snap the current pre-execution CPU state into the ring buffer.
@@ -105,9 +147,8 @@ void Cpu::EnableTrace (size_t capacity)
 //  banking). It must NOT be re-read from the raw Cpu::memory[] array,
 //  which only backs $00-$BF RAM and is stale for ROM/$Cxxx/$Dxxx-$FFFF
 //  -- doing so makes the disassembly lie in exactly the banked regions
-//  a fault trace most needs to be correct about. The operand bytes are
-//  read from the raw RAM backing, which is exact for $0000-$BFFF code
-//  (where bootloaders/decryptors live) and approximate elsewhere.
+//  a fault trace most needs to be correct about. The operand bytes go
+//  through TracePeek for the same reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,8 +160,8 @@ void Cpu::TracePush (Byte opcode)
 
     e.pc     = PC;
     e.opcode = opcode;
-    e.op1    = memory[(Word) (PC + 1)];
-    e.op2    = memory[(Word) (PC + 2)];
+    e.op1    = TracePeek ((Word) (PC + 1));
+    e.op2    = TracePeek ((Word) (PC + 2));
     e.a      = A;
     e.x      = X;
     e.y      = Y;
