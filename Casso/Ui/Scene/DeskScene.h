@@ -369,7 +369,20 @@ private:
     // 2.5 mm ridge casts is eight of them across.
     static constexpr UINT   kShadowMapTexels = 4096;
     static constexpr float  kShadowBias      = 0.0016f;
-    static constexpr float  kShadowStrength  = 0.72f;
+    // How much of a light a shadow actually takes away. NOT all of it, and
+    // less than it used to: at 0.72 the monitor's shadow left the drive lids
+    // with barely a quarter of their direct light, and the rib grooves there
+    // went from bands to hairlines while the ones a few millimeters outside
+    // the shadow stayed bold. A groove is drawn by the contrast between its
+    // two walls, that contrast comes from the direct term, and scaling the
+    // direct term scales the groove with it.
+    //
+    // Which is also how a real shadow behaves -- what fills one is sky and
+    // bounce, and relief inside it stays legible. A shadow this scene can see
+    // through is worth more than a deep one that erases the modeling under
+    // it, particularly since the thing casting it here is always the monitor
+    // and the thing under it is always a drive's most recognizable feature.
+    static constexpr float  kShadowStrength  = 0.55f;
 
     // The lamp's map covers only the inside of one housing rather than the
     // whole desk, so a far smaller one resolves the same millimetre of detail.

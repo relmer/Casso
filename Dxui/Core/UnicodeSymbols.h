@@ -29,6 +29,7 @@ static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK 
 static constexpr LPCWSTR s_kpszMultiplyX     = L"\x00D7";       // U+00D7 MULTIPLICATION SIGN (×), window-close glyph
 static constexpr LPCWSTR s_kpszRocket        = L"\U0001F680";   // U+1F680 ROCKET (🚀)
 static constexpr LPCWSTR s_kpszStar          = L"\x2B50";       // U+2B50 WHITE MEDIUM STAR (gold via color-emoji font)
+static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK (brass via color-emoji font)
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).

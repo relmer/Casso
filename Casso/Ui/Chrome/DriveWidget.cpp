@@ -459,20 +459,8 @@ void DriveWidget::Paint (
             UNREFERENCED_PARAMETER (inUseFontDip);
             UNREFERENCED_PARAMETER (doorOffset);
 
-            // Write-protect padlock, just left of the status LED.
-            if (m_state.writeProtect.Any())
-            {
-                int    badgeW = Scale (kWpBadgeWidthPx,  dpi);
-                int    badgeH = Scale (kWpBadgeHeightPx, dpi);
-                float  badgeX = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
-                float  badgeY = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
-
-                DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                             kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
-            }
-
             m_led.Paint (painter, text, theme);
-            PaintBasenameLabel (text, theme, dpi);
+            PaintBasenameLabel (painter, text, theme, dpi);
             return;
         }
 
@@ -873,27 +861,12 @@ void DriveWidget::Paint (
             CassoBranding::DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
         }
 
-        // Write-protect padlock, top-right of the faceplate. Occupies a cell
-        // the same size and horizontal position as the Cassowary logo below,
-        // mirrored to the top edge, with the (smaller) padlock centered inside
-        // it so the two marks read as a balanced pair.
-        if (m_state.writeProtect.Any())
-        {
-            int    cellW  = Scale (kCassowaryWidthPx,  dpi);
-            int    cellH  = Scale (kCassowaryHeightPx, dpi);
-            int    margin = Scale (kCassowaryMarginPx, dpi);
-            int    badgeW = Scale (kWpBadgeWidthPx,    dpi);
-            int    badgeH = Scale (kWpBadgeHeightPx,   dpi);
-            float  cellX  = (float) (m_faceRect.right - cellW - margin);
-            float  cellY  = (float) (m_faceRect.top + margin);
-            float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
-            float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
+        // The write-protect padlock used to be stamped here, top-right of the
+        // faceplate, mirroring the cassowary below it. It has moved down to
+        // the basename label, where it says what it is about -- the mounted
+        // IMAGE, not the drive -- and where the 3D scene can show it too.
 
-            DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
-        }
-
-        PaintBasenameLabel (text, theme, dpi);
+        PaintBasenameLabel (painter, text, theme, dpi);
     }
 }
 
@@ -910,9 +883,23 @@ void DriveWidget::Paint (
 //  Hidden when no disk is mounted; ellipsis-truncated to the label
 //  strip width via the pure TruncateToWidth algorithm.
 //
+//  THE WRITE-PROTECT PADLOCK SITS HERE TOO, and it does not scroll. Protection
+//  is a fact about the mounted image, so it belongs with the image's name --
+//  but the name is a marquee, and a badge carried along inside it would slide
+//  off the edge and leave the drive looking unprotected for most of every
+//  cycle. So the badge is drawn OUTSIDE the marquee's clip and given its own
+//  fixed place, and only the text moves.
+//
+//  When the name fits, the badge and the name are centered as a PAIR: pinning
+//  the badge at the left edge of a strip whose text is centered leaves a hole
+//  between them, and the two stop reading as one label about one disk. When
+//  the name overflows there is nothing to center, so the badge takes the left
+//  edge and the text marquees through what is left.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::PaintBasenameLabel (
+    IDxuiPainter      & painter,
     IDxuiTextRenderer & text,
     const CassoTheme & theme,
     UINT                dpi)
@@ -932,6 +919,14 @@ void DriveWidget::PaintBasenameLabel (
     float                  offset        = 0.0f;
     float                  drawX         = 0.0f;
     bool                   clipped       = false;
+    bool                   locked        = m_state.writeProtect.Any();
+    float                  badgeW        = 0.0f;
+    float                  badgeH        = 0.0f;
+    float                  badgeGap      = 0.0f;
+    float                  badgeX        = 0.0f;
+    float                  badgeY        = 0.0f;
+    float                  nameLeft      = 0.0f;
+    float                  nameW         = 0.0f;
     int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                 std::chrono::steady_clock::now().time_since_epoch()).count();
     basenameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
@@ -966,18 +961,50 @@ void DriveWidget::PaintBasenameLabel (
     hr = text.MeasureString (basename.c_str(), basenameDip, kFontFamily, textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    if (locked)
+    {
+        badgeW   = (float) Scale (kWpBadgeWidthPx,  dpi);
+        badgeH   = (float) Scale (kWpBadgeHeightPx, dpi);
+        badgeGap = (float) Scale (kWpBadgeLabelGapPx, dpi);
+    }
+
+    // What the name gets: the strip, less the badge and its gap.
+    nameW    = labelW - (badgeW + badgeGap);
+    nameLeft = labelLeft + badgeW + badgeGap;
+
+    if (locked && textW <= nameW)
+    {
+        // Fits: the pair centers together, so the badge sits against the
+        // name rather than out at the edge of an otherwise empty strip.
+        badgeX   = labelLeft + (labelW - (badgeW + badgeGap + textW)) * 0.5f;
+        nameLeft = badgeX + badgeW + badgeGap;
+        nameW    = textW;
+    }
+    else
+    {
+        badgeX = labelLeft;
+    }
+
+    if (locked)
+    {
+        badgeY = labelTop + (labelH - badgeH) * 0.5f;
+
+        DrawPadlock (painter, badgeX, badgeY, badgeW, badgeH,
+                     kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+    }
+
     // Confine all drawing to the drive's label strip so a long name never
     // spills past the drive's left / right bounds or wraps below the strip.
-    hr      = text.PushClipRect (labelLeft, labelTop, labelW, labelH);
+    hr      = text.PushClipRect (nameLeft, labelTop, nameW, labelH);
     clipped = SUCCEEDED (hr);
 
-    if (textW <= labelW)
+    if (textW <= nameW)
     {
         // Fits: static and centered.
         hr = text.DrawString (basename.c_str(),
-                              labelLeft,
+                              nameLeft,
                               labelTop,
-                              labelW,
+                              nameW,
                               labelH,
                               theme.driveLabel,
                               basenameDip,
@@ -1037,7 +1064,7 @@ void DriveWidget::PaintBasenameLabel (
             }
         }
 
-        drawX = labelLeft - offset;
+        drawX = nameLeft - offset;
 
         // Two copies a period apart: as the first scrolls off the left, the
         // gap then the second copy's head follow it in from the right. The

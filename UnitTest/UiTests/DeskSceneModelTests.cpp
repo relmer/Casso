@@ -262,7 +262,7 @@ public:
         expect.RequireCount (2);
     }
 
-    TEST_METHOD (Drive_Finds_Its_Lamp_And_Orders_Regions_Eject_First)
+    TEST_METHOD (Drive_Finds_Its_Lamp_And_Nests_Eject_Inside_Body)
     {
         DeskSceneModel   model;
 
@@ -285,23 +285,24 @@ public:
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusX, 0.01f);
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusZ, 0.01f);
 
-        // Eject still ranks first. The padlock's box overlaps the top of the
-        // eject zone, so listing the badge ahead of it would take clicks away
-        // from eject in that strip just to serve a tooltip -- the badge is
-        // hover-only furniture and must not outrank a control.
-        Assert::AreEqual ((size_t) 3, model.RegionBoxes().size());
+        // TWO boxes, and no padlock among them: the write-protect badge is
+        // not stamped on a faceplate any more, it hangs beside the mounted
+        // disk's NAME. The region only exists for a model that carries the
+        // stamp, so a drive that does not carry it must not contribute a
+        // degenerate box at the model's origin -- which, padded by the badge's
+        // hit slack, would be a live target sitting on the case's bottom-left
+        // corner, quietly taking clicks that mean browse.
+        Assert::IsTrue (model.PadlockVerts().empty());
+        Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
         Assert::IsTrue (model.RegionBoxes()[0].region == DriveWidgetRegion::Eject);
-        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Padlock);
-        Assert::IsTrue (model.RegionBoxes()[2].region == DriveWidgetRegion::Body);
+        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Body);
 
-        // Eject and padlock both sit inside the body box -- precedence by
-        // declaration order, like the 2D widget's eject-inside-body rects.
+        // Eject sits inside the body box -- precedence by declaration order,
+        // like the 2D widget's eject-inside-body rects.
         for (int axis = 0; axis < 3; axis++)
         {
-            Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[2].boxMin[axis]);
-            Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
-            Assert::IsTrue (model.RegionBoxes()[1].boxMin[axis] >= model.RegionBoxes()[2].boxMin[axis]);
-            Assert::IsTrue (model.RegionBoxes()[1].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
+            Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[1].boxMin[axis]);
+            Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[1].boxMax[axis]);
         }
     }
 
@@ -516,42 +517,38 @@ public:
         }
     }
 
-    TEST_METHOD (Drive_Carries_The_Padlock_Stamp_On_The_Faceplate)
+    //
+    //  THE PADLOCK IS NOT ON THE DRIVE ANY MORE. It used to be stamped in the
+    //  faceplate's top-right corner, and this test held it to the same
+    //  quarter-inch margin every other mark there obeys.
+    //
+    //  What replaced that test is the opposite assertion, because the reason
+    //  the badge moved is worth pinning down: write protection is a fact about
+    //  the MOUNTED IMAGE, not about the hardware. Stamping it on the case put
+    //  it on a drive that never wore one, and left it unchanged while the
+    //  thing it describes was swapped out underneath. It now hangs beside the
+    //  disk's name, in both the 2D widget's label and the 3D scene's name
+    //  strip, where changing disks changes it.
+    //
+    //  BuildPadlockStamp itself is still here and still correct -- a model
+    //  that asks for a badge gets one, with its region box. Nothing asks.
+    //
+    TEST_METHOD (Neither_Drive_Stamps_A_Padlock_On_Its_Case)
     {
-        DeskSceneModel   model;
+        const DeskDeviceKind  kinds[] = { DeskDeviceKind::DiskII, DeskDeviceKind::Disk2c };
 
-
-
-        // The faceplate and the quarter-inch every mark on it is set to. The
-        // badge holds the TOP-RIGHT corner, so the margin is what its right
-        // and top extremes should land on -- asserted as a reach, not just a
-        // box, because "inside the corner somewhere" is what a badge drifted
-        // toward the middle also satisfies.
-        constexpr float  kFaceW   = DeskSceneModel::kFaceWidthMm;
-        constexpr float  kFaceH   = DeskSceneModel::kFaceHeightMm;
-        constexpr float  kMargin  = 0.25f * 25.4f;
-        constexpr float  kSlack   = 0.05f;
-
-        float  right = 0.0f;
-        float  top   = 0.0f;
-
-        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
-        Assert::IsFalse (model.PadlockVerts().empty());
-
-        // Proud of the faceplate (y < -1) and wholly inside its top-right
-        // quadrant, clear of the slot below and of the legend opposite.
-        for (const Dxui3DRenderer::Vertex & v : model.PadlockVerts())
+        for (DeskDeviceKind kind : kinds)
         {
-            Assert::IsTrue (v.y < -1.0f && v.y > -3.0f);
-            Assert::IsTrue (v.x > kFaceW * 0.5f && v.x <= kFaceW - kMargin + kSlack);
-            Assert::IsTrue (v.z > kFaceH * 0.5f && v.z <= kFaceH - kMargin + kSlack);
+            DeskSceneModel   model;
 
-            right = (std::max) (right, v.x);
-            top   = (std::max) (top,   v.z);
+            AssertSucceeded (model.Load (kind, DriveObj(), Mtl()));
+            Assert::IsTrue (model.PadlockVerts().empty());
+
+            for (const DeskRegionBox & box : model.RegionBoxes())
+            {
+                Assert::IsFalse (box.region == DriveWidgetRegion::Padlock);
+            }
         }
-
-        Assert::AreEqual (kFaceW - kMargin, right, kSlack);
-        Assert::AreEqual (kFaceH - kMargin, top,   kSlack);
     }
 
     //

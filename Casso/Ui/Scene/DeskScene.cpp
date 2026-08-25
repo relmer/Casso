@@ -381,12 +381,30 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
     //
     // Slightly warm above and warmer still below, since the bounce picks up
     // the desk's own color on the way back up.
-    lighting.ambientUp[0]   = 0.335f;
-    lighting.ambientUp[1]   = 0.328f;
-    lighting.ambientUp[2]   = 0.312f;
-    lighting.ambientDown[0] = 0.232f;
-    lighting.ambientDown[1] = 0.222f;
-    lighting.ambientDown[2] = 0.200f;
+    //
+    // SPREAD FURTHER APART THAN THEY WERE, around the same midpoint. The
+    // shader takes ambient as lerp(down, up, n.z), so how far apart these two
+    // sit IS how much a shadowed surface can still say about which way it
+    // faces -- and it was barely anything: a vertical wall landed at the
+    // midpoint, 85% of the flat lid beside it.
+    //
+    // That is what made the //c's lid ribs go thin under the monitor. A
+    // groove reads by the contrast between its two walls, the direct term
+    // supplies that contrast, and inside a shadow the direct term is mostly
+    // gone -- leaving the ribs to be drawn by a 15% ambient difference, which
+    // is a hairline where the lit ones are bands. Widening the spread is the
+    // fix that does not touch the shadow: relief keeps its modeling in the
+    // dark, exactly as relief does in a real room, where what fills a shadow
+    // is sky and bounce and not a uniform gray.
+    //
+    // The MIDPOINT is held, so nothing facing the viewer changes value at
+    // all. Only the difference between up-facing and down-facing grows.
+    lighting.ambientUp[0]   = 0.359f;
+    lighting.ambientUp[1]   = 0.350f;
+    lighting.ambientUp[2]   = 0.331f;
+    lighting.ambientDown[0] = 0.208f;
+    lighting.ambientDown[1] = 0.200f;
+    lighting.ambientDown[2] = 0.181f;
 
     // The device's own lamp, as a light rather than baked spill. It sits at
     // the lens and radiates the way the lens faces (-Y, toward the viewer),

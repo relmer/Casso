@@ -656,19 +656,14 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     if (kind == DeskDeviceKind::Disk2c)
     {
-        // The //c's face needs almost nothing stamped on it: its brand, its
-        // lamp, its slot and its lever are all MODELED, so the only thing
-        // missing is the write-protect badge, which is ours rather than
-        // Apple's and has no place in the mesh.
+        // The //c's face needs nothing stamped on it at all: its brand, its
+        // lamp, its slot and its lever are all MODELED.
         //
         // It emphatically does not want the Disk II's marks. Those are placed
         // against a face 20 mm taller, so DRIVE n and the badge landed off
         // the top of this one and printed on the monitor standing on it --
         // and "disk ][" belongs to a drive this is not.
         m_doorMotion = DeskDoorMotion::InThenUp;
-
-        BuildPadlockStamp (s_kDisk2cPadlockX1, s_kDisk2cPadlockZ1, s_kDisk2cPadlockY,
-                           s_kDisk2cPadlockScale);
     }
 
     if (kind == DeskDeviceKind::DiskII)
@@ -682,9 +677,6 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         m_doorPivotY  = kDiskIiDoorPoleY;
         m_doorPivotZ  = kDiskIiDoorPoleZ;
         m_doorOpenRad = kDiskIiDoorOpenRad;
-
-        BuildPadlockStamp (s_kDiskIiPadlockX1, s_kDiskIiPadlockZ1, s_kDiskIiPadlockY,
-                           s_kDiskIiPadlockScale);
 
         // The cassowary (lower-right, the 2D widget's mark) and the IN-USE
         // label pointing at the LED. The DRIVE-number badge text is stamped
@@ -2048,20 +2040,30 @@ void DeskSceneModel::AddRegionBoxes()
         m_regions.push_back (box);
     }
 
-    // The padlock ranks BELOW eject and above body. Its box overlaps the top
-    // of the eject zone, and declaration order is precedence -- listing it
-    // first would have quietly taken clicks away from eject in that strip for
-    // the sake of a tooltip. The badge keeps everything above the slot, which
-    // is most of it. Slack all round so the badge is not a pixel hunt, and
-    // the near face reaches in front of the plate it stands on.
-    box.boxMin[0] = m_padlockMin[0] - s_kPadlockHitPadMm;
-    box.boxMin[1] = m_padlockMin[1] - 1.0f;
-    box.boxMin[2] = m_padlockMin[2] - s_kPadlockHitPadMm;
-    box.boxMax[0] = m_padlockMax[0] + s_kPadlockHitPadMm;
-    box.boxMax[1] = 0.5f;
-    box.boxMax[2] = m_padlockMax[2] + s_kPadlockHitPadMm;
-    box.region    = DriveWidgetRegion::Padlock;
-    m_regions.push_back (box);
+    // The padlock's box, IF THERE IS A PADLOCK. There is not, on either drive,
+    // now that the badge hangs beside the disk's name instead of being stamped
+    // on the case -- but the builder is still here and still correct, and a
+    // model that calls it deserves the region that goes with it. Without this
+    // guard an unstamped drive would push a degenerate box at the model's
+    // origin, padded into a real target sitting on the case's bottom-left
+    // corner, silently taking clicks that mean browse.
+    //
+    // It ranks BELOW eject and above body: its box can overlap the eject
+    // zone, declaration order is precedence, and listing it first would take
+    // clicks away from eject for the sake of a tooltip. Slack all round so
+    // the badge is not a pixel hunt, and the near face reaches in front of
+    // the plate it stands on.
+    if (!m_padlock.empty())
+    {
+        box.boxMin[0] = m_padlockMin[0] - s_kPadlockHitPadMm;
+        box.boxMin[1] = m_padlockMin[1] - 1.0f;
+        box.boxMin[2] = m_padlockMin[2] - s_kPadlockHitPadMm;
+        box.boxMax[0] = m_padlockMax[0] + s_kPadlockHitPadMm;
+        box.boxMax[1] = 0.5f;
+        box.boxMax[2] = m_padlockMax[2] + s_kPadlockHitPadMm;
+        box.region    = DriveWidgetRegion::Padlock;
+        m_regions.push_back (box);
+    }
 
     if (m_kind == DeskDeviceKind::Disk2c)
     {

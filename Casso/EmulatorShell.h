@@ -1051,6 +1051,11 @@ private:
     // bounds; empty (and invisible) when that drive holds no disk.
     std::array<DxuiLabel, 2>  m_sceneDriveLabel;
 
+    // Where each of those strips landed, empty when a drive shows no name.
+    // The write-protect tooltip belongs to the strip now that the padlock
+    // does -- see SyncSceneDriveLabels.
+    std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
     // The source path each label was last built from, so mounts and ejects
     // re-hang it without a layout pass and an unchanged frame does no
     // filesystem parsing or text measurement.

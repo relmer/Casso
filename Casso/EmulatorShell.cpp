@@ -1812,7 +1812,23 @@ void EmulatorShell::SyncSceneDriveLabels()
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
             basename = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+
+            // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
+            // badge stamped on the faceplate -- on a case whose whole job is
+            // to look like 1983 hardware, and no Disk II ever wore one. Here
+            // it is what it actually is: a fact about the MOUNTED IMAGE,
+            // sitting beside that image's name.
+            //
+            // Ahead of the truncation on purpose. Truncation eats the TAIL,
+            // so a badge at the head survives however long the name is, and
+            // nothing downstream has to keep it out of the ellipsis by hand.
+            if (!basename.empty() && m_driveWidgetState[i].writeProtect.Any())
+            {
+                basename = std::wstring (s_kpszLock) + L" " + basename;
+            }
         }
+
+        m_sceneDriveLabelRect[i] = RECT{};
 
         if (basename.empty())
         {
@@ -1866,6 +1882,11 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetDpi         (m_scaler.Dpi());
         m_sceneDriveLabel[i].SetRect        (strip);
         m_sceneDriveLabel[i].SetVisible     (true);
+
+        // Remembered so the hover can tell the strip from the case: over the
+        // name and its badge the tooltip explains the protection, over the
+        // drive it just names the disk.
+        m_sceneDriveLabelRect[i] = strip;
     }
 }
 
@@ -7423,6 +7444,27 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         if (DeskSceneActive())
         {
+            // The name strip first, because the padlock is in it and the
+            // scene's hit tester knows nothing about 2D chrome hung below
+            // the drives.
+            for (int i = 0; i < (int) m_sceneDriveLabelRect.size(); i++)
+            {
+                POINT  lp = { x, y };
+
+                if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
+                    PtInRect (&m_sceneDriveLabelRect[i], lp) &&
+                    m_driveWidgetState[i].writeProtect.Any())
+                {
+                    anchor = m_sceneDriveLabelRect[i];
+                    tip    = ComposeWriteProtectTooltip (
+                                 i + 1,
+                                 std::filesystem::path (m_diskStore.GetSourcePath (6, i))
+                                     .filename().wstring(),
+                                 m_driveWidgetState[i].writeProtect);
+                    break;
+                }
+            }
+
             // Fullscreen: the strip's drives-only composition takes the
             // point when it is over the slid band; windowed, the desk
             // composition resolves everything.
@@ -7432,23 +7474,20 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                                       PtInRect (&m_stripRectPx, pt);
             SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
 
-            if (sceneHit.target == SceneHitResult::Target::Drive && !overBtn)
+            if (tip.empty() && sceneHit.target == SceneHitResult::Target::Drive && !overBtn)
             {
                 const DeskSceneComposition &  comp = inStrip ? m_stripComp : m_deskScene.Composition();
-                const DriveWidgetState     &  st   = m_driveWidgetState[sceneHit.driveIndex];
-                std::wstring                  name = std::filesystem::path (
-                    m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
 
-                // The protection tooltip belongs to the PADLOCK, not to the
-                // drive: it explains that badge, and volunteering it for a
-                // dwell anywhere on the case answers a question the user did
-                // not ask. Everywhere else the drive just names its disk.
-                bool  onPadlock = (sceneHit.region == DriveWidgetRegion::Padlock);
-
+                // The protection tooltip belongs to the PADLOCK, and the
+                // padlock now lives in the name strip rather than on the
+                // faceplate -- so the strip is what answers for it, above.
+                // Dwelling anywhere else on the case just names the disk;
+                // volunteering the protection everywhere answers a question
+                // nobody asked.
                 anchor = comp.driveRectPx[sceneHit.driveIndex];
-                tip    = (onPadlock && st.writeProtect.Any())
-                       ? ComposeWriteProtectTooltip (sceneHit.driveIndex + 1, name, st.writeProtect)
-                       : name;
+                tip    = std::filesystem::path (
+                             m_diskStore.GetSourcePath (6, sceneHit.driveIndex))
+                             .filename().wstring();
             }
         }
         else if (wpDrive != nullptr && !overBtn)
@@ -7813,8 +7852,14 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 //  go the other way; a DRAG is the opposite bargain -- the content is what you
 //  have hold of, and it goes where your fingers go, the way it does on a map.
 //  Since this gesture exists to be the touchpad's version of the one-finger
-//  touch pan, it copies that one's relationship to the hand: fingers down
-//  moves the scene down, fingers right moves it right.
+//  touch pan, it copies that one's relationship to the hand.
+//
+//  Which took two goes, because the reasoning above does not settle the sign
+//  on its own: it says the scene follows the fingers, and then you still have
+//  to know which way Windows reports fingers going. It reports a downward
+//  slide as a NEGATIVE vertical delta and a rightward slide as a POSITIVE
+//  horizontal one -- opposite senses, on the same hand movement -- so one of
+//  the two axes was always going to come out backward from a single rule.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7827,11 +7872,11 @@ DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
 
     if (horizontal)
     {
-        m_sceneView.panX += notch * s_kScenePanStep;
+        m_sceneView.panX -= notch * s_kScenePanStep;
     }
     else
     {
-        m_sceneView.panY += notch * s_kScenePanStep;
+        m_sceneView.panY -= notch * s_kScenePanStep;
     }
 
     ClampSceneView();

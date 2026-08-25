@@ -80,6 +80,7 @@ CASE    = (0.884, 0.874, 0.846)
 SLOT_DK = (0.055, 0.055, 0.062)
 FOOT    = (0.320, 0.310, 0.300)
 PAD     = (0.180, 0.176, 0.170)
+RECESS  = (0.360, 0.354, 0.340)   # inside the latch's notch -- see "notch"
 
 # The latch is GRAY -- a //c keycap's gray, plainly a different part from the
 # case rather than a tint of it. Made a shade off the cream it vanished into
@@ -104,7 +105,11 @@ RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
 #   H - SPLIT = (SPLIT + FOOT_TOTAL) / 2   ->   SPLIT = (2H - FOOT_TOTAL) / 3
 SPLIT_Z = (2.0 * H - FOOT_TOTAL) / 3.0
 
-SLOT_Z0, SLOT_Z1 = SPLIT_Z, SPLIT_Z + 4.5    # the disk opening, on the seam
+# THE SEAM RUNS THROUGH THE MIDDLE OF THE SLOT, not under it: the two halves
+# close around the opening, so half the slot is molded into each. Which makes
+# the slot straddle the split rather than sit on top of it.
+SLOT_H           = 4.5
+SLOT_Z0, SLOT_Z1 = SPLIT_Z - SLOT_H * 0.5, SPLIT_Z + SLOT_H * 0.5
 SLOT_X0, SLOT_X1 = 16.0, W - 16.0
 SLOT_BEVEL       = 2.0            # the 45-degree lead-in, all four sides
 
@@ -115,6 +120,12 @@ LATCH_W      = (SLOT_X1 - SLOT_X0) / 3.0
 LATCH_X0     = (W - LATCH_W) * 0.5
 LATCH_PROUD  = 1.5                # how far it stands off the face
 LATCH_SUNK   = 3.0                # how far it reaches back into the notch
+
+# Where the latch crosses the slot's opening it is BEVELED BACK, carrying the
+# slot's own 45-degree lead-in across the piece that interrupts it. A diskette
+# is aimed at the whole opening, and a flat block standing proud in the middle
+# of a chamfered mouth is a thing to catch on.
+LATCH_SLOT_BEV = 1.2
 
 # The notch is a little wider than the latch so the latch travels freely in
 # it, and it runs from below the slot up over the top and back along the lid.
@@ -129,7 +140,8 @@ LATCH_TRAVEL_IN = 4.0             # mirrored by kDisk2cDoorInMm
 NOTCH_W      = LATCH_W + 4.0
 NOTCH_X0     = (W - NOTCH_W) * 0.5
 NOTCH_Z0     = SLOT_Z0 - 12.0     # its floor, well below the slot
-NOTCH_D      = LATCH_SUNK + LATCH_TRAVEL_IN + 1.0
+NOTCH_D      = LATCH_SUNK + LATCH_TRAVEL_IN + 1.5
+NOTCH_LINE   = 0.5                # the recess lining's own thickness
 NOTCH_LID    = 16.0               # how far back along the lid
 NOTCH_LID_D  = 4.0                # how far down into the lid
 
@@ -271,16 +283,46 @@ case = case.cut(
 # THE SEAM. A groove around the whole perimeter at the split, rather than two
 # solids with daylight between them: the halves overlap inside a real drive,
 # and modeling the gap as a hole would let the background through it.
+# ITS INNER EDGE IS ROUNDED LIKE THE CASE. A rectangular cutter inset from a
+# case with rounded corners does not stay inset AT the corners -- the
+# rectangle's own corner reaches out past the case's arc, so the ring loses
+# its floor exactly there and the seam shows a gap at all four corners. The
+# inner shape has to be the outer one, offset.
 case = case.cut(
     cq.Workplane("XY")
       .box(W + 20.0, D + 22.5, SEAM_GAP, centered=(False, False, False))
-      .translate((-10.0, -12.5, SPLIT_Z - SEAM_GAP))
+      .translate((-10.0, -12.5, SPLIT_Z - SEAM_GAP * 0.5))
       .cut(cq.Workplane("XY")
              .box(W - SEAM_DEEP * 2.0, (D + 2.5) - SEAM_DEEP * 2.0, SEAM_GAP + 2.0,
                   centered=(False, False, False))
-             .translate((SEAM_DEEP, -2.5 + SEAM_DEEP, SPLIT_Z - SEAM_GAP - 1.0))))
+             .translate((SEAM_DEEP, -2.5 + SEAM_DEEP, SPLIT_Z - SEAM_GAP * 0.5 - 1.0))
+             .edges("|Z").fillet(CORNER_R - SEAM_DEEP)))
 
 m.add("case", case, CASE)
+
+# THE NOTCH'S LINING, a shade the latch cannot be mistaken for.
+#
+# With the latch open you are looking into the recess it came out of, and the
+# recess was case-colored -- which under the monitor's shadow lands on very
+# nearly the latch's own gray. The door's whole silhouette went with it: what
+# should read as a gray part standing out of a pale hollow read as one flat
+# area. This is the same trade the Disk II's plate recess makes and for the
+# same reason -- there is no ambient occlusion in this scene, so a hollow that
+# ought to darken itself has to be given the value instead.
+#
+# Open at the FRONT and the TOP, because those are the two ways out; a shell
+# rather than a fill, because the latch travels through the middle of it.
+notch_box = (cq.Workplane("XY")
+             .box(NOTCH_W, NOTCH_D, H - NOTCH_Z0, centered=(False, False, False))
+             .translate((NOTCH_X0, -2.5, NOTCH_Z0)))
+
+m.add("notch",
+      notch_box.cut(
+          cq.Workplane("XY")
+            .box(NOTCH_W - NOTCH_LINE * 2.0, NOTCH_D, (H - NOTCH_Z0) - NOTCH_LINE,
+                 centered=(False, False, False))
+            .translate((NOTCH_X0 + NOTCH_LINE, -3.0, NOTCH_Z0 + NOTCH_LINE))),
+      RECESS)
 
 # ------------------------------------------------- faceplate furniture
 
@@ -297,18 +339,33 @@ m.add("slot",
 #
 # It is LATCH_SUNK deep, not the notch's full depth: the rest of the notch is
 # the room the press travels into.
-latch = (cq.Workplane("XY")
-         .box(LATCH_W, LATCH_PROUD + LATCH_SUNK, H - SLOT_Z0, centered=(False, False, False))
-         .translate((LATCH_X0, -2.5 - LATCH_PROUD, SLOT_Z0))
-         .edges("|Y").fillet(1.6))
+# ONE PROFILE EXTRUDED, not two boxes unioned. It was a front block and a lid
+# block joined at the top, each filleted on its own axis -- so the front
+# block's top corners got rounded away and the lid block stood past them,
+# leaving a step where the two meet. A union does not remove a seam that its
+# own fillets carved. Drawn as the L it is, the knee is just another corner of
+# one outline.
+LATCH_FRONT = -2.5 - LATCH_PROUD
+LATCH_BACK  = -2.5 + LATCH_SUNK
+LID_BACK    = -2.5 + NOTCH_LID - 2.0
+LID_Z0      = H - NOTCH_LID_D
+LATCH_TOP   = H + 0.6
+BEV_Y       = LATCH_FRONT + LATCH_SLOT_BEV
+BEV_Z1      = SLOT_Z1 + SLOT_BEVEL
+BEV_Z2      = BEV_Z1 + LATCH_SLOT_BEV
 
-# Its top runs back along the lid in the notch's upper leg, which is what a
-# thumb pushes on.
-latch = latch.union(
-    cq.Workplane("XY")
-      .box(LATCH_W, NOTCH_LID - 2.0, NOTCH_LID_D + 0.6, centered=(False, False, False))
-      .translate((LATCH_X0, -2.5, H - NOTCH_LID_D))
-      .edges("|Z").fillet(1.6))
+latch = (cq.Workplane("YZ")
+         .polyline([(BEV_Y,       SLOT_Z0),
+                    (LATCH_BACK,  SLOT_Z0),
+                    (LATCH_BACK,  LID_Z0),
+                    (LID_BACK,    LID_Z0),
+                    (LID_BACK,    LATCH_TOP),
+                    (LATCH_FRONT, LATCH_TOP),
+                    (LATCH_FRONT, BEV_Z2),
+                    (BEV_Y,       BEV_Z1)])
+         .close()
+         .extrude(LATCH_W)
+         .translate((LATCH_X0, 0.0, 0.0)))
 
 m.add("lever", latch, LATCH)
 
@@ -316,7 +373,9 @@ m.add("lever", latch, LATCH)
 # actually ABOVE the slot, because that is all there is to put it on -- pinned
 # to a fixed offset it ran off the top of the drive the moment the split
 # moved.
-TAB_Z0 = SLOT_Z1 + 1.0
+# Above the bevel ramp, not across it -- pinned to the slot's top it floated
+# clear of a face that is still sloping back underneath it.
+TAB_Z0 = BEV_Z2 + 1.0
 m.add("tab",
       cq.Workplane("XY")
         .box(LATCH_W - 8.0, 1.2, (H - 2.0) - TAB_Z0, centered=(False, False, False))
