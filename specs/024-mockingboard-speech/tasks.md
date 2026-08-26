@@ -61,15 +61,15 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 ### Chip core — behavioral (SC-001a)
 
-- [ ] T010 [US1] Create `CassoEmuCore/Devices/Mockingboard/Ssi263.h` and `Ssi263.cpp` with the five-register file, reset state, and `SetSampleRate`, following the shape of `Ay8910` as a peer chip core
-- [ ] T011 [US1] Implement register decode and field unpacking in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` per the T001 contract
-- [ ] T012 [US1] Implement phoneme selection over all 64 codes and duration advance on **emulated cycles** in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (data-model R4, FR-005) — host sample rate must not affect emulated timing
-- [ ] T013 [US1] Implement the A/R ready/request state, its status read, and its **documented disabled mode** in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (FR-004, FR-015). Quiescence-until-programmed is hardware behavior here, not emulator policy — the chip documents a mode that does not request
-- [ ] T014 [US1] Implement `Reset()` returning the chip to quiescent from any state, abandoning any phoneme in progress, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (R1, R3, G5)
-- [ ] T015 [US1] Implement `IsSilent()` so an unprogrammed or idle chip reports itself silent and the audio path can skip synthesis entirely, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (R2, FR-020) — mirroring `Ay8910::IsSilent`
-- [ ] T016 [P] [US1] Test all 64 phoneme codes accepted, register decode, and field packing in `UnitTest/EmuTests/Ssi263Tests.cpp`
-- [ ] T017 [P] [US1] Test the duration formula across every duration-control setting, and the filter-frequency formula across the register range, in `UnitTest/EmuTests/Ssi263Tests.cpp`
-- [ ] T018 [P] [US1] Test A/R assertion on phoneme completion, silence in the disabled mode, quiescence at construction and reset, determinism between two identically-programmed chips, bounded output for every reachable control combination, and immediate silence on mid-utterance reset, in `UnitTest/EmuTests/Ssi263Tests.cpp` (R1–R6)
+- [x] T010 **DONE** — Create `CassoEmuCore/Devices/Mockingboard/Ssi263.h` and `Ssi263.cpp` with the five-register file, reset state, and `SetSampleRate`, following the shape of `Ay8910` as a peer chip core
+- [x] T011 **DONE** — includes the RS2 alias (addresses 4–7 → filter) and the non-contiguous inflection reassembly. Implement register decode and field unpacking in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` per the T001 contract
+- [x] T012 **DONE** — Implement phoneme selection over all 64 codes and duration advance on **emulated cycles** in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (data-model R4, FR-005) — host sample rate must not affect emulated timing
+- [x] T013 **DONE** — mode latches on the CTL 1→0 transition from the DR bits *at that instant*; `DR1=DR0=0` disables A/R outright. Implement the A/R ready/request state, its status read, and its **documented disabled mode** in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (FR-004, FR-015). Quiescence-until-programmed is hardware behavior here, not emulator policy — the chip documents a mode that does not request
+- [x] T014 **DONE** — Implement `Reset()` returning the chip to quiescent from any state, abandoning any phoneme in progress, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (R1, R3, G5)
+- [x] T015 **DONE** — Implement `IsSilent()` so an unprogrammed or idle chip reports itself silent and the audio path can skip synthesis entirely, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp` (R2, FR-020) — mirroring `Ay8910::IsSilent`
+- [x] T016 **DONE** — Test all 64 phoneme codes accepted, register decode, and field packing in `UnitTest/EmuTests/Ssi263Tests.cpp`
+- [x] T017 **DONE** — all four published formulas asserted directly. Test the duration formula across every duration-control setting, and the filter-frequency formula across the register range, in `UnitTest/EmuTests/Ssi263Tests.cpp`
+- [x] T018 **DONE** — 19 tests, green first run. Test A/R assertion on phoneme completion, silence in the disabled mode, quiescence at construction and reset, determinism between two identically-programmed chips, bounded output for every reachable control combination, and immediate silence on mid-utterance reset, in `UnitTest/EmuTests/Ssi263Tests.cpp` (R1–R6)
 
 ### Chip core — acoustic (SC-001b)
 
