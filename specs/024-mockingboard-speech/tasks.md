@@ -43,7 +43,7 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 **⚠️ CRITICAL**: No user story work begins until this phase completes. T004 in particular must land **before any production file changes**, because SC-002 compares against previous-release behavior and needs a basis captured while the tree is still clean.
 
-- [ ] T004 Capture the sound-only baseline: a full read/write sweep of the slot `$Cn00` page and a rendered audio capture of the existing card, stored as the SC-002 comparison basis, in `UnitTest/EmuTests/MockingboardCardTests.cpp`
+- [x] T004 **DONE 2026-08-25** — `PageSweepMatchesMirrorModel` (all 256 offsets alias their canonical VIA register, spot-pinned values) and `RenderedAudioMatchesBaseline` (two-PSG program, 4096 samples per source, 16-bit-quantized FNV-1a = `0x9563EB75`, captured from the shipping card). Capture the sound-only baseline: a full read/write sweep of the slot `$Cn00` page and a rendered audio capture of the existing card, stored as the SC-002 comparison basis, in `UnitTest/EmuTests/MockingboardCardTests.cpp`
 
   > **Note on the "before any production file changes" wording** (2026-08-25). The VIA control-line seam (T005) landed before this task, which at first looked like it had spoiled the baseline. On inspection it did not, and the reasoning is worth keeping: the full suite passed **3518/3518 both before and after** that change, with every existing Mockingboard, VIA, PSG, and interrupt test **unmodified**, and `UndrivenControlLinesChangeNothing` proves the seam is inert unless a peripheral drives it. Current card behavior therefore *is* master's card behavior, and a sweep captured now is a valid basis.
   >

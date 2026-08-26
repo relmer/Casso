@@ -289,7 +289,160 @@ namespace MockingboardCardTestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  PageSweepMatchesMirrorModel
+        //
+        //  Pins the card's whole-page decode: every offset in $Cn00-$CnFF
+        //  behaves as its canonical VIA register (bit 7 selects the VIA, the
+        //  low four bits the register, A4-A6 undecoded) -- which is what the
+        //  real board does, since its VIAs see neither A4, A5, nor A6.
+        //
+        //  This is the baseline a speech-equipped variant must be measured
+        //  against: that variant adds a listener on part of the page, and this
+        //  sweep is the proof the sound-only card never changes underneath it.
+        //  The card is put in a quiet state first so no read in the sweep has
+        //  a side effect that would skew a later comparison.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PageSweepMatchesMirrorModel)
+        {
+            int    offset    = 0;
+            Word   canonical = 0;
+
+
+
+            MockingboardCard    card (4);
+
+
+
+            SetupQuietState (card);
+
+            for (offset = 0; offset < 256; offset++)
+            {
+                canonical = static_cast<Word> (0xC400 + (offset & 0x8F));
+
+                Assert::AreEqual<Byte> (card.Read (canonical),
+                                        card.Read (static_cast<Word> (0xC400 + offset)),
+                                        L"Every offset must alias its canonical VIA register");
+            }
+
+            // Spot-pin a few canonical values so the sweep cannot pass by
+            // both sides drifting together.
+            Assert::AreEqual<Byte> (0x5A, card.Read (0xC401), L"VIA #1 ORA");
+            Assert::AreEqual<Byte> (0xA5, card.Read (0xC481), L"VIA #2 ORA");
+            Assert::AreEqual<Byte> (0xFF, card.Read (0xC403), L"VIA #1 DDRA");
+            Assert::AreEqual<Byte> (kOrbInactive, card.Read (0xC400), L"VIA #1 ORB");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  RenderedAudioMatchesBaseline
+        //
+        //  Pins the card's rendered audio bit-for-bit: a fixed two-PSG program
+        //  rendered to a fixed sample count must hash to the value captured
+        //  from the shipping card. Sample values are quantized to 16 bits
+        //  before hashing so the pin is on audible content, not on float noise.
+        //
+        //  A change to the PSG core, the audio source, or the card's port
+        //  plumbing that alters what the user hears fails here -- and a
+        //  speech-equipped variant with its chip left unprogrammed must
+        //  produce this identical hash.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (RenderedAudioMatchesBaseline)
+        {
+            static constexpr uint32_t   kExpectedHash = 0x9563EB75;   // captured from the shipping card
+
+            uint32_t   hash    = 0;
+            wchar_t    msg[64] = {};
+
+
+
+            MockingboardCard    card (4);
+
+
+
+            ProgramBaselineTones (card);
+
+            hash = HashRenderedAudio (card);
+
+            swprintf_s (msg, L"Rendered-audio hash was 0x%08X", hash);
+            Assert::AreEqual<uint32_t> (kExpectedHash, hash, msg);
+        }
+
+
     private:
+        // A deterministic, side-effect-free state for read sweeps: DDRs set,
+        // distinctive port values, T1 latches loaded but neither timer armed,
+        // no interrupt source enabled or pending.
+        static void SetupQuietState (MockingboardCard & card)
+        {
+            card.Write (0xC402, 0xFF);   // VIA #1 DDRB
+            card.Write (0xC403, 0xFF);   // VIA #1 DDRA
+            card.Write (0xC401, 0x5A);   // VIA #1 ORA
+            card.Write (0xC400, kOrbInactive);
+            card.Write (0xC406, 0x34);   // VIA #1 T1 latch low  ($6 does not arm)
+            card.Write (0xC407, 0x12);   // VIA #1 T1 latch high ($7 does not arm)
+
+            card.Write (0xC482, 0xFF);   // VIA #2 DDRB
+            card.Write (0xC483, 0xFF);   // VIA #2 DDRA
+            card.Write (0xC481, 0xA5);   // VIA #2 ORA
+            card.Write (0xC480, kOrbInactive);
+        }
+
+        // Distinct tones on both PSGs so the baseline covers both channels
+        // and the port plumbing that reaches them.
+        static void ProgramBaselineTones (MockingboardCard & card)
+        {
+            InitAy (card, kVia1Base);
+            InitAy (card, kVia2Base);
+
+            WriteAy (card, kVia1Base, Ay8910::kRegToneAFine, 0xFF);
+            WriteAy (card, kVia1Base, Ay8910::kRegToneACoarse, 0x01);
+            WriteAy (card, kVia1Base, Ay8910::kRegMixer, 0x3E);
+            WriteAy (card, kVia1Base, Ay8910::kRegAmpA, 0x0F);
+
+            WriteAy (card, kVia2Base, Ay8910::kRegToneBFine, 0x80);
+            WriteAy (card, kVia2Base, Ay8910::kRegToneBCoarse, 0x02);
+            WriteAy (card, kVia2Base, Ay8910::kRegMixer, 0x3D);
+            WriteAy (card, kVia2Base, Ay8910::kRegAmpB, 0x0C);
+        }
+
+        // FNV-1a over the 16-bit quantized samples of both sources.
+        static uint32_t HashRenderedAudio (MockingboardCard & card)
+        {
+            static constexpr uint32_t   kSamples = 4096;
+
+            uint32_t   hash             = 2166136261u;
+            uint32_t   i                = 0;
+            int        source           = 0;
+            int16_t    q                = 0;
+            float      buffer[kSamples] = {};
+
+
+
+            card.SetSampleRate (44100);
+
+            for (source = 0; source < 2; source++)
+            {
+                card.GetAudioSource (source)->GeneratePCM (buffer, kSamples);
+
+                for (i = 0; i < kSamples; i++)
+                {
+                    q = static_cast<int16_t> (buffer[i] * 32767.0f);
+
+                    hash ^= static_cast<uint16_t> (q);
+                    hash *= 16777619u;
+                }
+            }
+
+            return hash;
+        }
+
         // Ports A and B to outputs, RESET released (PB2 high, lines idle).
         static void InitAy (MockingboardCard & card, Word base)
         {
