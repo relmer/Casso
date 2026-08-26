@@ -381,6 +381,40 @@ realistically more pixels.
 whether cells are distinguishable; the answer is that they are present and
 visible but under-resolved at 40% of the master's linear resolution.
 
+### D11c-census — extraction attempted on the published image (2026-08-26): NOT machine-readable
+
+A full census was attempted -- template-match the oval ring at every grid
+cell, classify present/absent. Three passes, each failing more instructively:
+
+1. **Constant-pitch grid census**: produced a beautifully bimodal score
+   histogram that turned out to be measuring REGISTRATION, not bits -- the
+   giveaway was per-column bit counts forming a smooth spatial gradient
+   (1, 8, 33, 43, 47, 48...), which data never does and grid drift always
+   does. Rough pitches (19.0/13.3 px) accumulated ~24 px of row error across
+   the array, and a search window over half the row pitch let dense cells
+   steal neighbors' ovals.
+2. **Refined-pitch census** (long-range autocorrelation: 18.46/12.81 px):
+   still not data -- columns clustered into all-zero / all-one / all-zero
+   bands, the beat between a constant-pitch grid and the true geometry.
+   With 203 stitched photographs the true pitch is not constant; stitch
+   distortion guarantees any fixed grid walks off somewhere. This also
+   corrects D11c's geometry claim: the array measures ~70 x 50 sites at the
+   refined pitches, so "68 x 48" was partly the miscalibration flattering
+   the 12x4 hypothesis. A 64 x 48 payload inside dummy edge rows/columns
+   remains plausible -- as hypothesis, not measurement.
+3. **Detection-first** (high-pass + unconstrained ring correlation + local
+   maxima -- immune to grid drift): the local-max response histogram is
+   UNIMODAL. ~19,700 maxima where ~1,500 true ovals should live: at 7000w,
+   photographic grain produces ring-scale responses statistically
+   inseparable from the real programming features.
+
+**Conclusion**: the ovals are individually visible to the eye in clear
+regions, but the published 7000 x 5803 image cannot be machine-extracted --
+grain-to-feature response overlap, compounded by stitch distortion. This
+sharpens the T057 ask: the ~2.5x master puts a ring at ~25 x 30 px, where
+grain separates trivially, and the master extraction should fit its grid
+FROM detections per region rather than assume constant pitch.
+
 **Recommendation: escalate (T057).** The full 17,265 × 14,313 master would give
 roughly **47 px column and 33 px row pitch** — a different proposition entirely,
 and very likely sufficient. The master exists; it is simply not published.

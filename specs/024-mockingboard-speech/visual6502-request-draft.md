@@ -31,17 +31,24 @@ and its timing formulas, but publishes no formant values at all.
 
 Working from your published 7000 × 5803 image
 (http://www.visual6502.org/images/263P/SSI_263P_20x_1a_7000w.jpg), I've
-located what I'm fairly
-confident is that parameter ROM, at approximately x 2350–3645, y 3100–3745. By
-autocorrelation it has a column pitch of 19.0 px and a row pitch of 13.3 px,
-giving a **68 × 48 array**. That geometry is a good match for what the Votrax
-patents describe: 64 phonemes plus spare columns, and twelve control parameters
-at 4 bits each — 48 rows. The metal is intact, but the cells look
-contact-programmed and the programming features are visible through it, so this
-doesn't appear to be an implant-programmed ROM.
+located what I'm fairly confident is that parameter ROM, at approximately
+x 2350–3645, y 3100–3745 (I can send a copy with the region marked). By
+long-range autocorrelation the cell pitch is about 18.5 × 12.8 px, roughly
+70 × 50 sites — consistent with the patents' 64 phonemes × twelve 4-bit
+parameters once edge dummies are allowed for. The metal is intact, but the
+programming features — stadium-shaped contact rings — are visible through
+it, present at some row/column sites and absent at others, so this doesn't
+appear to be an implant-programmed ROM.
 
-The problem is resolution. At 19 × 13.3 px per cell the features are only a few
-pixels across — enough to see that they're there, not enough to read reliably.
+I did try to extract the bits from the published image, and can be precise
+about why it fails: at this scale a ring is ~9 px, and an unconstrained
+matched-filter detection produces a unimodal response histogram — the film
+grain generates ring-scale false maxima that are statistically inseparable
+from the real features (~20k local maxima where ~1.5k true rings should
+live). A constant-pitch grid also doesn't survive the stitching — fixed
+pitch beats against the true geometry across the mosaic. At the master's
+resolution a ring would be ~25 × 30 px, which should separate cleanly from
+grain and allow the grid to be fit from the detections themselves.
 
 **So my question: is the full 17,265 × 14,313 stitched master available?** The
 die shot page mentions it, but the largest download is the 7000-wide version.
