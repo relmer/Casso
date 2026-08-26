@@ -433,35 +433,171 @@ shell = shell.cut(
       .translate(((W - GRIP_W) * 0.5, FRONT_D - GRIP_DEEP, GRIP_Z0))
       .edges("|Y").fillet(6.0))
 
-# THE REAR PANEL. A recessed bay across the lower back carrying the mains
-# inlet, four trim controls and a screw boss -- the arrangement the rear
-# three-quarter photograph shows. Nothing in this scene ever sees a monitor's
-# back; it is here because the part has one.
-PANEL_X0, PANEL_X1 = REAR_X0 + 16.0, REAR_X0 + REAR_W - 12.0
-PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 40.0
+# THE REAR PANEL, from a photograph of a real unit's back. Viewed from the
+# REAR -- which is +y looking forward, so model x runs right-to-left in that
+# view -- the order is: mains inlet, vertical size, vertical position,
+# brightness, composite video in. The three trims are PROTRUDING knobs, the
+# video input is an RCA jack, and the inlet is the standard PC receptacle: a
+# recessed rounded rectangle with its top corners clipped at forty-five
+# degrees, holding three male blades, LOW - HIGH - LOW.
+#
+# Under each control, its function engraved -- the Monitor II's mold-relief
+# strokes INVERTED: the same one-millimeter strokes, cut half a millimeter
+# INTO the panel instead of standing off it, so they read by the shadow they
+# hold rather than the highlight they catch.
+# THE WHOLE BAY IS SUNK A FULL INCH into the back of the case, and the knobs
+# stand a centimeter off its floor -- so nothing reaches the rear plane, and
+# the monitor sets flat against a wall without a control touching it.
+PANEL_X0, PANEL_X1 = REAR_X0 + 14.0, REAR_X0 + REAR_W - 14.0
+PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 52.0
+PANEL_DEEP         = INCH
+KNOB_PROUD         = 10.0               # off the bay floor, still inside the bay
+PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
 
+CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
+ICON_CZ = PANEL_Z0 + 11.0               # the engraved row's center line
+ICON_S  = 7.0                           # icon box side
+STROKE  = 1.0                           # engraved stroke width (RIDGE_W's twin)
+CUT_D   = 0.5                           # ...and depth (RIDGE_H's)
+
+# Rear-view left to right; model x descends.
+AC_CX     = PANEL_X1 - 26.0
+KNOB_CX   = [AC_CX - 42.0, AC_CX - 68.0, AC_CX - 94.0]
+RCA_CX    = AC_CX - 122.0
+
+# The bay itself.
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(PANEL_X1 - PANEL_X0, 3.0, PANEL_Z1 - PANEL_Z0, centered=(False, False, False))
-      .translate((PANEL_X0, D - 2.0, PANEL_Z0))
+      .box(PANEL_X1 - PANEL_X0, PANEL_DEEP + 1.0, PANEL_Z1 - PANEL_Z0,
+           centered=(False, False, False))
+      .translate((PANEL_X0, PANEL_Y, PANEL_Z0))
       .edges("|Y").fillet(3.0))
 
-# The mains inlet, at the panel's left end.
-shell = shell.cut(
-    cq.Workplane("XY")
-      .box(24.0, 12.0, 16.0, centered=(False, False, False))
-      .translate((PANEL_X0 + 6.0, D - 10.0, PANEL_Z0 + 6.0))
-      .edges("|Y").fillet(2.0))
+# THE MAINS INLET: the receptacle profile drawn as it is -- a rounded
+# rectangle whose top two corners are clipped at forty-five degrees -- and
+# cut eight millimeters into the bay floor.
+AC_W, AC_H, AC_CLIP, AC_DEEP = 24.0, 17.0, 5.0, 8.0
 
-# Four trim controls in a row beside it, each in its own slot.
-for i in range(4):
-    x = PANEL_X0 + 46.0 + i * 17.0
+_acx0, _acx1 = AC_CX - AC_W * 0.5, AC_CX + AC_W * 0.5
+_acz0, _acz1 = CTRL_Z - AC_H * 0.5, CTRL_Z + AC_H * 0.5
 
-    shell = shell.cut(
-        cq.Workplane("XY")
-          .box(9.0, 8.0, 13.0, centered=(False, False, False))
-          .translate((x, D - 6.0, PANEL_Z0 + 8.0))
-          .edges("|Y").fillet(1.5))
+_ac_face = cq.Face.makeFromWires(cq.Wire.makePolygon([
+    cq.Vector(_acx0, PANEL_Y + 0.5, _acz0),
+    cq.Vector(_acx1, PANEL_Y + 0.5, _acz0),
+    cq.Vector(_acx1, PANEL_Y + 0.5, _acz1 - AC_CLIP),
+    cq.Vector(_acx1 - AC_CLIP, PANEL_Y + 0.5, _acz1),
+    cq.Vector(_acx0 + AC_CLIP, PANEL_Y + 0.5, _acz1),
+    cq.Vector(_acx0, PANEL_Y + 0.5, _acz1 - AC_CLIP),
+    cq.Vector(_acx0, PANEL_Y + 0.5, _acz0),
+]))
+
+shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
+    _ac_face, cq.Vector(0.0, -(AC_DEEP + 0.5), 0.0))))
+
+# Its three blades, standing up from the receptacle's back wall: LOW, HIGH,
+# LOW, which is the earth pin above the pair of line blades.
+for dx, dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
+    m.add(f"acpin{int(dx)}",
+          cq.Workplane("XY")
+            .box(2.0, 5.0, 4.5, centered=(True, False, False))
+            .translate((AC_CX + dx, PANEL_Y - AC_DEEP, CTRL_Z + dz - 2.25)),
+          (0.10, 0.10, 0.10))
+
+# THE THREE KNOBS, protruding case-colored cylinders: size, position,
+# brightness.
+for i, cx in enumerate(KNOB_CX):
+    m.add(f"knob{i}",
+          cq.Workplane("XY")
+            .cylinder(KNOB_PROUD, 4.2, direct=(0, 1, 0), centered=(True, True, False))
+            .translate((cx, PANEL_Y, CTRL_Z)),
+          PLAT)
+
+# THE RCA JACK: dark barrel, white insulator ring, dark center bore.
+m.add("rca_body",
+      cq.Workplane("XY")
+        .cylinder(4.5, 4.6, direct=(0, 1, 0), centered=(True, True, False))
+        .translate((RCA_CX, PANEL_Y, CTRL_Z)),
+      (0.12, 0.12, 0.13))
+m.add("rca_ring",
+      cq.Workplane("XY")
+        .cylinder(5.1, 3.0, direct=(0, 1, 0), centered=(True, True, False))
+        .translate((RCA_CX, PANEL_Y, CTRL_Z)),
+      (0.92, 0.91, 0.89))
+m.add("rca_bore",
+      cq.Workplane("XY")
+        .cylinder(5.5, 1.3, direct=(0, 1, 0), centered=(True, True, False))
+        .translate((RCA_CX, PANEL_Y, CTRL_Z)),
+      (0.10, 0.10, 0.11))
+
+
+# ------------------------------------------------- the engraved icon row
+#
+# Each cutter is a stroke solid exactly as the Monitor II builds its relief,
+# subtracted instead of added. Cuts land in the bay floor at PANEL_Y.
+
+def engrave(solid):
+    """Cut one stroke into the bay floor."""
+    global shell
+    shell = shell.cut(solid)
+
+
+def stroke_box(cx, cz, w, h, rot_deg=0.0):
+    """A stroke cutter centered at (cx, cz) on the panel, optionally rotated
+    about its own y-axis center -- rays and slashes come from here."""
+    s = (cq.Workplane("XY")
+         .box(w, CUT_D + 0.5, h, centered=(True, False, True))
+         .translate((0.0, PANEL_Y - CUT_D, 0.0)))
+
+    if rot_deg != 0.0:
+        s = s.rotate((0, 0, 0), (0, 1, 0), rot_deg)
+
+    return s.translate((cx, 0.0, cz))
+
+
+def outline_ring(cx, cz, w, h, r):
+    """A rounded-rectangle OUTLINE cutter: outer minus inner."""
+    y = PANEL_Y - CUT_D
+
+    outer = cq.Solid.extrudeLinear(
+        cq.Face.makeFromWires(round_rect_wire(y, cx - w * 0.5, cx + w * 0.5,
+                                              cz - h * 0.5, cz + h * 0.5, r)),
+        cq.Vector(0.0, CUT_D + 0.5, 0.0))
+    inner = cq.Solid.extrudeLinear(
+        cq.Face.makeFromWires(round_rect_wire(y - 0.1,
+                                              cx - w * 0.5 + STROKE, cx + w * 0.5 - STROKE,
+                                              cz - h * 0.5 + STROKE, cz + h * 0.5 - STROKE,
+                                              max(0.4, r - STROKE))),
+        cq.Vector(0.0, CUT_D + 0.7, 0.0))
+
+    return cq.Workplane(obj=outer).cut(cq.Workplane(obj=inner))
+
+
+# Mains: the alternating-current tilde, three joined slashes.
+engrave(stroke_box(AC_CX - 1.8, ICON_CZ - 0.5, STROKE, 3.4, 35.0))
+engrave(stroke_box(AC_CX,       ICON_CZ + 0.4, STROKE, 3.4, -35.0))
+engrave(stroke_box(AC_CX + 1.8, ICON_CZ - 0.5, STROKE, 3.4, 35.0))
+
+# Vertical size: a screen with arrowheads pushing its top and bottom out.
+engrave(outline_ring(KNOB_CX[0], ICON_CZ, ICON_S, ICON_S * 0.8, 1.6))
+engrave(stroke_box(KNOB_CX[0], ICON_CZ, STROKE, 3.2))
+engrave(stroke_box(KNOB_CX[0], ICON_CZ + 1.5, 2.2, STROKE))
+engrave(stroke_box(KNOB_CX[0], ICON_CZ - 1.5, 2.2, STROKE))
+
+# Vertical position: the same screen with the bar swept to one side.
+engrave(outline_ring(KNOB_CX[1], ICON_CZ, ICON_S, ICON_S * 0.8, 1.6))
+engrave(stroke_box(KNOB_CX[1], ICON_CZ, STROKE, 3.6, 20.0))
+
+# Brightness: the sun -- a core and eight rays.
+engrave(stroke_box(KNOB_CX[2], ICON_CZ, 2.4, 2.4))
+for k in range(8):
+    ang = k * 45.0
+    rx  = KNOB_CX[2] + 3.0 * math.cos(math.radians(ang))
+    rz  = ICON_CZ + 3.0 * math.sin(math.radians(ang))
+    engrave(stroke_box(rx, rz, 0.8, 1.6, ang + 90.0))
+
+# Video in: a screen inside a frame.
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_S, 0.8))
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, ICON_S - 3.2, 1.4))
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
