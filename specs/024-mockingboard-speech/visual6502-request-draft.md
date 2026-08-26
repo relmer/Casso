@@ -40,15 +40,17 @@ programming features — stadium-shaped contact rings — are visible through
 it, present at some row/column sites and absent at others, so this doesn't
 appear to be an implant-programmed ROM.
 
-I did try to extract the bits from the published image, and can be precise
-about why it fails: at this scale a ring is ~9 px, and an unconstrained
-matched-filter detection produces a unimodal response histogram — the film
-grain generates ring-scale false maxima that are statistically inseparable
-from the real features (~20k local maxima where ~1.5k true rings should
-live). A constant-pitch grid also doesn't survive the stitching — fixed
-pitch beats against the true geometry across the mosaic. At the master's
-resolution a ring would be ~25 × 30 px, which should separate cleanly from
-grain and allow the grid to be fit from the detections themselves.
+I've begun extracting the bits from the published image. Using a template
+cut from one of the actual programming features (tall vertical stadium
+contacts, roughly 8-11 × 15-25 px) and normalized cross-correlation, about
+1,100 features detect cleanly and organize into a lattice — which also
+revealed that the column pitch alternates 20/20/16 px in a repeating
+three-column group, so no constant-pitch grid fits the array. Detection
+works; what limits *classification* at this resolution is the marginal
+cases — faint or partial features a few pixels across, where present versus
+absent is a judgment call. At the master's resolution each feature would be
+~2.5× larger in both axes, which should turn those judgment calls into
+clean binary reads and make a complete, verifiable extraction realistic.
 
 **So my question: is the full 17,265 × 14,313 stitched master available?** The
 die shot page mentions it, but the largest download is the 7000-wide version.

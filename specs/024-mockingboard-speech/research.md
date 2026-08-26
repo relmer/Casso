@@ -415,6 +415,37 @@ sharpens the T057 ask: the ~2.5x master puts a ring at ~25 x 30 px, where
 grain separates trivially, and the master extraction should fit its grid
 FROM detections per region rather than assume constant pitch.
 
+### D11c-census-2 — reversed on user challenge (2026-08-26): the image IS machine-detectable
+
+The user pushed back on "not machine-readable" -- the ovals are plainly
+visible to the eye -- and the challenge was correct. Pass 3 above had two
+methodology flaws: UNNORMALIZED correlation (rewards any high-contrast grain,
+not ring shape) and an unrestricted search domain (most of its ~20k maxima
+came from places no eye would look). With those fixed -- a template cut from
+a REAL oval, true normalized cross-correlation via integral-image statistics
+-- detection works: a distinct high-score population separates at NCC > 0.80,
+and 1,109 detections at > 0.65 organize into a clean lattice.
+
+What the working detector revealed about the geometry (and why every fixed
+grid failed): **the column pitch alternates 20/20/16 px** -- a repeating
+three-column group, so the true grid was never constant-pitch. 63 column
+bands detected (consistent with 64 plus sparse columns). Rows sit on the
+~12-16 px mesh with ~39 populated row-lines detected; the programming
+feature is a tall vertical stadium (~8-11 x 15-25 px) spanning about two
+mesh rows, with a shorter variant also present.
+
+**Corrected status**: extraction from the published image is PLAUSIBLE, not
+impossible -- remaining work is a second (short-oval) template, merged
+detection, lattice snapping with the 20/20/16 group structure, and occupancy
+classification with contact-sheet audits. The master remains the difference
+between "plausible with care" and "trivial": ~2.5x pixels per feature and
+far better grain separation.
+
+Method lesson worth keeping: "statistically inseparable" claims about
+detection are claims about the DETECTOR, not the data, until the template is
+drawn from the data itself and the domain is restricted to where a human
+would look.
+
 **Recommendation: escalate (T057).** The full 17,265 × 14,313 master would give
 roughly **47 px column and 33 px row pitch** — a different proposition entirely,
 and very likely sufficient. The master exists; it is simply not published.
