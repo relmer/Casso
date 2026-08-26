@@ -327,9 +327,16 @@ here with rationale; a reviewer can override any of these before planning.
   //c, and — as a stretch within US4 — Space Quarks / GH #99), with the wider
   ~25-title Broderbund/Gebelli catalog as follow-on coverage, not a release gate.
 - The parked `game-patch-table` branch's `GamePatcher` proof-of-concept is the
-  starting point, to be reconciled with the current codebase (the shell was
-  substantially refactored after that branch was cut); "reuse or rewrite" is a
-  planning decision, not a spec commitment.
+  starting point and is expected to be built upon rather than replaced — it
+  already establishes the two properties this feature depends on (patches
+  applied through the memory bus so they honor banking, and idempotent
+  re-application). Its user-facing gaps (gating, disclosure, opt-out,
+  provenance) are additive. See `research/parked-branch.md` for the gap
+  analysis; the reconciliation details are a planning concern.
+- Repeated scanning of guest memory is assumed to be affordable, but this is
+  NOT yet demonstrated at the rule counts the wider catalog implies. Verifying
+  and, if needed, redesigning the scan trigger/strategy is expected work under
+  FR-016 rather than a free assumption (see `research/parked-branch.md`).
 - Rules are authored from Casso's own execution traces where possible, using
   anti-m (MIT) as a documented reference for defuse points; no anti-m source is
   vendored.
