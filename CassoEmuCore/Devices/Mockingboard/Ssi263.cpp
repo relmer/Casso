@@ -194,6 +194,7 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
 {
     Byte   sel      = SelectRegister (reg);
     bool   wasDown  = IsPoweredDown();
+    Byte   outgoing = Phoneme();
 
 
 
@@ -216,7 +217,7 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
     }
     else if (sel == kRegDurationPhoneme && !IsPoweredDown())
     {
-        BeginPhoneme();
+        BeginPhoneme (outgoing);
     }
 }
 
@@ -739,13 +740,30 @@ void Ssi263::LatchMode()
 //  Starts the phoneme just written and withdraws any outstanding request --
 //  the write IS the answer to the previous one.
 //
+//  Articulation glides the tract only between adjacent SPOKEN phonemes.
+//  When the outgoing phoneme was silent -- a pause or a closure -- the
+//  articulators re-set during it, so the new phoneme snaps to its own
+//  targets rather than glide from wherever speech last left the tract:
+//  gliding across silence opened every utterance with a spurious w-like
+//  onglide from the previous word's final vowel.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ssi263::BeginPhoneme()
+void Ssi263::BeginPhoneme (Byte outgoing)
 {
-    double   seconds = PhonemeDurationSec();
+    double                      seconds = PhonemeDurationSec();
+    const Ssi263PhonemeSpec *   table   = (m_formants != nullptr) ? m_formants : s_kPhonemes;
+    int                         i       = 0;
 
 
+
+    if (table[outgoing & kPhonemeMask].level <= 0.0f)
+    {
+        for (i = 0; i < 3; i++)
+        {
+            m_fCur[i] = 0.0;   // GlideFormants snaps to the new targets
+        }
+    }
 
     m_phonemeCycles = seconds * m_clockHz;
     m_sounding      = (m_phonemeCycles > 0.0);

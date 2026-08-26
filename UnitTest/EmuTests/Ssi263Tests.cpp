@@ -646,6 +646,17 @@ namespace Ssi263TestNs
 
             Assert::AreEqual (f2Before, chip.FormantCenter (1), 1.0,
                               L"A pause must hold the tract where the last phoneme left it");
+
+            // The phoneme AFTER a silence snaps to its own targets: the
+            // articulators re-set during the gap, so there is no glide from
+            // the previous word -- the spurious w-like onglide that opened
+            // every utterance when speech resumed by gliding from the last
+            // vowel's position.
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
+            RenderInto (chip, buffer, 4);
+
+            Assert::AreEqual (2290.0, chip.FormantCenter (1), 1.0,
+                              L"After a silence the next phoneme starts at its own targets");
         }
 
 

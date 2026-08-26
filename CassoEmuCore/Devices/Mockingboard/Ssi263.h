@@ -168,7 +168,7 @@ public:
 
 private:
     void    LatchMode     ();
-    void    BeginPhoneme  ();
+    void    BeginPhoneme  (Byte outgoing);
     void    GlideFormants ();
     float   Excitation    ();
     float   Resonate      (int stage, float input, double centerHz);
