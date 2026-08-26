@@ -109,9 +109,12 @@ Keeps its two VIAs, two PSGs, and two PSG audio sources. Gains:
 - **R7 — The A is unchanged.** On the sound-only variant, address decoding,
   interrupt sources, and audio output are exactly what ships today, by executing
   the same path rather than an equivalent one (D3, FR-007).
-- **R8 — Interception is a prefix.** On the sound+speech variant, accesses in the
-  speech region reach the chip; everything else falls through to the existing
-  decode unchanged (**PENDING-2** supplies the region).
+- **R8 — The chip is a tap, not a replacement** *(revised with T002/F3)*. On the
+  sound+speech variant, a write in a populated speech range reaches **both** the
+  existing VIA path — executed unchanged — and the voice chip; a read there
+  returns the chip's status on D7. Empty sockets leave their ranges exactly as
+  the sound-only card. The speech ranges are `$20`–`$2F` (socket 0, empty on the
+  C) and `$40`–`$4F`/`$60`–`$6F` (chip 1): A4 clear, A5|A6 set, A7 clear.
 - **R9 — Detection is unaffected.** Whatever a detection routine probes on the A,
   it sees on the C (FR-017).
 - **R10 — Card reset resets the chip**, alongside the PSGs.

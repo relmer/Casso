@@ -549,6 +549,74 @@ model line, needs no rework if the second chip is added later, and keeps the
 question open honestly instead of settling it by assumption. The chip-count and
 part-number questions want a human decision, not another source.
 
+### PENDING-2 doubts — RESOLVED (2026-08-25): two product generations, not one contradiction
+
+Triangulating three further sources (the Apple II wiki's model breakdown, the
+encyclopedia's chip complements, and the mini-manual already in hand) dissolves
+both doubts. **The sources never disagreed — they describe different product
+generations**, and this spec's original Overview table conflated the two naming
+schemes into one, which is exactly why it looked tidy and was wrong.
+
+**Generation 1 (early 1980s, named descriptively) — the mini-manual's world:**
+
+| Product | Complement |
+|---|---|
+| Sound I | 1 PSG |
+| Sound II | 2 PSGs |
+| Speech I | 1 **SC-01** |
+| Sound/Speech I | 1 PSG + 1 **SC-01** |
+
+**Generation 2 (mid 1980s, lettered) — the generation this feature models:**
+
+| Product | Complement |
+|---|---|
+| Mockingboard **A** | 2 VIAs + 2 **AY-3-8913** PSGs + **two empty SSI-263 sockets** |
+| Mockingboard **B** | The SSI-263 upgrade kit — **one chip**, installed into an A's socket |
+| Mockingboard **C** | "A + B = C": the A with **one SSI-263 installed**. One speech chip only |
+| Mockingboard **D** | //c external unit: 2 PSGs + 1 SSI-263 |
+| Mockingboard M/MS | 2 PSGs + one open speech socket |
+
+**Consequences, each pinned:**
+
+1. **Doubt 1 resolved — one voice chip on the C.** The prior art models both
+   *sockets*; the real C ships one chip. Software convention writes `$Cn40`,
+   which is position 1's range, so **the C populates position 1** and position 0
+   is an empty socket. The "populate only chip 1" recommendation above is now the
+   product's own definition, not conservatism.
+2. **Doubt 2 resolved — the SSI-263 is correct.** The SC-01 belongs to
+   Generation 1 exclusively. The mini-manual was describing Sound/Speech I, a
+   different board this feature never claimed to model. Everything transcribed in
+   T001 stands.
+3. **The spec's Overview table was the error** — it equated A with "Sound I" and
+   C with "Sound/Speech I" across generations. Corrected in spec.md. Notably,
+   Casso's existing 2-VIA + 2-PSG card **is exactly a Mockingboard A**, so the
+   current implementation was already faithful to the lettered line.
+4. **Part-number nuance**: the lettered boards carry the **AY-3-8913**, the
+   24-pin variant of the 8910 without the I/O ports. Register-compatible for
+   everything Casso models; recorded for naming precision, no code change.
+
+### F3 — The "removed mirror" premise was wrong: the speech chip is a tap, not a replacement
+
+The prior art carries a hardware-verified note that speech-range writes **also
+reach the first 6522** — confirmed against real hardware. The VIAs on the board
+do not decode A4–A6 (which is *why* today's whole-page mirroring in Casso's card
+is faithful, not loose), and adding a speech chip does not change that. The chip
+is an **additional listener** on its ranges:
+
+- **Writes** in `$40`–`$4F`/`$60`–`$6F` reach **both** VIA #1's mirrored register
+  and the speech chip.
+- **Reads** in a populated range return the chip's status on **D7** (the only
+  line the chip drives). Real software tests D7 with `BMI`/`BPL` and ignores the
+  rest.
+- An **empty socket** (position 0 on the C, both positions on the A) leaves the
+  range behaving exactly as the A does today.
+
+This *retires the spec's first named compatibility risk* — "a lost address
+mirror" — in the best possible way: the mirror is not lost. The C differs from
+the A only by adding a listener and driving one bit on read. D3's guarantee (the
+A executes today's path unchanged) survives intact, and the C's decode becomes
+additive rather than substitutive, which is strictly easier to verify.
+
 ### PENDING-2-original — Where the chip is decoded in the slot page, and how its request line is wired
 
 **Needed**: The address range within `$Cn00` that the board decodes to the speech

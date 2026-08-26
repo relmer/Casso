@@ -6,9 +6,9 @@ The consumer of this contract is 6502 code running inside the emulator. It is th
 contract that matters most in the feature, because every compatibility
 requirement (FR-007, FR-014, FR-016, FR-017) is a statement about it.
 
-Entries marked **PENDING-2** await the board schematics. **PENDING-1 is resolved**
-— the chip's register interface below is transcribed from its datasheet (T001),
-with two residual gaps flagged inline where OCR could not recover a graphic.
+**PENDING-1 and PENDING-2 are both resolved** — the chip's register interface is
+transcribed from its datasheet (T001), and the board's decode and interrupt
+wiring from prior art cross-checked against period documentation (T002).
 
 ---
 
@@ -30,14 +30,27 @@ and FR-007 freezes it.
 
 ## Slot I/O page, sound+speech variant (Mockingboard C)
 
-Identical to the above **except** that the region the board decodes to the voice
-chip (**PENDING-2**) reaches the chip instead of a VIA mirror.
+Identical to the above, with the voice chip added as a **listener** on its
+decoded ranges — the VIA mirroring is unchanged.
 
 | Address within `$Cn00` | Reaches |
 |---|---|
-| `$20`–`$2F` | Voice chip **0** |
-| `$40`–`$4F`, `$60`–`$6F` | Voice chip **1** |
+| `$20`–`$2F` | Voice socket **0** — **empty on the C**; behaves as the A |
+| `$40`–`$4F`, `$60`–`$6F` | Voice chip **1** *(the C's one installed chip)* — **and** VIA #1's mirror, see below |
 | Everything else | Exactly as the sound-only variant |
+
+**The chip is a tap, not a replacement.** The board's VIAs do not decode A4–A6
+— which is why today's whole-page mirroring is faithful — and installing a
+speech chip does not change that:
+
+- A **write** in a populated speech range reaches **both** the VIA mirror and
+  the chip. (Hardware-verified in the emulation community against a real board.)
+- A **read** in a populated range returns the chip's request status on **D7**,
+  the only line the chip drives. Real software tests it with `BMI`/`BPL`; the
+  remaining bits are not relied upon and this contract leaves them unspecified.
+- An **empty socket** leaves its range behaving exactly as the A — which is also
+  what real hardware does, since an absent chip drives nothing and the VIA
+  mirror still answers.
 
 **The decode rule** (T002), stated as address lines rather than ranges because
 that is what the board implements: the speech chip is selected when **A4 is
@@ -63,9 +76,10 @@ interrupt request — and the control-line seam already implemented in `Via6522`
 instead of through the VIA. That card is out of scope here, but it is why the
 routing must be a property of the card rather than baked into the chip.)*
 
-**The removed mirror is the intended, faithful difference between the two cards**
-and the first named compatibility risk in the spec. It is also precisely why the
-A variant remains available (User Story 3).
+**The difference between the two cards is one added listener and one driven read
+bit** — research finding F3 retired the spec's original "removed mirror" framing,
+since the real board removes nothing. The A variant remains available regardless
+(User Story 3).
 
 ---
 
@@ -223,9 +237,9 @@ These hold regardless of what the datasheet says, and are testable as written:
 
 ## Interrupt contract
 
-The chip's request output drives a VIA control line (**PENDING-2**: which line,
-which VIA), latching an interrupt flag that software reads through the VIA's
-interrupt registers.
+The chip's request output drives **VIA #1's CA1** (T002), latching an interrupt
+flag that software reads through the VIA's interrupt registers; the falling edge
+is selected by clearing PCR bit 0.
 
 | Guarantee | |
 |---|---|

@@ -27,10 +27,16 @@ an add-in card in another slot:
 
 | Product | Contents |
 |---|---|
-| Mockingboard **A** ("Sound I") | 2 VIAs + 2 PSGs. Sound only. |
-| Mockingboard **B** | Speech board sold as an upgrade that mated with an A |
-| Mockingboard **C** ("Sound/Speech I") | Sound + speech as one product |
+| Mockingboard **A** | 2 VIAs + 2 PSGs, **two empty speech sockets**. Sound only. |
+| Mockingboard **B** | The speech upgrade kit: one voice chip, installed into an A's socket |
+| Mockingboard **C** | "A + B = C" — the A with **one voice chip installed** |
 | Mockingboard **D** | The //c external unit |
+
+*(Corrected during research: an earlier draft of this table equated these
+lettered models with Sweet Micro's earlier "Sound I / Sound/Speech I" line. Those
+are a prior product generation with a different, earlier speech chip; the two
+naming schemes are routinely conflated in community documentation. See
+research.md. Casso's existing card is exactly a Mockingboard A.)*
 
 So the faithful model is not "a card plus an accessory" — it is **two cards a
 user could buy**, one of which is a superset of the other. This feature therefore
@@ -49,10 +55,15 @@ on speech-equipped boards. Compatibility is not a hope here, it is how the real
 product line worked. What we have to earn is that *our* implementation inherits
 that property, and the risk concentrates in two places:
 
-1. **A lost address mirror.** The card decodes a slot's I/O page loosely today,
-   so the region where a real C answers with its speech chip currently mirrors a
-   VIA register file. On the C that mirror is replaced. The sound-only A variant
-   must keep the current behavior exactly.
+1. **The speech region's behavior on read.** ~~A lost address mirror~~ — *retired
+   during research.* The board's VIAs do not decode the mid-page address lines,
+   so the whole-page mirroring Casso implements today is faithful hardware
+   behavior, and the real C does **not** remove it: speech-range writes reach
+   both the VIA and the voice chip (verified against real hardware in the
+   emulation community), and the chip drives only one bit on read. The residual
+   risk is that one read bit, which real software samples deliberately — far
+   narrower than the replaced-mirror risk this spec originally named. The
+   sound-only A variant must still keep today's behavior exactly.
 2. **A new interrupt source.** The speech chip's ready/request signal reaches
    software through a VIA control line, which means it can raise a flag in a
    register that sound-only music players already read. A player that dispatches
@@ -202,9 +213,10 @@ separately, measure idle cost with the voice chip present and unprogrammed.
 - **A reset arrives mid-utterance** — machine reset, card reset, or a warm boot
   from software. Audio stops immediately and the chip returns to quiescent.
 - **Software probes the region where the voice chip lives, expecting the mirror
-  that a sound-only card presents there.** On the C it now reaches the voice
-  chip. This is faithful to hardware, and it is the specific reason the A variant
-  must remain byte-for-byte unchanged.
+  that a sound-only card presents there.** On the C its writes still land in the
+  VIA mirror exactly as before — the chip is an additional listener, not a
+  replacement — and only a read's status bit differs. This is faithful to
+  hardware, and the A variant remains byte-for-byte unchanged regardless.
 - **Extreme control values** — rate, inflection, or amplitude at the ends of
   their ranges, including values real software would never write. Output stays
   bounded and never produces a click, a screech, or silence-by-crash.
