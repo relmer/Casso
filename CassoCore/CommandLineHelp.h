@@ -54,6 +54,19 @@ public:
     //  invocation differently.
     static std::string  UsageLineFor (CommandLineOptions::Subcommand mode);
 
+    //  The operands a grammar line shows as REQUIRED, in the order it shows
+    //  them.
+    //
+    //  A <token> outside any [optional] group, and not the value of an option
+    //  that precedes it. `<binary | source>` is one operand and not two: the
+    //  angle brackets bound it, not the spaces.
+    //
+    //  SHARED SO A REFUSAL CANNOT NAME SOMETHING THE USAGE DOES NOT SHOW.
+    //  Every mode prints a grammar line and every mode has to complain about
+    //  the same operands it just printed; reading them back out of that line
+    //  is what keeps the two from being written twice and drifting.
+    static std::vector<std::string>  RequiredOperandsIn (const std::string & grammar);
+
     //  The five commands of the worked loop, without the prose that explains
     //  the two traps in it. The general page shows the loop; the disk page
     //  shows the loop and then explains it.

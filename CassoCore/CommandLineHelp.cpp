@@ -29,6 +29,87 @@ std::string CommandLineHelp::ShortPrefix (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineHelp::RequiredOperandsIn
+//
+//  The operands a grammar line shows as required, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandLineHelp::RequiredOperandsIn (const std::string & grammar)
+{
+    std::vector<std::string>  required;
+    std::string               previousWord;
+    std::string               word;
+    size_t                    i     = 0;
+    int                       depth = 0;
+
+
+
+    for (i = 0; i < grammar.size(); i++)
+    {
+        char  c = grammar[i];
+
+        if (c == '[')
+        {
+            depth++;
+            previousWord.clear();
+            continue;
+        }
+
+        if (c == ']')
+        {
+            depth--;
+            previousWord.clear();
+            continue;
+        }
+
+        if (c == '<')
+        {
+            size_t  close = grammar.find ('>', i);
+            bool    isOptionValue = !previousWord.empty()
+                                 && (previousWord[0] == '-' || previousWord[0] == '/'
+                                  || previousWord[0] == '%');
+
+            if (close == std::string::npos)
+            {
+                break;
+            }
+
+            if (depth == 0 && !isOptionValue)
+            {
+                required.push_back (grammar.substr (i, close - i + 1));
+            }
+
+            previousWord.clear();
+            i = close;
+            continue;
+        }
+
+        //  Whatever word last stood before an operand, so the option that
+        //  owns a value can be recognized.
+        if (c == ' ' || c == '\t')
+        {
+            if (!word.empty())
+            {
+                previousWord = word;
+                word.clear();
+            }
+        }
+        else
+        {
+            word += c;
+        }
+    }
+
+    return required;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineHelp::UsageLineFor
 //
 //  One line per mode: the shape of the command line, then what it does.

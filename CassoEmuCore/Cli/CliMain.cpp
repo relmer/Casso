@@ -2,6 +2,7 @@
 
 #include "CommandLine.h"
 #include "CommandLineParser.h"
+#include "CommandLineHelp.h"
 #include "As65Mode.h"
 #include "DiskCommand.h"
 #include "MerlinMode.h"
@@ -132,17 +133,39 @@ int CliMain (int argc, char * argv[])
               || options.subcommand == CommandLineOptions::Subcommand::Merlin
               || options.subcommand == CommandLineOptions::Subcommand::Run))
     {
-        // A MODE NAMED WITH NOTHING AFTER IT IS SOMEBODY ASKING HOW IT WORKS.
+        // THE MODE'S PAGE, AND THEN WHAT IT DID NOT GET.
         //
-        // It answered "Error: No input file specified", which tells a reader
-        // who has just discovered the mode exists the one thing they had
-        // already worked out. `disk` alone opened its page from the start;
-        // the three assembler-shaped modes do the same now.
+        // It answered "Error: No input file specified", which told a reader
+        // who had just discovered the mode the one thing they had already
+        // worked out; then for a while it printed the page and said nothing
+        // at all, which left them to work out WHY a page had appeared.
+        //
+        // `disk cat` names the operand it wanted. There is no reason for
+        // these three to answer differently: a mode with nothing after it has
+        // its command chosen and its operand missing, exactly as `disk cat`
+        // does. The name is read back out of the same usage line the page
+        // prints, so a refusal cannot ask for something the usage does not
+        // show.
         //
         // Still non-zero, and for the same reason a bare `CassoCli` is: a
         // script that invokes the tool wrongly has to fail. Asking for the
         // page BY NAME is what exits 0.
-        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+        std::vector<std::string>  required = CommandLineHelp::RequiredOperandsIn (
+                                                 CommandLineHelp::UsageLineFor (options.subcommand));
+
+        {
+            CommandLine::UsageOnErrorStream  toTheErrorStream;
+
+            CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+            std::fflush (stderr);
+        }
+
+        if (!required.empty())
+        {
+            std::cerr << CommandLine::kGapBeforeTheReason
+                      << "Error: required parameter " << required[0] << " missing\n";
+        }
+
         exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)

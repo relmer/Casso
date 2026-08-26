@@ -7,6 +7,7 @@
 #include "AssemblerTypes.h"
 #include "As65ExitStatus.h"
 #include "CommandLineParser.h"
+#include "CommandLineHelp.h"
 #include "Dialect.h"
 
 #include "CppUnitTest.h"
@@ -893,6 +894,66 @@ namespace CliSwitchCoverageTests
             Assert::AreEqual (As65ExitStatus::kBadCommandLine,
                               Run ({ "CassoCli", "as65", "p.a65", "-version" }),
                               L"as65 -version");
+        }
+
+        //
+        //  EVERY MODE NAMED WITH NOTHING AFTER IT SAYS WHAT IS MISSING.
+        //
+        //  `disk cat` names the operand it wanted; for a while the three
+        //  assembler-shaped modes printed their page and said nothing at all,
+        //  leaving a reader to work out why a page had appeared. A mode with
+        //  nothing after it has its command chosen and its operand missing,
+        //  which is the same position `disk cat` is in.
+        //
+        //  THE OPERAND IS READ BACK OUT OF THE USAGE LINE the page prints, so
+        //  a refusal cannot ask for something the usage does not show. This
+        //  asserts the two agree rather than quoting either.
+        //
+        TEST_METHOD (EveryMode_NamesTheOperandItsOwnUsageLineShows)
+        {
+            const CommandLineOptions::Subcommand  kModes[] =
+            {
+                CommandLineOptions::Subcommand::As65,
+                CommandLineOptions::Subcommand::Merlin,
+                CommandLineOptions::Subcommand::Run,
+            };
+
+            for (CommandLineOptions::Subcommand mode : kModes)
+            {
+                std::string               usage    = CommandLineHelp::UsageLineFor (mode);
+                std::vector<std::string>  required = CommandLineHelp::RequiredOperandsIn (usage);
+
+                Assert::AreEqual (size_t (1), required.size(),
+                                  Widen ("one required operand in: " + usage).c_str());
+
+                //  And it is a real operand rather than an option's value or a
+                //  bracketed extra.
+                Assert::IsTrue (required[0].front() == '<' && required[0].back() == '>',
+                                Widen ("an operand, in: " + usage).c_str());
+                Assert::IsTrue (usage.find ("[" + required[0] + "]") == std::string::npos,
+                                Widen ("not an optional one, in: " + usage).c_str());
+            }
+        }
+
+        //  `[options]` is bracketed, so it is never mistaken for an operand,
+        //  and disk's own line requires two.
+        TEST_METHOD (RequiredOperands_SkipOptionalGroupsAndOptionValues)
+        {
+            std::vector<std::string>  disk = CommandLineHelp::RequiredOperandsIn (
+                CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk));
+
+            Assert::AreEqual (size_t (2), disk.size(), L"disk takes a command and an image");
+            Assert::AreEqual (std::string ("<command>"), disk[0]);
+            Assert::AreEqual (std::string ("<image>"),   disk[1]);
+
+            //  An option's value is not an operand, and `<binary | source>` is
+            //  ONE operand: the angle brackets bound it, not the spaces.
+            std::vector<std::string>  contrived = CommandLineHelp::RequiredOperandsIn (
+                "CassoCli x <binary | source> --track <n> [--out <file>]");
+
+            Assert::AreEqual (size_t (1), contrived.size(),
+                              L"the option's value and the bracketed one are both skipped");
+            Assert::AreEqual (std::string ("<binary | source>"), contrived[0]);
         }
 
         //  A REFUSAL'S PAGE AND ITS REASON GO DOWN ONE STREAM.
