@@ -92,8 +92,13 @@ SCR_W, SCR_H = OX1 - OX0, OZ1 - OZ0
 R_FLOOR  = 6.0
 R_OPEN   = R_FLOOR
 
-GLASS_IN = 5.0                    # glass inset from the opening
-CROWN_SET = 1.0                   # how far the crown sits behind the frame's nose
+# The glass all but fills the opening. Five millimeters of inset left a ring
+# of bare CAVITY showing round the tube -- dark, and as deep as the throat --
+# which read as well depth that no part of the monitor actually has. Two is
+# enough to keep the rectangular sheet inside the opening's rounded corners
+# (which it does with room to spare at R_OPEN 6) and no more.
+GLASS_IN = 2.0                    # glass inset from the opening
+CROWN_SET = 0.5                   # how far the crown sits behind the frame's nose
 
 # THE TUBE'S CURVATURE IS THE MONITOR II's RULE, applied to a smaller tube.
 #
