@@ -154,7 +154,7 @@ namespace Ssi263TestNs
         TEST_METHOD (InflectionValueReassemblesNonContiguousBits)
         {
             Ssi263     chip;
-            int        bit = 0;
+            int        bit      = 0;
             uint16_t   expected = 0;
 
 

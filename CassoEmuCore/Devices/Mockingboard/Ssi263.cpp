@@ -79,6 +79,8 @@ Byte Ssi263::SelectRegister (Byte address)
 {
     Byte   sel = static_cast<Byte> (address & kAddressMask);
 
+
+
     return (sel >= kRegFilterFreq) ? kRegFilterFreq : sel;
 }
 
@@ -269,6 +271,8 @@ uint16_t Ssi263::InflectionValue() const
     uint16_t   mid  = static_cast<uint16_t> (static_cast<uint16_t> (m_reg[kRegInflection]) << 3);
     uint16_t   low  = static_cast<uint16_t> (m_reg[kRegRateInflection] & kInflectLowMask);
 
+
+
     return static_cast<uint16_t> (high | mid | low);
 }
 
@@ -308,6 +312,8 @@ double Ssi263::PhonemeDurationSec() const
 {
     double   frame = FrameDurationSec();
 
+
+
     if (m_mode == kModeFrameImmediate)
     {
         return frame;
@@ -332,6 +338,8 @@ double Ssi263::FilterFrequencyHz() const
 {
     double   divisor = 2.0 * (256.0 - static_cast<double> (m_reg[kRegFilterFreq]));
 
+
+
     return (divisor > 0.0) ? (m_clockHz / divisor) : 0.0;
 }
 
@@ -350,6 +358,8 @@ double Ssi263::FilterFrequencyHz() const
 double Ssi263::InflectionFrequencyHz() const
 {
     double   divisor = 8.0 * (4096.0 - static_cast<double> (InflectionValue()));
+
+
 
     return (divisor > 0.0) ? (m_clockHz / divisor) : 0.0;
 }
@@ -392,6 +402,8 @@ void Ssi263::LatchMode()
 void Ssi263::BeginPhoneme()
 {
     double   seconds = PhonemeDurationSec();
+
+
 
     m_phonemeCycles = seconds * m_clockHz;
     m_sounding      = (m_phonemeCycles > 0.0);

@@ -62,18 +62,18 @@ public:
     static constexpr Byte    kRegCtlArtAmp       = 3;
     static constexpr Byte    kRegFilterFreq      = 4;
 
-    static constexpr Byte    kPhonemeMask  = 0x3F;
-    static constexpr Byte    kPhonemeCount = 64;
+    static constexpr Byte    kPhonemeMask   = 0x3F;
+    static constexpr Byte    kPhonemeCount  = 64;
     static constexpr Byte    kDurationShift = 6;
 
-    static constexpr Byte    kCtl          = 0x80;
-    static constexpr Byte    kArticMask    = 0x70;
-    static constexpr Byte    kArticShift   = 4;
+    static constexpr Byte    kCtl           = 0x80;
+    static constexpr Byte    kArticMask     = 0x70;
+    static constexpr Byte    kArticShift    = 4;
     static constexpr Byte    kAmplitudeMask = 0x0F;
 
-    static constexpr Byte    kRateMask  = 0xF0;
-    static constexpr Byte    kRateShift = 4;
-    static constexpr Byte    kInflect11 = 0x08;
+    static constexpr Byte    kRateMask       = 0xF0;
+    static constexpr Byte    kRateShift      = 4;
+    static constexpr Byte    kInflect11      = 0x08;
     static constexpr Byte    kInflectLowMask = 0x07;
 
     // D7 on a read carries the inverted A/R level.
