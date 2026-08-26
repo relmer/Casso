@@ -14,9 +14,12 @@ parameter ROM can be extracted (research.md D11c).
 
 Hi,
 
-Thank you for the SSI-263P die shots. I'm working on emulating that chip for an
-Apple II emulator, and your images have already gotten me further than I
-expected.
+Thank you for the SSI-263P die shots — the ones on this page:
+
+    http://www.visual6502.org/images/pages/Silicon_Systems_SSI_263P_die_shots.html
+
+I'm working on emulating that chip for an Apple II emulator, and your images
+have already gotten me further than I expected.
 
 Some background on why I'm asking. The SSI-263A (the Votrax SC-02) is the speech
 synthesizer on the Mockingboard C, and as far as I can tell **its phoneme
@@ -26,7 +29,9 @@ phonemes in different orders that don't map 1:1, so nobody currently has accurat
 SSI-263 speech. The chip's datasheet documents its registers, its phoneme codes,
 and its timing formulas, but publishes no formant values at all.
 
-Working from your published 7000 × 5803 image, I've located what I'm fairly
+Working from your published 7000 × 5803 image
+(http://www.visual6502.org/images/263P/SSI_263P_20x_1a_7000w.jpg), I've
+located what I'm fairly
 confident is that parameter ROM, at approximately x 2350–3645, y 3100–3745. By
 autocorrelation it has a column pitch of 19.0 px and a row pitch of 13.3 px,
 giving a **68 × 48 array**. That geometry is a good match for what the Votrax
