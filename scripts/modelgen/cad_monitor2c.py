@@ -159,7 +159,17 @@ R_OPEN   = R_FLOOR
 # bezel, rather than a picture hiding inside one.
 GLASS_OVER = 2.0                  # how far the glass runs PAST the opening
 GLASS_IN   = -GLASS_OVER          # ...as an inset, which is what the math wants
-CROWN_SET = 0.5                   # how far the crown sits behind the frame's nose
+# HOW FAR THE CROWN SITS BEHIND THE FRAME'S NOSE -- solved, not chosen; see
+# where CROWN_SET is worked out, below the planes it depends on.
+#
+# A spherical tube in a rectangular hole is tightest on its SHORT axis, and by
+# a long way: at this radius the sides drop 11.8 mm of sag before they reach
+# the opening and the top and bottom only 5.8. So the top and bottom edges are
+# what decide whether the glass clears the bezel's lip -- and a crown picked by
+# eye left them 0.02 mm in FRONT of it, which is dark biting into the bezel
+# across the top middle and along the bottom, with the sides untouched.
+CROWN_CLEAR  = 1.0                # margin at the tightest point
+OVERLAY_LIFT = 0.5                # mirrors DeskScene::kMaskLiftMm
 
 # THE TUBE'S CURVATURE IS THE MONITOR II's RULE, applied to a smaller tube.
 #
@@ -191,6 +201,12 @@ SAG_SCALE   = FACE_R / _GLASS_HALF
 FRAME_OUT_Y = -EDGE_R                                   # where the outer roll ends
 FRAME_IN_Y  = FRAME_OUT_Y - FRAME * math.tan(FRAME_ANG)  # the most proud point
 OPEN_Y      = FRAME_IN_Y + BEZ_DEPTH                     # the opening
+
+# The crown's setback, solved off the binding edge -- see CROWN_CLEAR.
+_BIND_R   = SCR_H * 0.5 + GLASS_OVER      # the short side's midpoint
+_BIND_SAG = FACE_R - math.sqrt(FACE_R * FACE_R - _BIND_R * _BIND_R)
+CROWN_SET = max(0.5, BEZ_DEPTH + CROWN_CLEAR + OVERLAY_LIFT - _BIND_SAG)
+
 GLASS_Y     = FRAME_IN_Y + CROWN_SET + SAG               # the tube's rim
 
 # The box behind. Narrower and much shorter than the tube housing, sharing its
