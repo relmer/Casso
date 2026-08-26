@@ -2,6 +2,91 @@
 
 #include "Ssi263.h"
 
+// Per-phoneme acoustic targets, indexed by phoneme code $00-$3F.
+//
+// DISCLOSURE: these are NOT the chip's own values. The SSI 263A's phoneme
+// parameters live in an internal ROM that was never published and has never
+// been extracted, so this table is derived from the public acoustic-phonetics
+// literature (Peterson & Barney vowel formants and standard references for
+// the consonants). It is a starting approximation, replaceable wholesale via
+// SetFormantTable when measured or extracted data becomes available.
+static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
+{
+    {    0,    0,    0, false, false, 0.00f },   // 00 PA   (pause)
+    {  270, 2290, 3010, true,  false, 1.00f },   // 01 E    meet
+    {  400, 2000, 2550, true,  false, 1.00f },   // 02 E1   bent
+    {  300, 2200, 3010, true,  false, 0.90f },   // 03 Y    before
+    {  300, 2200, 2900, true,  false, 0.90f },   // 04 YI   year
+    {  270, 2290, 3010, true,  false, 1.00f },   // 05 AY   please
+    {  350, 2100, 2700, true,  false, 1.00f },   // 06 IE   any
+    {  390, 1990, 2550, true,  false, 1.00f },   // 07 I    six
+    {  480, 2100, 2700, true,  false, 1.00f },   // 08 A    made
+    {  530, 1850, 2500, true,  false, 1.00f },   // 09 AI   care
+    {  530, 1840, 2480, true,  false, 1.00f },   // 0A EH   nest
+    {  550, 1770, 2490, true,  false, 1.00f },   // 0B EH1  belt
+    {  660, 1720, 2410, true,  false, 1.00f },   // 0C AE   dad
+    {  690, 1660, 2400, true,  false, 1.00f },   // 0D AE1  after
+    {  640, 1190, 2390, true,  false, 1.00f },   // 0E AH   got
+    {  730, 1090, 2440, true,  false, 1.00f },   // 0F AH1  father
+    {  570,  840, 2410, true,  false, 1.00f },   // 10 AW   office
+    {  500,  860, 2400, true,  false, 1.00f },   // 11 O    store
+    {  450,  900, 2400, true,  false, 1.00f },   // 12 OU   boat
+    {  440, 1020, 2240, true,  false, 1.00f },   // 13 OO   look
+    {  300, 1700, 2200, true,  false, 0.90f },   // 14 IU   you
+    {  430, 1100, 2250, true,  false, 0.90f },   // 15 IU1  could
+    {  300,  870, 2240, true,  false, 1.00f },   // 16 U    tune
+    {  320,  900, 2200, true,  false, 1.00f },   // 17 U1   cartoon
+    {  640, 1190, 2390, true,  false, 0.90f },   // 18 UH   wonder
+    {  620, 1200, 2400, true,  false, 0.90f },   // 19 UH1  love
+    {  600, 1200, 2400, true,  false, 0.80f },   // 1A UH2  what
+    {  640, 1190, 2390, true,  false, 0.90f },   // 1B UH3  nut
+    {  490, 1350, 1690, true,  false, 1.00f },   // 1C ER   bird
+    {  310, 1060, 1380, true,  false, 0.80f },   // 1D R    roof
+    {  420, 1300, 1600, true,  false, 0.80f },   // 1E R1   rug
+    {  400, 1200, 1500, true,  false, 0.70f },   // 1F R2   mutter
+    {  360, 1300, 2700, true,  false, 0.80f },   // 20 L    lift
+    {  380, 1400, 2700, true,  false, 0.80f },   // 21 L1   play
+    {  450, 1000, 2600, true,  false, 0.70f },   // 22 LF   fall
+    {  300,  610, 2200, true,  false, 0.80f },   // 23 W    water
+    {  200,  900, 2100, true,  false, 0.50f },   // 24 B    bag
+    {  300, 1700, 2600, true,  false, 0.50f },   // 25 D    paid
+    {  300, 2000, 2500, true,  false, 0.50f },   // 26 KV   tag
+    {  300,  900, 2100, false, true,  0.40f },   // 27 P    pen
+    {  400, 1700, 2600, false, true,  0.40f },   // 28 T    tart
+    {  350, 1900, 2500, false, true,  0.40f },   // 29 K    kit
+    {  250, 1000, 2100, true,  false, 0.15f },   // 2A HV   (hold vocal)
+    {  250, 1000, 2100, true,  false, 0.00f },   // 2B HVC  (hold vocal closure)
+    {  500, 1500, 2500, false, true,  0.35f },   // 2C HF   heart
+    {  500, 1500, 2500, false, true,  0.00f },   // 2D HFC  (hold fricative closure)
+    {  250, 1200, 2200, true,  false, 0.20f },   // 2E HN   (hold nasal)
+    {  300, 4300, 5600, true,  true,  0.50f },   // 2F Z    zero
+    {  300, 4500, 6000, false, true,  0.50f },   // 30 S    same
+    {  300, 2200, 3000, true,  true,  0.60f },   // 31 J    measure
+    {  300, 2200, 3000, false, true,  0.55f },   // 32 SCH  ship
+    {  250, 1400, 2400, true,  true,  0.50f },   // 33 V    very
+    {  250, 1400, 2400, false, true,  0.40f },   // 34 F    four
+    {  250, 1600, 2600, true,  true,  0.50f },   // 35 THV  there
+    {  250, 1600, 2600, false, true,  0.35f },   // 36 TH   with
+    {  250, 1000, 2200, true,  false, 0.70f },   // 37 M    more
+    {  250, 1700, 2600, true,  false, 0.70f },   // 38 N    nine
+    {  250, 2000, 2700, true,  false, 0.70f },   // 39 NG   rang
+    {  530, 1840, 2480, true,  false, 1.00f },   // 3A :A   maerchen
+    {  400, 1500, 2300, true,  false, 1.00f },   // 3B :OH  loewe
+    {  270, 1850, 2100, true,  false, 1.00f },   // 3C :U   fuenf
+    {  300, 1600, 2100, true,  false, 1.00f },   // 3D :UH  menu
+    {  500, 1500, 2500, true,  false, 0.90f },   // 3E E2   bitte
+    {  360,  900, 2400, true,  false, 0.80f },   // 3F LB   lube
+};
+
+// Synthesis constants: excitation gains, the spectral tilt on the glottal
+// source, per-stage resonator bandwidths, and the output level that keeps a
+// full-amplitude vowel inside the sample range after three resonators.
+static constexpr float   s_kfVoicedGain   = 4.00f;
+static constexpr float   s_kfNoiseGain    = 0.50f;
+static constexpr float   s_kfTilt         = 0.25f;
+static constexpr float   s_kfOutputGain   = 0.25f;
+static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
+
 
 
 
@@ -191,6 +276,17 @@ void Ssi263::Reset()
     m_request       = false;
     m_phonemeCycles = 0.0;
     m_sounding      = false;
+
+    for (i = 0; i < 3; i++)
+    {
+        m_fCur[i]  = 0.0;
+        m_resY1[i] = 0.0f;
+        m_resY2[i] = 0.0f;
+    }
+
+    m_glottalPhase = 0.0;
+    m_lfsr         = 0xACE1u;
+    m_excTilt      = 0.0f;
 }
 
 
@@ -362,6 +458,243 @@ double Ssi263::InflectionFrequencyHz() const
 
 
     return (divisor > 0.0) ? (m_clockHz / divisor) : 0.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GenerateSample
+//
+//  One mono sample of formant synthesis: an excitation source shaped by
+//  three resonators whose centers glide toward the active phoneme's targets.
+//  The filter-frequency register scales the whole tract relative to its
+//  nominal clock, which is the datasheet's "voice type" adjustment; the
+//  amplitude register scales the output.
+//
+//  Silent states pay nothing here -- the IsSilent early-out is the idle
+//  fast-path that keeps an unprogrammed chip free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ssi263::GenerateSample()
+{
+    float    sample = 0.0f;
+    double   scale  = 1.0;
+    int      stage  = 0;
+
+
+
+    if (IsSilent() || m_sampleRate == 0)
+    {
+        return 0.0f;
+    }
+
+    GlideFormants();
+
+    scale = FilterFrequencyHz() / kNominalFilterHz;
+    scale = std::clamp (scale, 0.5, 2.0);
+
+    sample = Excitation();
+
+    for (stage = 0; stage < 3; stage++)
+    {
+        sample = Resonate (stage, sample, m_fCur[stage] * scale);
+    }
+
+    sample *= ActiveSpec().level * (static_cast<float> (Amplitude()) / 15.0f) * s_kfOutputGain;
+
+    return std::clamp (sample, -1.0f, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFormantTable
+//
+//  Swaps the per-phoneme acoustic table. The synthesis reads targets through
+//  this seam only, so better data -- measured from hardware or extracted from
+//  the chip's ROM -- replaces the built-in approximation with no other change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::SetFormantTable (const Ssi263PhonemeSpec * table)
+{
+    m_formants = table;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActiveSpec
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Ssi263PhonemeSpec & Ssi263::ActiveSpec() const
+{
+    const Ssi263PhonemeSpec *   table = (m_formants != nullptr) ? m_formants : s_kPhonemes;
+
+
+
+    return table[Phoneme()];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlideFormants
+//
+//  Eases the current formant centers toward the active phoneme's targets at
+//  the articulation rate -- the linear transition to a new set of
+//  characteristics the datasheet describes, with T2-T0 setting how fast.
+//  A tract starting from silence snaps rather than sweeping up from zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::GlideFormants()
+{
+    const Ssi263PhonemeSpec &   spec = ActiveSpec();
+
+
+
+    double   target[3] = { 0.0, 0.0, 0.0 };
+    double   tauSec    = 0.0;
+    double   coef      = 0.0;
+    int      i         = 0;
+
+
+
+    target[0] = spec.f1;
+    target[1] = spec.f2;
+    target[2] = spec.f3;
+
+    if (m_fCur[0] <= 0.0)
+    {
+        for (i = 0; i < 3; i++)
+        {
+            m_fCur[i] = target[i];
+        }
+
+        return;
+    }
+
+    // Articulation 0 is the slowest transition, 7 the fastest.
+    tauSec = (8.0 - static_cast<double> (Articulation())) * 0.010;
+    coef   = 1.0 - std::exp (-1.0 / (tauSec * static_cast<double> (m_sampleRate)));
+
+    for (i = 0; i < 3; i++)
+    {
+        m_fCur[i] += coef * (target[i] - m_fCur[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Excitation
+//
+//  The source the resonators shape: a tilted glottal pulse train at the
+//  inflection frequency for voiced phonemes, deterministic LFSR noise for
+//  fricatives, both for voiced fricatives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ssi263::Excitation()
+{
+    const Ssi263PhonemeSpec &   spec = ActiveSpec();
+
+
+
+    float    src   = 0.0f;
+    float    pulse = 0.0f;
+    double   pitch = 0.0;
+    Byte     bit   = 0;
+
+
+
+    if (spec.voiced)
+    {
+        pitch = std::clamp (InflectionFrequencyHz(), 30.0, 400.0);
+
+        m_glottalPhase += pitch / static_cast<double> (m_sampleRate);
+
+        if (m_glottalPhase >= 1.0)
+        {
+            m_glottalPhase -= 1.0;
+            pulse = 1.0f;
+        }
+
+        // One-pole tilt softens the impulse train into a glottal-ish source.
+        m_excTilt += s_kfTilt * (pulse - m_excTilt);
+        src        = m_excTilt * s_kfVoicedGain;
+    }
+
+    if (spec.fricative)
+    {
+        bit    = static_cast<Byte> (m_lfsr & 1u);
+        m_lfsr = m_lfsr >> 1;
+
+        if (bit != 0)
+        {
+            m_lfsr ^= 0xB400u;
+        }
+
+        src += ((bit != 0) ? 1.0f : -1.0f) * s_kfNoiseGain;
+    }
+
+    return src;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Resonate
+//
+//  One two-pole resonator stage, normalized for unit gain at DC so a
+//  cascade passes energy below each center instead of attenuating it --
+//  the classic formant-synthesis arrangement, and what makes three stages
+//  in series workable. The stages are the "cascaded programmable low pass
+//  filter sections" the datasheet describes, programmed here by the glided
+//  formant centers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ssi263::Resonate (int stage, float input, double centerHz)
+{
+    double   fs = static_cast<double> (m_sampleRate);
+    double   fc = std::clamp (centerHz, 50.0, fs * 0.45);
+    double   r  = std::exp (-std::numbers::pi * s_kBandwidthHz[stage] / fs);
+    double   b  = 2.0 * r * std::cos (2.0 * std::numbers::pi * fc / fs);
+    double   c  = -(r * r);
+    float    y  = 0.0f;
+
+
+
+    y = static_cast<float> ((1.0 - b - c) * input +
+                            b * m_resY1[stage] +
+                            c * m_resY2[stage]);
+
+    m_resY2[stage] = m_resY1[stage];
+    m_resY1[stage] = y;
+
+    return y;
 }
 
 

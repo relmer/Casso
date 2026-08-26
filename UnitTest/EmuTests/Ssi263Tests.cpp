@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Mockingboard/Ssi263.h"
+#include "Devices/Mockingboard/Ssi263AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -433,7 +434,412 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  SpectralEnergyConcentratesAtFormantTargets
+        //
+        //  The acoustic gate: a rendered vowel's energy must sit at its
+        //  table's formant frequencies, not spread across the spectrum. Band
+        //  power is measured as the mean of several Goertzel probes around
+        //  each center, because the excitation is harmonic -- energy lives AT
+        //  harmonics near the formant, not necessarily on the exact center.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SpectralEnergyConcentratesAtFormantTargets)
+        {
+            double   inBand                 = 0.0;
+            double   outBand                = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   chip;
+
+
+
+            StartVowelAh1 (chip);
+            RenderSteadyState (chip, buffer);
+
+            // AH1 ("father"): 730 / 1090 / 2440 Hz in the built-in table.
+            inBand = BandPower (buffer, 730.0) +
+                     BandPower (buffer, 1090.0) +
+                     BandPower (buffer, 2440.0);
+
+            outBand = BandPower (buffer, 4000.0) +
+                      BandPower (buffer, 5200.0) +
+                      BandPower (buffer, 6400.0);
+
+            Assert::IsTrue (inBand > 10.0 * outBand,
+                            L"Formant bands must dominate out-of-band energy");
+        }
+
+
+        TEST_METHOD (AmplitudeControlScalesOutput)
+        {
+            double   loudRms                = 0.0;
+            double   quietRms               = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   loud;
+            Ssi263   quiet;
+
+
+
+            StartVowelAh1 (loud);
+            StartVowelAh1 (quiet);
+
+            quiet.WriteRegister (Ssi263::kRegCtlArtAmp, 0x04);   // CTL low, amplitude 4
+
+            RenderSteadyState (loud, buffer);
+            loudRms = Rms (buffer);
+
+            RenderSteadyState (quiet, buffer);
+            quietRms = Rms (buffer);
+
+            Assert::IsTrue (loudRms > 2.0 * quietRms,
+                            L"A lower amplitude register must produce quieter output");
+        }
+
+
+        TEST_METHOD (FilterFrequencyShiftsTheSpectrumUpward)
+        {
+            double   nominalHigh            = 0.0;
+            double   raisedHigh             = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   nominal;
+            Ssi263   raised;
+
+
+
+            StartVowelAh1 (nominal);
+            StartVowelAh1 (raised);
+
+            // Raise the vocal-tract clock ~1.5x (a HIGHER register value means
+            // a smaller divisor, so a faster clock): F2 at 1090 should migrate
+            // toward ~1635, so probe power there.
+            raised.WriteRegister (Ssi263::kRegFilterFreq, 0xE2);
+
+            RenderSteadyState (nominal, buffer);
+            nominalHigh = BandPower (buffer, 1635.0);
+
+            RenderSteadyState (raised, buffer);
+            raisedHigh = BandPower (buffer, 1635.0);
+
+            Assert::IsTrue (raisedHigh > 2.0 * nominalHigh,
+                            L"A faster filter clock must shift formants upward");
+        }
+
+
+        TEST_METHOD (InflectionControlMovesThePitch)
+        {
+            double   lowAt120               = 0.0;
+            double   highAt120              = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   lowPitch;
+            Ssi263   highPitch;
+
+
+
+            StartVowelAh1 (lowPitch);
+            StartVowelAh1 (highPitch);
+
+            SetInflectionHz (lowPitch, 60.0);
+            SetInflectionHz (highPitch, 120.0);
+
+            RenderSteadyState (lowPitch, buffer);
+            lowAt120 = BandPower (buffer, 120.0);
+
+            RenderSteadyState (highPitch, buffer);
+            highAt120 = BandPower (buffer, 120.0);
+
+            // Both spectra have energy at 120 Hz (the low voice's second
+            // harmonic), but the fundamental landing there must dominate.
+            Assert::IsTrue (highAt120 > 1.5 * lowAt120,
+                            L"Raising inflection must move the fundamental up");
+        }
+
+
+        TEST_METHOD (FormantsGlideRatherThanJumpAcrossATransition)
+        {
+            double   earlyOld               = 0.0;
+            double   earlyNew               = 0.0;
+            double   lateNew                = 0.0;
+            double   lateOld                = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   chip;
+
+
+
+            StartVowelAh1 (chip);
+            RenderSteadyState (chip, buffer);
+
+            // Switch to E ("meet", F2 = 2290) at the slowest articulation.
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x0F);   // articulation 0, amp $F
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
+
+            // Immediately after the switch the tract must still sound like
+            // the OLD vowel -- a jump would already be at the new target.
+            RenderInto (chip, buffer, kRenderSamples);
+            earlyOld = BandPower (buffer, 1090.0);
+            earlyNew = BandPower (buffer, 2290.0);
+
+            Assert::IsTrue (earlyOld > earlyNew,
+                            L"Right after a transition the old formants must still dominate");
+
+            // Well after the transition, the NEW vowel must dominate.
+            RenderInto (chip, buffer, kRenderSamples);
+            RenderInto (chip, buffer, kRenderSamples);
+            RenderInto (chip, buffer, kRenderSamples);
+            lateNew = BandPower (buffer, 2290.0);
+            lateOld = BandPower (buffer, 1090.0);
+
+            Assert::IsTrue (lateNew > lateOld,
+                            L"Long after a transition the new formants must dominate");
+        }
+
+
+        TEST_METHOD (RenderingIsDeterministicAcrossIdenticalChips)
+        {
+            uint32_t   i                 = 0;
+            float      a[kRenderSamples] = {};
+            float      b[kRenderSamples] = {};
+
+
+
+            Ssi263   x;
+            Ssi263   y;
+
+
+
+            StartVowelAh1 (x);
+            StartVowelAh1 (y);
+
+            RenderInto (x, a, kRenderSamples);
+            RenderInto (y, b, kRenderSamples);
+
+            for (i = 0; i < kRenderSamples; i++)
+            {
+                Assert::AreEqual (a[i], b[i],
+                                  L"Two identically-programmed chips must render bit-identical audio");
+            }
+        }
+
+
+        TEST_METHOD (RenderedOutputStaysBounded)
+        {
+            Byte       phoneme                = 0;
+            uint32_t   i                      = 0;
+            float      buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   chip;
+
+
+
+            LeavePowerDown (chip, Ssi263::kModePhonemeTransitioned);
+            chip.SetSampleRate (44100);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x7F);   // extreme: max articulation+amp
+            chip.WriteRegister (Ssi263::kRegFilterFreq, 0xFE);
+            chip.WriteRegister (Ssi263::kRegInflection, 0xFF);
+            chip.WriteRegister (Ssi263::kRegRateInflection, 0x0F);
+
+            for (phoneme = 0; phoneme < Ssi263::kPhonemeCount; phoneme++)
+            {
+                chip.WriteRegister (Ssi263::kRegDurationPhoneme, phoneme);
+                RenderInto (chip, buffer, 512);
+
+                for (i = 0; i < 512; i++)
+                {
+                    Assert::IsTrue (buffer[i] >= -1.0f && buffer[i] <= 1.0f,
+                                    L"Output must stay in range for every phoneme at extreme settings");
+                }
+            }
+        }
+
+
+        TEST_METHOD (IdleSpeechSourceContributesExactlyZero)
+        {
+            uint32_t            i = 0;
+            float               buffer[512];
+            Ssi263              chip;
+            Ssi263AudioSource   source;
+
+
+
+            // Poison the buffer: the source must actively zero it, since the
+            // mixer sums whatever it leaves behind.
+            for (i = 0; i < 512; i++)
+            {
+                buffer[i] = 0.5f;
+            }
+
+            source.SetSpeech (&chip);
+            chip.SetSampleRate (44100);
+
+            source.GeneratePCM (buffer, 512);
+
+            for (i = 0; i < 512; i++)
+            {
+                Assert::AreEqual (0.0f, buffer[i],
+                                  L"An unprogrammed chip must contribute exactly zero");
+            }
+        }
+
+
+        TEST_METHOD (SpeakingSourceProducesAudio)
+        {
+            uint32_t            i            = 0;
+            float               peak         = 0.0f;
+            float               buffer[4096] = {};
+            Ssi263              chip;
+            Ssi263AudioSource   source;
+
+
+
+            source.SetSpeech (&chip);
+            StartVowelAh1 (chip);
+
+            source.GeneratePCM (buffer, 4096);
+
+            for (i = 0; i < 4096; i++)
+            {
+                if (std::abs (buffer[i]) > peak)
+                {
+                    peak = std::abs (buffer[i]);
+                }
+            }
+
+            Assert::IsTrue (peak > 0.01f,
+                            L"A sounding vowel must reach the audio source output");
+            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.PanLeft(),
+                              L"Speech sits at the stereo center");
+            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.PanRight());
+        }
+
+
     private:
+        static constexpr uint32_t   kRenderSamples = 8192;
+        static constexpr double     kSampleRate    = 44100.0;
+
+        // Bring a chip up in the common mode, rate $A, amplitude $F, and
+        // start the AH1 vowel sounding.
+        static void StartVowelAh1 (Ssi263 & chip)
+        {
+            LeavePowerDown (chip, Ssi263::kModePhonemeTransitioned);
+            chip.SetSampleRate (static_cast<uint32_t> (kSampleRate));
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x5F);   // articulation 5, amp $F
+            chip.WriteRegister (Ssi263::kRegRateInflection,
+                                static_cast<Byte> (0x0A << Ssi263::kRateShift));
+            chip.WriteRegister (Ssi263::kRegFilterFreq, 0xD3);  // ~20 kHz nominal tract clock
+            SetInflectionHz (chip, 90.0);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x0F);
+        }
+
+        // Program the inflection registers for a target fundamental.
+        static void SetInflectionHz (Ssi263 & chip, double hz)
+        {
+            uint16_t   value = 0;
+            Byte       rate  = 0;
+
+
+
+            value = static_cast<uint16_t> (4096.0 - Ssi263::kDefaultClockHz / (8.0 * hz));
+            rate  = static_cast<Byte> (chip.RateSel() << Ssi263::kRateShift);
+
+            chip.WriteRegister (Ssi263::kRegInflection,
+                                static_cast<Byte> ((value >> 3) & 0xFF));
+            chip.WriteRegister (Ssi263::kRegRateInflection,
+                                static_cast<Byte> (rate |
+                                                   ((value & 0x800) ? Ssi263::kInflect11 : 0) |
+                                                   (value & 0x07)));
+        }
+
+        static void RenderInto (Ssi263 & chip, float * buffer, uint32_t count)
+        {
+            uint32_t   i = 0;
+
+
+
+            for (i = 0; i < count; i++)
+            {
+                buffer[i] = chip.GenerateSample();
+            }
+        }
+
+        // Discard the attack transient, then capture a steady block.
+        static void RenderSteadyState (Ssi263 & chip, float * buffer)
+        {
+            RenderInto (chip, buffer, 4096);
+            RenderInto (chip, buffer, kRenderSamples);
+        }
+
+        // Mean Goertzel power over a short comb around the center, so a
+        // harmonic landing beside the exact center still registers.
+        static double BandPower (const float * buffer, double centerHz)
+        {
+            double   power  = 0.0;
+            int      probe  = 0;
+
+
+
+            for (probe = -3; probe <= 3; probe++)
+            {
+                power += GoertzelPower (buffer, kRenderSamples,
+                                        centerHz + 15.0 * probe);
+            }
+
+            return power / 7.0;
+        }
+
+        static double Rms (const float * buffer)
+        {
+            double     sum = 0.0;
+            uint32_t   i   = 0;
+
+
+
+            for (i = 0; i < kRenderSamples; i++)
+            {
+                sum += static_cast<double> (buffer[i]) * static_cast<double> (buffer[i]);
+            }
+
+            return std::sqrt (sum / static_cast<double> (kRenderSamples));
+        }
+
+        static double GoertzelPower (const float * buffer, uint32_t count, double freqHz)
+        {
+            double   w  = 2.0 * std::numbers::pi * freqHz / kSampleRate;
+            double   c  = 2.0 * std::cos (w);
+            double   s0 = 0.0;
+            double   s1 = 0.0;
+            double   s2 = 0.0;
+            uint32_t i  = 0;
+
+
+
+            for (i = 0; i < count; i++)
+            {
+                s0 = buffer[i] + c * s1 - s2;
+                s2 = s1;
+                s1 = s0;
+            }
+
+            return s1 * s1 + s2 * s2 - c * s1 * s2;
+        }
+
         // Leave Power Down, latching `mode` from the duration bits as the CTL
         // one-to-zero transition sees them.
         static void LeavePowerDown (Ssi263 & chip, Byte mode)

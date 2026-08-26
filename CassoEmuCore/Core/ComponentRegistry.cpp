@@ -133,4 +133,5 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("acia-6551",            Acia6551::Create);
     registry.Register ("parallel-printer",     PrinterCard::Create);
     registry.Register ("mockingboard",         MockingboardCard::Create);
+    registry.Register ("mockingboard-c",       MockingboardCard::CreateSpeech);
 }

@@ -31,7 +31,7 @@
     ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
-        { "slot": 4, "device": "mockingboard" },
+        { "slot": 4, "device": "mockingboard-c" },
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
     ],
     "video": {

@@ -8,6 +8,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Ssi263PhonemeSpec
+//
+//  Acoustic targets for one phoneme: three formant center frequencies, the
+//  excitation type, and an intrinsic level. The chip's own per-phoneme
+//  parameters live in an internal ROM that was never published, so these
+//  values are derived from the public acoustic-phonetics literature -- a
+//  deliberate approximation, disclosed as such, and replaceable as a whole
+//  table without touching the synthesis (see SetFormantTable).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct Ssi263PhonemeSpec
+{
+    uint16_t   f1;          // formant center frequencies, Hz
+    uint16_t   f2;
+    uint16_t   f3;
+    bool       voiced;      // glottal excitation
+    bool       fricative;   // noise excitation (both set = voiced fricative)
+    float      level;       // intrinsic amplitude, 0..1
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Ssi263
 //
 //  Clean-room Silicon Systems SSI 263A phoneme speech synthesizer, written
@@ -103,6 +130,15 @@ public:
     // an utterance occupies the same emulated span at any host sample rate.
     void    Tick (uint32_t cycles);
 
+    // Render one mono sample at the host rate. Zero whenever IsSilent().
+    float   GenerateSample ();
+
+    // Replace the per-phoneme acoustic table (64 entries). The default is a
+    // built-in table from the published phonetics literature; a caller with
+    // better data -- a measured or extracted set -- swaps it here with no
+    // other change. Pass nullptr to restore the built-in table.
+    void    SetFormantTable (const Ssi263PhonemeSpec * table);
+
     bool    IsRequesting () const { return m_request; }
     bool    IsPoweredDown() const { return (m_reg[kRegCtlArtAmp] & kCtl) != 0; }
     bool    IsSilent     () const;
@@ -122,9 +158,18 @@ public:
 
     static Byte  SelectRegister (Byte address);
 
+    // Nominal vocal-tract filter clock; the filter register scales formants
+    // relative to it, changing "voice type" as the datasheet describes.
+    static constexpr double  kNominalFilterHz = 20000.0;
+
 private:
     void    LatchMode     ();
     void    BeginPhoneme  ();
+    void    GlideFormants ();
+    float   Excitation    ();
+    float   Resonate      (int stage, float input, double centerHz);
+
+    const Ssi263PhonemeSpec &  ActiveSpec () const;
 
     double     m_clockHz    = kDefaultClockHz;
     uint32_t   m_sampleRate = 0;
@@ -142,4 +187,21 @@ private:
     // sounding at all.
     double     m_phonemeCycles = 0.0;
     bool       m_sounding      = false;
+
+    // Acoustic table in force; the built-in set unless replaced.
+    const Ssi263PhonemeSpec *   m_formants = nullptr;
+
+    // Formant glide state: current center frequencies easing toward the
+    // active phoneme's targets at the articulation rate.
+    double     m_fCur[3] = { 0.0, 0.0, 0.0 };
+
+    // Two-pole resonator history, one pair per formant stage.
+    float      m_resY1[3] = { 0.0f, 0.0f, 0.0f };
+    float      m_resY2[3] = { 0.0f, 0.0f, 0.0f };
+
+    // Excitation state: glottal phase, a fixed-seed noise LFSR so output is
+    // deterministic, and a one-pole tilt on the source spectrum.
+    double     m_glottalPhase = 0.0;
+    uint32_t   m_lfsr         = 0xACE1u;
+    float      m_excTilt      = 0.0f;
 };

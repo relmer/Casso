@@ -13,10 +13,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MockingboardCard::MockingboardCard (int slot)
+MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
 {
-    m_slot = slot;
-    m_base = static_cast<Word> (kIoBase + slot * kSlotStride);
+    m_slot    = slot;
+    m_base    = static_cast<Word> (kIoBase + slot * kSlotStride);
+    m_variant = variant;
 
     m_audioSource[0].SetPsg (&m_psg[0]);
     m_audioSource[1].SetPsg (&m_psg[1]);
@@ -24,6 +25,16 @@ MockingboardCard::MockingboardCard (int slot)
     // Mockingboard is dual-mono: PSG #1 hard-left, PSG #2 hard-right.
     m_audioSource[0].SetPan (1.0f, 0.0f);
     m_audioSource[1].SetPan (0.0f, 1.0f);
+
+    // The sound+speech variant installs the voice chip in socket 1. The
+    // sound-only variant allocates nothing, so it cannot even accidentally
+    // acquire speech behavior.
+    if (variant == MockingboardVariant::SoundSpeech)
+    {
+        m_speech = make_unique<Ssi263>();
+    }
+
+    m_speechSource.SetSpeech (m_speech.get());
 }
 
 
@@ -56,6 +67,15 @@ Byte MockingboardCard::Read (Word address)
         m_via[index].SetPortAInput (m_psg[index].ReadData());
     }
 
+    if (IsInstalledSpeech (offset))
+    {
+        // The VIA still sees the access -- its side effects are real on the
+        // board -- but the chip drives D7 with its request status, the only
+        // line it drives on a read.
+        return static_cast<Byte> ((m_via[index].ReadRegister (reg) & 0x7F) |
+                                  m_speech->ReadRegister (static_cast<Byte> (offset)));
+    }
+
     return m_via[index].ReadRegister (reg);
 }
 
@@ -66,6 +86,11 @@ Byte MockingboardCard::Read (Word address)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Write
+//
+//  The VIA path always executes -- the board's VIAs see none of A4-A6, so a
+//  speech-range write lands in the VIA mirror on real hardware too. When the
+//  offset decodes to an installed voice chip, the same write ALSO reaches the
+//  chip: a tap, not a replacement.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +105,13 @@ void MockingboardCard::Write (Word address, Byte value)
     m_via[index].WriteRegister (reg, value);
 
     SyncPsg (index);
+
+    if (IsInstalledSpeech (offset))
+    {
+        m_speech->WriteRegister (static_cast<Byte> (offset), value);
+
+        SyncSpeechRequest();
+    }
 }
 
 
@@ -103,6 +135,13 @@ void MockingboardCard::Reset()
         m_via[i].Reset();
         m_psg[i].Reset();
         m_lastControl[i] = 0;
+    }
+
+    if (m_speech != nullptr)
+    {
+        m_speech->Reset();
+
+        SyncSpeechRequest();
     }
 }
 
@@ -165,6 +204,13 @@ void MockingboardCard::Tick (uint32_t cycles)
     {
         m_via[i].Tick (cycles);
     }
+
+    if (m_speech != nullptr)
+    {
+        m_speech->Tick (cycles);
+
+        SyncSpeechRequest();
+    }
 }
 
 
@@ -213,6 +259,11 @@ void MockingboardCard::SetSampleRate (uint32_t sampleRate)
     for (i = 0; i < kViaCount; i++)
     {
         m_psg[i].SetSampleRate (sampleRate);
+    }
+
+    if (m_speech != nullptr)
+    {
+        m_speech->SetSampleRate (sampleRate);
     }
 }
 
@@ -283,4 +334,72 @@ unique_ptr<MemoryDevice> MockingboardCard::Create (const DeviceConfig & config, 
     UNREFERENCED_PARAMETER (bus);
 
     return make_unique<MockingboardCard> (config.slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateSpeech
+//
+//  Factory for the sound+speech variant. A separate registered type rather
+//  than a config field, so machine profiles select a card model the way a
+//  buyer did -- by product name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<MemoryDevice> MockingboardCard::CreateSpeech (const DeviceConfig & config, MemoryBus & bus)
+{
+    UNREFERENCED_PARAMETER (bus);
+
+    return make_unique<MockingboardCard> (config.slot, MockingboardVariant::SoundSpeech);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInstalledSpeech
+//
+//  True when the page offset decodes to a speech socket that actually holds
+//  a chip. The board selects a socket when A4 is clear, A5 or A6 is set, and
+//  A7 is clear; A6 picks the socket. Only socket 1 is populated on the
+//  sound+speech variant, and no socket exists to decode on the sound-only
+//  variant -- so the A takes one branch here and nothing else changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MockingboardCard::IsInstalledSpeech (Word offset) const
+{
+    if (m_speech == nullptr)
+    {
+        return false;
+    }
+
+    return (offset & kSpeechA4) == 0 &&
+           (offset & kVia2Select) == 0 &&
+           (offset & kSpeechChip1) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncSpeechRequest
+//
+//  Drives the voice chip's A/R output onto VIA #1's CA1. A/R is active low:
+//  a pending request pulls the line down, so with PCR bit 0 clear (falling
+//  edge) the request's assertion latches the CA1 interrupt flag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockingboardCard::SyncSpeechRequest()
+{
+    m_via[0].SetCa1 (!m_speech->IsRequesting());
 }

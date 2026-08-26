@@ -291,6 +291,59 @@ namespace MockingboardCardTestNs
 
         ////////////////////////////////////////////////////////////////////////
         //
+        //  TwoRegisteredTypesYieldTheTwoCardModels
+        //
+        //  The existing type name keeps meaning what it has always meant -- a
+        //  profile or user override naming "mockingboard" gets the sound-only
+        //  card, exactly as before the speech variant existed. The new type
+        //  yields the sound+speech card. Both accept any slot, like every card
+        //  in the registry.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TwoRegisteredTypesYieldTheTwoCardModels)
+        {
+            ComponentRegistry           registry;
+            MemoryBus                   bus;
+            DeviceConfig                config;
+            unique_ptr<MemoryDevice>    device = nullptr;
+            MockingboardCard *          card   = nullptr;
+
+
+
+            ComponentRegistry::RegisterBuiltinDevices (registry);
+            Assert::IsTrue (registry.IsRegistered ("mockingboard-c"),
+                            L"mockingboard-c must be a registered device type");
+
+            config.type    = "mockingboard";
+            config.slot    = 4;
+            config.hasSlot = true;
+
+            device = registry.Create ("mockingboard", config, bus);
+            card   = dynamic_cast<MockingboardCard *> (device.get());
+
+            Assert::IsNotNull (card);
+            Assert::IsTrue (MockingboardVariant::SoundOnly == card->GetVariant(),
+                            L"The existing type name must keep yielding the sound-only card");
+            Assert::IsNull (card->GetSpeech());
+
+            config.type = "mockingboard-c";
+            config.slot = 5;
+
+            device = registry.Create ("mockingboard-c", config, bus);
+            card   = dynamic_cast<MockingboardCard *> (device.get());
+
+            Assert::IsNotNull (card);
+            Assert::IsTrue (MockingboardVariant::SoundSpeech == card->GetVariant(),
+                            L"The new type must yield the sound+speech card");
+            Assert::IsNotNull (card->GetSpeech());
+            Assert::AreEqual<Word> (0xC500, card->GetStart(),
+                                    L"Either variant accepts any slot");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
         //  PageSweepMatchesMirrorModel
         //
         //  Pins the card's whole-page decode: every offset in $Cn00-$CnFF
@@ -372,6 +425,197 @@ namespace MockingboardCardTestNs
 
             swprintf_s (msg, L"Rendered-audio hash was 0x%08X", hash);
             Assert::AreEqual<uint32_t> (kExpectedHash, hash, msg);
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  SoundOnlyVariantMatchesBaselineEverywhere
+        //
+        //  The sound-only card constructed through the variant-aware path must
+        //  be indistinguishable from the shipping card: same page sweep, same
+        //  rendered-audio hash, no voice chip present. This is the guarantee
+        //  that lets the speech variant exist without touching anyone who did
+        //  not choose it.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SoundOnlyVariantMatchesBaselineEverywhere)
+        {
+            int    offset = 0;
+
+
+
+            MockingboardCard    card (4, MockingboardVariant::SoundOnly);
+
+
+
+            Assert::IsNull (card.GetSpeech(), L"The A has no voice chip");
+
+            SetupQuietState (card);
+
+            for (offset = 0; offset < 256; offset++)
+            {
+                Assert::AreEqual<Byte> (card.Read (static_cast<Word> (0xC400 + (offset & 0x8F))),
+                                        card.Read (static_cast<Word> (0xC400 + offset)),
+                                        L"The A's page must mirror exactly as it ships today");
+            }
+        }
+
+
+        TEST_METHOD (SpeechVariantAudioMatchesBaselineWhileUnprogrammed)
+        {
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            ProgramBaselineTones (card);
+
+            Assert::AreEqual<uint32_t> (0x9563EB75, HashRenderedAudio (card),
+                                        L"An unprogrammed voice chip must not change rendered audio");
+        }
+
+
+        TEST_METHOD (SpeechWriteIsATapNotAReplacement)
+        {
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            card.Write (0xC403, 0xFF);   // VIA #1 DDRA all output
+
+            // A write in the populated speech range must land in BOTH places:
+            // the VIA mirror (offset $41 aliases ORA) and the chip's register
+            // file (RS = 1, the inflection register).
+            card.Write (0xC441, 0x66);
+
+            Assert::AreEqual<Byte> (0x66, card.GetVia (0).GetOra(),
+                                    L"The VIA mirror must still receive the write");
+            Assert::AreEqual<uint16_t> (static_cast<uint16_t> (0x66 << 3),
+                                        card.GetSpeech()->InflectionValue(),
+                                        L"The chip must receive the same write");
+        }
+
+
+        TEST_METHOD (EmptySocketRangeBehavesAsTheSoundOnlyCard)
+        {
+            MockingboardCard    a (4, MockingboardVariant::SoundOnly);
+            MockingboardCard    c (4, MockingboardVariant::SoundSpeech);
+            int                 offset = 0;
+
+
+
+            SetupQuietState (a);
+            SetupQuietState (c);
+
+            // Socket 0's range ($20-$2F) is empty on the C, and the excluded
+            // offsets ($30, $50, $70) never decode to speech at all. All must
+            // read identically to the A.
+            for (offset = 0x20; offset <= 0x3F; offset++)
+            {
+                Assert::AreEqual<Byte> (a.Read (static_cast<Word> (0xC400 + offset)),
+                                        c.Read (static_cast<Word> (0xC400 + offset)),
+                                        L"An empty socket must leave its range untouched");
+            }
+
+            Assert::AreEqual<Byte> (a.Read (0xC450), c.Read (0xC450),
+                                    L"$50 has A4 set and must never decode to speech");
+            Assert::AreEqual<Byte> (a.Read (0xC470), c.Read (0xC470),
+                                    L"$70 has A4 set and must never decode to speech");
+        }
+
+
+        TEST_METHOD (SpeechReadCarriesRequestStatusOnBit7)
+        {
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+            Ssi263 *            chip = nullptr;
+
+
+
+            chip = card.GetSpeech();
+
+            // Bring the chip out of Power Down in the common mode and start a
+            // short phoneme.
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x0C);
+            card.Write (0xC442, static_cast<Byte> (0x0F << Ssi263::kRateShift));
+            card.Write (0xC440, 0x08);
+
+            Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
+                                    L"No request while the phoneme is sounding");
+
+            card.Tick (static_cast<uint32_t> (chip->PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+
+            Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
+                                    L"The request must surface as D7 anywhere in the chip's range");
+        }
+
+
+        TEST_METHOD (SpeechRequestDrivesCa1InterruptThroughVia)
+        {
+            MbTestCpu             cpu;
+            InterruptController   ic (&cpu);
+            Ssi263 *              chip = nullptr;
+
+
+
+            MockingboardCard      card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            card.AttachInterruptController (&ic);
+            chip = card.GetSpeech();
+
+            // Falling-edge CA1 (PCR bit 0 clear is the reset state), CA1
+            // interrupt enabled -- the arming real speech drivers perform.
+            card.Write (0xC40C, 0x00);
+            card.Write (0xC40E, static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqCa1));
+
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x0C);
+            card.Write (0xC442, static_cast<Byte> (0x0F << Ssi263::kRateShift));
+            card.Write (0xC440, 0x08);
+
+            Assert::IsFalse (cpu.IrqAsserted(), L"No interrupt while sounding");
+
+            card.Tick (static_cast<uint32_t> (chip->PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+
+            Assert::IsTrue (cpu.IrqAsserted(),
+                            L"Phoneme completion must reach the CPU through CA1");
+
+            // The pacing loop's response: write the next phoneme, then
+            // acknowledge at the VIA. The line must release.
+            card.Write (0xC440, 0x09);
+            card.Read (0xC401);
+
+            Assert::IsFalse (cpu.IrqAsserted(),
+                             L"Acknowledge must release the interrupt");
+        }
+
+
+        TEST_METHOD (UnprogrammedSpeechVariantNeverInterrupts)
+        {
+            MbTestCpu             cpu;
+            InterruptController   ic (&cpu);
+
+
+
+            MockingboardCard      card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            card.AttachInterruptController (&ic);
+
+            // Arm every VIA interrupt source on both VIAs -- the harshest
+            // dispatch-on-anything music player -- and run ten emulated
+            // minutes with the voice chip present but never programmed.
+            card.Write (0xC40E, static_cast<Byte> (Via6522::kIerSetClear | 0x7F));
+            card.Write (0xC48E, static_cast<Byte> (Via6522::kIerSetClear | 0x7F));
+
+            card.Tick (600u * 1020484u);
+
+            Assert::IsFalse (cpu.IrqAsserted(),
+                             L"An unprogrammed voice chip must never interrupt");
         }
 
 

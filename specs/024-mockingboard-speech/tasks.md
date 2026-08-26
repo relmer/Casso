@@ -78,31 +78,31 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 ### Chip core — acoustic (SC-001b)
 
-- [ ] T019 [US1] Implement the formant synthesis model in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`: excitation source (voiced pulse train / unvoiced noise) driving a resonator bank whose targets are set per phoneme and interpolated across the transition into the next (D5)
-- [ ] T020 [US1] Load the route-A formant table per the T003 decision and map SC-01A phoneme ordering onto the SSI-263's, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`. **Keep the table a swappable input** — routes B and C produce the same artifact and must be able to replace it with no code change
-- [ ] T021 [P] [US1] Add a Goertzel-based spectral assertion helper to `UnitTest/EmuTests/Ssi263Tests.cpp` measuring in-band versus out-of-band energy at target frequencies (D6)
-- [ ] T022 [P] [US1] Test per-phoneme formant content, control sweeps shifting the spectrum in the expected direction, and formants gliding rather than jumping across transitions, in `UnitTest/EmuTests/Ssi263Tests.cpp`
+- [x] T019 **DONE** — excitation (tilted glottal pulse train at the inflection frequency / deterministic LFSR noise, both for voiced fricatives) through three Klatt-style unity-DC-gain resonators; filter register scales the whole tract; amplitude register scales output. Implement the formant synthesis model in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`: excitation source (voiced pulse train / unvoiced noise) driving a resonator bank whose targets are set per phoneme and interpolated across the transition into the next (D5)
+- [x] T020 **DONE** — built-in 64-entry table derived from the public phonetics literature (disclosed in-source per FR-023), swappable wholesale via `SetFormantTable`. Load the route-A formant table per the T003 decision and map SC-01A phoneme ordering onto the SSI-263's, in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`. **Keep the table a swappable input** — routes B and C produce the same artifact and must be able to replace it with no code change
+- [x] T021 **DONE** — 7-probe band comb so harmonic excitation registers beside exact centers. Add a Goertzel-based spectral assertion helper to `UnitTest/EmuTests/Ssi263Tests.cpp` measuring in-band versus out-of-band energy at target frequencies (D6)
+- [x] T022 **DONE** — formant concentration, amplitude scaling, filter-clock shift, inflection pitch movement, glide-vs-jump, determinism, boundedness at extremes across all 64 phonemes. Test per-phoneme formant content, control sweeps shifting the spectrum in the expected direction, and formants gliding rather than jumping across transitions, in `UnitTest/EmuTests/Ssi263Tests.cpp`
 
 ### Card integration
 
-- [ ] T023 [US1] Add the variant to `CassoEmuCore/Devices/Mockingboard/MockingboardCard.h` and hold an `Ssi263` present only on the sound+speech variant (D2, data-model)
-- [ ] T024 [US1] Add the speech-region decode as a **tap** in `MockingboardCard::Read` and `MockingboardCard::Write` in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp` (D3, R7, revised R8): writes execute today's VIA path unchanged **and additionally** reach the chip when A4 clear, A5|A6 set, A7 clear (chip 1 = `$40`/`$60` ranges; socket 0 = `$20` range, empty on the C); reads in a populated range return the chip's D7 status. The sound-only variant must not enter the new branch at all
-- [ ] T025 [US1] Wire the chip's A/R output to the VIA control-line seam per the T002 contract, in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp`
-- [ ] T026 [US1] Reset the voice chip alongside the PSGs on card reset in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp` (R10)
-- [ ] T027 [P] [US1] Test variant decode, speech-region routing, and A/R reaching the CPU as an interrupt in `UnitTest/EmuTests/MockingboardCardTests.cpp`
+- [x] T023 **DONE** — Add the variant to `CassoEmuCore/Devices/Mockingboard/MockingboardCard.h` and hold an `Ssi263` present only on the sound+speech variant (D2, data-model)
+- [x] T024 **DONE** — Add the speech-region decode as a **tap** in `MockingboardCard::Read` and `MockingboardCard::Write` in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp` (D3, R7, revised R8): writes execute today's VIA path unchanged **and additionally** reach the chip when A4 clear, A5|A6 set, A7 clear (chip 1 = `$40`/`$60` ranges; socket 0 = `$20` range, empty on the C); reads in a populated range return the chip's D7 status. The sound-only variant must not enter the new branch at all
+- [x] T025 **DONE** — active-low A/R onto VIA #1 CA1, synced after chip writes, ticks, and resets. Wire the chip's A/R output to the VIA control-line seam per the T002 contract, in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp`
+- [x] T026 **DONE** — Reset the voice chip alongside the PSGs on card reset in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp` (R10)
+- [x] T027 **DONE** — 7 card tests incl. tap-write proof, empty-socket equivalence, D7 status read, CA1 end-to-end IRQ, 10-emulated-minute quiescence. Test variant decode, speech-region routing, and A/R reaching the CPU as an interrupt in `UnitTest/EmuTests/MockingboardCardTests.cpp`
 
 ### Audio path
 
-- [ ] T028 [US1] Create `CassoEmuCore/Devices/Mockingboard/Ssi263AudioSource.h` and `.cpp` implementing `IDriveAudioSource`, panned center, parallel to `MockingboardAudioSource` rather than modifying it (D4, F2)
-- [ ] T029 [US1] Register the speech source with the Mockingboard mixer beside the two PSG sources in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp`
-- [ ] T030 [P] [US1] Test that an idle chip contributes exactly zero and performs no synthesis work in `UnitTest/EmuTests/Ssi263Tests.cpp` (FR-020)
+- [x] T028 **DONE** — Create `CassoEmuCore/Devices/Mockingboard/Ssi263AudioSource.h` and `.cpp` implementing `IDriveAudioSource`, panned center, parallel to `MockingboardAudioSource` rather than modifying it (D4, F2)
+- [x] T029 **DONE** — third source registered in `MachineManager` when the chip is present (found by the existing `dynamic_cast`, so no other shell change). Register the speech source with the Mockingboard mixer beside the two PSG sources in `CassoEmuCore/Devices/Mockingboard/MockingboardCard.cpp`
+- [x] T030 **DONE** — poisoned-buffer zero test + speaking-source audibility + center pan. Test that an idle chip contributes exactly zero and performs no synthesis work in `UnitTest/EmuTests/Ssi263Tests.cpp` (FR-020)
 
 ### Making it reachable
 
-- [ ] T031 [US1] Register the sound+speech device type in `CassoEmuCore/Core/ComponentRegistry.cpp`, leaving the existing type name's spelling and meaning untouched (D1, contract C1)
-- [ ] T032 [P] [US1] Point slot 4 at the sound+speech type in `Resources/Machines/Apple2Plus/Apple2Plus.json`, `Resources/Machines/Apple2e/Apple2e.json`, and `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json` (FR-008). Leave `Resources/Machines/Apple2/Apple2.json` alone — it ships no Mockingboard
-- [ ] T033 [P] [US1] Test that both registered types construct, that a profile naming the existing type still gets the sound-only card, and that both accept any slot, in `UnitTest/EmuTests/MachineConfigTests.cpp` (contracts C1–C3)
-- [ ] T034 [US1] Write `Apple2/Demos/mockingboard-speech-test.a65` — a boot-sector program that unconditionally programs the voice chip with an authored phoneme sequence and spins — following the structure and header style of `Apple2/Demos/mockingboard-test.a65` (D8). Authored phonemes mean it carries its own ground truth and needs no acquired media
+- [x] T031 **DONE** — `"mockingboard-c"`. Register the sound+speech device type in `CassoEmuCore/Core/ComponentRegistry.cpp`, leaving the existing type name's spelling and meaning untouched (D1, contract C1)
+- [x] T032 **DONE** — plus the one deliberate test edit: `BackwardsCompatTests` reads the live profile and its slot-4 assertion follows the intended default. Point slot 4 at the sound+speech type in `Resources/Machines/Apple2Plus/Apple2Plus.json`, `Resources/Machines/Apple2e/Apple2e.json`, and `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json` (FR-008). Leave `Resources/Machines/Apple2/Apple2.json` alone — it ships no Mockingboard
+- [x] T033 **DONE** — `TwoRegisteredTypesYieldTheTwoCardModels` (in MockingboardCardTests beside the existing factory test). Test that both registered types construct, that a profile naming the existing type still gets the sound-only card, and that both accept any slot, in `UnitTest/EmuTests/MachineConfigTests.cpp` (contracts C1–C3)
+- [x] T034 **DONE** — polling loop speaking "HELLO" (HF EH1 L :OH OU PA) forever; assembles to 57 bytes with CassoCli as65. Write `Apple2/Demos/mockingboard-speech-test.a65` — a boot-sector program that unconditionally programs the voice chip with an authored phoneme sequence and spins — following the structure and header style of `Apple2/Demos/mockingboard-test.a65` (D8). Authored phonemes mean it carries its own ground truth and needs no acquired media
 
 **Checkpoint**: Quickstart Stages 3 and 4 pass. The machine talks. **This is the MVP.**
 

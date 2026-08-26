@@ -217,6 +217,7 @@
     <ClCompile Include="Devices\Mockingboard\Via6522.cpp" />
     <ClCompile Include="Devices\Mockingboard\Ay8910.cpp" />
     <ClCompile Include="Devices\Mockingboard\Ssi263.cpp" />
+    <ClCompile Include="Devices\Mockingboard\Ssi263AudioSource.cpp" />
     <ClCompile Include="Devices\Mockingboard\MockingboardAudioSource.cpp" />
     <ClCompile Include="Devices\Mockingboard\MockingboardCard.cpp" />
     <ClCompile Include="Devices\Disk2Controller.cpp" />
@@ -322,6 +323,7 @@
     <ClInclude Include="Devices\Mockingboard\Via6522.h" />
     <ClInclude Include="Devices\Mockingboard\Ay8910.h" />
     <ClInclude Include="Devices\Mockingboard\Ssi263.h" />
+    <ClInclude Include="Devices\Mockingboard\Ssi263AudioSource.h" />
     <ClInclude Include="Devices\Mockingboard\MockingboardAudioSource.h" />
     <ClInclude Include="Devices\Mockingboard\MockingboardCard.h" />
     <ClInclude Include="Devices\IAciaEndpoint.h" />

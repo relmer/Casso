@@ -1,0 +1,91 @@
+; ============================================================================
+;  mockingboard-speech-test.a65 -- minimal Mockingboard C speech smoke test
+;
+;  A single boot-sector program that UNCONDITIONALLY programs the slot-4
+;  Mockingboard C's SSI 263A for a short phoneme sequence ("HELLO"), then
+;  repeats it forever. There is no card detection and no game logic: if you
+;  hear the voice, the host speech path (decode -> chip -> synthesis ->
+;  audio source -> mixer -> WASAPI) works end-to-end. Silence means the
+;  fault is on the host side; its tone counterpart, mockingboard-test.a65,
+;  isolates which half. The authored phoneme list below is the test's own
+;  ground truth -- no external software or transcript is needed.
+;
+;  Boot: the slot-6 Disk2.rom firmware reads track 0 sector 0 into
+;  $0800-$08FF and JMPs $0801 -- same contract casso-rocks.a65 relies on.
+;
+;  SSI 263A programming model (slot 4, chip socket 1 at $C440):
+;    $C440  duration/phoneme   D7:6 = DR1,DR0    D5:0 = phoneme
+;    $C441  inflection         I10-I3
+;    $C442  rate/inflection    D7:4 = rate       D3 = I11, D2:0 = I2-I0
+;    $C443  ctl/artic/amp      D7 = CTL          D6:4 = artic, D3:0 = amp
+;    $C444  filter frequency   vocal-tract clock
+;
+;  The chip powers up with CTL set (Power Down). Loading the duration bits
+;  and then driving CTL low latches the operating mode from them; DR=11
+;  selects A/R active + phoneme timing + transitioned inflection, the mode
+;  real speech drivers use. Each phoneme is then started by writing $C440,
+;  and completion is polled by reading the chip: D7 set = requesting the
+;  next phoneme. Polling means no interrupts are needed for first light.
+; ============================================================================
+
+    .org $0801
+
+; -- Slot 4 SSI 263A registers (chip socket 1) -------------------------------
+SPHON   = $C440            ; duration/phoneme
+SINF    = $C441            ; inflection I10-I3
+SRATE   = $C442            ; rate + I11, I2-I0
+SCTL    = $C443            ; CTL + articulation + amplitude
+SFILT   = $C444            ; vocal-tract filter clock
+
+; -- Attribute values --------------------------------------------------------
+MODEDR  = $C0              ; DR=11 in D7:6 -> A/R active, phoneme timing
+CTLUP   = $80              ; CTL set: Power Down
+CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
+RATE    = $A0              ; speech rate $A in D7:4, I11/I2-I0 = 0
+INFL    = $C9              ; I10-I3 for roughly a 90 Hz voice
+FILT    = $D3              ; roughly a 20 KHz tract clock
+
+
+start
+    ; Leave Power Down with the mode bits staged: write DR=11 while still
+    ; down, then drop CTL. The one-to-zero transition latches the mode.
+    lda #MODEDR
+    sta SPHON
+    lda #CTLUP
+    sta SCTL
+    lda #CTLDN
+    sta SCTL
+
+    ; Nominal speech attributes.
+    lda #RATE
+    sta SRATE
+    lda #INFL
+    sta SINF
+    lda #FILT
+    sta SFILT
+
+say
+    ldy #$00
+next
+    lda phonemes,y          ; next phoneme code, $FF = end of utterance
+    cmp #$FF
+    beq say                 ; wrap and speak it again, forever
+    sta SPHON               ; start the phoneme (also answers the request)
+wait
+    lda SPHON               ; D7 = chip requesting the next phoneme
+    bpl wait
+    iny
+    bne next                ; unconditional (Y never wraps within the list)
+
+
+; "HELLO" as SSI 263A phonemes: HF EH1 L :OH OU, then a pause.
+phonemes
+    .byte $2C               ; HF   h
+    .byte $0B               ; EH1  eh
+    .byte $20               ; L    l
+    .byte $3B               ; :OH  oh
+    .byte $12               ; OU   ou
+    .byte $00               ; PA   pause between repeats
+    .byte $FF               ; end marker
+
+; --- end ---

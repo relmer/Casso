@@ -6,7 +6,9 @@
 #include "Core/IInterruptController.h"
 #include "Via6522.h"
 #include "Ay8910.h"
+#include "Ssi263.h"
 #include "MockingboardAudioSource.h"
+#include "Ssi263AudioSource.h"
 
 class MemoryBus;
 
@@ -38,7 +40,33 @@ struct DeviceConfig;
 //  hard-left, PSG #2 hard-right) that the host registers with its audio
 //  mixer.
 //
+//  The card comes in two variants matching the product line. The
+//  Mockingboard A is the sound half above with two EMPTY speech sockets;
+//  the Mockingboard C is the A with one SSI 263A installed. The board
+//  decodes a speech socket when A4 is clear, A5 or A6 is set, and A7 is
+//  clear -- A6 picks the socket, so chip 1 (the one the C populates)
+//  answers at $Cn40-$Cn4F and $Cn60-$Cn6F.
+//
+//  The board's VIAs see none of A4-A6, so the speech chip is a TAP, not a
+//  replacement: a write in a populated speech range reaches BOTH the VIA
+//  mirror and the chip (verified against real hardware), and a read there
+//  carries the chip's request status on D7 -- the only line the chip
+//  drives -- over the VIA mirror's remaining bits. An empty socket leaves
+//  its range behaving exactly as the A, which is also what real hardware
+//  does.
+//
+//  The chip's A/R request output is wired to VIA #1's CA1, so speech
+//  software takes its ready interrupt through the same VIA IFR/IER path
+//  the timers use. A/R is active low: request asserted pulls the line
+//  down, and PCR bit 0 = 0 (falling edge) is the setting real drivers use.
+//
 ////////////////////////////////////////////////////////////////////////////////
+
+enum class MockingboardVariant
+{
+    SoundOnly,      // Mockingboard A: two empty speech sockets
+    SoundSpeech,    // Mockingboard C: SSI 263A installed in socket 1
+};
 
 class MockingboardCard : public MemoryDevice
 {
@@ -57,7 +85,14 @@ public:
     static constexpr Byte  kAyResetLow    = 0x04;   // PB2, active low
     static constexpr Byte  kAyControlMask = kAyBdir | kAyBc1;
 
-    explicit MockingboardCard (int slot);
+    // Speech-socket decode within the slot page: A4 clear, A5 or A6 set,
+    // A7 clear. A6 picks the socket.
+    static constexpr Word    kSpeechA4     = 0x10;
+    static constexpr Word    kSpeechSelect = 0x60;
+    static constexpr Word    kSpeechChip1  = 0x40;
+
+    explicit MockingboardCard (int slot,
+                               MockingboardVariant variant = MockingboardVariant::SoundOnly);
 
     // MemoryDevice
     Byte    Read       (Word address) override;
@@ -78,17 +113,31 @@ public:
     void    SetSampleRate (uint32_t sampleRate);
 
     int                        GetSlot        () const { return m_slot; }
+    MockingboardVariant        GetVariant     () const { return m_variant; }
     Via6522 &                  GetVia         (int index) { return m_via[index]; }
     Ay8910 &                   GetPsg         (int index) { return m_psg[index]; }
     MockingboardAudioSource *  GetAudioSource (int index) { return &m_audioSource[index]; }
 
-    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+    // The installed voice chip, or nullptr on the sound-only variant.
+    Ssi263 *  GetSpeech () { return m_speech.get(); }
+
+    // Center-panned speech source; silent whenever the chip is absent or idle.
+    Ssi263AudioSource *  GetSpeechAudioSource () { return &m_speechSource; }
+
+    static unique_ptr<MemoryDevice> Create       (const DeviceConfig & config, MemoryBus & bus);
+    static unique_ptr<MemoryDevice> CreateSpeech (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    void    SyncPsg (int index);
+    void    SyncPsg            (int index);
+    bool    IsInstalledSpeech  (Word offset) const;
+    void    SyncSpeechRequest  ();
 
-    int      m_slot = 0;
-    Word     m_base = 0;
+    int                   m_slot    = 0;
+    Word                  m_base    = 0;
+    MockingboardVariant   m_variant = MockingboardVariant::SoundOnly;
+
+    unique_ptr<Ssi263>    m_speech;
+    Ssi263AudioSource     m_speechSource;
 
     Via6522                    m_via[kViaCount];
     Ay8910                     m_psg[kViaCount];
