@@ -209,25 +209,32 @@ CROWN_SET = max(0.5, BEZ_DEPTH + CROWN_CLEAR + OVERLAY_LIFT - _BIND_SAG)
 
 GLASS_Y     = FRAME_IN_Y + CROWN_SET + SAG               # the tube's rim
 
-# The box behind. Narrower and much shorter than the tube housing, sharing its
-# base line, and reaching back to the full depth.
+# The box behind. Narrower and much shorter than the tube housing, CENTERED
+# on it in both axes -- the photographs show clear front-mass margin on every
+# side of it, not a box sharing the base line. It reaches back to the full
+# depth.
 REAR_W   = 190.0
 REAR_H   = 112.0
 R_REAR   = 14.0
 REAR_Y0  = FRONT_D - 25.0         # overlapped into the front mass, so the union solids
 REAR_X0  = (W - REAR_W) * 0.5
+REAR_Z0  = (H - REAR_H) * 0.5
+REAR_Z1  = REAR_Z0 + REAR_H
 
 # Louvers: along the depth on both flanks, across the width on the lid.
 LOUV_W    = 2.2                   # slot width
 LOUV_DEEP = 2.0
 LOUV_PITCH = 5.4                  # center to center
 
-# The handle pocket at the very back of the lid. Named up here because the lid
-# louvers have to stop short of it, and a count that does not follow the
-# pocket is one that grows through it the moment the case gets deeper.
-GRIP_Y0, GRIP_Y1 = D - 46.0, D - 24.0
-GRIP_INSET       = 44.0
-GRIP_DEEP        = 14.0
+# The carrying handle: a pocket sunk into the FRONT mass's rear face, up near
+# its top -- which is where a hand actually goes when the monitor is lifted,
+# wrapped over the case's crown with the fingers hooking in behind. It was on
+# the rear box's lid, which is both the wrong part and a place the photographs
+# show plain louvered plastic.
+GRIP_W     = 110.0                # the pocket's width, centered
+GRIP_Z0    = H - 32.0             # ...and its bottom edge, near the top
+GRIP_H     = 18.0
+GRIP_DEEP  = 16.0                 # how far forward into the housing it reaches
 
 PLAT     = (0.870, 0.862, 0.835)
 CAVITY   = (0.055, 0.055, 0.062)
@@ -288,7 +295,7 @@ shell = shell.edges(">Y").fillet(EDGE_R)
 shell = shell.union(
     cq.Workplane(obj=cq.Solid.extrudeLinear(
         cq.Face.makeFromWires(round_rect_wire(REAR_Y0, REAR_X0, REAR_X0 + REAR_W,
-                                              0.0, REAR_H, R_REAR)),
+                                              REAR_Z0, REAR_Z1, R_REAR)),
         cq.Vector(0.0, D - REAR_Y0, 0.0))))
 
 # And the box's own back rim.
@@ -341,10 +348,11 @@ shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
 
 # ------------------------------------------------------------------ louvers
 
-# Along the depth on both flanks. They stop short of the box's ends and of its
-# lid, the way cooling slots in a molding do.
+# Along the depth on both flanks, centered on the box's own height. They stop
+# short of the box's ends and of its lid, the way cooling slots in a molding
+# do.
 for i in range(13):
-    z = 16.0 + i * 6.6
+    z = REAR_Z0 + 10.0 + i * 6.6
 
     for x in (REAR_X0 - 1.0, REAR_X0 + REAR_W - LOUV_DEEP + 1.0):
         shell = shell.cut(
@@ -353,40 +361,38 @@ for i in range(13):
                    centered=(False, False, False))
               .translate((x, REAR_Y0 + 18.0, z)))
 
-# Across the width on the lid, filling whatever the case leaves between the
-# step at the front and the handle pocket at the back.
-_lid_y0 = REAR_Y0 + 30.0
-_lid_n  = int((GRIP_Y0 - 8.0 - _lid_y0) / LOUV_PITCH)
+# And along the depth on the lid too -- FRONT TO REAR, the same direction as
+# the flanks', which is what the rear three-quarter photograph shows. They ran
+# across the width for a while, which is a plausible molding nothing about
+# this monitor has.
+_lid_x0 = REAR_X0 + 15.0
+_lid_n  = int((REAR_W - 30.0) / LOUV_PITCH)
 
 for i in range(_lid_n):
-    y = _lid_y0 + i * LOUV_PITCH
+    x = _lid_x0 + i * LOUV_PITCH
 
     shell = shell.cut(
         cq.Workplane("XY")
-          .box(REAR_W - 30.0, LOUV_W, LOUV_DEEP,
+          .box(LOUV_W, (D - 26.0) - (REAR_Y0 + 18.0), LOUV_DEEP,
                centered=(False, False, False))
-          .translate((REAR_X0 + 15.0, y, REAR_H - LOUV_DEEP)))
+          .translate((x, REAR_Y0 + 18.0, REAR_Z1 - LOUV_DEEP)))
 
-# The molded carrying handle: a pocket sunk into the lid at the very back,
-# with the strip of case behind it left as the grip.
-#
-# A plain filleted box, NOT a round_rect_wire extruded upward -- that helper
-# draws its wire in the XZ plane at a given depth, so extruding one along +Z
-# makes a degenerate solid. Cutting with it silently emptied the whole shell:
-# the generator still wrote a mesh, the part just had no triangles in it.
+# THE CARRYING HANDLE, sunk into the front mass's rear face near its crown --
+# the strip of case the pocket leaves above itself is the grip. Rear box and
+# pocket never meet: the box tops out at REAR_Z1 and the pocket starts above
+# it, on the band of rear face the centered box leaves exposed.
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(REAR_W - GRIP_INSET * 2.0, GRIP_Y1 - GRIP_Y0, GRIP_DEEP + 10.0,
-           centered=(False, False, False))
-      .translate((REAR_X0 + GRIP_INSET, GRIP_Y0, REAR_H - GRIP_DEEP))
-      .edges("|Z").fillet(6.0))
+      .box(GRIP_W, GRIP_DEEP + 4.0, GRIP_H, centered=(False, False, False))
+      .translate(((W - GRIP_W) * 0.5, FRONT_D - GRIP_DEEP, GRIP_Z0))
+      .edges("|Y").fillet(6.0))
 
 # THE REAR PANEL. A recessed bay across the lower back carrying the mains
 # inlet, four trim controls and a screw boss -- the arrangement the rear
 # three-quarter photograph shows. Nothing in this scene ever sees a monitor's
 # back; it is here because the part has one.
 PANEL_X0, PANEL_X1 = REAR_X0 + 16.0, REAR_X0 + REAR_W - 12.0
-PANEL_Z0, PANEL_Z1 = 10.0, 42.0
+PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 40.0
 
 shell = shell.cut(
     cq.Workplane("XY")

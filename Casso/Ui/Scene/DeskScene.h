@@ -449,6 +449,12 @@ private:
 
     std::vector<Dxui3DRenderer::Vertex>   m_glassVerts;         // the tube: dark, untextured
     std::vector<Dxui3DRenderer::Vertex>   m_pictureVerts;       // band-exact curved grid, textured
+
+    // The same grid with its colors zeroed -- a pure depth stamp, so the
+    // front plate can carry the case wherever the case is nearer than the
+    // picture. See RenderPlate.
+    std::vector<Dxui3DRenderer::Vertex>   m_pictureDepthVerts;
+    Dxui3DRenderer::StaticMesh            m_pictureDepthMesh;
     std::vector<Dxui3DRenderer::Vertex>   m_maskVerts;          // rounded-corner tube mask ring
     std::vector<Dxui3DRenderer::Vertex>   m_sheenVerts;         // the room, reflected in the glass
     CrtUvRect                             m_glassUv;

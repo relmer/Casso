@@ -648,9 +648,14 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         hr = m_device->CreateDepthStencilState (&depth, m_depthState.GetAddressOf());
         CHR (hr);
 
+        // LESS_EQUAL, not LESS, and deliberately: the desk scene re-draws the
+        // opaque bodies a second time to occlude its live picture layer (see
+        // DeskScene::RenderPlate), and a re-draw of the same triangles at the
+        // same transform produces the same depths -- which under LESS all
+        // fail, and the second pass silently draws nothing.
         depth.DepthEnable    = TRUE;
         depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-        depth.DepthFunc      = D3D11_COMPARISON_LESS;
+        depth.DepthFunc      = D3D11_COMPARISON_LESS_EQUAL;
 
         hr = m_device->CreateDepthStencilState (&depth, m_depthStateTest.GetAddressOf());
         CHR (hr);

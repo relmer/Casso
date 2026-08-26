@@ -583,6 +583,18 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         }
     }
 
+    // The band again, as a DEPTH STAMP: the same triangles with every color
+    // zeroed, so drawing them under premultiplied source-over changes no
+    // pixel and writes only depth. RenderPlate stamps this into the front
+    // plate's depth before re-drawing the case, which is what lets the case
+    // occlude the live picture without the cavity behind it doing the same.
+    m_pictureDepthVerts = m_pictureVerts;
+
+    for (Dxui3DRenderer::Vertex & v : m_pictureDepthVerts)
+    {
+        v.r = v.g = v.b = v.a = 0.0f;
+    }
+
     // The tube ring and the mask: dark rings riding the sag surface. The
     // tube covers band -> glass edge AT the surface -- deliberately a ring,
     // not the model's full sheet: geometry under the picture is what used to
@@ -1800,6 +1812,44 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
     hr = m_renderer.BeginMultisampledScene();
     CHRA (hr);
+
+    // THE PICTURE'S OCCLUDERS. The picture is live and composites BETWEEN
+    // the plates with no depth of its own, which was fine while the camera
+    // faced the screen and wrong the moment it could orbit: from behind, the
+    // case is all in the back plate and the picture printed straight over
+    // it, a raster floating in the middle of a cabinet.
+    //
+    // So the front plate carries the case wherever the case is NEARER THAN
+    // THE PICTURE. First the picture band itself goes in as a depth stamp --
+    // its own triangles with every color zeroed, writing depth and nothing
+    // else -- and then the opaque bodies are drawn again, depth-tested. The
+    // carried-over depth already holds the whole scene, so the re-draw
+    // passes exactly on each body's visible surface (LESS_EQUAL, and this
+    // pass is why the renderer's depth test is LESS_EQUAL rather than LESS),
+    // except where the picture's stamp is now nearer -- the mouth, seen from
+    // the front. Behind and beside, the case wins and covers the raster at
+    // composite time; head on, the mouth stays open. The cavity never
+    // qualifies, because it lies BEHIND the stamp.
+    if (!m_pictureDepthVerts.empty())
+    {
+        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_pictureDepthMesh, m_pictureDepthVerts.data(),
+                                    m_pictureDepthVerts.size(), m_geometryRev,
+                                    mvp, false, viewport, true);
+        CHRA (hr);
+
+        SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+
+        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[1],
+                                    m_monitor.OpaqueVerts().data(),
+                                    m_monitor.OpaqueVerts().size(),
+                                    m_geometryRev, mvp, false, viewport, true, false);
+        CHRA (hr);
+
+        hr = DrawDrives (m_comp, viewport);
+        CHRA (hr);
+    }
 
     if (!m_maskVerts.empty())
     {

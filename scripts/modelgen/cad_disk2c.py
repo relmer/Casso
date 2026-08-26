@@ -102,8 +102,31 @@ PAD     = (0.180, 0.176, 0.170)
 # you are meant to find with a thumb.
 LATCH   = (0.700, 0.692, 0.668)
 
-RAINBOW = [(0.20, 0.65, 0.27), (0.98, 0.80, 0.08), (0.96, 0.51, 0.12),
-           (0.91, 0.18, 0.14), (0.58, 0.25, 0.60), (0.17, 0.45, 0.85)]
+# THE LID WEARS THE CASSOWARY, the same rainbow-striped bird every other
+# device in this scene carries -- not a stack of colored bars standing in for
+# one. The silhouette and the stripe colors are READ OUT OF CassoBranding.cpp
+# rather than copied into this file: the bird has one definition, the C++ one,
+# and a second hand-maintained copy is how the two would drift apart.
+import io
+import os
+import re
+
+
+def read_branding():
+    src = io.open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "..", "Casso", "Ui", "Chrome",
+                               "CassoBranding.cpp"), encoding="utf-8").read()
+
+    sil_body = re.search(r"s_kSilhouette\[[^\]]*\]\s*=\s*\{(.*?)\};", src, re.S).group(1)
+    rows     = [int(v, 16) for v in re.findall(r"0x([0-9A-Fa-f]+)ULL", sil_body)]
+
+    col_body = re.search(r"s_kStripeColors\[[^\]]*\]\s*=\s*\{(.*?)\};", src, re.S).group(1)
+    stripes  = [((int(v, 16) >> 16 & 0xFF) / 255.0,
+                 (int(v, 16) >> 8 & 0xFF) / 255.0,
+                 (int(v, 16) & 0xFF) / 255.0)
+                for v in re.findall(r"0x[Ff]{2}([0-9A-Fa-f]{6})", col_body)]
+
+    return rows, stripes
 
 # ------------------------------------------------------------------ the front
 
@@ -467,14 +490,54 @@ m.add("lamp",
         .translate((0.0, -1.5, 0.0)),
       KD["drive_lamp_alt"])
 
-# The rainbow, on the LID at the rear-left, where the photographs put the
+# The cassowary, on the LID at the rear-left, where the photographs put the
 # logo. Under the monitor in this scene's stack and so rarely seen, which is
-# not a reason to put it somewhere it is not.
-for i, c in enumerate(RAINBOW):
-    m.add(f"rb{i}",
-          cq.Workplane("XY").box(13.0, 2.2, 0.5, centered=(False, False, False))
-            .translate((10.0, D - 30.0 + i * 2.2, H - 0.2)),
-          c)
+# not a reason to put something ELSE there.
+#
+# Upright for someone standing at the FRONT of the drive: a mark on a lid is
+# read the way text on a lid is, top edge away from the reader -- so row zero
+# of the grid, the bird's crown, lands at the largest y. One raised plate per
+# contiguous bit run, striped by row exactly as BrandMask stripes the 3D
+# stamps, gathered into one part per stripe so the mesh carries six materials
+# rather than a hundred and fifty.
+BIRD_H  = 19.0                    # front-to-back on the lid
+BIRD_X0 = 10.0
+BIRD_Y1 = D - 11.0                # the crown, rearmost
+
+_rows, _stripes = read_branding()
+_cell    = BIRD_H / len(_rows)
+_nonzero = [i for i, r in enumerate(_rows) if r]
+_first, _last = _nonzero[0], _nonzero[-1]
+_by_stripe = {}
+
+for row, bits in enumerate(_rows):
+    if not bits:
+        continue
+
+    banded = min(_last, max(_first, row))
+    stripe = ((banded - _first) * len(_stripes)) // (_last - _first + 1)
+    y0     = BIRD_Y1 - (row + 1) * _cell
+    col    = 0
+
+    while col < 64:
+        if not (bits >> col) & 1:
+            col += 1
+            continue
+
+        run = col
+        while run < 64 and (bits >> run) & 1:
+            run += 1
+
+        _by_stripe.setdefault(stripe, []).append(
+            cq.Workplane("XY")
+              .box((run - col) * _cell, _cell + 0.02, 0.5,
+                   centered=(False, False, False))
+              .translate((BIRD_X0 + col * _cell, y0, H - 0.2))
+              .val())
+        col = run
+
+for stripe, solids in sorted(_by_stripe.items()):
+    m.add(f"bird{stripe}", cq.Compound.makeCompound(solids), _stripes[stripe])
 
 # ---------------------------------------------------------------- underside
 
