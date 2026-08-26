@@ -95,28 +95,37 @@ R_OPEN   = R_FLOOR
 GLASS_IN = 5.0                    # glass inset from the opening
 CROWN_SET = 1.0                   # how far the crown sits behind the frame's nose
 
-# THE TUBE'S CURVATURE IS DERIVED FROM THE BEZEL, not chosen and then checked.
+# THE TUBE'S CURVATURE IS THE MONITOR II's RULE, applied to a smaller tube.
 #
-# The sheet is a spherical cap: its crown stands SAG in front of its rim, the
-# rim sits at the opening, and the opening is BEZ_DEPTH behind the frame's
-# most proud point. So the sag has to fit inside the bezel's depth, or the
-# tube comes through the front of its own case -- which is exactly what
-# happened twice, both times because the radius was picked against one opening
-# and left alone when the opening changed.
+# cad_monitor2.py works the faceplate radius from the CRT patents' reference,
+# R = 1.767 x the screen diagonal, times the 0.96 it measured off a photograph
+# of a real unit -- and that is a rule about tubes, not about one cabinet, so
+# it carries straight across to this one. Nine inches instead of twelve; same
+# family, same era, same generation of glass.
 #
-# Turn it around and it cannot happen again: the sag is BEZ_DEPTH less the
-# clearance, and the sphere radius follows from R = (S^2 + c^2) / 2S. Change
-# the bezel's depth and the tube reshapes to suit.
+# WHICH MEANS THE SAG NO LONGER FITS INSIDE THE BEZEL, and it does not have to.
+# The rim goes wherever the sphere puts it and the CROWN is what gets placed:
+# just behind the frame's nose, where a tube's face sits. The bezel's inner
+# lip then overhangs the glass's edge by ten millimeters or so, which is what
+# a lip is for. The two were tied together only because the rim used to be
+# pinned to the opening plane, and that is what kept sending the tube out
+# through the front of its own case.
+TUBE_DIAG = 9.0 * INCH            # the tube class, not the picture
+FACE_R    = 0.96 * 1.767 * TUBE_DIAG
+
 _GLASS_HALF = math.hypot((SCR_W - GLASS_IN * 2.0) * 0.5,
                          (SCR_H - GLASS_IN * 2.0) * 0.5)
-SAG         = BEZ_DEPTH - CROWN_SET
-_GLASS_R    = (SAG * SAG + _GLASS_HALF * _GLASS_HALF) / (2.0 * SAG)
-SAG_SCALE   = _GLASS_R / _GLASS_HALF
+SAG         = FACE_R - math.sqrt(FACE_R * FACE_R - _GLASS_HALF * _GLASS_HALF)
+SAG_SCALE   = FACE_R / _GLASS_HALF
 
-# The three planes the front is built between.
+# The planes the front is built between. OPEN_Y is where the bezel's wall ends
+# -- the hole -- and GLASS_Y is where the tube's RIM sits, which is deeper,
+# because the crown is what has to land near the front and the sphere decides
+# the rest.
 FRAME_OUT_Y = -EDGE_R                                   # where the outer roll ends
 FRAME_IN_Y  = FRAME_OUT_Y - FRAME * math.tan(FRAME_ANG)  # the most proud point
-GLASS_Y     = FRAME_IN_Y + BEZ_DEPTH                     # the opening, and the rim
+OPEN_Y      = FRAME_IN_Y + BEZ_DEPTH                     # the opening
+GLASS_Y     = FRAME_IN_Y + CROWN_SET + SAG               # the tube's rim
 
 # The box behind. Narrower and much shorter than the tube housing, sharing its
 # base line, and reaching back to the full depth.
@@ -235,12 +244,12 @@ for step in range(CAP_STEPS):
     bez_sections.append(case_wire(_centre[1] + EDGE_R * math.sin(phi),
                                   _centre[0] + EDGE_R * math.cos(phi)))
 
-bez_sections.append(round_rect_wire(GLASS_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
+bez_sections.append(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
 
 shell = shell.cut(cq.Workplane(obj=cq.Solid.makeLoft(bez_sections, True)))
 
 shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
-    cq.Face.makeFromWires(round_rect_wire(GLASS_Y, OX0, OX1, OZ0, OZ1, R_OPEN)),
+    cq.Face.makeFromWires(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN)),
     cq.Vector(0.0, 46.0, 0.0))))
 
 # ------------------------------------------------------------------ louvers
