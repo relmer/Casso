@@ -452,13 +452,26 @@ PANEL_X0, PANEL_X1 = REAR_X0 + 14.0, REAR_X0 + REAR_W - 14.0
 PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 52.0
 PANEL_DEEP         = INCH
 KNOB_PROUD         = 10.0               # off the bay floor, still inside the bay
+
+# The knobs are the //c KEYCAP gray -- the same part color the Disk IIc's
+# latch wears, because they are the same family of touchable gray plastic on
+# the same machine. The blades are plated steel; the receptacle is lined dark
+# the way a molded socket insert is.
+KEYCAP  = (0.700, 0.692, 0.668)
+SILVER  = (0.760, 0.765, 0.780)
+SOCKET  = (0.200, 0.200, 0.220)
 PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
 
 CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
 ICON_CZ = PANEL_Z0 + 11.0               # the engraved row's center line
 ICON_S  = 7.0                           # icon box side
-STROKE  = 1.0                           # engraved stroke width (RIDGE_W's twin)
-CUT_D   = 0.5                           # ...and depth (RIDGE_H's)
+# THIN, AND AS DEEP AS IT IS WIDE. An engraved mark reads by the shadow its
+# cut HOLDS, and a shallow wide groove holds almost none -- most rays reach
+# its floor and it renders as a faint gray line. A square-section cut is dark
+# from nearly every angle, which is what makes the glyph read as ink without
+# being painted.
+STROKE  = 0.6                           # engraved stroke width
+CUT_D   = STROKE                        # depth == width, by intent
 
 # Rear-view left to right; model x descends.
 AC_CX     = PANEL_X1 - 26.0
@@ -494,6 +507,32 @@ _ac_face = cq.Face.makeFromWires(cq.Wire.makePolygon([
 shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
     _ac_face, cq.Vector(0.0, -(AC_DEEP + 0.5), 0.0))))
 
+
+def ac_profile(inset, y):
+    """The receptacle profile drawn `inset` inside the cavity, at depth y."""
+    return cq.Wire.makePolygon([
+        cq.Vector(_acx0 + inset, y, _acz0 + inset),
+        cq.Vector(_acx1 - inset, y, _acz0 + inset),
+        cq.Vector(_acx1 - inset, y, _acz1 - AC_CLIP - inset * 0.41),
+        cq.Vector(_acx1 - AC_CLIP - inset * 0.41, y, _acz1 - inset),
+        cq.Vector(_acx0 + AC_CLIP + inset * 0.41, y, _acz1 - inset),
+        cq.Vector(_acx0 + inset, y, _acz1 - AC_CLIP - inset * 0.41),
+        cq.Vector(_acx0 + inset, y, _acz0 + inset),
+    ])
+
+
+# THE SOCKET INSERT: a dark open-fronted liner in the cavity -- walls and
+# back, mouth open -- so the receptacle reads as the dark molded socket it
+# is instead of a cream hole in cream plastic.
+m.add("ac_liner",
+      cq.Workplane(obj=cq.Solid.extrudeLinear(
+          cq.Face.makeFromWires(ac_profile(0.25, PANEL_Y - 0.2)),
+          cq.Vector(0.0, -(AC_DEEP - 0.4), 0.0)))
+        .cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
+            cq.Face.makeFromWires(ac_profile(1.2, PANEL_Y + 0.3)),
+            cq.Vector(0.0, -(AC_DEEP - 1.4), 0.0)))),
+      SOCKET)
+
 # Its three blades, standing up from the receptacle's back wall: LOW, HIGH,
 # LOW, which is the earth pin above the pair of line blades.
 for dx, dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
@@ -501,16 +540,22 @@ for dx, dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
           cq.Workplane("XY")
             .box(2.0, 5.0, 4.5, centered=(True, False, False))
             .translate((AC_CX + dx, PANEL_Y - AC_DEEP, CTRL_Z + dz - 2.25)),
-          (0.10, 0.10, 0.10))
+          SILVER)
 
-# THE THREE KNOBS, protruding case-colored cylinders: size, position,
-# brightness.
+# THE THREE KNOBS: size, position, brightness. Each stands out of its own
+# shallow counterbore -- the round recess the shaft bushing sits in -- and
+# wears the keycap gray, a part you touch rather than case you do not.
 for i, cx in enumerate(KNOB_CX):
+    shell = shell.cut(
+        cq.Workplane("XY")
+          .cylinder(2.0, 5.8, direct=(0, 1, 0), centered=(True, True, False))
+          .translate((cx, PANEL_Y - 1.5, CTRL_Z)))
+
     m.add(f"knob{i}",
           cq.Workplane("XY")
-            .cylinder(KNOB_PROUD, 4.2, direct=(0, 1, 0), centered=(True, True, False))
-            .translate((cx, PANEL_Y, CTRL_Z)),
-          PLAT)
+            .cylinder(KNOB_PROUD + 1.5, 4.2, direct=(0, 1, 0), centered=(True, True, False))
+            .translate((cx, PANEL_Y - 1.5, CTRL_Z)),
+          KEYCAP)
 
 # THE RCA JACK: dark barrel, white insulator ring, dark center bore.
 m.add("rca_body",
@@ -572,20 +617,50 @@ def outline_ring(cx, cz, w, h, r):
     return cq.Workplane(obj=outer).cut(cq.Workplane(obj=inner))
 
 
-# Mains: the alternating-current tilde, three joined slashes.
-engrave(stroke_box(AC_CX - 1.8, ICON_CZ - 0.5, STROKE, 3.4, 35.0))
-engrave(stroke_box(AC_CX,       ICON_CZ + 0.4, STROKE, 3.4, -35.0))
-engrave(stroke_box(AC_CX + 1.8, ICON_CZ - 0.5, STROKE, 3.4, 35.0))
+# Mains: ONE FULL CYCLE of a sine wave, traced as short rotated strokes --
+# up over the first half, down over the second.
+_SINE_W, _SINE_A, _SINE_N = 6.4, 1.5, 10
 
-# Vertical size: a screen with arrowheads pushing its top and bottom out.
-engrave(outline_ring(KNOB_CX[0], ICON_CZ, ICON_S, ICON_S * 0.8, 1.6))
-engrave(stroke_box(KNOB_CX[0], ICON_CZ, STROKE, 3.2))
-engrave(stroke_box(KNOB_CX[0], ICON_CZ + 1.5, 2.2, STROKE))
-engrave(stroke_box(KNOB_CX[0], ICON_CZ - 1.5, 2.2, STROKE))
+for _k in range(_SINE_N):
+    _x0 = -_SINE_W * 0.5 + _SINE_W * _k / _SINE_N
+    _x1 = -_SINE_W * 0.5 + _SINE_W * (_k + 1) / _SINE_N
+    _z0 = _SINE_A * math.sin(2.0 * math.pi * (_x0 / _SINE_W + 0.5))
+    _z1 = _SINE_A * math.sin(2.0 * math.pi * (_x1 / _SINE_W + 0.5))
+    _ln = math.hypot(_x1 - _x0, _z1 - _z0) + STROKE * 0.8
+    _an = math.degrees(math.atan2(_x1 - _x0, _z1 - _z0))
 
-# Vertical position: the same screen with the bar swept to one side.
-engrave(outline_ring(KNOB_CX[1], ICON_CZ, ICON_S, ICON_S * 0.8, 1.6))
-engrave(stroke_box(KNOB_CX[1], ICON_CZ, STROKE, 3.6, 20.0))
+    engrave(stroke_box(AC_CX + (_x0 + _x1) * 0.5, ICON_CZ + (_z0 + _z1) * 0.5,
+                       STROKE, _ln, _an))
+
+def arrow_head(cx, cz, w, h, up):
+    """A solid triangular arrowhead cutter, apex up or down."""
+    y  = PANEL_Y - CUT_D
+    zt = cz + (h * 0.5 if up else -h * 0.5)
+    zb = cz - (h * 0.5 if up else -h * 0.5)
+
+    return cq.Workplane(obj=cq.Solid.extrudeLinear(
+        cq.Face.makeFromWires(cq.Wire.makePolygon([
+            cq.Vector(cx - w * 0.5, y, zb),
+            cq.Vector(cx + w * 0.5, y, zb),
+            cq.Vector(cx, y, zt),
+            cq.Vector(cx - w * 0.5, y, zb),
+        ])),
+        cq.Vector(0.0, CUT_D + 0.5, 0.0)))
+
+
+# Vertical size and position share the frame: a CRT-shaped rectangle holding
+# an up arrowhead over a down arrowhead. SIZE joins them with a line -- the
+# picture stretching -- and POSITION separates them with a dot: the picture
+# going one way or the other from where it sits.
+for _cx, _joined in ((KNOB_CX[0], True), (KNOB_CX[1], False)):
+    engrave(outline_ring(_cx, ICON_CZ, ICON_S, ICON_S * 0.86, 1.6))
+    engrave(arrow_head(_cx, ICON_CZ + 1.7, 2.0, 1.3, True))
+    engrave(arrow_head(_cx, ICON_CZ - 1.7, 2.0, 1.3, False))
+
+    if _joined:
+        engrave(stroke_box(_cx, ICON_CZ, STROKE, 2.4))
+    else:
+        engrave(stroke_box(_cx, ICON_CZ, 0.8, 0.8))
 
 # Brightness: the sun -- a core and eight rays.
 engrave(stroke_box(KNOB_CX[2], ICON_CZ, 2.4, 2.4))
