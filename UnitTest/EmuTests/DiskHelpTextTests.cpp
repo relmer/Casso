@@ -725,6 +725,12 @@ public:
     //  default, leaving the flag nothing to do but cancel a `--text` earlier on
     //  the same line.
     //
+    //  WHAT THE COLUMNS ARE is asserted against the LISTING, in
+    //  DiskCommandRunnerTests, where a rendered ProDOS row is compared whole.
+    //  This test used to also require the help to contain the words "eof= and
+    //  aux=", which pinned a sentence rather than a behavior and kept a
+    //  paragraph on the page that a reader gets from running the command.
+    //
     TEST_METHOD (HelpText_OffersNeitherRetiredOption_InEitherPrefix)
     {
         const char *  kRetired[] = { "long", "verbatim" };
@@ -740,10 +746,6 @@ public:
                             (L"the slash help still offers: " + Widen (slashForm)).c_str());
         }
 
-        //  And what replaced the `--long` row: the columns are described as
-        //  something a listing always shows, rather than as a flag.
-        Assert::IsTrue (DiskCommandRunner::BuildHelpText().find ("eof= and aux=") != std::string::npos,
-                        L"the columns are still explained, just not as an option");
     }
 
     TEST_METHOD (HelpText_NoLongerExcusesTheMixedSpelling_BecauseThereIsNoLongerOne)
