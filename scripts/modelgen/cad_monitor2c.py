@@ -71,10 +71,22 @@ CAP_STEPS = 5                     # facets across a rolled edge
 #   much steeper rate, down to the tube. A third of an inch, front to back.
 #
 # The crease between them is an edge like any other and takes the same roll.
-FRAME     = 17.0                  # the frame's width, uniform on all four sides
+# MEASURED off a straight-on photograph of a real unit, scaled by the
+# monitor's own 241.3 mm width in its own front plane. At the screen's
+# mid-height the bands come out: frame 23.1 mm on the left and 24.3 on the
+# right, bezel 7.9 and 7.3, glass 178.7 -- so a border of 31.0 mm, split about
+# three to one between the frame and the bezel. FRAME below is measured from
+# the outer roll's tangent, so the visible band is FRAME + EDGE_R.
+#
+# The photograph is within a degree of head on: the left and right bezel bands
+# project the same width, which fixes the bezel's WIDTH exactly and says
+# nothing at all about its DEPTH -- a well's wall only shows off-axis. A
+# quarter inch of depth is the guess that goes with a 7.6 mm band, giving the
+# forty degrees the slope's shading reads as.
+FRAME     = 19.0                  # the frame's width, uniform on all four sides
 FRAME_ANG = math.radians(10.0)    # ...and how far it leans toward the viewer
-BEZ_W     = 10.0                  # the bezel's width
-BEZ_DEPTH = INCH / 6.0            # ...and its depth, which is what sets its angle
+BEZ_W     =  7.6                  # the bezel's width -- measured
+BEZ_DEPTH = INCH / 4.0            # ...and its depth, which is not
 BEZ_ANG   = math.atan2(BEZ_DEPTH, BEZ_W)
 
 # The border is therefore the same all round, and the opening is what it
