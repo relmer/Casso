@@ -640,6 +640,18 @@ def dot(cx, cz, r):
               .translate((cx, PANEL_Y - CUT_D, cz)))
 
 
+def circle_ring(cx, cz, r):
+    """A circle OUTLINE cutter: an annulus one stroke wide."""
+    outer = (cq.Workplane("XY")
+               .cylinder(CUT_D + 0.5, r, direct=(0, 1, 0), centered=(True, True, False))
+               .translate((cx, PANEL_Y - CUT_D, cz)))
+    inner = (cq.Workplane("XY")
+               .cylinder(CUT_D + 0.7, r - STROKE, direct=(0, 1, 0), centered=(True, True, False))
+               .translate((cx, PANEL_Y - CUT_D - 0.1, cz)))
+
+    return outer.cut(inner)
+
+
 def outline_ring(cx, cz, w, h, r):
     """A rounded-rectangle OUTLINE cutter: outer minus inner."""
     y = PANEL_Y - CUT_D
@@ -712,17 +724,22 @@ for _cx, _joined in ((KNOB_CX[0], False), (KNOB_CX[1], True)):
     else:
         engrave(dot(_cx, ICON_CZ, 0.4))
 
-# Brightness: EXACTLY EIGHT DOTS ringing a circle in the row's box -- pips,
-# not a sun.
+# Brightness: A CIRCLE WITH EIGHT SHORT RAYS standing off it -- and the
+# rays touch nothing, neither the circle they leave nor the box they sit in.
 engrave(outline_ring(KNOB_CX[2], ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave(circle_ring(KNOB_CX[2], ICON_CZ, 1.6))
 for k in range(8):
-    ang = math.radians(k * 45.0)
-    engrave(dot(KNOB_CX[2] + 2.7 * math.cos(ang),
-                ICON_CZ + 2.7 * math.sin(ang), 0.5))
+    ang = k * 45.0
+    rx  = KNOB_CX[2] + 2.85 * math.cos(math.radians(ang))
+    rz  = ICON_CZ + 2.85 * math.sin(math.radians(ang))
+    engrave(stroke_box(rx, rz, STROKE, 1.1, ang + 90.0))
 
-# Video in: the same box-around-CRT the trim glyphs wear, empty.
+# Video in: the box-around-CRT the trim glyphs wear, with a vertical bar
+# standing at each flank of the screen, exactly its height.
 engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
 engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, (ICON_S - 2.6) * 0.75, 1.8))
+engrave(stroke_box(RCA_CX - 3.65, ICON_CZ, STROKE, (ICON_S - 2.6) * 0.75))
+engrave(stroke_box(RCA_CX + 3.65, ICON_CZ, STROKE, (ICON_S - 2.6) * 0.75))
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
