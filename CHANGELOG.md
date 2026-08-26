@@ -8,6 +8,20 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.18.2] — truthful execution traces
+
+### Fixed
+- **`--trace` now records operand bytes from the memory bank that actually
+  executed.** The execution trace read each instruction's operands from the
+  CPU's flat backing array, but on the //e and //c the MMU rebinds pages
+  across all of `$0000-$BFFF` — so a trace could print operands from main RAM
+  while the guest executed from aux, and the disassembly read as fact while
+  describing code that never ran (a branch that plainly jumped backwards
+  showed a forward operand). Operands now come through the same read-page
+  table the instruction fetch uses. I/O space (`$C000-$CFFF`) deliberately
+  still bypasses the bus: reading a soft switch toggles it, and recording the
+  machine must never change it.
+
 ## [1.18.1] — monochrome graphics fidelity
 
 The green, amber, and white monitors were showing a tinted copy of what a
