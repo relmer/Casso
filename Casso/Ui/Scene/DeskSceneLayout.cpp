@@ -494,6 +494,39 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             }
         }
 
+        // THE ORBIT, after the seat is solved. The eye swings about the gaze
+        // target on the sphere its own distance defines -- yaw around world
+        // up, pitch added to the seated elevation -- and the solved fov stays
+        // frontal: re-solving containment per angle would make the scene
+        // breathe as it spins, which is worse than the cropping it prevents.
+        // At extreme angles the answer is the zoom and pan the user already
+        // has.
+        //
+        // Elevation is clamped HERE, on the total, not in the input handler
+        // on the delta: the handler's own clamp cannot know the seat's
+        // baseline, and the failure of an over-wound pitch is LookAt's basis
+        // collapsing at the pole.
+        if (view.orbitYawRad != 0.0f || view.orbitPitchRad != 0.0f)
+        {
+            float   off[3]  = { 0.0f - at[0], eyeY - at[1], eyeZ - at[2] };
+            float   radius  = std::sqrt (off[0] * off[0] + off[1] * off[1] + off[2] * off[2]);
+            float   elev    = std::asin (std::clamp (off[1] / radius, -1.0f, 1.0f));
+            float   azim    = std::atan2 (off[0], off[2]);
+            float   eye[3]  = {};
+
+            azim += view.orbitYawRad;
+            elev  = std::clamp (elev + view.orbitPitchRad, -kOrbitMaxElevRad, kOrbitMaxElevRad);
+
+            eye[0] = at[0] + radius * std::sin (azim) * std::cos (elev);
+            eye[1] = at[1] + radius * std::sin (elev);
+            eye[2] = at[2] + radius * std::cos (azim) * std::cos (elev);
+
+            SceneCamera::LookAtRH (eye, at, out.view);
+
+            eyeY = eye[1];
+            eyeZ = eye[2];
+        }
+
         fovY = std::clamp (2.0f * std::atan (tanHalfY), kMinFovY, kMaxFovY);
 
         SceneCamera::PerspectiveFovRH (fovY, aspect, kNearMm, kFarMm, out.proj);

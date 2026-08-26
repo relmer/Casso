@@ -3222,6 +3222,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
             m_deskScene.SetComposition (comp);
             m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
+
         }
 
         viewportRect = m_deskScene.Composition().glassRectPx;
@@ -7307,6 +7308,16 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // today -- the press handler bails before arming one -- but that is one
     // early-out in another function away from being untrue, and the failure
     // it would cause is a game whose paddles stop responding.
+    // An orbit in flight owns the move the same way a pan does, whichever
+    // button is driving it.
+    if (m_sceneOrbiting && !m_paddleCaptured &&
+        ((m_sceneOrbitLeftBtn && leftDown) ||
+         (!m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
+    {
+        UpdateSceneOrbit (x, y);
+        return DxuiMessageResult::Handled;
+    }
+
     if (m_scenePanning && leftDown && !m_paddleCaptured)
     {
         RECT   box    = m_deskScene.Composition().viewportPx;
@@ -7813,6 +7824,24 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // turns a smooth slide into a series of jumps.
     notch = (float) delta / (float) WHEEL_DELTA;
 
+    // Shift turns the slide into an orbit -- the touchpad's spin-the-scene,
+    // matching Shift+drag on the buttons. Content follows the fingers, and
+    // Windows reports a downward slide negative and a rightward one positive
+    // (see PanSceneByNotch), so both axes take the negative.
+    if ((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 && !pinch)
+    {
+        if (horizontal)
+        {
+            OrbitSceneBy (-notch * s_kOrbitRadPerNotch, 0.0f);
+        }
+        else
+        {
+            OrbitSceneBy (0.0f, -notch * s_kOrbitRadPerNotch);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (!pinch && !detent)
     {
         return PanSceneByNotch (notch, horizontal);
@@ -7883,6 +7912,129 @@ DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
     InvalidateSceneComposition();
 
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OrbitSceneBy / BeginSceneOrbit / UpdateSceneOrbit
+//
+//  The inspection orbit: the camera swings about its gaze target so every
+//  side of the devices can be looked at. The signs follow the touch drag's
+//  bargain, the same one the pan keeps -- the CONTENT goes where the fingers
+//  go. Dragging right pushes the stack's front to the right, which shows its
+//  left flank, which is the eye swinging the OTHER way; dragging down tips
+//  the top toward the viewer, which is the eye rising. Hence yaw takes the
+//  negative of the drag and pitch the positive.
+//
+//  Yaw wraps rather than clamps -- spinning past the back and around is the
+//  point. Pitch is bounded here only loosely, against unbounded wind-up while
+//  pinned; the REAL elevation clamp lives in the layout, on the total, where
+//  the seat's own baseline is known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OrbitSceneBy (float yawRad, float pitchRad)
+{
+    constexpr float  kTwoPi = 6.2831853f;
+
+
+
+    m_sceneView.orbitYawRad += yawRad;
+
+    if (m_sceneView.orbitYawRad > 3.1415927f)
+    {
+        m_sceneView.orbitYawRad -= kTwoPi;
+    }
+    else if (m_sceneView.orbitYawRad < -3.1415927f)
+    {
+        m_sceneView.orbitYawRad += kTwoPi;
+    }
+
+    m_sceneView.orbitPitchRad = std::clamp (m_sceneView.orbitPitchRad + pitchRad,
+                                            -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
+
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::BeginSceneOrbit
+//
+//  Arms an orbit drag at the press: everything after is absolute from this
+//  anchor, so the drag tracks the pointer exactly and cannot creep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BeginSceneOrbit (int x, int y)
+{
+    m_sceneOrbiting      = true;
+    m_sceneOrbitStartPx  = POINT { x, y };
+    m_sceneOrbitStartYaw = m_sceneView.orbitYawRad;
+    m_sceneOrbitStartPit = m_sceneView.orbitPitchRad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OrbitRadPerPx
+//
+//  Radians per pixel of drag, FROM THE VIEWPORT, not a constant. The
+//  coordinates the handlers see are DPI-scaled, so a fixed radians-per-pixel
+//  was twice as touchy at 200% as at 100% -- a forty-degree drag came out
+//  eighty, and the first captures of this feature were of poses nobody had
+//  asked for. Tying the sweep to the viewport's width makes the same hand
+//  motion the same turn on every monitor: a drag across the window is
+//  s_kOrbitDragSweepRad, wherever it happens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::OrbitRadPerPx() const
+{
+    RECT   box = m_deskScene.Composition().viewportPx;
+    float  w   = (float) (box.right - box.left);
+
+
+
+    return s_kOrbitDragSweepRad / (std::max) (w, 200.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdateSceneOrbit
+//
+//  Absolute from the press's anchor, like the pan: a long drag tracks the
+//  cursor exactly and cannot creep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateSceneOrbit (int x, int y)
+{
+    float  radPerPx = OrbitRadPerPx();
+
+
+
+    m_sceneView.orbitYawRad   = m_sceneOrbitStartYaw
+                              - (float) (x - m_sceneOrbitStartPx.x) * radPerPx;
+    m_sceneView.orbitPitchRad = std::clamp (
+        m_sceneOrbitStartPit + (float) (y - m_sceneOrbitStartPx.y) * radPerPx,
+        -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
+
+    InvalidateSceneComposition();
 }
 
 
@@ -7966,6 +8118,28 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             RECT   box    = m_deskScene.Composition().viewportPx;
             float  width  = (float) (box.right - box.left);
             float  height = (float) (box.bottom - box.top);
+
+            // TWO fingers dragging together orbit; one finger pans. Windows
+            // reports the finger separation in ullArguments for a pan, and a
+            // single finger reports zero -- which is the whole discriminator.
+            // The two-finger form is claimed unconditionally: it has no
+            // widget meaning to preserve and orbit works at any zoom.
+            if (info.ullArguments > 0)
+            {
+                if ((info.dwFlags & GF_BEGIN) != 0)
+                {
+                    m_gesturePanLastPx = pt;
+                    handled            = true;
+                    break;
+                }
+
+                OrbitSceneBy (-(float) (pt.x - m_gesturePanLastPx.x) * OrbitRadPerPx(),
+                              (float) (pt.y - m_gesturePanLastPx.y) * OrbitRadPerPx());
+
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
 
             // NOT CLAIMED when there is nothing to pan to. Windows promotes an
             // unhandled gesture to mouse input, so claiming a one-finger drag
@@ -8161,6 +8335,16 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // and panning would both hijack that drag and freeze the guest pointer
     // for its duration. GuestMouseLive rather than Active on purpose: at a
     // BASIC prompt nothing is reading the mouse, so panning stays available.
+    // Shift turns the press into an orbit -- the touchpad's road to it, where
+    // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
+    if (DeskSceneActive() && (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen())
+    {
+        BeginSceneOrbit (x, y);
+        m_sceneOrbitLeftBtn = true;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen()
         && !GuestMouseLive())
     {
@@ -8248,6 +8432,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_scenePanning)
     {
         m_scenePanning = false;
+        ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    // Likewise a Shift+drag orbit's release.
+    if (m_sceneOrbiting && m_sceneOrbitLeftBtn)
+    {
+        m_sceneOrbiting = false;
         ReleaseCapture();
         return DxuiMessageResult::Handled;
     }
@@ -8432,11 +8624,20 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
-    UNREFERENCED_PARAMETER (lParam);
 
     if (m_paddleCaptured)
     {
         PushPaddleButton (1, true);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (DeskSceneActive())
+    {
+        // Right-drag orbits the scene. Unconditionally on the scene -- unlike
+        // the pan there is no widget interaction to share the button with,
+        // and orbit is useful at any zoom.
+        SetCapture (m_hwnd);
+        BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
+        m_sceneOrbitLeftBtn = false;
         result = DxuiMessageResult::Handled;
     }
 
@@ -8460,7 +8661,38 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
-    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_sceneOrbiting && !m_sceneOrbitLeftBtn)
+    {
+        int      x     = (int) (short) LOWORD (lParam);
+        int      y     = (int) (short) HIWORD (lParam);
+        bool     still = std::abs (x - m_sceneOrbitStartPx.x) <= 3 &&
+                         std::abs (y - m_sceneOrbitStartPx.y) <= 3;
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        m_sceneOrbiting = false;
+        ReleaseCapture();
+
+        // Two motionless right-clicks in double-click time reset the orbit
+        // -- the pose home button, without stealing a key.
+        if (still)
+        {
+            if (nowMs - m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
+            {
+                m_sceneView.orbitYawRad   = 0.0f;
+                m_sceneView.orbitPitchRad = 0.0f;
+                m_sceneOrbitTapMs         = 0;
+                InvalidateSceneComposition();
+            }
+            else
+            {
+                m_sceneOrbitTapMs = nowMs;
+            }
+        }
+
+        return DxuiMessageResult::Handled;
+    }
 
     if (m_paddleCaptured)
     {

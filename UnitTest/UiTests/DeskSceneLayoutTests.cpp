@@ -166,6 +166,85 @@ public:
         Assert::IsTrue (comp.driveRectPx[0].right <= comp.driveRectPx[1].left);
     }
 
+    //
+    //  THE ORBIT SWINGS THE EYE, NOT THE MODELS -- so from half a turn away
+    //  the same two drives project mirrored: the one on the left appears on
+    //  the right. That is the property worth pinning, because it fails both
+    //  ways this feature can rot: an orbit that silently stops reaching the
+    //  view matrix projects them un-mirrored, and one that moves the MODELS
+    //  breaks every model-space system (hit boxes, lamp shadows) that
+    //  depends on them staying put.
+    //
+    //  And an absurd pitch must clamp rather than flip: at the pole LookAt's
+    //  basis collapses, and the symptom is NaN rects, not an exception.
+    //
+    TEST_METHOD (Orbit_Yaw_Mirrors_The_View_And_Pitch_Clamps)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 900 };
+        DeskSceneComposition  front;
+        DeskSceneComposition  behind;
+        DeskSceneComposition  above;
+        DeskSceneView         spun;
+        DeskSceneView         wound;
+
+
+
+        spun.orbitYawRad    = 3.1415927f;
+        wound.orbitPitchRad = 10.0f;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, front));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, behind, 0, spun));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, above, 0, wound));
+
+        // From the front, drive 0 is left of drive 1; from behind, mirrored.
+        Assert::IsTrue (front.driveRectPx[0].right <= front.driveRectPx[1].left);
+        Assert::IsTrue (behind.driveRectPx[1].right <= behind.driveRectPx[0].left);
+
+        // The models did not move: world transforms are identical.
+        for (int i = 0; i < 16; i++)
+        {
+            Assert::AreEqual (front.driveWorld[0][i], behind.driveWorld[0][i], 1e-6f);
+            Assert::AreEqual (front.monitorWorld[i],  behind.monitorWorld[i],  1e-6f);
+        }
+
+        // Ten radians of pitch clamps to a steep look-down and still projects
+        // finite geometry.
+        for (int i = 0; i < 2; i++)
+        {
+            Assert::IsTrue (above.driveRectPx[i].right >= above.driveRectPx[i].left);
+            Assert::IsTrue (above.driveRectPx[i].right - above.driveRectPx[i].left < 100000);
+        }
+    }
+
+    //
+    //  A MODERATE ORBIT KEEPS THE SCENE IN FRAME. The eye pivots about the
+    //  gaze target, so a half-radian of yaw must leave the monitor's rect
+    //  overlapping the viewport's middle third horizontally -- if it slides
+    //  to an edge, the pivot is not the target and inspection is a fight.
+    //
+    TEST_METHOD (Orbit_Moderate_Yaw_Keeps_The_Monitor_Near_Center)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 900 };
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+
+
+
+        view.orbitYawRad   = 0.6f;
+        view.orbitPitchRad = 0.2f;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp, 0, view));
+
+        {
+            long  cx = (comp.monitorRectPx.left + comp.monitorRectPx.right) / 2;
+
+            Assert::IsTrue (cx > vp.right / 3,     L"monitor slid to the left edge");
+            Assert::IsTrue (cx < vp.right * 2 / 3, L"monitor slid to the right edge");
+        }
+    }
+
     TEST_METHOD (Drive_Count_Maps_To_Placements)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

@@ -726,6 +726,10 @@ private:
     // enough to look at.
     void    ZoomSceneAt          (POINT clientPt, float factor);
     DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
+    void    OrbitSceneBy         (float yawRad, float pitchRad);
+    void    BeginSceneOrbit      (int x, int y);
+    void    UpdateSceneOrbit     (int x, int y);
+    float   OrbitRadPerPx        () const;
 
     // Put the framing back to the fitted composition.
     void    ResetSceneView       ();
@@ -756,6 +760,17 @@ private:
     // How far one wheel notch pans, in units of the pan range -- which runs
     // -1..1 across the viewport, the same units the touch pan works in.
     static constexpr float  s_kScenePanStep  = 0.12f;
+
+    // The inspection orbit's feel: a drag across the full viewport sweeps
+    // this many radians (per-pixel is DERIVED from the viewport, because the
+    // pixel coordinates the handlers see are DPI-scaled -- see
+    // OrbitRadPerPx), and a Shift+slide turns this much per wheel notch. The
+    // stored pitch is clamped a shade past the layout's own elevation limit
+    // -- the layout clamps the TOTAL, seat included, so this one only stops
+    // the value winding up unboundedly while pinned.
+    static constexpr float  s_kOrbitDragSweepRad = 3.6f;
+    static constexpr float  s_kOrbitRadPerNotch  = 0.06f;
+    static constexpr float  s_kOrbitPitchLimit   = 1.6f;
 
     // While the scene owns the drives, the 2D widgets stay hidden (they keep
     // mirroring state for the //c switch strip) and the drag-drop hit rects
@@ -1123,6 +1138,16 @@ private:
     POINT                    m_scenePanStartPx  = {};
     float                    m_scenePanStartX   = 0.0f;
     float                    m_scenePanStartY   = 0.0f;
+
+    // The orbit drag mirrors the pan drag: anchored at the press, absolute
+    // from there, one flag per button so a left-orbit (Shift+drag) and the
+    // right-drag never fight over state.
+    bool                     m_sceneOrbiting      = false;
+    bool                     m_sceneOrbitLeftBtn  = false;
+    POINT                    m_sceneOrbitStartPx  = {};
+    float                    m_sceneOrbitStartYaw = 0.0f;
+    float                    m_sceneOrbitStartPit = 0.0f;
+    int64_t                  m_sceneOrbitTapMs    = 0;
 
     // Touch gesture tracking. Windows reports a pinch as an ABSOLUTE
     // separation between the two fingers and a pan as an ABSOLUTE point, so

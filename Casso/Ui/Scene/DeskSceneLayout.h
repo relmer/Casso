@@ -108,9 +108,17 @@ struct DeskSceneView
     float  panX = 0.0f;    // NDC, +right
     float  panY = 0.0f;    // NDC, +up
 
+    // The inspection orbit: the EYE swings about the gaze target, the models
+    // never move. Yaw is about the world's up axis; pitch adds to the seated
+    // eye's own elevation and is clamped at solve time, so a wound-up value
+    // cannot flip the camera over the pole. Zero-zero is the composed seat.
+    float  orbitYawRad   = 0.0f;
+    float  orbitPitchRad = 0.0f;
+
     bool  IsIdentity () const
     {
-        return zoom == 1.0f && panX == 0.0f && panY == 0.0f;
+        return zoom == 1.0f && panX == 0.0f && panY == 0.0f &&
+               orbitYawRad == 0.0f && orbitPitchRad == 0.0f;
     }
 };
 
@@ -226,6 +234,11 @@ public:
     // room between them and the monitor, which is what Compute's gap
     // correction does.
     static constexpr float  kViewingDistanceMm     = 762.0f;   // 30 in, eye to screen
+
+    // How far the orbit may raise or sink the eye's elevation, total. Short
+    // of the pole by a few degrees, because at the pole LookAt's fixed up
+    // vector is parallel to the gaze and the basis collapses.
+    static constexpr float  kOrbitMaxElevRad       = 1.48f;    // ~85 degrees
     static constexpr float  kEyeAboveMonitorTopMm  = 25.0f;
     static constexpr float  kDriveDeskGapMm        = 45.0f;    // monitor front to drive back
 
