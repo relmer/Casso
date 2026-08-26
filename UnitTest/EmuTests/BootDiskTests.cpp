@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "DemoAssets.h"
 
 #include "Cpu.h"
 #include "Assembler.h"
@@ -146,36 +147,31 @@ public:
         return bytes;
     }
 
+    //
+    //  NOTHING IN HERE OPENS A FILE.
+    //
+    //  The demo's two sources and its five payloads are compiled into the test
+    //  assembly by DemoAssets.rc, so the resource compiler reads them at build
+    //  time and this test reads a pointer into its own module image.
+    //
+    //  It used to read all seven off the repo and write the built image back
+    //  over Apple2/Demos/casso-rocks.dsk. The write normally put the same
+    //  bytes there, so the only trace was a changed timestamp, until a run
+    //  that built a different image and left a corrupted asset in the tree.
+    //  Reading was the same mistake in miniature: a test that reads the tree
+    //  reports on the machine it happens to be running on, and skipped itself
+    //  entirely on a checkout arranged differently -- which is a test that can
+    //  pass by not running.
+    //
+    //  THE SKIP IS GONE WITH THE READS. An embedded resource is either in the
+    //  assembly or the assembly did not build, so there is no absence left to
+    //  tolerate and no way for this to quietly not run.
+    //
     TEST_METHOD (CassoRocks_DemoDisk_DisplaysHgrCassowary)
     {
-        fs::path  src           = FindRepoFile ("Apple2/Demos/casso-rocks.a65");
-        fs::path  stage2Src     = FindRepoFile ("Apple2/Demos/casso-rocks-stage2.a65");
-        fs::path  hgrPath       = FindRepoFile ("Apple2/Demos/cassowary.hgr");
-        fs::path  bandsPath     = FindRepoFile ("Apple2/Demos/test-bands.hgr");
-        fs::path  loresPath     = FindRepoFile ("Apple2/Demos/lores-bars.lores");
-        fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-cassowary-aux.bin");
-        fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-cassowary-main.bin");
-
-        // The demo sources are not in every clone, so a missing one is a skip,
-        // not a failure -- but a PRESENT one has to hold up to every assertion
-        // below, which is why this is the only tolerated absence.
-        bool  haveSources = !src.empty()          && !stage2Src.empty()
-                         && !hgrPath.empty()      && !bandsPath.empty()
-                         && !loresPath.empty()
-                         && !dhgrAuxPath.empty()  && !dhgrMainPath.empty();
-
-        if (!haveSources)
         {
-            Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
-                                  "files (casso-rocks*.a65, cassowary.hgr, "
-                                  "test-bands.hgr, lores-bars.lores, "
-                                  "dhgr-cassowary-{aux,main}.bin) not "
-                                  "found in this checkout.\n");
-        }
-        else
-        {
-            std::string              source          = ReadFileText (src);
-            std::string              stage2Source    = ReadFileText (stage2Src);
+            std::string              source          = DemoAssets::Text (IDR_DEMO_STAGE1_SRC);
+            std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
             std::vector<Byte>        bandsPayload;
             std::vector<Byte>        loresPayload;
@@ -194,11 +190,11 @@ public:
             Assert::IsFalse (stage2Source.empty(),
                 L"casso-rocks-stage2.a65 must not be empty");
 
-            hgrPayload = ReadFileBytes (hgrPath);
-            bandsPayload = ReadFileBytes (bandsPath);
-            loresPayload = ReadFileBytes (loresPath);
-            dhgrAuxPayload = ReadFileBytes (dhgrAuxPath);
-            dhgrMainPayload = ReadFileBytes (dhgrMainPath);
+            hgrPayload      = DemoAssets::Copy (IDR_DEMO_HGR);
+            bandsPayload    = DemoAssets::Copy (IDR_DEMO_BANDS);
+            loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
+            dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
+            dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
