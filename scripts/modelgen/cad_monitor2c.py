@@ -74,7 +74,7 @@ CAP_STEPS = 5                     # facets across a rolled edge
 FRAME     = 17.0                  # the frame's width, uniform on all four sides
 FRAME_ANG = math.radians(10.0)    # ...and how far it leans toward the viewer
 BEZ_W     = 10.0                  # the bezel's width
-BEZ_DEPTH = INCH / 3.0            # ...and its depth, which is what sets its angle
+BEZ_DEPTH = INCH / 6.0            # ...and its depth, which is what sets its angle
 BEZ_ANG   = math.atan2(BEZ_DEPTH, BEZ_W)
 
 # The border is therefore the same all round, and the opening is what it
@@ -93,22 +93,25 @@ R_FLOOR  = 6.0
 R_OPEN   = R_FLOOR
 
 GLASS_IN = 5.0                    # glass inset from the opening
+CROWN_SET = 1.0                   # how far the crown sits behind the frame's nose
 
-# THE TUBE'S CURVATURE, and where its rim has to sit.
+# THE TUBE'S CURVATURE IS DERIVED FROM THE BEZEL, not chosen and then checked.
 #
-# The sheet is a spherical cap, so its crown stands SAG in front of its rim,
-# and the rim is at the opening -- which means the sag has to FIT inside the
-# bezel's depth or the tube comes through the front of its own case. At three
-# half-diagonals it was 16.8 mm on a screen this size, a centimeter proud of
-# the frame; the number had been set against a bigger opening and never
-# re-derived. Flat enough now that the crown lands just behind the frame's
-# innermost point, which is what a tube in a bezel looks like.
-SAG_SCALE = 6.8                   # sphere radius, in half-diagonals
-
+# The sheet is a spherical cap: its crown stands SAG in front of its rim, the
+# rim sits at the opening, and the opening is BEZ_DEPTH behind the frame's
+# most proud point. So the sag has to fit inside the bezel's depth, or the
+# tube comes through the front of its own case -- which is exactly what
+# happened twice, both times because the radius was picked against one opening
+# and left alone when the opening changed.
+#
+# Turn it around and it cannot happen again: the sag is BEZ_DEPTH less the
+# clearance, and the sphere radius follows from R = (S^2 + c^2) / 2S. Change
+# the bezel's depth and the tube reshapes to suit.
 _GLASS_HALF = math.hypot((SCR_W - GLASS_IN * 2.0) * 0.5,
                          (SCR_H - GLASS_IN * 2.0) * 0.5)
-_GLASS_R    = SAG_SCALE * _GLASS_HALF
-SAG         = _GLASS_R - math.sqrt(_GLASS_R * _GLASS_R - _GLASS_HALF * _GLASS_HALF)
+SAG         = BEZ_DEPTH - CROWN_SET
+_GLASS_R    = (SAG * SAG + _GLASS_HALF * _GLASS_HALF) / (2.0 * SAG)
+SAG_SCALE   = _GLASS_R / _GLASS_HALF
 
 # The three planes the front is built between.
 FRAME_OUT_Y = -EDGE_R                                   # where the outer roll ends
