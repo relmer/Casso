@@ -79,6 +79,13 @@ private:
     vector<float> m_driveScratch;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
+
+    // Diagnostic tap: when CASSO_AUDIO_DUMP names a file, every generated
+    // stereo sample is appended to it as raw float32 pairs -- the exact
+    // stream handed to the device, captured before the device can touch
+    // it. Opened lazily on first use; empty when the variable is unset.
+    FILE *  m_dumpFile    = nullptr;
+    bool    m_dumpChecked = false;
     std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
 };
 

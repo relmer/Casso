@@ -212,6 +212,12 @@ void WasapiAudio::Shutdown()
     m_device.Reset();
     m_enumerator.Reset();
 
+    if (m_dumpFile != nullptr)
+    {
+        fclose (m_dumpFile);
+        m_dumpFile = nullptr;
+    }
+
     m_initialized = false;
 }
 
@@ -345,6 +351,28 @@ HRESULT WasapiAudio::SubmitFrame (
                     stereoPtr[i] *= gain;
                 }
             }
+        }
+
+        // Diagnostic tap (CASSO_AUDIO_DUMP): the generated mix exactly as
+        // handed to the device, so an artifact heard from the speakers can
+        // be attributed to our stream or to the device path by comparing
+        // this dump against a loopback capture.
+        if (!m_dumpChecked)
+        {
+            char    path[MAX_PATH] = {};
+            size_t  len            = 0;
+
+            m_dumpChecked = true;
+
+            if (getenv_s (&len, path, sizeof (path), "CASSO_AUDIO_DUMP") == 0 && len > 1)
+            {
+                fopen_s (&m_dumpFile, path, "wb");
+            }
+        }
+
+        if (m_dumpFile != nullptr)
+        {
+            fwrite (stereoPtr, sizeof (float), numSamplesToGenerate * 2, m_dumpFile);
         }
     }
 
