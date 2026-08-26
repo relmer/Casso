@@ -7,7 +7,7 @@ Writes: Apple2/Demos/dhgr-cassowary-aux.bin   (8 KB)
         Apple2/Demos/dhgr-cassowary-main.bin  (8 KB)
 
 Visual goal: produce a DHGR rendering that matches the HGR
-cassowary one-for-one in framing and the centred "Casso" title —
+cassowary one-for-one in framing and the centered "Casso" title —
 just smoother colour gradients thanks to 16-color Floyd-Steinberg
 dithering instead of HGR's per-byte palette classification.
 
