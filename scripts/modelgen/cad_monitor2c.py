@@ -464,8 +464,8 @@ PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
 
 CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
 ICON_CZ = PANEL_Z0 + 11.0               # the engraved row's center line
-ICON_S  = 9.0                           # icon box width
-ICON_H  = ICON_S * 0.84                 # ...and height, one aspect for the row
+ICON_S  = 9.0                           # icon box side -- every box is square
+BOX_R   = 0.7                           # ...with barely rounded corners
 # THIN, AND AS DEEP AS IT IS WIDE. An engraved mark reads by the shadow its
 # cut HOLDS, and a shallow wide groove holds almost none -- most rays reach
 # its floor and it renders as a faint gray line. A square-section cut is dark
@@ -475,6 +475,13 @@ ICON_H  = ICON_S * 0.84                 # ...and height, one aspect for the row
 # floor, only the dark of it.
 STROKE  = 0.35                          # engraved stroke width
 CUT_D   = STROKE                        # depth == width, by intent
+
+# ...AND ROUNDED OVER. The case groove's half-round-channel lesson applies to
+# engraving too: a square trench keeps its floor flat and its walls vertical,
+# and from most angles neither turns toward the light. A rounded floor always
+# has some surface sliding through the shadow terminator, which is what makes
+# the line read. Bounded the way the Monitor II bounds its relief round-over.
+ENGRAVE_ROUND = min(0.35, STROKE * 0.45)
 
 # Rear-view left to right; model x descends.
 AC_CX     = PANEL_X1 - 26.0
@@ -602,8 +609,14 @@ m.add("rca_bore",
 # subtracted instead of added. Cuts land in the bay floor at PANEL_Y.
 
 def engrave(solid):
-    """Cut one stroke into the bay floor."""
+    """Cut one mark into the bay floor, its floor rounded over first."""
     global shell
+
+    try:
+        solid = solid.edges("<Y").fillet(ENGRAVE_ROUND)
+    except Exception:
+        print("WARNING: engrave: floor round-over FAILED, cutting square")
+
     shell = shell.cut(solid)
 
 
@@ -618,6 +631,13 @@ def stroke_box(cx, cz, w, h, rot_deg=0.0):
         s = s.rotate((0, 0, 0), (0, 1, 0), rot_deg)
 
     return s.translate((cx, 0.0, cz))
+
+
+def dot(cx, cz, r):
+    """A round pip cutter -- a shallow drilled dot."""
+    return (cq.Workplane("XY")
+              .cylinder(CUT_D + 0.5, r, direct=(0, 1, 0), centered=(True, True, False))
+              .translate((cx, PANEL_Y - CUT_D, cz)))
 
 
 def outline_ring(cx, cz, w, h, r):
@@ -643,7 +663,7 @@ def outline_ring(cx, cz, w, h, r):
 # LEFT of what they see -- the wave is parameterized in the VIEWER's
 # left-to-right and mapped back, so it rises first and falls to the right
 # as read.
-engrave(outline_ring(AC_CX, ICON_CZ, ICON_S, ICON_H, 1.4))
+engrave(outline_ring(AC_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
 
 _SINE_W, _SINE_A, _SINE_N = 7.2, 2.1, 12
 
@@ -682,28 +702,27 @@ def arrow_head(cx, cz, w, h, up):
 # one way or the other from where it sits -- and SIZE joins them with a
 # line, the picture stretching.
 for _cx, _joined in ((KNOB_CX[0], False), (KNOB_CX[1], True)):
-    engrave(outline_ring(_cx, ICON_CZ, ICON_S, ICON_H, 1.4))
-    engrave(outline_ring(_cx, ICON_CZ, ICON_S - 2.6, ICON_H - 2.4, 1.8))
-    engrave(arrow_head(_cx, ICON_CZ + 1.45, 2.0, 1.2, True))
-    engrave(arrow_head(_cx, ICON_CZ - 1.45, 2.0, 1.2, False))
+    engrave(outline_ring(_cx, ICON_CZ, ICON_S, ICON_S, BOX_R))
+    engrave(outline_ring(_cx, ICON_CZ, ICON_S - 2.6, (ICON_S - 2.6) * 0.75, 1.8))
+    engrave(arrow_head(_cx, ICON_CZ + 1.35, 2.0, 1.1, True))
+    engrave(arrow_head(_cx, ICON_CZ - 1.35, 2.0, 1.1, False))
 
     if _joined:
         engrave(stroke_box(_cx, ICON_CZ, STROKE, 1.6))
     else:
-        engrave(stroke_box(_cx, ICON_CZ, 0.7, 0.7))
+        engrave(dot(_cx, ICON_CZ, 0.4))
 
-# Brightness: the sun -- a core and eight rays -- in the row's box.
-engrave(outline_ring(KNOB_CX[2], ICON_CZ, ICON_S, ICON_H, 1.4))
-engrave(stroke_box(KNOB_CX[2], ICON_CZ, 2.0, 2.0))
+# Brightness: EXACTLY EIGHT DOTS ringing a circle in the row's box -- pips,
+# not a sun.
+engrave(outline_ring(KNOB_CX[2], ICON_CZ, ICON_S, ICON_S, BOX_R))
 for k in range(8):
-    ang = k * 45.0
-    rx  = KNOB_CX[2] + 2.7 * math.cos(math.radians(ang))
-    rz  = ICON_CZ + 2.7 * math.sin(math.radians(ang))
-    engrave(stroke_box(rx, rz, 0.7, 1.2, ang + 90.0))
+    ang = math.radians(k * 45.0)
+    engrave(dot(KNOB_CX[2] + 2.7 * math.cos(ang),
+                ICON_CZ + 2.7 * math.sin(ang), 0.5))
 
 # Video in: the same box-around-CRT the trim glyphs wear, empty.
-engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_H, 1.4))
-engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, ICON_H - 2.4, 1.8))
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, (ICON_S - 2.6) * 0.75, 1.8))
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
