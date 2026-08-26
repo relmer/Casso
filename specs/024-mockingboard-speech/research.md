@@ -500,7 +500,56 @@ structure and sanity bounds throughout.
 Only copying their code is out. `sc01a.bin` itself is chip data rather than
 project code, and route A uses it on that basis.
 
-### PENDING-2 — Where the chip is decoded in the slot page, and how its request line is wired
+### PENDING-2 — RESOLVED for the decode (2026-08-25), with two premises now in doubt
+
+Reading the prior art directly — permitted and encouraged under the corrected
+D10 — supplied both facts the datasheet could not:
+
+- **Decode**: the speech chip is selected when **A4 clear, (A5 or A6) set, A7
+  clear**; A6 selects between two chips. That yields `$20`–`$2F` for chip 0 and
+  `$40`–`$4F` plus `$60`–`$6F` for chip 1, with `$30`/`$50`/`$70` excluded by the
+  A4 term. Recorded in the contract.
+- **Interrupt**: **A/R drives the 6522's CA1**, falling edge selected by clearing
+  PCR bit 0 — exactly the seam already built, and consistent with the datasheet's
+  own description of A/R.
+
+**But cross-checking against the Mockingboard mini-manual put two of this spec's
+premises in doubt, and neither should be resolved by picking the more convenient
+source.**
+
+#### Doubt 1 — how many voice chips, and how many PSGs
+
+| Source | Says |
+|---|---|
+| Emulator prior art | Two speech chips per card, one per VIA channel, each separately addressed |
+| Mockingboard mini-manual | "Sound/Speech I" = **one** PSG + **one** speech chip; "Sound II" = two PSGs |
+| This spec's Overview | Mockingboard C = two VIAs + two PSGs + one voice chip |
+
+Casso's existing card is two VIAs + two PSGs, which matches the mini-manual's
+**Sound II**, not its Sound/Speech I. The lettered model names (A/B/C/D) and the
+Sound-I/Sound-II/Sound-Speech-I names appear to be **different naming schemes**
+that the community routinely conflates — which is very likely why the product
+table in this spec's Overview looked tidy and may not be right.
+
+**This does not block the decode**, which is the same either way. It affects how
+many `Ssi263` instances the card holds and what the UI calls the models.
+
+#### Doubt 2 — SC-01 or SSI-263
+
+The mini-manual describes Sweet Micro's own speech boards as carrying the
+**Votrax SC-01**, not the SSI-263. This spec assumed the SSI-263 throughout, on
+the grounds that it is what later boards carry and what surviving software
+targets. Both can be true — the SSI-263 arriving on later boards and clones —
+but the assumption is now *contested by a period source* rather than merely
+unverified, and it is the deepest premise in the feature.
+
+**Recommendation**: implement the decode for both chip positions as found, but
+populate only chip 1 initially. That is conservative under either reading of the
+model line, needs no rework if the second chip is added later, and keeps the
+question open honestly instead of settling it by assumption. The chip-count and
+part-number questions want a human decision, not another source.
+
+### PENDING-2-original — Where the chip is decoded in the slot page, and how its request line is wired
 
 **Needed**: The address range within `$Cn00` that the board decodes to the speech
 chip, and which VIA control line (and which VIA) the request output drives.

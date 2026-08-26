@@ -35,8 +35,33 @@ chip (**PENDING-2**) reaches the chip instead of a VIA mirror.
 
 | Address within `$Cn00` | Reaches |
 |---|---|
-| The speech region (**PENDING-2**) | Voice chip registers |
+| `$20`–`$2F` | Voice chip **0** |
+| `$40`–`$4F`, `$60`–`$6F` | Voice chip **1** |
 | Everything else | Exactly as the sound-only variant |
+
+**The decode rule** (T002), stated as address lines rather than ranges because
+that is what the board implements: the speech chip is selected when **A4 is
+clear, A5 or A6 is set, and A7 is clear**. A6 then picks the chip, so `$60`
+aliases onto chip 1 alongside `$40`.
+
+The A4-clear term is the non-obvious part: `$30`, `$50`, and `$70` are **not**
+speech addresses even though they fall between ones that are. Within a selected
+range the low three lines are `RS2–RS0`, which the chip itself aliases so that
+its five registers fill eight slots.
+
+`$Cn40` is the address community documentation most often cites for Mockingboard
+speech, and it falls in chip 1's range.
+
+### Interrupt wiring (T002)
+
+**The A/R output drives the 6522's CA1**, and software selects the falling edge
+by clearing PCR bit 0. This matches both the chip datasheet — which documents
+A/R as going high-to-low once a phoneme is generated and being usable as an
+interrupt request — and the control-line seam already implemented in `Via6522`.
+
+*(A different card in the same family routes A/R straight to the CPU's IRQ
+instead of through the VIA. That card is out of scope here, but it is why the
+routing must be a property of the card rather than baked into the chip.)*
 
 **The removed mirror is the intended, faithful difference between the two cards**
 and the first named compatibility risk in the spec. It is also precisely why the
