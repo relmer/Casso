@@ -68,7 +68,7 @@ static const char s_kPixelShaderSrc[] =
     "    float4 ambDown;   // xyz desk bounce\n"
     "    float4 lampPos;   // xyz, w refDist\n"
     "    float4 lampDir;   // xyz lens facing, w range\n"
-    "    float4 lampCol;   // xyz, zero disables\n"
+    "    float4 lampCol;   // xyz, zero disables; w = emission wrap\n"
     "    row_major float4x4 shadow0;\n"
     "    row_major float4x4 shadow1;\n"
     "    float4 shadowParm;   // x texel (0 disables), y bias, z strength\n"
@@ -266,17 +266,16 @@ static const char s_kPixelShaderSrc[] =
     "                // lens -- the notch walls, the button top, the whole\n"
     "                // point of having the lamp -- fell on the zero side of\n"
     "                // the saturate and took no light at all.\n"
-    // WRAPPED rather than hard-clipped at 90 degrees. A bare saturate makes
-    // the lens a perfect hemisphere emitter, so the surface the lamp is
-    // MOUNTED IN -- which lies at or behind that 90 degrees -- takes exactly
-    // zero light. The LED glowed and lit nothing around it, reading as a
-    // painted dot with a halo rather than a bulb in a faceplate.
+    // WRAP IS THE CALLER'S, because how far past its own equator a lens throws
+    // is a fact about the PART. Zero is a true hemisphere -- a flat window
+    // flush in a panel, which cannot see its own plane and therefore does not
+    // light it. A domed LED is not flat, does see it, and asks for more.
     //
-    // A real lens is not a hemisphere: it scatters internally and its housing
-    // bleeds, so the plastic it sits in picks up a glancing wash. Wrapping
-    // the term spreads emission past the equator and falls off smoothly
-    // instead of ending at a cliff.
-    "                float  wrap = 0.65f;\n"
+    // One hard-coded 0.65 for every lamp is what made a flush window light the
+    // frame it sits in, and a bezel thirty millimeters away facing somewhere
+    // else: emission thrown past the equator in a direction the part does not
+    // emit in.
+    "                float  wrap = lampCol.w;\n"
     "                float  emit = saturate ((dot (lampDir.xyz, -L) + wrap)\n"
     "                                        / (1.0f + wrap));\n"
     "                float  recv = saturate (dot (n, L));\n"
@@ -1616,7 +1615,8 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
             m_lighting.ambientDown[0], m_lighting.ambientDown[1], m_lighting.ambientDown[2], 0.0f,
             m_lighting.lampPos[0], m_lighting.lampPos[1], m_lighting.lampPos[2], m_lighting.lampRefDist,
             m_lighting.lampDir[0], m_lighting.lampDir[1], m_lighting.lampDir[2], m_lighting.lampRange,
-            m_lighting.lampColor[0], m_lighting.lampColor[1], m_lighting.lampColor[2], 0.0f,
+            m_lighting.lampColor[0], m_lighting.lampColor[1], m_lighting.lampColor[2],
+            m_lighting.lampWrap,
         };
 
         memcpy (&lightCb[40], m_lighting.shadowMatrix[0], 16 * sizeof (float));

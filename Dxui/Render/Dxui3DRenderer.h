@@ -100,6 +100,19 @@ public:
         float  lampRefDist  = 22.0f;
         float  lampRange    = 130.0f;
 
+        // HOW FAR PAST ITS OWN EQUATOR the lens throws light, which is a fact
+        // about the PART and so belongs to the caller. Zero is a true
+        // hemisphere: a flat window set flush in a panel, which lights what is
+        // in front of it and nothing of the panel itself -- because a flat
+        // emitter cannot see its own plane. A domed LED is not flat and does
+        // see it, so it wants a wrap.
+        //
+        // It used to be one hard-coded 0.65 for every lamp, which is how a
+        // window lying flush in the //c's frame came to cast a pool of light
+        // on that frame and onto a bezel thirty millimeters away facing a
+        // different direction.
+        float  lampWrap     = 0.0f;
+
         // Shadow lookup, one matrix per room light. Each takes THIS draw's
         // vertex positions straight to that light's clip space (row-vector:
         // clip = v * M), so geometry submitted in its own model space needs

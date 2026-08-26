@@ -213,6 +213,14 @@ public:
     // half a millimeter of where the floor rule had been putting it.
     static constexpr float  kLampLightStandoffMm = 2.0f;
 
+    // How far past its own equator each lens throws. A FLAT WINDOW SET FLUSH
+    // CANNOT SEE ITS OWN PLANE, so it does not light the panel it sits in --
+    // what sells it as lit is the lens being bright and the glow bands over
+    // it, not a pool of light on the case. The Disk II's LED is a dome, which
+    // does see its plate and does wash it.
+    static constexpr float  kLampWrapFlush = 0.00f;
+    static constexpr float  kLampWrapDome  = 0.65f;
+
     // Which color a drive's lamp burns, given the drive.
     static constexpr const float *  DriveGlowRgb (DeskDeviceKind kind)
     {

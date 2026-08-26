@@ -446,6 +446,12 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         lighting.lampDir[1] = -1.0f;
         lighting.lampDir[2] =  0.0f;
 
+        // Which KIND of emitter this is. Only the Disk II has a domed LED;
+        // every other lamp in the scene is a flat window lying flush in its
+        // panel, and a flat window does not light the panel.
+        lighting.lampWrap = (model.Kind() == DeskDeviceKind::DiskII)
+                            ? kLampWrapDome : kLampWrapFlush;
+
         // The lamp's light is its color times an INTENSITY, because the two
         // are different things and only one of them was being supplied. The
         // shader scales the lamp term by the receiving surface's own base
@@ -966,8 +972,14 @@ HRESULT DeskScene::FillLampShadow (const DeskSceneModel       & model,
     {
         const DeskLampAnchor &  anchor = model.Lamps().front();
 
+        // AT THE LIGHT, not at the lens. The shader stands the source off the
+        // lens face by kLampLightStandoffMm, and a shadow map rendered from a
+        // different point than the light it shadows for is a map that
+        // disagrees with its own lighting -- worst of all when the camera sits
+        // in the very surface it is depth-testing, which is grazing geometry
+        // and comes back as a ring of acne hugging the lamp.
         eye[0] = anchor.center[0];
-        eye[1] = anchor.frontY;
+        eye[1] = anchor.frontY - kLampLightStandoffMm;
         eye[2] = anchor.center[2];
 
         // Looking the way the lens faces, which is -Y toward the viewer.
