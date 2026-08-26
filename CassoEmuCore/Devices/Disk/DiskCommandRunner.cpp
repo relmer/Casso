@@ -111,8 +111,15 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
       "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
       "  %Ltext                  Convert Apple high-ASCII encoding and line endings to host text\n"
-      "  %Lbasic                 Convert tokenized Applesoft to readable text\n",
-      nullptr,
+      "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
+      "Applesoft BASIC programs are stored on disk in a tokenized form. get returns that"
+      " file as it is, so it can be copied to another disk losslessly, but the tokenized"
+      " form is not human-readable. %Lbasic detokenizes it into readable text instead,"
+      " and that copy is not identical to the stored program: it loses whitespace"
+      " outside strings, REM and DATA statements, upcases lowercase characters outside"
+      " those same three, turns the ? shorthand into PRINT, and returns the lines in"
+      " numeric order. None of that changes how the program runs, and Applesoft BASIC"
+      " performs the same conversions itself on any line entered at its prompt.",
       "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
 
     { CommandLineOptions::DiskOptions::Command::Put,
@@ -120,16 +127,18 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "Write a file from the host to the disk",
       "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
-      "  %Las <name>             Rename the file to <name> on the disk. ProDOS subdirectories are not supported yet, so this is a name and not a path\n"
-      "  %Ltype <t>              Override the auto-detected file type. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS\n"
+      "  %Las <name>             Rename the file to <name> on the disk\n"
+      "  %Ltype <t>              CassoCli detects a file's type from its contents; this overrides that. For DOS 3.3 the types are T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS, TXT, BIN, BAS and SYS\n"
       "  %Lload $XXXX            Load address for a binary file\n"
       "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
-      "  %Lbasic                 Convert readable Applesoft text to the tokenized form the guest runs\n",
-      "%Lbasic stores the file as Applesoft, which is the one type a DOS 3.3 disk's RUN"
-      " will execute, so a program placed under any other type is one the guest will not"
-      " start. It refuses %Lload, because Applesoft keeps its program at $0801 and"
-      " nowhere else. A file already tokenized needs neither option: moved unconverted"
-      " it lands byte-for-byte.",
+      "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n",
+      "To store a human-readable Applesoft BASIC program, use %Lbasic to tokenize it into"
+      " the form Applesoft BASIC runs. A program that is ALREADY tokenized -- one taken"
+      " off a disk by get without %Lbasic -- goes onto another disk unconverted and"
+      " lands byte-for-byte, so use %Lbasic only when the conversion from plain text is"
+      " actually needed. It stores the file as Applesoft BASIC, which is the one type a"
+      " DOS 3.3 disk's RUN will execute, and it refuses %Lload, because Applesoft BASIC"
+      " keeps its program at $0801 and nowhere else.",
       "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" },
 
     { CommandLineOptions::DiskOptions::Command::Delete,
@@ -148,7 +157,8 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "The program has to be on the volume already, spelled as the catalog records it, and"
       " the image has to carry an operating system on the tracks a boot reads. On ProDOS"
       " it must be a file of type SYS, and not the kernel itself. On DOS 3.3 the boot"
-      " command is RUN, so an Applesoft or Integer program runs. Anything else is set,"
+      " command is RUN, so an Applesoft BASIC or Integer BASIC program runs. Anything else"
+      " is set,"
       " reported, and the disk boots without running it.",
       "CassoCli disk boot mydisk.dsk STARTUP" },
 
@@ -352,6 +362,41 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::AsProse
+//
+//  A paragraph with its runs of spaces collapsed to one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::AsProse (const std::string & text)
+{
+    std::string  out;
+    bool         wasSpace = false;
+    size_t       i        = 0;
+
+
+
+    for (i = 0; i < text.size(); i++)
+    {
+        bool  isSpace = text[i] == ' ';
+
+        if (!isSpace || !wasSpace)
+        {
+            out += text[i];
+        }
+
+        wasSpace = isSpace;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildOneBlock
 //
 //  One command's heading, grammar, options, discussion and example.
@@ -367,7 +412,12 @@ std::string DiskCommandRunner::BuildOneBlock (const DiskCommandHelp & entry, cha
 
 
 
-    text += ApplyPrefixes (entry.forms, flagPrefix) + "\n";
+    //  UNDERLINED LIKE THE ASSEMBLER'S SECTIONS. Eight headings down a long
+    //  page all look like body text until one of them is ruled.
+    std::string  heading = ApplyPrefixes (entry.forms, flagPrefix);
+
+    text += heading + "\n";
+    text += std::string (heading.size(), '-') + "\n";
     text += ApplyPrefixes (std::string ("  ") + entry.grammar, flagPrefix) + "\n";
 
     if (entry.options != nullptr)
@@ -379,17 +429,7 @@ std::string DiskCommandRunner::BuildOneBlock (const DiskCommandHelp & entry, cha
     if (entry.discussion != nullptr)
     {
         text += "\n  ";
-        text += ApplyPrefixes (entry.discussion, flagPrefix);
-        text += "\n";
-    }
-
-    //  The round-trip promise is quoted from the tokenizer that keeps it, so
-    //  the claim on the page cannot drift from the code making it. It belongs
-    //  to get, which is the direction that can lose anything.
-    if (entry.command == CommandLineOptions::DiskOptions::Command::Get)
-    {
-        text += "\n  ";
-        text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
+        text += AsProse (ApplyPrefixes (entry.discussion, flagPrefix));
         text += "\n";
     }
 
@@ -682,7 +722,7 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
         "  Assemble with the default output rather than " + lp + "dos-bin: put writes the"
         " DOS 3.3 header itself from " + lp + "addr, and a file that already carries one has"
         " its own header loaded as code where the program should begin.\n"
-        "  greet.bas holds one Applesoft line, 10 PRINT CHR$(4);\"BRUN PROG\", because a"
+        "  greet.bas holds one Applesoft BASIC line, 10 PRINT CHR$(4);\"BRUN PROG\", because a"
         " booting DOS 3.3 volume RUNs its greeting. A binary there is recorded and the"
         " disk boots without running it.\n";
 }
@@ -1758,7 +1798,7 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             if (FAILED (hr))
             {
                 result.diagnostics += DescribeListingRefusal (
-                    "--basic cannot read this file as an Applesoft program", listingError);
+                    "--basic cannot read this file as an Applesoft BASIC program", listingError);
 
                 result.exitStatus   = kNoOutput;
                 break;
@@ -2266,7 +2306,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
                 // be honored. Accepting and ignoring it would place the program
                 // and leave the caller believing it loads somewhere it does not.
                 result.diagnostics += "--load means nothing with --basic: "
-                                      "an Applesoft program always loads at $0801\n";
+                                      "an Applesoft BASIC program always loads at $0801\n";
                 result.exitStatus   = kNoOutput;
                 hr                  = HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER);
                 break;
@@ -2279,7 +2319,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             if (FAILED (hr))
             {
                 result.diagnostics += DescribeListingRefusal (
-                    "--basic cannot make an Applesoft program of this listing", listingError);
+                    "--basic cannot make an Applesoft BASIC program of this listing", listingError);
 
                 result.exitStatus   = kNoOutput;
                 break;
@@ -2600,7 +2640,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     {
         result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
             "is set as the startup program, but a booting DOS 3.3 RUNs its greeting, "
-            "which runs an Applesoft or Integer program. This file is neither, so the "
+            "which runs an Applesoft BASIC or Integer BASIC program. This file is neither, so the "
             "disk will boot without running it") + "\n";
 
         result.exitStatus   = kWithComplaints;

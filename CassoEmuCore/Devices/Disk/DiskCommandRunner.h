@@ -327,6 +327,16 @@ struct DiskCommandHelp
     //  ask is four screens down. Empty when the command has no block.
     static std::string  BuildOneBlock    (const DiskCommandHelp & entry, char flagPrefix);
 
+    //  A paragraph with its runs of spaces collapsed to one.
+    //
+    //  THE WRAPPER READS A COLUMN BOUNDARY OUT OF THE TEXT: the last run of
+    //  two or more spaces is where a continuation line is indented to, which
+    //  is right for a two-column option row and wrong for a sentence. One
+    //  stray double space mid-paragraph and every line after it hangs off that
+    //  column instead of the left margin. Prose has no columns, so it has no
+    //  business carrying a gutter.
+    static std::string  AsProse           (const std::string & text);
+
     static std::string  BuildCommandHelp (CommandLineOptions::DiskOptions::Command command,
                                           char flagPrefix);
 

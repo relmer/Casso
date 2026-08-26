@@ -599,7 +599,7 @@ HRESULT ApplesoftTokenizer::ParseOneLine (
 
     if (!inRange)
     {
-        outError.reason = "is numbered above the highest Applesoft accepts, which is 63999";
+        outError.reason = "is numbered above the highest Applesoft BASIC accepts, which is 63999";
     }
 
     CBREx (inRange, E_INVALIDARG);
@@ -612,7 +612,7 @@ HRESULT ApplesoftTokenizer::ParseOneLine (
         // Applesoft reads a bare number as an instruction to DELETE that line,
         // so there is no stored form of one and placing it would silently drop
         // whatever the user thought they were writing.
-        outError.reason = "carries a number and no statement, which Applesoft reads as deleting that line";
+        outError.reason = "carries a number and no statement, which Applesoft BASIC reads as deleting that line";
     }
 
     CBREx (hasBody, E_INVALIDARG);
@@ -707,7 +707,7 @@ HRESULT ApplesoftTokenizer::EmitProgram (
             outError.sourceLineIndex = lines[i].index;
             outError.lineNumber      = lines[i].number;
             outError.hasLineNumber   = true;
-            outError.reason          = "is longer tokenized than Applesoft can hold in one line";
+            outError.reason          = "is longer tokenized than Applesoft BASIC can hold in one line";
 
             break;
         }
@@ -869,7 +869,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
 
             if (keyword == nullptr)
             {
-                outReason = "carries a byte that is not an Applesoft token";
+                outReason = "carries a byte that is not an Applesoft BASIC token";
                 ok        = false;
                 continue;
             }
@@ -1063,50 +1063,4 @@ Error:
     }
 
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplesoftTokenizer::RoundTripHelpText
-//
-//  What --basic does and does not preserve, written with the prefix the reader
-//  asked for.
-//
-//  IT LEADS WITH WHAT THE CONVERSION IS, because the paragraph that followed
-//  read as a list of damage. `--basic` emits the binary token stream Applesoft
-//  itself stores -- the same bytes the machine writes when the line is typed at
-//  its own prompt -- and the substitutions below are what a LISTING loses when
-//  it is normalized into that form and read back out. They are not things the
-//  conversion invents, and a reader who met the list first had no way to tell
-//  the two apart.
-//
-//  It says the asymmetry out loud because the two directions genuinely differ
-//  and only one of them is exact. Someone who extracts a program, edits it and
-//  places it back has not lost anything they typed; someone who writes a
-//  listing, places it and extracts it again gets Applesoft's own normalization
-//  handed back, which looks like the tool damaged their file unless the help
-//  said so first.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ApplesoftTokenizer::RoundTripHelpText (char flagPrefix)
-{
-    std::string  lp = (flagPrefix == '/') ? "/" : "--";
-
-
-
-    //  ONE LOGICAL LINE, not eight. The edge folds every line of help to the
-    //  reader's terminal, and a paragraph carrying its own newlines is a
-    //  paragraph already wrapped to a width nobody asked for -- it stayed at
-    //  72 columns on a 200-column screen while the rest of the page widened.
-    return "A tokenized Applesoft program is what the guest runs, and moving it"
-           " unconverted is byte-exact. " + lp + "basic makes it readable instead, and"
-           " that direction is not: spacing outside strings, REM and DATA is dropped,"
-           " lowercase outside those three is upcased, ? becomes PRINT, and lines come"
-           " back in numeric order. Applesoft does all of that itself to any line typed"
-           " at its prompt, so the program still runs the same.";
-}
+}

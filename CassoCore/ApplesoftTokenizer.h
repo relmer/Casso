@@ -113,7 +113,7 @@ public:
     //  help with `/?` is shown `/basic` throughout, and a paragraph that said
     //  `--basic` in the middle of it would be describing a form they did
     //  not ask for.
-    static std::string  RoundTripHelpText (char flagPrefix);
+
 
     static constexpr Word  kProgramBase = 0x0801;
 
