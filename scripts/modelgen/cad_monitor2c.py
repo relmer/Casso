@@ -85,8 +85,16 @@ CAP_STEPS = 5                     # facets across a rolled edge
 # forty degrees the slope's shading reads as.
 FRAME     = 19.0                  # the frame's width, uniform on all four sides
 FRAME_ANG = math.radians(10.0)    # ...and how far it leans toward the viewer
-BEZ_W     =  7.6                  # the bezel's width -- measured
-BEZ_DEPTH = INCH / 4.0            # ...and its depth, which is not
+
+# THE BEZEL IS A FRACTION OF THE FRAME, and specifically of the frame's
+# APPARENT width -- what the two bands measure as, looking at the front. So
+# BEZ_W is the bezel's extent in X, not the length of its slant: the slant is
+# longer, by however much the depth adds, and that is the hypotenuse rather
+# than the number being set here. Written as the ratio because that is the
+# thing being judged; the millimeters are a consequence.
+BEZ_RATIO = 1.0 / 4.5
+BEZ_W     = (EDGE_R + FRAME) * BEZ_RATIO
+BEZ_DEPTH = INCH / 4.0            # the depth, which no head-on photo can give
 BEZ_ANG   = math.atan2(BEZ_DEPTH, BEZ_W)
 
 # The border is therefore the same all round, and the opening is what it
