@@ -414,11 +414,25 @@ for i in range(4):
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
 # Cavity back: the dark plane behind the glass.
+#
+# THE MOUTH'S OWN FOOTPRINT, rounded corners and all -- not a plain box.
+#
+# It was a square-cornered rectangle, and a square corner inside a rounded
+# mouth sticks out past it by r(sqrt2 - 1): two and a half millimeters even at
+# the opening's own size, and five once the box was widened to follow the
+# glass. That surplus is what showed as dark wedges biting into the bezel at
+# the bottom corners -- the backing plate, not the tube, and visible in each
+# corner because that is the only place a square outline can outrun a round
+# one.
+#
+# There is nothing to widen it for, either: the cavity has to back what can be
+# SEEN, and what can be seen is the mouth. The glass's overhang is behind the
+# lip and needs no backing at all.
 m.add("cavity",
-      cq.Workplane("XY")
-        .box(SCR_W + GLASS_OVER * 2.0, 2.0, SCR_H + GLASS_OVER * 2.0,
-             centered=(False, False, False))
-        .translate((OX0 - GLASS_OVER, GLASS_Y + 1.0, OZ0 - GLASS_OVER)),
+      cq.Workplane(obj=cq.Solid.extrudeLinear(
+          cq.Face.makeFromWires(round_rect_wire(GLASS_Y + 1.0,
+                                                OX0, OX1, OZ0, OZ1, R_OPEN)),
+          cq.Vector(0.0, 2.0, 0.0))),
       CAVITY)
 
 # --------------------------------------------------------------------- glass
