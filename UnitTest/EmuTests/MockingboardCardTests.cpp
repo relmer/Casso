@@ -619,7 +619,154 @@ namespace MockingboardCardTestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  DetectionSequenceIdenticalOnBothVariants
+        //
+        //  The way period software detects a Mockingboard: load Timer 1 and
+        //  read the counter twice -- a live 6522 counts down between the
+        //  reads. The sequence must behave identically on the sound-only and
+        //  sound+speech cards, including at a mirror address, since detection
+        //  code does not know which model it is probing.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DetectionSequenceIdenticalOnBothVariants)
+        {
+            Byte   firstA  = 0;
+            Byte   secondA = 0;
+            Byte   firstC  = 0;
+            Byte   secondC = 0;
+
+
+
+            MockingboardCard    a (4, MockingboardVariant::SoundOnly);
+            MockingboardCard    c (4, MockingboardVariant::SoundSpeech);
+
+
+
+            RunDetection (a, firstA, secondA);
+            RunDetection (c, firstC, secondC);
+
+            Assert::AreEqual<Byte> (firstA, firstC,
+                                    L"First counter read must match across variants");
+            Assert::AreEqual<Byte> (secondA, secondC,
+                                    L"Second counter read must match across variants");
+            Assert::IsTrue (secondA != firstA,
+                            L"A live 6522 must be counting, or detection fails on both");
+
+            // The same probe through a VIA #1 mirror inside the page must
+            // also agree -- $Cn14 aliases T1C-L on both cards.
+            Assert::AreEqual<Byte> (a.Read (0xC414), c.Read (0xC414),
+                                    L"Mirror reads must agree across variants");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  FullVolumeCardOutputLeavesHeadroom
+        //
+        //  Both PSGs at full fixed volume plus speech at full amplitude, all
+        //  rendered together the way the mixer pans them: the card's summed
+        //  contribution must stay well inside the rails, leaving room for the
+        //  speaker and drive audio it shares the bus with. This is the gain
+        //  budget as a test rather than a comment.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (FullVolumeCardOutputLeavesHeadroom)
+        {
+            uint32_t   i     = 0;
+            float      peak  = 0.0f;
+            float      left  = 0.0f;
+            std::vector<float>   psg0 (2048);
+            std::vector<float>   psg1 (2048);
+            std::vector<float>   speech (2048);
+
+
+
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            ProgramBaselineTones (card);
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x5F);   // CTL low, articulation 5, amplitude $F
+            card.Write (0xC442, 0xA2);   // rate $A, low inflection bits
+            card.Write (0xC444, 0xD3);   // ~20 kHz tract clock
+            card.Write (0xC440, 0x0F);   // AH1 at full amplitude
+
+            card.SetSampleRate (44100);
+            card.GetAudioSource (0)->GeneratePCM (psg0.data(), 2048);
+            card.GetAudioSource (1)->GeneratePCM (psg1.data(), 2048);
+            card.GetSpeechAudioSource()->GeneratePCM (speech.data(), 2048);
+
+            for (i = 0; i < 2048; i++)
+            {
+                // Left channel carries PSG #1 (hard left) plus center speech;
+                // the right-channel case is symmetric with PSG #2.
+                left = std::abs (psg0[i]) + std::abs (speech[i]) * IDriveAudioSource::kCenterPan;
+
+                if (left > peak)
+                {
+                    peak = left;
+                }
+            }
+
+            Assert::IsTrue (peak < 0.75f,
+                            L"The card's full-volume sum must leave headroom for speaker and drives");
+        }
+
+
+        TEST_METHOD (CardResetSilencesSpeechImmediately)
+        {
+            uint32_t   i    = 0;
+            std::vector<float>   buffer (512);
+
+
+
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x5F);
+            card.Write (0xC442, 0xA2);
+            card.Write (0xC440, 0x0F);
+            card.SetSampleRate (44100);
+
+            Assert::IsFalse (card.GetSpeech()->IsSilent(), L"Precondition: speaking");
+
+            card.Reset();
+
+            Assert::IsTrue (card.GetSpeech()->IsSilent(),
+                            L"Card reset must silence speech immediately, not after the phoneme");
+
+            card.GetSpeechAudioSource()->GeneratePCM (buffer.data(), 512);
+
+            for (i = 0; i < 512; i++)
+            {
+                Assert::AreEqual (0.0f, buffer[i],
+                                  L"and the source must render exact silence afterward");
+            }
+        }
+
+
     private:
+        // The classic detection probe: load Timer 1 with $FFFF, tick a few
+        // cycles, and read T1C-L twice with a tick between them.
+        static void RunDetection (MockingboardCard & card, Byte & outFirst, Byte & outSecond)
+        {
+            card.Write (0xC404, 0xFF);   // T1C-L latch low
+            card.Write (0xC405, 0xFF);   // T1C-H: load counter, start counting
+
+            card.Tick (8);
+            outFirst = card.Read (0xC404);
+
+            card.Tick (8);
+            outSecond = card.Read (0xC404);
+        }
+
         // A deterministic, side-effect-free state for read sweeps: DDRs set,
         // distinctive port values, T1 latches loaded but neither timer armed,
         // no interrupt source enabled or pending.
@@ -665,7 +812,7 @@ namespace MockingboardCardTestNs
             uint32_t   i                = 0;
             int        source           = 0;
             int16_t    q                = 0;
-            float      buffer[kSamples] = {};
+            std::vector<float>   buffer (kSamples);
 
 
 
@@ -673,7 +820,7 @@ namespace MockingboardCardTestNs
 
             for (source = 0; source < 2; source++)
             {
-                card.GetAudioSource (source)->GeneratePCM (buffer, kSamples);
+                card.GetAudioSource (source)->GeneratePCM (buffer.data(), kSamples);
 
                 for (i = 0; i < kSamples; i++)
                 {

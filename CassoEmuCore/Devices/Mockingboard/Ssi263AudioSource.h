@@ -31,8 +31,12 @@ class Ssi263;
 class Ssi263AudioSource : public IDriveAudioSource
 {
 public:
-    // Headroom: speech sums into the stereo bus alongside two PSG sources,
-    // the speaker, and Disk II audio.
+    // Headroom: speech sums into the stereo bus alongside two PSG sources
+    // (0.28 each, hard-panned), the equal-power-centered speaker, and Disk
+    // II audio. Speech is center-panned, so each channel receives this gain
+    // times the center-pan coefficient; the card-level budget is pinned by
+    // FullVolumeCardOutputLeavesHeadroom, and a 25-second full-mix capture
+    // of connected speech peaked at 0.18.
     static constexpr float    kMasterGain = 0.45f;
 
     // One-pole DC-blocker pole. y[n] = x[n] - x[n-1] + R*y[n-1].

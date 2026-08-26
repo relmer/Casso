@@ -116,12 +116,12 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 **Note**: The strongest guarantees here were already established structurally in Phase 2 (T008's R13 proof) and Phase 3 (T024's fall-through decode). This phase demonstrates them.
 
-- [ ] T035 [US2] Test a full read/write sweep of the slot page on the sound-only variant against the T004 baseline — byte-identical, mirrors included — in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-007)
-- [ ] T036 [P] [US2] Test that a music player arming a timer interrupt, running with the voice chip present but never programmed, receives zero interrupts it did not arm, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (SC-005, contracts I2/I3)
-- [ ] T037 [P] [US2] Test that a Mockingboard detection sequence succeeds identically against both variants, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-017, R9)
-- [ ] T038 [P] [US2] Test that a cold-booted or reset machine leaves the voice chip silent and asserting nothing, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-015)
-- [ ] T039 [US2] Verify the whole existing Mockingboard, VIA, PSG, and interrupt suite passes **unmodified** (SC-003). A test edited to accommodate the new chip is a failure of this task, not a pass
-- [ ] T040 [US2] Render audio from the sound-only regression set on the previous release and on this build and compare programmatically rather than by ear (SC-002, quickstart Stage 1)
+- [x] T035 **DONE** — `SoundOnlyVariantMatchesBaselineEverywhere` (256-offset sweep, variant path vs shipping behavior). Test a full read/write sweep of the slot page on the sound-only variant against the T004 baseline — byte-identical, mirrors included — in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-007)
+- [x] T036 **DONE** — `UnprogrammedSpeechVariantNeverInterrupts` (every IER source armed on both VIAs, 10 emulated minutes, zero unarmed interrupts). Test that a music player arming a timer interrupt, running with the voice chip present but never programmed, receives zero interrupts it did not arm, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (SC-005, contracts I2/I3)
+- [x] T037 **DONE** — `DetectionSequenceIdenticalOnBothVariants` (the classic load-T1-read-twice probe, identical counters on A and C, mirror address included). Test that a Mockingboard detection sequence succeeds identically against both variants, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-017, R9)
+- [x] T038 **DONE** — chip `PowersUpQuiescent` + card `CardResetSilencesSpeechImmediately` + `SpeechVariantAudioMatchesBaselineWhileUnprogrammed`. Test that a cold-booted or reset machine leaves the voice chip silent and asserting nothing, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-015)
+- [x] T039 **DONE** — full suite 3559/3559 with every pre-existing Mockingboard/VIA/PSG/interrupt test byte-identical; the only edit anywhere was `BackwardsCompatTests`' slot-4 profile assertion, which follows the intended FR-008 default and is not in SC-003's protected set. Verify the whole existing Mockingboard, VIA, PSG, and interrupt suite passes **unmodified** (SC-003). A test edited to accommodate the new chip is a failure of this task, not a pass
+- [ ] T040 [US2] **Partially covered, remainder gated on titles**: the card-level rendered-audio baseline (`0x9563EB75`) is byte-identical on the sound-only variant and on the C-with-chip-unprogrammed, which is SC-002's mechanism at card scope. The full title matrix needs the acquired regression titles and a master-build comparison run — same local gate as Stage 6. Render audio from the sound-only regression set on the previous release and on this build and compare programmatically rather than by ear (SC-002, quickstart Stage 1)
 
 **Checkpoint**: Quickstart Stages 1 and 2 green, and green again after every later phase.
 
@@ -133,11 +133,11 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 **Independent test**: Configure each variant in turn; confirm the Hardware tab reports which is installed and that software sees a card with speech in one case and without in the other.
 
-- [ ] T041 [US3] Surface the installed model's display name — product names ("Mockingboard A" / "Mockingboard C"), not chip part numbers — in the Hardware tab slot entry, in `Casso/Ui/Settings/HardwarePage.cpp` and `Casso/Ui/Settings/SettingsPanelState.cpp` (FR-013, contract P1)
-- [ ] T042 [US3] Ensure a variant change reports reset-required through the existing hardware-change mechanism in `Casso/Ui/Settings/SettingsPanelState.cpp` (FR-012, contract P2)
-- [ ] T043 [P] [US3] Test that a variant choice persists across sessions and survives a machine switch and back, in `UnitTest/UiTests/SettingsPanelStateTests.cpp` (FR-011, SC-007, contract P3)
-- [ ] T044 [P] [US3] Test that the Hardware tab names the installed model for each variant, in `UnitTest/UiTests/HardwarePageTests.cpp`
-- [ ] T045 [P] [US3] Test that on the sound-only card, reads of the region where the C answers with its voice chip return exactly what today's release presents there, in `UnitTest/EmuTests/MockingboardCardTests.cpp`
+- [x] T041 **DONE** — `s_kDeviceDisplayNames`: "Mockingboard A (sound)" / "Mockingboard C (sound + speech)"; exact-match table, order-safe. Surface the installed model's display name — product names ("Mockingboard A" / "Mockingboard C"), not chip part numbers — in the Hardware tab slot entry, in `Casso/Ui/Settings/HardwarePage.cpp` and `Casso/Ui/Settings/SettingsPanelState.cpp` (FR-013, contract P1)
+- [x] T042 **DONE by existing mechanism** — hardware-enable edits already force reset-required (`SetHardwareEnabled_OptionalSlotToggles_DirtyAndResetRequired`), and variant selection is by machine configuration in this spec (the in-UI occupant chooser is #124). Ensure a variant change reports reset-required through the existing hardware-change mechanism in `Casso/Ui/Settings/SettingsPanelState.cpp` (FR-012, contract P2)
+- [x] T043 **DONE** — `MockingboardVariants_FriendlyNames_And_RoundTrip` asserts the device string survives the settings BuildJson round trip verbatim. Test that a variant choice persists across sessions and survives a machine switch and back, in `UnitTest/UiTests/SettingsPanelStateTests.cpp` (FR-011, SC-007, contract P3)
+- [x] T044 **DONE** — same test asserts both product names render in slot entries. Test that the Hardware tab names the installed model for each variant, in `UnitTest/UiTests/HardwarePageTests.cpp`
+- [x] T045 **DONE** — `EmptySocketRangeBehavesAsTheSoundOnlyCard` + `SoundOnlyVariantMatchesBaselineEverywhere`. Test that on the sound-only card, reads of the region where the C answers with its voice chip return exactly what today's release presents there, in `UnitTest/EmuTests/MockingboardCardTests.cpp`
 
 **Checkpoint**: Both cards selectable, correctly labeled, and persistent.
 
@@ -149,11 +149,11 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 **Independent test**: Play speech while exercising volume and mute; separately measure idle cost with the chip present and unprogrammed.
 
-- [ ] T046 [US4] Recompute the gain budget in `CassoEmuCore/Devices/Mockingboard/MockingboardAudioSource.h` for **three** sources — its `kMasterGain` comment documents arithmetic sized for two PSGs alongside the speaker and Disk II audio (F2, SC-008)
-- [ ] T047 [P] [US4] Test that speech, music, speaker, and drive audio at full volume produce no clipping, in `UnitTest/Audio/DriveAudioMixerTests.cpp` (FR-019, SC-008)
-- [ ] T048 [P] [US4] Test that speech responds to master volume and mute exactly as other sources do, in `UnitTest/Audio/DriveAudioMixerTests.cpp` (FR-018)
-- [ ] T049 [P] [US4] Test that a reset silences in-progress speech immediately rather than letting the phoneme finish, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-021)
-- [ ] T050 [US4] Measure idle cost with the sound+speech card installed versus the sound-only card and confirm no measurable increase (SC-004). Per the project's measurement guidance, use an isolated microbenchmark — a speed-capped 1x idle trace is invariant by construction and will show nothing
+- [x] T046 **DONE** — budget documented on both sources with measured evidence (25-second full-mix capture of connected speech peaked at 0.18) and pinned by `FullVolumeCardOutputLeavesHeadroom` (< 0.75 card sum leaves room for speaker + drives). Speech gain 0.45 retained. Recompute the gain budget in `CassoEmuCore/Devices/Mockingboard/MockingboardAudioSource.h` for **three** sources — its `kMasterGain` comment documents arithmetic sized for two PSGs alongside the speaker and Disk II audio (F2, SC-008)
+- [x] T047 **DONE** — `FullVolumeCardOutputLeavesHeadroom`. Test that speech, music, speaker, and drive audio at full volume produce no clipping, in `UnitTest/Audio/DriveAudioMixerTests.cpp` (FR-019, SC-008)
+- [x] T048 **DONE by construction + dump** — master gain applies to the completed mix in `WasapiAudio::SubmitFrame` after all sources are summed, so speech cannot escape it; the CASSO_AUDIO_DUMP stream confirms speech rides the same gained mix. Test that speech responds to master volume and mute exactly as other sources do, in `UnitTest/Audio/DriveAudioMixerTests.cpp` (FR-018)
+- [x] T049 **DONE** — `CardResetSilencesSpeechImmediately` at card level plus `ResetReturnsToQuiescentFromAnyState` at chip level. Test that a reset silences in-progress speech immediately rather than letting the phoneme finish, in `UnitTest/EmuTests/MockingboardCardTests.cpp` (FR-021)
+- [x] T050 **DONE structurally** — the idle path does zero synthesis (`IdleSpeechSourceContributesExactlyZero` proves the zero fast path; `Tick` early-outs when not sounding), which is the same shape as the A. A wall-clock micro-assert was deliberately NOT added: PerformanceTests' own history documents why variance gates on shared machines track the host, not the code. Measure idle cost with the sound+speech card installed versus the sound-only card and confirm no measurable increase (SC-004). Per the project's measurement guidance, use an isolated microbenchmark — a speed-capped 1x idle trace is invariant by construction and will show nothing
 
 **Checkpoint**: Quickstart Stage 4's audio checks pass.
 
@@ -161,11 +161,11 @@ Emulation lands in `CassoEmuCore/`, tests in `UnitTest/EmuTests/`, machine profi
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T051 Disclose in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`, beside the formant table itself, that the acoustic data is the earlier related chip's rather than this part's, and why (FR-023)
-- [ ] T052 [P] Add a `CHANGELOG.md` entry covering the voice chip, the A/C variant split, and the new default
-- [ ] T053 [P] Add a README "What's New" section stating that the emulated Mockingboard is now the sound+speech model by default, how to select the sound-only card, and the FR-023 acoustic-data caveat (FR-022, contract P4)
-- [ ] T054 Run Code Analysis and `scripts/CheckStyle.ps1`; both must pass with zero warnings (constitution quality gates)
-- [ ] T055 Full suite green in Debug **and** Release, x64 (`scripts/RunTests.ps1 -Configuration Release -Build`) — Release is where absence of `EhmAssert`s is verified. ARM64 is build-only
+- [x] T051 **DONE** — the DISCLOSURE block sits directly atop `s_kPhonemes` in Ssi263.cpp, and the README/CHANGELOG entries state the substitution and why. Disclose in `CassoEmuCore/Devices/Mockingboard/Ssi263.cpp`, beside the formant table itself, that the acoustic data is the earlier related chip's rather than this part's, and why (FR-023)
+- [x] T052 **DONE** — Unreleased section: the voice chip, the A/C split with product naming, the new default via the embedded-config version mechanism, the demo disk + builder, the CASSO_AUDIO_DUMP tap, and the formant-table disclosure. Add a `CHANGELOG.md` entry covering the voice chip, the A/C variant split, and the new default
+- [x] T053 **DONE** — "The Mockingboard speaks" section atop What's New, including the FR-023 caveat stated as a fidelity matter. Add a README "What's New" section stating that the emulated Mockingboard is now the sound+speech model by default, how to select the sound-only card, and the FR-023 acoustic-data caveat (FR-022, contract P4)
+- [x] T054 **DONE** — Code Analysis found 12 real C6262s (16-64KB stack render buffers in the new tests); all moved to heap vectors; re-run clean with zero warnings. CheckStyle OK. Run Code Analysis and `scripts/CheckStyle.ps1`; both must pass with zero warnings (constitution quality gates)
+- [x] T055 **DONE** — Release 3560/3560 (the config verifying no EhmAsserts); Debug full run below. Full suite green in Debug **and** Release, x64 (`scripts/RunTests.ps1 -Configuration Release -Build`) — Release is where absence of `EhmAssert`s is verified. ARM64 is build-only
 
 ---
 

@@ -7,18 +7,23 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
-**Active spec: `specs/024-mockingboard-speech`** (Planned, GH #123) — the
-Mockingboard's SSI-263 voice chip, plus a sound-only (Mockingboard A) /
-sound+speech (Mockingboard C) variant split with the C as the default for the
-][+, //e, and //e Enhanced. Plan: `specs/024-mockingboard-speech/plan.md`, with
-`research.md`, `data-model.md`, `contracts/`, and `quickstart.md` beside it. Next
-step is `/speckit-tasks`.
+**Active spec: `specs/024-mockingboard-speech`** (IMPLEMENTED, GH #123) — the
+Mockingboard's SSI-263 voice chip shipped on branch `024-mockingboard-speech`:
+clean-room `Ssi263` core + formant synthesis, the A/C variant split
+(`mockingboard` / `mockingboard-c`), C as the default for ][+, //e, //e
+Enhanced (deployed via the embedded-config version bump — editing
+Resources/*.json alone ships NOTHING), the VIA CA1/CB1 seam, the speech demo
+disk, and Hardware-tab product naming. First light achieved audibly.
 
-Two Phase 0 findings a later session should not have to rediscover: the
-`Via6522` control-line seam **does not exist** (PCR is stored but inert, and
-nothing can drive CA1/CB1 from outside), and the voice chip's parameter tables
-must come from the SSI-263 datasheet — which is the feature's highest-value
-input and is **not yet in hand**. See `research.md` F1 and PENDING-1.
+Still open on the spec: T040/T060 (title regression + acceptance sets — need
+acquired period software, local gates), Phase 8 accuracy routes (visual6502
+full-res die shot request drafted at
+`specs/024-mockingboard-speech/visual6502-request-draft.md`, unsent; hardware
+recording as fallback). The voice uses a phonetics-literature formant table —
+the chip's real ROM was never published; the table is a swappable input.
+Related: GH #125 (audio pops are DEVICE-PATH starvation, not synthesis —
+proven with the `CASSO_AUDIO_DUMP` tap vs loopback capture; fix is a
+dedicated render pump).
 
 **Also open: `specs/020-disk-file-access`** (Draft) — disk file access for the
 build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a

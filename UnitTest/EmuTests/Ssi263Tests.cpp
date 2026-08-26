@@ -450,7 +450,7 @@ namespace Ssi263TestNs
         {
             double   inBand                 = 0.0;
             double   outBand                = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -459,16 +459,16 @@ namespace Ssi263TestNs
 
 
             StartVowelAh1 (chip);
-            RenderSteadyState (chip, buffer);
+            RenderSteadyState (chip, buffer.data());
 
             // AH1 ("father"): 730 / 1090 / 2440 Hz in the built-in table.
-            inBand = BandPower (buffer, 730.0) +
-                     BandPower (buffer, 1090.0) +
-                     BandPower (buffer, 2440.0);
+            inBand = BandPower (buffer.data(), 730.0) +
+                     BandPower (buffer.data(), 1090.0) +
+                     BandPower (buffer.data(), 2440.0);
 
-            outBand = BandPower (buffer, 4000.0) +
-                      BandPower (buffer, 5200.0) +
-                      BandPower (buffer, 6400.0);
+            outBand = BandPower (buffer.data(), 4000.0) +
+                      BandPower (buffer.data(), 5200.0) +
+                      BandPower (buffer.data(), 6400.0);
 
             Assert::IsTrue (inBand > 10.0 * outBand,
                             L"Formant bands must dominate out-of-band energy");
@@ -479,7 +479,7 @@ namespace Ssi263TestNs
         {
             double   loudRms                = 0.0;
             double   quietRms               = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -493,11 +493,11 @@ namespace Ssi263TestNs
 
             quiet.WriteRegister (Ssi263::kRegCtlArtAmp, 0x04);   // CTL low, amplitude 4
 
-            RenderSteadyState (loud, buffer);
-            loudRms = Rms (buffer);
+            RenderSteadyState (loud, buffer.data());
+            loudRms = Rms (buffer.data());
 
-            RenderSteadyState (quiet, buffer);
-            quietRms = Rms (buffer);
+            RenderSteadyState (quiet, buffer.data());
+            quietRms = Rms (buffer.data());
 
             Assert::IsTrue (loudRms > 2.0 * quietRms,
                             L"A lower amplitude register must produce quieter output");
@@ -508,7 +508,7 @@ namespace Ssi263TestNs
         {
             double   nominalHigh            = 0.0;
             double   raisedHigh             = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -525,11 +525,11 @@ namespace Ssi263TestNs
             // toward ~1635, so probe power there.
             raised.WriteRegister (Ssi263::kRegFilterFreq, 0xE2);
 
-            RenderSteadyState (nominal, buffer);
-            nominalHigh = BandPower (buffer, 1635.0);
+            RenderSteadyState (nominal, buffer.data());
+            nominalHigh = BandPower (buffer.data(), 1635.0);
 
-            RenderSteadyState (raised, buffer);
-            raisedHigh = BandPower (buffer, 1635.0);
+            RenderSteadyState (raised, buffer.data());
+            raisedHigh = BandPower (buffer.data(), 1635.0);
 
             Assert::IsTrue (raisedHigh > 2.0 * nominalHigh,
                             L"A faster filter clock must shift formants upward");
@@ -540,7 +540,7 @@ namespace Ssi263TestNs
         {
             double   lowAt120               = 0.0;
             double   highAt120              = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -555,11 +555,11 @@ namespace Ssi263TestNs
             SetInflectionHz (lowPitch, 60.0);
             SetInflectionHz (highPitch, 120.0);
 
-            RenderSteadyState (lowPitch, buffer);
-            lowAt120 = BandPower (buffer, 120.0);
+            RenderSteadyState (lowPitch, buffer.data());
+            lowAt120 = BandPower (buffer.data(), 120.0);
 
-            RenderSteadyState (highPitch, buffer);
-            highAt120 = BandPower (buffer, 120.0);
+            RenderSteadyState (highPitch, buffer.data());
+            highAt120 = BandPower (buffer.data(), 120.0);
 
             // Both spectra have energy at 120 Hz (the low voice's second
             // harmonic), but the fundamental landing there must dominate.
@@ -574,7 +574,7 @@ namespace Ssi263TestNs
             double   earlyNew               = 0.0;
             double   lateNew                = 0.0;
             double   lateOld                = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -583,7 +583,7 @@ namespace Ssi263TestNs
 
 
             StartVowelAh1 (chip);
-            RenderSteadyState (chip, buffer);
+            RenderSteadyState (chip, buffer.data());
 
             // Switch to E ("meet", F2 = 2290) at the slowest articulation.
             chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x0F);   // articulation 0, amp $F
@@ -591,19 +591,19 @@ namespace Ssi263TestNs
 
             // Immediately after the switch the tract must still sound like
             // the OLD vowel -- a jump would already be at the new target.
-            RenderInto (chip, buffer, kRenderSamples);
-            earlyOld = BandPower (buffer, 1090.0);
-            earlyNew = BandPower (buffer, 2290.0);
+            RenderInto (chip, buffer.data(), kRenderSamples);
+            earlyOld = BandPower (buffer.data(), 1090.0);
+            earlyNew = BandPower (buffer.data(), 2290.0);
 
             Assert::IsTrue (earlyOld > earlyNew,
                             L"Right after a transition the old formants must still dominate");
 
             // Well after the transition, the NEW vowel must dominate.
-            RenderInto (chip, buffer, kRenderSamples);
-            RenderInto (chip, buffer, kRenderSamples);
-            RenderInto (chip, buffer, kRenderSamples);
-            lateNew = BandPower (buffer, 2290.0);
-            lateOld = BandPower (buffer, 1090.0);
+            RenderInto (chip, buffer.data(), kRenderSamples);
+            RenderInto (chip, buffer.data(), kRenderSamples);
+            RenderInto (chip, buffer.data(), kRenderSamples);
+            lateNew = BandPower (buffer.data(), 2290.0);
+            lateOld = BandPower (buffer.data(), 1090.0);
 
             Assert::IsTrue (lateNew > lateOld,
                             L"Long after a transition the new formants must dominate");
@@ -625,7 +625,7 @@ namespace Ssi263TestNs
         TEST_METHOD (PauseHoldsTheTractPosition)
         {
             double   f2Before               = 0.0;
-            float    buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -634,7 +634,7 @@ namespace Ssi263TestNs
 
 
             StartVowelAh1 (chip);
-            RenderSteadyState (chip, buffer);
+            RenderSteadyState (chip, buffer.data());
 
             f2Before = chip.FormantCenter (1);
             Assert::IsTrue (f2Before > 1000.0, L"Precondition: settled at the vowel's F2");
@@ -642,7 +642,7 @@ namespace Ssi263TestNs
             // A long, fully rendered pause. Its output is silence, but the
             // glide machinery still runs each sample -- and must not move.
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x00);
-            RenderInto (chip, buffer, kRenderSamples);
+            RenderInto (chip, buffer.data(), kRenderSamples);
 
             Assert::AreEqual (f2Before, chip.FormantCenter (1), 1.0,
                               L"A pause must hold the tract where the last phoneme left it");
@@ -653,7 +653,7 @@ namespace Ssi263TestNs
             // every utterance when speech resumed by gliding from the last
             // vowel's position.
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
-            RenderInto (chip, buffer, 4);
+            RenderInto (chip, buffer.data(), 4);
 
             Assert::AreEqual (2290.0, chip.FormantCenter (1), 1.0,
                               L"After a silence the next phoneme starts at its own targets");
@@ -677,7 +677,7 @@ namespace Ssi263TestNs
             uint32_t   i                      = 0;
             float      last                   = 0.0f;
             float      maxStep                = 0.0f;
-            float      buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -686,13 +686,13 @@ namespace Ssi263TestNs
 
 
             StartVowelAh1 (chip);
-            RenderSteadyState (chip, buffer);
+            RenderSteadyState (chip, buffer.data());
             last = buffer[kRenderSamples - 1];
 
             // Expire the phoneme between renders, as the emulated machine does.
             chip.Tick (static_cast<uint32_t> (chip.PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
 
-            RenderInto (chip, buffer, 2048);
+            RenderInto (chip, buffer.data(), 2048);
 
             for (i = 0; i < 2048; i++)
             {
@@ -742,7 +742,7 @@ namespace Ssi263TestNs
             float      last            = 0.0f;
             float      maxStep         = 0.0f;
             double     cyclesPerSample = Ssi263::kDefaultClockHz / kSampleRate;
-            float      buffer[512]     = {};
+            std::vector<float>   buffer (512);
 
 
 
@@ -766,7 +766,7 @@ namespace Ssi263TestNs
                     for (rendered = 0; rendered < n; rendered += 512)
                     {
                         chip.Tick (static_cast<uint32_t> (512.0 * cyclesPerSample));
-                        source.GeneratePCM (buffer, 512);
+                        source.GeneratePCM (buffer.data(), 512);
 
                         for (i = 0; i < 512; i++)
                         {
@@ -791,8 +791,8 @@ namespace Ssi263TestNs
         TEST_METHOD (RenderingIsDeterministicAcrossIdenticalChips)
         {
             uint32_t   i                 = 0;
-            float      a[kRenderSamples] = {};
-            float      b[kRenderSamples] = {};
+            std::vector<float>   a (kRenderSamples);
+            std::vector<float>   b (kRenderSamples);
 
 
 
@@ -804,8 +804,8 @@ namespace Ssi263TestNs
             StartVowelAh1 (x);
             StartVowelAh1 (y);
 
-            RenderInto (x, a, kRenderSamples);
-            RenderInto (y, b, kRenderSamples);
+            RenderInto (x, a.data(), kRenderSamples);
+            RenderInto (y, b.data(), kRenderSamples);
 
             for (i = 0; i < kRenderSamples; i++)
             {
@@ -819,7 +819,7 @@ namespace Ssi263TestNs
         {
             Byte       phoneme                = 0;
             uint32_t   i                      = 0;
-            float      buffer[kRenderSamples] = {};
+            std::vector<float>   buffer (kRenderSamples);
 
 
 
@@ -837,7 +837,7 @@ namespace Ssi263TestNs
             for (phoneme = 0; phoneme < Ssi263::kPhonemeCount; phoneme++)
             {
                 chip.WriteRegister (Ssi263::kRegDurationPhoneme, phoneme);
-                RenderInto (chip, buffer, 512);
+                RenderInto (chip, buffer.data(), 512);
 
                 for (i = 0; i < 512; i++)
                 {
@@ -851,7 +851,7 @@ namespace Ssi263TestNs
         TEST_METHOD (IdleSpeechSourceContributesExactlyZero)
         {
             uint32_t            i = 0;
-            float               buffer[512];
+            std::vector<float>   buffer (512);
             Ssi263              chip;
             Ssi263AudioSource   source;
 
@@ -867,7 +867,7 @@ namespace Ssi263TestNs
             source.SetSpeech (&chip);
             chip.SetSampleRate (44100);
 
-            source.GeneratePCM (buffer, 512);
+            source.GeneratePCM (buffer.data(), 512);
 
             for (i = 0; i < 512; i++)
             {
@@ -881,7 +881,7 @@ namespace Ssi263TestNs
         {
             uint32_t            i            = 0;
             float               peak         = 0.0f;
-            float               buffer[4096] = {};
+            std::vector<float>   buffer (4096);
             Ssi263              chip;
             Ssi263AudioSource   source;
 
@@ -890,7 +890,7 @@ namespace Ssi263TestNs
             source.SetSpeech (&chip);
             StartVowelAh1 (chip);
 
-            source.GeneratePCM (buffer, 4096);
+            source.GeneratePCM (buffer.data(), 4096);
 
             for (i = 0; i < 4096; i++)
             {

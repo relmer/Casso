@@ -8,7 +8,45 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **Mockingboard C — the voice chip speaks** (#123). The SSI 263A phoneme
+  speech synthesizer joins the Mockingboard as a clean-room core written from
+  its datasheet: five attribute registers, all 64 phoneme codes, the published
+  duration/inflection/filter formulas, and formant synthesis (glottal or noise
+  excitation through three gliding resonators) with the amplitude transitioning
+  the datasheet describes. The chip's ready line drives VIA #1's CA1, so speech
+  software paces by polling or by interrupt, exactly as on hardware.
+- **Two card models, matching the product line.** `mockingboard` remains the
+  sound-only **Mockingboard A** (two empty speech sockets), byte-for-byte what
+  shipped before; the new `mockingboard-c` is the **Mockingboard C** — the A
+  with one SSI 263A installed in socket 1 (`$Cn40`/`$Cn60`). The ][+, //e, and
+  //e Enhanced profiles now install the C by default. As on the real board, the
+  speech chip is a tap: its address ranges still mirror the VIA for writes, so
+  sound-only software sees nothing new, and an unprogrammed chip powers up in
+  the part's own quiescent Power Down state — no audio, no interrupts.
+- `Apple2/Demos/mockingboard-speech-test.a65` (+ committed `.dsk`, built by the
+  new `scripts/BuildBootSectorDisk.ps1`): a boot-sector smoke test that speaks
+  "HELLO" on repeat — the speech counterpart of the tone test beside it.
+- `CASSO_AUDIO_DUMP=<file>` diagnostic tap: dumps the generated stereo mix as
+  raw float32 at the hand-off to the audio device, so an audible artifact can
+  be attributed to Casso's stream or to the device path (see #125).
+
 ### Changed
+- The Hardware tab names the card model — "Mockingboard A (sound)" /
+  "Mockingboard C (sound + speech)" — instead of a raw device string.
+- The 6522 VIA models CA1/CB1 control-line inputs with PCR edge selection —
+  the seam the speech chip's ready line needs, reusable by any future card. A
+  VIA whose lines are never driven behaves exactly as before, verified by test.
+- Machine profiles now ship the speech-equipped default via the embedded-config
+  version mechanism (2Plus v11, 2e v10, Enhanced v4), so existing installs
+  pick up the change on next launch; hand-edited profiles are backed up first,
+  as always.
+- The voice's per-phoneme acoustic table is derived from the published
+  phonetics literature, disclosed as such in source: the chip's own parameter
+  ROM has never been published or extracted (every emulator substitutes — see
+  research in `specs/024-mockingboard-speech/`). The table is a swappable
+  input, so measured-from-hardware or extracted-from-die data can replace it
+  wholesale later with no other change.
 - internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
 
 ## [1.18.0] — Merlin assembler dialect

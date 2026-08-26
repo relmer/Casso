@@ -48,6 +48,27 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
+### The Mockingboard speaks — SSI-263 voice chip (unreleased)
+
+The emulated Mockingboard is now the **Mockingboard C** — the sound card plus
+Sweet Micro's speech option — by default on the ][+, //e, and //e Enhanced.
+A clean-room **SSI 263A** core written from the chip's datasheet provides the
+five attribute registers, all 64 phonemes, the documented timing formulas, and
+formant synthesis, with the ready line wired to the VIA's CA1 the way speech
+drivers expect. Sound-only software is untouched: the speech chip is an
+additive tap on the real board's address decode, and it powers up in the
+part's own silent Power Down state, so the **Mockingboard A** behavior every
+existing title sees is byte-for-byte unchanged (and the A remains selectable
+as the `mockingboard` device type). Boot
+`Apple2/Demos/mockingboard-speech-test.dsk` to hear it say hello.
+
+One honest caveat, stated here because fidelity is the point of this project:
+the chip's own per-phoneme ROM has never been published or extracted — every
+emulator substitutes for it — so the voice currently uses formant values from
+the published phonetics literature. The table is a swappable input, and work
+to obtain the real values (die-shot extraction, hardware measurement) is
+tracked in the feature's research notes.
+
 ### Merlin assembler dialect (v1.18.0)
 
 `CassoCli` now assembles **Merlin** source — Glen Bredon's Merlin Pro, the
