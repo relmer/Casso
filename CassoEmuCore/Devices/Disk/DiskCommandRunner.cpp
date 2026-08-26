@@ -110,13 +110,9 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "Read a file from the disk, to standard output or to %Lout <file>",
       "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
       "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
-      "  %Ltext                  Convert the disk's Apple high-ASCII to ordinary host text: clear bit 7 from every byte, and turn the CR line endings into the host's own. Apple high-ASCII is plain 7-bit ASCII with bit 7 set, which is how the machine carries text throughout\n"
-      "  %Lbasic                 Detokenize an Applesoft program into a listing you can read and edit\n",
-      "WITH NEITHER %Ltext NOR %Lbasic the bytes are copied exactly as the disk holds"
-      " them, which is what lets you take a file off, change it, and write it back"
-      " knowing this tool altered nothing in between. The file's recorded length and"
-      " whatever load-address header its type carries are still honored, because those"
-      " are what say where the file ends.",
+      "  %Ltext                  Convert Apple high-ASCII encoding and line endings to host text\n"
+      "  %Lbasic                 Convert tokenized Applesoft to readable text\n",
+      nullptr,
       "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
 
     { CommandLineOptions::DiskOptions::Command::Put,
@@ -124,15 +120,16 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "Write a file from the host to the disk",
       "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
-      "  %Las <name>             Store the file under this name. Without it, the name it already has on the host. Neither filesystem here takes a path: ProDOS subdirectories are not supported yet\n"
-      "  %Ltype <t>              What the catalog records. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS. Without it, the type is read from the file's own contents, and anything unrecognized is stored as a binary\n"
-      "  %Lload $XXXX            The address a binary loads at. A binary is refused without one, because the address is part of the file; every other type ignores it\n"
-      "  %Ltext                  Convert ordinary host text to Apple high-ASCII: set bit 7 on every byte, and turn the line endings into the CR the Apple II expects\n"
-      "  %Lbasic                 Tokenize an Applesoft listing into the byte stream the guest stores and runs\n",
-      "%Lbasic STORES APPLESOFT, and Applesoft is the one type a DOS 3.3 disk's RUN"
-      " command will execute -- so a program placed under any other type is a program"
-      " the guest will not start. It refuses %Lload outright, because Applesoft keeps its"
-      " program at $0801 and nowhere else.",
+      "  %Las <name>             Rename the file to <name> on the disk. ProDOS subdirectories are not supported yet, so this is a name and not a path\n"
+      "  %Ltype <t>              Override the auto-detected file type. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS\n"
+      "  %Lload $XXXX            Load address for a binary file\n"
+      "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
+      "  %Lbasic                 Convert readable Applesoft text to the tokenized form the guest runs\n",
+      "%Lbasic stores the file as Applesoft, which is the one type a DOS 3.3 disk's RUN"
+      " will execute, so a program placed under any other type is one the guest will not"
+      " start. It refuses %Lload, because Applesoft keeps its program at $0801 and"
+      " nowhere else. A file already tokenized needs neither option: moved unconverted"
+      " it lands byte-for-byte.",
       "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" },
 
     { CommandLineOptions::DiskOptions::Command::Delete,
@@ -577,7 +574,11 @@ std::string DiskCommandRunner::BuildCommandBlocks (char flagPrefix)
 
     for (const DiskCommandRunner::DiskCommandHelp & entry : s_kDiskCommandHelp)
     {
-        text += "\n";
+        //  TWO BLANK LINES BETWEEN BLOCKS, not one. Every block ends on an
+        //  indented example, and a single blank left the next heading looking
+        //  like part of it: the page read as one long column rather than as
+        //  eight commands a reader can scan and stop at.
+        text += "\n\n";
         text += BuildOneBlock (entry, flagPrefix);
     }
 
