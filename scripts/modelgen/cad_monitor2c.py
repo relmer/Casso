@@ -726,13 +726,15 @@ for _cx, _joined in ((KNOB_CX[0], False), (KNOB_CX[1], True)):
 
 # Brightness: A CIRCLE WITH EIGHT SHORT RAYS standing off it -- and the
 # rays touch nothing, neither the circle they leave nor the box they sit in.
+# A rotation about +y runs OPPOSITE the position angle in the x-z plane, so
+# pointing a ray outward takes 90 MINUS its bearing, not plus.
 engrave(outline_ring(KNOB_CX[2], ICON_CZ, ICON_S, ICON_S, BOX_R))
 engrave(circle_ring(KNOB_CX[2], ICON_CZ, 1.6))
 for k in range(8):
     ang = k * 45.0
     rx  = KNOB_CX[2] + 2.85 * math.cos(math.radians(ang))
     rz  = ICON_CZ + 2.85 * math.sin(math.radians(ang))
-    engrave(stroke_box(rx, rz, STROKE, 1.1, ang + 90.0))
+    engrave(stroke_box(rx, rz, STROKE, 1.1, 90.0 - ang))
 
 # Video in: the box-around-CRT the trim glyphs wear, with a vertical bar
 # standing at each flank of the screen, exactly its height.
