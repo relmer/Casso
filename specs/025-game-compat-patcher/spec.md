@@ -6,6 +6,8 @@
 
 **Status**: Draft
 
+**Tracking issue**: [GH #94](https://github.com/relmer/Casso/issues/94)
+
 **Input**: User description: "Runtime game-compatibility patcher: a signature-to-replacement patch table applied to live guest RAM per frame (idempotent, through the memory bus), defusing title protection checks that fail by design on later machines. Initial scope: Choplifter's monitor-ROM integrity check on Enhanced //e and //c, the Karateka //c VBL shim from the parked game-patch-table branch, and a path to the wider Broderbund/Gebelli catalog documented by 4am's MIT-licensed anti-m (~25 titles, including Space Quarks GH #99). Open decisions the spec must settle: default-on vs opt-in, visible indication when a patch is active, per-title vs per-machine gating, and attribution policy for anti-m-derived rules."
 
 ## Context
@@ -341,10 +343,16 @@ here with rationale; a reviewer can override any of these before planning.
 
 ## Dependencies
 
+- **Tracking issue: GH #94** ("Game-patch table: compatibility shim for titles
+  that hang on //c"). This spec is the "full feature" that #94 calls for; its
+  "Remaining work" list — per-title gating, config/UI toggle, data-driven table,
+  CHANGELOG/README/spec before merge — maps onto this spec's D3, D1/D2/US3,
+  FR-001/FR-012, and release discipline respectively.
 - Builds on the emulator's live-memory access through the memory bus (so
   patches honor banking) and on the per-machine build/teardown lifecycle (so
   rules engage and disengage with the machine).
-- Supersedes / absorbs the unmerged `game-patch-table` branch.
+- Supersedes / absorbs the unmerged `game-patch-table` branch (commit
+  `a67c4922`), referenced by #94.
 - Relates to GH #99 (Space Quarks): if that title is covered, the issue moves
   from "closed by-design" to "addressed by compatibility patch."
 
