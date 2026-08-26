@@ -55,9 +55,11 @@ CORNER_ANG = 0.14
 
 W, D, H = 9.5 * INCH, 10.2 * INCH, 7.3 * INCH
 
-# How much of the depth the tube's housing takes before the case steps down to
-# the electronics box behind it.
-FRONT_D = 0.47 * D
+# How much of the depth the tube's housing takes before the case steps down
+# to the electronics box behind it. MEASURED OFF THE SIDE VIEW of a real
+# unit: the front section's depth is 52% of the rear section's, so the split
+# falls out of that ratio rather than being dialed in.
+FRONT_D = D * 0.52 / 1.52
 
 R_CASE  = 16.0                    # the front mass's corner radius, in the face
 
@@ -364,9 +366,21 @@ shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
 # The shared gap unit, and the run every vent makes: from one gap behind the
 # step to the terminating ring one gap in from the box's rear plane.
 G_UNIT   = (REAR_H - VENT_N_SIDE * LOUV_W) / (VENT_N_SIDE + 1)
-VENT_Y0  = FRONT_D + G_UNIT
+VENT_Y0  = FRONT_D + 2.0 * G_UNIT       # one gap past the collar's landing
 VENT_Y1  = D - G_UNIT
 VENT_RUN = VENT_Y1 - VENT_Y0
+
+# THE COLLAR: the front mass does not meet the box at a flat step. The
+# junction face leans back a little -- a frustum from the housing's outline
+# down onto the box's, one gap unit deep, the way the molding draws the big
+# shell onto the small one. It starts a hair inside the housing so the union
+# never sees a coincident face, and it lands exactly on the box's walls.
+shell = shell.union(
+    cq.Workplane(obj=cq.Solid.makeLoft([
+        case_wire(FRONT_D - 1.0, EDGE_R),
+        round_rect_wire(FRONT_D + G_UNIT, REAR_X0, REAR_X0 + REAR_W,
+                        REAR_Z0, REAR_Z1, R_REAR),
+    ], True)))
 
 
 def vent_positions(span, count):
@@ -429,7 +443,7 @@ shell = shell.cut(
 # it, on the band of rear face the centered box leaves exposed.
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(GRIP_W, GRIP_DEEP + 4.0, GRIP_H, centered=(False, False, False))
+      .box(GRIP_W, GRIP_DEEP + G_UNIT + 2.0, GRIP_H, centered=(False, False, False))
       .translate(((W - GRIP_W) * 0.5, FRONT_D - GRIP_DEEP, GRIP_Z0))
       .edges("|Y").fillet(6.0))
 
