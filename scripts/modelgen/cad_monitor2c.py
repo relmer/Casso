@@ -442,9 +442,9 @@ shell = shell.cut(
 # degrees, holding three male blades, LOW - HIGH - LOW.
 #
 # Under each control, its function engraved -- the Monitor II's mold-relief
-# strokes INVERTED: the same one-millimeter strokes, cut half a millimeter
-# INTO the panel instead of standing off it, so they read by the shadow they
-# hold rather than the highlight they catch.
+# strokes INVERTED: hairline strokes cut INTO the panel instead of standing
+# off it, so they read by the shadow they hold rather than the highlight
+# they catch.
 # THE WHOLE BAY IS SUNK A FULL INCH into the back of the case, and the knobs
 # stand a centimeter off its floor -- so nothing reaches the rear plane, and
 # the monitor sets flat against a wall without a control touching it.
@@ -464,13 +464,16 @@ PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
 
 CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
 ICON_CZ = PANEL_Z0 + 11.0               # the engraved row's center line
-ICON_S  = 7.0                           # icon box side
+ICON_S  = 9.0                           # icon box width
+ICON_H  = ICON_S * 0.84                 # ...and height, one aspect for the row
 # THIN, AND AS DEEP AS IT IS WIDE. An engraved mark reads by the shadow its
 # cut HOLDS, and a shallow wide groove holds almost none -- most rays reach
 # its floor and it renders as a faint gray line. A square-section cut is dark
 # from nearly every angle, which is what makes the glyph read as ink without
 # being painted.
-STROKE  = 0.6                           # engraved stroke width
+# A LINE, NOT A CHANNEL: thin enough that the eye never resolves the cut's
+# floor, only the dark of it.
+STROKE  = 0.35                          # engraved stroke width
 CUT_D   = STROKE                        # depth == width, by intent
 
 # Rear-view left to right; model x descends.
@@ -551,13 +554,31 @@ for i, cx in enumerate(KNOB_CX):
           .cylinder(2.0, 5.8, direct=(0, 1, 0), centered=(True, True, False))
           .translate((cx, PANEL_Y - 1.5, CTRL_Z)))
 
+    # The dark bushing lining the counterbore, stopped a hair below the
+    # panel face so the molded lip keeps its edge.
+    m.add(f"knobcup{i}",
+          cq.Workplane("XY")
+            .cylinder(1.35, 5.75, direct=(0, 1, 0), centered=(True, True, False))
+            .translate((cx, PANEL_Y - 1.45, CTRL_Z)),
+          SOCKET)
+
     m.add(f"knob{i}",
           cq.Workplane("XY")
             .cylinder(KNOB_PROUD + 1.5, 4.2, direct=(0, 1, 0), centered=(True, True, False))
             .translate((cx, PANEL_Y - 1.5, CTRL_Z)),
           KEYCAP)
 
-# THE RCA JACK: dark barrel, white insulator ring, dark center bore.
+# THE RCA JACK: dark barrel, white insulator ring, dark center bore --
+# rising out of the same counterbore-and-dark-bushing the knobs get.
+shell = shell.cut(
+    cq.Workplane("XY")
+      .cylinder(2.0, 6.6, direct=(0, 1, 0), centered=(True, True, False))
+      .translate((RCA_CX, PANEL_Y - 1.5, CTRL_Z)))
+m.add("rca_cup",
+      cq.Workplane("XY")
+        .cylinder(1.35, 6.55, direct=(0, 1, 0), centered=(True, True, False))
+        .translate((RCA_CX, PANEL_Y - 1.45, CTRL_Z)),
+      SOCKET)
 m.add("rca_body",
       cq.Workplane("XY")
         .cylinder(4.5, 4.6, direct=(0, 1, 0), centered=(True, True, False))
@@ -617,15 +638,22 @@ def outline_ring(cx, cz, w, h, r):
     return cq.Workplane(obj=outer).cut(cq.Workplane(obj=inner))
 
 
-# Mains: ONE FULL CYCLE of a sine wave, traced as short rotated strokes --
-# up over the first half, down over the second.
-_SINE_W, _SINE_A, _SINE_N = 6.4, 1.5, 10
+# Mains: ONE FULL CYCLE of a sine wave in the row's box, traced as short
+# rotated strokes. THE READER STANDS BEHIND THE MONITOR, so model +x is the
+# LEFT of what they see -- the wave is parameterized in the VIEWER's
+# left-to-right and mapped back, so it rises first and falls to the right
+# as read.
+engrave(outline_ring(AC_CX, ICON_CZ, ICON_S, ICON_H, 1.4))
+
+_SINE_W, _SINE_A, _SINE_N = 7.2, 2.1, 12
 
 for _k in range(_SINE_N):
-    _x0 = -_SINE_W * 0.5 + _SINE_W * _k / _SINE_N
-    _x1 = -_SINE_W * 0.5 + _SINE_W * (_k + 1) / _SINE_N
-    _z0 = _SINE_A * math.sin(2.0 * math.pi * (_x0 / _SINE_W + 0.5))
-    _z1 = _SINE_A * math.sin(2.0 * math.pi * (_x1 / _SINE_W + 0.5))
+    _u0 = _k / _SINE_N
+    _u1 = (_k + 1) / _SINE_N
+    _x0 = _SINE_W * (0.5 - _u0)
+    _x1 = _SINE_W * (0.5 - _u1)
+    _z0 = _SINE_A * math.sin(2.0 * math.pi * _u0)
+    _z1 = _SINE_A * math.sin(2.0 * math.pi * _u1)
     _ln = math.hypot(_x1 - _x0, _z1 - _z0) + STROKE * 0.8
     _an = math.degrees(math.atan2(_x1 - _x0, _z1 - _z0))
 
@@ -648,31 +676,34 @@ def arrow_head(cx, cz, w, h, up):
         cq.Vector(0.0, CUT_D + 0.5, 0.0)))
 
 
-# Vertical size and position share the frame: a CRT-shaped rectangle holding
-# an up arrowhead over a down arrowhead. SIZE joins them with a line -- the
-# picture stretching -- and POSITION separates them with a dot: the picture
-# going one way or the other from where it sits.
-for _cx, _joined in ((KNOB_CX[0], True), (KNOB_CX[1], False)):
-    engrave(outline_ring(_cx, ICON_CZ, ICON_S, ICON_S * 0.86, 1.6))
-    engrave(arrow_head(_cx, ICON_CZ + 1.7, 2.0, 1.3, True))
-    engrave(arrow_head(_cx, ICON_CZ - 1.7, 2.0, 1.3, False))
+# Vertical position and size share the drawing: the row's box, a CRT-shaped
+# screen inside it, and inside THAT an up arrowhead over a down arrowhead.
+# POSITION (nearest the inlet) separates them with a dot -- the picture going
+# one way or the other from where it sits -- and SIZE joins them with a
+# line, the picture stretching.
+for _cx, _joined in ((KNOB_CX[0], False), (KNOB_CX[1], True)):
+    engrave(outline_ring(_cx, ICON_CZ, ICON_S, ICON_H, 1.4))
+    engrave(outline_ring(_cx, ICON_CZ, ICON_S - 2.6, ICON_H - 2.4, 1.8))
+    engrave(arrow_head(_cx, ICON_CZ + 1.45, 2.0, 1.2, True))
+    engrave(arrow_head(_cx, ICON_CZ - 1.45, 2.0, 1.2, False))
 
     if _joined:
-        engrave(stroke_box(_cx, ICON_CZ, STROKE, 2.4))
+        engrave(stroke_box(_cx, ICON_CZ, STROKE, 1.6))
     else:
-        engrave(stroke_box(_cx, ICON_CZ, 0.8, 0.8))
+        engrave(stroke_box(_cx, ICON_CZ, 0.7, 0.7))
 
-# Brightness: the sun -- a core and eight rays.
-engrave(stroke_box(KNOB_CX[2], ICON_CZ, 2.4, 2.4))
+# Brightness: the sun -- a core and eight rays -- in the row's box.
+engrave(outline_ring(KNOB_CX[2], ICON_CZ, ICON_S, ICON_H, 1.4))
+engrave(stroke_box(KNOB_CX[2], ICON_CZ, 2.0, 2.0))
 for k in range(8):
     ang = k * 45.0
-    rx  = KNOB_CX[2] + 3.0 * math.cos(math.radians(ang))
-    rz  = ICON_CZ + 3.0 * math.sin(math.radians(ang))
-    engrave(stroke_box(rx, rz, 0.8, 1.6, ang + 90.0))
+    rx  = KNOB_CX[2] + 2.7 * math.cos(math.radians(ang))
+    rz  = ICON_CZ + 2.7 * math.sin(math.radians(ang))
+    engrave(stroke_box(rx, rz, 0.7, 1.2, ang + 90.0))
 
-# Video in: a screen inside a frame.
-engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_S, 0.8))
-engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, ICON_S - 3.2, 1.4))
+# Video in: the same box-around-CRT the trim glyphs wear, empty.
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_H, 1.4))
+engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, ICON_H - 2.4, 1.8))
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
