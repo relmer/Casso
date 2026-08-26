@@ -142,7 +142,23 @@ R_OPEN   = R_FLOOR
 # which read as well depth that no part of the monitor actually has. Two is
 # enough to keep the rectangular sheet inside the opening's rounded corners
 # (which it does with room to spare at R_OPEN 6) and no more.
-GLASS_IN = 2.0                    # glass inset from the opening
+# THE TUBE RUNS PAST THE OPENING, and the bezel's lip covers the difference.
+#
+# It used to stop 2 mm short of the hole all round, which sounds tidy and is
+# exactly backwards: the picture is inset from the GLASS by the faceplate
+# border, so a glass that stops short of the opening leaves the picture short
+# of it twice over -- and worst at the CORNERS, where a rectangular raster is
+# already retreating from a rounded mouth. Six and a half millimeters of black
+# in the corners against four along the sides, all of it aperture nobody sees
+# a tube through.
+#
+# Run the glass PAST the hole instead and the surplus disappears behind the
+# lip, which is what a lip is for. Two millimeters over brings the raster's
+# corners onto the bezel's corner arc within a millimeter, and still leaves a
+# couple of millimeters of faceplate showing along the edges -- a tube in a
+# bezel, rather than a picture hiding inside one.
+GLASS_OVER = 2.0                  # how far the glass runs PAST the opening
+GLASS_IN   = -GLASS_OVER          # ...as an inset, which is what the math wants
 CROWN_SET = 0.5                   # how far the crown sits behind the frame's nose
 
 # THE TUBE'S CURVATURE IS THE MONITOR II's RULE, applied to a smaller tube.
@@ -298,8 +314,13 @@ bez_sections.append(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
 
 shell = shell.cut(cq.Workplane(obj=cq.Solid.makeLoft(bez_sections, True)))
 
+# The throat, opened out to clear the tube: the glass now runs past the mouth,
+# and a sheet inside solid case is a sheet fighting the case for depth.
 shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
-    cq.Face.makeFromWires(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN)),
+    cq.Face.makeFromWires(round_rect_wire(OPEN_Y,
+                                          OX0 - GLASS_OVER - 1.0, OX1 + GLASS_OVER + 1.0,
+                                          OZ0 - GLASS_OVER - 1.0, OZ1 + GLASS_OVER + 1.0,
+                                          R_OPEN)),
     cq.Vector(0.0, 46.0, 0.0))))
 
 # ------------------------------------------------------------------ louvers
@@ -378,8 +399,10 @@ m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
 # Cavity back: the dark plane behind the glass.
 m.add("cavity",
-      cq.Workplane("XY").box(SCR_W, 2.0, SCR_H, centered=(False, False, False))
-        .translate((OX0, GLASS_Y + 1.0, OZ0)),
+      cq.Workplane("XY")
+        .box(SCR_W + GLASS_OVER * 2.0, 2.0, SCR_H + GLASS_OVER * 2.0,
+             centered=(False, False, False))
+        .translate((OX0 - GLASS_OVER, GLASS_Y + 1.0, OZ0 - GLASS_OVER)),
       CAVITY)
 
 # --------------------------------------------------------------------- glass
