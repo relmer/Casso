@@ -184,7 +184,6 @@ GRIP_DEEP        = 14.0
 
 PLAT     = (0.870, 0.862, 0.835)
 CAVITY   = (0.055, 0.055, 0.062)
-LAMPRING = (0.045, 0.045, 0.050)
 
 m = Model()
 
@@ -412,7 +411,7 @@ def slanted_prism(x, z0, height, width, lean, y_front, y_back):
 # surface at their own TOP edge, the proud end, and float a hair at the
 # bottom. Head on, which is how this scene is seen, the plate hides its own
 # gap.
-MARK_Z0, MARK_Z1 = 8.0, 18.0
+MARK_Z0, MARK_Z1 = 6.5, 19.5
 
 
 def frame_y_at(inset):
@@ -421,22 +420,26 @@ def frame_y_at(inset):
 
 
 PLATE_Y = frame_y_at(MARK_Z1)     # the proud end of the marks' band
-MARK_BACK_Y = frame_y_at(MARK_Z0) + 1.0    # ...and behind the surface at the other
 
-LCX, LCZ = W - 46.0, MARK_Z0
-LENS_W, LENS_H = 3.2, MARK_Z1 - MARK_Z0
-LEAN = LENS_H * 0.176
-RECESS_RIM = 0.4
+# THE INDICATOR IS THE DISK IIc's, part for part -- same 2.0 by 8.0 lens, same
+# 2.4 of lean, same 0.35 proud. They are the same indicator on the same
+# machine and there is no reason for the monitor to have its own dimensions
+# for it. The drive's has no recess ring either, so this one loses the one it
+# had.
+#
+# RIGHT-ALIGNED WITH THE TUBE: the lens's rightmost point -- the top of the
+# lean, not the bottom -- lands on the opening's right edge.
+LENS_W, LENS_H = 2.0, 8.0
+LEAN           = 2.4
+LENS_PROUD     = 0.35
 
-m.add_triangles("lampring",
-                slanted_prism(LCX - RECESS_RIM, LCZ - RECESS_RIM,
-                              LENS_H + RECESS_RIM * 2.0, LENS_W + RECESS_RIM * 2.0,
-                              LEAN, PLATE_Y - 0.40, MARK_BACK_Y),
-                LAMPRING)
+LCZ = MARK_Z0 + (MARK_Z1 - MARK_Z0 - LENS_H) * 0.5
+LCX = OX1 - (LENS_W + LEAN)
 
 m.add_triangles("lamp",
                 slanted_prism(LCX, LCZ, LENS_H, LENS_W, LEAN,
-                              PLATE_Y - 0.35, MARK_BACK_Y),
+                              frame_y_at(LCZ + LENS_H) - LENS_PROUD,
+                              frame_y_at(LCZ) + 1.0),
                 KD["monitor_lamp"])
 
 

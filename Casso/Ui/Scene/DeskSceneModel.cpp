@@ -46,7 +46,8 @@ static constexpr float   s_kMonitorRestMm = 96.0f;
 // TIED TO cad_monitor2c.py's FRAME -- the wide band that leans toward the
 // viewer, the same width the whole way round, between the outer roll and the
 // steeper bezel that drops to the tube. At the bottom it runs from z 4.8 to
-// z 21.8, and the mark lives inside that: MARK_Z0..MARK_Z1 there is this box.
+// z 23.8, and the mark lives inside that: MARK_Z0..MARK_Z1 there is this box,
+// and the two must be kept in step.
 //
 // The frame LEANS, so a flat stamp cannot lie on it everywhere. It is hung
 // from the surface at its TOP edge -- the proud end -- and floats a
@@ -55,9 +56,9 @@ static constexpr float   s_kMonitorRestMm = 96.0f;
 // one the stamp stands a fraction off; seen head on, which is how this scene
 // is seen, the plate hides its own gap.
 static constexpr float   s_kBrandLeftMm   =  32.0f;
-static constexpr float   s_kBrandTopZMm   =  18.0f;
-static constexpr float   s_kBrandHeightMm =  10.0f;
-static constexpr float   s_kBrandFrontY   =  -7.6f;
+static constexpr float   s_kBrandTopZMm   =  19.5f;
+static constexpr float   s_kBrandHeightMm =  13.0f;
+static constexpr float   s_kBrandFrontY   = -7.86f;
 
 // The Monitor II's mark: low on the right reveal, on the axis the MODEL
 // names through its brand anchor -- the reveal's center line, which is the
