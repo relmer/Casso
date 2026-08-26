@@ -83,9 +83,14 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // full-amplitude vowel inside the sample range after three resonators.
 static constexpr float   s_kfVoicedGain   = 4.00f;
 static constexpr float   s_kfNoiseGain    = 0.80f;
-static constexpr float   s_kfTilt         = 0.25f;
+static constexpr float   s_kfTilt         = 0.10f;
 static constexpr float   s_kfOutputGain   = 0.25f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
+
+// Amplitude envelope rates: a fast attack and a slightly longer release,
+// expressed as time constants the per-sample coefficient is derived from.
+static constexpr double  s_kAttackTauSec  = 0.002;
+static constexpr double  s_kReleaseTauSec = 0.004;
 
 
 
@@ -213,6 +218,7 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
             m_sounding      = false;
             m_phonemeCycles = 0.0;
             m_request       = false;
+            m_envLevel      = 0.0f;
         }
     }
     else if (sel == kRegDurationPhoneme && !IsPoweredDown())
@@ -285,6 +291,7 @@ void Ssi263::Reset()
         m_resY2[i] = 0.0f;
     }
 
+    m_envLevel     = 0.0f;
     m_glottalPhase = 0.0;
     m_lfsr         = 0xACE1u;
     m_excTilt      = 0.0f;
@@ -345,7 +352,12 @@ void Ssi263::Tick (uint32_t cycles)
 
 bool Ssi263::IsSilent() const
 {
-    return IsPoweredDown() || !m_sounding || (Amplitude() == 0);
+    // A finished phoneme is not silent until its release tail has decayed:
+    // the envelope ramps the boundary instead of gating it, so the chip
+    // stays audible for the few milliseconds the ramp needs. Idle and
+    // unprogrammed chips have a zero envelope and stay free.
+    return IsPoweredDown() || (Amplitude() == 0) ||
+           (!m_sounding && m_envLevel < 0.001f);
 }
 
 
@@ -483,6 +495,9 @@ double Ssi263::InflectionFrequencyHz() const
 float Ssi263::GenerateSample()
 {
     float    sample = 0.0f;
+    float    target = 0.0f;
+    double   tau    = 0.0;
+    double   coef   = 0.0;
     double   scale  = 1.0;
     int      stage  = 0;
 
@@ -505,7 +520,20 @@ float Ssi263::GenerateSample()
         sample = Resonate (stage, sample, m_fCur[stage] * scale);
     }
 
-    sample *= ActiveSpec().level * (static_cast<float> (Amplitude()) / 15.0f) * s_kfOutputGain;
+    // The amplitude envelope: eases toward the active level while sounding
+    // and toward zero once the phoneme has finished, so every boundary is a
+    // short ramp over the resonators' natural tail rather than a gate --
+    // the linear amplitude transitioning the datasheet describes. Truncating
+    // it instead put an audible click at every phoneme edge.
+    target = m_sounding
+                 ? ActiveSpec().level * (static_cast<float> (Amplitude()) / 15.0f)
+                 : 0.0f;
+    tau    = (target > m_envLevel) ? s_kAttackTauSec : s_kReleaseTauSec;
+    coef   = 1.0 - std::exp (-1.0 / (tau * static_cast<double> (m_sampleRate)));
+
+    m_envLevel += static_cast<float> (coef) * (target - m_envLevel);
+
+    sample *= m_envLevel * s_kfOutputGain;
 
     return std::clamp (sample, -1.0f, 1.0f);
 }

@@ -203,6 +203,11 @@ private:
     float      m_resY1[3] = { 0.0f, 0.0f, 0.0f };
     float      m_resY2[3] = { 0.0f, 0.0f, 0.0f };
 
+    // Output amplitude envelope: eases toward the active level so phoneme
+    // boundaries ramp instead of gating -- the linear amplitude transition
+    // the datasheet describes, and what keeps boundaries click-free.
+    float      m_envLevel = 0.0f;
+
     // Excitation state: glottal phase, a fixed-seed noise LFSR so output is
     // deterministic, and a one-pole tilt on the source spectrum.
     double     m_glottalPhase = 0.0;

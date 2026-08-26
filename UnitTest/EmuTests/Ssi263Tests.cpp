@@ -660,6 +660,61 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  PhonemeEndReleasesWithoutAStep
+        //
+        //  When a phoneme's duration expires, output must ramp down over the
+        //  resonators' tail rather than gate to zero -- gating put an audible
+        //  click at EVERY phoneme boundary, a steady crackle through all
+        //  connected speech. The datasheet's own model is a linear amplitude
+        //  transition, so the ramp is fidelity, not smoothing.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PhonemeEndReleasesWithoutAStep)
+        {
+            uint32_t   i                      = 0;
+            float      last                   = 0.0f;
+            float      maxStep                = 0.0f;
+            float      buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   chip;
+
+
+
+            StartVowelAh1 (chip);
+            RenderSteadyState (chip, buffer);
+            last = buffer[kRenderSamples - 1];
+
+            // Expire the phoneme between renders, as the emulated machine does.
+            chip.Tick (static_cast<uint32_t> (chip.PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+
+            RenderInto (chip, buffer, 2048);
+
+            for (i = 0; i < 2048; i++)
+            {
+                float  step = std::abs (buffer[i] - last);
+
+                if (step > maxStep)
+                {
+                    maxStep = step;
+                }
+
+                last = buffer[i];
+            }
+
+            Assert::IsTrue (maxStep < 0.08f,
+                            L"The end of a phoneme must ramp, not gate -- a step is an audible click");
+            Assert::IsTrue (std::abs (buffer[2047]) < 0.002f,
+                            L"and the release must actually decay to silence");
+            Assert::IsTrue (chip.IsSilent(),
+                            L"after the tail the chip reports silent so the idle fast-path resumes");
+        }
+
+
         TEST_METHOD (RenderingIsDeterministicAcrossIdenticalChips)
         {
             uint32_t   i                 = 0;
