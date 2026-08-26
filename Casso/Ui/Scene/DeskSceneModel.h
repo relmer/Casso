@@ -95,9 +95,8 @@ inline bool IsDriveKind (DeskDeviceKind kind)
 //  it on and off, so the model only records where it is and which triangles
 //  belong to it (by range into LampVerts).
 //
-//  `frontY` is the lens face (the most proud vertex, viewer at -Y), `backY`
-//  the panel side of it -- the pair is what lets the scene stand the LIGHT off
-//  a lens that is itself nearly flush, without moving a domed one. And
+//  `frontY` is the lens face (the most proud vertex, viewer at -Y), which is
+//  what the scene stands the LIGHT off -- see kLampLightStandoffMm. And
 //  `radiusX` / `radiusZ` its in-plane half-extents -- between them the scene
 //  can seat a glow on the lens, shaped like it, without knowing the model.
 //  Per axis rather than one radius because the lamps are not all round: the
@@ -108,7 +107,6 @@ struct DeskLampAnchor
 {
     float   center[3]   = {};
     float   frontY      = 0.0f;
-    float   backY       = 0.0f;
     float   radiusX     = 0.0f;
     float   radiusZ     = 0.0f;
     size_t  firstVertex = 0;

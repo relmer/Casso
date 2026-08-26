@@ -158,16 +158,22 @@ NOTCH_LID_D  = 4.0                # how far down into the lid
 # The indicator. A slash, because that is the glyph Apple molded there and the
 # same one the Monitor //c wears beside its lamp.
 #
-# ITS LENS IS ALL BUT FLUSH, because that is what the part is: a matte plastic
-# window sitting in the front face, not a domed bulb standing off it. The
-# earlier 1 mm standoff was there to make the LIGHT work -- the shader weighs
-# each surface by dot(n, L), so a source in the plane of the panel lights none
-# of it -- which was solving a lighting problem with geometry. The standoff
-# belongs to the light and now lives there; see kLampLightStandoffMm.
+# ITS LENS IS FLUSH, because that is what the part is: a matte plastic window
+# sitting IN the front face, not a bulb standing off it.
+#
+# Not exactly zero, though -- six hundredths of a millimeter, which is the
+# least that keeps the lens's face and the panel's from being coplanar. Two
+# coincident faces at the same depth is not "flush", it is a z-fight, and at
+# any zoom this scene offers 0.06 mm is far under a pixel.
+#
+# The standoff the SHADER needs is a separate thing and lives with the light
+# -- see kLampLightStandoffMm. A source in the plane it lights lights none of
+# it, and the answer to that is to move the source, not to grow a bump on the
+# hardware.
 LAMP_W, LAMP_H = 2.0, 8.0
 LAMP_X, LAMP_Z = W - 24.0, 11.0
 LAMP_LEAN      = 2.4
-LAMP_PROUD     = 0.35
+LAMP_PROUD     = 0.06
 
 # ------------------------------------------------------------- the two halves
 #

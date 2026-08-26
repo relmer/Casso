@@ -427,12 +427,19 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         // protrude meant modeling a bump that is not on the hardware, to solve
         // a problem that was never geometry's.
         //
-        // So both: the source stands off the lens's BACK face by a fixed
-        // amount, and never sits behind the lens's front. A flush window gets
-        // its light lifted out of the panel plane; the Disk II's dome already
-        // reaches further than that and min() leaves it exactly where it was.
+        // So the source stands off the lens's own FACE, always, by a fixed
+        // amount that belongs to the light and not to the part.
+        //
+        // It used to measure that standoff from the lens's BACK face and take
+        // whichever came out further forward, so as not to shove a domed LED
+        // that already protrudes. That worked only while every lens had some
+        // thickness in front of the panel. Make one truly flush -- which is
+        // what the //c family's are -- and the back-face rule hands back the
+        // panel plane itself, which lights nothing, and the indicator goes
+        // dark in its own glow. A rule that fails on the case it exists to
+        // serve is the wrong rule.
         lighting.lampPos[0] = anchor.center[0];
-        lighting.lampPos[1] = std::min (anchor.frontY, anchor.backY - kLampLightStandoffMm);
+        lighting.lampPos[1] = anchor.frontY - kLampLightStandoffMm;
         lighting.lampPos[2] = anchor.center[2];
 
         lighting.lampDir[0] =  0.0f;

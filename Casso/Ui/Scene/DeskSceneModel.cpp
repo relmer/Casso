@@ -725,7 +725,6 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             anchor.center[1]   = (lo[1] + hi[1]) * 0.5f;
             anchor.center[2]   = (lo[2] + hi[2]) * 0.5f;
             anchor.frontY      = lo[1];                     // most proud (viewer at -Y)
-            anchor.backY       = hi[1];                     // the panel side of the lens
             anchor.radiusX     = (hi[0] - lo[0]) * 0.5f;
             anchor.radiusZ     = (hi[2] - lo[2]) * 0.5f;
             anchor.firstVertex = 0;

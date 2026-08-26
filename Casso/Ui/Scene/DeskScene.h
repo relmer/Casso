@@ -205,10 +205,13 @@ public:
     // wearing geometry's clothes. Now the lens can be as flush as the real one
     // is and the light stands off by itself.
     //
-    // A FLOOR rather than an offset, so this does not shove lamps that already
-    // protrude: the Disk II's LED is a genuine dome and keeps its own
-    // position, because min() of the two leaves it where it was.
-    static constexpr float  kLampLightStandoffMm = 2.5f;
+    // AN OFFSET FROM THE LENS'S FACE, applied to every lamp. It was a floor
+    // measured from the lens's back face, so as not to shove the Disk II's
+    // domed LED -- but that only worked while every lens had thickness in
+    // front of its panel, and the //c family's are flush. Two millimeters
+    // rather than the old two and a half, which puts the dome's light within
+    // half a millimeter of where the floor rule had been putting it.
+    static constexpr float  kLampLightStandoffMm = 2.0f;
 
     // Which color a drive's lamp burns, given the drive.
     static constexpr const float *  DriveGlowRgb (DeskDeviceKind kind)

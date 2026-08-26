@@ -431,7 +431,10 @@ PLATE_Y = frame_y_at(MARK_Z1)     # the proud end of the marks' band
 # lean, not the bottom -- lands on the opening's right edge.
 LENS_W, LENS_H = 2.0, 8.0
 LEAN           = 2.4
-LENS_PROUD     = 0.35
+
+# FLUSH, like the drive's -- and six hundredths rather than zero for the same
+# reason: coincident faces are a z-fight, not a flush fit.
+LENS_PROUD     = 0.06
 
 LCZ = MARK_Z0 + (MARK_Z1 - MARK_Z0 - LENS_H) * 0.5
 LCX = OX1 - (LENS_W + LEAN)
