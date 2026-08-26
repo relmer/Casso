@@ -110,7 +110,7 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "Read a file from the disk, to standard output or to %Lout <file>",
       "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
       "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
-      "  %Ltext                  Convert the disk's HIGH ASCII to ordinary host text: clear the high bit every byte carries, and turn the CR line endings into the host's own. High ASCII is plain 7-bit ASCII with bit 7 set, which is how the Apple II stores text\n"
+      "  %Ltext                  Convert the disk's Apple high-ASCII to ordinary host text: clear bit 7 from every byte, and turn the CR line endings into the host's own. Apple high-ASCII is plain 7-bit ASCII with bit 7 set, which is how the machine carries text throughout\n"
       "  %Lbasic                 Detokenize an Applesoft program into a listing you can read and edit\n",
       "WITH NEITHER %Ltext NOR %Lbasic the bytes are copied exactly as the disk holds"
       " them, which is what lets you take a file off, change it, and write it back"
@@ -127,7 +127,7 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "  %Las <name>             Store the file under this name. Without it, the name it already has on the host. Neither filesystem here takes a path: ProDOS subdirectories are not supported yet\n"
       "  %Ltype <t>              What the catalog records. DOS 3.3 takes T (text), I (Integer BASIC), A (Applesoft), B (binary) or R (relocatable); ProDOS takes TXT, BIN, BAS or SYS. Without it, the type is read from the file's own contents, and anything unrecognized is stored as a binary\n"
       "  %Lload $XXXX            The address a binary loads at. A binary is refused without one, because the address is part of the file; every other type ignores it\n"
-      "  %Ltext                  Convert ordinary host text to the disk's HIGH ASCII: set bit 7 on every byte, and turn the line endings into the CR the Apple II expects\n"
+      "  %Ltext                  Convert ordinary host text to Apple high-ASCII: set bit 7 on every byte, and turn the line endings into the CR the Apple II expects\n"
       "  %Lbasic                 Tokenize an Applesoft listing into the byte stream the guest stores and runs\n",
       "%Lbasic STORES APPLESOFT, and Applesoft is the one type a DOS 3.3 disk's RUN"
       " command will execute -- so a program placed under any other type is a program"
@@ -1648,11 +1648,11 @@ HRESULT DiskCommandRunner::ApplyEncoding (
 
         case CommandLineOptions::DiskOptions::Encoding::Text:
             // Both conventions decode identically -- once the high bit is
-            // ignored, high-ASCII and plain-ASCII text differ in nothing -- so
+            // ignored, Apple high-ASCII and plain-ASCII text differ in nothing -- so
             // this choice is inert on the read path. It becomes load-bearing
             // when writing, which is where the terminator gets chosen.
             //
-            // High ASCII is the measured answer on both filesystems: the ProDOS
+            // Apple high-ASCII is the measured answer on both filesystems: the ProDOS
             // fixture volumes carry TXT files that are predominantly high-bit
             // with $8D terminators, not the plain seven-bit form usually
             // assumed for that filesystem.
@@ -2104,7 +2104,7 @@ Error:
 //  makes extract-edit-replace safe: the bytes the caller did not touch come
 //  back exactly as they were.
 //
-//  Text is written in the high-ASCII convention on BOTH filesystems, which is
+//  Text is written in the Apple high-ASCII convention on BOTH filesystems, which is
 //  the measured answer rather than the assumed one -- the ProDOS fixture
 //  volumes' own TXT files are predominantly high-bit with $8D terminators. It
 //  is also what the read path decodes, so the two directions agree.
