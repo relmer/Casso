@@ -488,12 +488,15 @@ AC_CX     = PANEL_X1 - 26.0
 KNOB_CX   = [AC_CX - 42.0, AC_CX - 68.0, AC_CX - 94.0]
 RCA_CX    = AC_CX - 122.0
 
-# The bay itself.
+# The bay itself. IT HAS NO BOTTOM WALL: the shell bounds it on the left,
+# the top, and the right, and the recess runs clean through the bottom of
+# the rear box -- the cords drop out the underside instead of climbing
+# over a sill.
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(PANEL_X1 - PANEL_X0, PANEL_DEEP + 1.0, PANEL_Z1 - PANEL_Z0,
+      .box(PANEL_X1 - PANEL_X0, PANEL_DEEP + 1.0, PANEL_Z1 - (REAR_Z0 - 5.0),
            centered=(False, False, False))
-      .translate((PANEL_X0, PANEL_Y, PANEL_Z0))
+      .translate((PANEL_X0, PANEL_Y, REAR_Z0 - 5.0))
       .edges("|Y").fillet(3.0))
 
 # THE MAINS INLET: the receptacle profile drawn as it is -- a rounded
