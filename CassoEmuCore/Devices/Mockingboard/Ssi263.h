@@ -208,9 +208,12 @@ private:
     // the datasheet describes, and what keeps boundaries click-free.
     float      m_envLevel = 0.0f;
 
-    // Excitation state: glottal phase, a fixed-seed noise LFSR so output is
-    // deterministic, and a one-pole tilt on the source spectrum.
+    // Excitation state: glottal period phase, the two-pole smoothing that
+    // shapes each impulse into a glottal pulse, and a fixed-seed noise
+    // LFSR so output is deterministic.
     double     m_glottalPhase = 0.0;
+    float      m_excLp1       = 0.0f;
+    float      m_excLp2       = 0.0f;
     uint32_t   m_lfsr         = 0xACE1u;
-    float      m_excTilt      = 0.0f;
+    float      m_noiseLp      = 0.0f;
 };

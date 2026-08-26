@@ -81,9 +81,15 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
 // source, per-stage resonator bandwidths, and the output level that keeps a
 // full-amplitude vowel inside the sample range after three resonators.
-static constexpr float   s_kfVoicedGain   = 4.00f;
+static constexpr float   s_kfVoicedGain   = 5.00f;
 static constexpr float   s_kfNoiseGain    = 0.80f;
-static constexpr float   s_kfTilt         = 0.10f;
+
+// Two-pole smoothing on the glottal impulse train. A bare impulse opened
+// every pitch period with a step -- an audible click at the fundamental
+// rate -- while a wide shaped pulse rolled off the upper formants and
+// muffled the voice. Two cascaded one-pole sections start each pulse from
+// zero (click-free) yet keep a -12 dB/oct tail that still excites F2/F3.
+static constexpr float   s_kfSourcePole   = 0.15f;
 static constexpr float   s_kfOutputGain   = 0.25f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
@@ -293,8 +299,10 @@ void Ssi263::Reset()
 
     m_envLevel     = 0.0f;
     m_glottalPhase = 0.0;
+    m_excLp1       = 0.0f;
+    m_excLp2       = 0.0f;
+    m_noiseLp      = 0.0f;
     m_lfsr         = 0xACE1u;
-    m_excTilt      = 0.0f;
 }
 
 
@@ -657,10 +665,10 @@ float Ssi263::Excitation()
 
 
 
-    float    src   = 0.0f;
-    float    pulse = 0.0f;
-    double   pitch = 0.0;
-    Byte     bit   = 0;
+    float    src     = 0.0f;
+    float    impulse = 0.0f;
+    double   pitch   = 0.0;
+    Byte     bit     = 0;
 
 
 
@@ -673,12 +681,16 @@ float Ssi263::Excitation()
         if (m_glottalPhase >= 1.0)
         {
             m_glottalPhase -= 1.0;
-            pulse = 1.0f;
+            impulse         = 1.0f;
         }
 
-        // One-pole tilt softens the impulse train into a glottal-ish source.
-        m_excTilt += s_kfTilt * (pulse - m_excTilt);
-        src        = m_excTilt * s_kfVoicedGain;
+        // Two cascaded one-pole sections: the pulse rises from zero rather
+        // than opening with a step, and its tail keeps enough energy at the
+        // upper formants to excite them.
+        m_excLp1 += s_kfSourcePole * (impulse - m_excLp1);
+        m_excLp2 += s_kfSourcePole * (m_excLp1 - m_excLp2);
+
+        src = m_excLp2 * s_kfVoicedGain;
     }
 
     if (spec.fricative)
@@ -691,7 +703,11 @@ float Ssi263::Excitation()
             m_lfsr ^= 0xB400u;
         }
 
-        src += ((bit != 0) ? 1.0f : -1.0f) * s_kfNoiseGain;
+        // One-pole smoothing: raw LFSR output swings rail to rail between
+        // adjacent samples, which is a stream of clicks, not a hiss.
+        m_noiseLp += 0.30f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
+
+        src += m_noiseLp * s_kfNoiseGain;
     }
 
     return src;

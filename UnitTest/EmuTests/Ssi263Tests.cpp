@@ -715,6 +715,79 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  ConnectedSpeechHasNoClicks
+        //
+        //  Renders a complete utterance -- the speech demo's "HELLO" -- through
+        //  the audio source at realistic pacing, interleaving emulated time
+        //  with rendering the way the shell does, and bounds the largest
+        //  sample-to-sample step across every phoneme transition, the pause,
+        //  and the utterance restart. This is the deterministic form of the
+        //  loopback-capture analysis that found the boundary clicks: anything
+        //  under the bound here means a click heard from the app is downstream
+        //  of the chip.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ConnectedSpeechHasNoClicks)
+        {
+            static constexpr Byte   kUtterance[] = { 0x2C, 0x0B, 0x20, 0x3B, 0x12, 0x00 };
+
+            uint32_t   i               = 0;
+            uint32_t   n               = 0;
+            uint32_t   rendered        = 0;
+            int        pass            = 0;
+            size_t     ph              = 0;
+            float      last            = 0.0f;
+            float      maxStep         = 0.0f;
+            double     cyclesPerSample = Ssi263::kDefaultClockHz / kSampleRate;
+            float      buffer[512]     = {};
+
+
+
+            Ssi263              chip;
+            Ssi263AudioSource   source;
+
+
+
+            source.SetSpeech (&chip);
+            StartVowelAh1 (chip);
+
+            // Two full utterances, so the restart boundary is covered too.
+            for (pass = 0; pass < 2; pass++)
+            {
+                for (ph = 0; ph < sizeof (kUtterance); ph++)
+                {
+                    chip.WriteRegister (Ssi263::kRegDurationPhoneme, kUtterance[ph]);
+
+                    n = static_cast<uint32_t> (chip.PhonemeDurationSec() * kSampleRate);
+
+                    for (rendered = 0; rendered < n; rendered += 512)
+                    {
+                        chip.Tick (static_cast<uint32_t> (512.0 * cyclesPerSample));
+                        source.GeneratePCM (buffer, 512);
+
+                        for (i = 0; i < 512; i++)
+                        {
+                            float  step = std::abs (buffer[i] - last);
+
+                            if (step > maxStep)
+                            {
+                                maxStep = step;
+                            }
+
+                            last = buffer[i];
+                        }
+                    }
+                }
+            }
+
+            Assert::IsTrue (maxStep < 0.05f,
+                            L"Connected speech must contain no step larger than a click threshold");
+        }
+
+
         TEST_METHOD (RenderingIsDeterministicAcrossIdenticalChips)
         {
             uint32_t   i                 = 0;
