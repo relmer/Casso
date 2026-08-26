@@ -186,6 +186,11 @@ static constexpr float   s_kWordRollMm    = 0.25f;
 // than one diagonal.
 static constexpr float   s_kDoorCornerMm = 2.0f;
 
+// How near the lens's own plane a body triangle has to be to count as the
+// PANEL the lamp is set into. A lamp is a millimeter-scale feature; anything
+// this far from its face is a different part of the case.
+static constexpr float   s_kLampPanelBandMm = 4.0f;
+
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
@@ -735,19 +740,36 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             // because it is a fact about the model and the model is the only
             // thing that knows it -- and because a lamp that moves onto a
             // differently angled panel then brings its glow's plane with it.
+            //
+            // BOUNDED TO THE LENS'S OWN PLANE, which is the whole of the care
+            // this needs. Accepting anything merely BEHIND the lens let the
+            // search reach the far side of the case: on the //c monitor it
+            // settled on an inward-facing wall of the rear panel recess, a
+            // quarter of a meter back, which happens to be flat -- so the
+            // facing came out (0,-1,0), the tilt was a no-op, and the glow
+            // kept the hard edge this was written to remove.
+            //
+            // Centroids, not first vertices: a triangle is judged by where it
+            // IS, and on a lofted panel one corner can be a long way off.
             {
                 float  best = FLT_MAX;
 
                 for (size_t i = 0; i + 2 < m_opaque.size(); i += 3)
                 {
                     const Dxui3DRenderer::Vertex  & v  = m_opaque[i];
-                    float                           dx = v.x - anchor.center[0];
-                    float                           dz = v.z - anchor.center[2];
+                    float                           gx = (m_opaque[i].x + m_opaque[i + 1].x
+                                                          + m_opaque[i + 2].x) / 3.0f;
+                    float                           gy = (m_opaque[i].y + m_opaque[i + 1].y
+                                                          + m_opaque[i + 2].y) / 3.0f;
+                    float                           gz = (m_opaque[i].z + m_opaque[i + 1].z
+                                                          + m_opaque[i + 2].z) / 3.0f;
+                    float                           dx = gx - anchor.center[0];
+                    float                           dz = gz - anchor.center[2];
                     float                           d2 = dx * dx + dz * dz;
 
-                    // Facing the viewer, and not in front of the lens: the
-                    // panel is what the lamp is set INTO.
-                    if (v.ny < -0.2f && v.y > anchor.frontY - 0.5f && d2 < best)
+                    // Facing the viewer, and NEAR THE LENS'S OWN PLANE.
+                    if (v.ny < -0.2f &&
+                        std::fabs (gy - anchor.frontY) <= s_kLampPanelBandMm && d2 < best)
                     {
                         best = d2;
                         anchor.facing[0] = v.nx;
