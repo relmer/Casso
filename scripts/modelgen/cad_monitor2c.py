@@ -92,9 +92,19 @@ FRAME_ANG = math.radians(10.0)    # ...and how far it leans toward the viewer
 # longer, by however much the depth adds, and that is the hypotenuse rather
 # than the number being set here. Written as the ratio because that is the
 # thing being judged; the millimeters are a consequence.
-BEZ_RATIO = 1.0 / 4.5
+BEZ_RATIO = 1.0 / 6.0
 BEZ_W     = (EDGE_R + FRAME) * BEZ_RATIO
 BEZ_DEPTH = INCH / 4.0            # the depth, which no head-on photo can give
+
+# AND THE CREASE BETWEEN THEM IS NEARLY SHARP. Every other edge on this case
+# is broken at the Disk IIc's three sixteenths, and that is right for an edge
+# you could run a thumb along -- but this one is a change of DIRECTION in the
+# molding's face, not an arris on its outside, and rolling it at five
+# millimeters turned a hard line into a soft trough. A little more than the
+# flare on the drive's vent slots is all it wants: enough to catch a highlight
+# and stop the crease reading as ink, and no more.
+CREASE_R = 0.45
+CREASE_STEPS = 3                  # facets across it, at this radius
 BEZ_ANG   = math.atan2(BEZ_DEPTH, BEZ_W)
 
 # The border is therefore the same all round, and the opening is what it
@@ -244,13 +254,13 @@ shell = shell.edges(">Y").fillet(EDGE_R)
 #
 # Solved in the (inset, depth) section rather than guessed. The frame runs
 # inward and FORWARD at FRAME_ANG; the bezel runs inward and BACK at BEZ_ANG;
-# the turn between them is the sum, and a fillet of EDGE_R tangent to both
+# the turn between them is the sum, and a fillet of CREASE_R tangent to both
 # starts a tangent length back along the frame -- which is why the cut has to
 # begin OUTBOARD of the corner and bite into the frame. That is what rolling a
 # convex edge means, and no amount of filleting after the fact does it.
 _corner  = (EDGE_R + FRAME, FRAME_IN_Y)
 _turn    = FRAME_ANG + BEZ_ANG
-_tangent = EDGE_R * math.tan(_turn * 0.5)
+_tangent = CREASE_R * math.tan(_turn * 0.5)
 
 # Unit directions, going inward, in (inset, depth).
 _fdir = (math.cos(FRAME_ANG), -math.sin(FRAME_ANG))
@@ -258,16 +268,17 @@ _bdir = (math.cos(BEZ_ANG), math.sin(BEZ_ANG))
 
 # The arc's centre is EDGE_R off the frame along its inward normal.
 _p1     = (_corner[0] - _tangent * _fdir[0], _corner[1] - _tangent * _fdir[1])
-_centre = (_p1[0] + EDGE_R * math.sin(FRAME_ANG), _p1[1] + EDGE_R * math.cos(FRAME_ANG))
+_centre = (_p1[0] + CREASE_R * math.sin(FRAME_ANG),
+           _p1[1] + CREASE_R * math.cos(FRAME_ANG))
 _phi0   = math.atan2(_p1[1] - _centre[1], _p1[0] - _centre[0])
 
 bez_sections = [case_wire(FRAME_IN_Y - 8.0, _p1[0])]
 
-for step in range(CAP_STEPS):
-    phi = _phi0 + _turn * (step / float(CAP_STEPS - 1))
+for step in range(CREASE_STEPS):
+    phi = _phi0 + _turn * (step / float(CREASE_STEPS - 1))
 
-    bez_sections.append(case_wire(_centre[1] + EDGE_R * math.sin(phi),
-                                  _centre[0] + EDGE_R * math.cos(phi)))
+    bez_sections.append(case_wire(_centre[1] + CREASE_R * math.sin(phi),
+                                  _centre[0] + CREASE_R * math.cos(phi)))
 
 bez_sections.append(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
 
