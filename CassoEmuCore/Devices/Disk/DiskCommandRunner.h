@@ -341,6 +341,20 @@ struct DiskCommandHelp
     void  ReportMissingParameter (const std::string & parameter,
                                   DiskCommandResult & result) const;
 
+    //  Every required operand this command did not get, in the order its
+    //  grammar lists them.
+    //
+    //  ALL OF THEM, NOT THE FIRST ONE NOTICED. Each command used to check its
+    //  own operands wherever it happened to need them, so `disk get` with
+    //  nothing at all complained that <name> was missing and never mentioned
+    //  <image> -- the operand that comes first, and that the reader would have
+    //  had to supply before the complaint made sense.
+    std::vector<std::string>  MissingParameters (const CommandLineOptions & options) const;
+
+    //  The same report for a list of them.
+    void  ReportMissingParameters (const std::vector<std::string> & parameters,
+                                   DiskCommandResult & result) const;
+
 
     static std::string  ApplyPrefixes      (const std::string & text, char flagPrefix);
     static std::string  BuildSubcommandHelp (char flagPrefix);

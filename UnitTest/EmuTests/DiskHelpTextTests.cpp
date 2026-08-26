@@ -607,6 +607,109 @@ public:
 
     //  Every accepted spelling of a command reaches the same command, which is
     //  what the aliases on each heading promise.
+    //  The operands a grammar line shows as REQUIRED, in the order it shows
+    //  them: a <token> outside any [optional] group, and not the value of an
+    //  option that precedes it.
+    static std::vector<std::string> RequiredOperandsIn (const std::string & grammar)
+    {
+        std::vector<std::string>  required;
+        std::istringstream        reader (grammar);
+        std::string               word;
+        int                       depth    = 0;
+        bool                      afterOpt = false;
+
+        while (reader >> word)
+        {
+            std::string  bare;
+            bool         wasOption    = afterOpt;
+            //  THE DEPTH THIS WORD SITS AT, not the depth it leaves behind.
+            //  `<file>]` closes its group, so measuring afterwards reads it as
+            //  a required operand when it is the value of an optional flag.
+            int          depthAtStart = depth;
+
+            for (char c : word)
+            {
+                if      (c == '[') { depth++; }
+                else if (c == ']') { depth--; }
+                else               { bare += c; }
+            }
+
+            //  `%L` and `%S` stand in for the reader's prefix in these tables,
+            //  so an option is spelled `%Ltrack` here rather than `--track`.
+            afterOpt = !bare.empty() && (bare[0] == '-' || bare[0] == '/' || bare[0] == '%');
+
+            if (depthAtStart == 0 && !wasOption && bare.size() > 2
+                && bare.front() == '<' && bare.back() == '>')
+            {
+                required.push_back (bare);
+            }
+        }
+
+        return required;
+    }
+
+    //
+    //  WHAT THE GRAMMAR SHOWS AND WHAT THE RUNNER DEMANDS ARE ONE LIST.
+    //
+    //  MissingParameters names the operands by hand, command by command, and
+    //  the grammar line above each block names them again. Two lists of the
+    //  same thing drift: a command whose grammar gains an operand and whose
+    //  check does not would print usage asking for something it never
+    //  complains about, and the reverse would complain about something the
+    //  usage never mentions.
+    //
+    TEST_METHOD (WhatEachCommandDemands_IsWhatItsGrammarShows)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+
+        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        {
+            CommandLineOptions        options;
+            std::vector<std::string>  fromGrammar = RequiredOperandsIn (entry.grammar);
+            std::vector<std::string>  fromRunner;
+
+            options.subcommand   = CommandLineOptions::Subcommand::Disk;
+            options.disk.command = entry.command;
+
+            //  Nothing supplied, so everything required is missing.
+            fromRunner = runner.MissingParameters (options);
+
+            Assert::AreEqual (fromGrammar.size(), fromRunner.size(),
+                              (L"operand count disagrees for " + Widen (entry.forms)).c_str());
+
+            for (size_t i = 0; i < fromGrammar.size(); i++)
+            {
+                Assert::AreEqual (fromGrammar[i], fromRunner[i],
+                                  (L"operand " + std::to_wstring (i) + L" disagrees for "
+                                   + Widen (entry.forms)).c_str());
+            }
+        }
+    }
+
+    //  And the reporting names every one of them, not the first noticed.
+    //  `disk get` with nothing at all used to complain that <name> was
+    //  missing and never mention <image>, which comes first.
+    TEST_METHOD (ACommandMissingTwoOperands_ReportsBoth)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        DiskCommandResult   result;
+
+        options.subcommand   = CommandLineOptions::Subcommand::Disk;
+        options.disk.command = CommandLineOptions::DiskOptions::Command::Get;
+
+        result = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("<image>") != std::string::npos,
+                        L"the first operand is named");
+        Assert::IsTrue (result.diagnostics.find ("<name>") != std::string::npos,
+                        L"and so is the second");
+        Assert::IsTrue (result.diagnostics.find ("parameters") != std::string::npos,
+                        L"and the sentence agrees with itself about how many");
+    }
+
     TEST_METHOD (EverySpellingOnACommandHeading_ReachesThatCommand)
     {
         for (const auto & entry : DiskCommandRunner::GetCommandHelp())

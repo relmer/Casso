@@ -434,6 +434,99 @@ std::string DiskCommandRunner::BuildCommandHelp (CommandLineOptions::DiskOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::MissingParameters
+//
+//  Every required operand this command did not get, in grammar order.
+//
+//  THE LIST MATCHES THE GRAMMAR LINE the block prints, which is what makes the
+//  refusal readable: a reader told that <image> and <name> are missing can see
+//  both of them in the usage directly above, in that order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DiskCommandRunner::MissingParameters (const CommandLineOptions & options) const
+{
+    using Command = CommandLineOptions::DiskOptions::Command;
+
+    std::vector<std::string>  missing;
+    Command                   command   = options.disk.command;
+    bool                      wantsFile = command == Command::Put || command == Command::Stamp;
+    bool                      wantsName = command == Command::Get || command == Command::Delete
+                                       || command == Command::Boot;
+
+
+
+    //  Help asks for nothing, and a command the table does not know is
+    //  answered as an unknown command rather than as a missing operand.
+    if (command == Command::None || command == Command::Help)
+    {
+        return missing;
+    }
+
+    if (options.disk.imagePath.empty())
+    {
+        missing.push_back ("<image>");
+    }
+
+    if (wantsName && options.disk.path.empty())
+    {
+        missing.push_back ("<name>");
+    }
+
+    if (wantsFile && options.disk.hostFile.empty())
+    {
+        missing.push_back ("<file>");
+    }
+
+    return missing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReportMissingParameters
+//
+//  That command's usage, and then every operand it did not get.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReportMissingParameters (const std::vector<std::string> & parameters,
+                                                 DiskCommandResult & result) const
+{
+    std::string  list;
+    size_t       i = 0;
+
+
+
+    for (i = 0; i < parameters.size(); i++)
+    {
+        bool  last = (i + 1) == parameters.size();
+
+        list += parameters[i];
+
+        if (!last)
+        {
+            list += (parameters.size() == 2) ? " and " : (i + 2 == parameters.size() ? ", and " : ", ");
+        }
+    }
+
+    result.output        += BuildCommandHelp (m_command, m_flagPrefix);
+    result.diagnostics   += std::string ("Error: required parameter")
+                          + ((parameters.size() > 1) ? "s " : " ") + list + " missing\n";
+    result.exitStatus     = kNoOutput;
+    result.badCommandLine = true;
+    result.usageShown     = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ReportMissingParameter
 //
 //  A required operand that was not supplied.
@@ -451,11 +544,7 @@ std::string DiskCommandRunner::BuildCommandHelp (CommandLineOptions::DiskOptions
 void DiskCommandRunner::ReportMissingParameter (const std::string & parameter,
                                                 DiskCommandResult & result) const
 {
-    result.output        += BuildCommandHelp (m_command, m_flagPrefix);
-    result.diagnostics   += "Error: required parameter " + parameter + " missing\n";
-    result.exitStatus     = kNoOutput;
-    result.badCommandLine = true;
-    result.usageShown     = true;
+    ReportMissingParameters (std::vector<std::string> { parameter }, result);
 }
 
 
@@ -2598,6 +2687,19 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     {
         result.exitStatus = kNoOutput;
         return result;
+    }
+
+    //  ASKED ONCE, BEFORE ANY COMMAND RUNS. Each command used to check its own
+    //  operands wherever it first needed them, which reported whichever one
+    //  that command happened to reach first and never the rest.
+    {
+        std::vector<std::string>  missing = MissingParameters (options);
+
+        if (!missing.empty())
+        {
+            ReportMissingParameters (missing, result);
+            return result;
+        }
     }
 
     switch (options.disk.command)
