@@ -222,9 +222,22 @@ REAR_Z0  = (H - REAR_H) * 0.5
 REAR_Z1  = REAR_Z0 + REAR_H
 
 # Louvers: along the depth on both flanks, across the width on the lid.
-LOUV_W    = 2.2                   # slot width
-LOUV_DEEP = 2.0
-LOUV_PITCH = 5.4                  # center to center
+# THE VENTS, exactly as the case is cut: sixteen lines across the lid and
+# sixteen across the underside, eleven down each flank, each set CENTERED on
+# its own face -- n lines and n+1 equal gaps, so the face reads
+# gap-line-gap-...-line-gap and the count fixes the rhythm. All of them run
+# front to rear, stop short of the step onto the front mass, and terminate in
+# a single groove that rings the box's whole circumference one gap in from
+# its rear plane. The front mass answers with a ring of its own, a gap and a
+# half forward of its rear face.
+#
+# ONE gap unit serves every face's margins and both rings, taken from the
+# flanks -- the per-face gaps differ by a couple of millimeters, and a ring
+# has one position, not one per face.
+LOUV_W      = 2.2                 # slot width
+LOUV_DEEP   = 2.0
+VENT_N_LID  = 16                  # lid and underside
+VENT_N_SIDE = 11                  # each flank
 
 # The carrying handle: a pocket sunk into the FRONT mass's rear face, up near
 # its top -- which is where a hand actually goes when the monitor is lifted,
@@ -348,34 +361,67 @@ shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
 
 # ------------------------------------------------------------------ louvers
 
-# Along the depth on both flanks, centered on the box's own height. They stop
-# short of the box's ends and of its lid, the way cooling slots in a molding
-# do.
-for i in range(13):
-    z = REAR_Z0 + 10.0 + i * 6.6
+# The shared gap unit, and the run every vent makes: from one gap behind the
+# step to the terminating ring one gap in from the box's rear plane.
+G_UNIT   = (REAR_H - VENT_N_SIDE * LOUV_W) / (VENT_N_SIDE + 1)
+VENT_Y0  = FRONT_D + G_UNIT
+VENT_Y1  = D - G_UNIT
+VENT_RUN = VENT_Y1 - VENT_Y0
 
+
+def vent_positions(span, count):
+    """Line start offsets for `count` lines and count+1 equal gaps across
+    `span`, which is what centers the set by construction."""
+    gap = (span - count * LOUV_W) / (count + 1)
+
+    return [gap + i * (LOUV_W + gap) for i in range(count)]
+
+
+# The flanks: eleven lines each, centered on the box's height.
+for dz in vent_positions(REAR_H, VENT_N_SIDE):
     for x in (REAR_X0 - 1.0, REAR_X0 + REAR_W - LOUV_DEEP + 1.0):
         shell = shell.cut(
             cq.Workplane("XY")
-              .box(LOUV_DEEP, (D - 26.0) - (REAR_Y0 + 18.0), LOUV_W,
-                   centered=(False, False, False))
-              .translate((x, REAR_Y0 + 18.0, z)))
+              .box(LOUV_DEEP + 1.0, VENT_RUN, LOUV_W, centered=(False, False, False))
+              .translate((x, VENT_Y0, REAR_Z0 + dz)))
 
-# And along the depth on the lid too -- FRONT TO REAR, the same direction as
-# the flanks', which is what the rear three-quarter photograph shows. They ran
-# across the width for a while, which is a plausible molding nothing about
-# this monitor has.
-_lid_x0 = REAR_X0 + 15.0
-_lid_n  = int((REAR_W - 30.0) / LOUV_PITCH)
+# The lid and the underside: sixteen lines each, centered on the box's width.
+for dx in vent_positions(REAR_W, VENT_N_LID):
+    for z in (REAR_Z1 - LOUV_DEEP, REAR_Z0 - 1.0):
+        shell = shell.cut(
+            cq.Workplane("XY")
+              .box(LOUV_W, VENT_RUN, LOUV_DEEP + 1.0, centered=(False, False, False))
+              .translate((REAR_X0 + dx, VENT_Y0, z)))
 
-for i in range(_lid_n):
-    x = _lid_x0 + i * LOUV_PITCH
+# THE TERMINATING RING: one continuous groove around the box's circumference,
+# which the vents run into and end at. Cut the way the drive's seam is -- an
+# outer slab minus an inner rounded prism -- so the groove follows the box's
+# rounded corners instead of breaking at them.
+shell = shell.cut(
+    cq.Workplane("XY")
+      .box(REAR_W + 20.0, LOUV_W, REAR_H + 20.0, centered=(False, False, False))
+      .translate((REAR_X0 - 10.0, VENT_Y1 - LOUV_W, REAR_Z0 - 10.0))
+      .cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
+               cq.Face.makeFromWires(round_rect_wire(
+                   VENT_Y1 - LOUV_W - 1.0,
+                   REAR_X0 + LOUV_DEEP, REAR_X0 + REAR_W - LOUV_DEEP,
+                   REAR_Z0 + LOUV_DEEP, REAR_Z1 - LOUV_DEEP,
+                   R_REAR - LOUV_DEEP)),
+               cq.Vector(0.0, LOUV_W + 2.0, 0.0)))))
 
-    shell = shell.cut(
-        cq.Workplane("XY")
-          .box(LOUV_W, (D - 26.0) - (REAR_Y0 + 18.0), LOUV_DEEP,
-               centered=(False, False, False))
-          .translate((x, REAR_Y0 + 18.0, REAR_Z1 - LOUV_DEEP)))
+# ...AND THE FRONT MASS'S OWN RING, a gap and a half forward of its rear
+# face -- the one line the big smooth housing carries.
+shell = shell.cut(
+    cq.Workplane("XY")
+      .box(W + 20.0, LOUV_W, H + 20.0, centered=(False, False, False))
+      .translate((-10.0, FRONT_D - 1.5 * G_UNIT - LOUV_W, -10.0))
+      .cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
+               cq.Face.makeFromWires(round_rect_wire(
+                   FRONT_D - 1.5 * G_UNIT - LOUV_W - 1.0,
+                   LOUV_DEEP, W - LOUV_DEEP,
+                   LOUV_DEEP, H - LOUV_DEEP,
+                   R_CASE - LOUV_DEEP)),
+               cq.Vector(0.0, LOUV_W + 2.0, 0.0)))))
 
 # THE CARRYING HANDLE, sunk into the front mass's rear face near its crown --
 # the strip of case the pocket leaves above itself is the grip. Rear box and
