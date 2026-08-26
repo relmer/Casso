@@ -560,7 +560,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintUsageLine ("  Merlin uses source directives instead of cmdline switches for many options. Some important ones are:");
     std::println (s_pUsageStream, "");
     PrintUsageLine ("    XC       Select the 65C02.");
-    PrintUsageLine (std::format ("    DSK      Name the output file. {0}o overrides it.", sp));
+    PrintUsageLine (std::format ("    DSK      Sets the output file. {0}o overrides it.", sp));
     PrintUsageLine ("    ORG      Set the origin.");
     std::println (s_pUsageStream, "");
     PrintUsageLine ("  For more details, see docs\\Assembler.md and the Merlin documentation.");
@@ -569,7 +569,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintDialectFlags (DialectId::Merlin, prefix);
 
     PrintSectionHeading ("Supported subset");
-    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused by name, with what it would take to support it. See docs\\merlin-subset.md.");
+    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused explicitly, with what it would take to support it. See docs\\merlin-subset.md.");
 
     PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes(), false));
 }
@@ -802,7 +802,7 @@ void CommandLine::PrintUnrecognizedArgument (const std::string & word, char pref
 
     if (CommandLineParser::IsAssemblySource (word))
     {
-        std::cerr << "       it looks like a source file; assembling names its dialect:\n"
+        std::cerr << "       it looks like a source file; assembling states its dialect:\n"
                   << "       CassoCli as65 " << word << "\n";
     }
     else

@@ -61,10 +61,27 @@ int DiskCommand::Run (const CommandLineOptions & options)
 
 
 
+    //  A REFUSAL'S USAGE IS PART OF THE REFUSAL, so it goes to the error
+    //  stream with the reason rather than to stdout.
+    //
+    //  Split across the two, each half is written correctly and a terminal
+    //  still shows them interleaved: measured, `disk cat` put the blank line
+    //  separating them in the middle of the usage instead of after it, because
+    //  a terminal reads the two pipes on two threads and nothing a writer does
+    //  can order them. Ordinary output -- a listing, an extracted file -- stays
+    //  on stdout, which is what a caller pipes.
     if (!result.output.empty())
     {
-        std::cout << TextEncoding::NarrowToConsole (result.output);
-        CommandLine::FlushOutput();
+        if (result.badCommandLine)
+        {
+            std::cerr << TextEncoding::NarrowToConsole (result.output);
+            std::cerr.flush();
+        }
+        else
+        {
+            std::cout << TextEncoding::NarrowToConsole (result.output);
+            CommandLine::FlushOutput();
+        }
     }
 
     if (result.hasPayload)
@@ -87,10 +104,18 @@ int DiskCommand::Run (const CommandLineOptions & options)
     //
     //  Only for a bad command line. "PROG is not on this volume" is answered by
     //  a listing rather than by a page of syntax.
+    //  Unless the runner already answered with the one command's usage, which
+    //  is the better answer when the reader has said which command they want.
+    if (result.badCommandLine && !result.usageShown)
+    {
+        CommandLine::UsageOnErrorStream  toTheErrorStream;
+
+        CommandLine::PrintPageFor (CommandLineOptions::Subcommand::Disk, options.flagPrefix);
+        std::fflush (stderr);
+    }
+
     if (result.badCommandLine)
     {
-        CommandLine::PrintPageFor (CommandLineOptions::Subcommand::Disk, options.flagPrefix);
-        CommandLine::FlushOutput();
         std::cerr << CommandLine::kGapBeforeTheReason;
     }
 

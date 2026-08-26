@@ -54,6 +54,14 @@ struct DiskCommandResult
     //  not on this volume" is answered by a listing and not by a grammar.
     bool          badCommandLine = false;
 
+    //  Whether the runner already put usage in `output`.
+    //
+    //  A MISSING OPERAND ANSWERS WITH ONE COMMAND'S BLOCK, and the edge prints
+    //  the whole page for any bad command line. Without this the reader gets
+    //  both: the block they wanted, and then eight commands they did not ask
+    //  about, with the block scrolled off the top.
+    bool          usageShown     = false;
+
     std::string        output;   // stdout, text
     std::string        diagnostics;   // stderr, always
     std::vector<Byte>  payload;   // stdout, binary
@@ -294,6 +302,10 @@ public:
     //
 struct DiskCommandHelp
 {
+    //  WHICH COMMAND THIS ROW DESCRIBES, so a caller with a Command in hand
+    //  can find its block without matching on the heading text.
+    CommandLineOptions::DiskOptions::Command  command;
+
     const char *  forms;         // every accepted spelling, the plain one first
     const char *  summary;       // one line, for the list at the top
     const char *  grammar;       // where the operands go
@@ -306,6 +318,28 @@ struct DiskCommandHelp
     //  Every command the page describes, so a test can walk what the help
     //  claims instead of quoting sentences out of it.
     static std::span<const DiskCommandHelp>  GetCommandHelp();
+
+    //  One command's block: its heading, grammar, options, and example.
+    //
+    //  A COMMAND MISSING AN OPERAND GETS THIS AND NOT THE WHOLE PAGE. The
+    //  reader has already said which command they want; answering with eight
+    //  of them is answering a question they did not ask, and the one they did
+    //  ask is four screens down. Empty when the command has no block.
+    static std::string  BuildOneBlock    (const DiskCommandHelp & entry, char flagPrefix);
+
+    static std::string  BuildCommandHelp (CommandLineOptions::DiskOptions::Command command,
+                                          char flagPrefix);
+
+    //  What a command says when a required operand is not there: that
+    //  command's usage, and then which parameter is missing.
+    //
+    //  A MEMBER, because the command it should print usage for is the one this
+    //  runner is running, and the deepest caller that notices a missing image
+    //  is OpenImage, which is handed a path and nothing else. Threading the
+    //  command through every layer to reach it would put it in six signatures
+    //  that have no other use for it.
+    void  ReportMissingParameter (const std::string & parameter,
+                                  DiskCommandResult & result) const;
 
 
     static std::string  ApplyPrefixes      (const std::string & text, char flagPrefix);
@@ -468,6 +502,13 @@ private:
 
     IDiskFileIo &  m_fileIo;
     std::string    m_banner;
+
+    //  The command being run and the prefix it was typed with, recorded at the
+    //  top of Run so a refusal deep inside can answer in the reader's own
+    //  spelling and about the command they actually asked for.
+    CommandLineOptions::DiskOptions::Command  m_command    =
+        CommandLineOptions::DiskOptions::Command::None;
+    char                                      m_flagPrefix = '-';
 
     //  What separates this runner's temporaries from any other invocation's.
     //  Taken once, at construction, so every commit this runner performs is

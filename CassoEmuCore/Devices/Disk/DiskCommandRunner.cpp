@@ -93,7 +93,8 @@ static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
 
 static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
 {
-    { "list | cat | catalog | dir | ls",
+    { CommandLineOptions::DiskOptions::Command::List,
+      "list | cat | catalog | dir | ls",
       "Show what is on the disk",
       "CassoCli disk list <image>",
       nullptr,
@@ -104,7 +105,8 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       nullptr,
       "CassoCli disk list mydisk.dsk" },
 
-    { "get | read",
+    { CommandLineOptions::DiskOptions::Command::Get,
+      "get | read",
       "Read a file from the disk, to standard output or to %Lout <file>",
       "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
       "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
@@ -117,7 +119,8 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       " are what say where the file ends.",
       "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
 
-    { "put | write",
+    { CommandLineOptions::DiskOptions::Command::Put,
+      "put | write",
       "Write a file from the host to the disk",
       "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
       "                                   [%Ltext | %Lbasic]",
@@ -132,25 +135,28 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       " program at $0801 and nowhere else.",
       "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" },
 
-    { "delete | del | rm",
+    { CommandLineOptions::DiskOptions::Command::Delete,
+      "delete | del | rm",
       "Delete a file from the disk",
       "CassoCli disk delete <image> <name>",
       nullptr,
       nullptr,
       "CassoCli disk delete mydisk.dsk OLDPROG" },
 
-    { "boot",
+    { CommandLineOptions::DiskOptions::Command::Boot,
+      "boot",
       "Set the program that runs when the disk is booted",
       "CassoCli disk boot <image> <name>",
       nullptr,
-      "The program has to be on the volume already, named as the catalog records it, and"
+      "The program has to be on the volume already, spelled as the catalog records it, and"
       " the image has to carry an operating system on the tracks a boot reads. On ProDOS"
       " it must be a file of type SYS, and not the kernel itself. On DOS 3.3 the boot"
       " command is RUN, so an Applesoft or Integer program runs. Anything else is set,"
       " reported, and the disk boots without running it.",
       "CassoCli disk boot mydisk.dsk STARTUP" },
 
-    { "create | new",
+    { CommandLineOptions::DiskOptions::Command::Create,
+      "create | new",
       "Make a new image file, formatted and ready to write to",
       "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
       "                               [%Lbootable [<image>]]\n"
@@ -158,7 +164,7 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the name's extension when not given\n"
       "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33\n"
       "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
-      "  %Lbootable [<image>]    Copy an operating system on, so the disk starts by itself. It finds the master for the format being written, so name an image only when you want a particular one\n"
+      "  %Lbootable [<image>]    Copy an operating system on, so the disk starts by itself. It finds the master for the format being written, so supply an image only for a particular one of your own\n"
       "  %Lboot <file>           Start this binary with no operating system on the disk at all. It must load between $0900 and $BFFF\n"
       "  %Lload $XXXX            Where a %Lboot binary is placed in memory\n"
       "  %Lexec $XXXX            Which address the machine jumps to once the binary is there. Defaults to the load address, and differs only for a payload that opens with data rather than code\n",
@@ -168,7 +174,8 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       " loader on instead of one.",
       "CassoCli disk create mydisk.dsk %Lbootable" },
 
-    { "init | format",
+    { CommandLineOptions::DiskOptions::Command::Init,
+      "init | format",
       "Format an image that is already there, discarding everything on it",
       "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
       "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33, whatever the disk held before\n"
@@ -180,14 +187,15 @@ static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
       " and writes a fresh empty catalog; every file on the disk is gone afterwards.",
       "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
 
-    { "stamp",
+    { CommandLineOptions::DiskOptions::Command::Stamp,
+      "stamp",
       "Write a file at a fixed track and sector, for a disk with no catalog to file it in",
       "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
       "  %Ltrack <n>             Which track to write at, 0 to 34\n"
       "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The bytes run on into the next track if they do not fit\n",
       "A BOOT SECTOR, A LOADER, AND THE DATA A LOADER READS all live at fixed places on"
       " the disk rather than in a filesystem. There is no catalog for put to file them"
-      " in and no name for the machine to look them up by: the running code goes to a"
+      " in and nothing for the machine to look them up by: the running code goes to a"
       " track and a sector because that is where it was told they would be. stamp is how"
       " they get there, and it is what %Lformat none exists alongside, since a disk built"
       " this way has no filesystem at all. The sector is the LOGICAL one, so the"
@@ -347,6 +355,115 @@ std::string DiskCommandRunner::BuildSubcommandHelp (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::BuildOneBlock
+//
+//  One command's heading, grammar, options, discussion and example.
+//
+//  Shared by the whole page and by a single command's usage, so the two can
+//  never describe the same command differently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildOneBlock (const DiskCommandHelp & entry, char flagPrefix)
+{
+    std::string  text;
+
+
+
+    text += ApplyPrefixes (entry.forms, flagPrefix) + "\n";
+    text += ApplyPrefixes (std::string ("  ") + entry.grammar, flagPrefix) + "\n";
+
+    if (entry.options != nullptr)
+    {
+        text += "\n";
+        text += ApplyPrefixes (entry.options, flagPrefix);
+    }
+
+    if (entry.discussion != nullptr)
+    {
+        text += "\n  ";
+        text += ApplyPrefixes (entry.discussion, flagPrefix);
+        text += "\n";
+    }
+
+    //  The round-trip promise is quoted from the tokenizer that keeps it, so
+    //  the claim on the page cannot drift from the code making it. It belongs
+    //  to get, which is the direction that can lose anything.
+    if (entry.command == CommandLineOptions::DiskOptions::Command::Get)
+    {
+        text += "\n  ";
+        text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
+        text += "\n";
+    }
+
+    text += ApplyPrefixes (std::string ("\n  Example:\n    ") + entry.example, flagPrefix) + "\n";
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildCommandHelp
+//
+//  The block for one command, for a caller that has a Command rather than the
+//  whole page to print.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::BuildCommandHelp (CommandLineOptions::DiskOptions::Command command,
+                                                 char flagPrefix)
+{
+    for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
+    {
+        if (entry.command == command)
+        {
+            return BuildOneBlock (entry, flagPrefix);
+        }
+    }
+
+    return std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReportMissingParameter
+//
+//  A required operand that was not supplied.
+//
+//  THAT COMMAND'S USAGE, THEN THE PARAMETER, in the shape a Windows
+//  command-line tool answers with. What went before was a bare sentence with
+//  no usage at all for some commands and the WHOLE page for others, and the
+//  bare sentence was written in a voice the tool uses nowhere else.
+//
+//  The usage comes first and the error last, for the reason every other
+//  refusal here puts it last: a reader sees the bottom of the screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReportMissingParameter (const std::string & parameter,
+                                                DiskCommandResult & result) const
+{
+    result.output        += BuildCommandHelp (m_command, m_flagPrefix);
+    result.diagnostics   += "Error: required parameter " + parameter + " missing\n";
+    result.exitStatus     = kNoOutput;
+    result.badCommandLine = true;
+    result.usageShown     = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildCommandBlocks
 //
 //  Each command, with its grammar, its own options, what no option row can
@@ -372,33 +489,7 @@ std::string DiskCommandRunner::BuildCommandBlocks (char flagPrefix)
     for (const DiskCommandRunner::DiskCommandHelp & entry : s_kDiskCommandHelp)
     {
         text += "\n";
-        text += ApplyPrefixes (entry.forms, flagPrefix) + "\n";
-        text += ApplyPrefixes (std::string ("  ") + entry.grammar, flagPrefix) + "\n";
-
-        if (entry.options != nullptr)
-        {
-            text += "\n";
-            text += ApplyPrefixes (entry.options, flagPrefix);
-        }
-
-        if (entry.discussion != nullptr)
-        {
-            text += "\n  ";
-            text += ApplyPrefixes (entry.discussion, flagPrefix);
-            text += "\n";
-        }
-
-        //  The round-trip promise is quoted from the tokenizer that keeps it,
-        //  so the claim on the page cannot drift from the code making it. It
-        //  belongs to get, which is the direction that can lose anything.
-        if (std::string (entry.forms).find ("get") != std::string::npos)
-        {
-            text += "\n  ";
-            text += ApplesoftTokenizer::RoundTripHelpText (flagPrefix);
-            text += "\n";
-        }
-
-        text += ApplyPrefixes (std::string ("\n  Example:\n    ") + entry.example, flagPrefix) + "\n";
+        text += BuildOneBlock (entry, flagPrefix);
     }
 
     return text;
@@ -493,7 +584,7 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
     return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
         "  create makes the disk the rest of the loop writes to, and " + lp + "bootable copies"
-        " an operating system onto it so the machine has something to start. " + sp + "o names"
+        " an operating system onto it so the machine has something to start. " + sp + "o sets"
         " the assembled output file. The last line is the emulator's"
         " own command line rather than this tool's, which is why its flags are written"
         " with two dashes whatever prefix you asked for here: --machine Apple2e opens"
@@ -502,8 +593,8 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
         " DOS 3.3 header itself from " + lp + "addr, and a file that already carries one has"
         " its own header loaded as code where the program should begin.\n"
         "  greet.bas holds one Applesoft line, 10 PRINT CHR$(4);\"BRUN PROG\", because a"
-        " booting DOS 3.3 volume RUNs its greeting. Naming the binary there sets the"
-        " name and the disk boots without running it.\n";
+        " booting DOS 3.3 volume RUNs its greeting. A binary there is recorded and the"
+        " disk boots without running it.\n";
 }
 
 
@@ -1053,8 +1144,7 @@ HRESULT DiskCommandRunner::OpenImage (
 
     if (!named)
     {
-        result.diagnostics += "no disk image named\n";
-        result.exitStatus   = kNoOutput;
+        ReportMissingParameter ("<image>", result);
         return E_INVALIDARG;
     }
 
@@ -1630,8 +1720,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
 
     if (!named)
     {
-        result.diagnostics += "no file named to extract\n";
-        result.exitStatus   = kNoOutput;
+        ReportMissingParameter ("<name>", result);
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2211,10 +2300,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     if (!named)
     {
-        result.diagnostics    += "Error: no file named to place\n"
-                                 "       put takes the file to copy onto the disk\n";
-        result.exitStatus      = kNoOutput;
-        result.badCommandLine  = true;
+        ReportMissingParameter ("<file>", result);
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2293,8 +2379,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
     if (!named)
     {
-        result.diagnostics += "no file named to delete\n";
-        result.exitStatus   = kNoOutput;
+        ReportMissingParameter ("<name>", result);
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2383,11 +2468,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
 
     if (!named)
     {
-        result.diagnostics    += "Error: no program named to boot\n"
-                                 "       boot takes the file on the disk to run after the "
-                                 "operating system loads\n";
-        result.exitStatus      = kNoOutput;
-        result.badCommandLine  = true;
+        ReportMissingParameter ("<name>", result);
         BAIL_OUT_IF (true, E_INVALIDARG);
     }
 
@@ -2510,6 +2591,9 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
 
 
+    m_command    = options.disk.command;
+    m_flagPrefix = options.flagPrefix;
+
     if (refused)
     {
         result.exitStatus = kNoOutput;
@@ -2616,7 +2700,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         {
             result.diagnostics    += "Error: cannot tell what kind of image " + options.disk.imagePath
                                    + " should be\n"
-                                     "       name it .dsk, .do, .po or .woz, or say which with --type\n";
+                                     "       give it a .dsk, .do, .po or .woz extension, or say which with --type\n";
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
         }
@@ -2763,8 +2847,8 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     if (number < 1 || number > 254)
     {
         result.diagnostics    += "Error: " + asked + " is not a DOS 3.3 volume number\n"
-                                 "       give a number from 1 to 254, or format the disk as prodos "
-                                 "to name it instead\n";
+                                 "       give a number from 1 to 254, or format the disk as prodos, "
+                                 "which labels a volume with a word instead\n";
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
@@ -2840,7 +2924,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
             result.diagnostics    += std::string ("Error: the ")
                                    + (isProDos ? "ProDOS" : "DOS 3.3")
                                    + " master has not been downloaded yet\n"
-                                     "       run the emulator once to fetch it, or name a master with "
+                                     "       run the emulator once to fetch it, or supply a master with "
                                      "--bootable <image>\n";
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
@@ -3041,10 +3125,7 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
 
     if (options.disk.imagePath.empty())
     {
-        result.diagnostics    += "Error: no image named to create\n"
-                                 "       create takes the name of the image file to write\n";
-        result.exitStatus      = kNoOutput;
-        result.badCommandLine  = true;
+        ReportMissingParameter ("<image>", result);
 
         return;
     }
@@ -3229,10 +3310,7 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 
     if (options.disk.imagePath.empty())
     {
-        result.diagnostics    += "Error: no image named to format\n"
-                                 "       init takes the image file to format again\n";
-        result.exitStatus      = kNoOutput;
-        result.badCommandLine  = true;
+        ReportMissingParameter ("<image>", result);
 
         return;
     }
@@ -3314,10 +3392,7 @@ void DiskCommandRunner::RunStamp (const CommandLineOptions & options, DiskComman
 
     if (options.disk.hostFile.empty())
     {
-        result.diagnostics    += "Error: no file named to stamp\n"
-                                 "       stamp takes the image and the file to lay into it\n";
-        result.exitStatus      = kNoOutput;
-        result.badCommandLine  = true;
+        ReportMissingParameter ("<file>", result);
 
         return;
     }

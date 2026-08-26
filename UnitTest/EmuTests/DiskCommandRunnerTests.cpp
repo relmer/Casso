@@ -2750,7 +2750,14 @@ public:
             L"and the disk still boots what it booted before");
     }
 
-    TEST_METHOD (Boot_WithNoProgramNamed_SaysWhatItWanted)
+    //  A REQUIRED OPERAND THAT IS NOT THERE ANSWERS WITH THAT COMMAND'S USAGE.
+    //
+    //  This asserted the sentence "no program named", which pinned wording
+    //  rather than behavior and stood in the way of saying it better. What
+    //  matters is that the command is refused, that the reader is shown the
+    //  usage for the command they asked about rather than for all eight, and
+    //  that the image is not touched.
+    TEST_METHOD (Boot_WithNoProgramGiven_ShowsThatCommandsUsage_AndTouchesNothing)
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
@@ -2762,7 +2769,15 @@ public:
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::Boot));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("no program named") != std::string::npos);
+        Assert::IsTrue (result.badCommandLine, L"a missing operand is a bad command line");
+        Assert::IsTrue (result.usageShown,     L"and the reader is shown how to write it");
+
+        //  boot's block, and not the whole page: the grammar of the command
+        //  asked about is there, and a command nobody asked about is not.
+        Assert::IsTrue (result.output.find ("CassoCli disk boot <image> <name>") != std::string::npos,
+            L"boot's own grammar");
+        Assert::IsTrue (result.output.find ("CassoCli disk stamp") == std::string::npos,
+            L"and not every other command's");
 
         AssertImageMatches (io, kImage, original);
     }
