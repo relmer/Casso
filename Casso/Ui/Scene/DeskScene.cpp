@@ -1252,6 +1252,8 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
     const DeskLampAnchor &  lamp    = model.Lamps()[0];
     float                   y       = lamp.frontY - kGlowLiftMm;
+    float                   slopeX  = 0.0f;
+    float                   slopeZ  = 0.0f;
     float                   lo[3]   = {};
     float                   hi[3]   = {};
     float                   outer   = kGlowProfile[(int) (sizeof (kGlowProfile) / sizeof (kGlowProfile[0])) - 1].radiusScale;
@@ -1279,9 +1281,23 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
     // the tall narrow rhombus of the //c power indicator reads as a light
     // behind a round hole rather than as that lens lit up. A round lamp has
     // equal half-extents and gets a circle for free.
+    // THE DISC LIES IN THE PANEL, not in a plane of its own. A flat disc on a
+    // sloping panel is sliced by it, and the cut is a straight line at the
+    // height where the panel overtakes the disc's plane -- which is precisely
+    // the hard horizontal edge the //c monitor's halo had across it, two
+    // millimeters above the lens. Solving the panel's plane for y at each
+    // vertex leaves nothing to slice.
+    if (std::fabs (lamp.facing[1]) > 1e-3f)
+    {
+        slopeX = -lamp.facing[0] / lamp.facing[1];
+        slopeZ = -lamp.facing[2] / lamp.facing[1];
+    }
+
     auto  vertexAt = [&] (const GlowBand & band, float angle) -> Dxui3DRenderer::Vertex
     {
         float  color[3] = {};
+        float  dx       = radiusX * band.radiusScale * std::cos (angle);
+        float  dz       = radiusZ * band.radiusScale * std::sin (angle);
 
         for (int c = 0; c < 3; c++)
         {
@@ -1290,9 +1306,9 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 
         return Dxui3DRenderer::Vertex
         {
-            lamp.center[0] + radiusX * band.radiusScale * std::cos (angle),
-            y,
-            lamp.center[2] + radiusZ * band.radiusScale * std::sin (angle),
+            lamp.center[0] + dx,
+            y + slopeX * dx + slopeZ * dz,
+            lamp.center[2] + dz,
             0.0f, 0.0f,
             color[0], color[1], color[2], band.alpha
         };

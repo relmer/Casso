@@ -729,6 +729,33 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             anchor.radiusZ     = (hi[2] - lo[2]) * 0.5f;
             anchor.firstVertex = 0;
             anchor.vertexCount = m_lamp.size();
+
+            // The panel's facing, from the body triangle nearest the lens in
+            // the plane of the face. Read off the mesh rather than declared,
+            // because it is a fact about the model and the model is the only
+            // thing that knows it -- and because a lamp that moves onto a
+            // differently angled panel then brings its glow's plane with it.
+            {
+                float  best = FLT_MAX;
+
+                for (size_t i = 0; i + 2 < m_opaque.size(); i += 3)
+                {
+                    const Dxui3DRenderer::Vertex  & v  = m_opaque[i];
+                    float                           dx = v.x - anchor.center[0];
+                    float                           dz = v.z - anchor.center[2];
+                    float                           d2 = dx * dx + dz * dz;
+
+                    // Facing the viewer, and not in front of the lens: the
+                    // panel is what the lamp is set INTO.
+                    if (v.ny < -0.2f && v.y > anchor.frontY - 0.5f && d2 < best)
+                    {
+                        best = d2;
+                        anchor.facing[0] = v.nx;
+                        anchor.facing[1] = v.ny;
+                        anchor.facing[2] = v.nz;
+                    }
+                }
+            }
         }
 
         m_lamps.push_back (anchor);

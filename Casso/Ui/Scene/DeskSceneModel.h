@@ -107,6 +107,14 @@ struct DeskLampAnchor
 {
     float   center[3]   = {};
     float   frontY      = 0.0f;
+
+    // Which way the PANEL the lamp is set into faces, taken from the nearest
+    // body triangle behind it. The glow is a flat disc, and a flat disc laid
+    // on a sloping panel gets sliced by it -- which is what put a hard
+    // horizontal edge across the //c monitor's halo, at exactly the height
+    // where the leaning frame overtook the disc's plane. Lay the disc IN the
+    // panel and there is nothing to slice it.
+    float   facing[3]   = { 0.0f, -1.0f, 0.0f };
     float   radiusX     = 0.0f;
     float   radiusZ     = 0.0f;
     size_t  firstVertex = 0;

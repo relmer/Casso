@@ -42,6 +42,17 @@ from cadkit import KD, Model, round_rect_wire, sag_sheet
 
 INCH = 25.4
 
+# HOW FINELY THE ROUNDED WORK IS TESSELLATED. The kernel's default is 0.3
+# radians -- seventeen degrees a segment -- which on a corner this size is
+# five or six facets, and under flat shading five facets are five bands. The
+# Monitor II has used 0.03 since it went in; this is the same number, and the
+# reason the //c pair looked faceted where it did not.
+#
+# ANGULAR ONLY. Tightening the LINEAR tolerance alongside it subdivides every
+# flat face as well and took these two meshes from nine thousand triangles to
+# two hundred thousand -- all of it spent on ground that was already flat.
+CORNER_ANG = 0.14
+
 W, D, H = 9.5 * INCH, 10.2 * INCH, 7.3 * INCH
 
 # How much of the depth the tube's housing takes before the case steps down to
@@ -58,7 +69,11 @@ R_CASE  = 16.0                    # the front mass's corner radius, in the face
 # the same one, the way a real tool would cut them.
 EDGE_R = INCH * 3.0 / 16.0
 
-CAP_STEPS = 5                     # facets across a rolled edge
+CAP_STEPS = 9                     # facets across a rolled edge
+
+# ...and the rolls are where the banding was: a five-facet quarter round is
+# five flat values under flat shading, and on a rim this size that reads as
+# five stripes rather than one curve.
 
 # THE FRONT IS TWO BANDS, and they are different things. Calling both of them
 # "the bezel" is what kept this front wrong.
@@ -173,7 +188,7 @@ REAR_X0  = (W - REAR_W) * 0.5
 # Louvers: along the depth on both flanks, across the width on the lid.
 LOUV_W    = 2.2                   # slot width
 LOUV_DEEP = 2.0
-LOUV_PITCH = 5.4                  # centre to centre
+LOUV_PITCH = 5.4                  # center to center
 
 # The handle pocket at the very back of the lid. Named up here because the lid
 # louvers have to stop short of it, and a count that does not follow the
@@ -265,19 +280,19 @@ _tangent = CREASE_R * math.tan(_turn * 0.5)
 _fdir = (math.cos(FRAME_ANG), -math.sin(FRAME_ANG))
 _bdir = (math.cos(BEZ_ANG), math.sin(BEZ_ANG))
 
-# The arc's centre is EDGE_R off the frame along its inward normal.
+# The arc's center is EDGE_R off the frame along its inward normal.
 _p1     = (_corner[0] - _tangent * _fdir[0], _corner[1] - _tangent * _fdir[1])
-_centre = (_p1[0] + CREASE_R * math.sin(FRAME_ANG),
+_center = (_p1[0] + CREASE_R * math.sin(FRAME_ANG),
            _p1[1] + CREASE_R * math.cos(FRAME_ANG))
-_phi0   = math.atan2(_p1[1] - _centre[1], _p1[0] - _centre[0])
+_phi0   = math.atan2(_p1[1] - _center[1], _p1[0] - _center[0])
 
 bez_sections = [case_wire(FRAME_IN_Y - 8.0, _p1[0])]
 
 for step in range(CREASE_STEPS):
     phi = _phi0 + _turn * (step / float(CREASE_STEPS - 1))
 
-    bez_sections.append(case_wire(_centre[1] + CREASE_R * math.sin(phi),
-                                  _centre[0] + CREASE_R * math.cos(phi)))
+    bez_sections.append(case_wire(_center[1] + CREASE_R * math.sin(phi),
+                                  _center[0] + CREASE_R * math.cos(phi)))
 
 bez_sections.append(round_rect_wire(OPEN_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
 
@@ -359,7 +374,7 @@ for i in range(4):
           .translate((x, D - 6.0, PANEL_Z0 + 8.0))
           .edges("|Y").fillet(1.5))
 
-m.add("shell", shell, PLAT)
+m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
 # Cavity back: the dark plane behind the glass.
 m.add("cavity",

@@ -51,6 +51,17 @@ W, H, D = 152.0, 46.0, 216.0
 
 INCH = 25.4
 
+# HOW FINELY THE ROUNDED WORK IS TESSELLATED. The kernel's default is 0.3
+# radians -- seventeen degrees a segment -- which on a corner this size is
+# five or six facets, and under flat shading five facets are five bands. The
+# Monitor II has used 0.03 since it went in; this is the same number, and the
+# reason the //c pair looked faceted where it did not.
+#
+# ANGULAR ONLY. Tightening the LINEAR tolerance alongside it subdivides every
+# flat face as well and took these two meshes from nine thousand triangles to
+# two hundred thousand -- all of it spent on ground that was already flat.
+CORNER_ANG = 0.14
+
 # A generous round on every edge -- three sixteenths of an inch. Molded ABS of
 # this era has no crisp arrises anywhere, and too tight a radius is most of
 # what made earlier passes read as a rendering rather than a thing. An eighth
@@ -375,7 +386,7 @@ case = case.cut(
                          SPLIT_Z - SEAM_GAP * 0.5 - GROOVE_FLARE - 1.0))
              .edges("|Z").fillet(CORNER_R - GROOVE_FLARE)))
 
-m.add("case", case, CASE)
+m.add("case", case, CASE, angular=CORNER_ANG)
 
 # THE NOTCH HAS NO LINING. It is a hollow in the case and it is the case's own
 # color, which is what a hollow in a molding is.
