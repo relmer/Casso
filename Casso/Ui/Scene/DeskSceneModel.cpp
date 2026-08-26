@@ -43,16 +43,21 @@ static constexpr float   s_kMonitorRestMm = 96.0f;
 // Brand stamp placement on the Monitor //c's chin (model mm): the cassowary
 // spans this box, proud of the bezel plate's front face.
 //
-// TIED TO cad_monitor2c.py's FLAT FRAME. The front is a flat frame that then
-// angles in toward the tube; the chin's flat band runs from the outer roll's
-// tangent (about z 4.8) to where the slope's own roll begins (about z 18.7),
-// and a mark has to live inside that. Put it higher and it lands on the
-// slope, where a flat stamp sinks into the surface at one end. The front Y is
-// the frame plane (FRONT_Y = -EDGE_R) plus the stamp's own standoff.
-static constexpr float   s_kBrandLeftMm   =  30.0f;
-static constexpr float   s_kBrandTopZMm   =  17.0f;
-static constexpr float   s_kBrandHeightMm =  11.0f;
-static constexpr float   s_kBrandFrontY   =  -5.4f;
+// TIED TO cad_monitor2c.py's FRAME -- the wide band that leans toward the
+// viewer, the same width the whole way round, between the outer roll and the
+// steeper bezel that drops to the tube. At the bottom it runs from z 4.8 to
+// z 21.8, and the mark lives inside that: MARK_Z0..MARK_Z1 there is this box.
+//
+// The frame LEANS, so a flat stamp cannot lie on it everywhere. It is hung
+// from the surface at its TOP edge -- the proud end -- and floats a
+// millimeter or two at the bottom. Anchored at the middle it would sink into
+// the slope above that line, and a case that eats half a stamp is worse than
+// one the stamp stands a fraction off; seen head on, which is how this scene
+// is seen, the plate hides its own gap.
+static constexpr float   s_kBrandLeftMm   =  32.0f;
+static constexpr float   s_kBrandTopZMm   =  18.0f;
+static constexpr float   s_kBrandHeightMm =  10.0f;
+static constexpr float   s_kBrandFrontY   =  -7.6f;
 
 // The Monitor II's mark: low on the right reveal, on the axis the MODEL
 // names through its brand anchor -- the reveal's center line, which is the

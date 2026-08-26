@@ -60,59 +60,60 @@ EDGE_R = INCH * 3.0 / 16.0
 
 CAP_STEPS = 5                     # facets across a rolled edge
 
-# THE OPENING IS SET BY ITS BORDERS, not by a picture aspect. The frame reads
-# as a frame when its left, right and top bands are the same width -- so those
-# are the numbers, and the aperture is whatever they leave. Sized from a 4:3
-# tube instead, the side bands came out half again as wide as the top and the
-# whole front looked like a letterbox.
+# THE FRONT IS TWO BANDS, and they are different things. Calling both of them
+# "the bezel" is what kept this front wrong.
 #
-# The aperture is wider than 4:3 as a result, which is fine and is what the
-# photograph shows: what you see inside the bezel is the tube's whole glass,
-# black mask included, and the scene fits the picture inside that.
-BAND = 26.0                       # left, right and top -- all one width
-CHIN = 34.0                       # deeper, because the marks live in it
+#   THE FRAME is the wide band you actually look at, the same width the whole
+#   way round, and it ANGLES TOWARD THE VIEWER as it goes inward -- about ten
+#   degrees, so its inner edge is the most proud point on the monitor.
+#
+#   THE BEZEL is the narrower band inside it, angling back the other way at a
+#   much steeper rate, down to the tube. A third of an inch, front to back.
+#
+# The crease between them is an edge like any other and takes the same roll.
+FRAME     = 17.0                  # the frame's width, uniform on all four sides
+FRAME_ANG = math.radians(10.0)    # ...and how far it leans toward the viewer
+BEZ_W     = 10.0                  # the bezel's width
+BEZ_DEPTH = INCH / 3.0            # ...and its depth, which is what sets its angle
+BEZ_ANG   = math.atan2(BEZ_DEPTH, BEZ_W)
 
-OX0, OX1 = BAND, W - BAND
-OZ0, OZ1 = CHIN, H - BAND
+# The border is therefore the same all round, and the opening is what it
+# leaves. The marks that used to want a deep chin now sit on the frame itself,
+# which is broad enough for them and barely sloped.
+BORDER = EDGE_R + FRAME + BEZ_W
+
+OX0, OX1 = BORDER, W - BORDER
+OZ0, OZ1 = BORDER, H - BORDER
 SCR_W, SCR_H = OX1 - OX0, OZ1 - OZ0
-R_OPEN   = 9.0                    # the opening's own corners: softened, not rounded off
+
+# Corner radius against inset: a band of constant width shrinks its radius by
+# its own width, which goes negative long before the opening. Floored, so the
+# outlines stay monotone and the screen keeps corners a molding would have.
+R_FLOOR  = 6.0
+R_OPEN   = R_FLOOR
 
 GLASS_IN = 5.0                    # glass inset from the opening
 
-# THE FRONT IS A FLAT FRAME THAT THEN ANGLES IN toward the tube, and the crease
-# between the two is an edge like any other -- it gets the same roll. Left
-# hard it was the one arris on a case that has none anywhere else, and it
-# showed.
+# THE TUBE'S CURVATURE, and where its rim has to sit.
 #
-# The flat band is narrow at the sides and top and WIDE across the chin,
-# because the chin is where the marks go and a stamp lying flat on a
-# thirty-degree slope is one that sinks into the slope at one end.
-FRAME      =  9.0                 # flat band, left / right / top
-FRAME_CHIN = 20.0                 # ...and across the bottom
-CROWN_SET  =  1.5                 # how far the glass's crown sits behind the frame
-
-# THE TUBE'S CURVATURE, and the plane that follows from it.
-#
-# The sheet is a spherical cap, so its crown stands `SAG` in front of its rim,
-# and where the RIM goes decides whether the glass sits in the bezel or bursts
-# out of it. At the old three-times-half-diagonal radius the sag was 16.8 mm
-# on a screen this size and the crown ended up a centimeter PROUD of the
-# plate -- the tube poking through its own front panel. It went unseen because
-# the number was set against a bigger opening and never re-derived.
-#
-# So the rim is SOLVED rather than picked: put the crown exactly on the plate
-# face and let the rim fall where it must. The bezel then overhangs the
-# glass's edge and the middle comes up flush, which is what a tube in a bezel
-# does. Move the plate or the screen and this follows.
-SAG_SCALE = 5.8                   # sphere radius, in half-diagonals
+# The sheet is a spherical cap, so its crown stands SAG in front of its rim,
+# and the rim is at the opening -- which means the sag has to FIT inside the
+# bezel's depth or the tube comes through the front of its own case. At three
+# half-diagonals it was 16.8 mm on a screen this size, a centimeter proud of
+# the frame; the number had been set against a bigger opening and never
+# re-derived. Flat enough now that the crown lands just behind the frame's
+# innermost point, which is what a tube in a bezel looks like.
+SAG_SCALE = 6.8                   # sphere radius, in half-diagonals
 
 _GLASS_HALF = math.hypot((SCR_W - GLASS_IN * 2.0) * 0.5,
                          (SCR_H - GLASS_IN * 2.0) * 0.5)
 _GLASS_R    = SAG_SCALE * _GLASS_HALF
 SAG         = _GLASS_R - math.sqrt(_GLASS_R * _GLASS_R - _GLASS_HALF * _GLASS_HALF)
 
-FRONT_Y = -EDGE_R                 # the flat frame's plane; the roll takes it to y=0
-GLASS_Y = FRONT_Y + CROWN_SET + SAG    # the rim: crown CROWN_SET behind the frame
+# The three planes the front is built between.
+FRAME_OUT_Y = -EDGE_R                                   # where the outer roll ends
+FRAME_IN_Y  = FRAME_OUT_Y - FRAME * math.tan(FRAME_ANG)  # the most proud point
+GLASS_Y     = FRAME_IN_Y + BEZ_DEPTH                     # the opening, and the rim
 
 # The box behind. Narrower and much shorter than the tube housing, sharing its
 # base line, and reaching back to the full depth.
@@ -141,27 +142,35 @@ LAMPRING = (0.045, 0.045, 0.050)
 m = Model()
 
 
-def case_wire(y, inset, radius):
+def case_wire(y, inset):
     """The case outline at depth y, drawn in from the full section by `inset`.
+
     The radius shrinks with the inset so the band between two of these is a
-    constant width the whole way round, corners included."""
-    return round_rect_wire(y, inset, W - inset, inset, H - inset, radius)
+    constant width the whole way round, corners included -- floored, because
+    an inset deeper than the corner radius would otherwise ask for a negative
+    one and the outlines would stop being nested."""
+    return round_rect_wire(y, inset, W - inset, inset, H - inset,
+                           max(R_FLOOR, R_CASE - inset))
 
 
 # -------------------------------------------------------------------- shell
 
-# The front rim, rolled at EDGE_R: at the frame the surface faces the viewer,
-# at the flank it runs parallel to it. Stepped rather than splined because a
-# ruled loft through sections this close is predictable, and predictable is
-# worth more here than exact -- under flat shading a few facets across a five
-# millimeter roll read as round.
-cap_sections = []
+# THE FRAME first, because it is the most proud thing on the monitor: one
+# ruled band from its inner outline forward-and-inward to its outer one, ten
+# degrees. Two rounded rectangles, so the lean sweeps THROUGH the corners
+# instead of the left flank's angle meeting the top's at a diagonal.
+cap_sections = [case_wire(FRAME_IN_Y, EDGE_R + FRAME)]
 
+# Then the outer rim, rolled at EDGE_R: at the frame the surface faces the
+# viewer, at the flank it runs parallel to it. Stepped rather than splined
+# because a ruled loft through sections this close is predictable, and
+# predictable is worth more here than exact -- under flat shading a few facets
+# across a five millimeter roll read as round.
 for step in range(CAP_STEPS):
     angle = (step / float(CAP_STEPS - 1)) * math.pi * 0.5
-    inset = EDGE_R * (1.0 - math.sin(angle))
 
-    cap_sections.append(case_wire(-EDGE_R * math.cos(angle), inset, R_CASE - inset))
+    cap_sections.append(case_wire(-EDGE_R * math.cos(angle),
+                                  EDGE_R * (1.0 - math.sin(angle))))
 
 # ...AND THE TUBE HOUSING IS THE SAME LOFT, not a second solid unioned onto
 # it. The roll's last section and the housing's first are the same rectangle
@@ -169,7 +178,7 @@ for step in range(CAP_STEPS):
 # invalid result -- it unions without complaint and then every boolean after
 # it quietly misbehaves. The tell was a cut that RAISED the volume. Run the
 # section straight back instead and there is one solid, made once.
-cap_sections.append(case_wire(FRONT_D, 0.0, R_CASE))
+cap_sections.append(case_wire(FRONT_D, 0.0))
 
 shell = cq.Workplane(obj=cq.Solid.makeLoft(cap_sections, True))
 
@@ -192,42 +201,38 @@ shell = shell.union(
 # And the box's own back rim.
 shell = shell.edges(">Y").fillet(EDGE_R)
 
-# THE BEZEL. A flat frame, then a straight slope in to the opening, and a
-# proper tangent ARC between the two rather than a crease.
+# THE BEZEL, cut off the frame's inner edge: a tangent ARC out of the frame's
+# lean and into the steeper run down to the tube, so the two bands meet on a
+# curve rather than a crease.
 #
-# Cut as one lofted tool whose sections walk that profile. `s` runs 0 at the
-# frame's inner outline to 1 at the opening, and every section is those two
-# outlines blended -- which handles the chin's wider band for free, since the
-# blend carries each side its own distance. NEGATIVE s is the whole trick: the
-# arc starts OUTBOARD of the crease, biting a tangent length into the flat
-# frame, which is exactly what rolling a convex edge means.
-BEZ_DROP = CROWN_SET + SAG        # how far back the slope goes
-BEZ_RUN  = BAND - FRAME           # ...and how far in, at the sides
-BEZ_ANG  = math.atan2(BEZ_DROP, BEZ_RUN)
-BEZ_TAN  = EDGE_R * math.tan(BEZ_ANG * 0.5)      # tangent length, both ways
+# Solved in the (inset, depth) section rather than guessed. The frame runs
+# inward and FORWARD at FRAME_ANG; the bezel runs inward and BACK at BEZ_ANG;
+# the turn between them is the sum, and a fillet of EDGE_R tangent to both
+# starts a tangent length back along the frame -- which is why the cut has to
+# begin OUTBOARD of the corner and bite into the frame. That is what rolling a
+# convex edge means, and no amount of filleting after the fact does it.
+_corner  = (EDGE_R + FRAME, FRAME_IN_Y)
+_turn    = FRAME_ANG + BEZ_ANG
+_tangent = EDGE_R * math.tan(_turn * 0.5)
 
+# Unit directions, going inward, in (inset, depth).
+_fdir = (math.cos(FRAME_ANG), -math.sin(FRAME_ANG))
+_bdir = (math.cos(BEZ_ANG), math.sin(BEZ_ANG))
 
-def bezel_wire(s, v):
-    """A section of the bezel cut: the frame's inner outline blended `s` of
-    the way to the screen opening, at depth `v` below the frame plane."""
-    def at(a, b):
-        return a + (b - a) * s
+# The arc's centre is EDGE_R off the frame along its inward normal.
+_p1     = (_corner[0] - _tangent * _fdir[0], _corner[1] - _tangent * _fdir[1])
+_centre = (_p1[0] + EDGE_R * math.sin(FRAME_ANG), _p1[1] + EDGE_R * math.cos(FRAME_ANG))
+_phi0   = math.atan2(_p1[1] - _centre[1], _p1[0] - _centre[0])
 
-    return round_rect_wire(FRONT_Y + v,
-                           at(FRAME, OX0), at(W - FRAME, OX1),
-                           at(FRAME_CHIN, OZ0), at(H - FRAME, OZ1),
-                           max(0.6, at(R_CASE - FRAME, R_OPEN)))
-
-
-bez_sections = [bezel_wire(-BEZ_TAN / BEZ_RUN, -3.0)]
+bez_sections = [case_wire(FRAME_IN_Y - 8.0, _p1[0])]
 
 for step in range(CAP_STEPS):
-    phi = (step / float(CAP_STEPS - 1)) * BEZ_ANG
+    phi = _phi0 + _turn * (step / float(CAP_STEPS - 1))
 
-    bez_sections.append(bezel_wire((-BEZ_TAN + EDGE_R * math.sin(phi)) / BEZ_RUN,
-                                   EDGE_R * (1.0 - math.cos(phi))))
+    bez_sections.append(case_wire(_centre[1] + EDGE_R * math.sin(phi),
+                                  _centre[0] + EDGE_R * math.cos(phi)))
 
-bez_sections.append(bezel_wire(1.0, BEZ_DROP))
+bez_sections.append(round_rect_wire(GLASS_Y, OX0, OX1, OZ0, OZ1, R_OPEN))
 
 shell = shell.cut(cq.Workplane(obj=cq.Solid.makeLoft(bez_sections, True)))
 
@@ -353,21 +358,37 @@ def slanted_prism(x, z0, height, width, lean, y_front, y_back):
     return tris
 
 
-PLATE_Y = FRONT_Y                 # the flat frame the marks sit on
-LCX, LCZ = W - 44.0, 5.5
-LENS_W, LENS_H = 3.52, 11.0
+# THE MARKS SIT ON THE FRAME, WHICH LEANS. Anchored at their middle they would
+# sink into the slope above that line, and a case that eats half a stamp is
+# worse than one the stamp stands a fraction off -- so both are hung from the
+# surface at their own TOP edge, the proud end, and float a hair at the
+# bottom. Head on, which is how this scene is seen, the plate hides its own
+# gap.
+MARK_Z0, MARK_Z1 = 8.0, 18.0
+
+
+def frame_y_at(inset):
+    """The frame's surface depth at a given inset from the case outline."""
+    return FRAME_OUT_Y - (inset - EDGE_R) * math.tan(FRAME_ANG)
+
+
+PLATE_Y = frame_y_at(MARK_Z1)     # the proud end of the marks' band
+MARK_BACK_Y = frame_y_at(MARK_Z0) + 1.0    # ...and behind the surface at the other
+
+LCX, LCZ = W - 46.0, MARK_Z0
+LENS_W, LENS_H = 3.2, MARK_Z1 - MARK_Z0
 LEAN = LENS_H * 0.176
 RECESS_RIM = 0.4
 
 m.add_triangles("lampring",
                 slanted_prism(LCX - RECESS_RIM, LCZ - RECESS_RIM,
                               LENS_H + RECESS_RIM * 2.0, LENS_W + RECESS_RIM * 2.0,
-                              LEAN, PLATE_Y - 0.40, PLATE_Y),
+                              LEAN, PLATE_Y - 0.40, MARK_BACK_Y),
                 LAMPRING)
 
 m.add_triangles("lamp",
                 slanted_prism(LCX, LCZ, LENS_H, LENS_W, LEAN,
-                              PLATE_Y - 0.35, PLATE_Y),
+                              PLATE_Y - 0.35, MARK_BACK_Y),
                 KD["monitor_lamp"])
 
 
