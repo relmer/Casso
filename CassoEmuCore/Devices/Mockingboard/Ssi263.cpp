@@ -56,7 +56,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
     {  350, 1900, 2500, false, true,  0.40f },   // 29 K    kit
     {  250, 1000, 2100, true,  false, 0.15f },   // 2A HV   (hold vocal)
     {  250, 1000, 2100, true,  false, 0.00f },   // 2B HVC  (hold vocal closure)
-    {  500, 1500, 2500, false, true,  0.35f },   // 2C HF   heart
+    {  500, 1500, 2500, false, true,  0.50f },   // 2C HF   heart
     {  500, 1500, 2500, false, true,  0.00f },   // 2D HFC  (hold fricative closure)
     {  250, 1200, 2200, true,  false, 0.20f },   // 2E HN   (hold nasal)
     {  300, 4300, 5600, true,  true,  0.50f },   // 2F Z    zero
@@ -82,7 +82,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // source, per-stage resonator bandwidths, and the output level that keeps a
 // full-amplitude vowel inside the sample range after three resonators.
 static constexpr float   s_kfVoicedGain   = 4.00f;
-static constexpr float   s_kfNoiseGain    = 0.50f;
+static constexpr float   s_kfNoiseGain    = 0.80f;
 static constexpr float   s_kfTilt         = 0.25f;
 static constexpr float   s_kfOutputGain   = 0.25f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
@@ -574,6 +574,15 @@ void Ssi263::GlideFormants()
     int      i         = 0;
 
 
+
+    // A pause or closure has no formant targets of its own: the tract HOLDS
+    // its position through it rather than sinking toward zero -- otherwise
+    // the phoneme after every pause would sweep up from the basement and
+    // every utterance would open on a spurious glide.
+    if (spec.f1 == 0)
+    {
+        return;
+    }
 
     target[0] = spec.f1;
     target[1] = spec.f2;

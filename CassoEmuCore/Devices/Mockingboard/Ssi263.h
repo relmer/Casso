@@ -150,6 +150,10 @@ public:
     Byte    Articulation() const { return static_cast<Byte> ((m_reg[kRegCtlArtAmp] & kArticMask) >> kArticShift); }
     Byte    ActiveMode  () const { return m_mode; }
 
+    // Current center frequency of one resonator stage (0..2) -- the glided
+    // tract position, exposed so tests can assert transitions directly.
+    double   FormantCenter (int stage) const { return m_fCur[stage]; }
+
     uint16_t InflectionValue  () const;
     double   FrameDurationSec () const;
     double   PhonemeDurationSec () const;

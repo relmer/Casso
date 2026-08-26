@@ -610,6 +610,45 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  PauseHoldsTheTractPosition
+        //
+        //  A pause has no formant targets of its own, so the tract must HOLD
+        //  through it. The regression this guards: gliding toward the pause's
+        //  zero-valued table entry sank the formants toward 0 Hz during every
+        //  inter-word gap, and the next phoneme then swept up from the
+        //  basement -- an audible spurious "bw" glide opening each utterance.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PauseHoldsTheTractPosition)
+        {
+            double   f2Before               = 0.0;
+            float    buffer[kRenderSamples] = {};
+
+
+
+            Ssi263   chip;
+
+
+
+            StartVowelAh1 (chip);
+            RenderSteadyState (chip, buffer);
+
+            f2Before = chip.FormantCenter (1);
+            Assert::IsTrue (f2Before > 1000.0, L"Precondition: settled at the vowel's F2");
+
+            // A long, fully rendered pause. Its output is silence, but the
+            // glide machinery still runs each sample -- and must not move.
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x00);
+            RenderInto (chip, buffer, kRenderSamples);
+
+            Assert::AreEqual (f2Before, chip.FormantCenter (1), 1.0,
+                              L"A pause must hold the tract where the last phoneme left it");
+        }
+
+
         TEST_METHOD (RenderingIsDeterministicAcrossIdenticalChips)
         {
             uint32_t   i                 = 0;
