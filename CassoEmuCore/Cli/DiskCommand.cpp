@@ -61,6 +61,16 @@ int DiskCommand::Run (const CommandLineOptions & options)
 
 
 
+    //  A PAGE FOLDS TO THE TERMINAL. A LISTING MUST NOT.
+    //
+    //  The runner hands back both through `output`, and printing all of it
+    //  verbatim was right for one and wrong for the other: a catalog row is a
+    //  table and reflowing one destroys it, while the help is prose composed as
+    //  one logical line per paragraph. Measured, `disk` alone emitted a single
+    //  623-character line and left the terminal to break it at column zero,
+    //  losing the indent on every continuation. `usageShown` is what tells the
+    //  two apart.
+    //
     //  A REFUSAL'S USAGE IS PART OF THE REFUSAL, so it goes to the error
     //  stream with the reason rather than to stdout.
     //
@@ -72,7 +82,14 @@ int DiskCommand::Run (const CommandLineOptions & options)
     //  on stdout, which is what a caller pipes.
     if (!result.output.empty())
     {
-        if (result.badCommandLine)
+        if (result.usageShown)
+        {
+            CommandLine::UsageOnErrorStream  toTheErrorStream;
+
+            CommandLine::PrintUsageBlock (TextEncoding::NarrowToConsole (result.output));
+            std::fflush (stderr);
+        }
+        else if (result.badCommandLine)
         {
             std::cerr << TextEncoding::NarrowToConsole (result.output);
             std::cerr.flush();

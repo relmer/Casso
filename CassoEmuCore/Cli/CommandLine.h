@@ -94,6 +94,14 @@ public:
     //  Where usage is going right now. Exposed so the guard above can be
     //  asserted without a test rebinding the process's own handles, which
     //  takes the test runner's reporting down with it.
+    //  A block of composed usage, folded to the terminal row by row.
+    //
+    //  PUBLIC BECAUSE THE DISK RUNNER COMPOSES A PAGE IN CORE and the
+    //  printing edge has to fold it. Printed verbatim instead, `disk` alone
+    //  emitted a single 623-character line and left the terminal to break it
+    //  at column zero, losing the indent on every continuation.
+    static void                PrintUsageBlock (const std::string & block);
+
     static std::FILE *         UsageStream();
 
     //  The blank line that separates whatever the tool just said from the
@@ -157,7 +165,6 @@ private:
 
     //  A run of usage composed elsewhere -- core builds the dialect flag lines
     //  -- folded row by row.
-    static void    PrintUsageBlock     (const std::string & block);
 
     //  A top-level heading, underlined to its own width.
     static void    PrintSectionHeading (const std::string & name);

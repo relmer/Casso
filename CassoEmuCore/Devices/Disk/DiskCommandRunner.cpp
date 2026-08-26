@@ -2791,7 +2791,13 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             //  be able to tell.
             if (options.disk.commandWord.empty())
             {
-                result.output += BuildHelpText (options.flagPrefix, m_banner);
+                //  AND SAYS SO, or the edge prints the page a second time.
+                //  A bad command line makes the caller print the whole disk
+                //  page unless the runner has already answered with usage;
+                //  this arm was answering with usage and not saying it, so
+                //  `disk` alone printed 326 lines where 163 were meant.
+                result.output     += BuildHelpText (options.flagPrefix, m_banner);
+                result.usageShown  = true;
             }
             else
             {
