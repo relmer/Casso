@@ -62,12 +62,15 @@ existing title sees is byte-for-byte unchanged (and the A remains selectable
 as the `mockingboard` device type). Boot
 `Apple2/Demos/mockingboard-speech-test.dsk` to hear it say hello.
 
-One honest caveat, stated here because fidelity is the point of this project:
-the chip's own per-phoneme ROM has never been published or extracted — every
-emulator substitutes for it — so the voice currently uses formant values from
-the published phonetics literature. The table is a swappable input, and work
-to obtain the real values (die-shot extraction, hardware measurement) is
-tracked in the feature's research notes.
+And a first, stated here because fidelity is the point of this project: the
+chip's own per-phoneme parameter ROM — never published, substituted-for by
+every emulator — has now been **read off the visual6502 die photographs**
+and decoded (64 phonemes; F1/F2/F3 filter codes, vocal and fricative
+amplitudes, nasal coupling, and voiced/fricative/closure flags; extraction
+data and method in `specs/024-mockingboard-speech/rom-extraction/`). The
+voice is driven by the silicon's own values: the ROM's filter codes map to
+frequencies through fitted curves, which remain the one approximation until
+the chip's capacitor weights are traced. The table stays a swappable input.
 
 ### Merlin assembler dialect (v1.18.0)
 

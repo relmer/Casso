@@ -32,6 +32,13 @@ Entries before versioning was introduced use dates only.
   be attributed to Casso's stream or to the device path (see #125).
 
 ### Changed
+- **The voice now speaks from the chip's own ROM.** The SSI 263A's phoneme
+  parameter ROM — never published, substituted-for by every emulator — was
+  read off the visual6502 die photographs and decoded (extraction under
+  `specs/024-mockingboard-speech/rom-extraction/`). The built-in phoneme
+  table is generated from the silicon's F1/F2/F3 filter codes, amplitudes,
+  and voiced/fricative flags; filter codes map to Hz through fitted curves
+  pending the chip's exact capacitor weights.
 - The Hardware tab names the card model — "Mockingboard A (sound)" /
   "Mockingboard C (sound + speech)" — instead of a raw device string.
 - The 6522 VIA models CA1/CB1 control-line inputs with PCR edge selection —
