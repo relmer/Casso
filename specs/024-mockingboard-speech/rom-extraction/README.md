@@ -70,12 +70,40 @@ Cross-validation from structure alone:
   including a fully hand-audited counterexample (C06), and no row subset
   computes it (best of 406 contiguous ranges: 43/64).
 
-**Open**: exact field boundaries, bit weights, and polarity for the formant
-frequency and amplitude values in b05-b27. Rank correlation against the
-literature formant table peaks at rho ~0.75 with overlapping candidate
-fields, so the encoding is not plain contiguous binary — likely
-switched-capacitor bank weightings, possibly layout-scrambled. Next route:
-Silicon Systems / Votrax patents, which may document the parameter word.
+**Open**: exact field boundaries, bit weights, and polarity for the filter
+and amplitude values in b05-b27.
+
+What the field investigation established (2026-08-26):
+
+- The datasheet block diagram is the architecture key: the tract is **five
+  cascaded programmable low-pass filter sections** (not three resonators),
+  fed by a "Phoneme Characteristics ROM", with glottal vs noise excitation
+  selected per phoneme — our b04/b03 flags are exactly that selector.
+  Arithmetic fits six 4-bit values (five filters + amplitude) in the 24
+  non-flag bits, but the naive nibble split does not correlate best.
+- The physical row-pair interleave is real: reading every-other data row as
+  one stream lifts F2 rank-correlation from 0.72 to **0.88** (rows
+  b09,b11..b21 MSB-first) and F3 to 0.87 — the odd/even row streams carry
+  distinct parameter data, echoing the SC-01 patent's multiplexed nibble
+  ROM output.
+- Ruled out: plain contiguous binary fields; pure thermometer (unary
+  capacitor-count) coding; six aligned nibbles at the obvious boundaries;
+  PAR as column parity. The bit-to-capacitor assignment is scrambled
+  beyond what correlation against an approximate reference table resolves.
+
+Patent status: no SC-02/SSI-263-specific patent found. US4433210 (SC-01,
+Federal Screw Works) documents the predecessor's 12-parameter mostly-4-bit
+word and its multiplexed nibble ROM bus; US4829573 (Votrax International,
+filed 1986, Gagnon/Houck) is a later K-parameter design whose **microfiche
+appendix contains a complete hex parameter table for 63 phonemes** —
+obtainable from USPTO as a file-wrapper copy, and potentially a Rosetta
+stone for Votrax parameter conventions even across generations.
+
+Remaining decode routes, strongest first: (1) trace the ROM column outputs
+to the filter capacitor banks on the full-resolution die master (the
+drafted visual6502 request); (2) obtain the US4829573 microfiche appendix;
+(3) forward-model five cascaded switched-cap low-pass sections and search
+bit-assignments that reproduce expected phoneme spectra.
 
 ## Files
 
