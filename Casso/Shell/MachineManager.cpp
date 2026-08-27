@@ -724,6 +724,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (0));
         m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (1));
 
+        // The sound+speech variant adds its center-panned voice source; the
+        // sound-only card has no chip and the source stays silent anyway.
+        if (m_shell.m_refs.mockingboard->GetSpeech() != nullptr)
+        {
+            m_shell.m_mockingboardAudioMixer.RegisterSource (
+                m_shell.m_refs.mockingboard->GetSpeechAudioSource());
+        }
+
         m_shell.m_refs.mockingboard->SetSampleRate (m_shell.m_wasapiAudio.GetSampleRate());
 
         // On the //e the Apple2eMmu's CxxxRomRouter owns $C100-$CFFF, so a

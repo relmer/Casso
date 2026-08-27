@@ -592,8 +592,8 @@ public:
             L"Apple2Plus.json declares three slots: parallel printer (slot 1), Mockingboard (slot 4), Disk II (slot 6)");
         Assert::IsTrue (HasSlotDevice (config, 1, "parallel-printer"),
             L"Apple2Plus.json must install the parallel printer in slot 1");
-        Assert::IsTrue (HasSlotDevice (config, 4, "mockingboard"),
-            L"Apple2Plus.json must install a Mockingboard in slot 4");
+        Assert::IsTrue (HasSlotDevice (config, 4, "mockingboard-c"),
+            L"Apple2Plus.json must install the sound+speech Mockingboard in slot 4");
         Assert::IsTrue (HasSlotDevice (config, 6, "disk-ii"),
             L"Apple2Plus.json must keep the Disk II controller in slot 6");
     }
