@@ -44,4 +44,32 @@ public:
     //  Where a continuation of this line should start: after its gutter if it
     //  has one, otherwise at its own indent.
     static size_t                    ContinuationIndent (const std::string & line);
+
+    //  The narrowest terminal worth folding to. Below this the gutter alone
+    //  eats the line, so the reported width is ignored and the fallback stands.
+    static constexpr size_t          kNarrowestTerminal = 40;
+
+    //  What a page has no terminal to ask. A redirected stream has no width,
+    //  and guessing a wide one puts long lines into a file somebody will open
+    //  in an editor at 80.
+    static constexpr size_t          kNoTerminal        = 80;
+
+    //
+    //  How wide to fold, from what the environment says and what the console
+    //  reports.
+    //
+    //  SPLIT OUT OF THE PLATFORM CALL SO IT CAN BE TESTED. The decision used to
+    //  live entirely inside the executable, next to GetConsoleScreenBufferInfo,
+    //  where the test assembly cannot reach it -- so "does the help use the
+    //  terminal's width" was a question only a person at a terminal could
+    //  answer, and answering it needed a build, a window and an eye.
+    //
+    //  COLUMNS WINS WHEN IT IS SET, which is the convention every other tool
+    //  follows and is what makes the whole path checkable from a script: set it,
+    //  run the tool, measure the longest line. It also gives a reader whose
+    //  terminal reports the wrong size a way to say so.
+    //
+    static size_t                    WidthFrom (const char * columnsEnv,
+                                                bool         hasConsole,
+                                                int          consoleColumns);
 };

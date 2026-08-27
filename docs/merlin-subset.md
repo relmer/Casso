@@ -21,7 +21,7 @@ point: a refusal says which construct, why, and what would widen the boundary,
 where an unknown-directive error would read as "Merlin support is broken".
 
 The block below is the text that table composes, verbatim. It is no longer
-printed by `--help` -- six rows of why belong in a document rather than in front
+printed by `--help`, six rows of why belong in a document rather than in front
 of someone who asked for the flag list.
 
 ```
@@ -42,7 +42,7 @@ Three things about that list are worth reading twice.
 - **A relocatable module that imports nothing has a way forward, and the
   refusal states it in full**: remove `REL`, drop the `ENT` declarations, and
   give the source an origin with `ORG`. A module carrying even one `EXT`
-  declaration does *not* — it references a definition living in another file,
+  declaration does *not*, it references a definition living in another file,
   and no edit to this one supplies it. The advice is a property of the whole
   module, so one `EXT` anywhere removes the workaround from every refusal in
   the file, including those written above it.
@@ -58,7 +58,7 @@ Crossing the boundary stops the assembly before pass 2 and exits 2.
 
 Fields, not columns. Runs of spaces or tabs separate the label, opcode, operand
 and comment fields, and the only significant column is the first: a line
-beginning with whitespace has no label. Tabs are never expanded — tab stops
+beginning with whitespace has no label. Tabs are never expanded, tab stops
 affect display and nothing else, and the tidy columns in a Merlin listing are
 the editor's doing.
 
@@ -66,7 +66,7 @@ A `*` in column 1 is a whole-line comment. So is a `;` in column 1, which is not
 a separate rule: with no label present, column 1 is the first field boundary.
 
 A semicolon is **not** a comment introducer anywhere else. Inside the operand it
-is data, and it is how Merlin separates macro arguments — `ADD SUMSTR;DEFLEN;PL`
+is data, and it is how Merlin separates macro arguments, `ADD SUMSTR;DEFLEN;PL`
 passes three.
 
 ### Directives
@@ -86,12 +86,12 @@ passes three.
 | `DO` `ELSE` `FIN` | Conditional assembly |
 | `MAC` `<<<` | Macro definition and its terminator |
 | `LUP` `--^` | Repeat block and its terminator |
-| `DUM` `DEND` | Dummy section — assigns addresses, emits nothing |
+| `DUM` `DEND` | Dummy section: assigns addresses, emits nothing |
 | `ERR` | Assembly-time assertion. `ERR expr` fails when the expression is non-zero; `ERR \expr` fails when the assembly has grown past `expr`. |
 | `VAR` | Binds the positional parameters `]1`..`]9` with no macro call, so a fragment pulled in with `PUT` can be parameterized. Values are separated by `;`, the same character macro arguments use. |
 | `KBD` | Binds the symbol in the label field to an answer supplied from outside. See below. |
 | `PAG` `TR` `EXP` `AST` | Listing control; no object byte changes |
-| `XC` | Selects the 65C02 (first occurrence only — see above) |
+| `XC` | Selects the 65C02 (first occurrence only, see above) |
 
 ### Symbols and expressions
 
@@ -122,7 +122,7 @@ passes three.
 
 Invoked by bare name, or explicitly with `>>>`. Arguments are separated by `;`.
 Every label a macro body defines is made unique per expansion, with no
-declaration to say so — Merlin's own sources expand one macro three times, each
+declaration to say so, Merlin's own sources expand one macro three times, each
 redefining a bare label.
 
 A parameter the body refers to with no argument to fill it is an **error**. It
@@ -137,7 +137,7 @@ assembler has nobody to ask, so the answer arrives as a predefined symbol, on
 the same channel every other externally supplied value uses.
 
 A missing answer is an error naming the symbol and the source's own prompt.
-Neither easier outcome is acceptable — blocking on a prompt hangs an unattended
+Neither easier outcome is acceptable, blocking on a prompt hangs an unattended
 build, and defaulting to zero cleanly assembles code nobody asked for, because
 these symbols gate whole sections.
 
@@ -164,11 +164,11 @@ CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=24 --dos-bin -o CLOCK.24
 ```
 
 - `--dos-bin` writes the bytes behind a 4-byte DOS 3.3 header carrying the
-  origin and the length — the form the file takes on an Apple II disk.
+  origin and the length, the form the file takes on an Apple II disk.
 - `--flat` writes a full 64 KB image with the bytes at their origin.
 
 **`--dos-bin` is the one that closes a gap rather than adding a convenience.**
-The header carries the ORIGIN, and the default output throws it away — so
+The header carries the ORIGIN, and the default output throws it away, so
 wrapping the bytes by hand afterward means already knowing an address that
 usually comes from an `ORG` buried in the source. The assembler knows it;
 nothing downstream reliably does.
@@ -192,7 +192,7 @@ behavior.
 - **The explicit `>>>` macro invocation is unverified.** The vendor library
   invokes every macro by bare name.
 - **`VAR` binds values, not text.** A parameter pasted into a longer identifier
-  — which textual substitution inside a macro body would splice — resolves here
+, which textual substitution inside a macro body would splice, resolves here
   as one symbol instead. No vendor line does it, so the corpus cannot say which
   reading Merlin takes outside a macro.
 - **The inclusive-or character is also the local-label scope joiner.** The
@@ -212,13 +212,13 @@ accepts more than the original cannot reject a source the original would have
 assembled, and Merlin source written in a Windows editor arrives lower-case.
 
 **Symbols are a different question and stay case-sensitive.** A label written
-`lda` is legal — period sources do it — and is accepted with a warning that it
+`lda` is legal, period sources do it, and is accepted with a warning that it
 resembles an instruction, rather than being refused.
 
 ## Strictness
 
 There is no lenient superset. A source is read under the dialect its invocation
-names and no other, so an `as65` construct in a Merlin file is rejected — and
+names and no other, so an `as65` construct in a Merlin file is rejected, and
 the diagnostic says which dialect defines it, rather than reporting an unknown
 instruction.
 

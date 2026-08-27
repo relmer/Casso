@@ -58,7 +58,7 @@ compiles its checks out there, so those tests execute the code under test but
 verify nothing about the assert.
 
 If you touch the CPU core, run the full-depth Harte vectors
-(`.\scripts\RunHarteTests.ps1`) — the set checked in and run by default is 200
+(`.\scripts\RunHarteTests.ps1`), the set checked in and run by default is 200
 vectors per opcode, not the full 10,000. See [docs/testing.md](docs/testing.md)
 for what that covers and when the deeper set is warranted.
 
@@ -68,7 +68,7 @@ for what that covers and when the deeper set is warranted.
 - Every `.cpp` file must include `"Pch.h"` as its first `#include`
 - Use quoted includes (`"header.h"`) for project headers; system headers go in `Pch.h`
 - No anonymous namespaces: file-local constants are file-scope `static constexpr` (`s_k` naming); helpers are class `static` members, not free functions
-- A closing `}` is followed by a blank line — except a do-while tail, a following `else`, or another closing `}`
+- A closing `}` is followed by a blank line, except a do-while tail, a following `else`, or another closing `}`
 
 ## Third-Party Dependencies
 

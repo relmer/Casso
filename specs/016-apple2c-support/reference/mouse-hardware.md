@@ -2,7 +2,7 @@
 
 > **Reusing this for the //e / ][+ AppleMouse II slot card?** See **GH #102**,
 > which plans to wrap this same motion/latch model in the card's register
-> surface (`$C0n0-$C0nF` + `$Cn00`) — read *Naming traps* below first, and note
+> surface (`$C0n0-$C0nF` + `$Cn00`); read *Naming traps* below first, and note
 > two documented card/IIc differences that the shared model has to account for:
 > the //c "responds one-half as frequently to mouse movements as does the mouse
 > card" (IIc TN #1), and the `$Cn1C` 50/60 Hz rate call is card-only, explicitly
@@ -11,16 +11,16 @@
 
 > **STATUS: IMPLEMENTED + FIRMWARE-VALIDATED.** `AppleMouse`
 > (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`) implements this contract;
-> `AppleMouseTests` proves it — including the oracle test that drives the
+> `AppleMouseTests` proves it, including the oracle test that drives the
 > REAL ROM 4 firmware protocol (INITMOUSE/SETMOUSE/READMOUSE) end to end.
 > Corrections discovered during implementation (updated below):
 > **the mouse is phantom slot 7 on ROM 4** (slot 4 is the memory-expansion
-> firmware) — signature `$C705=$38 $C707=$18 $C70B=$01 $C70C=$20 $C7FB=$D6`,
+> firmware), signature `$C705=$38 $C707=$18 $C70B=$01 $C70C=$20 $C7FB=$D6`,
 > entry table `$C712-$C719` (SETMOUSE=$C71C, SERVEMOUSE=$C722,
 > READMOUSE=$C728, CLEARMOUSE=$C72E, POSMOUSE=$C71A, CLAMPMOUSE=$C734,
 > HOMEMOUSE=$C73A, INITMOUSE=$C740; each a `STA $C028` bank trampoline).
 > Additional pinned semantics: `$C015`/`$C017` bit7 = X0/Y0 interrupt
-> pending (read-only — the service loop reads them twice); direction =
+> pending (read-only; the service loop reads them twice); direction =
 > `$C066` bit7 set → X increments, `$C067` INVERTED (`EOR #$80`) → bit7
 > clear → Y increments; firmware steps position exactly ±1 per latched
 > axis per interrupt and does its own clamping (screen holes); any `$C07x`
@@ -28,9 +28,9 @@
 > onset regardless of ENVBL, validated via INITMOUSE's enable gate).
 > **Re-confirmed 2026-08-13** against Apple //c Technical Note #9, MAME's
 > IIc driver, and the firmware oracle after all three status registers were
-> "corrected" to reset-on-read and had to be reverted — see Naming traps.
+> "corrected" to reset-on-read and had to be reverted, see Naming traps.
 > Also fixed en route: `EmuCpu::StepOne` now polls the interrupt lines
-> (`Cpu6502::DispatchPendingInterrupt`) — the StepOne+AddCycles hosts
+> (`Cpu6502::DispatchPendingInterrupt`), the StepOne+AddCycles hosts
 > (production slice loop, headless RunCycles) previously never dispatched
 > hardware IRQs at all; the mouse is the first real source.
 
@@ -38,7 +38,7 @@ Derived by disassembling the //c ROM 4 mouse firmware (`UnitTest/Fixtures/Apple2
 32K = 2×16K banks mapped to `$C000-$FFFF`, toggled by `$C028`). The firmware is the
 authoritative oracle: implement the hardware below and the real ROM firmware must drive
 the mouse correctly in the headless harness. Approach chosen: **full IOU hardware model**
-(run the real ROM firmware; emulate the hardware it touches) — not firmware-entry HLE.
+(run the real ROM firmware; emulate the hardware it touches), not firmware-entry HLE.
 
 ## Where the code lives
 
@@ -55,19 +55,19 @@ the mouse correctly in the headless harness. Approach chosen: **full IOU hardwar
 
 | Addr | Access | Meaning | Firmware evidence |
 |------|--------|---------|-------------------|
-| `$C015` | R bit7 | **X0 interrupt pending — STATUS ONLY, the read does not ack** (see Naming traps) | service loop reads it twice |
-| `$C017` | R bit7 | **Y0 interrupt pending — STATUS ONLY, the read does not ack** | service loop reads it twice |
-| `$C019` | R bit7 | **VBL interrupt LATCH on the //c** — "a VBL IRQ fired", NOT the //e's live RDVBLBAR. Survives its own read; cleared by any `$C07x` | `C106 LDA $C019`, `C448/D4B0 BIT $C019` |
-| `$C048` | W | **RSTXY** — clear/ack mouse X0/Y0 interrupt latch | `C18E STA $C048` |
+| `$C015` | R bit7 | **X0 interrupt pending: STATUS ONLY, the read does not ack** (see Naming traps) | service loop reads it twice |
+| `$C017` | R bit7 | **Y0 interrupt pending: STATUS ONLY, the read does not ack** | service loop reads it twice |
+| `$C019` | R bit7 | **VBL interrupt LATCH on the //c**: "a VBL IRQ fired", NOT the //e's live RDVBLBAR. Survives its own read; cleared by any `$C07x` | `C106 LDA $C019`, `C448/D4B0 BIT $C019` |
+| `$C048` | W | **RSTXY**, clear/ack mouse X0/Y0 interrupt latch | `C18E STA $C048` |
 | `$C058-$C05F` | W | mouse/VBL interrupt enables + edge selects, programmed as a bank; gated by IOU access | `D646 STA $C058,X` sweep |
 | `$C05A` / `$C05B` | W | **DISVBL** / **ENVBL** (VBL interrupt disable/enable) | `C115 STA $C05A`, `C19B STA $C05B` |
 | `$C063` | R bit7 | **mouse button, active-low** (0 = pressed) | `C124/D689 BIT $C063` → `ORA #$80` when N clear |
 | `$C066` | R bit7 | mouse **X0** movement+direction (game-port PADDL2 repurposed) | `C80C LDX $C066` (IRQ entry) |
 | `$C067` | R bit7 | mouse **Y0** movement+direction (game-port PADDL3 repurposed) | `C80F LDY $C067` (IRQ entry) |
-| `$C078` / `$C079` | W | IOU register access **disable/enable** — brackets every `$C05x` mouse program | `C10B/C198 STA $C079` … `C11A/C19E STA $C078` |
-| `$C07E` / `$C07F` | W | **SETIOUDIS / CLRIOUDIS — the SECOND address pair for the same IOUDIS latch.** Technical Note #9 documents this one ("turn IOUDis off by writing to `$C07F`, then access ENVBL at `$C05B`"), so honoring only `$C078`/`$C079` leaves that published sequence programming annunciators instead of the mouse | not used by ROM 4 (it brackets with `$C078`/`$C079`); documented + test-covered |
+| `$C078` / `$C079` | W | IOU register access **disable/enable**, brackets every `$C05x` mouse program | `C10B/C198 STA $C079` … `C11A/C19E STA $C078` |
+| `$C07E` / `$C07F` | W | **SETIOUDIS / CLRIOUDIS: the SECOND address pair for the same IOUDIS latch.** Technical Note #9 documents this one ("turn IOUDis off by writing to `$C07F`, then access ENVBL at `$C05B`"), so honoring only `$C078`/`$C079` leaves that published sequence programming annunciators instead of the mouse | not used by ROM 4 (it brackets with `$C078`/`$C079`); documented + test-covered |
 | `$C070` | R | PTRIG (paddle/mouse timer trigger; shared game port) | `C907 LDA $C070` |
-| `$C070-$C07F` | R/W | PTRIG is **partially decoded across the whole page** — ANY `$C07x` access strobes it and clears the VBL latch. This is the VBL ack path | MousePaint's ISR acks VBL as a side effect of its `STA $C079` |
+| `$C070-$C07F` | R/W | PTRIG is **partially decoded across the whole page**, ANY `$C07x` access strobes it and clears the VBL latch. This is the VBL ack path | MousePaint's ISR acks VBL as a side effect of its `STA $C079` |
 
 Game-port sharing (FR-013a): mouse and joystick share the DB-9 port. `$C064-$C067` are
 PADDL0-3; in mouse mode `$C066`/`$C067` carry X0/Y0 quadrature, `$C063` the button.
@@ -76,10 +76,10 @@ PADDL0-3; in mouse mode `$C066`/`$C067` carry X0/Y0 quadrature, `$C063` the butt
 
 Two IOU interrupt sources drive the CPU IRQ line (via `InterruptController`, level-sensitive):
 
-1. **VBL** — asserted at vertical-blank onset when enabled (`$C05B` ENVBL; `$C05A` DISVBL).
-   60 Hz. **Ack: any `$C07x` access** (PTRIG at `$C070`, or RdIOUDis at `$C07E`) — NOT the
+1. **VBL**: asserted at vertical-blank onset when enabled (`$C05B` ENVBL; `$C05A` DISVBL).
+   60 Hz. **Ack: any `$C07x` access** (PTRIG at `$C070`, or RdIOUDis at `$C07E`), NOT the
    `$C019` read, and NOT `$C048` (which is the movement ack). Settled below.
-2. **Mouse movement (X0/Y0)** — asserted on an X0 or Y0 transition (per the selected edge)
+2. **Mouse movement (X0/Y0)**: asserted on an X0 or Y0 transition (per the selected edge)
    when enabled (the `$C058-$C05F` sweep). Level-held until `$C048` write clears the latch.
    Getting the latch/ack right is the T026 "neither starve nor double-fire" edge case:
    assert once per movement, hold until ack, do not re-assert until the next movement.
@@ -100,7 +100,7 @@ button + interrupt latches; the **firmware** owns position accumulation and clam
   alongside the existing `$C019` VBL read.
 - **T026** tests drive the **real firmware entry points** (SETMOUSE/READMOUSE/SERVEMOUSE)
   in the headless harness: inject host motion+click, assert firmware-reported X/Y/button and
-  that VBL/mouse IRQs are delivered and `$C019`/latch status read correctly — the firmware
+  that VBL/mouse IRQs are delivered and `$C019`/latch status read correctly, the firmware
   validates the hardware model, so exact bit/edge/ack semantics are pinned empirically.
 - **T029** register `apple-mouse` in `ComponentRegistry`; add to `Apple2c.json` (slot-4).
 - **T030 / T030a** (shell): host pointer → guest (non-capturing, absolute over the viewport);
@@ -122,22 +122,22 @@ arbiter that settled it:
 - **`$C015`/`$C017` are not "RSTXINT"/"RSTYINT" for us.** The names say the read resets the
   latch, and MAME's IIc driver does lower its mouse IRQ on these reads. But ROM 4's service
   loop polls them as status and acknowledges with `$C048`; making the read clear the latch
-  cost the firmware movement units — the oracle tracked **2 of 5**. Status only.
+  cost the firmware movement units, the oracle tracked **2 of 5**. Status only.
 - **MAME divergence, unresolved.** MAME keeps separate `m_xirq`/`m_yirq` flags (as we do)
   but drops its shared `IRQ_MOUSEXY` line on either read even when the other axis is still
   pending; we hold the line while either latch is set (level-triggered OR). No source found
   settles the both-pending case. MAME also holds that the `$C019` flag only sets when ENVBL
-  is enabled, whereas we latch at onset regardless and have a test pinning that — still open.
+  is enabled, whereas we latch at onset regardless and have a test pinning that, still open.
 
-Guard rail: `AppleMouseTests` now pins the counter-intuitive half — repeated status reads are
-idempotent, only `$C048` acks movement, only `$C07x` acks VBL — so the naming cannot mislead
+Guard rail: `AppleMouseTests` now pins the counter-intuitive half (repeated status reads are
+idempotent, only `$C048` acks movement, only `$C07x` acks VBL) so the naming cannot mislead
 a future change. **The oracle only runs when `UnitTest/Fixtures/Apple2c.rom` is present; it
 otherwise skips green and validates nothing.**
 
 ## Open items to pin during TDD (via the firmware oracle)
 
-- Exact `$C058-$C05F` pair semantics (which pair = X0 enable vs edge vs Y0) — decode the
+- Exact `$C058-$C05F` pair semantics (which pair = X0 enable vs edge vs Y0), decode the
   `STA $C058,X` sweep mask the firmware builds.
-- ~~VBL IRQ ack path~~ — **settled**: any `$C07x` access. See Naming traps.
+- ~~VBL IRQ ack path~~, **settled**: any `$C07x` access. See Naming traps.
 - Does the `$C019` latch set when ENVBL is masked? We say yes (test-pinned); MAME says no.
 - `$C066`/`$C067` full bit layout beyond bit 7 (any movement-pending bit).

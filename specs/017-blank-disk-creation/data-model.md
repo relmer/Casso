@@ -80,14 +80,14 @@ filter (from `format`), proposed file name.
 
 Operations (all pure over `IFileSystem`):
 
-- `NavigateInto(entry)` / `NavigateUp()` — folder traversal; `..` row synthesized
+- `NavigateInto(entry)` / `NavigateUp()`, folder traversal; `..` row synthesized
   when a parent exists.
-- `Refresh()` — list folder: folders first, then files matching the filter,
+- `Refresh()`: list folder: folders first, then files matching the filter,
   case-insensitive name sort.
-- `UniqueDefaultName(base, ext)` — `Blank Disk.woz`, `Blank Disk (2).woz`, …
+- `UniqueDefaultName(base, ext)`: `Blank Disk.woz`, `Blank Disk (2).woz`, …
   (FR-006/FR-007).
 - `ValidateTarget(name)` → { ok | exists (needs confirm) | invalid-name |
-  folder-not-writable | **mounted-in-drive-N** } — the last fed by the shell's
+  folder-not-writable | **mounted-in-drive-N** }, the last fed by the shell's
   mounted-paths set (FR-018, R-013).
 
 ## WriteProtectState (existing model, new mutations)
@@ -106,7 +106,7 @@ New transitions (R-011):
 After either: re-probe (`ProbeFileWritability`) + `ApplyExternalWriteProtect`
 → `WriteProtectInfo` → widget/tooltip/menu check state (FR-015). Failure:
 report + re-read true state (FR-016). Note WOZ toggle-ON must flush BEFORE the
-image flag would block the flush path — flush ordering is part of the
+image flag would block the flush path, flush ordering is part of the
 contract (see contracts/shell-integration.md).
 
 ## GlobalUserPrefs addition (R-012)

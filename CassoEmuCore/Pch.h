@@ -22,7 +22,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <fcntl.h>
 #include <filesystem>
+#include <io.h>
 #include <format>
 #include <fstream>
 #include <functional>

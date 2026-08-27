@@ -51,7 +51,7 @@ CreateDiskFlow (drive):
 |---|---|
 | `DxuiListView` | Current folder: Name / Size / Modified; `..` + folders first; Enter/double-click folder navigates; selecting a file puts its name in the name field |
 | `DxuiTextInput` | File name (max length per filesystem; placeholder = unique default) |
-| `DxuiDropdown` ×2 | Format (WOZ/DSK/PO) — drives extension + contents constraints (FR-010); Contents (DOS 3.3 / ProDOS 1.1.1 / Unformatted) |
+| `DxuiDropdown` ×2 | Format (WOZ/DSK/PO), drives extension + contents constraints (FR-010); Contents (DOS 3.3 / ProDOS 1.1.1 / Unformatted) |
 | `DxuiCheckbox` | Bootable (disabled + reason when payload unavailable) |
 | Buttons | Create (default) / Cancel; up-button beside a current-path label |
 
@@ -67,7 +67,7 @@ name field = Create; Escape = Cancel. Resizable with sensible min size.
 - **Routing**: `WindowCommandManager::OnDiskCommand` →
   `DiskManager::ToggleImageWriteProtect (drive)`:
   - WOZ: flush pending dirty content FIRST, then `SetImageWriteProtected
-    (newState)` + mark dirty + flush again so INFO byte 2 persists — ordering
+    (newState)` + mark dirty + flush again so INFO byte 2 persists, ordering
     matters because a protected image skips flush (`FlushEntry` early-out);
     toggling ON must not strand unwritten sectors, and the WP-flag flush
     itself must bypass the write gate (serializer-level write, not guest
@@ -79,7 +79,7 @@ name field = Create; Escape = Cancel. Resizable with sensible min size.
 - **Failure** (attribute change denied, file missing): message dialog with the
   cause; state re-read from reality, never assumed (FR-016).
 - **Unchanged**: the Settings>Disk per-drive *user* write-protect checkbox
-  (`userSetting` bit, per-machine pref) — different semantic, still OR'd in.
+  (`userSetting` bit, per-machine pref), different semantic, still OR'd in.
 
 ## 5. Prefs (R-012)
 

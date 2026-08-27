@@ -1,0 +1,19 @@
+###############################################################################
+#  These files are BYTE-VERBATIM extractions from Merlin-proDos2.23.dsk, made by
+#  an implementation other than Casso's. They are the oracle the DOS 3.3 reader
+#  is measured against, so any transformation destroys what they are for.
+#
+#  THEY LOOK LIKE TEXT AND ARE NOT. A Merlin source stored as DOS 3.3 type B
+#  carries a 4-byte load/length header and ends its lines with a bare CR, so the
+#  repository root's `* text=auto` would rewrite the endings and inflate every
+#  file by one byte per line -- leaving a fixture that still reads perfectly as
+#  Merlin source while no longer being the bytes on the disk. That is the worst
+#  possible failure for an oracle: wrong, and authoritative-looking.
+#
+#  THIS IS WHY THEY ARE NOT UNDER Fixtures/Merlin. That directory holds the same
+#  four names, stored deliberately as Windows text because they feed
+#  `CassoCli merlin` and a corpus test asserts the CRLF is there. Two different
+#  artifacts, two different requirements; sharing a path made the merge pick one
+#  and silently break the other.
+###############################################################################
+* binary

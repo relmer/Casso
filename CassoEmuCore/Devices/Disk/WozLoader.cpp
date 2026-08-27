@@ -20,6 +20,7 @@ static constexpr size_t  kCrcLen        = 4;
 static constexpr Byte    kInfoMagic[]   = { 'I', 'N', 'F', 'O' };
 static constexpr Byte    kTmapMagic[]   = { 'T', 'M', 'A', 'P' };
 static constexpr Byte    kTrksMagic[]   = { 'T', 'R', 'K', 'S' };
+static constexpr Byte    kMetaMagic[]   = { 'M', 'E', 'T', 'A' };
 static constexpr Byte    kTmapEmptyTrack = 0xFF;
 static constexpr int     kQuarterTracksPerTrack = 4;
 static constexpr int     kMaxTracks      = 40;
@@ -666,6 +667,199 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ReadPaddedField
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WozLoader::ReadPaddedField (const Byte * bytes, size_t length)
+{
+    std::string  text (reinterpret_cast<const char *> (bytes), length);
+    size_t       end  = text.find_last_not_of (" \t\r\n");
+
+
+
+    text = (end == std::string::npos) ? std::string() : text.substr (0, end + 1);
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ParseMetaChunk
+//
+//  Key, tab, value, one pair per line. A line with no tab is skipped rather
+//  than stored under an empty key, because the format defines no such thing and
+//  a half-read pair presented as data is worse than a pair not presented.
+//
+//  A CHUNK WITHOUT A TRAILING NEWLINE STILL YIELDS ITS LAST PAIR. Real images
+//  are written both ways, and dropping the final field on the ones that omit it
+//  loses whichever key the writer happened to put last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::ParseMetaChunk (const Byte              *  bytes,
+                                size_t                     length,
+                                std::vector<MetaField>  &  out)
+{
+    std::string  text (reinterpret_cast<const char *> (bytes), length);
+    size_t       at   = 0;
+
+
+
+    while (at < text.size())
+    {
+        size_t  lineEnd = text.find ('\n', at);
+        size_t  stop    = (lineEnd == std::string::npos) ? text.size() : lineEnd;
+        size_t  tab     = text.find ('\t', at);
+
+        if (tab != std::string::npos && tab < stop)
+        {
+            MetaField  field;
+
+            field.key   = text.substr (at, tab - at);
+            field.value = text.substr (tab + 1, stop - tab - 1);
+
+            // A CRLF-terminated chunk leaves the carriage return on the value.
+            while (!field.value.empty() &&
+                   (field.value.back() == '\r' || field.value.back() == ' '))
+            {
+                field.value.pop_back();
+            }
+
+            if (!field.key.empty() && !field.value.empty())
+            {
+                out.push_back (field);
+            }
+        }
+
+        at = stop + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::Describe
+//
+//  Everything the image says about itself, without decoding a single track.
+//
+//  IT STOPS WHERE Load STOPS, at the first identifier that is not a chunk. In a
+//  v2 file the per-track bit-stream blocks follow TRKS and are not chunks, so
+//  scanning past them would read block data as a chunk header. A file whose
+//  TRKS size covers only its records -- which is what this project's own
+//  serializer writes -- therefore reaches no META, and reporting nothing is the
+//  honest answer rather than a guess at where META might have been.
+//
+//  Nothing here fails. An unreadable or truncated image leaves isWoz false and
+//  every other field at its default; a caller asking what an image says has
+//  already been told it could not be used, and a second error code adds nothing
+//  it can act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::Describe (const vector<Byte> & raw, Description & out)
+{
+    size_t  pos     = kSigLen + kCrcLen;
+    size_t  rawSize = raw.size();
+    bool    sigV1   = false;
+    bool    sigV2   = false;
+
+
+
+    out = Description();
+
+    if (rawSize < kHeaderSize)
+    {
+        return;
+    }
+
+    sigV2 = MatchSig (raw.data(), kSigV2);
+    sigV1 = MatchSig (raw.data(), kSigV1);
+
+    if (!sigV1 && !sigV2)
+    {
+        return;
+    }
+
+    out.isWoz      = true;
+    out.wozVersion = sigV2 ? 2 : 1;
+
+    while (pos + 8 <= rawSize)
+    {
+        const Byte *  id        = raw.data() + pos;
+        uint32_t      chunkSize = Read32LE (raw.data() + pos + 4);
+        size_t        chunkPos  = pos + 8;
+        bool          known     = MatchMagic (id, kInfoMagic)
+                               || MatchMagic (id, kTmapMagic)
+                               || MatchMagic (id, kTrksMagic)
+                               || MatchMagic (id, kMetaMagic);
+
+        if (!known || chunkPos + chunkSize > rawSize)
+        {
+            break;
+        }
+
+        if (MatchMagic (id, kInfoMagic) && chunkSize >= kInfoChunkSize)
+        {
+            const Byte *  info = raw.data() + chunkPos;
+
+            out.infoVersion    = info[kInfoOffsetVersion];
+            out.diskType       = info[kInfoOffsetDiskType];
+            out.writeProtected = info[kInfoOffsetWriteProtected] != 0;
+            out.synchronized   = info[kInfoOffsetSynchronized]   != 0;
+            out.cleaned        = info[kInfoOffsetCleaned]        != 0;
+            out.creator        = ReadPaddedField (info + kInfoOffsetCreator, kInfoCreatorLength);
+
+            // Version 1 stops short of the boot-sector field. Absent is not
+            // the same answer as "the image said unknown".
+            if (out.infoVersion >= 2)
+            {
+                out.hasBootSectorFormat = true;
+                out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
+            }
+        }
+        else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
+        {
+            const Byte *  tmap      = raw.data() + chunkPos;
+            bool          seen[256] = {};
+            size_t        qt        = 0;
+
+            for (qt = 0; qt < kTmapChunkSize; qt++)
+            {
+                if (tmap[qt] != kTmapEmptyTrack)
+                {
+                    out.quarterTracksWithData++;
+
+                    if (!seen[tmap[qt]])
+                    {
+                        seen[tmap[qt]] = true;
+                        out.trackSlotsWithData++;
+                    }
+                }
+            }
+        }
+        else if (MatchMagic (id, kMetaMagic))
+        {
+            ParseMetaChunk (raw.data() + chunkPos, chunkSize, out.meta);
+        }
+
+        pos = chunkPos + chunkSize;
+    }
 }
 
 

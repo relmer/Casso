@@ -251,4 +251,70 @@ namespace UsageTextTests
             return joined;
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  WidthFromTests
+    //
+    //  WHICH WIDTH THE HELP FOLDS TO, which nothing could check until the
+    //  decision moved out of the executable.
+    //
+    //  It sat next to GetConsoleScreenBufferInfo, so "does the help use the
+    //  terminal's width?" was a question only a person at a terminal could
+    //  answer. The platform call stays where it must; what the numbers MEAN is
+    //  here, and COLUMNS makes the whole path measurable from a script.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (WidthFromTests)
+    {
+    public:
+        //  A stream with no width behind it gets the fallback, because a
+        //  redirected page is read in an editor rather than a terminal.
+        TEST_METHOD (NoConsoleAndNoOverride_FallsBackTo80)
+        {
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom (nullptr, false, 0));
+        }
+
+        //  The console, less one column: writing INTO the last one makes some
+        //  terminals wrap on their own and put a blank line between every row.
+        TEST_METHOD (AConsole_FoldsOneColumnInsideIt)
+        {
+            Assert::AreEqual ((size_t) 199, UsageText::WidthFrom (nullptr, true, 200));
+            Assert::AreEqual ((size_t) 111, UsageText::WidthFrom (nullptr, true, 112));
+        }
+
+        //  COLUMNS wins outright, and is taken as written rather than reduced:
+        //  a reader who names a width means that width.
+        TEST_METHOD (ColumnsOverridesTheConsole)
+        {
+            Assert::AreEqual ((size_t) 200, UsageText::WidthFrom ("200", true, 80));
+            Assert::AreEqual ((size_t) 200, UsageText::WidthFrom ("200", false, 0));
+        }
+
+        //  A value that is not a number is not a width. Read by hand rather
+        //  than with atoi, which would call "wide" zero and fold to nothing.
+        TEST_METHOD (ANonNumericOverride_IsIgnoredRatherThanReadAsZero)
+        {
+            Assert::AreEqual ((size_t) 119, UsageText::WidthFrom ("wide", true, 120));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("80x24", false, 0));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("", false, 0));
+        }
+
+        //  A TERMINAL NARROWER THAN THE GUTTER IS IGNORED. The flag table's own
+        //  gutter is 27 columns, so folding to 20 leaves one word per line and
+        //  a page nobody can read; overhanging is the better failure.
+        TEST_METHOD (AWidthInsideTheGutter_IsRefusedInFavorOfTheFallback)
+        {
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom (nullptr, true, 20));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("20", true, 20));
+            Assert::AreEqual (UsageText::kNoTerminal,
+                              UsageText::WidthFrom (nullptr, true, (int) UsageText::kNarrowestTerminal),
+                              L"and the boundary itself is inside it");
+        }
+    };
+
 }

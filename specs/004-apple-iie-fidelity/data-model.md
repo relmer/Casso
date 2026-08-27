@@ -22,7 +22,7 @@ Register-file inspection is NOT on `ICpu`. It lives on family-specific debug int
 
 ### `Cpu6502` (concrete)
 Existing 6502 logic, re-homed behind `ICpu` AND `I6502DebugInfo`. Adds:
-- `m_irqLine : bool` — current asserted state of the maskable line.
+- `m_irqLine : bool`: current asserted state of the maskable line.
 - IRQ check at each instruction boundary: if `m_irqLine && !(P & I)` →
   push PCH, push PCL, push (P with B=0, U=1), set I, PC ← mem[$FFFE..$FFFF].
 
@@ -71,14 +71,14 @@ PAGE2, HIRES, TEXT, MIXED.
 
 Region resolvers (private helpers, each ≤ 50 lines, ≤ 2 indent levels beyond EHM):
 
-- `ResolveZeroPage()` — $0000-$01FF, gated by ALTZP.
-- `ResolveMain02_BF()` — $0200-$BFFF reads via RAMRD, writes via RAMWRT, with
+- `ResolveZeroPage()`: $0000-$01FF, gated by ALTZP.
+- `ResolveMain02_BF()`: $0200-$BFFF reads via RAMRD, writes via RAMWRT, with
   text-page ($0400-$07FF) and hi-res ($2000-$3FFF) carve-outs that 80STORE
   takes over.
-- `ResolveText04_07()` — $0400-$07FF, by 80STORE+PAGE2.
-- `ResolveHires20_3F()` — $2000-$3FFF, by 80STORE+HIRES+PAGE2.
-- `ResolveCxxx()` — $C100-$CFFF, by INTCXROM, SLOTC3ROM, INTC8ROM.
-- `ResolveLcD000_FFFF()` — coordinates with `LanguageCard` and ALTZP.
+- `ResolveText04_07()`: $0400-$07FF, by 80STORE+PAGE2.
+- `ResolveHires20_3F()`: $2000-$3FFF, by 80STORE+HIRES+PAGE2.
+- `ResolveCxxx()`: $C100-$CFFF, by INTCXROM, SLOTC3ROM, INTC8ROM.
+- `ResolveLcD000_FFFF()`: coordinates with `LanguageCard` and ALTZP.
 
 ### `MemoryBus` (modified)
 
@@ -166,11 +166,11 @@ Parses WOZ v1 + v2 chunks: INFO, TMAP, TRKS, META. Builds `DiskImage`
 instances with native bit streams.
 
 ### `NibblizationLayer`
-- `LoadDsk(bytes) → DiskImage` — apply DOS 3.3 sector ordering (16 sectors)
+- `LoadDsk(bytes) → DiskImage`: apply DOS 3.3 sector ordering (16 sectors)
   → 6+2 GCR encode → nibbles per track.
-- `LoadDo(bytes)`, `LoadPo(bytes)` — analogous, with the appropriate sector
+- `LoadDo(bytes)`, `LoadPo(bytes)`, analogous, with the appropriate sector
   interleave.
-- `SaveDsk(diskImage) → bytes` — inverse for save-back.
+- `SaveDsk(diskImage) → bytes`: inverse for save-back.
 
 ### `DiskImage`
 Concrete `IDiskImage`. Holds a `std::vector<std::vector<uint8_t>>` of bit
@@ -220,7 +220,7 @@ Write path inverse.
 Existing mode classes (`AppleTextMode`, `Apple80ColTextMode`, etc.). For this
 feature, `Apple80ColTextMode` exposes:
 - `RenderFullScreen(framebuffer)`
-- `RenderRowRange(firstRow, lastRow, framebuffer)` — used by mixed-mode (FR-017a).
+- `RenderRowRange(firstRow, lastRow, framebuffer)`: used by mixed-mode (FR-017a).
 
 ### `VideoOutput` (modified)
 Composes per-region rendering. Pseudo-code:
@@ -236,7 +236,7 @@ for each frame:
 ### `VideoTiming` (new)
 Tracks `m_cycleInFrame : uint32_t`, advanced from the CPU's per-Step cycle
 count. NTSC: 65 cycles/scanline × 262 scanlines = 17030 cycles/frame.
-- `IsInVblank() → bool` — true when current scanline ≥ 192.
+- `IsInVblank() → bool`: true when current scanline ≥ 192.
 - $C019 (`RDVBLBAR`) reads bit 7 from `IsInVblank()`.
 
 ### `Apple80ColTextMode` (modified)

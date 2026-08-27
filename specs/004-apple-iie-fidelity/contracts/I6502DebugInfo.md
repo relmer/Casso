@@ -2,7 +2,7 @@
 
 Family-specific register-file inspection for 6502-compatible CPUs. Used by
 debuggers and tests that need to inspect or assert against CPU register
-state. NOT part of `ICpu` — `ICpu` is CPU-family agnostic.
+state. NOT part of `ICpu`, `ICpu` is CPU-family agnostic.
 
 A 6502-family CPU implementation (`Cpu6502`, future `Cpu65C02`,
 `Cpu65C816` if its 6502-emulation-mode register set is sufficient)
@@ -12,7 +12,7 @@ modeled after this one.
 
 Consumers obtain `I6502DebugInfo` by `dynamic_cast`-ing an `ICpu*` they
 already have. If the cast fails, the CPU does not expose 6502-shaped
-register state — consumers must fall back to a generic path (e.g. don't
+register state, consumers must fall back to a generic path (e.g. don't
 display registers, or display "unsupported").
 
 ## Header (canonical declarations)
@@ -37,9 +37,9 @@ public:
 
 ## Semantics
 
-- `GetRegisters()` — returns a snapshot of the CPU's 6502-shaped register
+- `GetRegisters()`: returns a snapshot of the CPU's 6502-shaped register
   file. Snapshot is point-in-time; not live-tracking.
-- `SetRegisters()` — writes all six register fields. Used by debugger and
+- `SetRegisters()`: writes all six register fields. Used by debugger and
   by tests that need to seed CPU state before stepping.
 
 ## Test obligations

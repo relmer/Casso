@@ -1,4 +1,4 @@
-# Disk write integrity — status
+# Disk write integrity: status
 
 **Updated:** 2026-08-20. **Base:** `master` @ `a25a3c67` (released 1.16.2).
 **Branch:** `handoff/disk-write-integrity`, version bumped to 1.17.0,
@@ -14,8 +14,8 @@ The branch was consolidated into the primary checkout on 2026-08-20; the
 `claude/disk-write-integrity-b99179` branch and its worktree are gone, and
 their commits are reachable here.
 
-The reference material at the end — WOZ field offsets, the repro drivers, the
-build traps — is kept because it is what made the work possible and will make
+The reference material at the end (WOZ field offsets, the repro drivers, the
+build traps) is kept because it is what made the work possible and will make
 the next disk change cheaper.
 
 ---
@@ -49,7 +49,7 @@ Gates on each commit: Debug and Release suites green, code analysis 0 warnings,
 `DiskImage` carries a `WozMetadata` (`CassoEmuCore/Devices/Disk/WozMetadata.h`):
 the source INFO chunk verbatim, plus every chunk the loader walked past without
 modeling, in source order. `WozLoader::Serialize` re-emits them unchanged and
-overwrites only the four INFO fields Casso owns — version, disk type, write
+overwrites only the four INFO fields Casso owns, version, disk type, write
 protect, largest track.
 
 The chunk walk no longer treats an unrecognized id as end-of-table; any
@@ -74,14 +74,14 @@ does the byte-level part and touches nothing else.
 
 **Measured across all eleven demo images:** un-protecting one changes **five
 bytes** (the flag plus the four CRC bytes), and zero bytes for images already
-unprotected. The old path rewrote the whole file — up to 223,700 bytes on a v1
-image — and dropped META.
+unprotected. The old path rewrote the whole file (up to 223,700 bytes on a v1
+image) and dropped META.
 
 `ForceFlush` and `FlushEntry`'s `force` parameter are gone. There is no way to
 ask for a flush past the dirty and write-protect gates.
 
-`DiskImage::Flush` — the second write path, reached on eject and //e soft reset
-— no longer falls back to writing the file's pre-session bytes and returning
+`DiskImage::Flush` (the second write path, reached on eject and //e soft reset
+) no longer falls back to writing the file's pre-session bytes and returning
 `S_OK`, and now goes through `WriteFileAtomically`.
 
 `SetImageReader` mirrors the existing `SetFlushSink`, so a read-modify-write is
@@ -90,7 +90,7 @@ testable without the filesystem. `Mount` shares that read path.
 ### 2c. Damaged images
 
 A checksum mismatch is a fifth `WriteProtectInfo` source, `checksumMismatch`.
-Session state, never the image flag — that flag lives in the file, so setting it
+Session state, never the image flag; that flag lives in the file, so setting it
 would mean writing the file being protected from writes. Guest-visible, as
 decided. `SetImageWriteProtect` refuses a damaged image, because patching its
 flag recomputes the CRC and that CRC failing to match *is* the damage report.
@@ -102,12 +102,12 @@ gate returns before it, so it had become unreachable.
 in the compact drive row. Validated by running the emulator with a damaged image
 in drive 1 and an intact write-protected one in drive 2.
 
-### 2d. GH #115 — the issue's diagnosis was wrong
+### 2d. GH #115: the issue's diagnosis was wrong
 
 The issue attributes the loss to the early `break` that abandoned a track after
 one bad sector. **It is not that.** `DecodeOneSector` only fails after sweeping
 the whole track without finding a prolog, and from that position every later
-attempt fails identically — `break` and `continue` produce byte-identical
+attempt fails identically, `break` and `continue` produce byte-identical
 output on the same damaged images. Verified both ways.
 
 The loss is the **silence**. With one sector's data field destroyed, that sector
@@ -117,7 +117,7 @@ under the number the address field gave. Two sectors wrong from one point of
 damage, reported as a clean save.
 
 `Denibblize` now fills a `DenibblizeReport` and fails when a track decoded some
-sectors but not all. A track that decodes **nothing** still succeeds — an
+sectors but not all. A track that decodes **nothing** still succeeds, an
 unformatted track in a sector image legitimately is zeros, and treating that as
 damage would make every blank disk refuse to save.
 
@@ -128,15 +128,15 @@ claiming a fix it does not make.
 ### 2e. Two open questions from the old handoff, now answered
 
 **"Karateka, Choplifter, Space Quarks, Lode Runner and Carmen Sandiego side A
-report 0 tracks decoding as standard 16-sector data — the same early-stop
+report 0 tracks decoding as standard 16-sector data, the same early-stop
 defect under-reporting?"** No. Surveyed with the new report: they genuinely
 decode almost nothing as 16-sector data (Karateka: 34 of 35 tracks
 unformatted). They are copy-protected disks that do not use standard
-formatting, which is why they are WOZ images and why Karateka boots — Casso
+formatting, which is why they are WOZ images and why Karateka boots, Casso
 runs them at nibble level and never takes that path. Four of the eleven demo
 images decode fully as 16-sector data.
 
-**"`UnitTest/Fixtures/copyprotected.woz` and `sample.woz` are 0 bytes —
+**"`UnitTest/Fixtures/copyprotected.woz` and `sample.woz` are 0 bytes,
 unresolved."** They are Phase 0 path placeholders (spec 004 T002 says so
 explicitly). The tests naming them pass those strings as *virtual* paths to
 `MountFromBytes` over synthesized bytes and never read the files. Nothing is
@@ -148,15 +148,15 @@ broken; the files are vestigial.
 
 Three integrity signals live on every Apple II disk and all three were being
 discarded. The address field's checksum was read into locals and explicitly
-`UNREFERENCED_PARAMETER`'d; the data field's 343rd checksum nibble — the boot
-ROM's own success gate — was never read at all, because the decode loop
+`UNREFERENCED_PARAMETER`'d; the data field's 343rd checksum nibble, the boot
+ROM's own success gate, was never read at all, because the decode loop
 stopped one nibble short; and `InverseTranslate` already returned `0xFF` for a
 byte that is not a legal 6-and-2 code, which nobody looked at.
 
 A fourth check needed no new data. The scan for a data field ran past the next
 ADDRESS field when the data field was missing, took that sector's data and
 filed it under the earlier sector number. It decoded cleanly and passed its own
-checksum — it was simply the wrong sector's data, which is precisely the
+checksum; it was simply the wrong sector's data, which is precisely the
 corruption you cannot spot by looking. The scan now stops at the next address
 field and rewinds, so the good sector after a damaged one is neither stolen nor
 lost.
@@ -166,7 +166,7 @@ lost.
 | outcome | meaning |
 |---|---|
 | `Verified` | both checksums matched; the bytes are the disk's |
-| `Recovered` | decoded but failed verification — usable, may contain errors |
+| `Recovered` | decoded but failed verification: usable, may contain errors |
 | `Lost` | no data field, or an address checksum that cannot be trusted |
 
 `Lost` covers the one case that cannot be recovered on principle: if the
@@ -176,7 +176,7 @@ good sector.
 **Consequence for classification.** A copy-protected track used to yield one
 spurious decoded sector from garbage that happened to parse. Karateka,
 Choplifter, Lode Runner, Space Quarks and Carmen side A now report every track
-as having no standard structure, cleanly — which is the distinction the
+as having no standard structure, cleanly, which is the distinction the
 salvage gate depends on.
 
 **A real finding.** `AppleStellarInvaders.woz` has a valid file-level checksum
@@ -184,7 +184,7 @@ and round-trips byte for byte, yet track 1 sector 4 fails its own data
 checksum (stored 0 against a computed 1). Not a false positive: every other
 sector on that disk, all 560 on three other intact dumps, and a synthetic image
 through our own writer all verify. It is a genuine defect in a 1980
-preservation dump that nothing had noticed. No behavior change — WOZ images
+preservation dump that nothing had noticed. No behavior change, WOZ images
 are written by the WOZ serializer and never take the sector path.
 
 ---
@@ -206,7 +206,7 @@ would have made DOS report an I/O error reads normally. Verified end to end:
 the salvaged copy denibblizes at 560/560 verified while the original stays at
 558 with two partial tracks.
 
-**The gate needs both halves** — damaged AND ordinarily formatted
+**The gate needs both halves**, damaged AND ordinarily formatted
 (`tracksUnformatted == 0`). An undamaged disk is already writable, so a lossy
 copy could only lose data; a copy-protected disk would be destroyed by a
 rebuild from sectors. Because neither reaches the dialog, the dialog never has
@@ -220,8 +220,8 @@ telling someone what they lost rather than asking what they want.
 destination equal to the source. Not defensive coding: the entire point is that
 the damaged file survives to stay detectably damaged.
 
-**Metadata.** The copy carries the source's `META` across — it is still the
-same disk — but takes Casso's creator stamp, because Casso wrote that
+**Metadata.** The copy carries the source's `META` across, it is still the
+same disk, but takes Casso's creator stamp, because Casso wrote that
 particular file.
 
 ---
@@ -237,8 +237,8 @@ no call site changed.
 Two constraints it respects. Dxui asserts UI-thread affinity and a report can
 be raised from the CPU thread (a motor-idle auto-flush), so off-thread reports
 post `WM_APP_NOTIFY_USER` with an owned copy of the text. And startup failures
-happen before there is a window to parent to — which is why a system box was
-used here at all — so those queue and replay once the window exists.
+happen before there is a window to parent to, which is why a system box was
+used here at all, so those queue and replay once the window exists.
 
 Three `MessageBoxW` calls remain deliberately: the assertion reporter (it
 reports that an invariant broke and cannot assume Dxui works), `DxuiMessageBox`'s
@@ -248,7 +248,7 @@ built-in path, which only `CassoCli` reaches.
 **The damage report moved up a layer.** `WozLoader` no longer reports it:
 `EhmNotifyUser` carries a string and nothing else, and that report needs a
 Salvage button on it. `EmulatorShell::ReportDamagedMount` raises it after the
-mount instead. `CassoCli` loses nothing — it does not use `WozLoader`.
+mount instead. `CassoCli` loses nothing; it does not use `WozLoader`.
 
 ---
 
@@ -284,7 +284,7 @@ through the current writer reproduces it exactly, so the next flush will not
 re-damage it.
 
 **It is not a pure metadata repair.** Relative to the damaged file the original
-also lacks two runs of genuine guest writes — 356 bytes in TRKS slot 17 and 355
+also lacks two runs of genuine guest writes, 356 bytes in TRKS slot 17 and 355
 in slot 20, Print Shop storing its configured printer/interface details. Right
 for a preservation dump, but a discard.
 
@@ -302,7 +302,7 @@ A re-scan finds no remaining WOZ in the tree with `creator = Casso`.
   private `casso_modified` key recording that Casso had edited a disk. Rejected
   by the owner 2026-08-18: Casso stamps the disks it creates and does not
   annotate disks it merely edits. It also would have cost the property
-  retention just bought — that a WOZ can pass through Casso completely
+  retention just bought; that a WOZ can pass through Casso completely
   unchanged, which is verifiable and is the stronger guarantee for a
   preservation dump. Do not re-propose it.
 
@@ -311,13 +311,13 @@ A re-scan finds no remaining WOZ in the tree with `creator = Casso`.
 ## 5. Test coverage added
 
 Suite: **3015 Debug / 3012 Release**, code analysis 0 warnings, CheckStyle
-clean. Salvage adds 15 tests — four on the decode taxonomy, seven on the
+clean. Salvage adds 15 tests: four on the decode taxonomy, seven on the
 store operations (gate, counts, the untouched original, the refusal to
 overwrite the source), and four on the menu predicate.
 
 `DxuiButtonRow::WidthForLabel` is pinned by five tests asserting its properties
 (never below the standard width, grows with the label, leaves padding) rather
-than exact pixels — the width is an estimate, since layout runs without a
+than exact pixels; the width is an estimate, since layout runs without a
 text renderer, and pinning its constants would break on any tuning. It guards
 a silent failure: a clipped label looks merely ugly, never broken.
 `DxuiInfoBanner::MeasuredHeightPx` needs a text renderer and is still
@@ -357,7 +357,7 @@ without a filesystem seam in `DiskImageStore`. Said so in
 ## 6. Follow-ups
 
 - **Map damaged sectors to files.** Salvage reports counts per disk; per FILE
-  would be far more useful -- "CATALOG lost 3 sectors, HELLO is intact" tells a
+  would be far more useful, "CATALOG lost 3 sectors, HELLO is intact" tells a
   user whether the damage matters. Feasible: `DenibblizeReport` already carries
   per-track sector masks, and the tree has ProDOS volume structure plus DOS
   catalog handling to walk against them. Deferred deliberately, not forgotten.
@@ -369,22 +369,22 @@ without a filesystem seam in `DiskImageStore`. Said so in
 - **Four defects found by using the feature, not by testing it,** all fixed
   and worth knowing as a class. The damage report fired only for
   command-line mounts, so the ordinary way a user opens a disk was the one
-  path that never warned — it was wired to a call site instead of to the
+  path that never warned; it was wired to a call site instead of to the
   event. Salvage from the Disk menu did nothing, because that menu dispatches
   on the CPU thread and a Dxui modal will not open there; reached from the
   damage prompt it was already on the UI thread and worked, which is exactly
   why it survived testing. The dropdown was a fixed width and clipped both the
   new label and stock accelerators. And the salvage assessment ran a full
-  decode per drive on every menu draw — 154 ms for a copy-protected disk
-  — because the cheap discriminator came after the expensive work.
+  decode per drive on every menu draw, 154 ms for a copy-protected disk
+, because the cheap discriminator came after the expensive work.
 
   The pattern in all four: the path exercised in development was the one that
   could not fail.
-- **`kQuarterTracksPerTrack` and `kMaxTracks` in `WozLoader.cpp` are unused** —
+- **`kQuarterTracksPerTrack` and `kMaxTracks` in `WozLoader.cpp` are unused**,
   pre-existing, not touched here.
 - **020 coordination.** `DenibblizeReport` is the per-track decode-report API
   020's FR-017 needs; merge master into 020 rather than growing a parallel one.
-  020's `WozLoader::Describe` also walks the chunk table and parses META — it
+  020's `WozLoader::Describe` also walks the chunk table and parses META, it
   should consume the retained `WozMetadata` rather than re-parsing.
 - Two bugs the old handoff wanted filed (WOZ metadata loss, the ForceFlush
   toggle) are fixed here and unfiled. Filing them now would only be for the
@@ -392,7 +392,7 @@ without a filesystem seam in `DiskImageStore`. Said so in
 
 ---
 
-## Appendix A — WOZ field reference
+## Appendix A: WOZ field reference
 
 Verified against <https://applesaucefdc.com/woz/reference2/>.
 
@@ -425,12 +425,12 @@ Implementors may add their own keys.
 `D5 AA 96` address prologs and 8 `D5 AA AD` data prologs, not 16 of each:
 self-sync gap bytes occupy 10 bits, so nibbles following an odd number of them
 sit off the byte boundary. The decoder finds those by bit-level resync. A
-byte-wise search over a track's packed bytes sees only half — which is correct,
+byte-wise search over a track's packed bytes sees only half, which is correct,
 not a bug, and `BreakOneDataField` in `NibblizationTests.cpp` documents it.
 
 ---
 
-## Appendix B — tools
+## Appendix B: tools
 
 `CassoCli disk` does not exist on master (that is spec 020, unreleased), so
 drive the core entry points directly. Build Release, then compile against
@@ -448,7 +448,7 @@ cl /nologo /std:c++20 /EHsc /MD /O2 /DNDEBUG /I<repo>\CassoEmuCore /I<repo>\Cass
 right-to-left, so `printf("%d", Load(...), img.GetTrackCount())` prints the
 track count from *before* the load. That cost a confusing first result.
 
-`DiskImage::Load(path)` is the **legacy DSK-only** path — it reads the first
+`DiskImage::Load(path)` is the **legacy DSK-only** path; it reads the first
 143,360 bytes and nibblizes them. Do not use it to load a WOZ.
 
 Chunk-table dumper (any Python 3):
@@ -489,12 +489,12 @@ session is locked or the foreground lock is held, and `CopyFromScreen` then
 captures the wallpaper. `PrintWindow` reads the window's own content
 regardless; the emulated video area comes back black (composited swap chain),
 which does not matter for chrome. Dismiss a modal message box by posting
-`BM_CLICK` to its OK button — `SendKeys` needs foreground and an unlocked
+`BM_CLICK` to its OK button, `SendKeys` needs foreground and an unlocked
 session.
 
 ---
 
-## Appendix C — build and gate commands
+## Appendix C: build and gate commands
 
 ```powershell
 scripts\Build.ps1 -Configuration Release -Platform Auto -Target Build
@@ -510,8 +510,8 @@ Traps worth knowing:
   until `git add`, so it reports OK on code it never read. `git add` first, then
   trust the count.
 - **CS0016 (3 blank lines after a declaration block) fires unevenly.** Its
-  decl-block walk stops at any line its pattern cannot parse — an array
-  declaration like `Byte tmap[kSize] = {};` ends the run — so some existing
+  decl-block walk stops at any line its pattern cannot parse, an array
+  declaration like `Byte tmap[kSize] = {};` ends the run, so some existing
   functions with one blank line are invisible to it. New code still has to
   comply where it *is* seen; do not read the survivors as precedent.
 - **CS0011 bans calls inside EHM macro conditions**, including

@@ -37,8 +37,8 @@ single `UiShell` owner that consumes translated `WM_*` events.
   - C++ STL
   - Existing in-tree: `CassoCore`, `CassoEmuCore`
   - Approved 3rd-party shaders in `Casso/Shaders/CRT/` (crt-pi, libretro
-    bloom, libretro ntsc-adaptive chroma stage — unchanged by this work)
-  - **REMOVED**: RmlUi (`External/RmlUi/`) — see Constitution Check
+    bloom, libretro ntsc-adaptive chroma stage, unchanged by this work)
+  - **REMOVED**: RmlUi (`External/RmlUi/`); see Constitution Check
 **Storage**:
   - Per-machine: `<assetBaseDir>/Machines/<Name>/<Name>user JSON`
   - Global: `<assetBaseDir>/UserPrefs.json`
@@ -57,7 +57,7 @@ single `UiShell` owner that consumes translated `WM_*` events.
     path on integrated GPUs (Intel/AMD iGPU) at 1280×960 and 1920×1080,
     100% and 150% DPI (SC-002).
   - Theme switch: first post-switch frame is fully themed (zero mixed-theme
-    regions) — SC-002.
+    regions), SC-002.
   - Drive door animation and floppy sound within one rendered frame
     (FR-050, SC-010).
 **Constraints**:
@@ -92,7 +92,7 @@ single `UiShell` owner that consumes translated `WM_*` events.
 **Approved Third-Party Dependencies** allowlist (constitution v1.5.0) lists
 `RmlUi` as approved for spec 007. This plan reverses that decision. The
 implementation MUST include a constitution amendment commit (MINOR bump per
-governance rules — "materially expanded guidance / removed entry") that
+governance rules, "materially expanded guidance / removed entry") that
 deletes the `RmlUi` row from the allowlist and adds a sync-impact note
 recording the reversal. This is the only declared violation; no others.
 
@@ -221,36 +221,36 @@ solution and the `Casso` project's `ProjectReference`, include path
 (`RMLUI_STATIC_LIB`, `RMLUI_NO_THIRDPARTY_CONTAINERS`) are stripped from
 all six configuration blocks (Debug/Release × x64/ARM64 + Analyze rows).
 
-## Phase 0 — Outline & Research
+## Phase 0: Outline & Research
 
 Existing `research.md` R1–R5 covers chrome rendering split, single
 ownership, NC behavior contract, command routing, and DPI policy. The existing
 R6/R7 entries are obsolete pre-pivot decisions and are replaced in-place with
 the following decisions; R8–R13 are appended in the same edit:
 
-- **R6 — RmlUi excision strategy**. Remove the `External/RmlUi/` project
+- **R6, RmlUi excision strategy**. Remove the `External/RmlUi/` project
   reference, includes, defines, vendored sources, Rml-prefixed files, shaders,
   and remaining `Rml` / `RMLUI` symbols before introducing the new painter.
   Non-Rml-prefixed UI files that still reference Rml are either deleted (when
   a later phase rewrites them) or stubbed to compile with native-owned state.
-- **R7 — D2D-on-D3D11 text pipeline**. Use Direct2D-on-D3D11: create
+- **R7, D2D-on-D3D11 text pipeline**. Use Direct2D-on-D3D11: create
   `ID2D1Device`/`ID2D1DeviceContext` from the shared DXGI device; bind a
   `ID2D1Bitmap1` over the swap chain back-buffer via `IDXGISurface`. Render
   DirectWrite text after the D3D geometry pass and before `Present`, with
   glyph-layout caching by font family, weight, size, DPI, and text.
-- **R8 — Hit-test architecture**. A native DPI-scaled rect tree owns client
+- **R8, Hit-test architecture**. A native DPI-scaled rect tree owns client
   hit-testing and `WM_NCHITTEST` classification; mouse and drag/drop events
   consult the same tree.
-- **R9 — Focus and keyboard policy**. `FocusManager` owns tab order,
+- **R9, Focus and keyboard policy**. `FocusManager` owns tab order,
   activation keys, Escape dismissal, and visible focus cues for Settings.
-- **R10 — Modal and popup layer**. Menus, dropdowns, tooltips, and confirms
+- **R10, Modal and popup layer**. Menus, dropdowns, tooltips, and confirms
   render in a native overlay stack; modal scrims capture input while active.
-- **R11 — Drag-drop carve-out**. `IDropTarget` and `IFileOpenDialog` remain
+- **R11, Drag-drop carve-out**. `IDropTarget` and `IFileOpenDialog` remain
   OS services, with accepted targets/actions routed through native hit tests
   and existing mount commands.
-- **R12 — Debug-tool carve-out**. `DiskIIDebugDialog` and `DebugConsole` stay
+- **R12, Debug-tool carve-out**. `DiskIIDebugDialog` and `DebugConsole` stay
   Win32-implemented; only the nav entry points that launch them move.
-- **R13 — Theme-token broadcast**. `ThemeManager` broadcasts validated tokens,
+- **R13, Theme-token broadcast**. `ThemeManager` broadcasts validated tokens,
   drive visual profile, CRT defaults, and backdrop flags so chrome/settings
   update before the first post-switch frame.
 
@@ -259,7 +259,7 @@ revision already resolved the major open questions in `Clarifications`
 session 2026-05-23). The R6–R13 additions above are the implementer's
 brief for the RmlUi-removal pivot.
 
-## Phase 1 — Design & Contracts
+## Phase 1: Design & Contracts
 
 **Prerequisites**: `research.md` (existing) plus R6–R13 above.
 
@@ -277,7 +277,7 @@ brief for the RmlUi-removal pivot.
    spec. The Win32 surfaces that remain (HWND messages, `IDropTarget`,
    `IFileOpenDialog`, accelerators) are OS contracts, not Casso contracts.
 3. **Agent context update**. `.github/copilot-instructions.md` already
-   points its SPECKIT marker block at `specs/007-ui-overhaul/plan.md` —
+   points its SPECKIT marker block at `specs/007-ui-overhaul/plan.md`;
    no edit required.
 
 **Output**: `data-model.md` (explicit entity coverage + `UiDrawList` addition
@@ -289,7 +289,7 @@ Implementation is staged so the tree is **always** compilable and
 testable. RmlUi removal happens in P0 **before** any new UI code is
 introduced, so the two pipelines never coexist.
 
-### P0 — Excise RmlUi (must land first, single commit series)
+### P0: Excise RmlUi (must land first, single commit series)
 
 1. Remove the RmlUi project entry and all associated `{GUID}` configuration
    rows from `Casso.sln` after looking up the actual project GUID.
@@ -321,15 +321,15 @@ introduced, so the two pipelines never coexist.
    Replace each with clean no-op compile paths (`// UiShell takes over in P1`)
    that still allow the app to launch a black/bare viewport window.
 10. Drop Rml-related entries from `AssetBootstrap` (the `Themes/` bootstrap
-    itself stays — only the Rml-document/font bootstrap goes).
+    itself stays, only the Rml-document/font bootstrap goes).
 11. Amend the constitution: delete the `RmlUi` row from the Approved
     Third-Party Dependencies table; add a sync-impact note; bump to
-    v1.6.0 (MINOR — materially changed Tech Constraints by removing an
+    v1.6.0 (MINOR, materially changed Tech Constraints by removing an
     approved dependency).
 12. Verify: `scripts\Build.ps1` succeeds for all four configurations;
     `scripts\Build.ps1 -RunCodeAnalysis` is clean; `scripts\RunTests.ps1`
     passes. Application launches with **no chrome** beyond the bare
-    borderless window + viewport (intentional regression — P1 reintroduces
+    borderless window + viewport (intentional regression, P1 reintroduces
     chrome). `rg -n "Rml|RMLUI" Casso CassoCore CassoEmuCore CassoCli
     UnitTest External` returns zero hits.
 
@@ -337,7 +337,7 @@ introduced, so the two pipelines never coexist.
 RmlUi runtime symbols or dependency wiring) is provable by `rg`. No P1
 work begins until P0 is merged.
 
-### P1 — Foundational native UI runtime (no user-visible features yet)
+### P1: Foundational native UI runtime (no user-visible features yet)
 
 Builds the painter/text/input/layout/focus/animation/theme primitives that
 every subsequent phase depends on. **Maps to spec FR-046 and US5
@@ -355,7 +355,7 @@ prerequisites.**
 - `Theme` loader (`ThemeManager` + JSON loader) honoring
   `contracts/theme-metadata.schema.json` and version migration
   (FR-045); malformed themes excluded with warning (FR-036).
-- `AssetBootstrap` extracts built-in themes (FR-030, FR-037) — embedded
+- `AssetBootstrap` extracts built-in themes (FR-030, FR-037), embedded
   resources need re-authoring as plain image/json bundles (no Rml docs).
 - Device-lost recovery: painter, text renderer, and theme texture cache
   all rebuild on `D3DRenderer` device restore (spec Edge Case).
@@ -363,18 +363,18 @@ prerequisites.**
   `FocusManagerTests`, `ThemeLoaderTests`, `AnimationSyncTests`,
   `NcHitTestTests`. All with mocked filesystem.
 
-### P2 — Chrome surfaces (P1 stories)
+### P2: Chrome surfaces (P1 stories)
 
 Implements the visible chrome that closes US3 + US5 and most of US1/US2.
 
-- `Chrome/TitleBar` — drag, double-click fullscreen, min/max/close,
+- `Chrome/TitleBar`: drag, double-click fullscreen, min/max/close,
   right-click system menu (FR-018, FR-019, FR-020, FR-028).
-- `Chrome/NavLayer` — top-level nav + dropdown panels covering every
+- `Chrome/NavLayer`: top-level nav + dropdown panels covering every
   former Win32 menu command via the existing IDM map (FR-026, SC-006).
-- `Chrome/DriveWidget` — 9-slice drive face with door, eject affordance,
+- `Chrome/DriveWidget`: 9-slice drive face with door, eject affordance,
   spinning disk during motor-on, sized per FR-021 (FR-021 through FR-024,
   FR-049, FR-050).
-- `Chrome/LedIndicator` — soft-glow LED meeting FR-025 dimensional minima.
+- `Chrome/LedIndicator`: soft-glow LED meeting FR-025 dimensional minima.
 - `DragDropTarget` (R11) wires drop coordinates through `HitTester` for
   per-widget acceptance (FR-022).
 - Click-to-browse via `IFileOpenDialog` (FR-022b).
@@ -382,14 +382,14 @@ Implements the visible chrome that closes US3 + US5 and most of US1/US2.
 - Tests: `ChromeCommandRoutingTests`, `DriveWidgetStateTests`.
 - Runtime validation: capture screenshot matrix M1, M2, M3, M5, M6, M7.
 
-### P3 — Settings panel (P1 stories)
+### P3: Settings panel (P1 stories)
 
 Closes US1 + US2 and folds in P2 theme picker entry point.
 
-- `Settings/SettingsPanel` modal panel (no Win32 dialog — FR-027).
-- `MachinePage` — machine selector (outermost control), speed, video,
+- `Settings/SettingsPanel` modal panel (no Win32 dialog, FR-027).
+- `MachinePage`: machine selector (outermost control), speed, video,
   write protect, drive audio toggle/mechanism (FR-002, FR-003, FR-011).
-- `HardwarePage` — `TreeView` of `HardwareComponentEntry` with capability
+- `HardwarePage`: `TreeView` of `HardwareComponentEntry` with capability
   flag rendering rules (FR-004 through FR-008).
 - `SettingsPanelState` transient buffer; Cancel discards; Apply commits
   via existing command queue + reset prompt for reset-required changes
@@ -402,20 +402,20 @@ Closes US1 + US2 and folds in P2 theme picker entry point.
   rewrite.
 - Runtime validation: M4.
 
-### P4 — Themes + CRT controls (P2 stories)
+### P4: Themes + CRT controls (P2 stories)
 
 Closes US4 and finalizes the theme system.
 
-- `ThemePage` — theme picker, hot-swap (FR-033), discovery refresh
+- `ThemePage`: theme picker, hot-swap (FR-033), discovery refresh
   (FR-035), persistence in `GlobalUserPrefs` (FR-034).
-- `DisplayPage` — CRT brightness slider (FR-038), per-effect toggles +
+- `DisplayPage`: CRT brightness slider (FR-038), per-effect toggles +
   per-effect parameters (FR-039, FR-040). All overrides global, not
   machine-specific.
 - Ship 3 built-in themes per FR-031 with full Apple II-family variant
   coverage (FR-051, FR-052).
 - Runtime validation: SC-002 two-frame capture during theme switch.
 
-### P5 — Polish & validation
+### P5: Polish & validation
 
 - US6 silent upgrade validation across simulated v→v+3 transitions
   (SC-003, SC-007).
@@ -432,7 +432,7 @@ Closes US4 and finalizes the theme system.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
-| Constitution amendment (v1.5.0 → v1.6.0): delete `RmlUi` from Approved Third-Party Dependencies allowlist. | Spec FR-053/FR-054/SC-011 mandate full RmlUi excision; leaving the row in the allowlist would falsely signal RmlUi is an approved active dependency. | Keeping the row "for documentation" rejected — the allowlist is an authoritative gate, not a history log. Removal + sync-impact note is the cleaner contract. |
+| Constitution amendment (v1.5.0 → v1.6.0): delete `RmlUi` from Approved Third-Party Dependencies allowlist. | Spec FR-053/FR-054/SC-011 mandate full RmlUi excision; leaving the row in the allowlist would falsely signal RmlUi is an approved active dependency. | Keeping the row "for documentation" rejected: the allowlist is an authoritative gate, not a history log. Removal + sync-impact note is the cleaner contract. |
 | New `Casso/Ui/` runtime is purpose-built (≈12 widget primitives, painter, text, focus, layout, animation, theme, hit-test) rather than adopting a 3rd-party UI library. | The prior attempt with RmlUi failed and is being removed by spec mandate. The Approved Third-Party Dependencies allowlist (post-amendment) contains no UI library, and adding one would itself require a constitution amendment justifying ongoing cost vs. a custom runtime. Casso's UI surface is small and stable (chrome + one settings panel + drive widgets), so the build/test/maintenance cost of a 3rd-party UI runtime exceeds the cost of a focused custom one. | Adopting another 3rd-party UI library (e.g., Dear ImGui, Nuklear) rejected because (a) requires a fresh constitution amendment with the same governance overhead, (b) reintroduces the integration-mismatch class of failure that ended the RmlUi attempt, (c) Casso's UI scope does not benefit from a general-purpose UI runtime's feature surface. |
 
 No other gate violations.
@@ -447,9 +447,9 @@ backlog. The next executable step for an engineer picking this up is
 - **Branch**: `007-ui-overhaul`
 - **Plan**: `specs/007-ui-overhaul/plan.md` (this file)
 - **Generated/refreshed artifacts**:
-  - `plan.md` — regenerated (RmlUi-removal pivot)
-  - `research.md` — existing; will be extended in-place by R6–R13 during
+  - `plan.md`: regenerated (RmlUi-removal pivot)
+  - `research.md`: existing; will be extended in-place by R6–R13 during
     implementation kick-off
-  - `data-model.md` — existing; `UiDrawList` entity to be appended in P1
-  - `contracts/` — existing; unchanged
-  - `quickstart.md` — existing; unchanged
+  - `data-model.md`: existing; `UiDrawList` entity to be appended in P1
+  - `contracts/`: existing; unchanged
+  - `quickstart.md`: existing; unchanged

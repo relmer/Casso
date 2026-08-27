@@ -1,7 +1,7 @@
-# T127 — Macro-argument audit
+# T127: Macro-argument audit
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T127
-**Constitution**: §I 1.4.0 — EHM macros and other macros may only contain
+**Constitution**: §I 1.4.0, EHM macros and other macros may only contain
 trivial expressions (no function calls with side effects, allocations, or
 out params). Store the result first, then pass to the macro.
 **Audit date**: Phase 16
@@ -38,7 +38,7 @@ separately as pre-feature tech debt.)
 
 ## Verdict
 
-**PASS** — 0 macro-arg violations on lines added or modified by this
+**PASS**, 0 macro-arg violations on lines added or modified by this
 feature. Where new EHM-bearing code was added (e.g. `DiskIIController`,
 `AppleIIeMmu`, `WozLoader`, `DiskImageStore`, `NibblizationLayer`,
 `InterruptController`, `Cpu6502`), every fallible call stores its result

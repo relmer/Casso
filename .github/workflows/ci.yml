@@ -61,6 +61,38 @@ jobs:
       - name: Run Tests
         run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
 
+      # The committed demo disk has to be what its sources build.
+      #
+      # This check used to live inside BootDiskTests, which wrote the image it
+      # had just built over Apple2/Demos/casso-rocks.dsk on every run. It
+      # normally wrote the same bytes back, so the only trace was a moved
+      # mtime, until a run that built a DIFFERENT image and left a corrupted
+      # binary asset in the tree. A unit test may not touch the tree, so the
+      # test no longer reads or writes that file at all -- which left the
+      # freshness question with nobody asking it. This is who asks.
+      #
+      # x64 only: the script needs a CassoCli it can run, and an ARM64 build on
+      # an x64 runner is not one.
+      - name: Demo disk matches its sources
+        if: matrix.platform == 'x64'
+        shell: pwsh
+        run: scripts/BuildDemoDisk.ps1 -Verify -Configuration ${{ matrix.configuration }}
+
+      # And nothing in the job may have changed a tracked file. CI runs
+      # vstest directly rather than through scripts/RunTests.ps1, so the
+      # mtime guard there never sees a CI run; this is the same rule stated
+      # where CI can enforce it. Content, not mtime: a byte-identical write
+      # cannot hurt a checkout that is thrown away.
+      - name: Working tree is unchanged
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain
+          if ($dirty) {
+              Write-Host 'The build or the tests changed tracked files:' -ForegroundColor Red
+              $dirty | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+              exit 1
+          }
+
       # Hand the Release x64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
       - name: Upload Release x64 binaries

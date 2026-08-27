@@ -82,8 +82,8 @@ Reference files are committed to `specs/002-as65-assembler-compat/testdata/confo
 - `lohi_angle.a65`: `org $1234` / `db <*` → `$34`; `db >*` → `$12`
 
 #### 1.9 Increment/Decrement
-- `expr_inc.a65`: `A = 5` / `db ++A` (if AS65 supports this — verify)
-- `expr_dec.a65`: `A = 5` / `db --A` (if AS65 supports this — verify)
+- `expr_inc.a65`: `A = 5` / `db ++A` (if AS65 supports this; verify)
+- `expr_dec.a65`: `A = 5` / `db --A` (if AS65 supports this; verify)
 
 ### 2. Constants (20+ tests)
 
@@ -320,9 +320,9 @@ Reference files are committed to `specs/002-as65-assembler-compat/testdata/confo
 ### Conformance Test Expected Outputs
 
 Each conformance test in `testdata/conformance/` has:
-- `<name>.a65` — input source (our own work, committed)
-- `<name>.expected.bin` — hand-computed expected binary output (committed)
-- `<name>.expected.errors` — expected error messages for negative tests (committed)
+- `<name>.a65`: input source (our own work, committed)
+- `<name>.expected.bin`: hand-computed expected binary output (committed)
+- `<name>.expected.errors`: expected error messages for negative tests (committed)
 
 Expected outputs are derived by:
 1. Reading the AS65 manual for the exact behavior of each feature
@@ -331,7 +331,7 @@ Expected outputs are derived by:
 
 ### Dormann Integration Test (on-demand only)
 
-`scripts/RunDormannTest.ps1` — Self-contained script that:
+`scripts/RunDormannTest.ps1`, Self-contained script that:
 1. Downloads `6502_functional_test.a65` from the Klaus2m5 GitHub repo (GPL-3.0)
 2. Downloads the pre-built reference binary from `bin_files/` (data file, safe)
 3. Assembles the source with Casso
@@ -341,8 +341,8 @@ Expected outputs are derived by:
 
 ### What IS committed
 
-- `testdata/conformance/*.a65` — our own test input files (original work)
-- `testdata/conformance/*.expected.bin` — hand-computed expected outputs (original work)
+- `testdata/conformance/*.a65`: our own test input files (original work)
+- `testdata/conformance/*.expected.bin`: hand-computed expected outputs (original work)
 - `scripts/RunDormannTest.ps1`
 
 ### What is NOT committed (gitignored)

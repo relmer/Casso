@@ -1,22 +1,22 @@
-# Feature Specification: Disk II Debug Telemetry — Head-Resolution & Read-Stall Diagnostics
+# Feature Specification: Disk II Debug Telemetry: Head-Resolution & Read-Stall Diagnostics
 
 **Feature Branch**: `012-disk2-debug-telemetry`
 **Created**: 2026-05-30
-**Status**: Draft (deferred — do not implement until coordinated with spec 011)
-**Input**: User description: "What data should we have added to the Disk II debug window to have caught the half-track truncation bug earlier? Capture four enhancements — (1) flag commanded-vs-resolved head-position discrepancies as errors with a new severity column, (2) surface the TMAP/resolved-track lookup and actively diagnose dropped half-track data rather than leaving it to the user, (3) a read-stall event when the loader spins with no address mark, (4) a raw nibble peek under the head — and defer them to a spec to avoid colliding with the other CLI instance currently editing the debug dialog."
+**Status**: Draft (deferred; do not implement until coordinated with spec 011)
+**Input**: User description: "What data should we have added to the Disk II debug window to have caught the half-track truncation bug earlier? Capture four enhancements: (1) flag commanded-vs-resolved head-position discrepancies as errors with a new severity column, (2) surface the TMAP/resolved-track lookup and actively diagnose dropped half-track data rather than leaving it to the user, (3) a read-stall event when the loader spins with no address mark, (4) a raw nibble peek under the head, and defer them to a spec to avoid colliding with the other CLI instance currently editing the debug dialog."
 
 ## Background & Motivation *(non-normative)*
 
 Choplifter (#69) hangs on "track 12". A multi-session investigation eventually
 traced this to a **whole-track-only disk pipeline** colliding with Choplifter's
 **half-track-formatted outer tracks** (its WOZ TMAP routes the real outer-track
-data — TRKS 13, 15, 17, … — to the `.5` quarter-track positions, e.g. qt50 =
+data (TRKS 13, 15, 17, …) to the `.5` quarter-track positions, e.g. qt50 =
 track 12.50 → TRKS 13). Two truncation points silently discarded that data:
 `WozLoader` dropped every non-whole-track TMAP entry, and `Disk2Controller`
 quantized the head with `m_quarterTrack / 4`.
 
 Crucially, the Disk II Debug window (spec 006) **already recorded the raw
-signal** — `HeadStep` events carry quarter-track `prevQt`/`newQt`, so the loader
+signal**, `HeadStep` events carry quarter-track `prevQt`/`newQt`, so the loader
 stepping to qt50 was right there in the log. What the window never showed was
 the **resolution result**: that qt48 and qt50 both served the *same* bitstream
 (TRKS 12), when the TMAP says qt50 should serve TRKS 13. Nothing contrasted the
@@ -53,8 +53,8 @@ separate effort (spec 011, native-dialogs-completion). To avoid merge conflicts:
   and the track the engine actually serves is an **Error**-severity row.
 - Q: For the "unformatted / dropped half-track data" case, should the window just
   show an FF/unformatted flag, or actually diagnose the data loss? → A: Actively
-  diagnose it. The tooling MUST detect — without relying on the user to
-  eyeball — when a mounted WOZ carries distinct data at quarter-track positions
+  diagnose it. The tooling MUST detect, without relying on the user to
+  eyeball, when a mounted WOZ carries distinct data at quarter-track positions
   the current pipeline cannot address, and emit an explicit diagnostic naming the
   affected tracks. Bonus over a bare FF indicator.
 - Q: Read-stall event and raw nibble peek? → A: Both approved as specified.
@@ -70,7 +70,7 @@ separate effort (spec 011, native-dialogs-completion). To avoid merge conflicts:
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Resolved-track telemetry exposes a head-resolution bug at a glance (Priority: P1)
+### User Story 1: Resolved-track telemetry exposes a head-resolution bug at a glance (Priority: P1)
 
 A developer is investigating why a WOZ image hangs partway through loading. They
 open **View → Disk II Debug…**, mount the image, and cold-boot. As the loader
@@ -107,14 +107,14 @@ standard DOS 3.3 disk shows commanded == resolved for every step.
 
 ---
 
-### User Story 2 — Severity column flags commanded-vs-resolved discrepancies as errors (Priority: P1)
+### User Story 2: Severity column flags commanded-vs-resolved discrepancies as errors (Priority: P1)
 
 The developer wants problems to *announce themselves*, not require reading every
 row. A new **Severity** column (leftmost or adjacent to Event) classifies each
 row Info / Warning / Error with a matching icon. Routine events are Info. A
-head-resolution discrepancy — commanded quarter-track resolves to a track the
+head-resolution discrepancy (commanded quarter-track resolves to a track the
 TMAP did not assign to it, or to an unformatted slot when the loader expected
-data — is an **Error**. The developer can filter to Error+Warning only and
+data) is an **Error**. The developer can filter to Error+Warning only and
 instantly see the failing seek.
 
 **Why this priority**: Turns the resolved-track datum (US1) from "available if
@@ -141,7 +141,7 @@ verify zero Error/Warning rows.
 
 ---
 
-### User Story 3 — Half-track data-loss is diagnosed at mount, not left to the user (Priority: P2)
+### User Story 3: Half-track data-loss is diagnosed at mount, not left to the user (Priority: P2)
 
 When a WOZ is mounted, the tooling scans the TMAP and determines whether the
 image carries **distinct** data at quarter-track positions the current pipeline
@@ -149,7 +149,7 @@ cannot address (i.e. distinct TRKS records at `qt % 4 != 0` while head resolutio
 is whole-track-only). If so, it emits a single explicit diagnostic at mount time
 naming the affected fractional tracks (e.g. "WOZ uses half-track formatting;
 data at tracks 12.50, 13.50, 14.50, … is not addressable by the current
-whole-track head pipeline — N quarter-tracks affected"). The developer learns the
+whole-track head pipeline, N quarter-tracks affected"). The developer learns the
 *cause* without manually decoding the TMAP. After the quarter-track resolution
 fix lands, the same scan instead emits an Info row confirming half-track data is
 present and addressable.
@@ -180,11 +180,11 @@ quarter-track fix, mount Choplifter and verify the diagnostic downgrades to Info
 
 ---
 
-### User Story 4 — Read-stall event makes an invisible spin visible (Priority: P2)
+### User Story 4: Read-stall event makes an invisible spin visible (Priority: P2)
 
 The hang's actual signature is a read loop spinning at a head position finding no
 matching address mark. Today `AddrMark` fires only on **success**, so the spin is
-invisible — the log just shows address marks tapering off. This feature adds a
+invisible; the log just shows address marks tapering off. This feature adds a
 `ReadStall` event emitted when the passive nibble watcher observes the head dwell
 at a position for ≥ K disk revolutions with zero address marks decoded while the
 read latch is being actively polled. The row names the position and the
@@ -213,12 +213,12 @@ rows fire during a normal boot.
 
 ---
 
-### User Story 5 — Raw nibble peek under the head (Priority: P3)
+### User Story 5: Raw nibble peek under the head (Priority: P3)
 
 The developer wants to see the actual nibbles currently flowing under the head at
 a chosen position, to compare against an expected prologue. The window offers a
 read-only "nibble peek" that samples a short window of nibbles the engine is
-currently returning at the head's position (non-perturbing — it does not consume
+currently returning at the head's position (non-perturbing; it does not consume
 or advance the real read cursor). Comparing the peeked nibbles after a `.5`-seek
 against the expected outer-track prologue shows a wrong-track read directly. The
 existing `trackFilterRawQt` flag in `FilterState` suggests this raw view was
@@ -294,7 +294,7 @@ not alter the live read stream (boot continues unaffected).
   successful address-mark decode or a head step so it can re-fire later.
 - **FR-009**: The `ReadStall` revolution threshold K MUST be a named constant
   tuned to avoid false positives across self-sync gaps and normal inter-sector
-  spacing. [NEEDS CLARIFICATION: exact K — proposed default 2–3 revolutions.]
+  spacing. [NEEDS CLARIFICATION: exact K, proposed default 2–3 revolutions.]
 - **FR-010**: The window MUST provide a non-perturbing "nibble peek" that samples
   a short window of the nibbles currently under the head without consuming or
   advancing the real read cursor or mutating LSS state.

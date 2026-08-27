@@ -6,19 +6,19 @@
 
 **Status**: Draft
 
-**Input**: User description: "A graphical disk manager built into Casso covering the rest of AppleCommander's functionality, with matching command-line access for everything — including operating on the disk that is currently in the drive while the machine is running."
+**Input**: User description: "A graphical disk manager built into Casso covering the rest of AppleCommander's functionality, with matching command-line access for everything, including operating on the disk that is currently in the drive while the machine is running."
 
 ## Overview
 
 With disk file access in place, Casso can put files on disks and take them off
 from the command line. This feature gives that capability a face, and completes
-the verb set.
+the command set.
 
 The point is not merely a nicer-looking AppleCommander. Every existing Apple II
 disk tool is a separate program pointed at a file: it opens an image, edits it,
 and closes it, and the emulator knows nothing about any of it. Casso *is* the
 emulator. Its disk manager can operate on the disk that is in the drive right now,
-while the machine runs — drop a file in, then type `CATALOG` on the guest and
+while the machine runs; drop a file in, then type `CATALOG` on the guest and
 watch it appear. No other tool in the ecosystem can do that, because no other tool
 has a running Apple II behind it.
 
@@ -34,8 +34,8 @@ line, so the feature serves interactive users and build scripts equally.
 
 ### User Story 1 - Browse and manage a disk image in the UI (Priority: P1)
 
-A user opens a disk image inside Casso and sees its contents in a sortable list —
-name, type, size, load address, lock state — then adds files from the host,
+A user opens a disk image inside Casso and sees its contents in a sortable list (
+name, type, size, load address, lock state) then adds files from the host,
 extracts files to the host, and deletes files, without leaving the emulator.
 
 **Why this priority**: This is the feature's visible surface and the reason to
@@ -70,7 +70,7 @@ each result against the image on disk.
 ### User Story 2 - Edit the disk that is in the drive, live (Priority: P2)
 
 A user modifies the disk currently mounted in a Casso drive while the machine is
-running, then uses it from the guest immediately — no eject, no reboot, no
+running, then uses it from the guest immediately, no eject, no reboot, no
 re-mount.
 
 **Why this priority**: This is the differentiator, and the reason the manager
@@ -103,10 +103,10 @@ file is listed and loadable.
 
 ---
 
-### User Story 3 - Complete the file-management verb set (Priority: P3)
+### User Story 3 - Complete the file-management command set (Priority: P3)
 
 A user renames files, locks and unlocks them, creates and removes directories on
-ProDOS volumes, renames the volume itself, and extracts every file at once — from
+ProDOS volumes, renames the volume itself, and extracts every file at once, from
 the UI or the command line.
 
 **Why this priority**: These are the operations that turn a viewer into a manager.
@@ -141,7 +141,7 @@ allocated, disassembles a boot sector or a binary file as 6502 code, and compare
 two images to find what differs.
 
 **Why this priority**: This is where Casso has an advantage nothing else in the
-category can match — it already contains a validated 6502 instruction set, so
+category can match; it already contains a validated 6502 instruction set, so
 disassembly is a small addition rather than a new subsystem. It is P4 because it
 serves diagnosis and curiosity rather than the primary workflow.
 
@@ -174,7 +174,7 @@ and can consume listings as structured data rather than parsing formatted text.
 **Why this priority**: Parity between the interface and the command line is a
 project principle, not an optional extra. Structured output is what makes disk
 contents usable in a pipeline. It ranks with inspection because the essential
-scripting verbs already arrived with the build-loop feature.
+scripting commands already arrived with the build-loop feature.
 
 **Independent Test**: Perform each operation from the command line against a test
 image and confirm the result matches what the graphical manager produces; parse a
@@ -200,8 +200,8 @@ structured listing with a standard tool and confirm every field is present.
   running? The medium is being read bit by bit; a modification underneath it can
   produce a torn read. Modification MUST be deferred until the drive is idle or
   refused with the reason.
-- What happens when the guest operating system has cached filesystem state — a
-  volume table of contents or a volume bitmap — and then writes it back after the
+- What happens when the guest operating system has cached filesystem state, a
+  volume table of contents or a volume bitmap, and then writes it back after the
   manager changed the medium? The guest's stale map can allocate over new files.
   The system MUST warn where this is possible and MUST offer a way to force the
   guest to re-read.
@@ -280,8 +280,8 @@ structured listing with a standard tool and confirm every field is present.
 - **FR-022**: The system MUST display a volume's allocation map, distinguishing
   allocated from free areas.
 - **FR-023**: Selecting a file MUST identify the areas of the medium it occupies.
-- **FR-024**: The system MUST disassemble a selected region — a boot sector, a
-  block, or a binary file — as 6502 or 65C02 code with addresses and operands
+- **FR-024**: The system MUST disassemble a selected region (a boot sector, a
+  block, or a binary file) as 6502 or 65C02 code with addresses and operands
   resolved, marking undecodable bytes as data.
 - **FR-025**: The system MUST compare two images and report their differences at
   file level where both are readable volumes, and at sector level otherwise.
@@ -303,15 +303,15 @@ structured listing with a standard tool and confirm every field is present.
 
 ### Key Entities
 
-- **Volume View**: What the manager presents — a volume's identity, capacity, free
+- **Volume View**: What the manager presents, a volume's identity, capacity, free
   space, and the file entries within the current directory.
 - **File Selection**: One or more chosen entries and the operations legal for them,
   given the volume's write state and each entry's lock state.
 - **Mount Binding**: The association between an open volume view and a drive, which
   determines whether edits target a live medium or a file and which safety rules
   apply.
-- **Medium Region**: An addressable area for inspection — a track and sector, a
-  block, or a span of a file — and its rendering as hex, as allocation state, or as
+- **Medium Region**: An addressable area for inspection (a track and sector, a
+  block, or a span of a file) and its rendering as hex, as allocation state, or as
   disassembled code.
 - **Comparison Result**: What differs between two images, expressed at file level
   or at sector level, plus what could not be compared.
@@ -330,7 +330,7 @@ structured listing with a standard tool and confirm every field is present.
   the volume in a state the guest cannot read, verified across the documented
   hazard scenarios.
 - **SC-005**: Modifying a mounted disk never disturbs the running machine's timing
-  perceptibly — no audible break in emulated audio and no dropped frames.
+  perceptibly, no audible break in emulated audio and no dropped frames.
 - **SC-006**: Listing a full volume, and rendering any inspection view, completes
   fast enough to feel immediate.
 - **SC-007**: Disassembly of a known boot sector matches a reference listing
@@ -350,7 +350,7 @@ structured listing with a standard tool and confirm every field is present.
 - Media larger than 140 KB and filesystems beyond DOS 3.3 and ProDOS are out of
   scope; they arrive with the disk-format feature.
 - Live editing is supported only when the drive is idle. This mirrors physical
-  reality — a Disk II has no disk-change line — and is a documented behavior rather
+  reality, a Disk II has no disk-change line, and is a documented behavior rather
   than a limitation to engineer around.
 - The guest operating system's caching behavior differs by filesystem, and warnings
   are expected to differ accordingly rather than being uniform.

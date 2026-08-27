@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "SectorDecodeReport.h"
 
 
 
@@ -133,12 +134,70 @@ public:
                                     vector<Byte>     &  out,
                                     DenibblizeReport &  report);
 
+    //  The same walk, reported per track rather than per sector: what each
+    //  track YIELDED, including whether its coverage was complete, incomplete
+    //  or duplicated. Succeeds whenever it could decode at all, so a caller
+    //  that can present partial results decides for itself what to do.
+    //
+    //  TWO REPORTS BECAUSE THERE ARE TWO QUESTIONS, and neither answers the
+    //  other. DenibblizeReport counts sectors by how far they got -- verified,
+    //  recovered, lost -- which is what salvage acts on. SectorDecodeReport
+    //  says whether a track's sixteen slots were each filled exactly once,
+    //  which is what a lossless rewrite depends on and what a sector counter
+    //  cannot see: a duplicated sector number leaves the count full.
+    static HRESULT  Denibblize  (const DiskImage     & img,
+                                 DiskFormat            fmt,
+                                 vector<Byte>        & out,
+                                 SectorDecodeReport  & outReport);
+
+    //  Re-encodes ONLY the named tracks; every other track's packed bits are
+    //  left byte-identical, so a write cannot disturb what it did not touch.
+    static HRESULT  RenibblizeTracks (const vector<Byte>    & sectors,
+                                      DiskFormat              fmt,
+                                      std::span<const int>    tracks,
+                                      DiskImage             & inOutImage);
+
+    //  Where DOS logical sector L sits within a ProDOS-ordered file's track.
+    //
+    //  COMPOSED from the two interleave tables above rather than restated. Both
+    //  of those are indexed by PHYSICAL sector, and a hand-written third table
+    //  indexed by logical sector is how a file reorder comes to disagree with
+    //  the layout the drive would actually see -- an image that reads back
+    //  perfectly through the same wrong table and is garbage on real hardware.
+    static int      PoFileIndexForDosLogicalSector (int logicalSector);
+
+    //  Where DOS logical sector L sits within a DOS-ordered file's track.
+    //
+    //  The .dsk answer to the .po question above, and the one anybody laying
+    //  bytes into an image by track and sector needs: a `.dsk` in this engine
+    //  holds logical sector L of track T at (T * 16 + this) * 256.
+    //
+    //  Exposed because it was being written down elsewhere. The demo-disk
+    //  build script carried its own copy of the sixteen numbers, in
+    //  PowerShell, where no compiler and no test would ever notice the two
+    //  drifting apart.
+    static int      DskFileIndexForDosLogicalSector (int logicalSector);
+
+    //  Which sector of a DOS-ordered buffer the drive presents at physical
+    //  position P -- equivalently, which one answers to the address field
+    //  numbered P, since the sixteen address fields are laid down in order.
+    //
+    //  ANYONE READING SECTORS THE WAY THE BOOT ROM DOES NEEDS THIS. The ROM
+    //  asks for consecutive address-field numbers, which is physical order,
+    //  and a buffer is in logical order; the two differ by the skew this file
+    //  owns. Writing that skew down a second time is what the composition
+    //  above exists to prevent, so it is answered here instead.
+    static int      DosFileIndexForPhysicalSector (int physicalSector);
+
 private:
-    //  The walk shared by Denibblize and SalvageSectors. keepRecovered
-    //  decides what becomes of a sector that decoded but did not verify.
-    static HRESULT  DecodeTracks (const DiskImage  &  img,
-                                  DiskFormat          fmt,
-                                  bool                keepRecovered,
-                                  vector<Byte>     &  out,
-                                  DenibblizeReport &  report);
+    //  The walk shared by every entry point above. keepRecovered decides what
+    //  becomes of a sector that decoded but did not verify; both reports are
+    //  filled from the one pass, so they can never disagree about the same
+    //  disk.
+    static HRESULT  DecodeTracks (const DiskImage     &  img,
+                                  DiskFormat             fmt,
+                                  bool                   keepRecovered,
+                                  vector<Byte>        &  out,
+                                  DenibblizeReport    &  report,
+                                  SectorDecodeReport  *  outCoverage);
 };

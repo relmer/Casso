@@ -23,14 +23,14 @@ Casso. The core findings:
 - **OpenEmulator/libemulation has the only Apple-specific Disk II
   implementation** (GPL-3, with Alps 2124A and Shugart SA400 `.ogg` assets
   shipped in-repo).
-- Casso's existing architecture — particularly `HandlePhase()` and the WASAPI
-  `m_pendingSamples` pipeline — is well-positioned for a clean implementation
+- Casso's existing architecture, particularly `HandlePhase()` and the WASAPI
+  `m_pendingSamples` pipeline, is well-positioned for a clean implementation
   requiring only a new `DiskAudioMixer` class and minor touch points in two
   existing files.
 
 ---
 
-## Part 1 — What Sounds Does a Real Disk II Make?
+## Part 1: What Sounds Does a Real Disk II Make?
 
 The Apple Disk II (1978) contains two independently controllable
 sound-producing mechanisms:
@@ -43,11 +43,11 @@ sound-producing mechanisms:
   "whirring" tone that varies slightly with load.
 - **Triggered by**: the `$C0E9` soft switch (motor-on). Motor continues for
   approximately **1 second after `$C0E8`** (motor-off) due to mechanical
-  spindown — the Apple IIe ROM and all RWTS implementations exploit this
+  spindown, the Apple IIe ROM and all RWTS implementations exploit this
   spindown window to avoid repeated start/stop during multi-sector operations.
 - The sound persists for the full spindown period, since the platter
   physically keeps spinning.
-- **Independently addressable**: Yes — any `$C0E9` strobe starts it; it stops
+- **Independently addressable**: Yes, any `$C0E9` strobe starts it; it stops
   naturally after spindown.
 
 ### 1.2 Head Stepper Motor (Clicks)
@@ -60,23 +60,23 @@ sound-producing mechanisms:
   (~30–80ms). Consecutive clicks (during seek) merge into a **distinctive
   buzzing rattle**.
 - **Triggered by**: phase magnet changes ($C0E0–$C0E7). Only actual head
-  displacement triggers a click — energizing an already-active phase, or
+  displacement triggers a click, energizing an already-active phase, or
   de-energizing a phase that causes no net movement, produces no step sound.
   *This is the most common implementation error: firing a sound on every
   soft-switch access instead of on every actual quarter-track movement.*
-- **Independently addressable**: Yes — but physically coupled to motor-on
+- **Independently addressable**: Yes, but physically coupled to motor-on
   state (RWTS never steps unless motor is on).
 
 ### 1.3 Recalibration Bump (Track-0 Stop Thunk)
 
-- Not a distinct mechanism — emerges from **rapid consecutive steps in the
+- Not a distinct mechanism: emerges from **rapid consecutive steps in the
   inward direction until the head assembly hits the physical travel stop** at
   track 0.
 - Audible character: accelerating clicks culminating in a louder, lower-pitched
   **thunk** when the head hits the hard stop. If calibration involves multiple
   bump attempts (common in DOS 3.3 RWTS), a "clonk-clonk-clonk" pattern is
   heard.
-- No separate hardware trigger — it happens organically when `m_quarterTrack`
+- No separate hardware trigger: it happens organically when `m_quarterTrack`
   reaches 0 and gets clamped. An emulator detects this as a `qtDelta > 0 &&
   m_quarterTrack == 0 after clamp` condition.
 - OpenEmulator's model: sets `phaseStop = true` whenever the head would move
@@ -87,10 +87,10 @@ sound-producing mechanisms:
 - A lever-and-ratchet disk insertion and ejection mechanism.
 - Audible character: a **multi-click mechanical ratchet** on door close (disk
   loaded) and a **snap** on door open (disk ejected).
-- **Triggered by**: disk mount/unmount events — purely a UI-level event, not
+- **Triggered by**: disk mount/unmount events, purely a UI-level event, not
   driven by $C0Ex soft switches.
 - Shugart SA400 has both Open and Close sounds. Alps 2124A (the majority of
-  Disk II drives) omits these — verified by the absence of `Alps 2124A
+  Disk II drives) omits these, verified by the absence of `Alps 2124A
   Open.ogg` / `Alps 2124A Close.ogg` in OpenEmulator's assets.
 
 **Scope note**: Door open/close is **in scope** for this feature (see
@@ -111,9 +111,9 @@ plumbed through `DiskIIController` (or the shell-level mount/eject path).
 
 ---
 
-## Part 2 — How Existing Emulators Implement Disk Sounds
+## Part 2: How Existing Emulators Implement Disk Sounds
 
-### 2.1 AppleWin — No Disk Audio
+### 2.1 AppleWin: No Disk Audio
 
 **License:** GPL v2 (`AppleWin/AppleWin:LICENSE`)
 
@@ -138,7 +138,7 @@ void Disk2InterfaceCard::ControlStepper(const WORD address)
 }
 ```
 
-### 2.2 MAME — Full Generic Floppy Sound Device
+### 2.2 MAME: Full Generic Floppy Sound Device
 
 **License:** BSD-3-Clause (code); sample files distributed separately (license
 unclear, see §3)
@@ -163,7 +163,7 @@ architecturally complete implementation found.
 
 *(`mamedev/mame:src/devices/imagedev/floppy.cpp`, `floppy_sound_samples` table)*
 
-Samples were recorded from a **Chinon FZ502** drive — *not* an Apple Disk II
+Samples were recorded from a **Chinon FZ502** drive, *not* an Apple Disk II
 drive (which used Alps or Tandon mechanisms). The sounds are generic 5.25"
 floppy sounds, not Disk II-specific.
 
@@ -251,7 +251,7 @@ void floppy_image_device::seek_phase_w(int phases)
 
 This is exactly what Casso should do: fire `step()` only when `qtDelta != 0`.
 
-### 2.3 OpenEmulator/libemulation — Apple-Specific Disk II Implementation
+### 2.3 OpenEmulator/libemulation: Apple-Specific Disk II Implementation
 
 **License:** GPL v3 (`openemulator/libemulation:COPYING`)
 **Key file:** `openemulator/libemulation:src/libemulation/Implementation/Apple/AppleDiskDrive525.cpp`
@@ -292,7 +292,7 @@ void AppleDiskDrive525::updatePlayerSound(OEComponent *component, string value)
 ```
 
 The `mechanism` string (configured externally) prefixes every sample key. The
-Alps 2124A mechanism has only `Drive`, `Head`, `Stop` — no
+Alps 2124A mechanism has only `Drive`, `Head`, `Stop`, no
 `Open`/`Close`/`Align`, because the Alps mechanism's door sounds are not
 distinctly different.
 
@@ -383,7 +383,7 @@ sound (timer ID 2). Out of scope for this feature.
 
 ---
 
-## Part 3 — Sample Availability and Licensing
+## Part 3: Sample Availability and Licensing
 
 ### 3.1 OpenEmulator/libemulation Assets (GPL v3)
 
@@ -391,7 +391,7 @@ The libemulation repository ships the most **mechanically accurate and
 Apple-specific** sound samples available in any open-source project. These
 are organized by drive mechanism:
 
-**Alps 2124A** — The Alps mechanism used in the majority of Disk II drives:
+**Alps 2124A**, The Alps mechanism used in the majority of Disk II drives:
 
 | File                    | Path                                          | Size         | Description       |
 |-------------------------|-----------------------------------------------|--------------|-------------------|
@@ -399,7 +399,7 @@ are organized by drive mechanism:
 | `Alps 2124A Head.ogg`   | `openemulator/libemulation:res/sounds/Alps/`  |  7,584 bytes | Single head step  |
 | `Alps 2124A Stop.ogg`   | `openemulator/libemulation:res/sounds/Alps/`  |  5,298 bytes | Head-at-stop      |
 
-**Shugart SA400** — An earlier Shugart mechanism (similar era):
+**Shugart SA400**, An earlier Shugart mechanism (similar era):
 
 | File                       | Path                                             | Size         | Description       |
 |----------------------------|--------------------------------------------------|--------------|-------------------|
@@ -413,7 +413,7 @@ are organized by drive mechanism:
 **License risk:** The `COPYING` file states: *"The OpenEmulator binaries and
 most of its source code are distributed under the GPL version 3 license.
 Copyright 2008-2013. All code is copyrighted by the respective authors."* The
-`.ogg` audio files have no separate license — they fall under GPL v3 by
+`.ogg` audio files have no separate license, they fall under GPL v3 by
 default. **GPL v3 is a viral copyleft license**; bundling these files in a
 closed or non-GPL project is not permissible without relicensing. They are
 safe for development/prototyping use, but not for distribution.
@@ -422,12 +422,12 @@ safe for development/prototyping use, but not for distribution.
 
 MAME does **not** ship audio samples in its source repository
 (`mamedev/mame`). Samples are distributed separately at
-`mamesamples.mameworld.info` (inaccessible at time of research — HTTP 526).
+`mamesamples.mameworld.info` (inaccessible at time of research, HTTP 526).
 The MAME project's standard practice is to distribute user-contributed
 hardware recordings under informal "open for emulation use" terms, but these
 are not formal open-source licenses and redistribution rights are
-unspecified. The `525_*` samples were recorded from a **Chinon FZ502** — not
-a Disk II mechanism — so even if licensable, they are generic 5.25" sounds,
+unspecified. The `525_*` samples were recorded from a **Chinon FZ502**, not
+a Disk II mechanism, so even if licensable, they are generic 5.25" sounds,
 not authentic Disk II recordings.
 
 ### 3.3 No CC0/Public-Domain Disk II–Specific Recordings Found
@@ -458,7 +458,7 @@ Disk II recordings.
 
 ---
 
-## Part 4 — Implementation Architecture Patterns
+## Part 4: Implementation Architecture Patterns
 
 ### 4.1 Event Trigger Points
 
@@ -476,7 +476,7 @@ Based on the survey of three implementations, the consensus is:
 
 **Critical anti-pattern:** AppleWin's `ControlStepper()` fires on every
 `$C0E0-$C0E7` access. Casso's `HandlePhase()` is also called on every phase
-access. The sound trigger must check `qtDelta != 0` — not be placed at the
+access. The sound trigger must check `qtDelta != 0`, not be placed at the
 entry point of `HandlePhase()`. In Casso's code
 (`CassoEmuCore/Devices/DiskIIController.cpp:229-294`), this is the block
 after `m_quarterTrack += qtDelta`.
@@ -487,7 +487,7 @@ DOS 3.3 RWTS issues $C0E8 (motor-off) followed immediately by $C0E9
 (motor-on) when switching between sectors on the same track. Without a
 spindown delay, this would cause the motor sound to stop and restart
 continuously during normal disk operation. The spindown timer
-(`kMotorSpindownCycles = 1,000,000`) prevents this — the motor sound persists
+(`kMotorSpindownCycles = 1,000,000`) prevents this, the motor sound persists
 across the brief off/on cycle.
 
 The motor sound should be driven by the **actual `m_motorOn` flag in
@@ -513,11 +513,11 @@ previous step fired: if < 16ms → "Align" (seek-buzz) sound, if >= 16ms →
 Casso's cycle-counting architecture. Replace the wall-clock timers with
 cycle-count thresholds:
 
-- Debounce: `0.5ms × 1.023 MHz = 511 cycles` — fire step sound 511 cycles
+- Debounce: `0.5ms × 1.023 MHz = 511 cycles`, fire step sound 511 cycles
   after the last `HandlePhase()` that returned `qtDelta != 0`
 - Seek detection: if inter-step gap `< 16ms × 1.023 MHz = 16,368 cycles` →
   use seek/buzz sample; else use single-click sample
-- Idle stop: `50ms × 1.023 MHz = 51,150 cycles` — stop head sound if no new
+- Idle stop: `50ms × 1.023 MHz = 51,150 cycles`, stop head sound if no new
   step arrives
 
 ### 4.4 PCM Mixing Into Casso's WASAPI Pipeline
@@ -581,7 +581,7 @@ avoid clipping when both speaker and motor hum are active simultaneously.
 
 ---
 
-## Part 5 — Casso-Specific Implementation Sketch
+## Part 5: Casso-Specific Implementation Sketch
 
 ### 5.1 Files to Create
 
@@ -657,7 +657,7 @@ private:
 
 ### 5.3 Touch Points in Existing Files
 
-**`CassoEmuCore/Devices/DiskIIController.h`** — add callback interface (or
+**`CassoEmuCore/Devices/DiskIIController.h`**; add callback interface (or
 directly hold a `DiskAudioMixer*`):
 
 ```cpp
@@ -674,7 +674,7 @@ IDiskAudioSink* m_audioSink = nullptr;
 void SetAudioSink(IDiskAudioSink* sink) { m_audioSink = sink; }
 ```
 
-**`CassoEmuCore/Devices/DiskIIController.cpp`** — add 4 notification calls:
+**`CassoEmuCore/Devices/DiskIIController.cpp`**; add 4 notification calls:
 
 ```cpp
 // HandleSwitch(), case 0x9 (motor on, ~line 143):
@@ -697,7 +697,7 @@ if (qtDelta != 0) {
 }
 ```
 
-**`Casso/WasapiAudio.h/cpp`** — add disk mixer parameter to `SubmitFrame()`:
+**`Casso/WasapiAudio.h/cpp`**; add disk mixer parameter to `SubmitFrame()`:
 
 ```cpp
 // WasapiAudio.h — extend SubmitFrame signature:
@@ -717,7 +717,7 @@ if (diskMixer) {
 }
 ```
 
-**`Casso/EmulatorShell.cpp`** — wire it all together in `ExecuteCpuSlices()`
+**`Casso/EmulatorShell.cpp`**, wire it all together in `ExecuteCpuSlices()`
 (lines 2411-2492):
 
 ```cpp
@@ -728,7 +728,7 @@ m_wasapiAudio.SubmitFrame(toggleTimestamps, sliceActual, speakerState, numSample
                           &m_diskAudioMixer);
 ```
 
-**`Casso/MenuSystem.{h,cpp}`** — add "Disk Audio" check-toggle under View
+**`Casso/MenuSystem.{h,cpp}`**; add "Disk Audio" check-toggle under View
 menu, defaulting to checked. Toggle handler calls
 `m_diskAudioMixer.SetEnabled(...)`.
 
@@ -742,18 +742,18 @@ format sample rate is available after `WasapiAudio::Initialize()`.
 
 If procedural synthesis is chosen instead, `LoadSamples()` is replaced by a
 `SynthesizeSamples(sampleRate)` call that fills internal buffers at startup
-— same downstream contract.
+, same downstream contract.
 
 ### 5.5 Suggested Minimum Viable Sample Set
 
 For a v1 implementation, 5 samples cover the in-scope sounds:
 
-1. **`MotorLoop.wav`** — ~1–2s of motor hum, suitable for seamless looping
+1. **`MotorLoop.wav`**: ~1–2s of motor hum, suitable for seamless looping
    (fade-match start and end)
-2. **`HeadStep.wav`** — ~80–150ms single head click
-3. **`HeadStop.wav`** — ~100–200ms bump/thud at track 0
-4. **`DoorOpen.wav`** — ~150–400ms snap/ratchet on eject
-5. **`DoorClose.wav`** — ~200–500ms ratchet on insert
+2. **`HeadStep.wav`**: ~80–150ms single head click
+3. **`HeadStop.wav`**: ~100–200ms bump/thud at track 0
+4. **`DoorOpen.wav`**: ~150–400ms snap/ratchet on eject
+5. **`DoorClose.wav`**: ~200–500ms ratchet on insert
 
 Per NFR-005, real Disk II recordings under permissive license (self-recorded,
 CC0, CC-BY) are preferred. Procedural synthesis is acceptable fallback when
@@ -761,7 +761,7 @@ no such recordings are available, and SHOULD aim for mechanical realism.
 
 ---
 
-## Part 6 — Gaps, Risks, and Recommendations
+## Part 6: Gaps, Risks, and Recommendations
 
 ### 6.1 Confirmed Gaps
 
@@ -770,7 +770,7 @@ no such recordings are available, and SHOULD aim for mechanical realism.
 | Virtual ][ (Mac) not investigated                         | Closed-source, no public code. Not needed given libemulation coverage.|
 | MAME sample download site inaccessible                    | `mamesamples.mameworld.info` returned HTTP 526 at time of research    |
 | No programmatic verification of MAME sample OGG files     | Only names confirmed from source code; actual content unverified      |
-| Freesound.org search was limited                          | No CC0 Disk II recordings found via API — manual search may yield more|
+| Freesound.org search was limited                          | No CC0 Disk II recordings found via API, manual search may yield more|
 
 ### 6.2 License Risk Summary
 
@@ -789,19 +789,19 @@ no such recordings are available, and SHOULD aim for mechanical realism.
 This ordering is the authoritative input to [`tasks.md`](./tasks.md):
 
 1. **Implement `DiskAudioMixer` class** with motor loop and head step
-   (no samples yet — stub with silence or sine wave for testing)
-2. **Wire callbacks** in `DiskIIController` — add `IDiskAudioSink` and 4 call
+   (no samples yet, stub with silence or sine wave for testing)
+2. **Wire callbacks** in `DiskIIController`; add `IDiskAudioSink` and 4 call
    sites
 3. **Extend `WasapiAudio::SubmitFrame()`** to accept and mix disk PCM
-4. **Wire in `EmulatorShell`** — verify no regression in speaker audio or
+4. **Wire in `EmulatorShell`**: verify no regression in speaker audio or
    disk behavior
-5. **Source samples** — develop/record from real hardware, or use Alps 2124A
+5. **Source samples**: develop/record from real hardware, or use Alps 2124A
    samples from libemulation for prototype testing (GPL-compliant during
    development, must not be committed)
-6. **Tune step/seek discrimination** — add `m_lastStepCycle` tracking to
+6. **Tune step/seek discrimination**: add `m_lastStepCycle` tracking to
    `DiskAudioMixer::OnHeadStep()` using the 16ms / 16,368-cycle threshold
    from OpenEmulator
-7. **Add bump detection** — verify `OnHeadBump()` fires correctly during DOS
+7. **Add bump detection**: verify `OnHeadBump()` fires correctly during DOS
    3.3 boot (which hits track 0 ~3 times during initialization)
 8. **Add View → Disk Audio toggle** in `MenuSystem`
 
@@ -809,15 +809,15 @@ This ordering is the authoritative input to [`tasks.md`](./tasks.md):
 
 ## Key Citations
 
-- `CassoEmuCore/Devices/DiskIIController.cpp:229-294` — `HandlePhase()` — step trigger location
-- `CassoEmuCore/Devices/DiskIIController.cpp:118-177` — `HandleSwitch()` — motor trigger location
-- `CassoEmuCore/Devices/DiskIIController.cpp:334-352` — `Tick()` — spindown timer → motor-off
-- `CassoEmuCore/Devices/DiskIIController.h:34-100` — class fields including `m_quarterTrack`, `kMotorSpindownCycles`
-- `Casso/WasapiAudio.cpp:183` — `SubmitFrame()` — audio submit entry point
-- `Casso/EmulatorShell.cpp:2411-2492` — `ExecuteCpuSlices()` — per-slice emulation loop
-- `mamedev/mame:src/devices/imagedev/floppy.cpp` — `floppy_sound_device::motor()`, `::step()`, `::sound_stream_update()` — BSD-3 reference
-- `openemulator/libemulation:src/libemulation/Implementation/Apple/AppleDiskDrive525.cpp` — full disk sound implementation — GPL-3 reference
-- `openemulator/libemulation:res/sounds/Alps/` — Alps 2124A Drive/Head/Stop `.ogg` — GPL-3 samples
-- `openemulator/libemulation:res/sounds/Shugart/` — Shugart SA400 full set `.ogg` — GPL-3 samples
-- `openemulator/libemulation:COPYING` — GPL v3 confirmed as project license
-- `AppleWin/AppleWin:source/Disk.cpp` — no disk audio calls confirmed (verified full file)
+- `CassoEmuCore/Devices/DiskIIController.cpp:229-294`: `HandlePhase()`, step trigger location
+- `CassoEmuCore/Devices/DiskIIController.cpp:118-177`: `HandleSwitch()`, motor trigger location
+- `CassoEmuCore/Devices/DiskIIController.cpp:334-352`: `Tick()`, spindown timer → motor-off
+- `CassoEmuCore/Devices/DiskIIController.h:34-100`: class fields including `m_quarterTrack`, `kMotorSpindownCycles`
+- `Casso/WasapiAudio.cpp:183`: `SubmitFrame()`, audio submit entry point
+- `Casso/EmulatorShell.cpp:2411-2492`: `ExecuteCpuSlices()`, per-slice emulation loop
+- `mamedev/mame:src/devices/imagedev/floppy.cpp`: `floppy_sound_device::motor()`, `::step()`, `::sound_stream_update()`, BSD-3 reference
+- `openemulator/libemulation:src/libemulation/Implementation/Apple/AppleDiskDrive525.cpp`: full disk sound implementation, GPL-3 reference
+- `openemulator/libemulation:res/sounds/Alps/`: Alps 2124A Drive/Head/Stop `.ogg`, GPL-3 samples
+- `openemulator/libemulation:res/sounds/Shugart/`: Shugart SA400 full set `.ogg`, GPL-3 samples
+- `openemulator/libemulation:COPYING`: GPL v3 confirmed as project license
+- `AppleWin/AppleWin:source/Disk.cpp`: no disk audio calls confirmed (verified full file)

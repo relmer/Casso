@@ -1,4 +1,4 @@
-# Quickstart — UI Overhaul (Developer)
+# Quickstart: UI Overhaul (Developer)
 
 This guide is for engineers implementing feature `007-ui-overhaul`.
 

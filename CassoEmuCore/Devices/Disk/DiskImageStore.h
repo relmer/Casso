@@ -159,6 +159,12 @@ public:
 
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
+    //  Where a recovery image goes for the Nth attempt, when an image cannot be
+    //  written back to its own format without loss. Public because the naming
+    //  and never-overwrite policy are part of the observable contract, not an
+    //  implementation detail -- and pure, so both are testable without a disk.
+    static string   MakeRecoveryPath        (const string & imagePath, int attempt);
+
     //  Replaces `path` with `bytes` without ever leaving the target in a
     //  partially written state: the bytes land in a sibling temporary file
     //  that is verified in full, then renamed over the target. A failure at
@@ -174,7 +180,6 @@ public:
     //  Reads a whole file into `bytes`. The read counterpart of the write
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
-
 private:
     struct Entry
     {
@@ -212,8 +217,20 @@ private:
                                       DenibblizeReport & report);
 
     // Builds the user-facing "could not save" message from the mount path;
-    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
-    static wstring FormatFlushLossMessage (const string & path);
+    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure. When a
+    // recovery image was written, its path is named so the user can retrieve
+    // the session rather than only being told what was lost.
+    //  recoveryPath is optional: the write-protect path has no recovery copy
+    //  to name, and the message says something useful either way.
+    static wstring FormatFlushLossMessage (const string & path,
+                                           const string & recoveryPath = string());
+
+    // Preserves an image that could not be serialized to its own format,
+    // beside the original and losslessly. Leaves the original untouched.
+    HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
+
+    // Enough room to step past collisions without ever spinning.
+    static constexpr int  kMaxRecoveryNameAttempts = 64;
 
     // Why a damaged image will not be written to. A checksum mismatch
     // write-protects the image for the session, so the file is never

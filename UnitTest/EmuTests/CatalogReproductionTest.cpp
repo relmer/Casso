@@ -1,10 +1,12 @@
 #include "Pch.h"
 
+#include "GuestSession.h"
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "MachineIdle.h"
@@ -32,6 +34,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //       drifted off target. CATALOG seeks 17 tracks from the boot
 //       position to the VTOC; that drift caused address-field reads
 //       to land on the wrong sector and RWTS gave up with I/O ERROR.
+//
+//  EVERY CASE HERE ASKS THE CHEAP QUESTIONS BEFORE IT STARTS A MACHINE. These
+//  boots are long -- 200M cycles of ceiling apiece -- and a guest handed an
+//  image it cannot read spends them executing data, one instruction look-back
+//  written per illegal opcode. Twice on this project that has filled a disk and
+//  killed the run. So the master is decoded through the DRIVE and enumerated
+//  before it is mounted, and the container the drive ends up holding is asked
+//  for its boot sector before the processor is pointed at the ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +76,11 @@ public:
     // this ceiling is shared with run from 1.2M (HOME, NEW, LIST) to 6.4M
     // (SAVE).
     static constexpr uint64_t    kCatalogCycles       = 60'000'000ULL;
+
+    // The greeting the stock master runs on the way to its prompt. Its
+    // presence in the catalog the DRIVE can reach is the cheap stand-in for
+    // "this image will still boot".
+    static constexpr const char *  kGreetingName = "HELLO";
 
     static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
     {
@@ -155,6 +170,57 @@ public:
     }
 
 
+    //
+    //  ------------------------------------------------------------------
+    //  The cheap questions, asked before any machine starts.
+    //  ------------------------------------------------------------------
+    //
+
+    // What a booting DOS is about to go looking for, read off the container
+    // the DRIVE presents rather than out of the file. A disk whose catalog the
+    // drive cannot reach fails here in milliseconds; left to the guest it fails
+    // as a 6502 running through data with a look-back written for every illegal
+    // opcode it hits.
+    static void AssertTheGreetingIsReachable (const std::vector<Byte> & sectors)
+    {
+        VolumeListing  listing;
+        bool           greeting = false;
+
+        {
+            Dos33Volume  volume (sectors);
+
+            AssertSucceeded (volume.Enumerate (listing),
+                L"the disk must still enumerate as a DOS 3.3 volume through the drive");
+        }
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            greeting = greeting || entry.name == kGreetingName;
+        }
+
+        Assert::IsTrue (greeting,
+            L"and must still carry the greeting DOS runs on the way to the prompt, or "
+            L"the boot below has nothing to reach");
+    }
+
+
+    static void AssertTheMasterIsStillADos33Disk (const std::vector<Byte> & raw)
+    {
+        AssertTheGreetingIsReachable (GuestSession::DecodeThroughTheDrive (raw));
+    }
+
+
+    // The same question of a disk this tool BUILT, which exists only as bit
+    // streams and so has no sector buffer of its own to be compared against.
+    static void AssertTheBuiltDiskIsStillADos33Disk (const DiskImage & image)
+    {
+        SectorDecodeReport  report;
+
+        AssertTheGreetingIsReachable (
+            GuestSession::DecodeThroughTheDrive (image, report));
+    }
+
+
     TEST_METHOD (DOS33_CATALOG_DoesNotErrorOnMasterDisk)
     {
         HeadlessHost    host;
@@ -180,6 +246,8 @@ public:
         Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
+        AssertTheMasterIsStillADos33Disk (raw);
+
 
         hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
@@ -193,6 +261,9 @@ public:
         img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
+
+        GuestSession::AssertTheDrivePresentsWhatWasMounted (
+            *img, raw, L"the master this gate boots");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
@@ -276,6 +347,8 @@ public:
         Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
+        AssertTheMasterIsStillADos33Disk (raw);
+
 
         hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
@@ -289,6 +362,9 @@ public:
         img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
+
+        GuestSession::AssertTheDrivePresentsWhatWasMounted (
+            *img, raw, L"the master this gate boots");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
@@ -376,6 +452,8 @@ public:
         Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
+        AssertTheMasterIsStillADos33Disk (raw);
+
 
         hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
@@ -389,6 +467,9 @@ public:
         masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg, L"Mounted master DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, masterImg);
+
+        GuestSession::AssertTheDrivePresentsWhatWasMounted (
+            *masterImg, raw, L"the master this gate boots");
 
         // The blank under test is exactly what the create dialog produces
         // when the user accepts the defaults.
@@ -511,6 +592,8 @@ public:
             return;
         }
 
+        AssertTheMasterIsStillADos33Disk (raw);
+
         hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
@@ -523,6 +606,9 @@ public:
         masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg);
         core.diskController->SetExternalDisk (kDrive1, masterImg);
+
+        GuestSession::AssertTheDrivePresentsWhatWasMounted (
+            *masterImg, raw, L"the master this gate boots");
 
         hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
         AssertSucceeded (hr, L"blank WOZ must build");
@@ -624,6 +710,11 @@ public:
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
 
+        GuestSession::AssertTheDriveCanReadTheBootSector (
+            *img, L"the disk this gate built");
+
+        AssertTheBuiltDiskIsStillADos33Disk (*img);
+
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);
 
@@ -692,6 +783,13 @@ public:
         img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
         core.diskController->SetExternalDisk (kDrive1, img);
+
+        // The ProDOS half stops at the boot sector: this file's only
+        // filesystem reader is the DOS 3.3 one, and pulling ProDosVolume in
+        // for one assertion would put a second reader in a file whose subject
+        // is the drive.
+        GuestSession::AssertTheDriveCanReadTheBootSector (
+            *img, L"the ProDOS disk this gate built");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         core.cpu->SetPC (kBootRomEntry);

@@ -6,6 +6,265 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+## [1.20.0]: disk file access, and AS65 command line fidelity improvements
+
+### Added
+- **A `disk` subcommand: read files off an Apple II disk image and put them
+  back.** `list` catalogs a volume, `get` extracts a file, `put` places one,
+  `delete` removes one, on DOS 3.3 and ProDOS, in `.dsk`, `.do`, `.po` and
+  `.woz` alike. `put` takes `--as` for the on-disk name, `--type` and `--load`
+  for what the catalog records, and `--text` to convert host text to the
+  disk's encoding; by default the bytes move unchanged. Writes are atomic: the
+  new image is built and checked in memory, written beside the target and put
+  in place in one step, so a locked file, a full volume, a track that cannot
+  be re-encoded or an image that changed underneath leaves the original
+  byte-for-byte intact, with no leftover temporary. A disk mounted in the
+  emulator is not detected as in use, and the help says so.
+- **`disk` takes the words the machines used.** `catalog` and `cat` list a
+  disk, as DOS 3.3 and ProDOS do; `dir`, `del`, `ls` and `rm` follow
+  host-shell habit; `read` and `write` alias `get` and `put`.
+- **`disk list` describes an image that carries no filesystem.** Many real
+  disks have no catalog, this project's demo disk among them. The listing then
+  reports what it can: for a WOZ image, who imaged it, whether it is
+  write-protected, which boot-sector format it claims, how many of the 160
+  quarter-track positions carry data, and its title and publisher when
+  recorded; for any image, the geometry, how the tracks decoded, and whether
+  track 0 sector 0 holds anything a boot would run.
+- **`--basic` converts between an Applesoft listing and a tokenized program.**
+  `put --basic` tokenizes a listing and stores it under the Applesoft type;
+  `get --basic` reverses it. A listing that will not tokenize is refused with
+  the line number and the line quoted, and the disk is untouched. Program to
+  program is byte-exact; listing to listing is not, because Applesoft
+  normalizes on entry: spacing outside strings, `REM` and `DATA` is dropped,
+  `?` becomes `PRINT`, lowercase becomes uppercase, and lines sort by number.
+- **`disk boot <image> <program>` sets what the disk runs at boot.** The two
+  filesystems differ: DOS 3.3 patches its greeting field in place, while
+  ProDOS has no such field, so the chosen system program is moved to the front
+  of the volume directory. A program that is not on the volume is refused, and
+  on DOS 3.3 it must be an Applesoft or Integer BASIC program, since boot RUNs
+  its greeting.
+- **`disk create` and `disk init` make the disk the rest of the loop writes
+  to.** `create` writes a new image, its container from `--type` or the name's
+  extension; `init` reformats one already there and takes the container as it
+  finds it. Both take `--format dos33|prodos|none` and `--volume`, a number
+  under DOS 3.3 and a name under ProDOS. Aliases: `new`, `format`.
+- **`--bootable` copies an operating system on, and finds it by itself.** Bare,
+  it takes the master matching the format being written from the cache the
+  emulator downloads into, and says which one is missing when the cache is
+  empty. `--bootable <image>` gives one explicitly.
+- **`disk create --boot <binary>` makes a disk that starts a program with no
+  operating system on it.** The boot sector loads the binary and jumps to it:
+  no DOS to wait for, none of the memory it would occupy spent, and no
+  Applesoft one-liner whose only job is to `BRUN` what you wrote. `--load`
+  gives the load address, which must fall in `$0900`-`$BFFF`, and `--exec` the
+  entry, which must land inside the loaded bytes. Refused alongside
+  `--bootable`, and alongside any `--format` but `none`. Works into all four
+  containers.
+- **`disk sectorread` and `disk sectorwrite` work at a logical track and
+  sector, with no filesystem involved.** For the disks that boot their own
+  loader and have no directory to file anything in. Both apply the DOS 3.3
+  interleave, so a number given to one means the same to the other, and both
+  work in whole sectors. A write spills into the next track and is refused
+  past the end of the disk; a read takes `--count`, since nothing on such a
+  disk records where the bytes end, and goes to `--out` or stdout.
+  `scripts/BuildDemoDisk.ps1` builds `casso-rocks.dsk` through `sectorwrite`
+  and keeps its hand-rolled layout as `-LegacyLayout`, so `-Compare` running
+  both is evidence rather than a tautology.
+- **Unpadded and DOS 3.3 assembler output.** The assembler could write only a
+  full 64KB padded image, useless for loading a 2KB routine. The assembled
+  span is the default now (see Changed), and `--dos-bin` puts that span behind
+  the 4-byte load-address/length header, ready to `BLOAD`.
+- **An address can be written `$6000` or `0x6000`.** A PowerShell affordance:
+  `$6000` is expanded away as an undefined variable before Casso sees it.
+- **A listing file gets `.lst` when you give no extension.** `-lfoo` wrote a
+  file called `foo`, which is what AS65 does. An extension you gave is
+  untouched, and a trailing dot asks for none, so `-lfoo.` still writes `foo`.
+- **PowerShell no longer breaks an ordinary AS65 command line.** `-oprog.bin`
+  arrives as `-oprog` and `.bin`, because a PowerShell parameter name cannot
+  contain a dot. The halves are rejoined before parsing, on a signature no
+  valid command line matches, so nothing that worked reads differently. It
+  repairs `-l`, `-d` and `-s` too, which have no separated form to fall back
+  on.
+- **A bare `?` shows the usage text**, as AS65 does. `-?` and `/?` already
+  worked; `?` alone was read as a source filename. Every subcommand takes it.
+  Only the single-argument case changed: `?` alongside anything else is still
+  an operand, since a DOS 3.3 catalog can hold a file called `?`.
+- **A worked example of the whole loop in the help.** The `disk` page carries
+  the commands that take an edited source to a program running in the
+  emulator, and warns about the two steps most often guessed wrong: assemble
+  with the default output rather than `--dos-bin`, since `put` writes the DOS
+  3.3 header itself; and set the boot program to an Applesoft greeting that
+  `BRUN`s the binary, since a booting DOS 3.3 RUNs its greeting. A test checks
+  the example against the help.
+- **Exit code 4 is documented, and is never returned.** AS65 spends it on a
+  failed allocation, so a ported script may still test for it, and a list
+  jumping from 3 to 5 leaves a reader guessing.
+
+### Changed
+- **Casso.exe parses its command line through the same grammar as CassoCli.**
+  `/machine`, `/disk1`, `/disk2` and `/trace` work at the emulator now, the
+  grammar lives in core with tests, and CassoCli's worked example writes the
+  emulator's flags with the reader's own prefix.
+- **The executable is a shim, and everything it did is in the library.**
+  `CassoCli.exe` was 3,639 lines of parsing, dispatch, page composition and
+  exit-code decisions, none of which the test assembly links. It is 57 lines
+  now: a `main` that calls `CliMain`. The split is testability rather than
+  platform, so the Win32 file layer moved too (GH #85).
+- **A mode typed with nothing after it opens that mode's page.** `CassoCli
+  as65` returned `No input file specified`. Still a non-zero exit, because a
+  script that invokes the tool wrongly has to fail.
+- **A bad command line is answered with the grammar, not one line.** Every
+  refusal prints the page for the mode that was typed, then the reason, last,
+  so the reason is the line left on screen.
+- **`-o` takes a separated filename as well as an attached one.** `-o
+  prog.bin` is equivalent to `-oprog.bin`. Another PowerShell affordance: it
+  cuts `-oprog.bin` into `-oprog` and `.bin` before Casso is started, since a
+  parameter name may not contain a dot.
+- **`CassoCli --help` is one screen, and each mode's flags wait behind that
+  mode's own help.** It was 180 lines: every flag of three grammars, three
+  blocks of exit statuses, and the worked loop at the bottom where a reader
+  never arrived. The general page is twenty lines now: what the tool is, one
+  line per mode, the route to each mode's page, and the loop. Every page opens
+  with the banner and writes its flags with the prefix you typed, options are
+  grouped by what you are trying to do rather than alphabetically, and each
+  mode's exit codes stay on its own page, because they differ.
+- **`CassoCli run --help` now exists.** Asking for it was an option the
+  grammar did not recognize: a refusal and exit 2. `run` and `disk` both take
+  `--help`, `-?`, `-h` and the `/` forms, anywhere among their arguments. The
+  assembler's `-h` is unchanged: help as the first argument, page height
+  everywhere else.
+- **`--out` typed at the assembler is refused instead of half-obeyed.** It
+  warned `Unknown flag: --`, wrote the output to a file called `ut`, consumed
+  the next argument as the source, and exited 1. Every `--` option the
+  assembly grammar does not have is refused now, pointing at `-o <file>`.
+  `--out` stays the `disk` flag and `-o` the assembler's; `/out` still means
+  `-o ut`, the glued form AS65 documents.
+- **An explicit output-format flag wins over the filename's extension.**
+  Extension matching stays as the fallback when no flag is given, so AS65-era
+  scripts keep working. Previously `-s -o out.dat` silently wrote a flat
+  binary despite the flag asking for an S-record.
+- Command-line option modelling and parsing moved from `CassoCli` into
+  `CassoCore`, where the test project can link it. Behavior is unchanged and
+  now pinned by tests.
+- internal: CheckStyle's declaration-block and banner rules now see wrapped
+  signatures, constructor-form declarations, and a statement sitting directly
+  under the block; the ~400 pre-existing hits across the tree were swept.
+
+### Removed
+- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is
+  what giving no format flag already does. **If a command line writes it,
+  delete the flag**; the result is identical. It is refused rather than
+  ignored, so a command line still carrying it stops.
+
+### Fixed
+- **The assembler's exit codes are AS65's.** AS65 gives 1 to a bad command
+  line, 2 to a file it cannot open and 3 to an assembly with errors. This tool
+  spent 1 on an assembly that warned and collapsed the other three into 2, so
+  a script ported from AS65 read a warning as a command-line error and a
+  command-line error as a missing file. 0 through 3 are AS65's now, warnings
+  report **5**, and 4 stays unused. **If a script tests for 2 to mean "the
+  assembly failed", change it to 3.**
+- **Every assembler value attaches to its flag, as AS65 requires.** **`-l
+  out.lst` becomes `-lout.lst`**, and likewise `-dNAME`, `-w100`, `-h60`. `-o`
+  is the exception and takes both. The bare forms AS65 documents are
+  untouched: `-l` alone lists to stdout, `-w` alone is 133 columns, `-d` alone
+  defines `DEBUG`. `--flat`, `--dos-bin` and `-s2` are Casso's own and are
+  kept.
+- **A flag with a numeric value no longer swallows the rest of its group.**
+  AS65 documents `-h80t` as 80 lines per page and a symbol table; `-h` and
+  `-w` ran to the end of the argument and discarded whatever trailed, so
+  `-h80t` produced no symbol table and reported success.
+- **An unrecognized assembler flag prints usage and assembles nothing.** It
+  was dropped with a warning while the assembly ran on at status 1, so a
+  makefile passing a flag this assembler does not have got a binary built from
+  the flags that survived. **There is no status meaning "a flag was ignored"
+  now**: the command line is refused and exits 2.
+- **`-g` takes no filename, which is all AS65 documents for it.** `-g out.dbg`
+  and `-gout.dbg` are gone; bare `-g` still writes the source's name with a
+  `.dbg` extension. Note that `-gout.dbg` now parses as `-g -out.dbg`.
+- **A bare `CassoCli` exits 1 rather than 0.** A script invoking the tool with
+  an argument variable that happened to be empty was told the run had worked.
+  Asking for the page still exits 0.
+- **Exit statuses are documented per mode, because they differ.** An assembly
+  error exits **3** under the assembler and **1** under `run`, and status 1
+  means "the output was written anyway" in one and "nothing ran" in the other.
+  Each mode's page ends with its own list, measured by running the tool.
+- **Assembling writes the assembled bytes, which is what AS65 writes, not a
+  64KB image.** A 200-byte routine came out as a 65,536-byte file. The padded
+  image is still available as **`--flat`**. One consequence: `--flat -o
+  out.s19` writes the padded image, where the filename would previously have
+  won.
+- **A refused flag combination exited 2 and an unknown flag exited 1, for the
+  same class of mistake.** Both map through `ExitCodeForRefusal` now. Nothing
+  had pinned the codes: the refusals were asserted for their message text and
+  never for what they returned.
+- **The help fills the terminal, which it did almost nowhere.**
+  `GetConsoleScreenBufferInfo` needs a readable console handle, and a `stdout`
+  that has been through a shell is not one. The terminal is asked directly
+  through `CONOUT$`. A redirect to a file keeps folding at 80; `COLUMNS`
+  overrides everything.
+- **A refusal no longer prints in the middle of the page it interrupts.**
+  `std::println` and `std::cout` are separate streams over one descriptor and
+  only the second was flushed, so the unbuffered `stderr` overtook a page
+  still sitting in a buffer.
+- **An unreadable source no longer claims a count it cannot have.** `as65
+  joij` answered `Cannot read input file: joij` and then `Assembly failed with
+  0 error(s)`.
+- **An argument with nowhere to go is an error instead of being discarded.**
+  `CassoCli pg.a65 -opg.bin -h 60` assembled, exited 0, and never said that
+  `60` had gone nowhere. All three grammars dropped a surplus argument. Each
+  is refused now at its own mode's documented status, **1** for the assembling
+  modes and **2** for `run` and `disk`, and nothing is assembled, run or
+  written. Where the likely cause is visible the message says it: `-w100, not
+  -w 100`.
+- **A refused command line no longer runs anyway.** The refusal was reported
+  and then ignored, so `as65 prog.a65 extra.a65` printed the surplus-argument
+  error, assembled anyway, and exited 2. Merlin was not refusing a second
+  source file at all; both grammars do now.
+- **A bare `-h` is refused rather than silently doing nothing.** AS65
+  documents a bare `-w` and no bare `-h`. Casso accepted one and ignored it,
+  leaving the page height at whatever it already had. It points at `-h0` now,
+  the real form for no page breaks. `-h` as the first argument is still the
+  help request.
+- **A value that cannot be read is refused instead of being replaced.**
+  `disk put img prog.bin --load zzz` dropped the address and then asked for
+  one; `-dADDR=$6000` defined the symbol as `1` in silence, so the source
+  assembled down a branch nobody chose.
+- **An option that ran out of command line is no longer reported as one that
+  does not exist.** `CassoCli run prog.bin --load` answered "unknown option:
+  `--load`" and then listed `--load` among the options to try instead.
+- **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
+  It took whatever followed unconditionally, so `CassoCli -d prog.a65` defined
+  a label called `prog.a65` and then reported no input file.
+- **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
+  demo.a65 -o` printed nothing and never returned: neither branch of the
+  flag's parsing advanced the walk over the concatenated flags.
+- **A mistyped option no longer reports success.** Seven paths in the `run`
+  grammar printed an error, printed the whole help, and exited 0. A command
+  line the parser refused exits 2 now, and `run` executes nothing.
+- **`-h<lines>` now actually breaks the listing into pages.** There was no
+  pagination anywhere in the tool, so `-h10` and no flag at all produced
+  byte-identical listings. A page break repeats the listing title. No `-h` is
+  still one continuous page.
+- **A bare `-w` selects the 133-column listing the help has always said it
+  selects**, which it previously did not.
+- **The default listing width is 79, not 80.** 80 is the width of the screen,
+  not of the listing.
+- **A damaged track no longer silently truncates your disk image on eject.**
+  The nibble decoder stopped at the first sector it could not read on a track
+  and handed back zeros for that sector and every later one, while reporting
+  success, so a guest that left a track partly written could lose the rest of
+  it on eject. The decoder reports what it recovered now, track by track, and
+  a flush that would write a hole is refused; the writes still in memory are
+  saved beside the target as `<name>.recovered.woz`. (GH #115)
+- **Pasting into the guest no longer garbles the text.** Two causes: Ctrl+V is
+  claimed as a host shortcut but Windows synthesizes its control character
+  anyway, so a `^V` reached the guest ahead of the pasted text; and characters
+  were fed faster than the guest could take them. Feeding is paced in emulated
+  cycles and waits for the keyboard strobe to stay clear.
+
 ## [1.19.0] — The Mockingboard speaks
 
 ### Added
@@ -140,8 +399,8 @@ every monitor Casso offered.
 
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
-  documents — *"Use 65SC02 extensions. When this option is not specified the
-  assembler rejects the 65SC02 extensions"* — and `--cpu` was a second flag
+  documents, *"Use 65SC02 extensions. When this option is not specified the
+  assembler rejects the 65SC02 extensions"*, and `--cpu` was a second flag
   Casso invented for the same question. There is deliberately nothing to name
   the narrow target with: omitting `-x` **is** naming it, which is what an AS65
   user already does, and a Merlin user selects the CPU with `XC` in the source.
@@ -154,7 +413,7 @@ every monitor Casso offered.
   that guess is gone, because a dialect the tool inferred is a dialect nobody
   stated, and this release adds a second one.
 
-  Update build scripts by inserting the word `as65` after the executable —
+  Update build scripts by inserting the word `as65` after the executable,
   nothing else about the invocation changes, and the output bytes are identical
   (verified byte-for-byte against the previous binary). A bare `CassoCli as65`
   also stops resolving `as65` as a source filename.
@@ -164,7 +423,7 @@ every monitor Casso offered.
   breaks is build scripts and nobody re-reads one until the day it fails.
 
 ### Added
-- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is named
+- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is specified
   by a subcommand, the way `as65` is. Its flags are `-o <file>` (which beats any
   name the source gives itself), `-l[<file>]` for a listing, `-v`, and
   `-d <symbol>[=<value>]`. The object written is the assembled stream: Merlin's
@@ -176,12 +435,12 @@ every monitor Casso offered.
   for a keyboard-input symbol; a batch assembly has nobody to ask, so the answer
   is typed with the invocation, once per question, and a bare `-d SYMBOL` answers
   1. It is the same flag, written the way `as65` writes it. Three of the five
-  vendor sources Casso is verified against ask questions, and one of them —
-  `CLOCK.S` — produces either of the two objects Merlin shipped depending on the
+  vendor sources Casso is verified against ask questions, and one of them, 
+  `CLOCK.S`, produces either of the two objects Merlin shipped depending on the
   answer, from one file and two command lines.
 
   **`--dos-bin` and `--flat` choose what wraps the bytes.** The default is
-  unchanged — the assembled stream and nothing around it. `--dos-bin` writes it
+  unchanged, the assembled stream and nothing around it. `--dos-bin` writes it
   behind a 4-byte DOS 3.3 header carrying the origin and length, which is the
   form the file takes on an Apple II disk; `--flat` writes a full 64 KB image
   with the bytes at their origin. `--dos-bin` is worth reaching for because the
@@ -192,8 +451,8 @@ every monitor Casso offered.
 
   There is no CPU switch, and passing `-x` is refused rather than ignored:
   Merlin selects its CPU in the source, and the refusal names the directive that
-  does it. Exit codes are the ones every assembler subcommand already speaks —
-  0 clean, 1 assembled with complaints, 2 no output — and a construct outside
+  does it. Exit codes are the ones every assembler subcommand already speaks (
+  0 clean, 1 assembled with complaints, 2 no output) and a construct outside
   the supported Merlin subset earns the same 2 as a syntax error, distinguished
   by its message rather than by a number.
 
@@ -203,16 +462,16 @@ every monitor Casso offered.
   directive table and a line model behind one profile seam; the two-pass engine,
   the expression evaluator and the opcode tables are the same ones `as65` has
   always used. A source is assembled strictly under the dialect its invocation
-  names — there is no lenient superset that quietly accepts a mixture, so a
+  names; there is no lenient superset that quietly accepts a mixture, so a
   Merlin construct in an `as65` file is still rejected, and now says which
   dialect defines it instead of reporting an unknown instruction.
 
 - **AS65's `-x` is accepted, and is now the only CPU flag.** It is how AS65
-  asks for the extended CPU, and Casso rejected it as an unknown flag — then
+  asks for the extended CPU, and Casso rejected it as an unknown flag, then
   carried on with the *narrow* instruction table and reported every instruction
   the flag had asked to enable as invalid.
 - **`run` takes the assembler flags that change what is assembled: `-x` and `-d`.** Without it there was a source
-  Casso could assemble and could not run — `run` refused the flag as unknown
+  Casso could assemble and could not run, `run` refused the flag as unknown
   and then reported every 65C02 instruction in the file as invalid. It remains
   the only assembler option `run` accepts; the rest have no meaning when no
   file is written.
@@ -232,7 +491,7 @@ every monitor Casso offered.
   is the wrong half for a symbol standing for a count rather than an address.
 - **`-g` writes its symbols in both useful orders.** The debug file lists them
   by address as before, then again by name, case-insensitively. Reading one is
-  two different questions — what sits at an address, and where a name went —
+  two different questions (what sits at an address, and where a name went)
   and each order answers one of them.
 - **`--help` fills the terminal it is printed to.** Every line of usage is now
   written once, whole, and folded at print time to the console's width, so a
@@ -245,25 +504,27 @@ every monitor Casso offered.
 ### Changed
 - **An argument the tool does not know is refused, with the help that applies.**
   A flag no subcommand's grammar recognized used to earn a one-line warning and
-  then be ignored -- the assembly ran, the exit code was 0, and the output file
+  then be ignored; the assembly ran, the exit code was 0, and the output file
   was written as though the flag had been honored, so a typo in a build script
-  was silent in every way that mattered. Now the invocation is refused (exit 2):
-  the full usage is printed, and the line naming the argument comes LAST, so it
-  is what is left on screen. A first word that names no subcommand gets the
-  same treatment, with the line naming what to type instead at the end.
-- **A run that named no CPU now reports the target that stood.** Under `-v`
-  it goes to stderr, and into the listing header when a listing is produced —
+  was silent in every way that mattered. Now the invocation is refused, at the
+  status its own mode documents for a refusal, 1 when assembling, 2 under
+  `run` and `disk`: the full usage is printed, and the line naming the argument
+  comes LAST, so it is what is left on screen. A first word that names no
+  subcommand gets the same treatment, with the line naming what to type instead
+  at the end.
+- **A run that specified no CPU now reports the target that stood.** Under `-v`
+  it goes to stderr, and into the listing header when a listing is produced;
   never to stdout, which carries the listing itself when no listing file is
-  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
+  specified. This affects `as65` as well as `merlin`: a build that passes `-v` or
   `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
   "nothing selected a CPU, so the default stands" and "the flag I passed was
   quietly dropped" used to look identical, and a dialect that selects its CPU in
   source makes the difference matter.
 - **Three assembler diagnostics now quote the directive the source wrote.** The
-  origin and reserve-space messages named `.org` and `.ds` as literal text,
+  origin and reserve-space messages specified `.org` and `.ds` as literal text,
   which is a form no dialect's table holds and simply wrong at a line that
   wrote something else. They now quote the active dialect's canonical name,
-  so `as65` reads `.ORG` and `.DS` — the same directives, upper-cased. Nothing
+  so `as65` reads `.ORG` and `.DS`, the same directives, upper-cased. Nothing
   else about the messages changed, and no output byte moves.
 - **A mistyped directive no longer silently drops the bytes it should have
   produced.** A dotted word the dialect does not define was discarded without a
@@ -271,7 +532,7 @@ every monitor Casso offered.
   up by however many bytes the directive would have emitted, and the run exited
   zero. `.org $0300` / `.fill 8, $EA` / `rts` wrote a one-byte object and called
   it a success. The word is now reported by name, with its line and file, so
-  a typo costs a message instead of an object nobody can explain — and where the
+  a typo costs a message instead of an object nobody can explain, and where the
   word belongs to another dialect, the message says which. This applies to every
   dialect, since it is the shared engine that reports it. A source that has been
   quietly losing a line will now fail to assemble; the line was never being
@@ -286,11 +547,11 @@ every monitor Casso offered.
   silently wrote raw, and `--raw -s` silently wrote an S-record, because all
   four format flags set one field and the last assignment stood. Each flag
   is valid on its own, so nothing about the result looked wrong. The refusal
-  names both flags. Repeating one flag is still fine — it asks for one thing,
+  names both flags. Repeating one flag is still fine; it asks for one thing,
   twice.
 - **Merlin now takes its mnemonics in any case.** `lda` was refused as an
   invalid mnemonic while `org` on the line above was accepted, so the case rule
-  disagreed with itself inside one dialect — and the diagnostic never mentioned
+  disagreed with itself inside one dialect, and the diagnostic never mentioned
   case, leaving `Invalid mnemonic: lda` to be puzzled out. Instructions,
   directives and the alternate branch names are now all case-insensitive, and
   the bytes are identical either way. Symbols are untouched and stay
@@ -300,13 +561,13 @@ every monitor Casso offered.
   something else.** `CassoCli as65 src.a65 /raw` used to fall through to the
   single-letter parser as `-raw`: it warned about an unknown `-r` and `-a`,
   swallowed the `w`, and wrote the padded 64 KB image the flag exists to
-  suppress. `merlin src.s /dos-bin` was worse — `-d` takes a value, so `os-bin`
+  suppress. `merlin src.s /dos-bin` was worse, `-d` takes a value, so `os-bin`
   became a predefined symbol, no warning appeared at all, and the output simply
   had no header. Both exited 0. Every long option now accepts either prefix,
   and the two forms mean the same thing.
 - **Messages write flags with the prefix the invocation used.** A `/`-style
   command line was answered in places with `--raw`, `--dos-bin` and `-d`,
-  mixing both conventions inside a single help block — and, before the fix
+  mixing both conventions inside a single help block, and, before the fix
   above, advising a form the parser would then have refused. Help, the
   unknown-flag warning, the CPU-flag refusal and the assembler's own
   "define it on the command line, for example `-d NAME=0`" now all follow the
@@ -315,20 +576,20 @@ every monitor Casso offered.
   last.
 - **A dialect no longer borrows the other dialect's vocabulary.** A word the
   active dialect declined was offered to a second, fixed directive table, so 55
-  words Merlin does not have still resolved — and eight of them steered
+  words Merlin does not have still resolved, and eight of them steered
   conditional assembly. A Merlin source writing `IFDEF` or `.ENDIF` had its
   blocks honored by a directive Merlin has never had, so lines were included or
   skipped by a construct the real assembler would have rejected. The same table
   ran the other way too: the closers an early macro exit owes the conditionals
   it abandons were counted from the wrong vocabulary and written in the wrong
-  word, and `NOP 3` — as65's way of asking for three of them — silently emitted
+  word, and `NOP 3`, as65's way of asking for three of them, silently emitted
   three bytes in a dialect with no such form.
 
   Every one of those words is now refused by name in the dialect that does
   not define it. Nothing changes for `as65`, whose own words were never in
   question; what changes is that Merlin source is read only as Merlin.
 - **A macro definition with no terminator of its own now falls into the next.**
-  Merlin lets a family of macros that end the same way be written once — the
+  Merlin lets a family of macros that end the same way be written once, the
   longest first, each shorter one opening where its own body starts, and a
   single terminator at the bottom closing them all. The assembler collected one
   definition at a time, so the second opening line was swallowed as body text,
@@ -347,24 +608,24 @@ every monitor Casso offered.
   same line was also being read as *defining a macro called `PUT`*, because the
   keyword that opens a definition from the operand field was a fixed word in the
   shared engine rather than the active dialect's own; it is the dialect's
-  now, and Merlin — which opens definitions with `MAC` in the opcode field — has
+  now, and Merlin, which opens definitions with `MAC` in the opcode field, has
   no operand form at all.
 - **A symbol assigned twice now holds, at each reference, the value assigned
   most recently above it.** `name = expr` defines a *reassignable* symbol, and
   pass 2 resolved every reference against one symbol table built after pass 1
-  had finished — so they all took the last value the file ever assigned, while
+  had finished, so they all took the last value the file ever assigned, while
   pass 1 had already sized the lines between the assignments against the values
   in force at each. A file that assigns a symbol twice and refers to it between
   the assignments assembled cleanly and emitted the wrong bytes; it now emits
   the right ones. A file that assigns each symbol once is unaffected.
 - **A diagnostic raised inside an included file now names that file.** Errors
   and warnings were all attributed to the top-level input, because by the time
-  one is printed that is the only filename in hand — so an include's own line
+  one is printed that is the only filename in hand, so an include's own line
   number arrived paired with the wrong file, sending the reader to whatever
   happened to sit at that line of the outer source. The originating file is now
   captured where the diagnostic is created and travels with it.
 
-## [1.17.0] — salvage a damaged disk
+## [1.17.0]: salvage a damaged disk
 
 ### Added
 - **Salvage the readable sectors of a damaged disk.** A disk whose stored
@@ -379,15 +640,15 @@ every monitor Casso offered.
   sector that decoded but failed verification is *recovered* rather than
   discarded: its bytes are kept and written with a freshly computed checksum,
   so a sector that would have made DOS report an I/O error reads normally
-  instead. Only a sector with nothing usable — no data field, or an address
-  field whose checksum fails, so its number cannot be trusted — is zeroed,
+  instead. Only a sector with nothing usable (no data field, or an address
+  field whose checksum fails, so its number cannot be trusted) is zeroed,
   because filing data under a number that might be wrong risks overwriting a
   good sector.
 
   Recovering rather than zeroing matters more than the counts suggest. The
   data field decodes as a running XOR chain, so a single bad nibble leaves
   every byte before it exactly right and skews the rest by one constant delta
-  — and if what rotted was the check nibble itself, the sector is perfect.
+, and if what rotted was the check nibble itself, the sector is perfect.
   Zeroing throws all 256 bytes away to avoid admitting to a few.
 
   The figures are shown before anything is written, because a lossy copy is a
@@ -396,7 +657,7 @@ every monitor Casso offered.
   corrupt data within the sectors. The original is never opened
   for writing: it keeps its damage, detectably, which is the guarantee the
   whole feature rests on. The salvaged copy carries the source's `META` across
-  — it is still the same disk — but takes Casso's own creator stamp,
+, it is still the same disk, but takes Casso's own creator stamp,
   because Casso wrote that particular file and leaving an imaging tool's name
   on a lossy reconstruction would be its own kind of false record.
 
@@ -405,7 +666,7 @@ every monitor Casso offered.
   copy-protected one has no standard sectors to recover and would be destroyed
   by a rebuild. Neither is offered the command.
 - **`--raw` and `--dos-bin` assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte — correct for ROM
+  a full 64 KB memory image, padded with the fill byte, correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which
   meant slicing 64 KB down by hand. `--raw` writes only the assembled span;
   `--dos-bin` writes that span behind the 4-byte load-address/length header an
@@ -418,17 +679,17 @@ every monitor Casso offered.
   preference and the host file's read-only attribute also refuse a write, and
   neither is touched here. It also flipped its verb on the file attribute as
   well as the in-file flag, so a writable image inside a read-only file offered
-  to allow writes and then could not. It now reads "Clear" or "Set" — the
-  disk — "internal write-protect flag", keyed to the WOZ flag alone.
+  to allow writes and then could not. It now reads "Clear" or "Set", the
+  disk, "internal write-protect flag", keyed to the WOZ flag alone.
 - **Errors reach the user through Casso's own dialogs.** Every user-facing
-  error in the tree — a settings file that will not parse, a disk that will
-  not save, a damaged image — surfaced as a raw Win32 message box in the
+  error in the tree (a settings file that will not parse, a disk that will
+  not save, a damaged image) surfaced as a raw Win32 message box in the
   middle of a themed application, because the notification sink installed at
   startup called `MessageBoxW`. All twenty-one report sites now render as
   ordinary Casso dialogs, with no change at any call site.
 
   Two details that path has to respect. A report can be raised off the UI
-  thread — a motor-idle auto-flush runs on the CPU thread — so those are
+  thread, a motor-idle auto-flush runs on the CPU thread, so those are
   marshaled rather than drawn from wherever they happened. And a failure
   during startup arrives before there is a window to parent a dialog to, which
   is why a system box was used here in the first place; those are now held and
@@ -448,21 +709,21 @@ every monitor Casso offered.
 - Command-line option modelling and parsing moved from the `CassoCli`
   executable into `CassoCore`, where the test project can link it. Parsing was
   previously unreachable from any test. Behavior is unchanged and now pinned by
-  tests; the grammar's one filesystem question — does `build` name a real
-  `build.a65`? — is injected rather than probed directly.
+  tests; the grammar's one filesystem question, does `build` name a real
+  `build.a65`?, is injected rather than probed directly.
 
 ### Fixed
 - **Decoding a sector now verifies it rather than merely parsing it.** Three
   integrity signals are recorded on every Apple II disk and all three were
   being discarded: the address field's checksum was read into locals and
-  explicitly thrown away, the data field's 343rd checksum nibble — the boot
-  ROM's own success gate — was never read at all, and a byte that is not a
+  explicitly thrown away, the data field's 343rd checksum nibble, the boot
+  ROM's own success gate, was never read at all, and a byte that is not a
   legal 6-and-2 code was already detected and ignored. All three are checked
   now.
 
   A fourth check needed no new data and fixes real corruption. The scan for a
   sector's data field ran on past the next address field if the data field was
-  missing, took that sector's data and filed it under the earlier number —
+  missing, took that sector's data and filed it under the earlier number,
   so it decoded cleanly, passed its own checksum, and was simply wrong. One
   point of damage produced two bad sectors, and the second was undetectable
   because nothing about it looked wrong. The scan now stops and rewinds, so a
@@ -477,25 +738,25 @@ every monitor Casso offered.
   One finding worth recording: `AppleStellarInvaders.woz`, whose file-level
   checksum is valid and which round-trips byte for byte, has a sector that
   fails its own data checksum. It is a genuine defect in a 1980 preservation
-  dump that nothing had noticed, not a false positive — every other sector
+  dump that nothing had noticed, not a false positive, every other sector
   on that disk and all 560 on three other intact dumps verify.
 - **The write-protect toggle is no longer offered for a damaged disk.**
   Changing that flag means patching the file and recomputing its header
   checksum, and that checksum failing to match *is* the evidence of damage, so
   the operation refuses a damaged image. The menu item stayed enabled anyway,
   which meant the only way to learn any of this was to click something that
-  could never work. An already-protected image still offers the toggle —
-  clearing the flag is exactly what a user does before writing to a disk —
+  could never work. An already-protected image still offers the toggle, 
+  clearing the flag is exactly what a user does before writing to a disk,
   and only damage disables it.
 - **A menu no longer clips what it has to say.** The Disk menu's dropdown was a
   fixed width, so any row wider than it wrapped and ran into the row beneath.
-  That was already truncating stock accelerators — "Ctrl+Shift+1" rendered
-  as "Ctrl+Shift" — and it left no room for a label that names a file. The
+  That was already truncating stock accelerators, "Ctrl+Shift+1" rendered
+  as "Ctrl+Shift", and it left no room for a label that names a file. The
   dropdown now measures its widest row, label plus accelerator, and keeps the
   old width as a floor, so every menu that fitted before is unchanged.
 - **The write-protect toggle is no longer offered when the write cannot
   succeed.** The flag it changes lives inside the file, so setting or clearing
-  it means writing the file — which a read-only backing file or a
+  it means writing the file, which a read-only backing file or a
   permissions failure makes impossible. The item stayed enabled anyway and
   failed on the click. It now requires a writable file, exactly as it already
   required an undamaged one.
@@ -508,7 +769,7 @@ every monitor Casso offered.
   that passed through a flush came back degraded: a preservation dump lost its
   title, publisher, developer, copyright, language and imaging provenance, and
   its creator field was replaced with `Casso`. The cause was the write-back
-  path itself — it rebuilds the file from the live per-track buffers, which is
+  path itself, it rebuilds the file from the live per-track buffers, which is
   what makes guest writes survive, and a writer that reconstructs from the
   track model can only emit what that model holds. The image now retains the
   source `INFO` chunk and every chunk Casso does not parse, and re-emits them
@@ -518,17 +779,17 @@ every monitor Casso offered.
 
   Two consequences worth knowing. Casso stamps its own name into `creator`
   only on a disk it authored itself and preserves whoever imaged the disk
-  otherwise — overwriting that field destroys the one record of where a dump
+  otherwise, overwriting that field destroys the one record of where a dump
   came from. And a chunk Casso has never heard of no longer ends the chunk
   walk: it is stepped over and kept, where before it stopped the scan and took
   every chunk after it down with it.
 - **A WOZ 1 image upgraded to WOZ 2 keeps what version 1 recorded.** Casso
   always writes version 2. The fields version 1 never had are now filled for
-  the two with no legal zero — disk sides and optimal bit timing — while the
+  the two with no legal zero, disk sides and optimal bit timing, while the
   three Casso cannot derive stay `unknown` rather than being guessed at.
   Creator, synchronized and cleaned carry across.
 - **Toggling a WOZ's write-protect no longer rewrites the disk.** The flag
-  lives inside the file (`INFO` byte 2), so changing it has to write — and the
+  lives inside the file (`INFO` byte 2), so changing it has to write, and the
   only writer available was the one that rebuilds the whole image from the
   track model. One menu click therefore relaid out an entire disk to carry one
   bit, with no guest write and no emulation involved, and it fired in both
@@ -537,7 +798,7 @@ every monitor Casso offered.
   eleven demo images ship write-protected. The toggle now patches the single
   flag byte, recomputes the header checksum and writes the result back
   atomically. Measured across the demo library: un-protecting an image changes
-  five bytes — the flag and the four checksum bytes — where the old path
+  five bytes, the flag and the four checksum bytes, where the old path
   changed up to 223,700 and dropped the `META` chunk.
 
   This is deliberately a guarantee by construction rather than one that
@@ -548,7 +809,7 @@ every monitor Casso offered.
 - **A sector image that cannot be fully decoded is no longer saved as if it
   were** ([#115](https://github.com/relmer/Casso/issues/115)). Writing a
   `.dsk`, `.do` or `.po` back out decodes every track's nibble stream to
-  sectors, and it reported success no matter how much of that failed — so a
+  sectors, and it reported success no matter how much of that failed, so a
   track Casso could only partly read was written over the user's file as a
   mixture of real sectors, zeroed sectors and wrong ones, reported as a clean
   save. Measured on an image with a single sector's data field destroyed: that
@@ -561,7 +822,7 @@ every monitor Casso offered.
   track that decoded some of its sectors but not all fails the whole
   operation. The flush path already handles that correctly: it reports the
   loss and keeps the image dirty, leaving the existing file untouched. A track
-  that decodes nothing at all still succeeds — an unformatted track in a
+  that decodes nothing at all still succeeds, an unformatted track in a
   sector image legitimately is zeros, and treating that as damage would make
   every blank disk refuse to save.
 
@@ -570,7 +831,7 @@ every monitor Casso offered.
 - **A damaged disk image is now held read-only instead of being quietly
   repaired-looking.** Casso has detected a WOZ whose stored checksum does not
   match its contents since 1.16.2, but it went on to treat the file as
-  writable — and rewriting it stamps a freshly computed, correct checksum over
+  writable, and rewriting it stamps a freshly computed, correct checksum over
   the same damage, so nothing afterwards can tell the file is wrong. The image
   now becomes write-protected for the session, as a fifth and separate cause
   alongside the in-file flag, the user preference and the two file-state
@@ -579,7 +840,7 @@ every monitor Casso offered.
   is the point.
 
   Deliberately session state and not the image's own flag, because that flag
-  lives inside the file — setting it would mean writing the very file being
+  lives inside the file, setting it would mean writing the very file being
   protected from writes. The write-protect toggle also now refuses a damaged
   image outright, since patching its flag byte recomputes the header checksum,
   and that checksum failing to match *is* the damage report.
@@ -595,23 +856,23 @@ every monitor Casso offered.
   drive row alike, and the hover text leads with what is wrong and why Casso
   will not write to it.
 - **A disk image that cannot be serialized is no longer "saved" by reverting
-  it.** `DiskImage::Flush` — reached on eject and on //e soft reset — fell back
+  it.** `DiskImage::Flush`, reached on eject and on //e soft reset, fell back
   to writing the file's pre-session bytes over the user's disk when
   serialization failed, and returned success: every guest write of that
   session vanished silently. It also opened the target directly, truncating it
   before the first byte landed, and never checked the stream afterwards, so a
   full volume or a disconnected share destroyed the image and reported nothing
-  — the same defect fixed in the store's flush path in 1.16.2, in a second
+, the same defect fixed in the store's flush path in 1.16.2, in a second
   write path that fix did not cover. Both are gone: the bytes go through the
   atomic write, and a failed serialize now fails loudly and leaves the image
   dirty so a later flush retries.
 
-## [1.16.2] — safer disk image writes
+## [1.16.2]: safer disk image writes
 
 ### Fixed
 - **A failed disk save no longer destroys the disk.** Flushing a mounted image
   opened its own file for writing, which truncates it before the first byte is
-  written, and then never checked whether the write actually succeeded -- so a
+  written, and then never checked whether the write actually succeeded, so a
   full volume or a disconnected share replaced a working image with a truncated
   one, or with nothing at all, and the image was marked saved either way. The
   bytes now land in a temporary file beside the target, are verified in full,
@@ -619,8 +880,8 @@ every monitor Casso offered.
   exactly as it was, reports the loss, and keeps the image dirty so a later
   flush retries.
 - **WOZ images Casso writes can now be read by other tools.** Every WOZ Casso
-  saved -- a mounted disk flushed after a guest write, or a blank disk it
-  created -- declared a `TRKS` chunk size covering only the 160-entry track
+  saved (a mounted disk flushed after a guest write, or a blank disk it
+  created) declared a `TRKS` chunk size covering only the 160-entry track
   record table, leaving the track data that follows it outside the chunk it
   belongs to. Casso read its own files back correctly, so the damage was
   invisible from inside the emulator: a conformant parser adds that size to the
@@ -628,7 +889,7 @@ every monitor Casso offered.
   stops, making every chunk after `TRKS` unreachable to every tool but ours.
   The size now spans the record table plus the block-aligned bit streams, which
   is byte-for-byte what Applesauce writes for the same disk. No track data
-  changes -- only the size field and the header CRC.
+  changes, only the size field and the header CRC.
 
   A round trip still drops the `META` chunk and most of `INFO` (creator,
   synchronized, boot sector format, compatible hardware, required RAM). Those
@@ -636,7 +897,7 @@ every monitor Casso offered.
   preservation dump still loses its provenance on flush.
 - **A damaged WOZ is now reported instead of quietly repaired-looking.** The
   loader never checked the checksum stored in a WOZ header, while the writer
-  always stamped a freshly computed one -- so a corrupt image opened silently,
+  always stamped a freshly computed one, so a corrupt image opened silently,
   and the first save replaced it with a correctly checksummed copy of the same
   damage, after which nothing could tell it had ever been wrong. Casso now
   validates the stored checksum at load and says so when it does not match. The
@@ -652,41 +913,41 @@ every monitor Casso offered.
   fed faster than the guest could take them. Feeding is now paced in emulated
   cycles and waits for the keyboard strobe to stay clear, because the guest
   clears it the moment it takes a key but may flush the keyboard again while
-  processing one — so a character sent on the first clear reading races into
+  processing one, so a character sent on the first clear reading races into
   that window and is dropped.
 
-## [1.16.1] — the //c mouse works with VBL-interrupt software
+## [1.16.1]: the //c mouse works with VBL-interrupt software
 
 ### Fixed
 - **The //c mouse was dead in MousePaint** (and in anything else that runs
   the mouse from the vertical-blank interrupt rather than from movement
   interrupts). Mouse mode only came alive once guest software enabled the
-  IOU's X/Y movement interrupt — but `SETMOUSE` does not program that for
+  IOU's X/Y movement interrupt, but `SETMOUSE` does not program that for
   every active mode: MousePaint's main app asks for mouse-on plus VBL
   interrupt and leaves X/Y masked, so the pointer sat frozen wherever the
   firmware left it and clicks went nowhere. Either interrupt enable now
   counts, and Mouse mode is still invisible at a BASIC prompt.
 - **The IOU register gate ignored half its addresses.** `$C07E`/`$C07F`
   (SETIOUDIS / CLRIOUDIS) drive the same latch as `$C078`/`$C079`, and
-  Apple //c Technical Note #9 documents that pair for VBL polling — so
+  Apple //c Technical Note #9 documents that pair for VBL polling, so
   the published sequence was programming annunciators instead of the
   mouse switches.
 - The Input Debug panel called a held //c mouse button released: `$C063`
   is active low there (`$00` = pressed), unlike the //e's shift-key mod
   at the same address.
 
-## [1.16.0] — create blank disks + write-protect toggle
+## [1.16.0]: create blank disks + write-protect toggle
 
 ### Added
 - **Create blank disks in-app.** The insert-disk picker gains a pinned
   `<Create new disk...>` first row that opens a themed save-style dialog:
   browse folders (with a `..` row) right in the dialog, pick the format
   (DOS 3.3, ProDOS 1.1.1, or unformatted) and the image type (WOZ, DSK,
-  or PO — the format drives which types are offered, so only legal
+  or PO, the format drives which types are offered, so only legal
   pairings exist), and name the file. The new disk mounts straight into
   the drive that opened the picker. A freshly created DOS 3.3 or ProDOS
-  disk is immediately usable — the guest can `SAVE` / `CAT` with no
-  `INIT` step — and an optional Make-bootable checkbox installs the real
+  disk is immediately usable, the guest can `SAVE` / `CAT` with no
+  `INIT` step, and an optional Make-bootable checkbox installs the real
   OS from the stock master disks (downloaded on demand with an explicit
   click when not cached): DOS 3.3 disks boot to a clean Applesoft prompt
   via a `HELLO` greeting, ProDOS disks boot through `PRODOS` into
@@ -702,12 +963,12 @@ every monitor Casso offered.
   target and states the action: "Write-protect \"Blank Disk.woz\"" flips
   to "Allow writes to \"Blank Disk.woz\"" once protected (enabled only
   while mounted). WOZ images flip the write-protect flag that travels
-  inside the file — pending guest writes are flushed first so nothing is
-  lost — while DSK/DO/PO images set or clear the host file's read-only
+  inside the file, pending guest writes are flushed first so nothing is
+  lost, while DSK/DO/PO images set or clear the host file's read-only
   attribute. The drive widget's padlock and its tooltip re-read reality
-  after each toggle — the tooltip names the disk and the exact cause
+  after each toggle; the tooltip names the disk and the exact cause
   ("WOZ write-protect flag", "file is read-only", "no write permission",
-  or the drive-level Settings preference) — and a protected disk fails a
+  or the drive-level Settings preference), and a protected disk fails a
   guest `SAVE` with `WRITE PROTECTED` exactly like the notch tab on real
   media.
 
@@ -721,13 +982,13 @@ every monitor Casso offered.
   Ctrl+Left/Right word jumps (host supplies the text renderer)
 - ui: the file-open picker no longer advertises `*.nib` (never mountable)
 
-## [1.15.2] — settings live-preview fixes
+## [1.15.2]: settings live-preview fixes
 
 ### Fixed
 - fix(settings): the Display live-preview reveal shows the emulator instead of an opaque gray block (DWM frame fill behind the composited sheet; reveal now hugs the CRT image and pins the emulator window behind the sheet)
 - fix(settings): the emulator responds to Display slider drags immediately instead of in bursts when the drag pauses (message-drain deadline + the sheet no longer stacks a second vblank wait)
 
-## [1.15.1] — drive-door polish + small fixes
+## [1.15.1]: drive-door polish + small fixes
 
 ### Fixed
 - fix(chrome): drive door animates in parallel with the disk picker instead of stalling until it closes
@@ -745,72 +1006,72 @@ every monitor Casso offered.
 - trace: interrupt-handler entries tagged; IRQ/NMI rates summarized
 - internal: repo-wide style sweep, now gated by CheckStyle in the pre-push hook and CI
 
-## [1.15.0] — Apple //c mouse fixes
+## [1.15.0]: Apple //c mouse fixes
 
 ### Fixed
 - **fix(2c): acknowledge the //c VBL interrupt across the whole $C070-$C07F
-  PTRIG page** — the paddle-timer strobe is only partially decoded, so any
+  PTRIG page**; the paddle-timer strobe is only partially decoded, so any
   access in $C070-$C07F fires PTRIG and clears the VBL interrupt latch; Casso
   honored only the literal $C070. Apps that run the mouse in VBL-interrupt mode
   acknowledge the VBL as a side effect of a $C07x access (MousePaint does
   `STA $C079` each interrupt), so the latch was never cleared and the interrupt
-  re-fired every time interrupts were enabled — pinning the CPU in its handler.
+  re-fired every time interrupts were enabled, pinning the CPU in its handler.
   MousePaint's main app was effectively unusable: menus and tools ignored
   clicks and the cursor lagged badly. Both are fixed. (Karateka's sticky
-  `$C019` VBL poll is unaffected — it never touches $C07x during its wait.)
+  `$C019` VBL poll is unaffected, it never touches $C07x during its wait.)
 
 ### Changed
 - **perf(mouse): batch `AppleMouse::Tick` bookkeeping off the per-instruction
-  path** — keep only the movement latch per-instruction (so the cursor tracks
+  path**; keep only the movement latch per-instruction (so the cursor tracks
   without lag) and run the retarget countdown, VBL onset sample, and host-motion
   drain at a coarse cadence (`kSampleQuantum`). ~31% cheaper per tick
   (4.07 → 2.81 ns, microbenchmarked); //c-only, feel-neutral.
 
-## [1.14.0] — Emulated ImageWriter II printer (spec 015)
+## [1.14.0]: Emulated ImageWriter II printer (spec 015)
 
 ### Added
-- **feat(printer): parallel printer card + original slot firmware** — a dumb,
+- **feat(printer): parallel printer card + original slot firmware**: a dumb,
   output-only parallel interface card (default slot 1, optional per machine)
   with firmware assembled from in-repo source (parity- and CPU-execution-
   tested): honors the COUT contract (A/X/Y preserved), injects LF after CR
   like Apple's real card, and deliberately claims no Pascal 1.1 signature.
-- **feat(printer): ImageWriter II interpreter** — the command subset locked
+- **feat(printer): ImageWriter II interpreter**: the command subset locked
   from real Print Shop byte captures: `ESC G` (native 160 dpi, LSB = top pin)
   and `ESC L` (120 dpi, MSB = top pin) bit image, `ESC T`/`A`/`B` line
   spacing, `ESC K` seven-color select with overprint composites, the
   documented pitch family, and reset. Card status byte `$83` satisfies both
   the Apple II Parallel and Grappler+ driver probes.
-- **feat(printer): draft text printing** — an original 95-glyph dot-matrix
+- **feat(printer): draft text printing**: an original 95-glyph dot-matrix
   font (5×7 body + descender row, designed in-repo): `PR#1` + `LIST` /
   `CATALOG` print readable text at every documented pitch with 80-column
   wrap and high-bit ASCII handling.
-- **feat(printer): live skeuomorphic preview** — a real-3D ImageWriter II
+- **feat(printer): live skeuomorphic preview**: a real-3D ImageWriter II
   (the project's own CAD model via an OBJ import pipeline) with fanfold
   paper, tractor strips and perforations, a one-page live viewport with
   scrollback, and paper that reads through the smoked cover like the real
   machine.
-- **feat(printer): one print-head clock** — carriage animation, ink reveal,
+- **feat(printer): one print-head clock**: carriage animation, ink reveal,
   and audio share a single pacing model: bidirectional passes at real draft
   speed, logic seeking (a pass spans only the printed region), blank feeds
   slewing with the head parked, and jump-cut coalescing for huge backlogs.
-- **feat(printer): mechanical audio** — Scott Lawrence's CC BY 4.0
+- **feat(printer): mechanical audio**: Scott Lawrence's CC BY 4.0
   ImageWriter II recordings (bundled, attributed): quality-keyed carriage
   loops gated by an edge-triggered ink detector, per-line feed clacks, page
   feeds, and tear-offs; window-relative stereo auto-pan with a manual
   override; printer volume + mute on Settings > Printing.
-- **feat(printer): delivery** — non-destructive Print / Save PNG / Copy (the
+- **feat(printer): delivery**: non-destructive Print / Save PNG / Copy (the
   paper stays until Discard tears it off); the modern Windows print dialog
   with a live preview of the real paginated pages (PrintManager interop +
   Direct2D print control, classic dialog fallback); pending printouts
   persist per machine across sessions.
-- **feat(chrome): command toolbar** — Settings, Printer (with an event-only
+- **feat(chrome): command toolbar**: Settings, Printer (with an event-only
   status LED: green printing, amber page waiting, red delivery error),
   master volume + mute, Screenshot, Reset, and Power below the menu bar;
   responsive three-tier presentation (icon+label → ribbon → icon-only with
   tooltips); replaces the standalone printer indicator.
-- **feat(audio): master output volume** — one gain over the completed mix
+- **feat(audio): master output volume**: one gain over the completed mix
   (speaker, drives, printer, Mockingboard), persisted with mute.
-- **feat(printer): Settings > Printing info banner** — a themed banner at the
+- **feat(printer): Settings > Printing info banner**: a themed banner at the
   top of the Printing tab states what printer the current machine emulates and
   how it connects ("Apple ImageWriter II ... parallel interface"), or that a
   slotless machine (//c) has none; built on a new reusable `DxuiInfoBanner`
@@ -825,7 +1086,7 @@ every monitor Casso offered.
   entry points.
 - **fix(dxui):** showing an already-visible window without activation keeps
   it maximized (`SW_SHOWNA`).
-- **fix(printer):** honest Windows spool failure mapping — SP_* return codes
+- **fix(printer):** honest Windows spool failure mapping, SP_* return codes
   and mid-job Save-As cancels handled; failure dialogs name the failing
   stage in plain language with the OS detail attached.
 - **fix(cpu):** unimplemented undocumented opcodes log instead of breaking
@@ -839,10 +1100,10 @@ every monitor Casso offered.
   builds; the run-state tag and build-identity stamp are kept in Debug only,
   and a paused / stopped emulator is still flagged in every build.
 
-## [1.13.0] — Emulation and render performance
+## [1.13.0]: Emulation and render performance
 
 ### Changed
-- **perf(emulation): per-instruction hot path** — a sweep of the work that runs
+- **perf(emulation): per-instruction hot path**: a sweep of the work that runs
   on every emulated instruction. RAM/ROM reads now serve inline from a page
   table instead of a virtual dispatch; I/O ($C000–$FFFF) resolves through a
   direct device map instead of scanning the device list; the language-card
@@ -851,29 +1112,29 @@ every monitor Casso offered.
   //c mouse tick shed redundant per-instruction work (the mouse's vertical-blank
   edge is now sampled on a coarse cadence rather than checked every
   instruction). Net: lower steady-state emulation CPU, most visibly on the //c.
-- **perf(video): dirty-row text rendering** — the 40- and 80-column text
+- **perf(video): dirty-row text rendering**: the 40- and 80-column text
   screens re-rasterize only the rows whose characters changed since the last
   frame (plus, on the flash blink, the rows holding a flashing glyph) instead
-  of redrawing all 24 rows every frame — so a scrolling catalog or a blinking
+  of redrawing all 24 rows every frame, so a scrolling catalog or a blinking
   cursor no longer repaints the whole screen.
-- **perf(render): cached text shaping and geometry** — the UI chrome caches its
+- **perf(render): cached text shaping and geometry**: the UI chrome caches its
   shaped text layouts and solid brushes instead of re-shaping every label each
   frame, and appends quad geometry in bulk.
-- **perf(audio): idle Mockingboard** — AY-3-8910 tone/noise synthesis is skipped
+- **perf(audio): idle Mockingboard**: AY-3-8910 tone/noise synthesis is skipped
   while the chip is fully muted.
 
 ### Fixed
-- **fix(shell): machine switch** — switching machine model (e.g. //c → //e) from
+- **fix(shell): machine switch**: switching machine model (e.g. //c → //e) from
   the menu no longer trips a UI-thread assertion; the pointer and joystick
   controls are re-synced on the UI thread once the switch completes.
 
-## [1.12.0] — Skeuomorphic CRT monitor
+## [1.12.0]: Skeuomorphic CRT monitor
 
 ### Added
-- **feat(chrome): skeuomorphic CRT monitor desk scene** — an opt-in
+- **feat(chrome): skeuomorphic CRT monitor desk scene**: an opt-in
   "CRT monitor desk scene" checkbox on **Settings → Theme** (skeuo themes
   only, default off) frames the emulator display in a procedurally-drawn
-  period **Apple Monitor //c** — snow-white/platinum shell with an even
+  period **Apple Monitor //c**, snow-white/platinum shell with an even
   chunky bezel, straight sides with rounded corners and a slightly bowed
   glass, a recessed screen, the rainbow cassowary brand and a lit power lamp
   on the chin. The display sits inside the glass at true 100% zoom by default
@@ -884,27 +1145,27 @@ every monitor Casso offered.
   because the scene trades screen real estate for the look.
 
 ### Changed
-- **perf(shell): idle CPU and GPU** — the emulator no longer re-rasterizes the
+- **perf(shell): idle CPU and GPU**: the emulator no longer re-rasterizes the
   screen and re-runs the full CRT post-process + Present every 60 Hz when
   nothing on screen has changed. The memory bus now tracks writes into the
   display pages (dirty-tracking), so the video frame is regenerated only when
-  the picture's actual inputs move — a write that changes displayed memory, a
-  video mode / soft-switch change, the text flash phase, or the monitor color —
+  the picture's actual inputs move (a write that changes displayed memory, a
+  video mode / soft-switch change, the text flash phase, or the monitor color)
   and a static screen (a menu, a BASIC prompt) drops render + present work
   toward zero instead of pinning the GPU at a constant load. The UI thread now
   blocks until the next frame or input arrives rather than spin-polling, and at
   Maximum speed the CPU runs flat-out while the picture is still only shown ~60
-  times a second — no more burning cores on frames no one ever sees.
+  times a second, no more burning cores on frames no one ever sees.
   Drive-activity lights keep animating through a disk load even behind an
   otherwise static screen.
 
 ### Fixed
-- **fix(shell): saved CPU speed now applies at startup** — a saved emulation
+- **fix(shell): saved CPU speed now applies at startup**: a saved emulation
   speed of Double or Maximum is applied when Casso launches, instead of only
   showing in Settings while the CPU quietly ran at Authentic speed until the
   setting was re-selected. The cold-boot path applied the saved color mode but
   overlooked the speed mode.
-- **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
+- **fix(window): Alt+Enter fullscreen**: several fullscreen defects are
   resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
   chain) was double-handling the keystroke and racing the app's own
   borderless toggle; it is now disabled via `DXGI_MWA_NO_ALT_ENTER` so the
@@ -913,16 +1174,16 @@ every monitor Casso offered.
   full-monitor rect as the window size), a maximized window round-trips back
   to maximized with its underlying size intact, and a mid-transition assert
   dialog can no longer strand the window as an unescapable, taskbar-covering
-  borderless popup — the toggle self-heals from a state desync and always
+  borderless popup, the toggle self-heals from a state desync and always
   hands back a movable, closable window.
 
-## [1.11.0] — Undocumented NMOS opcodes
+## [1.11.0]: Undocumented NMOS opcodes
 
 ### Added
-- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95) — the CPU now
-  executes the stable undocumented opcodes real Apple II software relies on —
+- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95), the CPU now
+  executes the stable undocumented opcodes real Apple II software relies on,
   SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA across their addressing modes, plus
-  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family — instead of tripping
+  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family, instead of tripping
   the illegal-opcode assert. Each is validated against the Tom Harte
   SingleStepTests (10,000 vectors per opcode) and composes the existing ALU
   primitives so flag and decimal-mode behavior is inherited. The unstable
@@ -931,53 +1192,53 @@ every monitor Casso offered.
   `NOP` still assembles to `$EA`.
 
 ### Fixed
-- **fix(chrome): resize the top-right window corner** (#98) — the diagonal
+- **fix(chrome): resize the top-right window corner** (#98), the diagonal
   resize grab is now a larger corner square than the straight edges, so the
   top-right corner is draggable even though the close button sits on it. Every
   Dxui-chromed window (main window + dialogs) is fixed at once.
 
-## [1.10.0] — Apple //c case-switch strip
+## [1.10.0]: Apple //c case-switch strip
 
 ### Added
-- **feat(machine): //c case-switch strip** — the two latching switches on
+- **feat(machine): //c case-switch strip**: the two latching switches on
   the top of the //c case are now modeled and exposed. The **80/40 switch**
-  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
+  drives `$C060` (RD80SW) bit 7, pressed in (down) selects 80-column
   startup, out selects 40; it is a software-read switch (a booting disk's
   `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
   hardware. The **keyboard switch** remaps the typed character stream to the
   Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
   host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
   received character is already correct), and paste is never remapped. A
-  new skeuomorphic control strip — painted in the //c's platinum case
+  new skeuomorphic control strip (painted in the //c's platinum case
   color, between the emulator viewport and the joystick/paddle/mouse
-  bar, //c-only — reproduces the case top: a **reset** button (inert unless
+  bar, //c-only) reproduces the case top: a **reset** button (inert unless
   Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
   it for cold boot), the two latching switches, and lit **disk-use** /
   **power** indicator LEDs. The reset button and switches are drawn as the
   real hardware's right-slanted parallelogram caps, sitting proud of the case
-  and depressing below its surface when clicked — an unmistakable pressed cue.
+  and depressing below its surface when clicked, an unmistakable pressed cue.
   Both latching switch positions are remembered per machine across runs.
 
 ### Changed
-- **refactor(shell): harden emulator startup** — `EmulatorShell::Initialize`
+- **refactor(shell): harden emulator startup**: `EmulatorShell::Initialize`
   (previously ~600 lines at 9+ levels of nesting) is decomposed into focused,
   single-purpose steps with consistent EHM error handling. Genuine
   infrastructure failures (window, renderer, CPU, and UI-shell bring-up) abort
   startup and assert in debug builds; a corrupt or unreadable settings file
-  now recovers to defaults — asserting in debug so a developer can dig in —
+  now recovers to defaults, asserting in debug so a developer can dig in,
   instead of being silently swallowed; and `DiskImageStore` surfaces a failed
   disk-flush through the shared error notifier itself rather than through a
   reporter callback the shell had to wire up.
 
 ### Fixed
-- **fix(ui): Copy Text on 80-column screens** — Edit ▸ Copy Text now reads the
+- **fix(ui): Copy Text on 80-column screens**: Edit ▸ Copy Text now reads the
   interleaved auxiliary + main text banks when the 80-column display is active,
   instead of capturing only every other character.
 
-## [1.9.0] — Write-protect indicator
+## [1.9.0]: Write-protect indicator
 
 ### Added
-- **feat(disk): write-protect indicator** — a write-protected drive now
+- **feat(disk): write-protect indicator**: a write-protected drive now
   shows a small brass padlock on its face (both the skeuomorphic and
   compact drive widgets), and hovering the drive raises a tooltip that
   states the disk is write-protected and names the source(s): the
@@ -985,7 +1246,7 @@ every monitor Casso offered.
   file, or missing write permission for the file.
 
 ### Fixed
-- **fix(disk): honor the write-protect setting** — the Settings ▸ Disk
+- **fix(disk): honor the write-protect setting**: the Settings ▸ Disk
   "Write protect" checkboxes previously did nothing. They now actually
   protect the mounted disk (the guest sees the write-protect sense bit and
   writes are rejected), the preference is re-applied across ejects/remounts
@@ -993,64 +1254,64 @@ every monitor Casso offered.
   is likewise treated as write-protected so in-emulator writes can't be
   silently lost.
 
-## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
+## [1.8.0]: Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 
 ### Added
-- **feat(machine): Apple //c** — a new machine profile on the //e substrate,
+- **feat(machine): Apple //c**: a new machine profile on the //e substrate,
   scoped to the 5.25"/128K //c with the **Memory Expansion ROM (ROM 4)**
   (managed asset, download-on-demand). Boots real DOS 3.3 / ProDOS media;
   with no disk it reaches the authentic "Check Disk Drive." state.
-- **feat(cpu): Rockwell R65C02 core** — full 65C02 instruction set including
+- **feat(cpu): Rockwell R65C02 core**: full 65C02 instruction set including
   the Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`, used by the //c firmware),
   new addressing modes, and CMOS behavioral fixes (indirect-`JMP` page bug,
   decimal-mode flags/cycles). Validated against Klaus Dormann's 65C02
   functional test and Tom Harte's SingleStepTests.
-- **feat(asm): 65C02 assembly (`--cpu 65c02`)** — the built-in as65 assembler
+- **feat(asm): 65C02 assembly (`--cpu 65c02`)**: the built-in as65 assembler
   can now target the 65C02. `--cpu 65c02` unlocks the CMOS opcodes (`STZ`,
   `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, the `(zp)` and `(abs,X)` modes);
   the default stays a strict 6502, so 65C02-only opcodes are rejected unless
   requested. The Rockwell bit ops accept both as65's `<bit>,<zp>[,<target>]`
   operand form and the suffixed spelling (`RMB0 $zp`, `BBR3 $zp,target`), and
   the `.a65c` extension is recognized. `NOP` assembles to the canonical `$EA`.
-- **feat(machine): slotless phantom-slot firmware map** — the //c's built-in
+- **feat(machine): slotless phantom-slot firmware map**: the //c's built-in
   peripherals answer at their fixed firmware pages (serial 1/2, 80-column,
   disk at $C600, mouse at $C700 on ROM 4) through the internal 32K
   bank-switched ROM ($C028 bank flip-flop); no user-insertable slots.
-- **feat(disk): IWM mode** — the built-in slot-6 drive is an Integrated Woz
+- **feat(disk): IWM mode**: the built-in slot-6 drive is an Integrated Woz
   Machine over the shared WOZ nibble engine (MODE/STATUS registers; reads,
   writes, and boot verified end-to-end), plus an optional **external drive**
   with a Connected / Not connected toggle on the Machine tab.
 - **feat(serial): dual 6551 ACIA serial ports** (port 1 printer, port 2
   modem) with loopback/file endpoints; one shared ACIA implementation also
   consumed by the printer feature. (Serial *printing* lands via issue #87.)
-- **feat(mouse): //c IOU mouse** — full hardware model (X0/Y0 movement
+- **feat(mouse): //c IOU mouse**: full hardware model (X0/Y0 movement
   interrupts with $C048 acknowledge, $C015/$C017 status, VBL latch at
   $C019 cleared by $C070, IOUDIS-gated $C058-$C05F programming) driven by
   the REAL ROM 4 mouse firmware; the host pointer maps absolutely onto the
   guest mouse (non-capturing) while over the emulator viewport. The mouse
   is a connectable peripheral (Machine-tab toggle, default connected).
-- **feat(input): split input model + device selector** — input mapping is
+- **feat(input): split input model + device selector**: input mapping is
   now two orthogonal selections (Keys: arrows→joystick; Pointer: paddle or
   mouse), replacing the single cycle mode, with a new segmented drive-bar
   selector drawing skeuomorphic glyphs of the real Apple peripherals
   (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
-- **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
+- **feat(cpu): live hardware IRQ dispatch**: the CPU loop now services
   maskable interrupts from the shared interrupt controller (the //c mouse
   and VBL are the first sources); the 65C02 vector prologue is accounted
   like an instruction, leaving existing machines byte-identical.
-- **feat(machine): Apple //e Enhanced** (issue #86) — the //e with a 65C02
+- **feat(machine): Apple //e Enhanced** (issue #86), the //e with a 65C02
   and the enhanced firmware + MouseText video ROM, so it runs the CMOS
   titles that misbehave on the NMOS //e. Reuses the //e substrate (128K,
   slot-4 Mockingboard, slot-6 Disk ][); the enhanced ROM is a managed
   download-on-demand asset. Auto-discovered by the machine picker; cold-boots
   its firmware on the 65C02 (headless boot test).
 
-## [1.7.0] — Mockingboard sound card (GH #66)
+## [1.7.0]: Mockingboard sound card (GH #66)
 
 ### Added
 - **feat(emu): Mockingboard A/C sound card emulation.** Adds the de-facto
   Apple II audio standard: two clean-room chip cores written from the
-  datasheets — a generic **6522 VIA** (full register file, Timer 1
+  datasheets, a generic **6522 VIA** (full register file, Timer 1
   one-shot/continuous, Timer 2, IFR/IER and a level-sensitive IRQ line,
   ports A/B with data-direction registers) and an **AY-3-8910 PSG** (three
   square-wave tone channels, a 17-bit-LFSR noise generator, a 16-level
@@ -1058,8 +1319,8 @@ every monitor Casso offered.
   resampled to the host rate). A **MockingboardCard** aggregates two of
   each in a slot's `$Cn00` I/O page, decoding address bit 7 to the two VIAs
   and translating each VIA's port A/B into the AY data bus and BC1/BDIR/RESET
-  control lines. Timer 1 IRQs — the tempo source Mockingboard music players
-  rely on — feed the existing interrupt controller, and the two PSGs mix
+  control lines. Timer 1 IRQs, the tempo source Mockingboard music players
+  rely on, feed the existing interrupt controller, and the two PSGs mix
   into the stereo bus (PSG #1 hard-left, PSG #2 hard-right) through a
   dedicated audio mixer so they sum cleanly with the speaker and Disk II
   audio. The card is installed in slot 4 of the Apple ][+ and //e profiles
@@ -1072,19 +1333,19 @@ every monitor Casso offered.
 ### Fixed
 - **fix(cpu): the emulator run loop now services maskable interrupts.**
   The shell drove the CPU exclusively through the interrupt-blind
-  `StepOne`, so no device IRQ was ever dispatched — latent until the
+  `StepOne`, so no device IRQ was ever dispatched, latent until the
   Mockingboard became the first device in Casso to assert one. Music
   players (e.g. *Zaxxon*) arm a Timer 1 IRQ and depend on its handler
   firing; without dispatch they stayed silent. Each step site now
   dispatches a pending NMI/IRQ before executing the next instruction.
 
-## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
+## [1.6.4]: Disk ][ Debug panel virtualization (GH #88)
 
 ### Fixed
 - **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
   activity (GH #88).** Every render frame rebuilt and re-materialized the
-  entire event list into the `DxuiListView` — up to 100,000 rows, each six
-  freshly-heap-allocated `std::wstring` cells — even when only a handful of
+  entire event list into the `DxuiListView` (up to 100,000 rows, each six
+  freshly-heap-allocated `std::wstring` cells) even when only a handful of
   events were visible and nothing had changed. Under a `SAVE` or a Print
   Shop print (thousands of head-step / address-mark events per second) the
   per-frame allocation storm starved the UI thread and the app appeared to
@@ -1104,10 +1365,10 @@ every monitor Casso offered.
   instead of silently jumping. The resolution logic is a pure, headlessly
   unit-tested helper (`DebugDialogProjection::ResolveSelection`).
 
-## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
+## [1.6.3]: Disk write persistence: WOZ write-back, flush safety
 
 Follows GH #89 (which fixed the emulated write *bit*) by fixing the
-*persistence* layer that #89 never touched — the path from the in-memory
+*persistence* layer that #89 never touched, the path from the in-memory
 track bit streams back to the host file.
 
 ### Fixed
@@ -1133,7 +1394,7 @@ track bit streams back to the host file.
   when the drive motor spins down (a naturally debounced, ~1s-after-last-access
   "operation complete" boundary), so writes survive a crash/kill before the
   next eject or exit. The flush fires on the CPU thread inside
-  `Disk2Controller::Tick` — the thread that owns the disk writes — so it races
+  `Disk2Controller::Tick`, the thread that owns the disk writes, so it races
   nothing, and skips clean images.
 - **feat(disk): the disk picker now lists sibling images from recent-disk
   folders.** Both the boot-time and runtime insert pickers previously showed
@@ -1152,7 +1413,7 @@ track bit streams back to the host file.
   `IsForeignCheckoutDisk`: the shared `%LOCALAPPDATA%` MRU is populated by
   every checkout of the repo on the machine (the main tree plus each
   `.claude/worktrees/<name>` copy), so the picker now hides recent disks that
-  live in *any* checkout other than the one the running exe belongs to —
+  live in *any* checkout other than the one the running exe belongs to,
   including the **main tree** when running from a worktree, which the old rule
   let through. Disks outside the repo entirely (the user's own folders,
   `%LOCALAPPDATA%`) always show, so this is invisible to installed users (no
@@ -1165,7 +1426,7 @@ track bit streams back to the host file.
   still shows the old files" symptom was flush *timing*, now addressed by the
   motor-idle auto-flush above.
 
-## [1.6.2] — Disk ][ write round-trip fix (GH #89)
+## [1.6.2]: Disk ][ write round-trip fix (GH #89)
 
 ### Fixed
 - **fix(disk): writes to `.dsk` images now round-trip (GH #89).** DOS 3.3
@@ -1176,7 +1437,7 @@ track bit streams back to the host file.
   are clocked in lockstep by the 2 MHz Q3; a cycle-stepped emulator that
   catches the LSS up in bursts at each soft-switch access cannot hold that
   sub-clock lockstep, so the sampled bit desynced and deposited ~`AA`
-  garbage where `FF` sync belongs — corrupting every data field DOS wrote.
+  garbage where `FF` sync belongs, corrupting every data field DOS wrote.
   The write bit is now sourced straight from the shift-register MSB
   (`Disk2NibbleEngine::StepLss`), the physically correct write-head signal,
   which is robust to catch-up granularity. Address fields were never
@@ -1185,9 +1446,9 @@ track bit streams back to the host file.
 - Added hermetic write→read-back regression gates: an engine-level
   `FF`-sync round trip, a CPU-driven known-nibble round trip through the
   raw bitstream, and an end-to-end DOS 3.3 `SAVE`/`LOAD`/`LIST` round trip
-  — closing the bit-exact write-fidelity gap deferred in #67.
+, closing the bit-exact write-fidelity gap deferred in #67.
 
-## [1.6.1] — Keyboard accelerator fixes
+## [1.6.1]: Keyboard accelerator fixes
 
 Emulator keyboard shortcuts moved off plain `Ctrl+<letter>` so they stop
 stealing valid //e control keystrokes from the running software.
@@ -1195,7 +1456,7 @@ stealing valid //e control keystrokes from the running software.
 ### Fixed
 - **fix(input): emulator accelerators no longer swallow //e `Ctrl+<letter>`
   keys.** The joystick-mode toggle, Reset, and Power cycle used plain
-  `Ctrl+<letter>` chords, which are valid //e keystrokes the guest reads —
+  `Ctrl+<letter>` chords, which are valid //e keystrokes the guest reads,
   so, e.g., Rocky's Boots never saw its Ctrl+I/J/K/M fine-movement keys.
   They now use Ctrl+Shift: **Ctrl+J → Ctrl+Shift+J** (joystick),
   **Ctrl+R → Ctrl+Shift+R** (Reset), and Power cycle **Ctrl+Shift+R →
@@ -1208,7 +1469,7 @@ stealing valid //e control keystrokes from the running software.
   Added to the source-checkout demo disks listed in the picker (Carmen as
   its side A / side B flip-disk pair).
 
-## [1.6.0] — Disk picker, optional Disk ][, and the reusable Dxui library (spec 013)
+## [1.6.0]: Disk picker, optional Disk ][, and the reusable Dxui library (spec 013)
 
 The boot / Insert-Disk picker gained search and sort and is preloaded with
 the repo's demo disks; Settings added an "Apply now" theme, a
@@ -1232,7 +1493,7 @@ Direct3D swap chain directly.
   keeps it.
 - **feat(ui): searchable, sortable, keyboard-navigable disk picker with a
   last-loaded date column.** The boot and Insert-Disk pickers gain a search
-  box — type to filter recent disks (case-insensitive; space-separated
+  box, type to filter recent disks (case-insensitive; space-separated
   terms must all match, across name, location, and date), with the matched
   text highlighted in each row; the magnifier glyph slides away on focus
   and an X button clears the field. The leading "Last loaded" column shows
@@ -1246,7 +1507,7 @@ Direct3D swap chain directly.
   between columns, Enter/Space sorts or reverses) → the dialog buttons. The
   dialog is resizable (drag any edge; it opens at a sensible size clamped to
   your monitor) and the list shows horizontal and vertical scrollbars as
-  needed — Shift+wheel or the bottom scrollbar reaches a long location path.
+  needed, Shift+wheel or the bottom scrollbar reaches a long location path.
 - **feat(settings): optional Disk ][ controller.** A machine can now run
   with no Disk ][ controller. Settings shows the **Disk** tab only when a
   controller is present (the old Hardware tab folds into the Machine tab),
@@ -1305,7 +1566,7 @@ Direct3D swap chain directly.
 - **fix(shell): machine switch no longer trips the UI-thread guard.**
   `SwitchMachine` runs on the CPU thread and refreshed the window title
   there, but `DxuiHwndSource::SetTitle` mutates the caption bar and is
-  UI-thread-only — so a machine switch / hardware-reset reboot asserted in
+  UI-thread-only, so a machine switch / hardware-reset reboot asserted in
   debug (and raced the caption in release). `UpdateWindowTitle` now
   marshals the refresh onto the UI message loop when called off-thread.
 - **fix(input): show host joystick and paddle movement in the Input Debug
@@ -1329,7 +1590,7 @@ Direct3D swap chain directly.
   rather than "Asimov archive (Download)"; selecting it mounts the local
   copy without re-downloading.
 
-## [1.5.1566] — Drive-audio mixer controls; text-color picker; themed settings widgets
+## [1.5.1566]: Drive-audio mixer controls; text-color picker; themed settings widgets
 
 ### Added
 - **feat(audio): per-drive volume, stereo pan, and sound audition.** The
@@ -1337,9 +1598,9 @@ Direct3D swap chain directly.
   (defaulting to 90 / 100 / 100 %) and an independent Left…Center…Right pan
   slider per drive (defaults −0.5 / +0.5, equal-power placement), so the two
   floppy drives sit on opposite sides of the stereo image. A play button
-  beside each control auditions that sound at the dialed level — volume
+  beside each control auditions that sound at the dialed level (volume
   previews play balanced at center, pan previews at the dialed position,
-  both using the currently-selected mechanism — and a **Reset** button
+  both using the currently-selected mechanism) and a **Reset** button
   restores the audio defaults. Live changes marshal to the CPU/mixing
   thread (`IDM_AUDIO_DRIVE_VOLUMES` / `_PAN` / `_TEST`). The Alps mechanism,
   which ships no door sample, now falls back to the Shugart door sound
@@ -1349,7 +1610,7 @@ Direct3D swap chain directly.
   saturation / value sliders, a live preview swatch, and a hex entry)
   launched from the Display tab; the hex field has a copy-to-clipboard icon.
 - **feat(ui): Windows-style text input.** `TextInput` was rewritten to behave
-  like a native edit control — a correctly sized blinking caret, arrow /
+  like a native edit control, a correctly sized blinking caret, arrow /
   Ctrl+arrow / Home / End movement, Shift / Ctrl+Shift selection, mouse
   click-drag and double-click word selection, and clipboard cut / copy /
   paste.
@@ -1359,7 +1620,7 @@ Direct3D swap chain directly.
   toggles, dropdowns, the tab strip, buttons, and the joystick LED in the
   Settings panel now derive every color from the active ChromeTheme (e.g.
   green under Retro Terminal) instead of a fixed blue. The `Button` widget no
-  longer exposes free-form color overrides — a themed Default / Primary
+  longer exposes free-form color overrides, a themed Default / Primary
   variant makes it impossible to draw a button that ignores the theme.
   Slider pucks and toggle pills are darkened to keep ≥3:1 contrast (WCAG
   1.4.11) against their white sub-elements, and the primary (OK) button
@@ -1374,13 +1635,13 @@ Direct3D swap chain directly.
   names case-insensitively and stores the canonical mixed-case form, so the
   selected mechanism is applied at startup.
 
-## [1.5.1555] — Apple ][ / ][ plus game port; inverse-text fix; execution trace
+## [1.5.1555]: Apple ][ / ][ plus game port; inverse-text fix; execution trace
 
 ### Added
 - **feat(machine): Apple ][ / ][ plus game port (paddles, buttons, trigger).**
-  The original Apple ][ / ][ plus had no game-port emulation — nothing mapped the
+  The original Apple ][ / ][ plus had no game-port emulation (nothing mapped the
   pushbuttons (`$C061`–`$C063`), analog paddles (`$C064`–`$C067`), or the
-  PTRIG strobe (`$C070`) — so paddle/joystick games (e.g. *Space Quarks*,
+  PTRIG strobe (`$C070`)) so paddle/joystick games (e.g. *Space Quarks*,
   Brøderbund 1981) had dead controls on those machines. A new
   `apple2-gameport` device models all three, using the same 558 one-shot
   paddle timer as the //e (≈11 CPU cycles per paddle unit). The existing
@@ -1391,8 +1652,8 @@ Direct3D swap chain directly.
   automatically).
 - **feat(debug): `--trace` execution-trace switch.** `--trace [N]` records
   the last N executed instructions (default 20,000,000; size with a plain
-  count or a `20M` / `2G` suffix) in a runtime-gated ring and dumps them —
-  PC, opcode, operand bytes, mnemonic, and full register state — to a
+  count or a `20M` / `2G` suffix) in a runtime-gated ring and dumps them (
+  PC, opcode, operand bytes, mnemonic, and full register state) to a
   timestamped `casso-trace-*.txt` in the working directory on a clean exit
   or a crash, with a progress dialog during the write.
 
@@ -1401,7 +1662,7 @@ Direct3D swap chain directly.
   video ROM stores the same normal glyph in the low 7 bits of all four
   64-character ranges (bit 7 is only a range marker, not a per-glyph invert
   flag), but `Decode2K` XOR-inverted the `$00`–`$3F` range while the renderer
-  *also* inverts it — so inverse characters rendered identically to normal
+  *also* inverts it, so inverse characters rendered identically to normal
   text, hiding inverse menu highlights (as seen on the *Space Quarks* options
   screen). `Decode2K` now bit-reverses the low 7 bits with no conditional
   invert. The prior inverse-space test passed only because a blank glyph is
@@ -1425,12 +1686,12 @@ Direct3D swap chain directly.
   it misreported instructions in banked regions (Language Card / ROM). It now
   logs the byte the CPU actually executed.
 
-## [1.5.1526] — NMOS undocumented opcodes; dialog rendering fix; boot-disk picker consolidation
+## [1.5.1526]: NMOS undocumented opcodes; dialog rendering fix; boot-disk picker consolidation
 
 ### Added
 - **feat(cpu): NMOS 6502 undocumented opcodes DOP and DCP.** Implements
-  `$04` (DOP zp — double NOP, reads and discards a zero-page byte, 3 cycles)
-  and `$CF` (DCP abs — decrement memory then CMP A with the result, 6 cycles).
+  `$04` (DOP zp (double NOP, reads and discards a zero-page byte, 3 cycles)
+  and `$CF` (DCP abs) decrement memory then CMP A with the result, 6 cycles).
   Real Apple ][ / ][ plus software such as *Space Quarks* (Brøderbund, 1981) relies on
   these undocumented but consistently-behaving NMOS opcodes; Casso previously
   asserted on them in debug builds and silently mishandled them in release.
@@ -1440,7 +1701,7 @@ Direct3D swap chain directly.
   The dialog computed its layout using the owner window's DPI. At startup
   the owner is the desktop window, which is system-DPI aware and reports the
   system DPI (e.g. 96) rather than the dialog's per-monitor DPI (e.g. 144 on
-  a 150% display) — so even with a single monitor the two can differ. The
+  a 150% display), so even with a single monitor the two can differ. The
   body paragraph was therefore measured and wrapped at one scale while its
   text rendered at another, leaving each wrapped line's cell too narrow for
   the rendered glyphs; DWrite re-wrapped the text inside the cell, spilling
@@ -1453,14 +1714,14 @@ Direct3D swap chain directly.
   triggering an implicit mid-frame D2D flush followed by a second flush at
   `EndDraw`, and asserting in debug builds (`CBRA(m_drawing)`). The dialog now
   renders text to an offscreen D2D bitmap and composites it onto the back
-  buffer after the geometry pass — the same pattern the debug panels use — so
+  buffer after the geometry pass, the same pattern the debug panels use, so
   the D3D and D2D pipelines never interleave on the swap-chain surface.
 
 ### Changed
 - **feat(ui): consolidate first-launch boot-disk prompts into one picker.**
   First launch previously showed two overlapping dialogs: the unified asset
   downloader (which offered boot disks among ROMs/audio) and then the legacy
-  boot-disk picker — so the user was asked about boot disks twice, and the
+  boot-disk picker, so the user was asked about boot disks twice, and the
   picker even re-offered a download for a master that was already installed.
   The startup downloader no longer handles boot disks; it appears only when
   required ROMs or optional drive audio are missing. Boot-disk selection is
@@ -1469,7 +1730,7 @@ Direct3D swap chain directly.
   ("Installed") alongside download rows for the ones that are absent. The
   runtime Insert-Disk picker gains the same present-master rows.
 
-## [1.5.1523] — Game input + debug-panel revamp
+## [1.5.1523]: Game input + debug-panel revamp
 
 Authentic //e keyboard handling that makes real-time action games
 playable, a keyboard-mapped game-port joystick with an on-screen
@@ -1482,7 +1743,7 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
 - **feat(input): authentic //e keyboard auto-repeat.** The core
   keyboard now generates hardware-faithful auto-repeat (initial delay
   then steady cadence) instead of relying on host OS key repeat, so
-  timing-sensitive games behave correctly — *Karateka* movement on the
+  timing-sensitive games behave correctly, *Karateka* movement on the
   left/right arrow keys plays as it did on real hardware.
 - **feat(input): Map Arrows to Joystick mode.** An optional input mode
   that drives the emulated game port from the host keyboard so joystick
@@ -1496,7 +1757,7 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   the live key state and recenters/releases them on exit.
   Three ways to flip it: **Machine → Map Arrows to Joystick**, the
   **Ctrl+J** accelerator, or a dedicated **Joystick Mode** toggle button
-  in the bottom drive bar — a frameless press-to-pin button with a blue
+  in the bottom drive bar, a frameless press-to-pin button with a blue
   glowing LED, a hover tooltip, and a focus ring; all three paths share
   one choke point so the button LED, menu checkmark, and held-key
   neutralization stay in sync.
@@ -1525,7 +1786,7 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
 - **fix(disk): keep the nibble engine advancing after a power cycle.**
   A power cycle zeroes the CPU cycle counter, but the Disk II
   controller's `CatchUpToCpu` retained a stale sync anchor and froze the
-  bit cursor for as long as the prior session's uptime — a minute-plus
+  bit cursor for as long as the prior session's uptime, a minute-plus
   boot hang when rebooting a machine that had been running a while.
   `CatchUpToCpu` now re-anchors whenever the counter moves backward.
 - **fix(ui): render tall debug panels via an offscreen D2D composite.**
@@ -1539,7 +1800,7 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   heap-corruption assert). The clear is now staged behind an atomic flag
   and serviced on the render thread, keeping that state single-threaded.
 
-## [1.5.1405] — Disk-insert picker polish
+## [1.5.1405]: Disk-insert picker polish
 
 Field-test fixes for the themed disk-insert MRU picker and the
 underlying dialog primitives.
@@ -1599,9 +1860,9 @@ underlying dialog primitives.
   close box) as `WM_NCLBUTTONDOWN HTCAPTION`.
 - **fix(picker): drive number is 1-indexed.** `BrowseForDisk` now
   passes `drive + 1` to `PromptInsertDiskMru` so the title reads
-  "Insert Disk — Drive 1/2" and the mount call gets the right slot.
+  "Insert Disk, Drive 1/2" and the mount call gets the right slot.
 
-## [1.5.1398] — Themed disk-insert MRU picker
+## [1.5.1398]: Themed disk-insert MRU picker
 
 The runtime disk-insert flow (Disk → Insert Disk Image, drive-widget
 click, or `IDM_DISK_INSERT1`/`2`) now opens the themed MRU picker
@@ -1612,7 +1873,7 @@ native `IFileOpenDialog` path for off-MRU images.
 
 ### Added
 - **feat(011): `AssetBootstrap::PromptInsertDiskMru`.** Sibling to the
-  boot-time `PromptBootDiskMru` — same `ListView`-based DialogPrimitive
+  boot-time `PromptBootDiskMru`, same `ListView`-based DialogPrimitive
   surface, theme-aware, but titled per drive and wired with a Browse
   fallback instead of Skip. Uses out-of-range negative sentinel result
   codes to avoid colliding with row indices.
@@ -1626,7 +1887,7 @@ native `IFileOpenDialog` path for off-MRU images.
 - **refactor(011): `OnDiskCommand` IDM_DISK_INSERT1/2** now invoke
   `PromptInsertDiskMru` instead of `PromptForDiskImage` directly.
 
-## [1.5.1395] — Native dialogs migration (spec 011)
+## [1.5.1395]: Native dialogs migration (spec 011)
 
 Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 `TaskDialogIndirect` consumer in the app (except the pre-shell EHM
@@ -1663,7 +1924,7 @@ is preserved as the lone deliberate Win32 surface.
   persisted `ChromeTheme` choice (`Skeuomorphic` / `DarkModern` /
   `RetroTerminal`) instead of always painting Skeuomorphic.
 - **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
-  (missing-asset download approval — now with clickable URL hyperlink),
+  (missing-asset download approval, now with clickable URL hyperlink),
   `PromptBootDisk` (DOS 3.3 / ProDOS / Skip), and
   `PromptDiskAudioConsent` (download / skip with GPL-3 disclosure) all
   paint through `StandaloneDialog`. The legacy `TaskDialogIndirect`
@@ -1736,7 +1997,7 @@ is preserved as the lone deliberate Win32 surface.
   layout. Hovering any filter control surfaces a themed `Tooltip` (DX
   overlay, no Win32 `TOOLTIPS_CLASS`) explaining the control after the
   standard dwell delay. Layout pass walked under Skeuomorphic,
-  DarkModern, and RetroTerminal — every widget family renders without
+  DarkModern, and RetroTerminal, every widget family renders without
   overlap and the ListView header shows all six columns.
 - **chore(011): shared `PopupMenu` widget.**
   `Casso/Ui/Widgets/PopupMenu` provides a reusable themed popup with
@@ -1818,7 +2079,7 @@ is preserved as the lone deliberate Win32 surface.
   - The `Drive` column header in the event list was clipping to
     `Driv\ne`; bumped `kColDriveWidth` to fit the bold header glyphs.
   - Non-modal panels (Disk II debug, Debug console) no longer pin
-    themselves above the main window — the new
+    themselves above the main window, the new
     `IChromedPanelContent::IsNonModal()` hook passes `nullptr` as
     the parent HWND so the user can park them behind Casso.
   - General-purpose `Button` widgets now use a dedicated themed
@@ -1834,7 +2095,7 @@ is preserved as the lone deliberate Win32 surface.
     `DwriteTextRenderer` between underlying widgets and the
     tooltip/column-menu overlays, so opaque overlay backgrounds
     actually composite *above* widget text (both renderers batch, so
-    submission order alone wasn't enough — text from underlying widgets
+    submission order alone wasn't enough, text from underlying widgets
     would otherwise paint on top of the overlay's geometry).
   - **Disk II debug panel: scrollable event list + scrollbar.** The
     panel's `ListView` now keeps its full filtered history rather than
@@ -1850,7 +2111,7 @@ is preserved as the lone deliberate Win32 surface.
     drive radio group, track edit, sector edit). Mouse-clicks on any
     widget also acquire focus. The existing per-widget focus rings
     finally light up; Enter / Space activate buttons, Space toggles
-    checkboxes, arrows cycle radios — all without touching the mouse.
+    checkboxes, arrows cycle radios, all without touching the mouse.
   - Non-modal panels (Disk II debug, Debug console) now get a taskbar
     button via `WS_EX_APPWINDOW` and drop `WS_EX_TOOLWINDOW`, so they
     re-appear in Alt+Tab and can be raised even when fully occluded
@@ -1902,7 +2163,7 @@ is preserved as the lone deliberate Win32 surface.
     sub-checkboxes are now disabled when `All` is unchecked.
 
 ### Deferred
-- None — all spec 011 tasks shipped.
+- None: all spec 011 tasks shipped.
 
 ### Removed
 - **chore(debug): remove DX Debug Console panel.** The themed Debug
@@ -1929,13 +2190,13 @@ is preserved as the lone deliberate Win32 surface.
   file I/O. Plus `Disk2DebugPanelLayoutTests` (10) covering the new
   layout slots. Total suite: 1653/1653 passing.
 
-## [1.5.1289] — Copy-protected games boot
+## [1.5.1289]: Copy-protected games boot
 
 This release celebrates a milestone: Casso now boots original,
 copy-protected Apple II games straight from their unmodified WOZ
-preservation images. *Karateka*, *Choplifter*, and *Lode Runner* —
+preservation images. *Karateka*, *Choplifter*, and *Lode Runner*, 
 three Broderbund classics whose protection schemes defeated naive
-emulation — all load and run.
+emulation, all load and run.
 
 The fidelity work behind this milestone landed across the 1.4 series
 (motor spin-up delay, MC3470 weak-bit emulation, a real 16-state Logic
@@ -1945,15 +2206,15 @@ which those pieces came together well enough to run real protected
 software, and bumps Casso to **1.5**.
 
 
-## [1.4.1288] — Protected games boot: quarter-track disk pipeline
+## [1.4.1288]: Protected games boot: quarter-track disk pipeline
 
 ### Added
 - **feat(disk2): quarter-track read pipeline for half-track copy
   protection.** The disk pipeline now resolves reads at quarter-track
   (0-159) resolution via a TMAP-derived slot map, and the head stepper
   uses the apple2js PHASE_DELTA model so it always rests on a valid
-  detent. Disks formatted on half-track boundaries — *Choplifter*,
-  *Karateka*, and *Lode Runner* — now boot from their original WOZ
+  detent. Disks formatted on half-track boundaries (*Choplifter*,
+  *Karateka*, and *Lode Runner*) now boot from their original WOZ
   images (previously stalled in the protected region around track 12).
 
 ### Fixed
@@ -1966,7 +2227,7 @@ software, and bumps Casso to **1.5**.
   Isolated bumps stay firm thunks; a genuine step re-arms the pattern.
 
 
-## [1.4.1279] — Disk II copy-protection fidelity foundations
+## [1.4.1279]: Disk II copy-protection fidelity foundations
 
 ### Added
 - **feat(disk2): MC3470 weak-bit emulation.** WOZ floating (fake-bit)
@@ -1988,7 +2249,7 @@ software, and bumps Casso to **1.5**.
   a `$C0Ex` access occurs rather than the end-of-instruction rollup.
 
 
-## [1.4.1260] — Drive widget interaction + disk persistence fix
+## [1.4.1260]: Drive widget interaction + disk persistence fix
 
 ### Changed
 - **perf(chrome): snappier drive-widget click-to-dialog.** The post-door-open
@@ -2038,14 +2299,14 @@ software, and bumps Casso to **1.5**.
 
 
 
-## [1.4.1229] — UserPrefs JSON migration + window sizing fixes
+## [1.4.1229]: UserPrefs JSON migration + window sizing fixes
 
 ### Added
 - **feat(window): per-window DPI ownership.** `Window` base class now
   owns the authoritative `DpiScaler` for its HWND, seeded on
   `WM_NCCREATE` and updated on `WM_DPICHANGED` via a non-virtual
   interface (`OnDpiChanging`/`OnDpiChanged` hooks). Subclasses query
-  DPI through `Window::Scaler()` -- no more cached copies, no more
+  DPI through `Window::Scaler()`, no more cached copies, no more
   raw `GetDpiForWindow` calls, no `dpi` parameters threaded through
   call chains.
 - **feat(window): proper `OnMouseLeave` virtual.** Replaces the
@@ -2054,7 +2315,7 @@ software, and bumps Casso to **1.5**.
   state when the cursor exited the window.
 
 ### Changed
-- **refactor(prefs): all settings now live in `UserPrefs.json`** --
+- **refactor(prefs): all settings now live in `UserPrefs.json`**,
   no more Windows Registry usage. The registry stack
   (`RegistrySettings`, `Win32RegistrySettings`, `IRegistrySettings`,
   `InMemoryRegistry`) has been deleted, including the registry →
@@ -2069,7 +2330,7 @@ software, and bumps Casso to **1.5**.
     `DriveAudioEnabled`, `PromptForAudioDownload` all moved into
     each machine's `$cassoUiPrefs` JSON block.
 - **refactor(layout): `ChromeLayout` renamed to `LayoutManager`.** It
-  owns more than just chrome now -- it's the single source of truth
+  owns more than just chrome now, it's the single source of truth
   for chrome insets *and* framebuffer-to-client sizing math.
   `LayoutManager::ClientSizeForFramebuffer(fbW, fbH)` is the only
   place that decides how the Apple ][ framebuffer scales relative
@@ -2080,7 +2341,7 @@ software, and bumps Casso to **1.5**.
   `HandleDpiChanged`, etc.). Single `LRESULT retval` local, single
   return point, EHM bailout pattern for the null-`this` guard.
 - **refactor(boot): default to Apple //e when no machine is selected
-  or the discovery scanner finds none installed** -- previously the
+  or the discovery scanner finds none installed**, previously the
   app bailed with a "no machines found" message-box.
 
 ### Fixed
@@ -2102,7 +2363,7 @@ software, and bumps Casso to **1.5**.
 
 
 
-## [1.4.1171] — UI overhaul (spec 007)
+## [1.4.1171]: UI overhaul (spec 007)
 
 ### Added
 - **feat(settings): Display-page live preview uses a gaussian-blurred dark
@@ -2114,9 +2375,9 @@ software, and bumps Casso to **1.5**.
     Hardware, write mode moved to Settings → Machine, debug tools live
     under Debug (positioned between View and Help), and Disk/View
     menus now include visual separators.
-- **feat(ui): full UI overhaul — native DirectX chrome, themes, Settings
+- **feat(ui): full UI overhaul, native DirectX chrome, themes, Settings
   panel, CRT post-processing, drive widgets.**
-  - Borderless main window with custom native chrome — title bar with
+  - Borderless main window with custom native chrome, title bar with
     Win11-style caption buttons, drag region, drive widgets, and nav
     layer with keyboard mnemonics (Alt-held + keyboard-opened menus
     show underlined access keys), all rendered through `DxUiPainter`
@@ -2132,8 +2393,8 @@ software, and bumps Casso to **1.5**.
     initial window-size calculation and the `Ctrl+0` reset-window-size
     path read from the same source, eliminating the historical drift
     class that produced pillarboxing.
-  - Three built-in themes — **Skeuomorphic**, **Dark Modern**, and
-    **Retro Terminal** — hot-swappable from `Settings → Theme` with
+  - Three built-in themes: **Skeuomorphic**, **Dark Modern**, and
+    **Retro Terminal**, hot-swappable from `Settings → Theme` with
     no restart and no machine reset. Each theme drives its own chrome
     color palette and CRT shader defaults; Dark Modern + Retro
     Terminal additionally request compact drive widgets so the bottom
@@ -2184,13 +2445,13 @@ software, and bumps Casso to **1.5**.
   truth and `NavLayerTraceabilityTests` enforces it in CI.
 - **`OptionsDialog` and `MachinePickerDialog`** (FR-027). Both Win32
   dialogs are deleted; the Settings panel hosts the same controls.
-- **`ChromeMetrics::*Px()` inset functions** — replaced by
+- **`ChromeMetrics::*Px()` inset functions**: replaced by
   `ChromeLayout::Resolve()` and `ChromeLayout::ClientSizeForCenter()`.
   `ChromeMetrics` slims down to a constants-only header (framebuffer
   dimensions + base DPI).
 
 ### Tech notes
-- All UI rendering is native Direct2D / DirectWrite — no third-party
+- All UI rendering is native Direct2D / DirectWrite, no third-party
   UI engine, no FreeType. Native ClearType + emoji on Win10+.
 - Win11 effects (**Mica backdrop**, rounded corners, immersive dark
   caption) are runtime-gated via `Win11DwmHelpers`; the app falls
@@ -2198,7 +2459,7 @@ software, and bumps Casso to **1.5**.
 - All user-visible strings use **sentence casing** (menu items, page
   titles, dialog captions, file-filter strings) per the in-repo
   convention.
-- **48 functional requirements delivered** — FR-001..FR-047 + FR-022b.
+- **48 functional requirements delivered**: FR-001..FR-047 + FR-022b.
   See `specs/007-ui-overhaul/spec.md` for the full traceability.
 - **17 new `ChromeLayoutTests`** cover the planner end-to-end: empty
 / single / multi-edge contributors, DPI scaling, center-layer
@@ -2206,18 +2467,18 @@ padding, over-allocation clamping, `ClientSizeForCenter`
 inverse-roundtrip, contributor mutation, and a regression test for
 the historical Ctrl+0 pillarbox.
 
-## [1.3.808] — Plain Silhouette Icon
+## [1.3.808]: Plain Silhouette Icon
 
 ### Changed
 - **Default app icon is now the plain cassowary silhouette.** The
 silhouette+accent variant (previously default) was hard to read at
-title-bar and small-icon sizes — the rainbow stripe and scanline
+title-bar and small-icon sizes, the rainbow stripe and scanline
 overlay both compete for the same pixels. The new
 `IDI_CASSO_SILHOUETTE` is a cream silhouette on a dark warm tile
 with no extra ornamentation, so it stays legible at 16x16. The
 other four motifs remain embedded for callers that want them.
 
-## [1.3.807] — App Icon
+## [1.3.807]: App Icon
 
 ### Added
 - **Casso has an app icon.** The window title bar, taskbar, and Windows
@@ -2228,12 +2489,12 @@ flat-color head, photoreal); the silhouette+accent variant is the
 default. PNG masters and multi-resolution ICOs live in
 `Resources/Icons/`, regeneratable via `Assets/Icon/build_icons.py`.
 
-## [1.3.772] — Machine Picker Fixes
+## [1.3.772]: Machine Picker Fixes
 
 ### Fixed
 - **Machine picker showed empty list.** `MachinePickerDialog::ScanMachines`
   searched for `Machines/*.json` but configs live at
-  `Machines/<Name>/<Name>.json` — scanner now walks the nested layout.
+  `Machines/<Name>/<Name>.json`, scanner now walks the nested layout.
 - **Switching machines could crash.** `SwitchMachine` runs on the CPU
   thread (MTA COM); pre-launch ROM/disk-audio bootstrap was happening
   there and showing modal `TaskDialog`s parented to a window owned by
@@ -2248,7 +2509,7 @@ default. PNG masters and multi-resolution ICOs live in
   `Resources/Machines/Apple2Plus/Apple2Plus.json`) had empty `slots`,
   so the status bar showed no drives and "Insert Drive 1" was inert.
   Both now ship with a Disk II in slot 6 (matches //e). Existing
-  installs are refreshed automatically — see the embedded-default
+  installs are refreshed automatically; see the embedded-default
   versioning change below.
 - **Embedded machine configs are now versioned and auto-refresh.**
   Each embedded JSON carries a `// DO NOT EDIT` header and a
@@ -2259,7 +2520,7 @@ default. PNG masters and multi-resolution ICOs live in
       version.
     - Overwrites when the on-disk file is unstamped *and* its
       normalized (BOM-stripped, LF-normalized) SHA-256 matches one of
-      a small list of historical embedded defaults — i.e. it's a
+      a small list of historical embedded defaults, i.e. it's a
       verbatim extract from an earlier Casso release, safe to
       replace.
     - For anything else (unstamped + unrecognized = presumed
@@ -2297,7 +2558,7 @@ default. PNG masters and multi-resolution ICOs live in
   field, empty search paths.
 - Added `ChromeLayoutTests` (17 cases): see Tech notes above.
 
-## [1.3.764] — Disk II Debug Window (spec 006)
+## [1.3.764]: Disk II Debug Window (spec 006)
 
 ### Added
 - **Disk II Debug Window**: modeless live event log of motor / head /
@@ -2310,9 +2571,9 @@ default. PNG masters and multi-resolution ICOs live in
   out-of-range or unparseable tokens are highlighted with a
   red wave squiggle (RichEdit) and listed in an "Ignored:" label.
   Track values clamp to whole-track 40 / quarter-track 160; sector
-  to 16. Six columns — Time (local HH:MM:SS.mmm), Uptime
+  to 16. Six columns: Time (local HH:MM:SS.mmm), Uptime
   (MM:SS.mmm since most recent //e reset), Cycle count, Drive
-  (1-based), Event (sentence-cased), Detail — content-auto-sized
+  (1-based), Event (sentence-cased), Detail, content-auto-sized
   with periodic re-grow as wider data arrives; user-dragged widths
   are preserved. Detail flex-fills the remaining ListView width
   and re-flows on dialog resize. Right-click the column header to
@@ -2323,9 +2584,9 @@ default. PNG masters and multi-resolution ICOs live in
   machines without a Disk II controller (FR-001a); when more than
   one Disk II controller is wired, the title becomes
   "Disk II Debug (controller #0 only)" (FR-017). The dialog
-  survives `SwitchMachine` — sinks reattach to the freshly built
+  survives `SwitchMachine`, sinks reattach to the freshly built
   controller / audio source. Events emitted before the dialog
-  opens are not retained — open it *before* the operation you
+  opens are not retained, open it *before* the operation you
   want to investigate. Four bundled WOZ fixtures (Apple Stellar
   Invaders, Choplifter, Hard Hat Mack, Karateka) live in
   `Apple2/Demos/` for manual A/B observation.
@@ -2386,7 +2647,7 @@ default. PNG masters and multi-resolution ICOs live in
   FR-001a enablement decision, FR-004a uptime-reset path,
   insert / eject / SwitchMachine regression coverage.
 
-## [1.3.684] — Disk II mechanism dropdown + per-machine persistence
+## [1.3.684]: Disk II mechanism dropdown + per-machine persistence
 
 ### Added
 - **Options dialog mechanism dropdown (FR-006 / SC-010)**:
@@ -2394,7 +2655,7 @@ default. PNG masters and multi-resolution ICOs live in
   with "Shugart SA400" (default) and "Alps 2124A" entries. Flipping
   the dropdown reloads every registered drive's sample buffers via
   `DriveAudioMixer::SetMechanism` and takes effect on the next
-  audio frame -- no restart, no disk remount.
+  audio frame, no restart, no disk remount.
 - **`DriveAudioMixer::SetMechanism / SetSampleLoadContext /
   GetMechanism / IsValidMechanism`**: the mixer now owns the
   asset-load context (devices dir + sample rate) and a
@@ -2421,7 +2682,7 @@ default. PNG masters and multi-resolution ICOs live in
   multi-source reload, Alps→Shugart round trip with distinct
   amplitudes, and pre-context SetMechanism (defers load).
 
-## [1.3.682] — Disk II audio bootstrap (consent-gated OGG fetch)
+## [1.3.682]: Disk II audio bootstrap (consent-gated OGG fetch)
 
 ### Added
 - **Bootstrap fetch (FR-017, FR-018, NFR-006)**: on first launch with
@@ -2432,7 +2693,7 @@ default. PNG masters and multi-resolution ICOs live in
   decode them in memory with `stb_vorbis`, resample to 44.1 kHz
   via linear interpolation, and write 16-bit mono PCM WAVs to
   `Devices/DiskII/<Mechanism>/`. The compressed `.ogg` bytes are
-  discarded before the function returns — no `.ogg` files ever
+  discarded before the function returns, no `.ogg` files ever
   touch disk (NFR-006).
 - The consent dialog explicitly discloses GPL-3 licensing and
   recipient obligations and links to OpenEmulator's COPYING file
@@ -2464,9 +2725,9 @@ default. PNG masters and multi-resolution ICOs live in
   a non-silent motor loop after decode, and the FR-019 per-file
   precedence rule. The network-touching `AssetBootstrap` glue is
   exercised by the manual integration test in T138 (per
-  constitution §II — automated tests do not hit the network).
+  constitution §II, automated tests do not hit the network).
 
-## [1.3.675] — Per-machine asset directory layout
+## [1.3.675]: Per-machine asset directory layout
 
 ### Changed
 - **Per-machine ROM directories**: ROM images now live under
@@ -2504,7 +2765,7 @@ Users with an existing install:
   layout), or move each ROM file into the corresponding new
   location (see the table at the top of `scripts/FetchRoms.ps1`).
 
-## [1.3.670] — Disk II audio (motor / head / door, stereo, Options dialog)
+## [1.3.670]: Disk II audio (motor / head / door, stereo, Options dialog)
 
 ### Added
 - **Disk II mechanical audio**: motor hum (looping while
@@ -2535,7 +2796,7 @@ Users with an existing install:
 - `Assets/Sounds/DiskII/` directory with a `README.md` documenting the
   expected sample set (PascalCase WAVs decoded at startup via
   `IMFSourceReader` to mono float32 at the WASAPI device rate). The
-  directory may be absent or empty — the emulator launches and runs
+  directory may be absent or empty, the emulator launches and runs
   normally with the affected sounds silently muted (FR-009).
 
 ### Changed
@@ -2556,11 +2817,11 @@ Users with an existing install:
   `UnitTest/Devices/DiskIIControllerAudioTests.cpp` covering source
   state machines, mixer panning / clamp, controller event firing,
   step-vs-seek timing, and graceful-degradation behavior. All
-  tests use in-memory buffers and a recording mock sink — no host
+  tests use in-memory buffers and a recording mock sink; no host
   filesystem reads, no audio device (constitution §II).
 - All pre-existing speaker tests pass identically (FR-011 / SC-006).
 
-## [1.3.660] — 2026-05-14 — Demo first-frame ~2x faster (boot reorder)
+## [1.3.660]: 2026-05-14, Demo first-frame ~2x faster (boot reorder)
 
 ### Changed (demo)
 - **Disk layout reordered so DHGR loads first.** Previously the disk
@@ -2568,7 +2829,7 @@ Users with an existing install:
   init read all 9 tracks before showing the cassowary (~2.25s).
   Now: dhgr-aux→stage2→dhgr-main→cassowary→bands. Stage 1 reads
   3 tracks (DHGR aux + stage 2/lores), stage 2 reads 2 more tracks
-  (DHGR main) and immediately enters DHGR mode — visible at ~5
+  (DHGR main) and immediately enters DHGR mode, visible at ~5
   tracks (~1.25s, ~45% faster). HGR1 cassowary and HGR2 bands
   load in the BACKGROUND while the user is looking at the
   cassowary; both done by the time the user can react with a
@@ -2581,7 +2842,7 @@ Users with an existing install:
   `enter_dhgr`) used X as its 32-page counter, leaving X=0 on
   return. With the new background-load phase needing X=$60 (slot 6
   << 4) for indexed disk-controller soft-switch reads, this caused
-  the next `lda $C087,x` head-step to read the wrong address —
+  the next `lda $C087,x` head-step to read the wrong address,
   head never moved, RWTS spun forever in `chk_w` waiting for a
   non-existent disk byte. The previous flow happened to call
   `enter_dhgr` AFTER all disk I/O was done so the bug was latent.
@@ -2593,7 +2854,7 @@ Users with an existing install:
   (~9.8 sec emulated vs ~58 sec). Test runtime dropped from
   ~9s to <1s. Full suite now ~93s instead of ~180s.
 
-## [1.3.652] — 2026-05-14 — DHGR cassowary matches HGR framing + title
+## [1.3.652]: 2026-05-14, DHGR cassowary matches HGR framing + title
 
 ### Changed (demo)
 - **DHGR cassowary now uses the same crop, letterbox, and "Casso"
@@ -2602,7 +2863,7 @@ Users with an existing install:
   `HgrPreprocess.crop_and_fit` (HGR's 280×192 letterbox + title
   pipeline) before resizing to DHGR's 140×192 color resolution
   for quantization. On screen the two modes show the bird at
-  identical framing — only the color treatment differs (HGR's
+  identical framing, only the color treatment differs (HGR's
   6-color per-byte classification vs DHGR's 16-color
   Floyd-Steinberg dither).
 
@@ -2618,10 +2879,10 @@ Users with an existing install:
   generalised the centering to use `canvas.width` so the same
   helper works for HGR (280) and any future width.
 
-## [1.3.651] — 2026-05-14 — Demo cycle reorder, DHGR aspect, exit garbage, amber mono
+## [1.3.651]: 2026-05-14, Demo cycle reorder, DHGR aspect, exit garbage, amber mono
 
 ### Changed (demo)
-- **DHGR cassowary is now mode 0** — first thing you see at boot,
+- **DHGR cassowary is now mode 0**: first thing you see at boot,
   in glorious 16-color dithered double-hi-res. Cycle order:
   DHGR → HGR1 → HGR2 → LoRes → exit. Stage 2 init now stashes the
   HGR1 cassowary at main `$A000` so mode 1 can restore it after
@@ -2639,14 +2900,14 @@ Users with an existing install:
   monochrome-tint code in `EmulatorShell::RenderFramebuffer`
   was reading R/G/B from the wrong byte positions AND
   reconstructing in the wrong order, so amber's `(L, L×0.75,
-  0)` triple landed as `B=L, G=L×0.75, R=0` — a cyan-blue
+  0)` triple landed as `B=L, G=L×0.75, R=0`, a cyan-blue
   pixel. Refactored into `Video/MonochromeTint.h` (new pure
   header in CassoEmuCore) so the BGRA arithmetic is now
   unit-tested.
 - **Demo exit no longer leaves 80-col garbage on screen.** The
   previous fix attempted to clear AUX text page 1 by toggling
   RAMWRT, but with 80STORE on (which DHGR mode set) the writes
-  to `$0400-$07FF` were still routed by PAGE2, not RAMWRT —
+  to `$0400-$07FF` were still routed by PAGE2, not RAMWRT,
   so AUX never got cleared. `do_exit` now turns 80STORE off
   first, then RAMWRT-toggles its way through both pages via
   a new shared `clear_text_page1` subroutine.
@@ -2661,7 +2922,7 @@ Users with an existing install:
   at main `$2000`).
 
 ### Refactor
-- **`Video/MonochromeTint.h`** — new header in CassoEmuCore.
+- **`Video/MonochromeTint.h`**: new header in CassoEmuCore.
   Provides `Luminance()`, `TintGreenMono()`, `TintAmberMono()`,
   `TintWhiteMono()` as pure inline functions over the BGRA
   pixel format. EmulatorShell now calls these instead of
@@ -2669,13 +2930,13 @@ Users with an existing install:
 
 ### Known limitations
 - HGR (single hi-res) cassowary still uses per-byte palette
-  classification with no error diffusion — looks blocky next
+  classification with no error diffusion, looks blocky next
   to the dithered DHGR version. A real fix would require
   rewriting `HgrPreprocess.py` to do bit-on/bit-off Floyd-
   Steinberg within each byte's palette-pair constraint;
   deferred.
 
-## [1.3.645] — 2026-05-14 — DHGR cassowary + clean exit from DHGR mode
+## [1.3.645]: 2026-05-14, DHGR cassowary + clean exit from DHGR mode
 
 ### Added (demo)
 - **DHGR mode now shows a cassowary**, not just test bars. New
@@ -2694,13 +2955,13 @@ Users with an existing install:
   BASIC screen.** Two issues:
   1. The reset handler doesn't clear the screen, only the soft
      switches. With 80COL still on after DHGR, BASIC was showing
-     main+aux text page 1 interleaved — main had the LoRes
+     main+aux text page 1 interleaved, main had the LoRes
      pattern, aux still held power-on PRNG noise we never
      touched. `do_exit` now clears AUX text page 1 (under
      RAMWRT-on) in addition to main before jumping through
      the reset vector.
   2. `JMP $E000` (Applesoft cold start) is fragile even after
-     manual soft-switch cleanup — it JMPs through stale work-
+     manual soft-switch cleanup, it JMPs through stale work-
      area pointers and lands in video memory. `JMP ($FFFC)`
      (the //e reset vector) goes through `RESET.MGR` which
      does the full power-on cleanup before entering Applesoft
@@ -2708,15 +2969,15 @@ Users with an existing install:
      state.
 
 ### Removed
-- `Apple2/Demos/dhgr-bars-{aux,main}.bin` — superseded by the
+- `Apple2/Demos/dhgr-bars-{aux,main}.bin`: superseded by the
   cassowary payload. The generator (`scripts/DhgrBarsGen.py`)
   is kept for future test-pattern needs (regenerates the .bin
   files on demand).
 
-## [1.3.640] — 2026-05-14 — DHGR mode joins the demo cycle
+## [1.3.640]: 2026-05-14, DHGR mode joins the demo cycle
 
 ### Added (demo)
-- **Mode 3: DHGR** — 16-color test bars rendered through the //e
+- **Mode 3: DHGR**: 16-color test bars rendered through the //e
   Double Hi-Res pipeline (560x192 monochrome / 140x192 in 16
   colors, aux+main interleaved at $2000-$3FFF). Cycles cleanly
   from LoRes via any keystroke. Adds 16 KB of new payload to the
@@ -2726,7 +2987,7 @@ Users with an existing install:
 - **Demo exit now goes through the //e reset vector** (`JMP
   ($FFFC)`) instead of jumping directly to `$E000`. The reset
   handler does the full power-on cleanup so any mode of the
-  cycle can land on a vanilla BASIC prompt — important now that
+  cycle can land on a vanilla BASIC prompt, important now that
   the cycle includes DHGR (which leaves 80STORE / 80COL / DHIRES
   on, and Applesoft cold start at `$E000` doesn't tolerate that
   state and ends up executing video memory).
@@ -2751,13 +3012,13 @@ Users with an existing install:
   future feature that needs to populate aux RAM from disk.
 
 ### Added (tooling)
-- **`scripts/DhgrBarsGen.py`** — generates the 16-color DHGR test
+- **`scripts/DhgrBarsGen.py`**: generates the 16-color DHGR test
   pattern (8 KB aux + 8 KB main) by walking the 560-dot row,
   picking each 4-dot group's color from the bar containing the
   group's center dot, and packing nibbles LSB-first into the
   aux/main interleaved byte stream.
 
-## [1.3.632] — 2026-05-14 — Loosen perf-stability tolerance for hosted CI runners
+## [1.3.632]: 2026-05-14, Loosen perf-stability tolerance for hosted CI runners
 
 ### Changed (tests)
 - **`CycleEmulation_StableRunToRun` tolerance bumped 30% → 60%.** A
@@ -2768,7 +3029,7 @@ Users with an existing install:
   any real perf regression, but no longer trips on hypervisor
   scheduling hiccups.
 
-## [1.3.627] — 2026-05-14 — Framebuffer format swap to BGRA + byte-order tests
+## [1.3.627]: 2026-05-14, Framebuffer format swap to BGRA + byte-order tests
 
 ### Changed (rendering)
 - **Framebuffer format is now `DXGI_FORMAT_B8G8R8A8_UNORM`** (was
@@ -2782,7 +3043,7 @@ Users with an existing install:
 ### Fixed
 - **Menu → Copy Screenshot now produces correct colors.** The
   clipboard path used `CF_DIB` (BGRA) but blindly memcpy'd from the
-  RGBA framebuffer, so screenshots had R and B swapped — most
+  RGBA framebuffer, so screenshots had R and B swapped, most
   visible on the HGR cassowary demo (orange head appeared blue).
   With the framebuffer format change above, the screenshot copy is
   now a straight memcpy with no swizzle, so this class of bug can
@@ -2800,7 +3061,7 @@ Users with an existing install:
 - **Exit to BASIC no longer leaves LoRes garbage on the text page.**
   After cycling past the LoRes test pattern, page 1 still held the
   LoRes byte pattern. Once we flipped back to TEXT mode those bytes
-  rendered as character codes — anything in `$40-$7F` is in the
+  rendered as character codes, anything in `$40-$7F` is in the
   flash range, so half the screen was blinking nonsense around the
   `]` prompt. Stage 2 now clears `$0400-$07FF` to `$A0` (space)
   before `JMP $E000`. Stage 2 size is now 125 bytes (still in one
@@ -2811,14 +3072,14 @@ Users with an existing install:
   instead of the older GR color-bands placeholder. Retired
   `Assets/Apple ][ GR Color Bands.png`.
 
-## [1.3.619] — 2026-05-14 — Demo: TEXT mode on exit + American spellings
+## [1.3.619]: 2026-05-14, Demo: TEXT mode on exit + American spellings
 
 ### Fixed (demo)
 - **Cycling past LoRes now actually drops to a usable BASIC prompt.**
   The previous revision did `JMP $E000` (Applesoft cold start) but
   Applesoft's cold start doesn't reset the video soft-switches, so
   we landed at the `]` prompt with the screen still rendering as
-  LoRes graphics — characters typed afterward updated text page 1
+  LoRes graphics, characters typed afterward updated text page 1
   but were invisible (or appeared as colored blocks). Now stage 2
   flips `TXT` on (and clears `HIRES`/`PAGE2` for good measure)
   before the `JMP $E000`.
@@ -2829,7 +3090,7 @@ Users with an existing install:
   `color`, `artefact` → `artifact`, `behavior` → `behavior`,
   `synthesise` → `synthesize` in newly authored content.
 
-## [1.3.618] — 2026-05-14 — LoRes test pattern + ESC-to-BASIC exit
+## [1.3.618]: 2026-05-14, LoRes test pattern + ESC-to-BASIC exit
 
 ### Added (demo)
 - **LoRes (Apple `GR`) 16-color bar test pattern.** New
@@ -2862,7 +3123,7 @@ Users with an existing install:
 - The //e text mode is monochrome on stock hardware (no per-glyph
   color), so there's no "TEXT" color test to add.
 
-## [1.3.603] — 2026-05-14 — HGR color fix + 6-color test pattern + 2-stage demo
+## [1.3.603]: 2026-05-14, HGR color fix + 6-color test pattern + 2-stage demo
 
 ### Fixed (video)
 - **HGR/LoRes/DHGR color palettes were rendering with R and B swapped**
@@ -2943,7 +3204,7 @@ Users with an existing install:
   `--title-size N` (default 18) and `--title-stroke N` (default 0;
   bump to 1 for a heavier look).
 
-## [1.3.582] — 2026-05-13 — Reset/PowerCycle reload disks; lighter title font
+## [1.3.582]: 2026-05-13, Reset/PowerCycle reload disks; lighter title font
 
 ### Fixed (shell)
 - **`Reset` and `Power Cycle` menu commands now re-read mounted slot-6
@@ -2968,7 +3229,7 @@ Users with an existing install:
   `--title-size N` (default 18) and `--title-stroke N` (default 0;
   bump to 1 for a heavier look).
 
-## [1.3.581] — 2026-05-13 — HGR cassowary: better crop & color fidelity
+## [1.3.581]: 2026-05-13, HGR cassowary: better crop & color fidelity
 
 ### Changed
 - **Tightened the cassowary crop** to capture the casque + head + neck
@@ -2999,12 +3260,12 @@ Users with an existing install:
   within any 7-pixel column you get either {black, white, violet,
   green} OR {black, white, blue, orange}, never both. Thin features
   that straddle a palette boundary (a blue feather next to a green
-  leaf) will compromise — one or the other gets the right color, or
+  leaf) will compromise, one or the other gets the right color, or
   both wash to white via NTSC artifacting. The encoder is a
   best-effort first pass; future work could add Floyd-Steinberg
   error diffusion across byte boundaries.
 
-## [1.3.579] — 2026-05-13 — HGR cassowary demo
+## [1.3.579]: 2026-05-13, HGR cassowary demo
 
 ### Added
 - **HGR cassowary demo on the bootable demo disk.** The
@@ -3026,7 +3287,7 @@ Users with an existing install:
   page2 off, hires on) and that `$2000-$3FFF` matches the on-disk
   framebuffer byte-for-byte.
 
-## [1.3.577] — 2026-05-13 — //e 80-col cursor: investigation closed
+## [1.3.577]: 2026-05-13, //e 80-col cursor: investigation closed
 
 ### Documented (video)
 - **80-col cursor at the BASIC prompt is intentionally a steady
@@ -3046,14 +3307,14 @@ Users with an existing install:
   it served its purpose during investigation and is no longer
   needed now that the 80-col cursor behavior is understood.
 
-## [1.3.576] — 2026-05-13 — //e missing 80-col cursor fix
+## [1.3.576]: 2026-05-13, //e missing 80-col cursor fix
 
 ### Fixed (video)
 - **The 80-col cursor (and any inverse-character cell) is now
   visible on the //e.** The //e enhanced video ROM stores the
   inverse-range slots ($00-$3F, in BOTH primary and alt sets)
   already in their visual / pre-inverted bitmap form (UTAIIe
-  Tables 8.2/8.3 — slot $20 holds the bitmap of "inverse SPACE"
+  Tables 8.2/8.3, slot $20 holds the bitmap of "inverse SPACE"
   = solid block, not the bitmap of normal " "). The text-mode
   renderers were applying their own XOR-inversion on top of that
   (the ][ / ][ plus Decode2K convention), which re-inverted the
@@ -3070,7 +3331,7 @@ Users with an existing install:
   `IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock` pin
   the contract using the real `Apple2e_Video.rom`.
 
-## [1.3.575] — 2026-05-13 — //e PR#3 cursor investigation
+## [1.3.575]: 2026-05-13, //e PR#3 cursor investigation
 
 ### Added (test)
 - New `Pr3AuxClearTest::Pr3_StaticCursor_Lands_At_Main0480` pins the
@@ -3085,16 +3346,16 @@ Users with an existing install:
   comment now reflects a wider-scope investigation: an end-to-end
   scan of the main //e ROM ($C100-$FFFC) found no `LDA $C019`, no
   `EOR #$40`, no `ORA #$40`. **However**, on real //e hardware in
-  80-column mode the cursor IS supposed to blink — that loop lives
+  80-column mode the cursor IS supposed to blink; that loop lives
   in the 80-column firmware at $C300-$C3FF, which is bank-switched
   in via the `INTC8ROM` / `SLOTC3ROM` soft switches when `PR#3` is
   active and is NOT in the main-ROM scan range. The PC trace
   observed spinning in main ROM's BASIC keyboard poll
   ($CB15-$CB1E) instead of the slot-3 firmware suggests Casso's
   bank-switch for the 80-column firmware isn't taking effect after
-  `PR#3` — that is the actual bug to chase next.
+  `PR#3`; that is the actual bug to chase next.
 
-## [1.3.574] — 2026-05-13 — PowerCycle drive-state fix
+## [1.3.574]: 2026-05-13, PowerCycle drive-state fix
 
 ### Fixed (disk)
 - **Ctrl+Shift+R no longer leaves the drives empty.** The
@@ -3116,18 +3377,18 @@ Users with an existing install:
   `DiskIINibbleEngineTests::ResetClearsLifetimeNibbleCounters`
   pins the contract.
 
-## [1.3.573] — 2026-05-13 — Friendly first-run bootstrap
+## [1.3.573]: 2026-05-13, Friendly first-run bootstrap
 
 ### Added
 - **Friendly first-run boot disk.** When a machine config has a Disk
   ][ controller (e.g. //e) and no disk is mounted in drive 1 from
   the CLI, the registry, or the user's session, Casso now prompts
   the user to download a stock Apple system master disk from the
-  Asimov archive (https://www.apple.asimov.net) — DOS 3.3 System
+  Asimov archive (https://www.apple.asimov.net), DOS 3.3 System
   Master (680-0210-A, 1982) or ProDOS Users Disk (680-0224-C). Both
   are size- and host-pinned. ][ / ][ plus configs (which have no Disk ][
   slot) are unaffected. A stale registry entry pointing at a
-  deleted disk is treated as "no disk" — the entry gets cleared
+  deleted disk is treated as "no disk"; the entry gets cleared
   and the user is prompted again, instead of silently swallowing
   the boot.
 - **Disk-image registry paths are now stored relative to `Casso.exe`.**
@@ -3156,7 +3417,7 @@ Users with an existing install:
   when present, otherwise drops the files into `ROMs/` next to
   `Casso.exe`. The set of ROMs Casso fetches is decided strictly
   from the JSON config embedded in `Casso.exe` for the chosen
-  machine — if you've edited your on-disk `Machines/<machine>.json`
+  machine, if you've edited your on-disk `Machines/<machine>.json`
   to add extra slot ROMs, sourcing those is on you. New
   `AssetBootstrapTests` verify each shipped machine's required ROM
   list and disk-controller status end-to-end (loads `Casso.exe` as
@@ -3172,7 +3433,7 @@ Users with an existing install:
   that displays "CASSO ROCKS!" centered on the text screen. New
   `BootDiskTests::CassoRocks_DemoDisk_PrintsBanner` runtime-assembles
   the demo through Casso's own assembler, builds a synthetic `.dsk`,
-  boots through the real `Disk2.rom`, and verifies the banner — and
+  boots through the real `Disk2.rom`, and verifies the banner, and
   also emits `casso-rocks.dsk` next to the source for direct GUI use.
   Replaces the project's previous reliance on the copyrighted DOS 3.3
   master image for end-to-end boot validation.
@@ -3197,7 +3458,7 @@ Users with an existing install:
   of hardcoded `C:\Users\…` paths, and skip cleanly when their input
   disk image / ROM is absent (CI runners don't have them).
 
-## [1.3.536] — 2026-05-10 — Disk II + //e text fidelity
+## [1.3.536]: 2026-05-10, Disk II + //e text fidelity
 
 ### Fixed (disk)
 - **DOS 3.3 boots from `.dsk` images.** Disk II nibblization corrected:
@@ -3249,14 +3510,14 @@ Users with an existing install:
   counters.
 
 ### Added (tests)
-- Real-ROM boot-decoder tests (`BootRomDecoderTests`) — drive the
+- Real-ROM boot-decoder tests (`BootRomDecoderTests`), drive the
   actual `Disk2.rom` slot 6 firmware on the emulated 6502 against
   synthetic disks; gates the on-disk format against the real Apple
   firmware's checksum routines.
-- Direct-bus readback tests (`DiskReadbackTests`) — all 35 tracks ×
+- Direct-bus readback tests (`DiskReadbackTests`), all 35 tracks ×
   16 sectors round-trip bit-perfect through the nibblizer + LSS
   without a CPU.
-- End-to-end CATALOG repro test (`CatalogReproductionTest`) — boots
+- End-to-end CATALOG repro test (`CatalogReproductionTest`), boots
   real `dos33-master.dsk`, types `CATALOG`, asserts directory listing
   is printed (no I/O ERROR).
 - 80-col PR#3 alt-set decoder gates (`Pr3AuxClearTest`).
@@ -3270,7 +3531,7 @@ Users with an existing install:
 
 
 
-## [1.3.509] — 2026-05-09 — Apple //e fidelity (spec 004, Phases 0-16)
+## [1.3.509]: 2026-05-09, Apple //e fidelity (spec 004, Phases 0-16)
 
 The bulk of this entry completes Apple //e fidelity work begun in
 `[1.3.416]`. After this release the //e cold-boots to BASIC, runs Disk II
@@ -3279,7 +3540,7 @@ Hi-Res, honors auxiliary RAM and the Language Card state machine,
 distinguishes soft reset from power cycle, and exposes a cycle-accurate
 IRQ/NMI infrastructure.
 
-### Added (CPU + interrupts — Phase 1)
+### Added (CPU + interrupts: Phase 1)
 - **`Cpu6502`** adapter implementing the new `ICpu` and `I6502DebugInfo`
   contracts. Lets the emulator core be re-targeted without reaching into
   legacy `EmuCpu` internals.
@@ -3290,7 +3551,7 @@ IRQ/NMI infrastructure.
   (7-cycle entry, status-register I-bit set on entry, B-bit clear on
   vectoring, vector fetch from `$FFFE/$FFFF` and `$FFFA/$FFFB`).
 
-### Added (memory + Language Card — Phase 2 / 3)
+### Added (memory + Language Card: Phase 2 / 3)
 - **`AppleIIeMmu`** owns the //e bank-switching state (`RDRAMRD`,
   `RDRAMWRT`, `RDCXROM`, `RDC3ROM`, `RDALTZP`, `RD80STORE`, `RDPAGE2`,
   `RDHIRES`) and replaces the legacy `AuxRamCard`. `Apple2.json` and
@@ -3303,10 +3564,10 @@ IRQ/NMI infrastructure.
   from bits 0 **and** 1 (the old bit-0-only path missed `$C083`),
   bank-1 / bank-2 selection per `BSRBANK2`, and write-enable latched on
   the second consecutive read of an `$C08x` write-enable address.
-- **`INTCXROM` physical remap** — `$C100-$CFFF` switches between the
+- **`INTCXROM` physical remap**: `$C100-$CFFF` switches between the
   internal //e ROM and slot peripheral ROMs.
 
-### Added (reset — Phase 4)
+### Added (reset: Phase 4)
 - **`SoftReset` vs. `PowerCycle`** semantics on every device and on the
   CPU. Soft reset preserves RAM contents, leaves the Language Card in
   its current bank state, keeps soft switches that survive Ctrl-Reset on
@@ -3318,21 +3579,21 @@ IRQ/NMI infrastructure.
   console, and remote (headless) command paths all funnel through one
   authoritative path.
 
-### Added (video timing + RDVBLBAR — Phase 5)
+### Added (video timing + RDVBLBAR: Phase 5)
 - **`VideoTiming`** model: 65 cycles per scanline × 262 scanlines =
   17,030 cycles per frame; tracks current scanline, cycle-in-frame, and
   vertical-blank window. Exposed to soft-switch reads so `RDVBLBAR`
   ($C019) reflects real hardware polarity (bit 7 = 1 outside vblank).
 - **FR-033** (vblank polarity) covered with dedicated tests.
 
-### Added (keyboard + soft-switch read surface — Phase 6, baseline 1.3.416)
+### Added (keyboard + soft-switch read surface: Phase 6, baseline 1.3.416)
 - **Open Apple / Closed Apple / Shift modifiers** at `$C061-$C063`,
   wired to host **Left Alt / Right Alt / Shift**.
 - Strobe-clear isolation (`$C010` only) and a consolidated
   `$C011-$C01F` status-read surface where bit 7 is sourced from the
   canonical owner.
 
-### Added (cold boot to BASIC — Phase 7, US1 MVP)
+### Added (cold boot to BASIC: Phase 7, US1 MVP)
 - **//e cold boot reaches the AppleSoft prompt.** `EmulatorShell` now
   pumps reset → boot wait → `]` prompt detection. Verified via the
   HOME / `PRINT "HELLO"` / `PR#3` 80-column / Open-Apple modifier
@@ -3341,14 +3602,14 @@ IRQ/NMI infrastructure.
   reads the canonical 40/80-column buffer; keyboard injector queues
   ASCII strings at the bus level without host-window dependencies.
 
-### Added (US3 //e memory + Language Card scenarios — Phase 8)
+### Added (US3 //e memory + Language Card scenarios: Phase 8)
 - 24 acceptance scenarios in `EmuValidationSuiteTests` covering aux RAM
   hot-swap, ALTZP, 80STORE + PAGE2 + HIRES interactions, Language Card
   bank-1 / bank-2 / write-enable transitions, and `INTCXROM` slot ROM
   remapping. Validates SC-006 / SC-007.
 
-### Added (Disk II nibble engine + WOZ — Phase 9 / 10)
-- **`DiskIINibbleEngine` rewrite** — cycle-accurate bit-stream model
+### Added (Disk II nibble engine + WOZ: Phase 9 / 10)
+- **`DiskIINibbleEngine` rewrite**: cycle-accurate bit-stream model
   (4 µs / bit at 1.023 MHz), Q3 sample timing, Q6/Q7 latch, write-protect
   flag, and per-track read/write head. Replaces the previous
   byte-oriented stub.
@@ -3361,21 +3622,21 @@ IRQ/NMI infrastructure.
   support up to ~51,200 bits, and signature validation against the
   WOZ-spec `kSigV1` / `kSigV2` headers.
 
-### Added (DiskImageStore + headless wiring — Phase 11)
-- **`DiskImageStore`** — uniform handle layer. Open / GetTrackBitCount /
+### Added (DiskImageStore + headless wiring: Phase 11)
+- **`DiskImageStore`**: uniform handle layer. Open / GetTrackBitCount /
   ReadBit / WriteBit / IsDirty / Save. Supports both nibblized and WOZ
   images behind one interface.
 - **Auto-flush on eject** and on shell shutdown, with dirty-tracking so
   unmodified images are not rewritten.
-- **`HeadlessHost`** test harness — drives the emulator without a host
+- **`HeadlessHost`** test harness, drives the emulator without a host
   window; lets test fixtures schedule cycles, read framebuffers, inject
   keystrokes, and mount / eject disks deterministically.
 
-### Added (text + DHR video — Phase 12)
+### Added (text + DHR video: Phase 12)
 - **`Apple80ColTextMode`** with `ALTCHARSET`, `FLASH` half-second blink
   cadence, and composed mixed-mode (top 160 lines graphics, bottom 32
   lines text) from a single shared character ROM source.
-- **`AppleDoubleHiResMode`** — 560×192 monochrome / 140×192 16-color
+- **`AppleDoubleHiResMode`**: 560×192 monochrome / 140×192 16-color
   Double Hi-Res with proper aux/main interleave (aux byte first, then
   main, packing 7 pixels per byte pair). DHR mode-select gated on
   `RDHIRES & RD80VID & RDDHIRES`.
@@ -3383,26 +3644,26 @@ IRQ/NMI infrastructure.
   patterns and compare exact frame hashes; covers BASIC `]` prompt,
   GR / HGR / HGR2 mode patterns, and 80-column DOS catalogs.
 
-### Added (disk boot end-to-end — Phase 13)
+### Added (disk boot end-to-end: Phase 13)
 - 8 disk-boot integration scenarios: synthetic DOS 3.3 boot, mixed-mode
   scroll, 80-column ProDOS catalog, write-protect honored, save +
   reload round-trip, WOZ copy-protected sample boot, multi-sided image
   fallthrough, and motor-off head-park.
 
-### Added (backwards-compat — Phase 14)
+### Added (backwards-compat: Phase 14)
 - `BackwardsCompatTests` regression-protect the unchanged Apple ][ and
   ][ plus behavior: keyboard latch, soft-switch surface, video modes, no
   MMU activity, no aux RAM, no IRQ controller. Audit log
   (`audit-backwards-compat.md`) documents the verification.
 
-### Added (perf budget — Phase 15)
-- **Performance gate** — `PerformanceTests` measures emulator throughput
+### Added (perf budget: Phase 15)
+- **Performance gate**: `PerformanceTests` measures emulator throughput
   on a workload of `kPerfMeasureCycles` and asserts elapsed wall-clock
   ≤ `kPerformanceCeilingMs`. Stability run (`kStabilityRunCount`)
   enforces ≤ `kStabilityToleranceFraction` variance. Released-only
   (skipped in Debug). Documented in `phase15-perf-protocol.md`.
 
-### Added (constitution audits + final gate — Phase 16)
+### Added (constitution audits + final gate: Phase 16)
 - 8 constitution audits under `specs/004-apple-iie-fidelity/audit-*.md`
   covering header comments, macro arguments, function spacing,
   EHM-on-fallible, scope blocks, function size, declaration alignment,
@@ -3414,7 +3675,7 @@ IRQ/NMI infrastructure.
   (Debug/Release × x64/ARM64) with `/W3 /WX /sdl /analyze`.
 
 ### Tests
-- Test count: **1013 / 1013 passing** in Release (1012 / 1012 in Debug —
+- Test count: **1013 / 1013 passing** in Release (1012 / 1012 in Debug,
   the +1 is the `PerformanceTests` sentinel that skips in Debug).
   Confirmed clean across x64 Debug + Release and ARM64 Debug + Release.
   Code analysis 0/0 on all four configurations.
@@ -3434,14 +3695,14 @@ IRQ/NMI infrastructure.
   `FixtureProvider`, scraper / injector helpers) is now the canonical
   path for emulator integration tests.
 
-## [1.3.416] — 2026-05-06
+## [1.3.416]: 2026-05-06
 
-### Added (Apple //e fidelity — Phase 6: keyboard + soft-switch read surface)
+### Added (Apple //e fidelity: Phase 6: keyboard + soft-switch read surface)
 - **Open Apple / Closed Apple / Shift modifiers** are now reachable at the
   expected //e addresses:
-  - `$C061` — Open Apple (bit 7 = pressed). Wired to host **Left Alt**.
-  - `$C062` — Closed Apple (bit 7 = pressed). Wired to host **Right Alt**.
-  - `$C063` — Shift key (bit 7 = pressed). Wired to host **Shift**.
+  - `$C061`: Open Apple (bit 7 = pressed). Wired to host **Left Alt**.
+  - `$C062`: Closed Apple (bit 7 = pressed). Wired to host **Right Alt**.
+  - `$C063`: Shift key (bit 7 = pressed). Wired to host **Shift**.
   Previously the modifier-key fields existed on `AppleIIeKeyboard` but the
   device's bus range stopped at `$C01F`, making them dead code.
 - **Strobe-clear isolation**. Reads of `$C011-$C01F` (BSRBANK2 / BSRREADRAM /
@@ -3464,8 +3725,8 @@ IRQ/NMI infrastructure.
 ### Tests
 - `+10` keyboard tests in `KeyboardTests.cpp` covering modifier reachability,
   strobe-clear isolation, and audit-closure assertions.
-- `+15` new tests in `SoftSwitchReadSurfaceTests.cpp` — one per `$C011-$C01F`
-  address — that assert (a) bit 7 reflects the canonical source, (b) bits
+- `+15` new tests in `SoftSwitchReadSurfaceTests.cpp`, one per `$C011-$C01F`
+  address, that assert (a) bit 7 reflects the canonical source, (b) bits
   0-6 mirror the keyboard latch, (c) the read does not clear strobe, and (d)
   repeat reads do not perturb state.
 - Test count: **906 / 906 passing** (was 881; +25). Confirmed clean across
@@ -3475,10 +3736,10 @@ IRQ/NMI infrastructure.
 - Closes the foundational Apple //e fidelity work (spec 004 Phases 0-6).
   Phase 7 (User Story 1 MVP cold boot) is the next planned increment.
 
-## [1.2.315] — 2026-05-04
+## [1.2.315]: 2026-05-04
 
 ### Added
-- **Character generator ROM loading** — text mode renderers now load the real
+- **Character generator ROM loading**: text mode renderers now load the real
   Apple character ROM file (`Apple2_Video.rom` for ][ / ][ plus, `Apple2e_Video.rom`
   for the //e) instead of the embedded 96-character fallback. Fixes:
   - **//e cursor** is now visible (the cursor character was outside our embedded
@@ -3491,131 +3752,131 @@ IRQ/NMI infrastructure.
   bit-reversed 2KB layout and the //e's primary + alt char set arrangement.
   Falls back to embedded $20-$5F glyphs if no ROM file is configured.
 
-## [1.1.311] — 2026-05-04
+## [1.1.311]: 2026-05-04
 
 ### Changed
-- **Machine config schema v2** — breaking change. Refactored from a single `memory[]`
+- **Machine config schema v2**: breaking change. Refactored from a single `memory[]`
   array with conditional fields into clear sections:
-  - `ram[]` — RAM regions with `address` + `size` (and optional `bank`)
-  - `systemRom` — singular system ROM (`address` + `file`; size derived from file)
-  - `characterRom` — character generator ROM (file only)
-  - `internalDevices[]` — motherboard I/O (just `type`)
-  - `slots[]` — expansion cards (`slot`, optional `device`, optional `rom`)
+  - `ram[]`: RAM regions with `address` + `size` (and optional `bank`)
+  - `systemRom`: singular system ROM (`address` + `file`; size derived from file)
+  - `characterRom`: character generator ROM (file only)
+  - `internalDevices[]`: motherboard I/O (just `type`)
+  - `slots[]`: expansion cards (`slot`, optional `device`, optional `rom`)
   All three machine configs (`Apple2.json`, `Apple2Plus.json`, `Apple2e.json`)
   migrated to the new schema.
-- **ROM size validation** — system ROM file size now determines the end address
+- **ROM size validation**: system ROM file size now determines the end address
   automatically (no more start/end mismatch bugs)
-- **Slot ROM auto-mapping** — slot ROMs auto-map to `$C000 + slot * 0x100`,
+- **Slot ROM auto-mapping**: slot ROMs auto-map to `$C000 + slot * 0x100`,
   required to be exactly 256 bytes
 
 ### Added
-- **FetchRoms.ps1** — expanded to download all peripheral card ROMs from AppleWin:
+- **FetchRoms.ps1**: expanded to download all peripheral card ROMs from AppleWin:
   Disk II 13-sector, Mockingboard, Mouse Interface, Parallel printer, Super Serial
   Card, ThunderClock Plus, HDC SmartPort, Hard Disk drivers, Apple //e Enhanced
   system ROM
-- **Apple //e Disk II slot ROM** — `Disk2.rom` now loads at $C600-$C6FF (slot 6)
+- **Apple //e Disk II slot ROM**: `Disk2.rom` now loads at $C600-$C6FF (slot 6)
   via the new schema, satisfying the //e autostart scan
 
-## [1.0.307] — 2026-05-04
+## [1.0.307]: 2026-05-04
 
 ### Added
-- **Machine picker dialog** — modal Win32 ListView showing all `Machines/*.json` configs
+- **Machine picker dialog**: modal Win32 ListView showing all `Machines/*.json` configs
   with display names from the JSON `name` field; shown at startup if no last-used
   machine, when clicking the status bar Machine panel, or via File > Switch Machine
-- **Last-used machine persistence** — stored in registry at `HKCU\Software\relmer\Casso`
-- **Hot-swap machine switching** — pause CPU, tear down devices/bus/cpu/video,
-  reload config, reinitialize, resume — works from menu, status bar, or startup
-- **Random RAM on cold boot** — RAM ($0000-$BFFF) initialized with random values to
+- **Last-used machine persistence**: stored in registry at `HKCU\Software\relmer\Casso`
+- **Hot-swap machine switching**: pause CPU, tear down devices/bus/cpu/video,
+  reload config, reinitialize, resume, works from menu, status bar, or startup
+- **Random RAM on cold boot**: RAM ($0000-$BFFF) initialized with random values to
   match real DRAM power-on behavior (Apple II shows random characters at boot)
-- **80STORE soft switch tracking** — //e keyboard intercepts $C000/$C001 writes to
+- **80STORE soft switch tracking**: //e keyboard intercepts $C000/$C001 writes to
   track 80STORE state; video mode selection suppresses page2 when 80STORE is active
-- **ROM size validation** — RomDevice rejects ROM files that don't match the configured
+- **ROM size validation**: RomDevice rejects ROM files that don't match the configured
   address range size, with a clear error message
-- **Illegal opcode handling** — CPU treats illegal opcodes as 1-byte NOPs (2 cycles)
+- **Illegal opcode handling**: CPU treats illegal opcodes as 1-byte NOPs (2 cycles)
   with a debug log message instead of crashing
 
 ### Fixed
-- **//e boot** — corrected ROM start address from $C100 to $C000 (16KB ROM); slot ROM
+- **//e boot**: corrected ROM start address from $C100 to $C000 (16KB ROM); slot ROM
   trimmed to $C100-$CFFF to avoid shadowing I/O space at $C000-$C0FF
-- **Language Card state machine** — corrected read source decoding to use both bits 0
+- **Language Card state machine**: corrected read source decoding to use both bits 0
   and 1 (was using only bit 0); $C083 now correctly enables Read RAM + Write Enable
-- **CpuOperations RMW operations** — Decrement, Increment, RotateLeft, RotateRight now
+- **CpuOperations RMW operations**: Decrement, Increment, RotateLeft, RotateRight now
   use ReadByte/WriteByte instead of direct memory[] access, so they correctly route
   through the bus for I/O-mapped addresses
-- **EmuCpu memory routing** — reads and writes for $C000+ now go through the
+- **EmuCpu memory routing**: reads and writes for $C000+ now go through the
   MemoryBus, so the LanguageCardBank is consulted for $D000-$FFFF (was reading stale
   ROM from memory[] which caused //e BASIC to fail)
-- **CreateMemoryDevices aux RAM handling** — RAM regions with a `bank` field (e.g.
+- **CreateMemoryDevices aux RAM handling**: RAM regions with a `bank` field (e.g.
   "aux") are skipped in main RAM creation; aux memory is handled by AuxRamCard
-- **MemoryBus::Validate** — overlapping I/O devices are now warnings (logged via
+- **MemoryBus::Validate**: overlapping I/O devices are now warnings (logged via
   DEBUGMSG) instead of errors; first-match-wins is the correct hardware behavior
 
 ### Changed
-- **Machine display names** — "Apple ][", "Apple ][ plus", "Apple //e"
-- **File menu** — "Open Machine Config" renamed to "Switch Machine..." and ungrayed
-- **Status bar** — clicking the Machine panel opens the picker dialog
-- **Cpu::Reset** — removed all hardcoded test instructions and PC=$8000 setup;
+- **Machine display names**: "Apple ][", "Apple ][ plus", "Apple //e"
+- **File menu**: "Open Machine Config" renamed to "Switch Machine..." and ungrayed
+- **Status bar**: clicking the Machine panel opens the picker dialog
+- **Cpu::Reset**: removed all hardcoded test instructions and PC=$8000 setup;
   now just initializes registers/flags/memory
-- **Cpu member initializers** — moved from constructor initializer list to in-class
+- **Cpu member initializers**: moved from constructor initializer list to in-class
   defaults
-- **VS Code IntelliSense config** — added CassoEmuCore/Pch.h to forcedInclude so
+- **VS Code IntelliSense config**: added CassoEmuCore/Pch.h to forcedInclude so
   `<random>` and other STL headers resolve correctly
 
 ### Removed
-- **Cpu::Run()** — dead code (never called); CLI uses its own StepOne loop
+- **Cpu::Run()**: dead code (never called); CLI uses its own StepOne loop
 
-## [1.0.244] — 2026-05-03
+## [1.0.244]: 2026-05-03
 
 ### Added
-- **Apple II platform emulator (Casso.exe)** — GUI-based Apple ][, ][ plus, and //e emulator
+- **Apple II platform emulator (Casso.exe)**: GUI-based Apple ][, ][ plus, and //e emulator
   with D3D11 rendering, WASAPI audio, data-driven JSON machine configs, and keyboard input
-- **CPU thread architecture** — dedicated CPU thread for 6502 execution and audio,
+- **CPU thread architecture**: dedicated CPU thread for 6502 execution and audio,
   UI thread for Win32 messages and D3D Present with vsync
-- **Status bar** — shows CPU type, clock speed (MHz), machine name, and device count;
+- **Status bar**: shows CPU type, clock speed (MHz), machine name, and device count;
   clicking devices shows a popup listing all bus-mapped devices with address ranges
-- **Edit menu** — Copy Text (reads 40×24 text screen as ASCII), Copy Screenshot
+- **Edit menu**: Copy Text (reads 40×24 text screen as ASCII), Copy Screenshot
   (framebuffer as DIB bitmap), Paste (Ctrl+V feeds clipboard into keyboard)
-- **Cycle-accurate instruction timing** — baseCycles in Microcode with runtime page-cross
+- **Cycle-accurate instruction timing**: baseCycles in Microcode with runtime page-cross
   and branch-taken penalties
-- **Pending audio buffer** — decouples PCM generation from WASAPI drain to prevent stutter
-- **DPI-scaled debug console font** — uses GetDpiForWindow + MulDiv
+- **Pending audio buffer**: decouples PCM generation from WASAPI drain to prevent stutter
+- **DPI-scaled debug console font**: uses GetDpiForWindow + MulDiv
 
 ### Changed
-- **Project rename** — Casso65Core → CassoCore, Casso65EmuCore → CassoEmuCore,
+- **Project rename**: Casso65Core → CassoCore, Casso65EmuCore → CassoEmuCore,
   Casso65Emu → Casso, Casso65 → CassoCli; repo renamed to relmer/Casso
-- **Exact NTSC timing** — CPU clock 1,022,727 Hz (was 1,023,000), cycles/frame 17,030
+- **Exact NTSC timing**: CPU clock 1,022,727 Hz (was 1,023,000), cycles/frame 17,030
   (was 17,050); derived from 14.31818 MHz crystal
-- **Speaker amplitude** — ±0.25f (was ±1.0f) to match reference audio levels
-- **WASAPI buffer** — 100ms (was 33ms) for jitter headroom
-- **D3D vsync** — Present(1) on UI thread, Present(0) was double-gating with frame timer
+- **Speaker amplitude**: ±0.25f (was ±1.0f) to match reference audio levels
+- **WASAPI buffer**: 100ms (was 33ms) for jitter headroom
+- **D3D vsync**: Present(1) on UI thread, Present(0) was double-gating with frame timer
 - **using namespace std** + **namespace fs** in both Emu Pch.h files
 - **In-class member initialization** preferred over constructor initializer lists
-- **Casso65Emu flattened** — removed Audio/, Shell/, Resources/, shaders/ subdirectories
-- **machines/ → Machines/, roms/ → ROMs/** — directory casing standardized
+- **Casso65Emu flattened**: removed Audio/, Shell/, Resources/, shaders/ subdirectories
+- **machines/ → Machines/, roms/ → ROMs/**: directory casing standardized
 
 ### Fixed
-- **Mixed-mode text flicker** — framebuffer race condition; CPU thread now copies completed
+- **Mixed-mode text flicker**: framebuffer race condition; CPU thread now copies completed
   framebuffer to UI buffer under mutex
-- **Hi-res NTSC colors** — two-pass renderer correctly handles cross-byte-boundary adjacent
+- **Hi-res NTSC colors**: two-pass renderer correctly handles cross-byte-boundary adjacent
   pixels; HCOLOR=3 renders as solid white
-- **Power cycle** — now clears RAM ($0000-$BFFF) for cold boot with APPLE ][ banner
-- **Paste drops characters** — DrainPasteBuffer now checks keyboard strobe before feeding
+- **Power cycle**: now clears RAM ($0000-$BFFF) for cold boot with APPLE ][ banner
+- **Paste drops characters**: DrainPasteBuffer now checks keyboard strobe before feeding
   next character
-- **Duplicate AddDevice** — every device was registered twice on the memory bus
-- **Bus overlap detection** — Validate() uses CBRN with specific conflicting address ranges
-- **Title bar garbage** — em-dash encoded as UTF-8 in source, replaced with \\u2014 escape
-- **Debug console newlines** — bare LF converted to CRLF for Win32 EDIT control
-- **Audio buzz during boot** — capped submission to one frame, pre-filled silence
-- **Green screen** — CPU opcode fetch now uses virtual ReadByte through MemoryBus
-- **Black screen** — D3D11 shaders implemented via runtime D3DCompile
-- **ParseHexAddress** — overflow and invalid-char validation added
+- **Duplicate AddDevice**: every device was registered twice on the memory bus
+- **Bus overlap detection**: Validate() uses CBRN with specific conflicting address ranges
+- **Title bar garbage**: em-dash encoded as UTF-8 in source, replaced with \\u2014 escape
+- **Debug console newlines**: bare LF converted to CRLF for Win32 EDIT control
+- **Audio buzz during boot**: capped submission to one frame, pre-filled silence
+- **Green screen**: CPU opcode fetch now uses virtual ReadByte through MemoryBus
+- **Black screen**: D3D11 shaders implemented via runtime D3DCompile
+- **ParseHexAddress**: overflow and invalid-char validation added
 
-## [0.9.32] — 2026-04-28
+## [0.9.32]: 2026-04-28
 
 ### Added
-- Tom Harte SingleStepTests — per-opcode validation against 151 legal-opcode test sets (10,000 vectors each)
-- `run` subcommand — load and execute a binary or assembly source from the CLI
-- **Full AS65-compatible assembler** — from-scratch reimplementation of Frank A. Kingswood's AS65
+- Tom Harte SingleStepTests: per-opcode validation against 151 legal-opcode test sets (10,000 vectors each)
+- `run` subcommand, load and execute a binary or assembly source from the CLI
+- **Full AS65-compatible assembler**: from-scratch reimplementation of Frank A. Kingswood's AS65
   - All 56 mnemonics, all 14 addressing modes
   - Two-pass assembly with forward-reference resolution
   - Full expression evaluator: `+ - * / % & | ^ ~ << >>`, `<`/`>` byte selectors, current-PC `*`
@@ -3655,8 +3916,8 @@ IRQ/NMI infrastructure.
 ## 2026-04-24
 
 ### Added
-- **Assembler v1** (spec 001) — basic two-pass assembler with labels, branches, directives, expressions, listing output, and CLI subcommands
-- `LoadBinary()` — load pre-assembled binaries into CPU memory
+- **Assembler v1** (spec 001), basic two-pass assembler with labels, branches, directives, expressions, listing output, and CLI subcommands
+- `LoadBinary()`: load pre-assembled binaries into CPU memory
 - CI pipeline with GitHub Actions (x64 + ARM64, Debug + Release)
 
 ### Fixed
@@ -3686,11 +3947,11 @@ IRQ/NMI infrastructure.
 ### Added
 - Flag manipulation (`CLC`, `SEC`, `CLI`, `SEI`, `CLV`, `CLD`, `SED`), register transfers (`TAX`, `TXA`, `TAY`, `TYA`, `TXS`, `TSX`), `NOP`
 
-## 2024-11-24 — 2024-11-30
+## 2024-11-24: 2024-11-30
 
 ### Added
 - Initial 6502 emulator: fetch-decode-execute cycle, all 56 standard mnemonics
-- **Group 01**: `ORA`, `AND`, `EOR`, `ADC`, `STA`, `LDA`, `CMP`, `SBC` — all 8 addressing modes
+- **Group 01**: `ORA`, `AND`, `EOR`, `ADC`, `STA`, `LDA`, `CMP`, `SBC`, all 8 addressing modes
 - **Group 00**: `BIT`, `JMP`, `STY`, `LDY`, `CPY`, `CPX`
 - **Group 10**: `ASL`, `LSR`, `ROL`, `ROR`, `STX`, `LDX`, `DEC`, `INC`
 - All 14 addressing modes (immediate, zero page, ZP,X, ZP,Y, absolute, abs,X, abs,Y, (ZP,X), (ZP),Y, indirect, relative, accumulator, implied, jump absolute)

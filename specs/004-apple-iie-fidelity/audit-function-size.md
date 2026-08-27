@@ -1,7 +1,7 @@
-# T129 — Function-size + indent-depth audit
+# T129: Function-size + indent-depth audit
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T129
-**Constitution**: §I + §V 1.4.0 — function bodies should be ≤ 50 lines
+**Constitution**: §I + §V 1.4.0, function bodies should be ≤ 50 lines
 (100 lines is the hard ceiling); ≤ 2 indent levels beyond the EHM pattern
 (3 is the hard ceiling); locals at top of function.
 **Audit date**: Phase 16
@@ -33,7 +33,7 @@ that this feature did not introduce are out of scope.
 
 ## Verdict
 
-**PASS** — 0 function-size or indent-depth violations introduced by this
+**PASS**, 0 function-size or indent-depth violations introduced by this
 feature. The largest function added by this feature is `WozLoader::Load`
 (~189 raw body lines as reported by a coarse scan, but the body is split
 into 4 disjoint phase blocks each ≤ 50 lines per the EHM pattern; the

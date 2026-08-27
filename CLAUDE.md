@@ -1,4 +1,4 @@
-# Casso — Claude Code Instructions
+# Casso: Claude Code Instructions
 
 Project guidelines, code style, EHM patterns, build rules, and current feature context are in:
 
@@ -28,20 +28,24 @@ Related: GH #125 (audio pops are DEVICE-PATH starvation, not synthesis —
 proven with the `CASSO_AUDIO_DUMP` tap vs loopback capture; fix is a
 dedicated render pump).
 
-**Also open: `specs/020-disk-file-access`** (Draft) — disk file access for the
+**Also active: `specs/020-disk-file-access`** (IMPLEMENTED, unmerged) --
+disk file access for the
 build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
-`disk` subcommand, and boot configuration. Next step is `/speckit-clarify` or
-`/speckit-plan`.
+`disk` subcommand -- create, init, list, get, put, delete, boot, sectorread
+and sectorwrite -- and boot configuration. Delivered on branch
+`020-disk-file-access` and cut as **1.20.0** there, since master took 1.19.0
+for the Mockingboard first. See
+[`specs/020-disk-file-access/plan.md`](specs/020-disk-file-access/plan.md).
 
 Four further specs are drafted but NOT started, each to be picked up in its
 own session:
 
-- `specs/021-disk-manager` — graphical disk manager, live editing of the mounted
+- `specs/021-disk-manager`: graphical disk manager, live editing of the mounted
   disk, inspection tools, and CLI parity. Depends on 020.
-- `specs/022-disk-image-formats` — 2MG, nibble, compressed/archived images, extra
+- `specs/022-disk-image-formats`: 2MG, nibble, compressed/archived images, extra
   filesystems, larger media. Depends on 020/021; large-media parts gated on
   GH #101 / #93.
-- `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Builds on
+- `specs/023-ca65-dialect`: ca65's absolute subset, split out of 019. Builds on
   019's dialect mechanism, which has shipped; full compatibility needs a linker
   (GH #58).
 - `specs/025-game-compat-patcher` — runtime patch table over live guest RAM,
@@ -59,17 +63,51 @@ on it (024 selects its variant by machine configuration).
 
 **Sequencing.** 021 needs 020's filesystem layer and 022 needs 020/021. 023's
 gate was 019's dialect mechanism (023 SC-006 requires that adding ca65 change
-nothing in that mechanism), and that shipped in 1.18.0 — 023 can start any
-time. 019 and 020 shared only the CassoCli command-line surface, which lives in
-`CassoCore` with tests; 020 extends it from there. 025 is independent of both
-the disk and assembler tracks and can start any time; it builds on the unmerged
-`game-patch-table` proof-of-concept (see its `research/parked-branch.md` for the
-gap analysis, including an unresolved scan-cost question).
+nothing in that mechanism), and that shipped in 1.18.0; 023 can start any
+time. 025 is independent of both the disk and assembler tracks and can start
+any time; it builds on the unmerged `game-patch-table` proof-of-concept (see
+its `research/parked-branch.md` for the gap analysis, including an unresolved
+scan-cost question).
 
-**020 is partially delivered.** Its User Story 1 (assembler binary output) is
-already done and on master: `--raw` and `--dos-bin` live in
-`CassoCore/OutputFormats` alongside `WriteFlatImage`, with tests. A session
-picking up 020 should plan US2 onward and treat US1 as complete.
+**019 and 020 both rewrote the command line, and 019 landed first.** Master was
+merged into 020 and the reconciliation was decided in 019's favor on the point
+that matters: **the grammar is table-driven**, a dialect's flags are data that
+the parser walks and the help is generated from, and **assembling names its
+dialect**, `CassoCli as65 <source>`, not a bare source file. 020's command-line
+work rides on top of that: the `disk` subcommand and its grammar, as65's exit
+codes, and the rejoining of a command line PowerShell cut in half. Both branches
+had independently withdrawn `--cpu` in favor of as65's `-x`, so the collision
+predicted here never materialized.
+
+**020 is delivered and awaiting merge.** All of it: the assembler's output
+formats, DOS 3.3 and ProDOS read and write, the `disk` subcommand with nine
+commands, boot configuration, and a command line that matches as65's. Cut as
+**1.20.0** on the branch. The runner was split into `DiskCommandResult`,
+`DiskImageSession`, `DiskHelpPage` and the command runner itself, every
+function leaves through one exit, and `Casso.exe` now parses its own command
+line through the shared table-driven grammar in `CassoCore`.
+
+**The unpadded span has no flag of its own.** `--raw` named it for one revision
+and was retired by owner decision: a flag whose only effect is to select the
+default earns a line in the help and buys no capability. Several places in the
+tree still claimed that the padded 64 KB image is what AS65 writes and that the
+span was our own modern addition. That is backwards. AS65's own manual says its
+binary "begins at the lowest used address, and continues up to the highest used
+address", and its `testincl.bin` is 21 bytes, so the unpadded span **is** AS65's
+behavior and the padded image is the departure from it. The claims in
+`docs/Assembler.md`, `CommandLineOptions.h` and `CommandLineParser.cpp` were
+corrected; historical `CHANGELOG` entries were left as written. Check
+https://github.com/Ludoclt/as65_142 rather than this tree's prose before
+changing an as65 default again.
+
+**Two 020 findings that outlive the feature.** `NibblizationLayer::Denibblize`
+stops at the first sector it cannot decode on a track and leaves that sector and
+every later one on the track as zeros, while returning `S_OK`, and
+`DiskImage::Serialize` puts it on the emulator's flush path, so a guest that
+leaves a track partly written can lose the rest of it on eject today. Separately,
+`ProDosReader` and `ProDosFileWriter` already exist but are declared inside
+`ProDosSkeleton.h`, so a survey by filename misses them; DOS 3.3 has no reader at
+all. Both are written up in `specs/020-disk-file-access/research.md`.
 
 Recent specs live under `specs/` (015 printer support, 016 Apple //c, 017
 blank-disk creation, and 019 assembler dialects + Merlin are all complete and

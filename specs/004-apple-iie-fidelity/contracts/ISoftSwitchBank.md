@@ -5,10 +5,10 @@ is by address ownership at machine-build time, not by per-access fallthrough.
 
 ## Layers
 
-1. **`AppleSoftSwitchBank`** — ][ base. Owns $C030 (speaker), keyboard
+1. **`AppleSoftSwitchBank`**: ][ base. Owns $C030 (speaker), keyboard
    address $C000/$C010, $C050-$C057 display switches.
-2. **(implicit ][+ additions)** — composed via additional registrations.
-3. **`AppleIIeSoftSwitchBank`** — //e additions:
+2. **(implicit ][+ additions)**: composed via additional registrations.
+3. **`AppleIIeSoftSwitchBank`**: //e additions:
    - **Write switches** $C000-$C00F: 80STORE/!80STORE, RAMRD/!RAMRD,
      RAMWRT/!RAMWRT, INTCXROM/!INTCXROM, ALTZP/!ALTZP, SLOTC3ROM/!SLOTC3ROM,
      80COL/!80COL, ALTCHARSET/!ALTCHARSET. Forwards to `AppleIIeMmu`

@@ -2,6 +2,8 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/ProDosSkeleton.h"
+#include "Devices/Disk/TrackWritability.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -28,6 +30,111 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (NibblizationTests)
 {
 public:
+
+    //  Byte offset of the Nth address prologue (D5 AA 96) in a track's packed
+    //  bit stream. Nibbles are 8 bits packed MSB-first from offset 0, so the
+    //  stream is byte-aligned and a plain byte scan finds them.
+    static size_t FindAddressField (const vector<Byte> & bits, int which)
+    {
+        size_t  i     = 0;
+        int     seen  = 0;
+        size_t  found = SIZE_MAX;
+
+
+
+        for (i = 0; i + 2 < bits.size() && found == SIZE_MAX; i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0x96)
+            {
+                if (seen == which)
+                {
+                    found = i;
+                }
+
+                seen++;
+            }
+        }
+
+        return found;
+    }
+
+
+    //  The sector number an address field claims, decoded from its 4-and-4 pair.
+    static Byte ReadFieldSector (const vector<Byte> & bits, size_t addrAt)
+    {
+        return static_cast<Byte> (((bits[addrAt + 7] << 1) | 1) & bits[addrAt + 8]);
+    }
+
+
+    //  Rewrites an address field's sector number, keeping the checksum honest so
+    //  the header stays otherwise valid -- the point is to exercise the sector
+    //  number, not to be rejected for a bad checksum.
+    static void PatchFieldSector (vector<Byte> & bits, size_t addrAt, Byte volume, Byte track, Byte sector)
+    {
+        Byte  checksum = static_cast<Byte> (volume ^ track ^ sector);
+
+
+
+        bits[addrAt + 7]  = static_cast<Byte> ((sector >> 1) | 0xAA);
+        bits[addrAt + 8]  = static_cast<Byte> (sector | 0xAA);
+        bits[addrAt + 9]  = static_cast<Byte> ((checksum >> 1) | 0xAA);
+        bits[addrAt + 10] = static_cast<Byte> (checksum | 0xAA);
+    }
+
+
+    //  Writes a checksum that cannot be right for this header, leaving every
+    //  other field intact.
+    //
+    //  Flipping a bit in the ENCODED byte is not good enough: 4-and-4 forces the
+    //  odd bits to 1, so clearing one only changes the decoded value when that
+    //  value's bit was already set -- a corruption that silently does nothing
+    //  for half the sectors on a track. Writing an explicitly wrong value is
+    //  unconditional.
+    static void PatchFieldChecksum (vector<Byte> & bits, size_t addrAt, Byte volume, Byte track)
+    {
+        Byte  sector = ReadFieldSector (bits, addrAt);
+        Byte  wrong  = static_cast<Byte> ((volume ^ track ^ sector) ^ 0xFF);
+
+
+
+        bits[addrAt + 9]  = static_cast<Byte> ((wrong >> 1) | 0xAA);
+        bits[addrAt + 10] = static_cast<Byte> (wrong | 0xAA);
+    }
+
+
+    //  Logical sectors the report says were recovered must still hold their
+    //  original bytes: damage to one sector may not disturb any other.
+    void AssertCoveredSectorsIntact (
+        const vector<Byte>        & recovered,
+        const vector<Byte>        & original,
+        const SectorDecodeReport  & report,
+        int                         track)
+    {
+        const size_t  kSectorBytes = NibblizationLayer::kSectorByteSize;
+        int           sector       = 0;
+        size_t        i            = 0;
+
+
+
+        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        {
+            bool    covered = report.IsSectorRecovered (track, sector);
+            size_t  base    = (static_cast<size_t> (track) * NibblizationLayer::kSectorsPerTrack
+                            + static_cast<size_t> (sector)) * kSectorBytes;
+
+            if (!covered)
+            {
+                continue;
+            }
+
+            for (i = 0; i < kSectorBytes; i++)
+            {
+                Assert::AreEqual (original[base + i], recovered[base + i],
+                    L"a recovered sector must hold its original bytes");
+            }
+        }
+    }
+
 
     static constexpr int      kImageSize = NibblizationLayer::kImageByteSize;
     static constexpr int      kPattern1  = 0x55;
@@ -777,5 +884,388 @@ public:
         Assert::AreEqual (0,   report.sectorsLost);
         Assert::IsTrue (raw == salvaged, L"an undamaged disk salvages to itself");
     }
+
+    TEST_METHOD (Denibblize_DuplicateSectorNumbers_ReportsIncompleteCoverage)
+    {
+        // Also no failure: two valid headers claim the same slot. The second
+        // would overwrite the first, and some other slot goes unclaimed to pay
+        // for it. Reported through the duplicate flag as well as coverage.
+        DiskImage           img;
+        vector<Byte>        raw    = MakePinnedRandomImage (0x0F0F5A5Au);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kTrack = 11;
+        Byte                victim = 0;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits    = img.GetTrackBitsForWrite (kTrack);
+            size_t          firstAt = FindAddressField (bits, 2);
+            size_t          nextAt  = FindAddressField (bits, 3);
+
+            Assert::AreNotEqual (SIZE_MAX, firstAt, L"the track must carry address fields to corrupt");
+            Assert::AreNotEqual (SIZE_MAX, nextAt,  L"the track must carry a second address field");
+
+            victim = ReadFieldSector (bits, firstAt);
+
+            PatchFieldSector (bits, nextAt, NibblizationLayer::kDefaultVolume,
+                              static_cast<Byte> (kTrack), victim);
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
+            L"a duplicated slot means some other slot went unclaimed");
+        Assert::IsTrue (report.IsDuplicated (kTrack), L"the duplicate must be reported as such");
+        Assert::AreEqual (1, report.GetUnrecoveredCount(), L"exactly one slot goes unfilled");
+    }
+
+
+    TEST_METHOD (Denibblize_OutOfRangeSectorNumber_ReportsIncompleteCoverage)
+    {
+        // No decode FAILS here: the header is valid and its checksum agrees.
+        // The sector number simply names a slot the geometry does not have, so
+        // one logical sector is never filled. Coverage is what catches it.
+        DiskImage           img;
+        vector<Byte>        raw    = MakePinnedRandomImage (0x2468BDF0u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kTrack = 9;
+        const Byte          kBogus = 200;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits   = img.GetTrackBitsForWrite (kTrack);
+            size_t          addrAt = FindAddressField (bits, 3);
+
+            Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
+
+            PatchFieldSector (bits, addrAt, NibblizationLayer::kDefaultVolume,
+                              static_cast<Byte> (kTrack), kBogus);
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
+            L"an unreachable sector number leaves the track short");
+        Assert::AreEqual (1, report.GetUnrecoveredCount(), L"exactly one slot goes unfilled");
+        Assert::IsFalse (report.IsDuplicated (kTrack), L"nothing was written twice");
+
+        AssertCoveredSectorsIntact (recovered, raw, report, kTrack);
+    }
+
+
+    TEST_METHOD (Denibblize_PartiallyDecodableTrack_ReportsDataLossAndDoesNotZeroTail)
+    {
+        // The defect this pins: the decoder used to abandon a track at its
+        // first bad sector, leaving that sector AND every later one in scan
+        // order as zeros, while reporting success. Corrupting one address
+        // field's checksum mid-track must cost exactly that one sector.
+        //
+        // Measured against the old behavior, this case lost SIX sectors where
+        // it now loses one -- the whole tail of the track from the damage
+        // onward. That ratio is the most compact statement of what the defect
+        // actually cost, and it is why this assertion is on the COUNT rather
+        // than merely on the outcome.
+        DiskImage           img;
+        vector<Byte>        raw     = MakePinnedRandomImage (0x1234ABCDu);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kTrack  = 7;
+        const int           kVictim = 5;   // physical position within the track
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits   = img.GetTrackBitsForWrite (kTrack);
+            size_t          addrAt = FindAddressField (bits, kVictim);
+
+            Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
+
+            // Break only the checksum: the header still parses, and is refused
+            // because it cannot be trusted rather than because it is unreadable.
+            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+                                static_cast<Byte> (kTrack));
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
+            L"a track with an unusable header is damaged, not blank");
+        Assert::IsTrue (report.HasDataLoss(), L"the report must say data was lost");
+        Assert::AreEqual (1, report.GetUnrecoveredCount(),
+            L"exactly one sector is lost -- the tail must survive");
+
+        AssertCoveredSectorsIntact (recovered, raw, report, kTrack);
+
+        // Neighbors are untouched, and a clean track is still Complete.
+        Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (kTrack + 1),
+            L"an undamaged neighbor must still read Complete");
+    }
+
+
+    TEST_METHOD (Denibblize_ReportlessOverload_FailsOnDataLoss)
+    {
+        // The reportless signature must not be an escape hatch. It exists for
+        // callers that do not want the detail, NOT for callers that want to
+        // ignore it -- DiskImage::Serialize is the one production caller and
+        // the flush path is precisely where silent truncation cost data.
+        DiskImage           img;
+        vector<Byte>        raw    = MakePinnedRandomImage (0x77778888u);
+        vector<Byte>        recovered;
+        HRESULT             hr     = S_OK;
+        const int           kTrack = 4;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits   = img.GetTrackBitsForWrite (kTrack);
+            size_t          addrAt = FindAddressField (bits, 6);
+
+            Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
+
+            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+                                static_cast<Byte> (kTrack));
+        }
+
+        hr = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered);
+
+        Assert::IsTrue (FAILED (hr),
+            L"the reportless overload must fail rather than hand back a truncated buffer");
+    }
+
+
+    TEST_METHOD (Denibblize_UnformattedTrack_StillSucceedsThroughReportlessOverload)
+    {
+        // The counterpart to the test above: a blank track is NOT data loss,
+        // and refusing one would make blank and newly formatted media
+        // unreadable. This is the distinction a bare "not all sectors decoded"
+        // check would collapse.
+        DiskImage       img;
+        vector<Byte>    raw    = MakePinnedRandomImage (0x99AABBCCu);
+        vector<Byte>    recovered;
+        const int       kWiped = 5;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        img.ResizeTrack (kWiped, DiskImage::kDefaultTrackByteSize * 8);
+        {
+            vector<Byte> &  b = img.GetTrackBitsForWrite (kWiped);
+
+            std::fill (b.begin(), b.end(), static_cast<Byte> (0));
+        }
+
+        img.SetTrackBitCount (kWiped, DiskImage::kDefaultTrackByteSize * 8);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
+    }
+
+
+    TEST_METHOD (PoFileIndexForDosLogicalSector_AgreesWithTheBlockMapTheProDosReaderUses)
+    {
+        // Two separately derived statements of one fact, which is the whole
+        // reason this mapping is COMPOSED from the two interleaves rather than
+        // written down again. ProDosSkeleton owns the block-to-sector map the
+        // readers address real ProDOS volumes through, and those volumes are
+        // stored in DOS sector order, so that table has been corroborated
+        // against disks written in 1985. A ProDOS-ordered file stores block N
+        // at byte N * 512, so where a DOS logical sector sits in such a file
+        // follows from that map and nothing else.
+        //
+        // A hand-written third table is how the two came to disagree once: the
+        // wrong one wrote and read a .po through ITSELF, so no round trip could
+        // see it and the file was unreadable only on a real machine.
+        constexpr int     kBlocksPerTrack = 8;
+        constexpr int     kHalvesPerBlock = 2;
+        constexpr size_t  kHalfBytes      = (size_t) NibblizationLayer::kSectorByteSize;
+        int               block           = 0;
+        int               half            = 0;
+        int               seen            = 0;
+        vector<bool>      claimed (NibblizationLayer::kSectorsPerTrack, false);
+
+
+
+        for (block = 0; block < kBlocksPerTrack; block++)
+        {
+            for (half = 0; half < kHalvesPerBlock; half++)
+            {
+                size_t  offset   = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+                int     logical  = (int) (offset / kHalfBytes);
+                int     expected = block * kHalvesPerBlock + half;
+
+                Assert::AreEqual (expected, NibblizationLayer::PoFileIndexForDosLogicalSector (logical),
+                    L"a ProDOS-ordered file must hold this sector where block order puts it");
+
+                Assert::IsFalse (claimed[(size_t) logical], L"and no logical sector twice");
+
+                claimed[(size_t) logical] = true;
+                seen++;
+            }
+        }
+
+        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack, seen,
+            L"all sixteen sectors of a track must be accounted for, or this compared nothing");
+    }
+
+
+    TEST_METHOD (RenibblizeTracks_LeavesEveryOtherTrackBitIdentical)
+    {
+        // The whole argument for a targeted rewrite: a small edit must not
+        // resynthesize the rest of the disk. Re-encoding everything would
+        // discard timing, sync, and weak bits on tracks nothing was written to.
+        DiskImage       img;
+        vector<Byte>    raw      = MakePinnedRandomImage (0xC0FFEE01u);
+        vector<Byte>    edited;
+        vector<Byte>    before;
+        const int       kTouched = 12;
+        const int       kIntact  = 13;
+        int             tracks[] = { kTouched };
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        before = img.GetTrackBits (kIntact);
+        edited = raw;
+
+        // Change a byte that lives on the touched track only.
+        edited[static_cast<size_t> (kTouched) * 16 * NibblizationLayer::kSectorByteSize] ^= 0xFF;
+
+        AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
+
+        {
+            const vector<Byte> &  after     = img.GetTrackBits (kIntact);
+            size_t                i         = 0;
+            bool                  identical = after.size() == before.size();
+
+            for (i = 0; identical && i < before.size(); i++)
+            {
+                identical = after[i] == before[i];
+            }
+
+            Assert::IsTrue (identical, L"an untouched track's bits must be byte-identical");
+        }
+    }
+
+
+    TEST_METHOD (RenibblizeTracks_TouchedTrackCarriesTheEdit)
+    {
+        // The other half: the track that was named must actually change, and
+        // the image must still denibblize cleanly afterwards.
+        DiskImage           img;
+        vector<Byte>        raw      = MakePinnedRandomImage (0x5EED1234u);
+        vector<Byte>        edited;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kTouched = 4;
+        int                 tracks[] = { kTouched };
+        size_t              at       = static_cast<size_t> (kTouched) * 16
+                                     * NibblizationLayer::kSectorByteSize;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        edited      = raw;
+        edited[at] ^= 0xFF;
+
+        AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::AreEqual (edited[at], recovered[at], L"the edit must survive the re-encode");
+        Assert::IsFalse (report.HasDataLoss(), L"a re-encoded image must still decode cleanly");
+        Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (kTouched),
+            L"the rewritten track must read back Complete");
+    }
+
+
+    TEST_METHOD (TrackWritability_CleanImage_EveryTrackWritable)
+    {
+        DiskImage           img;
+        vector<Byte>        raw = MakePinnedRandomImage (0x11223344u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+
+            Assert::IsTrue (writability.IsImageWritable(), L"a standard image must be writable");
+            Assert::IsTrue (writability.IsTrackWritable (0),  L"track 0 must be writable");
+            Assert::IsTrue (writability.IsTrackWritable (34), L"the last track must be writable");
+        }
+    }
+
+
+    TEST_METHOD (TrackWritability_DamagedTrack_RefusesOnlyThatTrack)
+    {
+        // Refusal is per track. A track the operation never touches must not
+        // block a write elsewhere on the disk -- that is the difference between
+        // protecting data and refusing to work.
+        DiskImage           img;
+        vector<Byte>        raw       = MakePinnedRandomImage (0x99887766u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        const int           kDamaged  = 6;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+
+        {
+            vector<Byte> &  bits   = img.GetTrackBitsForWrite (kDamaged);
+            size_t          addrAt = FindAddressField (bits, 2);
+
+            Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
+
+            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+                                static_cast<Byte> (kDamaged));
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+            int               elsewhere[] = { kDamaged - 1, kDamaged + 1 };
+            int               includes[]  = { kDamaged - 1, kDamaged };
+
+            Assert::IsTrue  (writability.IsImageWritable(),
+                L"one damaged track does not condemn the whole image");
+            Assert::IsFalse (writability.IsTrackWritable (kDamaged),
+                L"the damaged track itself must be refused");
+            Assert::IsTrue  (writability.AreTracksWritable (elsewhere),
+                L"a write that avoids the damage must be allowed");
+            Assert::IsFalse (writability.AreTracksWritable (includes),
+                L"a write that needs the damaged track must be refused");
+        }
+    }
+
+
+    TEST_METHOD (TrackWritability_HalfTrackData_RefusesTheWholeImage)
+    {
+        // Data between whole tracks has nowhere to go in a sector image, and
+        // the loss would be silent. Checked before any track is examined.
+        DiskImage           img;
+        vector<Byte>        raw = MakePinnedRandomImage (0xABCDEF01u);
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        // Point a half-track position at a slot that is not its whole track,
+        // which is what a bit-stream capture of a protected disk looks like.
+        img.SetQuarterTrackSlot (10, 7);
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+            bool              hasReason   = !writability.GetImageRefusalReason().empty();
+
+            Assert::IsFalse (writability.IsImageWritable(),
+                L"an image holding data between tracks must be refused outright");
+            Assert::IsTrue  (hasReason, L"the refusal must say why");
+            Assert::IsFalse (writability.IsTrackWritable (0),
+                L"the whole-image refusal outranks any per-track answer");
+        }
+    }
+
 };
 

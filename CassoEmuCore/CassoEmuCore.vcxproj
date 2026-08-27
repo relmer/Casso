@@ -110,7 +110,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -124,7 +124,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -136,7 +136,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -150,7 +150,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -162,7 +162,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -176,7 +176,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Core;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -204,6 +204,7 @@
     <ClCompile Include="Core\Cpu65C02.cpp" />
     <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
+    <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
     <ClCompile Include="Devices\AppleGamePort.cpp" />
@@ -227,8 +228,34 @@
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
+    <ClCompile Include="Devices\Disk\SectorDecodeReport.cpp" />
+    <ClCompile Include="Devices\Disk\TrackWritability.cpp" />
+    <ClCompile Include="Devices\Disk\VolumeIntegrityReport.cpp" />
+    <ClCompile Include="Devices\Disk\FilePath.cpp" />
+    <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
+    <ClCompile Include="Devices\Disk\Dos33Volume.cpp" />
+    <ClCompile Include="Devices\Disk\ProDosVolume.cpp" />
+    <ClCompile Include="Devices\Disk\VolumeImage.cpp" />
+    <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
+    <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
+    <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\StockBootDisks.cpp" />
+    <ClCompile Include="Cli\CommandLine.cpp" />
+    <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
+    <ClCompile Include="Cli\DiskCommand.cpp" />
+    <ClCompile Include="Cli\ArtifactWriter.cpp" />
+    <ClCompile Include="Cli\As65Mode.cpp" />
+    <ClCompile Include="Cli\AssemblerMode.cpp" />
+    <ClCompile Include="Cli\MerlinMode.cpp" />
+    <ClCompile Include="Cli\RunMode.cpp" />
+    <ClCompile Include="Cli\SourceAssembler.cpp" />
+    <ClCompile Include="Cli\HostFile.cpp" />
+    <ClCompile Include="Cli\CliMain.cpp" />
+    <ClCompile Include="Devices\Disk\DirectBootBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
     <ClCompile Include="Devices\Disk\ProDosSkeleton.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
@@ -291,6 +318,7 @@
     <ClInclude Include="Core\MachineScanner.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
+    <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\IInterruptController.h" />
     <ClInclude Include="Core\InterruptController.h" />
     <ClInclude Include="Core\IHostShell.h" />
@@ -302,9 +330,38 @@
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
+    <ClInclude Include="Devices\Disk\SectorDecodeReport.h" />
+    <ClInclude Include="Devices\Disk\TrackWritability.h" />
+    <ClInclude Include="Devices\Disk\IVolume.h" />
+    <ClInclude Include="Devices\Disk\VolumeTypes.h" />
+    <ClInclude Include="Devices\Disk\VolumeIntegrityReport.h" />
+    <ClInclude Include="Devices\Disk\FilePath.h" />
+    <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
+    <ClInclude Include="Devices\Disk\Dos33Volume.h" />
+    <ClInclude Include="Devices\Disk\ProDosVolume.h" />
+    <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
+    <ClInclude Include="Devices\Disk\VolumeImage.h" />
+    <ClInclude Include="Devices\Disk\CommitPlan.h" />
+    <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
+    <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
+    <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
+    <ClInclude Include="Devices\Disk\DiskImageSession.h" />
     <ClInclude Include="Devices\Disk\WozLoader.h" />
     <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
+    <ClInclude Include="Devices\Disk\StockBootDisks.h" />
+    <ClInclude Include="Cli\CommandLine.h" />
+    <ClInclude Include="Cli\Win32DiskFileIo.h" />
+    <ClInclude Include="Cli\DiskCommand.h" />
+    <ClInclude Include="Cli\ArtifactWriter.h" />
+    <ClInclude Include="Cli\As65Mode.h" />
+    <ClInclude Include="Cli\AssemblerMode.h" />
+    <ClInclude Include="Cli\MerlinMode.h" />
+    <ClInclude Include="Cli\RunMode.h" />
+    <ClInclude Include="Cli\SourceAssembler.h" />
+    <ClInclude Include="Cli\HostFile.h" />
+    <ClInclude Include="Cli\CliMain.h" />
+    <ClInclude Include="Devices\Disk\DirectBootBuilder.h" />
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
     <ClInclude Include="Devices\Disk\ProDosSkeleton.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />

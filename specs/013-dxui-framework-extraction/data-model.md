@@ -1,11 +1,11 @@
-# Phase 1 — Data Model: Dxui Type Relationships & Ownership
+# Phase 1: Data Model: Dxui Type Relationships & Ownership
 
 Dxui has no persistent storage. The "data model" here is the runtime object graph: which type owns which, who points to whom, what lives across what lifetime, and how the tree is walked.
 
 ## Ownership graph
 
 > **Renamed / reshaped 2026-07**: the top-level owner sketched here as
-> `DxuiHostWindow` is now **`DxuiHwndSource`** (WPF `HwndSource` — the HWND /
+> `DxuiHostWindow` is now **`DxuiHwndSource`** (WPF `HwndSource`, the HWND /
 > swap-chain / pump backend). Consumers no longer instantiate it directly; they
 > derive from **`DxuiWindow : DxuiPanel`** (WPF `Window : ContentControl`), which
 > owns a `DxuiHwndSource` privately and installs *itself* as the source's
@@ -58,11 +58,11 @@ DxuiDialog : DxuiPanel                          (PENDING: to become DxuiDialog :
 └── optional DxuiPanel m_buttonRow              (Add<T>'d child if buttons present)
 ```
 
-> **Dialog model — PENDING (2026-07):** the target is a **no-`DxuiDialogManager`**
+> **Dialog model, PENDING (2026-07):** the target is a **no-`DxuiDialogManager`**
 > design where a dialog is just a `DxuiWindow` shown via a new `ShowDialog()`
 > (modal message loop). `DxuiDialog` + `DxuiDialogManager` are slated for deletion
 > and all dialog consumers (StartupDownloadDialog, ROM picker, simple dialogs)
-> migrate onto the `DxuiWindow` path. Not yet implemented — the entries above
+> migrate onto the `DxuiWindow` path. Not yet implemented, the entries above
 > describe the still-live legacy shape.
 
 ## Lifetimes
@@ -78,22 +78,22 @@ DxuiDialog : DxuiPanel                          (PENDING: to become DxuiDialog :
 | Operation | Method | Returns | Side effects |
 |-----------|--------|---------|--------------|
 | Add child | `DxuiPanel::Add<T>(args…)` | `T &` to the constructed child | Sets `m_parent`; triggers layout recalc on next pump; broadcasts theme + DPI to the new child. |
-| Create child (observer) | `DxuiPanel::CreateChild<T>(args…)` | `T *` observer pointer (owning stays with the panel) | MFC/`CreateWindow`-style factory: constructs `T`, parents it, returns a raw pointer. `<T>` is the type-safe analog of `CreateWindow`'s class arg; ctor args are the widget's defining property (e.g. label text). **Geometry is NOT passed** — bounds come from the layout pass; DPI rides the scaler. Callers keep the pointer only for controls they mutate later. |
+| Create child (observer) | `DxuiPanel::CreateChild<T>(args…)` | `T *` observer pointer (owning stays with the panel) | MFC/`CreateWindow`-style factory: constructs `T`, parents it, returns a raw pointer. `<T>` is the type-safe analog of `CreateWindow`'s class arg; ctor args are the widget's defining property (e.g. label text). **Geometry is NOT passed**, bounds come from the layout pass; DPI rides the scaler. Callers keep the pointer only for controls they mutate later. |
 | Remove child | `DxuiPanel::Remove(IDxuiControl *)` | `bool` (true if found and removed) | Destroys child (`unique_ptr` drop); recalc layout. |
 | Clear all children | `DxuiPanel::Clear()` | `void` | Destroys all children; recalc layout. |
-| Toggle visibility | `IDxuiControl::SetVisible(bool)` | `void` | Parent recalcs layout (Collapsed mode — hidden = 0 space, FR-011); skipped in paint, input, focus walks. |
+| Toggle visibility | `IDxuiControl::SetVisible(bool)` | `void` | Parent recalcs layout (Collapsed mode: hidden = 0 space, FR-011); skipped in paint, input, focus walks. |
 | Show popup | `DxuiPopupHost::Show(ShowParams)` | `std::future<int>` | Acquires pool slot; reparents content; classifies placement (`MonitorFromRect` flip if offscreen); shows HWND; pushes focus scope. |
 | Show dialog | `DxuiDialogManager::Show(std::unique_ptr<DxuiDialog>, ShowParams)` | `std::future<int>` | Disables current top HWND (or owner if stack empty); sets new dialog's owner HWND; pushes onto stack. `ShowParams::modalScrim` defaults false. |
 
 ## Validation rules (from spec FRs)
 
-- **FR-010**: `IDxuiControl::Layout(const RECT & bounds, const DxuiDpiScaler & scaler)` assigns the control bounds; `DxuiPanel::Layout` delegates to `m_layout->Arrange(bounds, scaler, children_view())` and must produce monotonically non-decreasing child `top` for stack-layout containers — guarantees reading-order tab traversal is well-defined.
+- **FR-010**: `IDxuiControl::Layout(const RECT & bounds, const DxuiDpiScaler & scaler)` assigns the control bounds; `DxuiPanel::Layout` delegates to `m_layout->Arrange(bounds, scaler, children_view())` and must produce monotonically non-decreasing child `top` for stack-layout containers, guarantees reading-order tab traversal is well-defined.
 - **FR-011**: `SetVisible(false)` triggers parent layout recalc; control is skipped in paint, input, focus walks; siblings fill the freed space.
 - **FR-022 / FR-082**: Public layout API takes DIPs only; `Dip` suffix on identifiers. Per-paint scaling via `DxuiDpiScaler`.
 - **FR-030**: `DxuiViewport::OnBoundsChanged` fires only when bounds actually change (not on every layout pass with equal bounds).
 - **FR-031**: Focus tree skips controls where any of `Visible() == false`, `Enabled() == false`, `Focusable() == false`, or `TabIndex() == IDxuiControl::kTabIndexExcluded`; `kTabIndexGeometry` uses geometry order. `RowEpsilonDip()` defaults to `IDxuiTheme::BodyLineHeightDip()` with `SetRowEpsilonDip(float)` as a test seam.
 - **FR-034**: When `DxuiViewport::SetConsumesInput(true)` and viewport has focus, `OnKey` returns `true` (consumed) for everything except exactly the unmodified reserved chords Tab / Shift+Tab / Esc / Alt-alone / F10; modifier combinations such as Ctrl+Tab and Apple ][ CTRL-C/CTRL-G forward to the sink.
-- **FR-072**: Dialog stack invariant — exactly one HWND in the stack is enabled at a time (the topmost); on close the previous top is re-enabled.
+- **FR-072**: Dialog stack invariant, exactly one HWND in the stack is enabled at a time (the topmost); on close the previous top is re-enabled.
 - **FR-080**: All public string parameters use `std::wstring` (typically `const std::wstring &` inputs; by-value only for ownership transfer).
 - **FR-083**: `DXUI_ASSERT_UI_THREAD()` is invoked at every public-method entry on `DxuiPanel`, `DxuiFocusManager`, concrete `DxuiPainter`, concrete `DxuiTextRenderer`, `DxuiPopupHost`, `DxuiDialogManager`, `DxuiWindow`, and its `DxuiHwndSource` backend; debug builds assert the thread ID on entry.
 
@@ -126,7 +126,7 @@ Focused ──blur trigger──▶ Unfocused (OnFocusChanged(false))
 
 Focus *scopes* layer on top: opening a popup pushes the current focused control + scope root; closing pops and restores. Nested popups nest scopes.
 
-## Dialog model (reshaped 2026-07 — FR-126 / FR-129)
+## Dialog model (reshaped 2026-07: FR-126 / FR-129)
 
 > `DxuiDialog` / `DxuiDialogManager` and the modal-dialog **stack** sketched above are **removed**.
 > Nesting / owner-chain behavior now lives inside the `DxuiWindow` modal message loop.

@@ -133,14 +133,14 @@ verified without DirectWrite.
 
 | Mode                                          | Handling                                                                |
 | --------------------------------------------- | ----------------------------------------------------------------------- |
-| Painter / device not initialized              | `CWRA` — bug, asserting variant. The primitive is only valid after the chrome painter is up. |
-| Definition has zero buttons and no close gesture available | `CBRA` — bug; callers MUST supply at least one button or rely on the window-close gesture. |
-| `ShellExecuteW` fails for a hyperlink         | `CHRN` — user-facing notification through another themed dialog.        |
-| Icon resource id not found                    | `CWRA` — bug; icon ids are compile-time enum values mapped to known resources. |
+| Painter / device not initialized              | `CWRA`: bug, asserting variant. The primitive is only valid after the chrome painter is up. |
+| Definition has zero buttons and no close gesture available | `CBRA`, bug; callers MUST supply at least one button or rely on the window-close gesture. |
+| `ShellExecuteW` fails for a hyperlink         | `CHRN`, user-facing notification through another themed dialog.        |
+| Icon resource id not found                    | `CWRA`, bug; icon ids are compile-time enum values mapped to known resources. |
 
 ## Out of scope for the primitive
 
-- Asynchronous download / progress engine — the consumer drives its
+- Asynchronous download / progress engine: the consumer drives its
   own progress and calls `Close` when done; the primitive just hosts
   the paint surface.
 - Multi-line command-link buttons (FR-004).

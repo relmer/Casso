@@ -15,7 +15,7 @@
 Behavior: `Write($C0n0)` pushes byte (O(1)). `Read($C0n1)` returns status with
 ready asserted while the ring has headroom, **de-asserted within a high-water
 margin of capacity** so a handshake-honoring guest waits instead of overflowing
-if the drain stalls (e.g. a modal print dialog holds the UI thread) — this is
+if the drain stalls (e.g. a modal print dialog holds the UI thread); this is
 what upholds FR-002 (see research R-001). The ring is fixed-capacity (≥ 64 KB)
 and normally drained near-empty each presenter tick, so ready stays
 continuously asserted in practice; overflow past the guard is a programming
@@ -55,7 +55,7 @@ deliver the strip non-destructively and leave it `Pending` (the paper stays
 loaded); only Discard clears to `Empty`. Canceled delivery: `Pending`
 unchanged. Guest reset: no transition.
 
-### PrinterViewport (pure, clock-injected — FR-033)
+### PrinterViewport (pure, clock-injected: FR-033)
 
 | Field | Type | Notes |
 |---|---|---|
@@ -67,7 +67,7 @@ unchanged. Guest reset: no transition.
 
 Inputs: `Advance(liveRow)`, `Scroll(deltaRows, nowMs)` (wheel/touch/arrows),
 `Tick(nowMs)`. Output: visible native-row span `{firstRow, lastRow}` for the
-incremental renderer. Pure math, no UI deps — unit-tested like
+incremental renderer. Pure math, no UI deps, unit-tested like
 `PrinterPacing` / `PrinterStatusModel`.
 
 ### Head-position stream (FR-034)
@@ -82,7 +82,7 @@ complete immediately.
 ### TitleRecognizer (pure)
 
 `Signature { id, displayName, filenameSubstrings[], catalogNames[],
-metaTitles[] }` — embedded constant table. Match order META → filename →
+metaTitles[] }`, embedded constant table. Match order META → filename →
 catalog (R-013); result `{ matched, displayName }` drives one FR-024 notice.
 
 ### PrinterAudioSource (`IDriveAudioSource`)
@@ -131,7 +131,7 @@ there is no `printDestination` / `printPngFolder`.
 ### Machine config (per machine)
 
 Slot entry `{ slot: 1, device: "parallel-printer", capability: optional,
-enabled: true }` — default in embedded machine JSONs; added by
+enabled: true }`, default in embedded machine JSONs; added by
 `MachineConfigUpgrade` when absent and slot 1 is free.
 
 ### Widget state
@@ -144,12 +144,12 @@ scroll hint }`.
 
 ### Panel content texture + 3D scene (FR-032)
 
-The panel renders printed content — strip ink, tractor-feed sprocket
-strips/holes, perforations, head-column reveal — into a persistent 2D tile
+The panel renders printed content (strip ink, tractor-feed sprocket
+strips/holes, perforations, head-column reveal) into a persistent 2D tile
 buffer covering the viewport span (new rows only; never a whole-strip
 re-render). The presentation maps that texture onto a curled-paper mesh in
 front of a procedurally-built, bottom-anchored printer chassis under a
-perspective camera (Dxui D3D11 additive path — research R-017); a flat blit of
+perspective camera (Dxui D3D11 additive path, research R-017); a flat blit of
 the same texture is the fallback. Paper furniture stays panel-only (FR-027).
 
 ## Relationships
@@ -169,5 +169,5 @@ guest CPU ──write──▶ PrinterCard ──ring──▶ ImageWriterInterp
 synchronous `ring → interpreter → raster` drain, so no in-flight byte is left
 unrendered; only then do they render/deliver the complete strip (Print / Save
 / Copy keep it; only discard clears). The presentation may still be mid-replay
-(R-012) — it fast-forwards — but the
+(R-012), it fast-forwards, but the
 raster operated on is always complete.

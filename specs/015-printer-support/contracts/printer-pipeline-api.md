@@ -1,4 +1,4 @@
-# Contract: Printer Pipeline — Internal C++ Interfaces
+# Contract: Printer Pipeline: Internal C++ Interfaces
 
 **Consumers**: Casso shell, UnitTest. Signatures indicative (final naming per
 code review); EHM + house style apply throughout.
@@ -120,12 +120,12 @@ public:
 
 - `PrinterCard::Write` runs on the emulation thread: O(1) ring push only.
 - Ring drain, `Consume`, raster strikes: dedicated printer worker thread
-  (`PrinterWorker`), mutating the raster only under its raster lock — raster
+  (`PrinterWorker`), mutating the raster only under its raster lock, raster
   is complete as soon as the ring drains; eject/copy/discard stop the worker
   and force a full synchronous drain first.
 - UI thread reads: atomic signals (`ActivityCount`/`HasContent`/`RowsUsed`,
   FR-034 head position) any time; `SnapshotStrip` copies the raster under the
-  lock without stopping the drain — the live preview never perturbs job state.
+  lock without stopping the drain, the live preview never perturbs job state.
 - `PaperRenderer::Render` and sink delivery: at eject on the UI thread today
   (whole-strip renders dpi-capped per R-018); may move to a worker with
   progress UI for very long strips.

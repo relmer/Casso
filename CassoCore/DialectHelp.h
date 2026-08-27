@@ -49,7 +49,11 @@ public:
     // them is left out.
     static std::string  GetDialectFlags (const DialectProfile & profile, char flagPrefix);
 
-private:
+    //  One dialect's flags, from the same table its parser walks. Public
+    //  because a tiered help page asks for exactly one dialect's block, and
+    //  generating it here is what keeps the page and the parser in step.
     static std::string  ComposeFlagLines (DialectId dialect, char flagPrefix);
+
+private:
     static std::string  PadTo            (const std::string & text, size_t width);
 };

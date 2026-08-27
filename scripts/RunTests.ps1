@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs the Casso unit tests using vstest.console.
 
@@ -196,7 +196,89 @@ if ($Filter) {
     Write-Host ''
 }
 
+# A TEST RUN MUST LEAVE THE WORKING TREE EXACTLY AS IT FOUND IT.
+#
+# Measured before and after, because one test did not. BootDiskTests wrote the
+# image it had just built over Apple2/Demos/casso-rocks.dsk on every run,
+# called out in the code as a deliberate side effect. It normally wrote
+# byte-identical content -- until the day it wrote a different image, with a
+# whole track zeroed, and a corrupted binary asset landed in the tree from a
+# test run.
+#
+# MTIMES, NOT `git status`. Measured: rewriting a tracked file with its own
+# bytes moves the mtime and `git status --porcelain` still reports nothing,
+# because git re-hashes and finds the content identical. That is exactly the
+# case that hid this write for as long as it hid: a test that scribbles the
+# same bytes every run looks clean right up until the run where it does not.
+# The rule is that a unit test never touches system state, so what is compared
+# is whether any tracked file was TOUCHED.
+$stateBefore = $null
+$insideGit   = $false
+
+function Get-TrackedFileState {
+    $state = @{}
+
+    foreach ($relative in (& git ls-files)) {
+        if (-not $relative) { continue }
+
+        $item = Get-Item -LiteralPath $relative -ErrorAction SilentlyContinue
+
+        if ($item -and -not $item.PSIsContainer) {
+            $state[$relative] = "$($item.LastWriteTimeUtc.Ticks):$($item.Length)"
+        }
+    }
+
+    return $state
+}
+
+try {
+    $null      = & git rev-parse --is-inside-work-tree 2>$null
+    $insideGit = ($LASTEXITCODE -eq 0)
+} catch {
+    $insideGit = $false
+}
+
+if ($insideGit) {
+    $stateBefore = Get-TrackedFileState
+}
+
 & $vstestPath @vstestArgs
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+$testExit = $LASTEXITCODE
+
+if ($insideGit) {
+    $stateAfter = Get-TrackedFileState
+    $touched    = @()
+
+    foreach ($relative in $stateAfter.Keys) {
+        if (-not $stateBefore.ContainsKey($relative)) {
+            $touched += "created  $relative"
+        }
+        elseif ($stateBefore[$relative] -ne $stateAfter[$relative]) {
+            $touched += "written  $relative"
+        }
+    }
+
+    foreach ($relative in $stateBefore.Keys) {
+        if (-not $stateAfter.ContainsKey($relative)) {
+            $touched += "deleted  $relative"
+        }
+    }
+
+    if ($touched.Count -gt 0) {
+        Write-Host ''
+        Write-Host 'THE TEST RUN TOUCHED THE SOURCE TREE.' -ForegroundColor Red
+        Write-Host 'A unit test may not write into it, even the same bytes back:' -ForegroundColor Red
+        Write-Host ''
+
+        foreach ($line in ($touched | Sort-Object)) {
+            Write-Host "  $line" -ForegroundColor Yellow
+        }
+
+        Write-Host ''
+        exit 1
+    }
+}
+
+if ($testExit -ne 0) {
+    exit $testExit
 }

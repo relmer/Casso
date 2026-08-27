@@ -174,9 +174,12 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="As65ExitStatus.cpp" />
     <ClCompile Include="Assembler.cpp" />
     <ClCompile Include="AssemblySession.cpp" />
+    <ClCompile Include="CommandLineHelp.cpp" />
     <ClCompile Include="CommandLineParser.cpp" />
+    <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
@@ -184,6 +187,8 @@
     <ClCompile Include="ExpressionEvaluator.cpp" />
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="OpcodeTable.cpp" />
+    <ClCompile Include="AppleTextCodec.cpp" />
+    <ClCompile Include="ApplesoftTokenizer.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
     <ClCompile Include="MerlinDialect.cpp" />
@@ -193,7 +198,6 @@
     <ClCompile Include="DialectHelp.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
-    <ClCompile Include="AssemblerExitCode.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Directive.cpp" />
@@ -206,15 +210,17 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="As65ExitStatus.h" />
     <ClInclude Include="Assembler.h" />
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="CommandLineOptions.h" />
+    <ClInclude Include="CommandLineHelp.h" />
     <ClInclude Include="CommandLineParser.h" />
+    <ClInclude Include="UsageText.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />
@@ -232,6 +238,8 @@
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="OpcodeTable.h" />
+    <ClInclude Include="AppleTextCodec.h" />
+    <ClInclude Include="ApplesoftTokenizer.h" />
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="As65Dialect.h" />
     <ClInclude Include="MerlinDialect.h" />
@@ -243,13 +251,11 @@
     <ClInclude Include="DialectHelp.h" />
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
-    <ClInclude Include="AssemblerExitCode.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />
-    <ClInclude Include="UsageText.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="Version.h" />
   </ItemGroup>

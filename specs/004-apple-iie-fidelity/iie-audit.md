@@ -1,9 +1,9 @@
-# Apple //e Emulator Fidelity Audit — Casso vs. Real Hardware
+# Apple //e Emulator Fidelity Audit: Casso vs. Real Hardware
 
 > _Historical (2025-07). This audit drove the //e-fidelity feature in this
 > directory (spec 004); all of its CRITICAL/MAJOR findings are implemented, and
 > the code cites it by section (`audit §N`, `audit C7`, …). Class and file names
-> below predate the later rewrites — e.g. `AuxRamCard` → `Apple2eMmu`,
+> below predate the later rewrites, e.g. `AuxRamCard` → `Apple2eMmu`,
 > `AppleIIeKeyboard` → `Apple2eKeyboard`, `EmulatorShell::RebuildBankingPages` →
 > `Apple2eMmu::RebindPageTable`. Kept as this spec's requirements reference, not
 > a live action list._
@@ -36,7 +36,7 @@
 
 #### Real //e Behavior
 
-All 16 addresses respond to **writes** (and on the //e, reads at $C00C–$C00F also trigger the switch — see Sather UTAIIe §5-18). The full table (Apple //e Tech Ref Table 4-1, AppleWin `Memory.cpp:1050–1100`):
+All 16 addresses respond to **writes** (and on the //e, reads at $C00C–$C00F also trigger the switch; see Sather UTAIIe §5-18). The full table (Apple //e Tech Ref Table 4-1, AppleWin `Memory.cpp:1050–1100`):
 
 | Address | Name | Effect |
 |---------|------|--------|
@@ -92,8 +92,8 @@ case 0xC005: m_writeAux = true;  break;   // OK: RAMWRTON
 case 0xC006: m_writeAux = false; break;   // WRONG: $C006 is INTCXROMOFF, not RAMWRTOFF
 ```
 
-**Missing switches** — no device handles:
-- `$C002` (RAMRDOFF) — RAMRD can be turned **on** but never **off**
+**Missing switches**, no device handles:
+- `$C002` (RAMRDOFF), RAMRD can be turned **on** but never **off**
 - `$C006`/`$C007` (INTCXROM)
 - `$C008`/`$C009` (ALTZP)
 - `$C00A`/`$C00B` (SLOTC3ROM)
@@ -117,7 +117,7 @@ Rename `AuxRamCard` range to `$C002`–`$C005`. Add `ALTZP` flag to `AuxRamCard`
 
 #### Real //e Behavior
 
-Each address returns **bit 7** = state of the named flag, **bits 0–6** = "floating bus" (typically the last byte seen on the bus — in practice many programs ignore bits 0–6). Source: Apple //e TRM Table 4-1; Sather UTAIIe §5-18.
+Each address returns **bit 7** = state of the named flag, **bits 0–6** = "floating bus" (typically the last byte seen on the bus, in practice many programs ignore bits 0–6). Source: Apple //e TRM Table 4-1; Sather UTAIIe §5-18.
 
 | Address | Name | Bit 7 = 1 when |
 |---------|------|----------------|
@@ -156,21 +156,21 @@ $C01E RDALTCHAR  ✓
 $C01F RD80VID    ✓
 ```
 
-Comment in code at line 93: *"Other status bits (BSRBANK2, BSRREADRAM, INTCXROM, ALTZP, SLOTC3ROM, VBL) not yet tracked — return 0 in bit 7."*
+Comment in code at line 93: *"Other status bits (BSRBANK2, BSRREADRAM, INTCXROM, ALTZP, SLOTC3ROM, VBL) not yet tracked, return 0 in bit 7."*
 
 #### Gaps / Bugs
 
-- **[MAJOR]** `$C011` (BSRBANK2) — always returns 0. Programs that check bank selection before writing to LC RAM will malfunction (e.g., ProDOS BASIC.SYSTEM bank-switching loop).
-- **[MAJOR]** `$C012` (BSRREADRAM) — always returns 0. Programs that verify LC RAM is read-enabled (e.g., `PRODOS` self-test) will fail.
-- **[MAJOR]** `$C015` (RDINTCXROM) — always returns 0.
-- **[MAJOR]** `$C016` (RDALTZP) — always returns 0. Critical for any code that tests whether it's running in aux ZP mode.
-- **[MAJOR]** `$C017` (RDSLOTC3ROM) — always returns 0.
-- **[MAJOR]** `$C019` (RDVBLBAR) — always returns 0. Any frame-sync loop using `BIT $C019` spin-waits will never see VBLANK.
+- **[MAJOR]** `$C011` (BSRBANK2); always returns 0. Programs that check bank selection before writing to LC RAM will malfunction (e.g., ProDOS BASIC.SYSTEM bank-switching loop).
+- **[MAJOR]** `$C012` (BSRREADRAM); always returns 0. Programs that verify LC RAM is read-enabled (e.g., `PRODOS` self-test) will fail.
+- **[MAJOR]** `$C015` (RDINTCXROM); always returns 0.
+- **[MAJOR]** `$C016` (RDALTZP); always returns 0. Critical for any code that tests whether it's running in aux ZP mode.
+- **[MAJOR]** `$C017` (RDSLOTC3ROM); always returns 0.
+- **[MAJOR]** `$C019` (RDVBLBAR); always returns 0. Any frame-sync loop using `BIT $C019` spin-waits will never see VBLANK.
 - **[MINOR]** Floating-bus bits 0–6 are approximated as the latched keyboard byte (`AppleKeyboard::Read(0xC000) & 0x7F`). This is a close approximation but not a full NTSC-bus model. Most software only checks bit 7 so this is minor.
 
 #### Recommended Fixes
 
-Track `m_bank2Select` and `m_readRam` in `LanguageCard` (already present — just expose them to `AppleIIeKeyboard`). Add ALTZP/INTCXROM/SLOTC3ROM sibling refs to keyboard. Implement a cycle-counter-based VBLANK counter for `$C019`.
+Track `m_bank2Select` and `m_readRam` in `LanguageCard` (already present, just expose them to `AppleIIeKeyboard`). Add ALTZP/INTCXROM/SLOTC3ROM sibling refs to keyboard. Implement a cycle-counter-based VBLANK counter for `$C019`.
 
 ---
 
@@ -255,9 +255,9 @@ $C080–$C08F bank-switching (Sather UTAIIe §5-22–5-24):
 
 | Address | Read | Write | BANK | Notes |
 |---------|------|-------|------|-------|
-| $C080 R | RAM  | —     | 2 | Read RAM, no write |
+| $C080 R | RAM  | n/a | 2 | Read RAM, no write |
 | $C081 R | ROM  | pre-W | 2 | Write-enable needs 2 reads |
-| $C082 R | ROM  | —     | 2 | Read ROM |
+| $C082 R | ROM  | n/a | 2 | Read ROM |
 | $C083 R | RAM  | pre-W | 2 | RAM r/w (2 reads to arm write) |
 | $C084–$C087 | mirror | | 2 | |
 | $C088–$C08B | same pattern | | **1** | Bank 1 |
@@ -313,12 +313,12 @@ m_bank2Select = true;
 - **[MAJOR]** Pre-write state machine requires the **same address** twice (`m_lastSwitch == switchAddr`). Real hardware requires any two consecutive odd-address reads. Reading `$C081` then `$C083` (both odd, both arm write-enable on hardware) will NOT enable write in Casso. Source: `LanguageCard.cpp:95`.
 - **[MAJOR]** A **write** to an odd-addressed switch (`$C081`, etc.) should reset the pre-write state (Sather UTAIIe §5-23). In `LanguageCard::Write()` (`LanguageCard.cpp:53–58`), writes call `UpdateState()` just like reads, with no distinction. This incorrectly allows a write to start the pre-write countdown.
 - **[MAJOR]** Aux LC RAM (`$D000`–`$FFFF` from `memaux` when ALTZP=1) not implemented. Only one set of LC banks exists (always main-side). Source: `LanguageCard.h:50–53`.
-- **[MAJOR]** Power-on initial state differs from hardware. AppleWin `kMemModeInitialState = MF_BANK2 | MF_WRITERAM`. Casso starts with `m_writeRam=false` (`LanguageCard.h:56`). On hardware, write-enable is pre-armed at power-on — the very first access to `$C081` (or similar) enables write immediately after one read. Casso requires two reads in all cases.
+- **[MAJOR]** Power-on initial state differs from hardware. AppleWin `kMemModeInitialState = MF_BANK2 | MF_WRITERAM`. Casso starts with `m_writeRam=false` (`LanguageCard.h:56`). On hardware, write-enable is pre-armed at power-on, the very first access to `$C081` (or similar) enables write immediately after one read. Casso requires two reads in all cases.
 - **[MINOR]** LC RAM is zeroed rather than randomized at power-on. Real DRAM starts with pseudo-random data.
 
 ### Recommended Fixes
 
-1. Change `Reset()` to **not** clear `m_ramBank1/2/main` — preserve content. Only clear soft-switch state.  
+1. Change `Reset()` to **not** clear `m_ramBank1/2/main`, preserve content. Only clear soft-switch state.  
 2. Change pre-write: a single `bool m_preWrite` armed by any odd-address read (not same address).  
 3. Add a `bool bWrite` parameter path: if it's a write to odd-address, clear `m_preWrite` instead of advancing it.  
 4. Add `m_auxRamBank1`/`m_auxRamBank2`/`m_auxRamMain` and dispatch based on ALTZP state passed in from `AuxRamCard`.
@@ -333,7 +333,7 @@ m_bank2Select = true;
 |---------|--------|---------|
 | $C000 R | Read keyboard latch | key \| bit7=strobe |
 | $C010 R | Read + clear strobe | key with old strobe in bit 7 |
-| $C010 W | Clear strobe | — |
+| $C010 W | Clear strobe | n/a |
 | $C011–$C01F R | Status flags (see §1.2) | flag in bit 7, kbd in bits 0–6 |
 | $C061 R | Open Apple / Button 0 | bit 7 = state |
 | $C062 R | Closed Apple / Button 1 | bit 7 = state |
@@ -395,7 +395,7 @@ Any access (read **or** write) to `$C030` (also mirrored `$C030`–`$C03F` on so
 
 **Real behavior:** 40×24 characters from `$0400`–`$07FF` (page 1) or `$0800`–`$0BFF` (page 2). Characters `$00`–`$3F` = inverse, `$40`–`$7F` = flash (alternates ~1 Hz), `$80`–`$FF` = normal. Source: Sather UTAIIe §8-12.
 
-**Casso:** `AppleTextMode::Render()` (`AppleTextMode.cpp:99–175`). Inverse/flash/normal decode correct. Flash at 16 frames ≈ 60fps/16 ≈ 3.75 Hz (hardware flashes at ~1.87 Hz — 2× too fast). Page address correct.
+**Casso:** `AppleTextMode::Render()` (`AppleTextMode.cpp:99–175`). Inverse/flash/normal decode correct. Flash at 16 frames ≈ 60fps/16 ≈ 3.75 Hz (hardware flashes at ~1.87 Hz, 2× too fast). Page address correct.
 
 **Gaps:**
 - **[MINOR]** Flash rate `m_frameCount / 16` at 60fps = 3.75 Hz. Real hardware: flash is driven by the 555 timer at ~1 Hz (exact rate: 1.87 Hz per Sather). Fix: divide by 32 (or 30). Source: `AppleTextMode.cpp:110`.
@@ -408,7 +408,7 @@ Any access (read **or** write) to `$C030` (also mirrored `$C030`–`$C03F` on so
 **Casso:** `Apple80ColTextMode::Render()` (`Apple80ColTextMode.cpp:64–128`). Correctly alternates aux (even columns) and main (odd columns) per `col % 2`. Aux memory pointer supplied via `SetAuxMemory()`.
 
 **Gaps:**
-- **[MAJOR]** Flash not implemented in 80-col mode — `m_frameCount` not maintained in `Apple80ColTextMode`. No `m_flashOn` flag, so flashing characters never flash. `GetGlyphRow()` is called without `m_altCharSet` parameter (`Apple80ColTextMode.cpp:109` uses `GetGlyphRow(charCode, py)`, which defaults `altCharSet=false`).
+- **[MAJOR]** Flash not implemented in 80-col mode, `m_frameCount` not maintained in `Apple80ColTextMode`. No `m_flashOn` flag, so flashing characters never flash. `GetGlyphRow()` is called without `m_altCharSet` parameter (`Apple80ColTextMode.cpp:109` uses `GetGlyphRow(charCode, py)`, which defaults `altCharSet=false`).
 - **[MINOR]** 80-col mode does not respect ALTCHARSET. `GetGlyphRow()` call at line 109 always passes `altCharSet=false`. Should pass the shell's current ALTCHARSET state.
 - **[MINOR]** Mixed mode text overlay always uses 40-col (`m_videoModes[0]`). When 80-col is active with mixed mode, the bottom 4 text rows should use 80-col text. Source: `EmulatorShell.cpp:1779`.
 
@@ -419,7 +419,7 @@ Any access (read **or** write) to `$C030` (also mirrored `$C030`–`$C03F` on so
 **Casso:** `AppleLoResMode::Render()` correct in structure. Block dimensions derived from framebuffer size.
 
 **Gaps:**
-- **[MINOR]** The lo-res color values (`kLoResColors`, `AppleLoResMode.cpp:15–33`) — the comment labels are wrong in several places. The actual pixel colors rendered in D3D BGRA format should be cross-checked: `0xFF0000DD` in little-endian BGRA = B=0xDD, G=0, R=0 which is a blue color, but the comment says "Magenta (Deep Red)". Apple lo-res color 1 should be Magenta/Deep Red (reddish). Byte ordering may be inverted. This needs verification against a reference framebuffer. Potential widespread palette error.
+- **[MINOR]** The lo-res color values (`kLoResColors`, `AppleLoResMode.cpp:15–33`); the comment labels are wrong in several places. The actual pixel colors rendered in D3D BGRA format should be cross-checked: `0xFF0000DD` in little-endian BGRA = B=0xDD, G=0, R=0 which is a blue color, but the comment says "Magenta (Deep Red)". Apple lo-res color 1 should be Magenta/Deep Red (reddish). Byte ordering may be inverted. This needs verification against a reference framebuffer. Potential widespread palette error.
 
 ### 6.4 Hi-Res Graphics
 
@@ -513,13 +513,13 @@ The most pragmatic fix: make `FindDevice()` use **last-wins** rather than first-
 ### Real //e Behavior
 
 - **Unenhanced //e** (original 1983): NMOS 6502 (same as Apple II+). No extra instructions.
-- **Enhanced //e** (1985 revision): **65C02** — adds BIT #imm, BRA, PHX/PHY/PLX/PLY, STZ, TRB, TSB, and CMOS-fixed BCD. Source: Apple //e Tech Ref Supplement.
+- **Enhanced //e** (1985 revision): **65C02**, adds BIT #imm, BRA, PHX/PHY/PLX/PLY, STZ, TRB, TSB, and CMOS-fixed BCD. Source: Apple //e Tech Ref Supplement.
 - The CPU runs at 1.0227 MHz (NTSC) with a 65-cycle horizontal period (17,030 cycles/frame at 262 lines).
 - IRQ is used by the 80-col card and Mouse Card. NMI is not used by standard //e hardware.
 
 ### Casso Implementation
 
-- `Apple2e.json:3`: `"cpu": "6502"` — NMOS 6502 only.
+- `Apple2e.json:3`: `"cpu": "6502"`, NMOS 6502 only.
 - `EmuCpu` wraps `Cpu` from `CassoCore`. `Cpu` implements the standard 6502 instruction set (`InitializeGroup00/01/10/Misc`).
 - Cycle counting: instruction cycles tracked via `m_lastCycles` + `AddCycles()`. No mid-instruction cycle-accurate bus timing.
 - No IRQ handling visible in `EmuCpu` or `EmulatorShell`.
@@ -588,7 +588,7 @@ case IDM_MACHINE_POWERCYCLE:
 
 - **[CRITICAL]** Soft reset (`IDM_MACHINE_RESET`) **does not reset any soft switches**. 80COL, ALTCHARSET, 80STORE, RAMRD, RAMWRT, ALTZP, display mode, and LC state all survive the reset unchanged. This is the direct cause of the reported 80-col mode persisting across reset. The //e hardware asserts `/RESET` which the MMU decodes to reset all switches. Source: `EmulatorShell.cpp:1453–1459`.
 - **[CRITICAL]** Soft reset does not reset LC state. The language card should return to bank-2, ROM-readable, write-pre-armed (`MF_BANK2 | MF_WRITERAM`) after reset on the //e.
-- **[CRITICAL]** Power-cycle (`IDM_MACHINE_POWERCYCLE`) **zeroes LC RAM** via `LanguageCard::Reset()`. On real hardware, power cycling leaves DRAM in an indeterminate (not zero) state. More importantly, `m_memoryBus.Reset()` calls LC Reset which is also called conceptually for a *soft* reset — but the **soft** reset path doesn't call it at all, and the **power** reset path incorrectly clears RAM. Source: `LanguageCard.cpp:191–193`.
+- **[CRITICAL]** Power-cycle (`IDM_MACHINE_POWERCYCLE`) **zeroes LC RAM** via `LanguageCard::Reset()`. On real hardware, power cycling leaves DRAM in an indeterminate (not zero) state. More importantly, `m_memoryBus.Reset()` calls LC Reset which is also called conceptually for a *soft* reset, but the **soft** reset path doesn't call it at all, and the **power** reset path incorrectly clears RAM. Source: `LanguageCard.cpp:191–193`.
 - **[MAJOR]** Power-cycle zeroes aux RAM (`AuxRamCard::Reset()`). Real DRAM is random at power-on.
 - **[MAJOR]** Soft reset does not reset CPU registers (`SP`, `P` flags, etc.). The 6502 reset sequence sets `I=1` and sets `SP` to some indeterminate value (the ROM handler sets it to `$FF`). Casso's soft reset only sets `PC`. Source: `EmulatorShell.cpp:1456–1459`.
 
@@ -605,14 +605,14 @@ The mechanism is now clear:
 
 Create a `SoftReset()` method distinct from `PowerCycle()`. In `SoftReset()`:
 1. Reset all soft switches (call device `Reset()` methods except for RAM clearing).
-2. Reset LC state (not RAM content) — add a separate `ResetSwitches()` method to `LanguageCard`.
+2. Reset LC state (not RAM content); add a separate `ResetSwitches()` method to `LanguageCard`.
 3. Set CPU `I=1`, fetch `PC` from `$FFFC`.
 4. Rebuild page table (`RebuildBankingPages()`).
 
 In `PowerCycle()`:
 1. Call `SoftReset()` (switches + CPU).
 2. Additionally randomize main RAM, aux RAM, LC RAM.
-3. `InitForEmulation()` already randomizes main RAM ✓ — extend to aux and LC RAM.
+3. `InitForEmulation()` already randomizes main RAM ✓; extend to aux and LC RAM.
 
 ---
 
@@ -620,34 +620,34 @@ In `PowerCycle()`:
 
 All gaps consolidated by severity, highest priority first.
 
-### CRITICAL — Functional Correctness Blockers
+### CRITICAL: Functional Correctness Blockers
 
 | # | Gap | Source File(s) |
 |---|-----|----------------|
-| C1 | Slot ROM ($C600) shadowed by lower internal ROM — disk booting impossible | `EmulatorShell.cpp:808`, `MemoryBus.cpp:249` |
+| C1 | Slot ROM ($C600) shadowed by lower internal ROM, disk booting impossible | `EmulatorShell.cpp:808`, `MemoryBus.cpp:249` |
 | C2 | Soft reset does not reset soft switches (80COL, RAMRD, ALTZP, etc. persist) | `EmulatorShell.cpp:1453` |
-| C3 | Open Apple ($C061) / Closed Apple ($C062) unreachable — keyboard range ends at $C01F | `AppleIIeKeyboard.h:18`, `AppleIIeKeyboard.cpp:36` |
-| C4 | RAMRD/RAMWRT do not affect page table — aux $0200–$BFFF banking completely absent | `EmulatorShell.cpp:894`, `AuxRamCard.cpp:30` |
-| C5 | ALTZP not implemented — aux ZP/stack banking absent | `AuxRamCard.cpp:28`, `EmulatorShell.cpp:894` |
+| C3 | Open Apple ($C061) / Closed Apple ($C062) unreachable, keyboard range ends at $C01F | `AppleIIeKeyboard.h:18`, `AppleIIeKeyboard.cpp:36` |
+| C4 | RAMRD/RAMWRT do not affect page table, aux $0200–$BFFF banking completely absent | `EmulatorShell.cpp:894`, `AuxRamCard.cpp:30` |
+| C5 | ALTZP not implemented, aux ZP/stack banking absent | `AuxRamCard.cpp:28`, `EmulatorShell.cpp:894` |
 | C6 | AuxRamCard address bug: $C002 missing, $C004 clears wrong flag, $C006 wrong switch | `AuxRamCard.h:28`, `AuxRamCard.cpp:38,44` |
-| C7 | LanguageCard::Reset() zeroes LC RAM — content lost on any device reset | `LanguageCard.cpp:191–193` |
-| C8 | INTCXROM ($C006/$C007) not implemented — internal vs slot ROM cannot be switched | Not found; `AppleIIeSoftSwitchBank.cpp` |
+| C7 | LanguageCard::Reset() zeroes LC RAM, content lost on any device reset | `LanguageCard.cpp:191–193` |
+| C8 | INTCXROM ($C006/$C007) not implemented, internal vs slot ROM cannot be switched | Not found; `AppleIIeSoftSwitchBank.cpp` |
 | C9 | Soft reset does not reset LC state (should reset to MF_BANK2\|MF_WRITERAM) | `EmulatorShell.cpp:1453` |
 
-### MAJOR — Significant Compatibility Issues
+### MAJOR: Significant Compatibility Issues
 
 | # | Gap | Source File(s) |
 |---|-----|----------------|
 | M1 | $C011 (BSRBANK2) and $C012 (BSRREADRAM) always return 0 | `AppleIIeKeyboard.cpp:93` |
 | M2 | $C015–$C017 (RDINTCXROM, RDALTZP, RDSLOTC3ROM) always return 0 | `AppleIIeKeyboard.cpp:93` |
-| M3 | $C019 (RDVBLBAR) always return 0 — frame-sync polling broken | `AppleIIeKeyboard.cpp:93` |
+| M3 | $C019 (RDVBLBAR) always return 0, frame-sync polling broken | `AppleIIeKeyboard.cpp:93` |
 | M4 | SLOTC3ROM ($C00A/$C00B) not implemented | Not found |
 | M5 | Aux LC RAM (ALTZP=1 → $D000–$FFFF from memaux) not implemented | `LanguageCard.h:50` |
 | M6 | LC pre-write requires same address twice (should be any two odd-addr reads) | `LanguageCard.cpp:95` |
 | M7 | LC write to odd-addr switch doesn't reset pre-write state | `LanguageCard.cpp:53` |
-| M8 | Double hi-res is a rendering stub — only main memory, monochrome | `AppleDoubleHiResMode.cpp:52` |
+| M8 | Double hi-res is a rendering stub: only main memory, monochrome | `AppleDoubleHiResMode.cpp:52` |
 | M9 | Enhanced //e should use 65C02 CPU (BRA, PHX/PLX, STZ, TRB, TSB, etc.) | `Apple2e.json:3` |
-| M10 | No IRQ support — 80-col card VBL interrupt and ProDOS IRQs absent | `EmuCpu.h` |
+| M10 | No IRQ support, 80-col card VBL interrupt and ProDOS IRQs absent | `EmuCpu.h` |
 | M11 | Soft reset doesn't reset CPU registers (SP, P flags) | `EmulatorShell.cpp:1456` |
 | M12 | Mixed-mode text overlay always 40-col; should use 80-col when 80COL active | `EmulatorShell.cpp:1779` |
 | M13 | ALTCHARSET ignored in 80-col text render | `Apple80ColTextMode.cpp:109` |
@@ -655,7 +655,7 @@ All gaps consolidated by severity, highest priority first.
 | M15 | $C800–$CFFF peripheral expansion ROM (INTC8ROM) not implemented | Not found |
 | M16 | Shift key ($C063) not implemented | Not found |
 
-### MINOR — Behavioral Differences
+### MINOR: Behavioral Differences
 
 | # | Gap | Source File(s) |
 |---|-----|----------------|
@@ -673,7 +673,7 @@ All gaps consolidated by severity, highest priority first.
 | N12 | KeyPressRaw calls KeyPress (uppercases) instead of bypassing | `AppleIIeKeyboard.cpp:119` |
 | N13 | $C004 sets EmuCpu page 2 text RAM to zero in InitForEmulation (workaround note) | `EmuCpu.cpp:113` |
 
-### NIT — Polish / Accuracy
+### NIT: Polish / Accuracy
 
 | # | Gap | Source File(s) |
 |---|-----|----------------|
@@ -688,6 +688,6 @@ All gaps consolidated by severity, highest priority first.
 ## References
 
 - **Apple //e Technical Reference Manual** (1987 ed.), Apple Computer Inc.
-- **Understanding the Apple IIe** by Jim Sather (Quality Software, 1983) — UTAIIe §5-18–5-30, §7-3, §8-6–8-30, §9-3
-- **AppleWin** `source/Memory.cpp` SHA `65d0467c`, `source/LanguageCard.cpp` SHA `2904816e`, `source/Memory.h` SHA `ac3ea800` — https://github.com/AppleWin/AppleWin
+- **Understanding the Apple IIe** by Jim Sather (Quality Software, 1983), UTAIIe §5-18–5-30, §7-3, §8-6–8-30, §9-3
+- **AppleWin** `source/Memory.cpp` SHA `65d0467c`, `source/LanguageCard.cpp` SHA `2904816e`, `source/Memory.h` SHA `ac3ea800`, https://github.com/AppleWin/AppleWin
 - **Casso source**: `CassoEmuCore/Devices/`, `CassoEmuCore/Video/`, `Casso/EmulatorShell.cpp`, `CassoEmuCore/Core/`

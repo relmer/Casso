@@ -33,7 +33,7 @@ A user opens a `.2mg` image and Casso mounts it correctly, honoring the metadata
 the container carries rather than guessing.
 
 **Why this priority**: 2MG is the most common modern container, and it is the only
-one that carries the facts Casso currently has to infer — sector ordering, volume
+one that carries the facts Casso currently has to infer, sector ordering, volume
 number, and write-protect state. Supporting it removes a class of
 silently-wrong-guess bugs as well as adding reach.
 
@@ -83,13 +83,13 @@ catalogs identically to the same disk in another format.
 
 ### User Story 3 - Open a compressed or archived disk (Priority: P3)
 
-A user opens a disk that arrives compressed or inside an archive — gzip, zip,
-ShrinkIt, or Binary II — and Casso extracts the image and mounts it, without the
+A user opens a disk that arrives compressed or inside an archive (gzip, zip,
+ShrinkIt, or Binary II) and Casso extracts the image and mounts it, without the
 user unpacking anything first.
 
 **Why this priority**: This is how Apple II software is actually distributed, so it
 removes the most common friction between finding software and running it. It is P3
-because the workaround — unpack it yourself — is obvious and cheap, unlike the
+because the workaround, unpack it yourself, is obvious and cheap, unlike the
 earlier stories where no workaround exists.
 
 **Independent Test**: Open a disk image in each supported wrapper and confirm it
@@ -106,7 +106,7 @@ mounts identically to the unwrapped image.
 4. **Given** an archive containing no disk image, **When** the user opens it,
    **Then** it is refused with a message saying so.
 5. **Given** a disk opened from a read-only wrapper, **When** the guest writes to
-   it, **Then** the behavior — write-protected, or written back to a separate file —
+   it, **Then** the behavior (write-protected, or written back to a separate file)
    is stated to the user rather than silently chosen.
 
 ---
@@ -119,7 +119,7 @@ can see and extract its contents.
 **Why this priority**: These volumes exist in archives and are currently opaque.
 Read access makes them useful for recovery and curiosity. It is P4 because the
 audience is much smaller than for DOS 3.3 and ProDOS, and because write support is
-explicitly not proposed — reading is the whole value.
+explicitly not proposed, reading is the whole value.
 
 **Independent Test**: Open a volume in each supported filesystem and confirm its
 catalog is listed correctly and extracted files match reference contents.
@@ -145,7 +145,7 @@ A user mounts an 800 KB 3.5-inch volume or a ProDOS hard-disk volume and works
 with it as with any other disk.
 
 **Why this priority**: Larger media are widely used, but nothing in Casso can
-currently mount one — there is no emulated 3.5-inch drive and no mass-storage
+currently mount one; there is no emulated 3.5-inch drive and no mass-storage
 device. Shipping a reader with no device to read it into would be dead code, so
 this story is deliberately gated on that hardware existing.
 
@@ -168,7 +168,7 @@ and confirm the guest can catalog and load from it.
 
 ### Edge Cases
 
-- What happens when a file's extension disagrees with its actual content — a
+- What happens when a file's extension disagrees with its actual content; a
   ProDOS-ordered image named `.do`? Content MUST take precedence over extension
   where the format can be identified from the data, and the discrepancy MUST be
   reported.
@@ -180,8 +180,8 @@ and confirm the guest can catalog and load from it.
 - What happens when an archive is corrupt partway through? The failure MUST be
   reported against the archive, not surfaced as a corrupt disk.
 - What happens when the guest writes to a disk that came from a wrapper Casso can
-  read but not produce? The system MUST decide and state the outcome up front —
-  either write-protect the disk or write back to a separate file — rather than
+  read but not produce? The system MUST decide and state the outcome up front, 
+  either write-protect the disk or write back to a separate file, rather than
   discovering it at flush time.
 - What happens to an image format that preserves flux or protection details that
   sector-level operations cannot represent? File-level modification MUST be
@@ -242,7 +242,7 @@ and confirm the guest can catalog and load from it.
 #### Consistency
 
 - **FR-018**: Every newly supported format MUST work with all existing disk
-  capabilities — mounting, booting, file access, inspection, and management — or
+  capabilities (mounting, booting, file access, inspection, and management) or
   the exceptions MUST be stated.
 - **FR-019**: Newly supported formats MUST be selectable wherever images are
   chosen, including file dialogs and drag-and-drop.
@@ -251,15 +251,15 @@ and confirm the guest can catalog and load from it.
 
 ### Key Entities
 
-- **Image Container**: The file-level wrapper around disk data — bare sectors, a
-  header-bearing container, a nibble stream, or a compressed or archived form —
+- **Image Container**: The file-level wrapper around disk data (bare sectors, a
+  header-bearing container, a nibble stream, or a compressed or archived form)
   together with any metadata it carries.
 - **Media Geometry**: A volume's capacity, track and sector or block organization,
   and the emulated device classes that can accept it.
 - **Filesystem Reader**: The ability to interpret a volume's catalog for a given
   filesystem, and whether that ability extends to writing.
 - **Format Capability Matrix**: For every supported format, which operations are
-  available — mount, boot, read files, write files, inspect.
+  available, mount, boot, read files, write files, inspect.
 
 ## Success Criteria *(mandatory)*
 

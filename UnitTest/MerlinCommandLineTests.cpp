@@ -320,7 +320,7 @@ namespace MerlinCommandLineTests
         //  required to land on the same map.
         TEST_METHOD (BothGrammarsReadAnAnswerTheSameWay)
         {
-            const char *  forms[] = { "SYM=7", "SYM", "SYM=0", "SYM=0x10", "SYM=-3", "SYM=zzz" };
+            const char *  forms[] = { "SYM=7", "SYM", "SYM=0", "SYM=0x10", "SYM=-3" };
 
             for (const char * form : forms)
             {
@@ -332,6 +332,34 @@ namespace MerlinCommandLineTests
                                   Fixture::Widen (typed).c_str());
                 Assert::IsFalse  (Fixture::Definitions (merlin).empty(),
                                   Fixture::Widen (typed + " reached neither grammar").c_str());
+            }
+        }
+
+        //  A VALUE NEITHER GRAMMAR CAN READ IS REFUSED BY BOTH, which is the
+        //  same equivalence claim from the other side.
+        //
+        //  It used to be defined as 1 in silence, on the reasoning that
+        //  inventing zero from a typo would assemble a different object. True,
+        //  and 1 is just as invented: `-dADDR=$6000` defined ADDR as 1 and the
+        //  source took a branch nobody chose. Refusing says so instead, and
+        //  `$6000` is worth the sentence -- it is the assembler's own hex
+        //  syntax, correct inside a source file and not a number this flag
+        //  knows.
+        TEST_METHOD (AValueNeitherGrammarCanRead_IsRefusedByBoth)
+        {
+            const char *  unreadable[] = { "-dSYM=zzz", "-dSYM=1.0", "-dSYM=$6000", "-dSYM=" };
+
+            for (const char * typed : unreadable)
+            {
+                CommandLineOptions  merlin = Fixture::Parse ({ "CassoCli", "merlin", "demo.s",   typed });
+                CommandLineOptions  as65   = Fixture::Parse ({ "CassoCli", "as65",   "demo.a65", typed });
+
+                Assert::IsTrue (merlin.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                Fixture::Widen (std::string (typed) + " under merlin").c_str());
+                Assert::IsTrue (as65.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                Fixture::Widen (std::string (typed) + " under as65").c_str());
+                Assert::IsTrue (Fixture::Definitions (merlin).empty(),
+                                L"and nothing is defined from a value that was not read");
             }
         }
 
@@ -368,9 +396,15 @@ namespace MerlinCommandLineTests
             CommandLineOptions  merlin = Fixture::Parse ({ "CassoCli", "merlin", "demo.s" });
             CommandLineOptions  as65   = Fixture::Parse ({ "CassoCli", "as65",   "demo.a65" });
 
+            //  BOTH DEFAULT TO THE ASSEMBLED BYTES NOW. Merlin always did. as65
+            //  wrote a padded 64 KB image, which is right for a ROM burner and
+            //  useless for loading a 2 KB routine, so `--flat` asks for that and
+            //  the bytes are what you get for asking for nothing. The two
+            //  dialects agreeing here is a consequence of that, not a decision
+            //  taken about Merlin.
             Assert::IsTrue (merlin.outputFormat == CommandLineOptions::OutputFormat::Raw);
-            Assert::IsTrue (as65.outputFormat   == CommandLineOptions::OutputFormat::Binary,
-                            L"the as65 default is unchanged");
+            Assert::IsTrue (as65.outputFormat   == CommandLineOptions::OutputFormat::Raw,
+                            L"and as65 writes the assembled bytes unless --flat asks otherwise");
         }
 
         //  No output name is invented here. The source may name its own object,
@@ -505,10 +539,10 @@ namespace MerlinCommandLineTests
 
             for (const CommandLineParser::DialectFlag & flag : CommandLineParser::GetFlags (DialectId::Merlin))
             {
-                std::string  written  = std::string ("-") + flag.letter;
+                std::string  written  = std::string ("-") + flag.option;
                 std::string  typed;
 
-                if (flag.argument == CommandLineParser::FlagArgument::Required)
+                if (flag.value != CommandLineParser::ValueKind::None)
                 {
                     written += "value";
                 }
@@ -594,12 +628,35 @@ namespace MerlinCommandLineTests
                             L"and the refusal names the directive to write instead");
         }
 
-        //  as65 states no table, and the absence is the point: its grammar is a
-        //  hand-rolled walk over a historical command line, and a table it does
-        //  not walk would be a second description of the parser.
-        TEST_METHOD (As65StatesNoFlagTableOfItsOwn)
+        //  BOTH DIALECTS STATE A TABLE NOW, and as65's was the harder one to
+        //  win. Its grammar resisted a table only while a row was a single
+        //  `char`: `-s2` is not `-s` followed by `2`, a bare `-w` means 133
+        //  where a bare `-h` means nothing, and `-h80t` continues the group
+        //  where `-lfile` cannot. Those are columns -- an option string matched
+        //  longest-first, a value kind, an attachment rule, a bare default --
+        //  and once they were columns the parser could walk the same rows the
+        //  help is generated from, which is the whole point of having them.
+        TEST_METHOD (EveryDialectStatesItsOwnFlagTable)
         {
-            Assert::IsTrue (CommandLineParser::GetFlags (DialectId::As65).empty());
+            Assert::IsFalse (CommandLineParser::GetFlags (DialectId::As65).empty(),
+                             L"as65's switches are data, not a hand-rolled walk");
+            Assert::IsFalse (CommandLineParser::GetFlags (DialectId::Merlin).empty());
+        }
+
+        //  The row that only exists because the key is a string. `-s` and `-s2`
+        //  are both options, and `-s` takes an optional attached filename, so
+        //  `-s2out.hex` parses two ways; longest match settles it the way as65
+        //  settles it, at the documented cost that `-s` cannot name a file
+        //  beginning with `2`.
+        TEST_METHOD (LongestMatchWins_SoMinusS2IsItsOwnOption)
+        {
+            size_t                              matched = 0;
+            const CommandLineParser::DialectFlag *  flag =
+                CommandLineParser::MatchFlag (DialectId::As65, "-s2out.hex", 1, matched);
+
+            Assert::IsTrue (flag != nullptr, L"-s2 is matched");
+            Assert::AreEqual (std::string ("s2"), std::string (flag->option));
+            Assert::AreEqual (size_t (2), matched, L"and it consumed both characters, not one");
         }
     };
 
@@ -822,7 +879,7 @@ namespace MerlinCommandLineTests
 
             for (const CommandLineParser::DialectFlag & flag : CommandLineParser::GetFlags (DialectId::Merlin))
             {
-                std::string  written  = std::string ("-") + flag.letter;
+                std::string  written  = std::string ("-") + flag.option;
 
                 Assert::IsTrue (help.find (written)          != std::string::npos,
                                 Fixture::Widen (written).c_str());
