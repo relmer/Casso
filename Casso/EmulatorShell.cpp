@@ -143,6 +143,12 @@ static constexpr int     s_kSceneDriveLabelStripDp  = 18;
 static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
+// How far the inspection orbit may stray from the home pose before the
+// scene's drive labels hide. About three degrees: past that a drive's
+// projected bounds start swelling and swinging as its box turns, and
+// chrome anchored under them swims against the render.
+static constexpr float   s_kSceneLabelOrbitHomeRad  = 0.05f;
+
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
 // edge, the way the 2D widgets' band padding sat around them. (Containment
@@ -1793,6 +1799,14 @@ void EmulatorShell::SyncSceneDriveChrome()
 //  Fullscreen shows no labels: the picture owns the client and the drives are
 //  only briefly on screen in the overlay strip, which has its own tooltip.
 //
+//  And the labels hold still only in the HOME pose, which is the only pose
+//  where they mean anything -- orbit the scene and a drive's projected
+//  bounds swell and swing as its box turns, so chrome anchored under them
+//  swims against the render, and a name strip glued beneath a drive seen
+//  from behind labels nothing. Any real orbit hides them; settling back
+//  near home brings them back. The yaw accumulates unwrapped across full
+//  turns, so it is compared by its principal value, not the raw sum.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncSceneDriveLabels()
@@ -1800,7 +1814,11 @@ void EmulatorShell::SyncSceneDriveLabels()
     const DeskSceneComposition &  comp    = m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.Dpi() / (float) s_kBaseDpi;
-    bool                          visible = !m_d3dRenderer.IsFullscreen();
+    float                         yawOff  = std::abs (std::atan2 (std::sin (m_sceneView.orbitYawRad),
+                                                                  std::cos (m_sceneView.orbitYawRad)));
+    bool                          home    = yawOff <= s_kSceneLabelOrbitHomeRad &&
+                                            std::abs (m_sceneView.orbitPitchRad) <= s_kSceneLabelOrbitHomeRad;
+    bool                          visible = !m_d3dRenderer.IsFullscreen() && home;
 
 
 
@@ -5824,8 +5842,14 @@ bool EmulatorShell::TryPresentUiFrame()
         m_stripHotkeyPending = false;
 
         inputs.pinned        = m_stripBrowseOpen || m_driveTooltip.IsVisible();
+
+        // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
+        // owning the pointer. At a BASIC prompt in Mouse mode the host
+        // cursor is the only pointer there is, and the bottom edge must
+        // summon the strip -- Active gated the reveal off for the whole
+        // session on a machine whose mouse is built in.
         inputs.guestPointer  = m_paddleCaptured    ? GuestPointerMode::Paddle
-                             : GuestMouseActive()  ? GuestPointerMode::Mouse
+                             : GuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
 
@@ -7442,22 +7466,22 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     // Drive hover tooltip, suppressed while the joystick button owns the
-    // hover (mutually exclusive bands, but be explicit). With the 3D scene
-    // active the hover resolves through the scene hit tester (the widgets
-    // are hidden): the mounted image's name, joined by the write-protect
-    // composition verbatim when the disk is protected -- the scene has no
-    // label strip, so the name rides the tooltip. The 2D path keeps its
-    // dwell tooltip for protected drives only (the basename lives on the
-    // widget's marquee label there).
+    // hover (mutually exclusive bands, but be explicit). Windowed, the 3D
+    // scene's name strips already show every basename and padlock, so the
+    // only tooltip left is the padlock's WHY -- the write-protect
+    // composition, anchored to the label it explains. Dwelling on the case
+    // itself volunteers nothing the strip is not already saying. Fullscreen
+    // shows no labels, so the overlay strip's drives keep the name tooltip,
+    // joined by the write-protect composition when the disk is protected --
+    // there is no padlock anywhere else to ask. The 2D path keeps its dwell
+    // tooltip for protected drives only (the basename lives on the widget's
+    // marquee label there).
     {
         std::wstring  tip;
         RECT          anchor = {};
 
-        if (DeskSceneActive())
+        if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
         {
-            // The name strip first, because the padlock is in it and the
-            // scene's hit tester knows nothing about 2D chrome hung below
-            // the drives.
             for (int i = 0; i < (int) m_sceneDriveLabelRect.size(); i++)
             {
                 POINT  lp = { x, y };
@@ -7475,30 +7499,31 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                     break;
                 }
             }
+        }
+        else if (DeskSceneActive())
+        {
+            POINT  pt = { x, y };
 
-            // Fullscreen: the strip's drives-only composition takes the
-            // point when it is over the slid band; windowed, the desk
-            // composition resolves everything.
-            POINT           pt      = { x, y };
-            bool            inStrip = m_d3dRenderer.IsFullscreen() &&
-                                      m_stripRectPx.bottom > m_stripRectPx.top &&
-                                      PtInRect (&m_stripRectPx, pt);
-            SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
-
-            if (tip.empty() && sceneHit.target == SceneHitResult::Target::Drive && !overBtn)
+            if (m_stripRectPx.bottom > m_stripRectPx.top &&
+                PtInRect (&m_stripRectPx, pt) && !overBtn)
             {
-                const DeskSceneComposition &  comp = inStrip ? m_stripComp : m_deskScene.Composition();
+                SceneHitResult  sceneHit = StripHit (x, y);
 
-                // The protection tooltip belongs to the PADLOCK, and the
-                // padlock now lives in the name strip rather than on the
-                // faceplate -- so the strip is what answers for it, above.
-                // Dwelling anywhere else on the case just names the disk;
-                // volunteering the protection everywhere answers a question
-                // nobody asked.
-                anchor = comp.driveRectPx[sceneHit.driveIndex];
-                tip    = std::filesystem::path (
-                             m_diskStore.GetSourcePath (6, sceneHit.driveIndex))
-                             .filename().wstring();
+                if (sceneHit.target == SceneHitResult::Target::Drive)
+                {
+                    std::wstring  imageName = std::filesystem::path (
+                        m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
+
+                    anchor = m_stripComp.driveRectPx[sceneHit.driveIndex];
+                    tip    = ComposeWriteProtectTooltip (
+                                 sceneHit.driveIndex + 1, imageName,
+                                 m_driveWidgetState[sceneHit.driveIndex].writeProtect);
+
+                    if (tip.empty())
+                    {
+                        tip = imageName;
+                    }
+                }
             }
         }
         else if (wpDrive != nullptr && !overBtn)
