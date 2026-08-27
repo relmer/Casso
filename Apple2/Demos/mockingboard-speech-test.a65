@@ -80,19 +80,23 @@ wait
     bne next                ; unconditional (Y never wraps within the list)
 
 
-; "CASSO ROCKS" as SSI 263A phonemes: K AE S :OH OU / R1 AH K S. Each byte
-; carries its own DR duration in D7:6 (duration = frame x (4 - DR)): stops
-; are bursts (DR=11, shortest), fricatives and glides medium, vowels long,
-; and the inter-repeat pause is a full-length silence.
+; "CASSO ROCKS" as SSI 263A phonemes: K AE S O OU / R1 AH (closure) K S.
+; Each byte carries its own DR duration in D7:6 (duration = frame x
+; (4 - DR)): stops are bursts (DR=11, shortest) and get a short closure
+; silence before them mid-word, fricatives and glides medium, vowels
+; long, and the inter-repeat pause is a full-length silence. The "o" is
+; O/OU (back rounded) -- :OH is the chip's front-rounded German vowel
+; and reads as "io".
 phonemes
     .byte $E9               ; K    k, DR=11 burst
     .byte $0C               ; AE   a as in "dad", DR=00 full vowel
     .byte $B0               ; S    s, DR=10
-    .byte $3B               ; :OH  oh, DR=00 full vowel
-    .byte $92               ; OU   ou, DR=10
+    .byte $51               ; O    o as in "store", DR=01
+    .byte $92               ; OU   ou as in "boat", DR=10
     .byte $40               ; PA   word gap, DR=01
     .byte $9E               ; R1   r as in "rug", DR=10
     .byte $0E               ; AH   o as in "got", DR=00 full vowel
+    .byte $C0               ; PA   stop closure, DR=11 short
     .byte $E9               ; K    k, DR=11 burst
     .byte $B0               ; S    s, DR=10
     .byte $00               ; PA   pause between repeats, DR=00 long
