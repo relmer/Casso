@@ -280,7 +280,7 @@ public:
 
 
 
-        Assert::AreEqual (DiskCommandRunner::kClean, put.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, put.exitStatus,
             L"the placement must succeed");
 
         Assert::AreEqual (std::string(), put.diagnostics,

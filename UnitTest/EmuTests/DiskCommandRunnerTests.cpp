@@ -112,7 +112,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
             L"a disk that shipped must list cleanly");
 
         Assert::IsTrue (result.output.find ("DISK VOLUME 254") != std::string::npos,
@@ -163,7 +163,7 @@ public:
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                           "C:\\disks\\merlin.po.dsk"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find ("/MERLIN") != std::string::npos,
             L"a ProDOS volume is named, not numbered");
         Assert::IsTrue (result.output.find ("blocks free of 280") != std::string::npos,
@@ -220,7 +220,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.hasPayload, L"the payload is returned for the caller to deliver");
         AssertIsMakeDumpPayload (result.payload);
         Assert::AreEqual (size_t (0), io.files.count ("C:\\out.bin"),
@@ -240,7 +240,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsFalse (result.hasPayload, L"a named destination is not the process output");
         Assert::AreEqual (size_t (1), io.files.count ("C:\\out.bin"));
         AssertIsMakeDumpPayload (io.files["C:\\out.bin"]);
@@ -318,7 +318,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (result.hasPayload);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos,
             L"the message names the image");
@@ -334,7 +334,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.empty());
         Assert::IsTrue (result.diagnostics.find ("cannot be read") != std::string::npos);
     }
@@ -354,9 +354,9 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.empty(), L"and nothing is offered as a catalog");
-        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kNoFilesystemText)
+        Assert::IsTrue (result.diagnostics.find (DiskImageSession::kNoFilesystemText)
                             != std::string::npos,
             L"in the words a person would use");
     }
@@ -421,7 +421,7 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
@@ -450,7 +450,7 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["big.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 1, 0)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
@@ -481,7 +481,7 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["short.bin"] = vector<Byte> (4, (Byte) 0xFF);
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
@@ -502,10 +502,10 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = vector<Byte> (16, (Byte) 0xA5);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 35, 0)).exitStatus,
                           L"track 35 is one past the last");
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 0, 16)).exitStatus,
                           L"and sector 16 is one past the last");
     }
@@ -527,7 +527,7 @@ public:
 
         result = runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 33, 0));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", after));
@@ -574,12 +574,12 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.hasPayload, L"with no --out the bytes are the payload");
         Assert::IsTrue (result.payload == payload,
                         L"and they are the bytes that were written, from the same logical sector");
@@ -598,12 +598,12 @@ public:
         io.files["three.bin"] = payload;
 
         //  Sector 14 of track 1, so the third sector lands on track 2.
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "three.bin", 1, 14)).exitStatus);
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 1, 14, 3));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.payload == payload,
                         L"all three sectors come back, across the track boundary");
     }
@@ -621,7 +621,7 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["short.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
@@ -647,13 +647,13 @@ public:
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 5, 0)).exitStatus);
 
         options.disk.hostFile = "back.bin";
         result                = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsFalse (result.hasPayload, L"named a file, so nothing goes to standard output");
         Assert::IsTrue (io.files["back.bin"] == payload, L"and the file holds the sector");
     }
@@ -670,7 +670,7 @@ public:
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
                           L"an unformatted disk is the ordinary case here, not a refusal");
     }
 
@@ -681,11 +681,11 @@ public:
 
         SeedBlankImage (io, "raw.dsk");
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorRead ("raw.dsk", 35, 0, 1)).exitStatus,
                           L"there is no track 35");
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorRead ("raw.dsk", 0, 16, 1)).exitStatus,
                           L"and no sector 16");
     }
@@ -699,11 +699,11 @@ public:
 
         SeedBlankImage (io, "raw.dsk");
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 0)).exitStatus,
                           L"zero sectors");
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+        Assert::AreEqual (DiskCommandResult::kNoOutput,
                           runner.Run (MakeSectorRead ("raw.dsk", 0, 0, -1)).exitStatus,
                           L"and fewer than that");
     }
@@ -718,7 +718,7 @@ public:
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 34, 14, 5));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
         Assert::IsFalse (result.hasPayload, L"and no partial read is handed back");
     }
@@ -764,7 +764,7 @@ public:
 
         result = runner.Run (MakeDirectBoot ("boot.dsk", "prog.bin"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, expected, refusal));
         AssertSucceeded (io.ReadAllBytes ("boot.dsk", written));
@@ -783,9 +783,9 @@ public:
 
         io.files["prog.bin"] = payload;
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeDirectBoot ("boot.po", "prog.bin")).exitStatus);
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           runner.Run (MakeDirectBoot ("boot.woz", "prog.bin")).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("boot.po", written));
@@ -816,7 +816,7 @@ public:
         options.disk.entryAddress    = 0x0920;
         options.disk.hasEntryAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         spec.entryAddress = 0x0920;
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, expected, refusal));
@@ -840,7 +840,7 @@ public:
         options.disk.bootable = true;
         result                = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
         Assert::IsFalse (io.Exists ("boot.dsk"), L"and nothing was written");
     }
@@ -859,7 +859,7 @@ public:
         options.disk.formatName = "prodos";
         result                  = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (io.Exists ("boot.dsk"));
     }
 
@@ -878,7 +878,7 @@ public:
         options.disk.hasLoadAddress = true;
         result                      = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("$0900") != std::string::npos,
                         L"the window's lower edge is named");
         Assert::IsFalse (io.Exists ("boot.dsk"));
@@ -919,7 +919,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result = runner.Run (MakeCreate ("new.dsk"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (io.Exists ("new.dsk"), L"the image is there afterwards");
         Assert::IsTrue (result.output.find ("DOS 3.3") != std::string::npos,
                         L"and it says what it made");
@@ -935,8 +935,8 @@ public:
         DiskCommandResult  first  = runner.Run (MakeCreate ("new.dsk"));
         DiskCommandResult  second = runner.Run (MakeCreate ("new.dsk"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean,    first.exitStatus);
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, second.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean,    first.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, second.exitStatus);
         Assert::IsTrue (second.diagnostics.find ("init") != std::string::npos,
                         L"and points at the command that does mean it");
     }
@@ -953,7 +953,7 @@ public:
         options.disk.formatName = "prodos";
         result                  = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find ("ProDOS") != std::string::npos);
     }
 
@@ -969,7 +969,7 @@ public:
         options.disk.containerType = "2mg";
         result                     = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"so the page prints above it");
         Assert::IsTrue (result.diagnostics.find ("2mg") != std::string::npos,
                         L"and the word they typed is quoted back");
@@ -992,7 +992,7 @@ public:
         options.disk.volumeName = "mydisk";
         result                  = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         Assert::IsTrue (result.output.find ("MYDISK") != std::string::npos,
                         L"the confirmation names the volume the disk actually has");
@@ -1016,7 +1016,7 @@ public:
         options.disk.volumeName = "MYDISK";
         result                  = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (io.Exists ("new.dsk"));
     }
 
@@ -1033,7 +1033,7 @@ public:
         options.disk.commandWord = "init";
         result                = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("create") != std::string::npos,
                         L"and points at the command that makes one");
     }
@@ -1054,7 +1054,7 @@ public:
         options.disk.containerType = "woz";
         result                     = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
     }
 
@@ -1069,7 +1069,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine,
             L"which is what makes the edge print the page");
         Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
@@ -1101,7 +1101,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.empty(), L"a listing this command line did not earn");
 
         //  And nothing is said, because the parser already named the argument
@@ -1133,7 +1133,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         //  A whole rendered row rather than a substring search for `eof=`: the
         //  columns have to land in their places, and the row has to stay inside
@@ -1157,7 +1157,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find (" B 004 MERLIN\n") != std::string::npos,
             L"the DOS 3.3 row is what a booted machine prints");
         Assert::IsTrue (result.output.find ("eof=") == std::string::npos,
@@ -1186,8 +1186,8 @@ public:
         options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
         converted             = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, verbatim.exitStatus);
-        Assert::AreEqual (DiskCommandRunner::kClean, converted.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, verbatim.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, converted.exitStatus);
 
         for (i = 0; i < verbatim.payload.size(); i++)
         {
@@ -1229,7 +1229,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (result.hasPayload, L"nothing may be delivered under a conversion not performed");
         Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
             L"and the refusal must name the flag it is refusing");
@@ -1317,21 +1317,21 @@ public:
     {
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
         vector<Byte>                   edited;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         edited = EditedImageBytes();
 
-        AssertSucceeded (runner.CommitImage (opened, edited, result));
+        AssertSucceeded (runner.Session().CommitImage (opened, edited, result));
 
         Assert::IsTrue (io.files[kImage] == edited, L"the new bytes are the image now");
         Assert::AreEqual (1, io.replaceCount, L"and arrived by one atomic replace");
         Assert::IsTrue (io.HasNoTemporaryFiles(), L"with nothing left over");
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
     }
 
     TEST_METHOD (Commit_NeverWritesTheTargetDirectly)
@@ -1343,12 +1343,12 @@ public:
         // when it was interrupted.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
-        AssertSucceeded (runner.CommitImage (opened, EditedImageBytes(), result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().CommitImage (opened, EditedImageBytes(), result));
 
         for (const std::string & path : io.writtenPaths)
         {
@@ -1367,22 +1367,22 @@ public:
         // that partial file still sitting beside the user's disk.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         io.failNextWrite = true;
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
         Assert::AreEqual (1, io.removeCount, L"the partial temporary was swept");
         Assert::AreEqual (0, io.replaceCount, L"and nothing was ever put over the image");
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos,
             L"and the refusal names the image");
     }
@@ -1394,22 +1394,22 @@ public:
         // good and somebody might want them.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         io.failNextReplace = true;
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
         Assert::AreEqual (1, io.replaceCount, L"the replace was attempted");
         Assert::AreEqual (1, io.removeCount,  L"and its temporary removed when it failed");
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
     }
 
     TEST_METHOD (Commit_WhenTheImageWasRewrittenSinceItWasRead_RefusesBeforeWritingAnything)
@@ -1419,22 +1419,22 @@ public:
         // would silently discard their work.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         io.mutateStampOnNextStat = true;
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
         Assert::AreEqual (0, io.writeCount,   L"nothing was written at all");
         Assert::AreEqual (0, io.replaceCount, L"and nothing replaced");
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("changed since it was read") != std::string::npos,
             L"and the reason given is staleness, not some other refusal");
     }
@@ -1447,16 +1447,16 @@ public:
         // alone passes every other test in this file and fails here.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         io.stamps[kImage].sizeBytes += 1;
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1468,16 +1468,16 @@ public:
     {
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
 
         io.reportHeldByOther = true;
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1496,19 +1496,19 @@ public:
         // bitten by -- a degraded state that reads as a healthy one.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
-        HRESULT                        hr = S_OK;
+        HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
         io.stamps.erase (kImage);
 
-        AssertSucceeded (runner.OpenImage (kImage, opened, result),
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result),
             L"reading does not need the stamp and must still work");
 
         Assert::IsFalse (opened.stampRecorded);
 
-        hr = runner.CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1524,15 +1524,15 @@ public:
         // overwrite a LIVE one belonging to a concurrent invocation.
         FakeDiskFileIo                 io;
         DiskCommandRunner              runner (io);
-        DiskCommandRunner::OpenedImage opened;
+        DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
         std::string                    taken;
         vector<Byte>                   sentinel = { 'N', 'O', 'T', 'Y', 'O', 'U', 'R', 'S' };
 
         // Learn the name this runner reaches for, by watching it commit once.
         SeedRealDisk (io);
-        AssertSucceeded (runner.OpenImage (kImage, opened, result));
-        AssertSucceeded (runner.CommitImage (opened, EditedImageBytes(), result));
+        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.Session().CommitImage (opened, EditedImageBytes(), result));
 
         taken = TemporaryPathChosen (io);
 
@@ -1543,11 +1543,11 @@ public:
         io.stamps[taken] = FileStamp { sentinel.size(), 1 };
 
         {
-            DiskCommandRunner::OpenedImage second;
+            DiskImageSession::OpenedImage  second;
             DiskCommandResult              secondResult;
 
-            AssertSucceeded (runner.OpenImage (kImage, second, secondResult));
-            AssertSucceeded (runner.CommitImage (second, EditedImageBytes(), secondResult));
+            AssertSucceeded (runner.Session().OpenImage (kImage, second, secondResult));
+            AssertSucceeded (runner.Session().CommitImage (second, EditedImageBytes(), secondResult));
         }
 
         Assert::AreEqual (size_t (1), io.files.count (taken),
@@ -1570,18 +1570,18 @@ public:
         FakeDiskFileIo                 ioB;
         DiskCommandRunner              runnerA (ioA);
         DiskCommandRunner              runnerB (ioB);
-        DiskCommandRunner::OpenedImage openedA;
-        DiskCommandRunner::OpenedImage openedB;
+        DiskImageSession::OpenedImage  openedA;
+        DiskImageSession::OpenedImage  openedB;
         DiskCommandResult              resultA;
         DiskCommandResult              resultB;
 
         SeedRealDisk (ioA);
         SeedRealDisk (ioB);
 
-        AssertSucceeded (runnerA.OpenImage (kImage, openedA, resultA));
-        AssertSucceeded (runnerB.OpenImage (kImage, openedB, resultB));
-        AssertSucceeded (runnerA.CommitImage (openedA, EditedImageBytes(), resultA));
-        AssertSucceeded (runnerB.CommitImage (openedB, EditedImageBytes(), resultB));
+        AssertSucceeded (runnerA.Session().OpenImage (kImage, openedA, resultA));
+        AssertSucceeded (runnerB.Session().OpenImage (kImage, openedB, resultB));
+        AssertSucceeded (runnerA.Session().CommitImage (openedA, EditedImageBytes(), resultA));
+        AssertSucceeded (runnerB.Session().CommitImage (openedB, EditedImageBytes(), resultB));
 
         Assert::IsFalse (TemporaryPathChosen (ioA) == TemporaryPathChosen (ioB),
             L"two invocations against one image must not reach for one name");
@@ -1613,7 +1613,7 @@ public:
         options.disk.hostFile = "C:\\out.txt";
         written               = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, written.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, written.exitStatus);
         Assert::AreEqual (size_t (1), io.files.count ("C:\\out.txt"));
         Assert::IsTrue (io.files["C:\\out.txt"] == piped.payload,
             L"the same conversion, whichever way the bytes leave");
@@ -1790,7 +1790,7 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find ("GREET") != std::string::npos,
             L"the name on the disk is the name it had on the host");
@@ -1843,7 +1843,7 @@ public:
         options.disk.typeName       = "";
         options.disk.hasLoadAddress = false;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
             L"a program needs no address, so nothing is refused");
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" A ") != std::string::npos,
@@ -1866,7 +1866,7 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
             L"an assembled binary stays a binary");
@@ -1887,7 +1887,7 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
             L"--type B was asked for and --type B is what the catalog says");
@@ -1906,7 +1906,7 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
             L"the catalog records a binary");
@@ -1929,7 +1929,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"a binary with nowhere to load is not written");
         Assert::IsFalse (result.diagnostics.empty(), L"and the refusal says so");
     }
@@ -1952,7 +1952,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
             L"a placement with room, a legal name and an address is clean");
 
         Assert::IsTrue (io.HasNoTemporaryFiles(), L"and leaves nothing beside the image");
@@ -1966,7 +1966,7 @@ public:
 
         readBack = GetFromCommittedImage (io, kBlankImage, "PROG");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
         Assert::IsTrue (readBack.payload == payload,
             L"the bytes on the disk are the bytes that went in");
 
@@ -1997,7 +1997,7 @@ public:
 
         extracted = GetFromCommittedImage (io, kImage, "MAKE DUMP");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, extracted.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, extracted.exitStatus);
         AssertIsMakeDumpPayload (extracted.payload);
 
         SeedFile (io, kHostFile, extracted.payload);
@@ -2009,12 +2009,12 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
             L"replacing a file with its own contents must succeed");
 
         readBack = GetFromCommittedImage (io, kImage, "MAKE DUMP");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
 
         // The file, byte for byte, through a path that re-read the committed
         // image rather than trusting the runner that wrote it.
@@ -2054,7 +2054,7 @@ public:
         options.disk.loadAddress    = 0x9000;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         after = ListCommittedImage (io, kImage);
 
@@ -2092,14 +2092,14 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         LockFirstCatalogEntry (io.files[kBlankImage]);
         committed = io.files[kBlankImage];
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
             L"the refusal must say the file is locked, not merely that something failed");
 
@@ -2122,7 +2122,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
             L"and says the volume has no room, not something generic");
 
@@ -2148,7 +2148,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("9LIVES") != std::string::npos,
             L"the message names the name that was refused");
         Assert::IsTrue (result.diagnostics.find ("starting with a letter") != std::string::npos,
@@ -2197,7 +2197,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::AreEqual (std::string(), result.diagnostics);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" A 002 PROG") != std::string::npos,
@@ -2207,7 +2207,7 @@ public:
         readBack = GetFromCommittedImage (io, kBlankImage, "PROG",
                                          CommandLineOptions::DiskOptions::Encoding::Basic);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
         Assert::IsTrue (readBack.hasPayload, L"and must hand back the listing");
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
@@ -2239,7 +2239,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         raw = GetFromCommittedImage (io, kBlankImage, "PROG",
                                     CommandLineOptions::DiskOptions::Encoding::Verbatim);
@@ -2273,7 +2273,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
 
         Assert::IsTrue (result.diagnostics.find ("line 20 ") != std::string::npos,
             L"the refusal names the offending line number");
@@ -2311,7 +2311,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::AreEqual (std::string(), result.diagnostics);
 
         {
@@ -2359,7 +2359,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("$0801") != std::string::npos,
             L"and says where an Applesoft program does load");
 
@@ -2385,7 +2385,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("--load") != std::string::npos,
             L"the message must name the flag that would fix it");
 
@@ -2418,7 +2418,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("write-protected") != std::string::npos,
             L"the reason given must be write protection, not a generic replace failure");
 
@@ -2443,11 +2443,11 @@ public:
         options.disk.typeName = "T";
         options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         stored = GetFromCommittedImage (io, kBlankImage, "NOTES");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, stored.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, stored.exitStatus);
         Assert::IsTrue (stored.payload.size() > 0, L"something must actually have been stored");
 
         for (i = 0; i < stored.payload.size(); i++)
@@ -2482,7 +2482,7 @@ public:
 
         options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
             L"text with no named type needs no load address");
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" T 002 NOTES") != std::string::npos,
@@ -2513,7 +2513,7 @@ public:
         Assert::IsTrue (options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim,
             L"nothing was named, which is the case under test");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PROG") != std::string::npos,
             L"naming neither a type nor a conversion lands the filesystem's binary type");
@@ -2539,7 +2539,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("byte 5") != std::string::npos,
             L"the message points at the byte, not merely at the file");
 
@@ -2564,7 +2564,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("DOS 3.3 takes") != std::string::npos,
             L"and the refusal lists what this filesystem does take");
 
@@ -2595,7 +2595,7 @@ public:
         result  = runner.Run (options);
         listing = ListCommittedImage (io, kBlankImage);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         Assert::IsTrue (listing.find (" B 004 PROG.BIN\n") != std::string::npos,
             L"the on-disk name is the host file's own last component and nothing else");
@@ -2627,7 +2627,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         Assert::IsTrue (reader.Run (listing).output.find ("aux=$6000") != std::string::npos,
             L"ProDOS records the load address in the entry, not in the file");
@@ -2668,11 +2668,11 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         readBack = GetFromCommittedImage (io, kProOrdered, "PROG");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, readBack.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus,
             L"the committed file must still be a ProDOS volume in ProDOS order");
 
         Assert::IsTrue (readBack.payload == payload);
@@ -2719,7 +2719,7 @@ public:
 
         result = runner.Run (MakeDeleteOptions (kImage, "MAKE DUMP"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (io.HasNoTemporaryFiles());
 
         Assert::IsTrue (ListCommittedImage (io, kImage).find ("MAKE DUMP\n") == std::string::npos,
@@ -2730,7 +2730,7 @@ public:
 
         readBack = GetFromCommittedImage (io, kImage, "MAKE DUMP");
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, readBack.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kNoOutput, readBack.exitStatus,
             L"and no longer resolves by name");
     }
 
@@ -2745,7 +2745,7 @@ public:
 
         result = runner.Run (MakeDeleteOptions (kImage, "NOSUCHFILE"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("is not on this volume") != std::string::npos,
@@ -2770,14 +2770,14 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         LockFirstCatalogEntry (io.files[kBlankImage]);
         committed = io.files[kBlankImage];
 
         result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos);
 
         AssertNamesNoPlatformCode (result.diagnostics);
@@ -2802,13 +2802,13 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         BreakFirstEntrysChain (io.files[kBlankImage]);
 
         result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus,
             L"a removal that could not account for everything is not a clean one");
 
         Assert::IsTrue (result.diagnostics.find ("could not be followed") != std::string::npos,
@@ -2893,12 +2893,12 @@ public:
         Assert::AreEqual (std::string ("HELLO"), GreetingNameIn (io.files[kImage]),
             L"this disk boots its own greeting today, or the command below changes nothing");
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (put).exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus,
             L"the program has to be on the disk before it can be booted into");
 
         result = runner.Run (MakeBootOptions (kImage, kDosProgram));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
             L"naming a program the volume holds and DOS can run is a clean operation");
 
         Assert::AreEqual (std::string(), result.diagnostics, L"with nothing to complain about");
@@ -2936,7 +2936,7 @@ public:
         before = GreetingNameIn (io.files[kImage]);
         result = runner.Run (MakeBootOptions (kImage, kBinaryOnTheDisk));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"a startup program DOS will not run is refused, not carried out");
 
         Assert::IsTrue (result.diagnostics.find ("RUN") != std::string::npos,
@@ -2965,7 +2965,7 @@ public:
 
         result = runner.Run (MakeBootOptions (kImage, "NOSUCHFILE"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos,
             L"the message must name the file that is missing, not merely report a failure");
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
@@ -2996,7 +2996,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::Boot));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"a missing operand is a bad command line");
         Assert::IsTrue (result.usageShown,     L"and the reader is shown how to write it");
 
@@ -3025,7 +3025,7 @@ public:
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 99, 0, 1));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"a value out of range is a bad command line");
         Assert::IsTrue (result.usageShown,     L"and the reader is shown how to write it");
 
@@ -3055,7 +3055,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
 
         Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
@@ -3088,13 +3088,13 @@ public:
         options.disk.loadAddress    = kLoadAddress;
         options.disk.hasLoadAddress = true;
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         committed = io.files[kBlankImage];
 
         result = runner.Run (MakeBootOptions (kBlankImage, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("no operating system") != std::string::npos,
             L"and says that is what is missing, rather than blaming the file");
 
@@ -3118,7 +3118,7 @@ public:
 
         result = runner.Run (MakeBootOptions (kProImage, kProProgram));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kProProgram) != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("type SYS") != std::string::npos,
             L"and says what this boot path does launch");
@@ -3158,14 +3158,14 @@ public:
 
         options.disk.typeName = "SYS";
 
-        Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (options).exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
             L"the placement must succeed before the reorder can mean anything");
 
         AssertListedBefore (ListCommittedImage (io, kProImage), "MERLIN.SYSTEM", "CASSO.SYSTEM");
 
         result = runner.Run (MakeBootOptions (kProImage, "CASSO.SYSTEM"));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::AreEqual (std::string(), result.diagnostics);
         Assert::IsTrue (io.HasNoTemporaryFiles());
 
@@ -3208,7 +3208,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, path));
 
-        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kNoFilesystemText)
+        Assert::IsTrue (result.diagnostics.find (DiskImageSession::kNoFilesystemText)
                             != std::string::npos,
             L"the sentence a person would say, not a sentence about this tool's tables");
 
@@ -3226,7 +3226,7 @@ public:
 
         //  THE STATUS DOES NOT MOVE. A caller still got no catalog, so a script
         //  that branches on 2 branches the same way it always did.
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"a survey is not a listing");
 
         Assert::AreEqual (std::string(), result.output,
@@ -3291,7 +3291,7 @@ public:
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
                                           "C:\\disks\\absent.dsk"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("cannot be read") != std::string::npos);
     }
 };

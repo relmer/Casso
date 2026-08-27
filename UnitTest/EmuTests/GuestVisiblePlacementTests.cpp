@@ -324,7 +324,7 @@ public:
 
 
 
-        Assert::AreEqual (DiskCommandRunner::kClean, put.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, put.exitStatus,
             L"the placement must succeed");
         Assert::AreEqual (std::string(), put.diagnostics,
             L"with nothing to complain about");
@@ -354,7 +354,7 @@ public:
 
 
 
-        Assert::AreEqual (DiskCommandRunner::kClean, put.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, put.exitStatus,
             L"the placement must succeed");
         Assert::AreEqual (std::string(), put.diagnostics,
             L"with nothing to complain about");
@@ -415,7 +415,7 @@ public:
             put = runner.Run (MakePutOptions (kLockedFile, "B"));
         }
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, put.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kNoOutput, put.exitStatus,
             L"placing over a locked file must produce no output");
 
         Assert::IsTrue (put.diagnostics.find ("is locked on this volume") != std::string::npos,

@@ -352,7 +352,7 @@ public:
         // has to carry it for whoever reads the log.
         DiskCommandResult  result = RunListOn (MakeWozWithAlteredTrack (20, false));
 
-        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus,
             L"damage earns complaints, not silence and not a refusal");
 
         Assert::IsTrue (result.output.find ("MERLIN") != std::string::npos,
@@ -373,7 +373,7 @@ public:
         // blank disks unwritable once the write path consults the same report.
         DiskCommandResult  result = RunListOn (MakeWozWithAlteredTrack (20, true));
 
-        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
             L"an unformatted track is blank, and blank is not damage");
 
         Assert::IsTrue (result.diagnostics.find ("could not be decoded") == std::string::npos,
@@ -408,7 +408,7 @@ public:
 
         result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus);
         Assert::IsTrue (result.hasPayload, L"the file itself must still be delivered");
 
         // The fixture is the complete stored file, header included; the reader

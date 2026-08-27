@@ -306,7 +306,7 @@ public:
         {
             DiskCommandRunner  runner (io);
 
-            Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (put).exitStatus,
+            Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus,
                 L"the placement must succeed before there is anything to boot into");
         }
 
@@ -463,7 +463,7 @@ public:
         {
             DiskCommandRunner  runner (io);
 
-            Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (boot).exitStatus,
+            Assert::AreEqual (DiskCommandResult::kClean, runner.Run (boot).exitStatus,
                 L"setting the startup program must succeed");
         }
 
@@ -485,10 +485,10 @@ public:
         std::vector<Byte>         greeting   = MakeBasicGreeting();
         std::vector<Byte>         placedOnly = CommitProgram (master, greeting, kDosProgram, "A",
                                                               0, false, false,
-                                                              DiskCommandRunner::kClean);
+                                                              DiskCommandResult::kClean);
         std::vector<Byte>         configured = CommitProgram (master, greeting, kDosProgram, "A",
                                                               0, false, true,
-                                                              DiskCommandRunner::kClean);
+                                                              DiskCommandResult::kClean);
         std::vector<Byte>         sectors    = DecodeThroughTheDrive (configured);
         std::vector<std::string>  rows;
         std::vector<std::string>  controlRows;
@@ -551,7 +551,7 @@ public:
         std::vector<Byte>         program  = MakeSystemProgram (kDosLoadAddress);
         std::vector<Byte>         placed   = CommitProgram (master, program, kDosProgram, "B",
                                                             kDosLoadAddress, true, false,
-                                                            DiskCommandRunner::kClean);
+                                                            DiskCommandResult::kClean);
         std::vector<Byte>         forced   = ForceGreetingTo (placed, kDosProgram);
         std::vector<Byte>         sectors  = DecodeThroughTheDrive (forced);
         std::vector<std::string>  rows;
@@ -571,7 +571,7 @@ public:
         std::vector<Byte>         program    = MakeSystemProgram (kProLoadAddress);
         std::vector<Byte>         placed     = CommitProgram (fixture, program, kProProgram, "SYS",
                                                               0, false, false,
-                                                              DiskCommandRunner::kClean);
+                                                              DiskCommandResult::kClean);
         std::vector<Byte>         theOldWay  = SetStartupTo (placed, kProDosLaunchesNow);
         std::vector<Byte>         configured = SetStartupTo (theOldWay, kProProgram);
         std::vector<Byte>         sectors    = DecodeThroughTheDrive (configured);

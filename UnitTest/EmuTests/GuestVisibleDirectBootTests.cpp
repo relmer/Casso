@@ -405,7 +405,7 @@ public:
         {
             DiskCommandRunner  runner (io);
 
-            Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (put).exitStatus,
+            Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus,
                 L"the placement must succeed before there is anything to boot into");
         }
 
@@ -427,7 +427,7 @@ public:
         {
             DiskCommandRunner  runner (io);
 
-            Assert::AreEqual (DiskCommandRunner::kClean, runner.Run (boot).exitStatus,
+            Assert::AreEqual (DiskCommandResult::kClean, runner.Run (boot).exitStatus,
                 L"setting the startup program must succeed");
         }
 

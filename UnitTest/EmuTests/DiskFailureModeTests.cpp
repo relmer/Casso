@@ -158,7 +158,7 @@ public:
 
         listing = reader.Run (options);
 
-        Assert::AreNotEqual (DiskCommandRunner::kNoOutput, listing.exitStatus,
+        Assert::AreNotEqual (DiskCommandResult::kNoOutput, listing.exitStatus,
             L"the image must still mount -- a refusal that leaves it unreadable is worse "
             L"than the operation it refused");
 
@@ -444,7 +444,7 @@ public:
 
         result = runner.Run (MakeTextPutOptions (kBlankDsk, "BIG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
             L"the reason must be the volume's room and not something generic");
 
@@ -467,7 +467,7 @@ public:
 
         result = runner.Run (MakePutOptions (kRealImage, kRealFile));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
             L"the reason must be the lock, not merely that something failed");
 
@@ -491,7 +491,7 @@ public:
 
         result = runner.Run (MakeDeleteOptions (kRealImage, kRealFile));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
             L"the reason must be the lock");
 
@@ -522,7 +522,7 @@ public:
 
         result = runner.Run (MakePutOptions (kBlankDsk, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("write-protected") != std::string::npos,
             L"the reason must be write protection, not a generic replace failure");
 
@@ -547,7 +547,7 @@ public:
 
         result = runner.Run (MakePutOptions (kBlankDsk, "9LIVES"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("9LIVES") != std::string::npos,
             L"the message names the name it refused");
         Assert::IsTrue (result.diagnostics.find ("starting with a letter") != std::string::npos,
@@ -585,7 +585,7 @@ public:
         SeedFile (survey, kBlankWoz, clean);
         SeedFile (survey, kHostFile, MakePayload());
 
-        Assert::AreEqual (DiskCommandRunner::kClean,
+        Assert::AreEqual (DiskCommandResult::kClean,
                           surveyor.Run (MakePutOptions (kBlankWoz, "PROG")).exitStatus,
             L"the survey pass must succeed, or it says nothing about which tracks are needed");
 
@@ -628,7 +628,7 @@ public:
 
         result = runner.Run (MakePutOptions (kBlankWoz, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("track " + std::to_string (victim))
                             != std::string::npos,
             L"the refusal must name the track it is about");
@@ -659,7 +659,7 @@ public:
 
         result = runner.Run (MakePutOptions (kRealImage, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("changed since it was read") != std::string::npos,
             L"the reason must be that the target moved");
 
@@ -686,14 +686,14 @@ public:
 
         result = runner.Run (MakePutOptions (kRealImage, "PROG"));
 
-        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
 
         //  Against the runner's own constant rather than a retyped fragment.
         //  The help no longer carries a paragraph about the probe, so this
         //  refusal is the only place a user is told what happened -- and a
         //  reworded refusal that stopped saying what to do would otherwise
         //  still satisfy a substring of the old sentence.
-        Assert::IsTrue (result.diagnostics.find (DiskCommandRunner::kInUseRefusalText)
+        Assert::IsTrue (result.diagnostics.find (DiskImageSession::kInUseRefusalText)
                         != std::string::npos,
             L"the reason must name the other holder, and what to do about it");
 
