@@ -401,9 +401,7 @@ std::string DiskHelpPage::BuildCommandHelp (CommandLineOptions::DiskOptions::Com
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
 //
-
 //  DiskHelpPage::BuildCommandBlocks
 //
 //  Each command, with its grammar, its own options, what no option row can
