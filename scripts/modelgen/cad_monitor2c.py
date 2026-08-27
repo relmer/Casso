@@ -954,15 +954,17 @@ m.add("contrast_wheel",
         .translate((BX0 + 8.4, SW_YC, FURN_ZC)),
       KEYCAP, angular=0.05)
 
-# The wheel's opening gets the same dark lining: a short tube standing in
-# the ring gap, clipped back of the wall plane so only its dark shows and
-# never its own edge.
+# The wheel's opening gets the same dark lining -- and ALL of it: a sleeve
+# filling the slot's whole interior save a snug bore for the wheel itself,
+# so the gap reads dark on every side, above and below as much as fore and
+# aft. Clipped back of the wall plane so only its dark shows and never its
+# own edge.
 m.add("wheel_moat",
       cq.Workplane("XY")
         .cylinder(6.9, 10.9, direct=(0, 0, 1))
         .translate((BX0 + 8.4, SW_YC, FURN_ZC))
         .cut(cq.Workplane("XY")
-               .cylinder(7.4, 10.35, direct=(0, 0, 1))
+               .cylinder(5.4, 10.35, direct=(0, 0, 1))
                .translate((BX0 + 8.4, SW_YC, FURN_ZC)))
         .cut(cq.Workplane("XY")
                .box(30.0, 60.0, 30.0, centered=(False, True, True))
