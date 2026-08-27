@@ -8,9 +8,35 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-## [1.20.0]: disk file access, and AS65 command line fidelity improvements
+## [1.20.0]: disk file access and AS65 command line fidelity improvements
 
 ### Added
+- **A `disk` subcommand: read files off an Apple II disk image and put them
+  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
+  file, `disk put` places one, and `disk delete` removes one, on DOS 3.3 and
+  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
+  third-party tool in the loop. `put` takes `--as` to name the file on the
+  disk, `--type` and `--load` for what the catalog records, and `--text` to
+  convert host text to the disk's own character convention; giving no
+  conversion, the default, moves the bytes unchanged, so extract-edit-replace
+  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
+  the complete new image is built and checked in memory, written beside the
+  target and put in place atomically, so any failure (a locked file, a
+  write-protected image, a volume with no room, a track that cannot be
+  re-encoded, or the image changing under us) leaves the original
+  byte-for-byte as it was, with no leftover temporary and a message saying
+  which of those it was rather than a platform error code. That guarantee is
+  the command line's alone, deliberately: an image edited by a running guest is
+  written back when the drive flushes, and a flush interrupted partway has no
+  such protection. Neither side can see the other holding the image, either;
+  the command line refuses when some *other* program has the file open, but a
+  mounted image is not held open, so noticing that a disk is in use here is out
+  of scope rather than solved, and the help says so instead of implying a clean
+  check means a mounted disk is safe.
+- **`disk` takes the words the machines themselves used.** `catalog` and `cat`
+  list a disk, because those are the literal DOS 3.3 and ProDOS commands;
+  `dir` and `del` are there for the habits a host shell teaches; `read` and
+  `write` alias `get` and `put`; `ls` and `rm` work too.
 - **`disk list` describes an image that carries no filesystem.** Twelve of
   fourteen real disk images tested carry no DOS 3.3 or ProDOS catalog, this
   project's own demo disk among them, and every one is a working bootable
@@ -20,10 +46,29 @@ Entries before versioning was introduced use dates only.
   its title and publisher when the file records them; for any image, the
   geometry, how the tracks decoded, and whether track 0 sector 0 holds
   anything a boot would run.
-- **`disk` takes the words the machines themselves used.** `catalog` and `cat`
-  list a disk, because those are the literal DOS 3.3 and ProDOS commands;
-  `dir` and `del` are there for the habits a host shell teaches; `read` and
-  `write` alias `get` and `put`; `ls` and `rm` work too.
+- **`--basic`: an Applesoft listing written as host text becomes a program the
+  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
+  listing and stores it under the Applesoft type without being asked to;
+  `disk get --basic` turns a stored program back into a listing. A listing that
+  cannot be tokenized is refused with the offending line number and the line
+  itself quoted, and the disk is left untouched. Extracting a program and
+  placing it back is byte-exact; the reverse, a listing placed and extracted
+  again, is not, because Applesoft itself normalizes a line when it is typed:
+  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
+  lowercase outside those three becomes uppercase, and lines are ordered by
+  number. The help output says so rather than leaving it to be discovered.
+- **`disk boot <image> <program>`: the disk runs your program at boot, with
+  nothing typed.** The two filesystems do this by entirely different means and
+  both are handled: DOS 3.3 keeps the name of the program it runs inside its
+  own image, so that field is patched in place and the catalog is left alone;
+  ProDOS has no such field at all, it launches the first system program its
+  volume directory reaches, so the chosen one is moved in front of it, and
+  the ProDOS kernel itself is never nominated. A program that is not on the
+  volume is refused by name, because a startup program is the one setting with
+  nothing to show for itself in a listing: a typo would surface as a machine
+  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
+  greeting, so a binary there is refused: RUN cannot start one, and the
+  disk would boot into nothing.
 - **`disk create` and `disk init` make the disk the rest of the loop writes
   to.** Every step of the worked example began `disk put mydisk.dsk`, and
   nothing anywhere made `mydisk.dsk`, so following it from an empty directory
@@ -55,110 +100,6 @@ Entries before versioning was introduced use dates only.
   other way to boot and not a variant of this one, and alongside any `--format`
   but none, because there is no filesystem here to format. Works into `.dsk`,
   `.do`, `.po` and `.woz` alike.
-- **A listing file gets `.lst` when you do not name an extension.** `-lfoo`
-  wrote a file called `foo`, which is what AS65 does with the name and is a
-  file a person then has to work out how to open. An extension you gave is
-  untouched, a dot inside a directory name does not count as one, and a
-  trailing dot asks for no extension and gets none, so `-lfoo.` still writes
-  `foo`.
-
-- **PowerShell no longer breaks an ordinary AS65 command line.** `CassoCli
-  prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
-  parameter name cannot contain a dot, and the tool used to refuse it and
-  explain the shell to a user who had typed it correctly. The halves are now
-  rejoined before parsing. The signature is exact, a front half that is a
-  single-dash flag group ending in a flag whose value is a name and carrying
-  neither dot nor colon, with a back half beginning at the dot, and no command
-  line written that way had a valid reading, so nothing that worked before is read
-  differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
-  `-o` could always be written `-o prog.bin`, and those three had no separated
-  form to fall back on. With the repair in place the help no longer explains the
-  shell at all, and simply states that the space after `-o` is optional.
-- **Exit code 4 is documented, and is never returned.** AS65 spends it on a
-  failed allocation, so a script ported from AS65 may still test for it, and a
-  list jumping from 3 to 5 left its author guessing whether the status had been
-  renumbered or folded into another. It is documented as AS65's, with the reason it
-  cannot arrive here.
-- **`-n` points at the issue that tracks it.** It is accepted and does nothing; the
-  page said "no-op", which is a status a reader cannot check from a help page.
-  It now points at https://github.com/relmer/Casso/issues/118.
-- **A bare `?` shows the usage text.** AS65 prints its help when the only
-  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
-  was read as a source filename, so `CassoCli ?` went looking for a file called
-  `?` and exited saying it could not open one. Every subcommand takes it too,
-  `CassoCli as65 ?` is where an AS65 user types it now that assembling states its
-  dialect, and `merlin`, `run` and `disk` answer with their own pages. Typed
-  alone it opens the general page, like every other form of the request at that
-  level: no subcommand was given, so no grammar's page is the answer. Only
-  the single-argument case changed, `?` alongside anything else is still an
-  ordinary argument, because a question mark further along a command line is
-  somebody's operand, and a DOS 3.3 catalog will hold a file called `?`.
-- **A `disk` subcommand: read files off an Apple II disk image and put them
-  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
-  file, `disk put` places one, and `disk delete` removes one, on DOS 3.3 and
-  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
-  third-party tool in the loop. `put` takes `--as` to name the file on the
-  disk, `--type` and `--load` for what the catalog records, and `--text` to
-  convert host text to the disk's own character convention; giving no
-  conversion, the default, moves the bytes unchanged, so extract-edit-replace
-  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
-  the complete new image is built and checked in memory, written beside the
-  target and put in place atomically, so any failure (a locked file, a
-  write-protected image, a volume with no room, a track that cannot be
-  re-encoded, or the image changing under us) leaves the original
-  byte-for-byte as it was, with no leftover temporary and a message saying
-  which of those it was rather than a platform error code. That guarantee is
-  the command line's alone, deliberately: an image edited by a running guest is
-  written back when the drive flushes, and a flush interrupted partway has no
-  such protection. Neither side can see the other holding the image, either;
-  the command line refuses when some *other* program has the file open, but a
-  mounted image is not held open, so noticing that a disk is in use here is out
-  of scope rather than solved, and the help says so instead of implying a clean
-  check means a mounted disk is safe.
-- **A worked example of the whole loop in the help output.** The `disk` section
-  is no longer a flag list. It carries the commands that take an edited source
-  file to a program running in the emulator, documents the exit statuses (and
-  states that the subcommand defines none above 2, which is what documenting a
-  scoped status set amounts to when there are none) says that `put` and `get`
-  are worded from the disk's point of view, and warns about the two steps that
-  are guessed wrong: assemble with the default output format rather than `--dos-bin`,
-  because
-  `put` writes the DOS 3.3 header itself and a file that already carries one
-  has its own header loaded as code where the program should begin; and set the
-  boot program to an Applesoft greeting that `BRUN`s the binary, because a
-  booting DOS 3.3 RUNs its greeting. The example and the help are checked
-  against each other, every command the grammar accepts and every option the
-  example types has to appear in the same help output.
-- **`--basic`: an Applesoft listing written as host text becomes a program the
-  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
-  listing and stores it under the Applesoft type without being asked to;
-  `disk get --basic` turns a stored program back into a listing. A listing that
-  cannot be tokenized is refused with the offending line number and the line
-  itself quoted, and the disk is left untouched. Extracting a program and
-  placing it back is byte-exact; the reverse, a listing placed and extracted
-  again, is not, because Applesoft itself normalizes a line when it is typed:
-  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
-  lowercase outside those three becomes uppercase, and lines are ordered by
-  number. The help output says so rather than leaving it to be discovered.
-- **`disk boot <image> <program>`: the disk runs your program at boot, with
-  nothing typed.** The two filesystems do this by entirely different means and
-  both are handled: DOS 3.3 keeps the name of the program it runs inside its
-  own image, so that field is patched in place and the catalog is left alone;
-  ProDOS has no such field at all, it launches the first system program its
-  volume directory reaches, so the chosen one is moved in front of it, and
-  the ProDOS kernel itself is never nominated. A program that is not on the
-  volume is refused by name, because a startup program is the one setting with
-  nothing to show for itself in a listing: a typo would surface as a machine
-  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
-  greeting, so a binary there is refused: RUN cannot start one, and the
-  disk would boot into nothing.
-- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte, correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. Writing only the assembled span has since
-  become the default (see Changed above), and `--dos-bin` writes that span
-  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
-  carries, so the result is ready to `BLOAD` once placed on a disk.
 - **`disk sectorread` and `disk sectorwrite` move bytes at a track and a
   sector, with no filesystem involved.** A disk that boots its own loader has no
   directory to put anything in, so building one meant computing file offsets by
@@ -174,12 +115,69 @@ Entries before versioning was introduced use dates only.
   `casso-rocks.dsk` through `sectorwrite`, and keeps its hand-rolled layout as
   `-LegacyLayout`: the two share no code, so `-Compare` running both and
   getting the same 143,360 bytes is evidence rather than a tautology.
+- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
+  a full 64 KB memory image, padded with the fill byte, correct for ROM
+  burning and reference comparison, useless for loading a 2 KB routine, which
+  meant slicing 64 KB down by hand. Writing only the assembled span has since
+  become the default (see Changed above), and `--dos-bin` writes that span
+  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
+  carries, so the result is ready to `BLOAD` once placed on a disk.
 - **An address is written `$6000` or `0x6000`, and the help says so.** The
   C form already parsed, by accident of `strtol` reading a base-16 prefix, so
   a promise nothing made was being kept anyway. It is documented on `put
   --load` and in both refusals now, and pinned by a test, so the accident is a
   guarantee.
-
+- **A listing file gets `.lst` when you do not name an extension.** `-lfoo`
+  wrote a file called `foo`, which is what AS65 does with the name and is a
+  file a person then has to work out how to open. An extension you gave is
+  untouched, a dot inside a directory name does not count as one, and a
+  trailing dot asks for no extension and gets none, so `-lfoo.` still writes
+  `foo`.
+- **`-n` points at the issue that tracks it.** It is accepted and does nothing; the
+  page said "no-op", which is a status a reader cannot check from a help page.
+  It now points at https://github.com/relmer/Casso/issues/118.
+- **PowerShell no longer breaks an ordinary AS65 command line.** `CassoCli
+  prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
+  parameter name cannot contain a dot, and the tool used to refuse it and
+  explain the shell to a user who had typed it correctly. The halves are now
+  rejoined before parsing. The signature is exact, a front half that is a
+  single-dash flag group ending in a flag whose value is a name and carrying
+  neither dot nor colon, with a back half beginning at the dot, and no command
+  line written that way had a valid reading, so nothing that worked before is read
+  differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
+  `-o` could always be written `-o prog.bin`, and those three had no separated
+  form to fall back on. With the repair in place the help no longer explains the
+  shell at all, and simply states that the space after `-o` is optional.
+- **A bare `?` shows the usage text.** AS65 prints its help when the only
+  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
+  was read as a source filename, so `CassoCli ?` went looking for a file called
+  `?` and exited saying it could not open one. Every subcommand takes it too,
+  `CassoCli as65 ?` is where an AS65 user types it now that assembling states its
+  dialect, and `merlin`, `run` and `disk` answer with their own pages. Typed
+  alone it opens the general page, like every other form of the request at that
+  level: no subcommand was given, so no grammar's page is the answer. Only
+  the single-argument case changed, `?` alongside anything else is still an
+  ordinary argument, because a question mark further along a command line is
+  somebody's operand, and a DOS 3.3 catalog will hold a file called `?`.
+- **A worked example of the whole loop in the help output.** The `disk` section
+  is no longer a flag list. It carries the commands that take an edited source
+  file to a program running in the emulator, documents the exit statuses (and
+  states that the subcommand defines none above 2, which is what documenting a
+  scoped status set amounts to when there are none) says that `put` and `get`
+  are worded from the disk's point of view, and warns about the two steps that
+  are guessed wrong: assemble with the default output format rather than `--dos-bin`,
+  because
+  `put` writes the DOS 3.3 header itself and a file that already carries one
+  has its own header loaded as code where the program should begin; and set the
+  boot program to an Applesoft greeting that `BRUN`s the binary, because a
+  booting DOS 3.3 RUNs its greeting. The example and the help are checked
+  against each other, every command the grammar accepts and every option the
+  example types has to appear in the same help output.
+- **Exit code 4 is documented, and is never returned.** AS65 spends it on a
+  failed allocation, so a script ported from AS65 may still test for it, and a
+  list jumping from 3 to 5 left its author guessing whether the status had been
+  renumbered or folded into another. It is documented as AS65's, with the reason it
+  cannot arrive here.
 ### Changed
 - **Casso.exe parses its command line through the same table-driven grammar as
   CassoCli.** The GUI's flags were a hand-rolled loop comparing wide literals:
@@ -196,46 +194,21 @@ Entries before versioning was introduced use dates only.
   `CliMain` and returns what comes back. The split is testability rather than
   platform, so the Win32 file layer moved too. This is what GitHub issue
   #85 asks every executable to become.
-- **Every refusal opens with `Error:` and no longer states the mode it is not an
-  option of.** There were three prefixes in use, chosen by which layer happened
-  to notice the problem: `Error:`, `CassoCli:`, and none at all. The mode is on
-  the page printed directly above and in the command just typed, so
-  `'-a' is not an option of the merlin mode` spent a clause on what the reader
-  can see, and spelled the assembler in lower case. It reads
-  `Error: unknown option: -a`.
 - **A mode typed with nothing after it opens that mode's page.** `CassoCli
-  as65` answered `No input file specified`, which tells a reader who has just
+  as65` returned `No input file specified`, which tells a reader who has just
   found the mode the one thing they had already worked out. `disk` did this
   from the start; the other three do now. Still a non-zero exit, because a
   script that invokes the tool wrongly has to fail.
 - **A bad command line is answered with the grammar, not one line.** `CassoCli
-  as65 one.a65 two.a65` said `surplus argument: two.a65` and stopped, so a
+  as65 one.a65 two.a65` returned `surplus argument: two.a65` and stopped, so a
   reader who had a command's operands wrong learned they were wrong and not
   what the right ones are. Every refusal now prints the page belonging to the mode that was typed,
   then the reason, last, so the reason is the line left on screen.
-- **A lone `?` opens the general page.** It opened the assembler's while a bare
-  source file still assembled, which made the top level AS65 mode. Stating the
-  dialect is required now, so the top level selects no grammar and `?` asks the
-  same question `--help` does. `CassoCli as65 ?` opens the assembler's page.
-- The help says **mode** rather than subcommand throughout, and the disk page
-  calls its own second words **commands**, because that is what they are.
-
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
-  now means what `-oprog.bin` means. That accepts MORE than AS65 does and never
-  less, so every AS65 command line still reads exactly as AS65 reads it. What
-  earns it is a shell rather than a preference: PowerShell parses a token
-  beginning with a single `-` as a parameter name, a parameter name may not
-  contain a dot, and so it cuts `-oprog.bin` into `-oprog` and `.bin` before
-  Casso is started, measured against a native executable that prints its argv,
-  under PowerShell 7.6.5 and Windows PowerShell 5.1 alike. It does not even fail
-  consistently: a colon before the first dot suppresses the cut, so
-  `-oC:\out\prog.bin` arrives whole and works while the relative name beside it
-  does not. No other shell does any of this, cmd.exe, bash, make and any
-  argument array pass the token whole. **`-o` only.** `-l`, `-d`, `-w` and `-g`
-  each have a bare form AS65 documents, so for them a following word is
-  genuinely ambiguous with that bare reading and telling the two apart would
-  take a guess; `-o` has no bare form, which is what leaves nothing to guess
-  about. An `-o` with nothing at all after it is still refused.
+  is equivalent to `-oprog.bin`. This is an affordance for PowerShell which parses a token
+  beginning with a single `-` as a parameter name, and since parameter names may not
+  contain a dot, it cut `-oprog.bin` into `-oprog` and `.bin` before passing to Casso.
+  Allowing the filename to be separated from the option prevents that incorrect parsing.
 - **`CassoCli --help` is one screen, and each mode's flags wait behind that
   mode's own help.** It was 180 lines, four screens of every flag of three
   grammars, three blocks of exit statuses, and the worked loop at the bottom
@@ -261,7 +234,7 @@ Entries before versioning was introduced use dates only.
   and `-o` is the one whose value may be separated) instead of leaving them as
   footnotes under individual flags. Each mode's exit codes stay on that mode's
   page and appear on no other, because they differ.
-- **`CassoCli run --help` answers instead of complaining.** The `run` grammar
+- **`CassoCli run --help` now exists.** The `run` grammar
   had no help request in it, so asking for one was an option it did not
   recognize: a diagnostic, a refusal, and exit 2. `run` and `disk` now both take
   `--help`, `-help`, `-?`, `-h` and the `/` form of each, anywhere among
@@ -709,7 +682,7 @@ every monitor Casso offered.
   breaks is build scripts and nobody re-reads one until the day it fails.
 
 ### Added
-- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is named
+- **`CassoCli merlin <source>` assembles Merlin source.** The dialect is specified
   by a subcommand, the way `as65` is. Its flags are `-o <file>` (which beats any
   name the source gives itself), `-l[<file>]` for a listing, `-v`, and
   `-d <symbol>[=<value>]`. The object written is the assembled stream: Merlin's
@@ -798,16 +771,16 @@ every monitor Casso offered.
   comes LAST, so it is what is left on screen. A first word that names no
   subcommand gets the same treatment, with the line naming what to type instead
   at the end.
-- **A run that named no CPU now reports the target that stood.** Under `-v`
+- **A run that specified no CPU now reports the target that stood.** Under `-v`
   it goes to stderr, and into the listing header when a listing is produced;
   never to stdout, which carries the listing itself when no listing file is
-  named. This affects `as65` as well as `merlin`: a build that passes `-v` or
+  specified. This affects `as65` as well as `merlin`: a build that passes `-v` or
   `-l` gains one line reading `cpu: 6502 (dialect default)`. The point is that
   "nothing selected a CPU, so the default stands" and "the flag I passed was
   quietly dropped" used to look identical, and a dialect that selects its CPU in
   source makes the difference matter.
 - **Three assembler diagnostics now quote the directive the source wrote.** The
-  origin and reserve-space messages named `.org` and `.ds` as literal text,
+  origin and reserve-space messages specified `.org` and `.ds` as literal text,
   which is a form no dialect's table holds and simply wrong at a line that
   wrote something else. They now quote the active dialect's canonical name,
   so `as65` reads `.ORG` and `.DS`, the same directives, upper-cased. Nothing
