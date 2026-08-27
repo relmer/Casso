@@ -138,6 +138,14 @@ static constexpr float   s_kDriveBrandFrontY   = -1.95f;
 // follows from it rather than being chosen.
 static constexpr float   s_kDriveLabelLeftMm = s_kFaceMarginMm;
 static constexpr float   s_kDriveLabelTopZMm = s_kFaceHmm - s_kFaceMarginMm;
+
+// The mains blades are plated steel at the bottom of a dark socket, and
+// diffuse shading cannot say so: almost no direct light reaches them, so
+// they rendered flat gray. Real metal down a dark hole still returns the
+// room -- this small constant emissive stands in for that environment
+// reflection, enough to read as bright metal and far too dim to read as a
+// lamp.
+static constexpr float   s_kAcPinGlintRgb[3] = { 0.100f, 0.105f, 0.115f };
 static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
@@ -547,6 +555,22 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
                 {
                     m_door[i].pebble = 1.0f;
                 }
+            }
+        }
+        else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
+        {
+            // Plated metal, not painted plastic: the blades keep their tint
+            // and gain the standing glint -- see s_kAcPinGlintRgb.
+            size_t  first = m_opaque.size();
+
+            opaqueTris.push_back (t);
+            AppendLitTri (m_opaque, tri);
+
+            for (size_t i = first; i < m_opaque.size(); i++)
+            {
+                m_opaque[i].er = s_kAcPinGlintRgb[0];
+                m_opaque[i].eg = s_kAcPinGlintRgb[1];
+                m_opaque[i].eb = s_kAcPinGlintRgb[2];
             }
         }
         else if (ColorMatches (tri.r, tri.g, tri.b, kPlatePebbledKd) ||

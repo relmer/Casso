@@ -388,6 +388,14 @@ VENT_Y0  = FRONT_D + 2.0 * G_UNIT       # one gap past the collar's landing
 VENT_Y1  = D - G_UNIT
 VENT_RUN = VENT_Y1 - VENT_Y0
 
+# The control bay's footprint, needed up HERE because the bay has no bottom
+# wall -- its opening is a fact about the underside, and the underside's
+# vents stop short of it.
+PANEL_X0, PANEL_X1 = REAR_X0 + 14.0, REAR_X0 + REAR_W - 14.0
+PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 52.0
+PANEL_DEEP         = INCH
+PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
+
 # THE COLLAR: the front mass does not meet the box at a flat step. The
 # junction face leans back a little -- a frustum from the housing's outline
 # down onto the box's, one gap unit deep, the way the molding draws the big
@@ -422,10 +430,15 @@ for dz in vent_positions(REAR_H, VENT_N_SIDE):
 
 # The lid and the underside: sixteen lines each, centered on the box's
 # width. The lid's stop where the leaning ring crosses the crown; the
-# underside's keep the full run, because the rake pivots at the base.
+# underside's keep the full run, because the rake pivots at the base --
+# except where a line would run under the bay's opening, where it stops one
+# gap short of the bay's forward face instead.
 for dx in vent_positions(REAR_W, VENT_N_LID):
     for z, _end in ((REAR_Z1 - LOUV_DEEP, VENT_Y1 - REAR_H * RAKE_T),
                     (REAR_Z0 - 1.0, VENT_Y1)):
+        if (z < REAR_Z0 and REAR_X0 + dx + LOUV_W > PANEL_X0
+                and REAR_X0 + dx < PANEL_X1):
+            _end = PANEL_Y - G_UNIT
         shell = shell.cut(
             cq.Workplane("XY")
               .box(LOUV_W, _end - VENT_Y0, LOUV_DEEP + 1.0, centered=(False, False, False))
@@ -488,9 +501,6 @@ shell = shell.cut(
 # THE WHOLE BAY IS SUNK A FULL INCH into the back of the case, and the knobs
 # stand a centimeter off its floor -- so nothing reaches the rear plane, and
 # the monitor sets flat against a wall without a control touching it.
-PANEL_X0, PANEL_X1 = REAR_X0 + 14.0, REAR_X0 + REAR_W - 14.0
-PANEL_Z0, PANEL_Z1 = REAR_Z0 + 8.0, REAR_Z0 + 52.0
-PANEL_DEEP         = INCH
 KNOB_PROUD         = 10.0               # off the bay floor, still inside the bay
 
 # The knobs are the //c KEYCAP gray -- the same part color the Disk IIc's
@@ -500,7 +510,6 @@ KNOB_PROUD         = 10.0               # off the bay floor, still inside the ba
 KEYCAP  = (0.700, 0.692, 0.668)
 SILVER  = (0.760, 0.765, 0.780)
 SOCKET  = (0.200, 0.200, 0.220)
-PANEL_Y            = D - PANEL_DEEP     # the bay floor everything sits on
 
 CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
 ICON_CZ = PANEL_Z0 + 11.0               # the engraved row's center line
@@ -812,7 +821,9 @@ FURN_RH = _vp[-1] - _vp[-2]             # channel center to channel center --
                                         # walls, leaving no sliver of case
                                         # between itself and either line
 
-SW_D    = 1.6                           # recess depth into the flank
+SW_D    = LOUV_DEEP                     # recess floor at the vent grooves'
+                                        # own depth -- no furniture cut goes
+                                        # deeper than a groove does
 SW_RAMP = 10.0                          # each ramp's run
 SW_Y0   = FRONT_D + 18.0
 SW_Y1   = SW_Y0 + 44.0
@@ -895,7 +906,7 @@ engrave(flank_box(_prx, ICON_FY, FURN_ZC, STROKE, 1.7), "<X")
 shell = shell.cut(flank_recess(BX0, -1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(6.0, 15.0, _vp[-1] - _vp[-2], centered=(False, True, True))
+      .box(LOUV_DEEP + 1.0, 15.0, _vp[-1] - _vp[-2], centered=(False, True, True))
       .translate((BX0 - 1.0, SW_YC, FURN_ZC)))
 
 m.add("contrast_wheel",

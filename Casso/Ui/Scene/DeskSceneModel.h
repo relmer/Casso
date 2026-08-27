@@ -335,6 +335,7 @@ public:
     static constexpr const char *  s_kpszDoor        = "door";
     static constexpr const char *  s_kpszLever       = "lever";   // the //c's door
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
+    static constexpr const char *  s_kpszAcPinPrefix = "acpin";   // the mains blades
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
 
