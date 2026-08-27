@@ -669,11 +669,11 @@ void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix
         if (diskCommand != CommandLineOptions::DiskOptions::Command::None
          && diskCommand != CommandLineOptions::DiskOptions::Command::Help)
         {
-            PrintUsageBlock (DiskCommandRunner::BuildCommandHelp (diskCommand, prefix));
+            PrintUsageBlock (DiskHelpPage::BuildCommandHelp (diskCommand, prefix));
         }
         else
         {
-            PrintUsageBlock (DiskCommandRunner::BuildHelpText (prefix, BuildBanner()));
+            PrintUsageBlock (DiskHelpPage::BuildHelpText (prefix, BuildBanner()));
         }
 
         break;

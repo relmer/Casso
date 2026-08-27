@@ -225,7 +225,7 @@ public:
 
     TEST_METHOD (HelpText_CarriesAWorkedExampleOfTheWholeLoop_NotOnlyAFlagList)
     {
-        std::string               help  = DiskCommandRunner::BuildHelpText();
+        std::string               help  = DiskHelpPage::BuildHelpText();
         std::vector<std::string>  lines = ExampleCommandLines (help);
 
         //  Six commands: make the disk, assemble, place the program, place
@@ -265,7 +265,7 @@ public:
 
     TEST_METHOD (HelpText_EveryOptionTheExampleTypes_IsDescribedElsewhereInTheSameHelp)
     {
-        std::string               help    = DiskCommandRunner::BuildHelpText();
+        std::string               help    = DiskHelpPage::BuildHelpText();
         std::string               rest    = HelpWithoutExampleCommands (help);
         std::vector<std::string>  options = OptionsUsedByExample (help);
         std::vector<std::string>  expected { "--bootable", "-o", "--as", "--type",
@@ -285,7 +285,7 @@ public:
 
     TEST_METHOD (HelpText_EveryCommandTheDiskGrammarAccepts_AppearsInTheHelp)
     {
-        std::string  help     = DiskCommandRunner::BuildHelpText();
+        std::string  help     = DiskHelpPage::BuildHelpText();
         auto         commands = CommandLineParser::GetAllDiskCommands();
 
         //  A sweep of the parser's own table rather than a list retyped here:
@@ -326,7 +326,7 @@ public:
     {
         std::string  assemble = CommandLineParser::kAssembleExitStatusHelpText;
         std::string  run      = CommandLineParser::kRunExitStatusHelpText;
-        std::string  disk     = DiskCommandRunner::kExitStatusHelpText;
+        std::string  disk     = DiskHelpPage::kExitStatusHelpText;
 
         Assert::IsFalse (assemble.empty(), L"the assembler states its own");
         Assert::IsFalse (run.empty(),      L"so does run");
@@ -357,10 +357,10 @@ public:
     //  alone and reordering them does not.
     TEST_METHOD (ThePage_RunsCommandsThenDetailThenStatusesThenTheLoop)
     {
-        std::string  help     = DiskCommandRunner::BuildHelpText();
-        auto         page     = DiskCommandRunner::GetCommandHelp();
+        std::string  help     = DiskHelpPage::BuildHelpText();
+        auto         page     = DiskHelpPage::GetCommandHelp();
         size_t       contents = help.find ("Disk commands:");
-        size_t       detail   = help.find (DiskCommandRunner::ApplyPrefixes (page[0].grammar, '-'));
+        size_t       detail   = help.find (DiskHelpPage::ApplyPrefixes (page[0].grammar, '-'));
         size_t       statuses = help.find ("Exit codes:");
         size_t       loop     = help.find (CommandLineHelp::kExampleHeading);
 
@@ -389,7 +389,7 @@ public:
     {
         for (const char * block : { CommandLineParser::kAssembleExitStatusHelpText,
                                     CommandLineParser::kRunExitStatusHelpText,
-                                    DiskCommandRunner::kExitStatusHelpText })
+                                    DiskHelpPage::kExitStatusHelpText })
         {
             std::istringstream  lines (block);
             std::string         line;
@@ -415,7 +415,7 @@ public:
     //  about a word they do not use.
     TEST_METHOD (HelpText_LeadsEachCommandLineWithEveryAlias_NotWithAnAlsoSpelledFootnote)
     {
-        std::string   help    = DiskCommandRunner::BuildHelpText();
+        std::string   help    = DiskHelpPage::BuildHelpText();
         //  THE PLAIN NAME LEADS AND THE ALIASES FOLLOW IT. Both orders put
         //  every spelling on the line, which is what this test is for; what
         //  decided it is that the block below each entry writes its grammar as
@@ -488,7 +488,7 @@ public:
 
     TEST_METHOD (EveryCommandBlock_CarriesAGrammarLineAndAWorkedExample)
     {
-        auto  page = DiskCommandRunner::GetCommandHelp();
+        auto  page = DiskHelpPage::GetCommandHelp();
 
         Assert::IsTrue (page.size() >= 8, L"the page describes every command");
 
@@ -510,9 +510,9 @@ public:
     //  reader types it verbatim.
     TEST_METHOD (EveryExampleOnThePage_ParsesCleanly_AndNamesItsOwnCommand)
     {
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
-            std::string               example = DiskCommandRunner::ApplyPrefixes (entry.example, '-');
+            std::string               example = DiskHelpPage::ApplyPrefixes (entry.example, '-');
             std::vector<std::string>  words;
             std::istringstream        reader (example);
             std::string               word;
@@ -545,14 +545,14 @@ public:
     //  reader looking for it under some other command.
     TEST_METHOD (EveryOptionAnExampleTypes_IsDocumentedInItsOwnBlock)
     {
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             std::string  documented = (entry.options == nullptr) ? "" : entry.options;
 
-            documented = DiskCommandRunner::ApplyPrefixes (documented, '-');
+            documented = DiskHelpPage::ApplyPrefixes (documented, '-');
 
             for (const std::string & option : OptionsIn (
-                     DiskCommandRunner::ApplyPrefixes (entry.example, '-')))
+                     DiskHelpPage::ApplyPrefixes (entry.example, '-')))
             {
                 Assert::IsTrue (documented.find (option) != std::string::npos,
                                 (L"the example types " + Widen (option) + L" and "
@@ -571,12 +571,12 @@ public:
             accepted.insert (std::string ("--") + option);
         }
 
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             std::string  block = (entry.options == nullptr) ? "" : entry.options;
 
             for (const std::string & option : OptionsIn (
-                     DiskCommandRunner::ApplyPrefixes (block, '-')))
+                     DiskHelpPage::ApplyPrefixes (block, '-')))
             {
                 Assert::IsTrue (accepted.count (option) == 1,
                                 (L"the page invents " + Widen (option) + L" under "
@@ -589,14 +589,14 @@ public:
     //  an option in one and not the other is a page arguing with itself.
     TEST_METHOD (EveryOptionInAGrammarLine_IsListedUnderTheSameCommand)
     {
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             std::string  documented = (entry.options == nullptr) ? "" : entry.options;
 
-            documented = DiskCommandRunner::ApplyPrefixes (documented, '-');
+            documented = DiskHelpPage::ApplyPrefixes (documented, '-');
 
             for (const std::string & option : OptionsIn (
-                     DiskCommandRunner::ApplyPrefixes (entry.grammar, '-')))
+                     DiskHelpPage::ApplyPrefixes (entry.grammar, '-')))
             {
                 Assert::IsTrue (documented.find (option) != std::string::npos,
                                 (L"the grammar of " + Widen (entry.forms) + L" takes "
@@ -663,7 +663,7 @@ public:
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
 
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             CommandLineOptions        options;
             std::vector<std::string>  fromGrammar = RequiredOperandsIn (entry.grammar);
@@ -712,7 +712,7 @@ public:
 
     TEST_METHOD (EverySpellingOnACommandHeading_ReachesThatCommand)
     {
-        for (const auto & entry : DiskCommandRunner::GetCommandHelp())
+        for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             std::string         forms = entry.forms;
             std::string         word;
@@ -801,8 +801,8 @@ public:
         //  sentence of prose still said it. A list that covers the table is
         //  what catches the next rename; a list of six covers whichever six
         //  were current when it was written.
-        std::string   slashHelp = DiskCommandRunner::BuildHelpText ('/');
-        std::string   dashHelp  = DiskCommandRunner::BuildHelpText ('-');
+        std::string   slashHelp = DiskHelpPage::BuildHelpText ('/');
+        std::string   dashHelp  = DiskHelpPage::BuildHelpText ('-');
         const char *  options[] = { "out", "as", "type", "load", "text", "basic",
                                     "format", "volume", "bootable", "boot", "exec",
                                     "track", "sector" };
@@ -851,9 +851,9 @@ public:
             std::string  dashForm  = std::string ("--") + option;
             std::string  slashForm = std::string ("/")  + option;
 
-            Assert::IsTrue (DiskCommandRunner::BuildHelpText ('-').find (dashForm) == std::string::npos,
+            Assert::IsTrue (DiskHelpPage::BuildHelpText ('-').find (dashForm) == std::string::npos,
                             (L"the dash help still offers: " + Widen (dashForm)).c_str());
-            Assert::IsTrue (DiskCommandRunner::BuildHelpText ('/').find (slashForm) == std::string::npos,
+            Assert::IsTrue (DiskHelpPage::BuildHelpText ('/').find (slashForm) == std::string::npos,
                             (L"the slash help still offers: " + Widen (slashForm)).c_str());
         }
 
@@ -861,7 +861,7 @@ public:
 
     TEST_METHOD (HelpText_NoLongerExcusesTheMixedSpelling_BecauseThereIsNoLongerOne)
     {
-        std::string  help = DiskCommandRunner::BuildHelpText();
+        std::string  help = DiskHelpPage::BuildHelpText();
 
         //  The old help carried a sentence conceding that disk options took the
         //  `--` form whichever prefix the assembler flags were given with.
@@ -886,7 +886,7 @@ public:
 
         Assert::AreEqual (0, result.exitStatus, L"asking for help is not a failure");
         Assert::AreEqual (std::string(), result.diagnostics, L"and it is not a complaint");
-        Assert::AreEqual (DiskCommandRunner::BuildHelpText ('-'), result.output,
+        Assert::AreEqual (DiskHelpPage::BuildHelpText ('-'), result.output,
                           L"the disk section of the help, on the output stream");
     }
 
@@ -901,7 +901,7 @@ public:
 
         DiskCommandResult  result = runner.Run (options);
 
-        Assert::AreEqual (DiskCommandRunner::BuildHelpText ('/'), result.output);
+        Assert::AreEqual (DiskHelpPage::BuildHelpText ('/'), result.output);
     }
 
     //  EVERY COMMAND THE GRAMMAR TAKES IS ON THE PAGE A REFUSAL PRINTS.
@@ -918,7 +918,7 @@ public:
         FakeDiskFileIo      fileIo;
         DiskCommandRunner   runner (fileIo);
         DiskCommandResult   result = runner.Run (options);
-        std::string         page   = DiskCommandRunner::BuildHelpText();
+        std::string         page   = DiskHelpPage::BuildHelpText();
 
         Assert::AreEqual (2, result.exitStatus, L"a word that names no command produces nothing");
         Assert::IsTrue (result.badCommandLine, L"and the edge is told to print the page");
@@ -947,7 +947,7 @@ public:
         {
             std::string  commands = CommandLineHelp::BuildExampleCommands (prefix);
             std::string  general  = CommandLineHelp::BuildGeneralHelp ("banner\n", prefix);
-            std::string  disk     = DiskCommandRunner::BuildHelpText (prefix);
+            std::string  disk     = DiskHelpPage::BuildHelpText (prefix);
 
             Assert::IsTrue (general.find (commands) != std::string::npos,
                             L"the general page shows the loop, whole");
@@ -963,7 +963,7 @@ public:
     TEST_METHOD (ExampleProse_StaysOnTheDiskPage_WhereTheFlagsItExplainsAreDescribed)
     {
         std::string  general = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
-        std::string  disk    = DiskCommandRunner::BuildHelpText ('-');
+        std::string  disk    = DiskHelpPage::BuildHelpText ('-');
 
         Assert::IsTrue (disk.find ("its own header indicating") != std::string::npos,
                         L"the disk page explains the doubled header");
@@ -989,8 +989,8 @@ public:
     {
         const char   kBanner[] = "CassoCli - 6502 Assembler and Emulator  v0.0.0\n"
                                  "Copyright (c) 2025-2026 by Robert Elmer\n";
-        std::string  withBanner = DiskCommandRunner::BuildHelpText ('-', kBanner);
-        std::string  bare       = DiskCommandRunner::BuildHelpText ('-');
+        std::string  withBanner = DiskHelpPage::BuildHelpText ('-', kBanner);
+        std::string  bare       = DiskHelpPage::BuildHelpText ('-');
 
         Assert::IsTrue (withBanner.starts_with (kBanner),
                         L"the banner heads the page");
