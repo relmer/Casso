@@ -8,7 +8,7 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-## [1.20.0]: disk file access, and an assembler command line AS65 would recognize
+## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 
 ### Added
 - **`disk create` and `disk init` make the disk the rest of the loop writes
