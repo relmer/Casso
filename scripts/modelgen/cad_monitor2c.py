@@ -886,18 +886,20 @@ def flank_circle(wall, sign, cy, cz, r):
 
 
 # The right flank: recess, button, power glyph. A MOAT rings the button --
-# the cut in the case the button moves through, a millimeter all round and
-# deep enough to go dark, so the case shadows the button across the gap.
+# the cut in the case it moves through: a millimeter fore and aft, and
+# RUNNING INTO both grooves top and bottom, so its dark merges with theirs
+# and the opening has no horizontal edge of its own. The button nearly
+# fills the band between the grooves, the way the real switch does.
 shell = shell.cut(flank_recess(BX1, 1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(SW_D + 2.0, 22.0, 8.2, centered=(False, True, True))
+      .box(SW_D + 2.0, 22.0, 11.0, centered=(False, True, True))
       .translate((BX1 - SW_D - 1.5, SW_YC, FURN_ZC))
       .edges("|X").fillet(2.2))
 
 m.add("pwr_button",
       cq.Workplane("XY")
-        .box(2.1, 20.0, 6.2, centered=(False, True, True))
+        .box(2.1, 20.0, 7.0, centered=(False, True, True))
         .translate((BX1 - 2.6, SW_YC, FURN_ZC))
         .edges("|X").fillet(1.2)
         .edges(">X").fillet(0.8),
@@ -922,12 +924,12 @@ shell = shell.cut(flank_recess(BX0, -1.0))
 shell = shell.cut(
     cq.Workplane("XY")
       .cylinder(7.0, 11.0, direct=(0, 0, 1))
-      .translate((BX0 + 9.2, SW_YC, FURN_ZC)))
+      .translate((BX0 + 8.4, SW_YC, FURN_ZC)))
 
 m.add("contrast_wheel",
       cq.Workplane("XY")
         .cylinder(5.0, 10.0, direct=(0, 0, 1))
-        .translate((BX0 + 9.2, SW_YC, FURN_ZC)),
+        .translate((BX0 + 8.4, SW_YC, FURN_ZC)),
       KEYCAP, angular=0.05)
 
 _clx = BX0 - 0.5
