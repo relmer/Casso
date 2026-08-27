@@ -150,7 +150,7 @@ public:
     //  One `  label   value` line, or nothing at all when the value is empty --
     //  so a caller can offer every field it knows about without also deciding
     //  which ones this image answered.
-    static std::string  DetailLine (const char * label, const std::string & value);
+    static std::string  FormatDetailLine (const char * label, const std::string & value);
 
     //  Names the image and the reason, sets the no-output status, and returns
     //  nothing -- so a refusal path cannot report one without the other.

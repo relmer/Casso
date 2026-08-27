@@ -651,7 +651,7 @@ public:
     //
     //  WHAT THE GRAMMAR SHOWS AND WHAT THE RUNNER DEMANDS ARE ONE LIST.
     //
-    //  MissingParameters names the operands by hand, command by command, and
+    //  FindMissingParameters names the operands by hand, command by command, and
     //  the grammar line above each block names them again. Two lists of the
     //  same thing drift: a command whose grammar gains an operand and whose
     //  check does not would print usage asking for something it never
@@ -673,7 +673,7 @@ public:
             options.disk.command = entry.command;
 
             //  Nothing supplied, so everything required is missing.
-            fromRunner = runner.MissingParameters (options);
+            fromRunner = runner.FindMissingParameters (options);
 
             Assert::AreEqual (fromGrammar.size(), fromRunner.size(),
                               (L"operand count disagrees for " + Widen (entry.forms)).c_str());

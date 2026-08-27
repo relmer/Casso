@@ -85,7 +85,7 @@ std::string DiskCommandRunner::WithPrefix (const std::string & text) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::MissingParameters
+//  DiskCommandRunner::FindMissingParameters
 //
 //  Every required operand this command did not get, in grammar order.
 //
@@ -95,7 +95,7 @@ std::string DiskCommandRunner::WithPrefix (const std::string & text) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> DiskCommandRunner::MissingParameters (const CommandLineOptions & options) const
+std::vector<std::string> DiskCommandRunner::FindMissingParameters (const CommandLineOptions & options) const
 {
     using Command = CommandLineOptions::DiskOptions::Command;
 
@@ -109,25 +109,29 @@ std::vector<std::string> DiskCommandRunner::MissingParameters (const CommandLine
 
     //  Help asks for nothing, and a command the table does not know is
     //  answered as an unknown command rather than as a missing operand.
-    bool  asked = command != Command::None && command != Command::Help;
+    HRESULT  hr    = S_OK;   // vestigial, for the bail
+    bool     asked = command != Command::None && command != Command::Help;
 
 
 
-    if (asked && options.disk.imagePath.empty())
+    BAIL_OUT_IF (!asked, S_OK);
+
+    if (options.disk.imagePath.empty())
     {
         missing.push_back ("<image>");
     }
 
-    if (asked && wantsName && options.disk.path.empty())
+    if (wantsName && options.disk.path.empty())
     {
         missing.push_back ("<name>");
     }
 
-    if (asked && wantsFile && options.disk.hostFile.empty())
+    if (wantsFile && options.disk.hostFile.empty())
     {
         missing.push_back ("<file>");
     }
 
+Error:
     return missing;
 }
 
@@ -1447,7 +1451,7 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     //  ASKED ONCE, BEFORE ANY COMMAND RUNS. Each command used to check its own
     //  operands wherever it first needed them, which reported whichever one
     //  that command happened to reach first and never the rest.
-    missing          = MissingParameters (options);
+    missing          = FindMissingParameters (options);
     allOperandsGiven = missing.empty();
     CBRF (allOperandsGiven, ReportMissingParameters (missing, result));
 
@@ -1700,10 +1704,15 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
 {
     HRESULT              hr             = S_OK;   // vestigial, for the bail
     const std::string &  asked          = options.disk.volumeName;
+    bool                 named          = !asked.empty();
     int                  number         = 0;
     bool                 isVolumeNumber = false;
 
 
+
+    //  No %Lvolume at all keeps the builder's default, which is not a
+    //  failure of anything.
+    BAIL_OUT_IF (!named, S_OK);
 
     //  UPPERCASED HERE, WHERE IT IS ACCEPTED, and not only where it is
     //  written. ProDOS holds a volume name in upper case and compares without
@@ -1712,7 +1721,7 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  was tell the spec, so the line confirming the disk read back the name
     //  that was typed while `disk list` read back the name that is there, and
     //  the two disagreed over a disk that was right all along.
-    if (!asked.empty() && inOutSpec.contents == BlankDiskContents::ProDos)
+    if (inOutSpec.contents == BlankDiskContents::ProDos)
     {
         inOutSpec.volumeName = asked;
 
@@ -1721,7 +1730,7 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
             letter = (char) toupper ((unsigned char) letter);
         }
     }
-    else if (!asked.empty())
+    else
     {
         //  A DOS 3.3 volume number, and only a number. Read by hand so a word
         //  that is not one at all is refused rather than quietly reading as

@@ -40,7 +40,7 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageSession::DetailLine
+//  DiskImageSession::FormatDetailLine
 //
 //  A value nobody recorded produces NOTHING, rather than a label followed by
 //  empty space. That is what lets the callers below offer every field they know
@@ -50,25 +50,27 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskImageSession::DetailLine (const char * label, const std::string & value)
+std::string DiskImageSession::FormatDetailLine (const char * label, const std::string & value)
 {
+    HRESULT       hr           = S_OK;   // vestigial, for the bail
     const size_t  kLabelColumn = 16;
+    bool          hasValue     = !value.empty();
     std::string   text;
 
 
 
-    if (!value.empty())
+    BAIL_OUT_IF (!hasValue, S_OK);
+
+    text = std::string ("  ") + label;
+
+    while (text.size() < kLabelColumn)
     {
-        text = std::string ("  ") + label;
-
-        while (text.size() < kLabelColumn)
-        {
-            text += " ";
-        }
-
-        text += value + "\n";
+        text += " ";
     }
 
+    text += value + "\n";
+
+Error:
     return text;
 }
 
@@ -114,8 +116,8 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     snprintf (note, sizeof (note), "WOZ %d bit-stream image, INFO version %d",
               woz.wozVersion, woz.infoVersion);
 
-    text += DetailLine ("format",  note);
-    text += DetailLine ("creator", woz.creator);
+    text += FormatDetailLine ("format",  note);
+    text += FormatDetailLine ("creator", woz.creator);
 
     media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch disk"
           : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch disk"
@@ -125,7 +127,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     if (woz.synchronized)   { media += ", tracks synchronized to each other"; }
     if (woz.cleaned)        { media += ", cleaned of drive noise"; }
 
-    text += DetailLine ("media", media);
+    text += FormatDetailLine ("media", media);
 
     if (woz.hasBootSectorFormat)
     {
@@ -135,7 +137,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
           : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "both 13- and 16-sector"
                                                                  : "not recorded";
 
-        text += DetailLine ("boots as", boot);
+        text += FormatDetailLine ("boots as", boot);
     }
 
     snprintf (note, sizeof (note),
@@ -143,7 +145,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
               "stops the head can make",
               woz.trackSlotsWithData, woz.quarterTracksWithData);
 
-    text += DetailLine ("surface", note);
+    text += FormatDetailLine ("surface", note);
 
     // The named fields first, then whatever else the image chose to record.
     for (const auto & highlight : s_kppszMetaHighlights)
@@ -152,7 +154,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         {
             if (field.key == highlight[0])
             {
-                text += DetailLine (highlight[1], TextEncoding::Utf8ToNarrow (field.value));
+                text += FormatDetailLine (highlight[1], TextEncoding::Utf8ToNarrow (field.value));
                 break;
             }
         }
@@ -180,7 +182,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
                 c = (c == '_') ? ' ' : c;
             }
 
-            text += DetailLine (label.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+            text += FormatDetailLine (label.c_str(), TextEncoding::Utf8ToNarrow (field.value));
         }
     }
 
@@ -240,7 +242,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
                   NibblizationLayer::kSectorByteSize,
                   NibblizationLayer::kImageByteSize);
 
-        text += DetailLine ("geometry", note);
+        text += FormatDetailLine ("geometry", note);
     }
 
     for (track = 0; track < trackCount; track++)
@@ -272,7 +274,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
                                   " wrote a track format of its own"
                                 : "");
 
-        text += DetailLine ("decoded", note);
+        text += FormatDetailLine ("decoded", note);
     }
 
     // ZEROS IN THE BUFFER MEAN TWO DIFFERENT THINGS and only one of them is
@@ -281,7 +283,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // blank would tell somebody their bootable disk does not boot.
     if (!trackZeroOk)
     {
-        text += DetailLine ("boot sector",
+        text += FormatDetailLine ("boot sector",
             "track 0 did not decode as standard sectors, so what it holds\n"
             "                cannot be judged from here");
     }
@@ -296,7 +298,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
             }
         }
 
-        text += DetailLine ("boot sector",
+        text += FormatDetailLine ("boot sector",
                             bootCode
                                 ? "track 0 sector 0 carries code. The drive's ROM reads\n"
                                   "                that sector and jumps into it, so this image"

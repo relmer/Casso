@@ -187,7 +187,7 @@ public:
     //  nothing at all complained that <name> was missing and never mentioned
     //  <image> -- the operand that comes first, and that the reader would have
     //  had to supply before the complaint made sense.
-    std::vector<std::string>  MissingParameters (const CommandLineOptions & options) const;
+    std::vector<std::string>  FindMissingParameters (const CommandLineOptions & options) const;
 
     //  The same report for a list of them.
     void  ReportMissingParameters (const std::vector<std::string> & parameters,
