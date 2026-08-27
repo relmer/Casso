@@ -22,8 +22,8 @@ The project includes:
 - **Apple II platform emulator**: GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, in-app blank-disk creation (DOS 3.3 / ProDOS / raw across WOZ / DSK / PO, optionally bootable) with per-disk write protection, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator**: passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family). The Harte vectors are recorded from real hardware, so they are an independent oracle rather than a restatement of our own assumptions. 200 vectors per opcode are checked in and run on every build; the full 10,000 per opcode are a download away and are what you run when touching the CPU core; see [docs/testing.md](docs/testing.md).
 - **AS65-compatible assembler**: a from-scratch reimplementation of Frank A. Vorstenbosch's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
-- **Merlin dialect**: `CassoCli merlin <source>` assembles Glen Bredon's Merlin, in the absolute subset that needs no linker. A dialect is a directive table and a line model behind one profile seam, with the two-pass engine, the expression evaluator and the opcode tables shared with AS65; the invocation names the dialect and the source is read strictly under it. Merlin brings its field-based line model, its own directive vocabulary, macros and variable symbols, local labels, left-to-right expressions in unsigned 16-bit arithmetic, and a relocating origin. Where support ends is stated by name rather than failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md). **ca65** is the next dialect (`specs/023-ca65-dialect`), and it is deliberately gated on this mechanism rather than on more Merlin: adding it must change nothing here. Its absolute subset comes first, since full compatibility needs a linker.
-- **CLI tool**: an assembler under a named dialect (`as65` or `merlin`), the `run` subcommand to load and execute a binary or assembly source, and a `disk` subcommand that makes disk images, reads files off them and puts them back: `disk create`, `init`, `list`, `get`, `put`, `delete`, `boot`, `sectorread` and `sectorwrite` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop (assemble, place, set the boot program, launch) with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
+- **Merlin dialect**: `CassoCli merlin <source>` assembles Glen Bredon's Merlin, in the absolute subset that needs no linker. A dialect is a directive table and a line model behind one profile seam, with the two-pass engine, the expression evaluator and the opcode tables shared with AS65; the invocation states the dialect and the source is read strictly under it. Merlin brings its field-based line model, its own directive vocabulary, macros and variable symbols, local labels, left-to-right expressions in unsigned 16-bit arithmetic, and a relocating origin. Where support ends is stated by name rather than failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md). **ca65** is the next dialect (`specs/023-ca65-dialect`), and it is deliberately gated on this mechanism rather than on more Merlin: adding it must change nothing here. Its absolute subset comes first, since full compatibility needs a linker.
+- **CLI tool**: an assembler under a stated dialect (`as65` or `merlin`), the `run` subcommand to load and execute a binary or assembly source, and a `disk` subcommand that makes disk images, reads files off them and puts them back: `disk create`, `init`, `list`, `get`, `put`, `delete`, `boot`, `sectorread` and `sectorwrite` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop (assemble, place, set the boot program, launch) with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
 - **First-run asset bootstrap**: Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness**: `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
 - **4000+ unit tests**: comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
@@ -78,7 +78,7 @@ tokenized Applesoft program as a listing you can edit.
 tool's own output. `--bootable` copies an operating system onto the disk,
 finding the master the emulator already downloaded. `--basic` converts an
 Applesoft listing to and from the tokenized form; `--text` converts the
-high-bit encoding and line endings; naming neither, the default, moves bytes
+high-bit encoding and line endings; giving neither, the default, moves bytes
 unchanged, so extract-edit-replace perturbs nothing the edit did not touch.
 
 **The assembler's command line is now AS65's, exactly.** Values attach to their
@@ -86,7 +86,7 @@ flags, flags chain into one argument, `-x` selects the 65C02, and exit codes 0
 through 3 carry the meanings the AS65 manual gives them, so a build script
 written for AS65 branches correctly here without being read again. **This
 changes behavior scripts may depend on; see [CHANGELOG.md](CHANGELOG.md) before
-upgrading.** The help is tiered to match: `CassoCli --help` is one screen naming
+upgrading.** The help is tiered to match: `CassoCli --help` is one screen listing
 the three modes, and each mode's flags, examples and exit codes wait behind that
 mode's own help. PowerShell users get one accommodation the manual has no reason
 to mention, it cuts `-oprog.bin` in half on the way in, and Casso puts it back
@@ -146,7 +146,7 @@ sharing the two-pass engine, expression evaluator and opcode tables that `as65`
 has always used, so the next dialect is a profile rather than a second
 assembler.
 
-The command line names the dialect rather than guessing it, **`CassoCli as65
+The command line states the dialect rather than guessing it, **`CassoCli as65
 input.a65`** and **`CassoCli merlin PROG.S`**; the old bare `CassoCli input.a65`
 form is gone, and `run` takes **`--as65`** or **`--merlin`** to say which
 assembler reads a source. Under `as65`, the CPU is chosen with AS65's own
@@ -157,7 +157,7 @@ would have asked at the keyboard.
 
 The rest of the CLI got a pass while the hood was up: `--help` wraps to the
 width of your terminal and is organized by mode; an argument the tool does not
-know is refused, with the full usage and the offending argument named last,
+know is refused, with the full usage and the offending argument quoted last,
 instead of warned about and ignored; the five output formats are mutually
 exclusive; `-w` wraps the listing; `-t` shows decimal beside hex; and `-g` writes
 its symbols by address and again by name. See
@@ -192,7 +192,7 @@ mounted in a drive, confirms overwrites and drive replacement, and reopens in
 the folder you last created in.
 
 Alongside it, a **write-protect toggle** for mounted disks: the Disk menu
-names its target, "Write-protect *"Blank Disk.woz"*" flips to "Allow writes
+quotes its target, "Write-protect *"Blank Disk.woz"*" flips to "Allow writes
 to *"Blank Disk.woz"*" once protected. WOZ images carry the flag inside the
 file (it travels with the image); sector formats use the host file's
 read-only attribute. The drive widget's brass padlock and a cause-specific
@@ -461,7 +461,7 @@ Casso.sln
 and syntax reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ```powershell
-# Assemble a source file. The dialect is NAMED: `as65` is a subcommand, not an
+# Assemble a source file. The dialect is REQUIRED: `as65` is a subcommand, not an
 # assumption. `CassoCli input.a65` used to work and no longer does -- see the
 # breaking-changes entry in CHANGELOG.md.
 #
@@ -496,7 +496,7 @@ CassoCli as65 input.a65c -x -o output.bin
 # Merlin support ends.
 CassoCli merlin SOURCE.S -o OBJECT
 
-# Merlin names its own object file, so -o is only needed to override the source
+# Merlin derives its own object file, so -o is only needed to override the source
 CassoCli merlin SOURCE.S
 
 # There is no CPU flag here: Merlin selects its CPU in the source, with XC, and
@@ -575,7 +575,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
 | Pre-defined symbols | `-dNAME` or `-dNAME=VALUE` (attached, AS65-style) |
-| Debug info | `-g` (named for the source, `.dbg`) |
+| Debug info | `-g` (derived from the source, `.dbg`) |
 | Warning control | `--warn`, `--no-warn`, `--fatal-warnings` |
 | Verbose / quiet | `-v` / `-q` |
 | Flag concatenation | `-tlfile` ≡ `-t -lfile` (AS65 style); a numeric value lets more flags follow, so `-h80t` is `-h80 -t` |
