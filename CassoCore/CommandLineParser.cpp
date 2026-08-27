@@ -80,7 +80,7 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
     { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
            "-",
            CommandLineParser::FlagCategory::Listing, "<file>",
-           "Generate listing; alone, it goes to stdout" },
+           "Generate listing to <file> if specified, stdout if not" },
     { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::General, "",
@@ -93,7 +93,7 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
     { "d", CommandLineParser::ValueKind::SymbolDefinition, CommandLineParser::Attachment::AttachedOrSeparate,
            nullptr,
            CommandLineParser::FlagCategory::General, "<name>[=<value>]",
-           "Define a symbol the source expects (defaults to 1)" },
+           "Define symbol <name> as <value> (defaults to 1 if not specified)" },
 };
 
 

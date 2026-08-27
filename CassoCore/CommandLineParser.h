@@ -177,13 +177,10 @@ public:
     static std::string  ApplyListingExtension (const std::string & name);
 
     static constexpr const char *  kRunExitStatusHelpText =
-        "    0  Ran to a stop: the stop address or the cycle limit\n"
-        "    1  The input was source and did not assemble; nothing ran\n"
-        "    2  Nothing could be started: no input file, an input that could not\n"
-        "       be read, or a command line that was refused. An option this grammar\n"
-        "       cannot read is refused rather than dropped, because one it misread\n"
-        "       may have moved the load address.\n"
-        "    3  The program reached an illegal opcode";
+        "    0  Success. Execution reached the stop address or cycle limit\n"
+        "    1  Error assembling source\n"
+        "    2  Error\n"
+        "    3  Error. Execution encountered an illegal opcode";
 
     //  The status `run` and `disk` both spend on a command line they refused.
     //  Named here rather than written as a 2 at the point of use, so it sits
