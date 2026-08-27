@@ -190,6 +190,9 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 
 
     return std::string (kExampleHeading) + "\n"
+        + std::string (strlen (kExampleHeading), '-') + "\n"
+        + kExampleLeadIn + "\n"
+          "\n"
         "  CassoCli disk create mydisk.dsk " + lp + "bootable\n"
         "  CassoCli as65 prog.a65 " + sp + "oprog.bin\n"
         "  CassoCli disk put mydisk.dsk prog.bin " + lp + "as PROG "
@@ -281,7 +284,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         text += line + route[1] + "\n";
     }
 
-    text += "\n";
+    text += "\n\n";
     text += BuildExampleCommands (flagPrefix);
 
     return text;

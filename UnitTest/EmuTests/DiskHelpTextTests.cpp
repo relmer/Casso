@@ -361,7 +361,7 @@ public:
         auto         page     = DiskHelpPage::GetCommandHelp();
         size_t       contents = help.find ("Disk commands:");
         size_t       detail   = help.find (DiskHelpPage::ApplyPrefixes (page[0].grammar, '-'));
-        size_t       statuses = help.find ("Exit codes:");
+        size_t       statuses = help.find ("Exit codes");
         size_t       loop     = help.find (CommandLineHelp::kExampleHeading);
 
         Assert::IsTrue (contents != std::string::npos, L"the contents list is there");

@@ -348,6 +348,7 @@ void CommandLine::PrintUsageBlock (const std::string & block)
 void CommandLine::PrintSectionHeading (const std::string & name)
 {
     std::println (s_pUsageStream, "");
+    std::println (s_pUsageStream, "");
     std::println (s_pUsageStream, "{}", name);
     std::println (s_pUsageStream, "{}", std::string (name.size(), '-'));
 }
@@ -423,8 +424,7 @@ void CommandLine::PrintDialectFlags (DialectId dialect, char prefix)
 
 void CommandLine::PrintExitCodes (const std::string & codes)
 {
-    std::println (s_pUsageStream, "");
-    std::println (s_pUsageStream, "Exit codes:");
+    PrintSectionHeading ("Exit codes");
     PrintUsageBlock (codes);
 }
 

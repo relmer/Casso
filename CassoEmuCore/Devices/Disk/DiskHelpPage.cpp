@@ -469,7 +469,8 @@ std::string DiskHelpPage::BuildCommandBlocks (char flagPrefix)
 
 std::string DiskHelpPage::BuildOptionsHelp (char flagPrefix)
 {
-    std::string  text = "Exit codes:\n";
+    std::string  text = "Exit codes\n"
+                        "----------\n";
 
 
 
@@ -564,8 +565,8 @@ std::string DiskHelpPage::BuildHelpText (char flagPrefix, const std::string & ba
            "\n"
            "Disk commands:\n"
          + BuildSubcommandHelp (flagPrefix)
-         + BuildCommandBlocks  (flagPrefix) + "\n"
-         + BuildOptionsHelp    (flagPrefix) + "\n"
+         + BuildCommandBlocks  (flagPrefix) + "\n\n"
+         + BuildOptionsHelp    (flagPrefix) + "\n\n"
          + BuildExampleHelp    (flagPrefix);
 }
 

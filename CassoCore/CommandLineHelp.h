@@ -39,8 +39,13 @@ class CommandLineHelp
 public:
     //  The line the worked example starts on, so a reader and a test look for
     //  the same thing.
-    static constexpr const char *  kExampleHeading =
-        "Examples, the whole loop from source to a program running in the emulator:";
+    static constexpr const char *  kExampleHeading = "Examples";
+
+    //  What the heading used to carry after a comma. It reads as the first
+    //  line UNDER the rule now, the way each command's block describes itself,
+    //  rather than as a heading two lines wide that no underline could match.
+    static constexpr const char *  kExampleLeadIn =
+        "  The whole loop from source to a program running in the emulator:";
 
     //  The prefix a chosen style writes its flags with. One place, because the
     //  help writes flags in dozens of sentences and a style decided in each of
