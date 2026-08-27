@@ -816,14 +816,15 @@ BX0, BX1 = REAR_X0, REAR_X0 + REAR_W
 # one below it.
 _vp     = vent_positions(REAR_H, VENT_N_SIDE)
 FURN_ZC = REAR_Z0 + (_vp[-2] + LOUV_W + _vp[-1]) * 0.5
-# Groove top edge to groove bottom edge, LESS A HAIR: the recess floor is
-# one plane with the grooves' floors, so the only edges left are the top of
-# the groove above and the bottom of the groove below. The hair matters --
-# ends placed exactly ON the grooves' outer walls are coincident planes,
-# and the boolean splits those walls into segments whose seams show as
-# faint vertical lines at the recess's extremes. Pulled inside the grooves'
-# open air, the ends cut nothing and mark nothing.
-FURN_RH = _vp[-1] + LOUV_W - _vp[-2] - 0.3
+# THE BAND BETWEEN THE GROOVES, PLUS A HAIR INTO EACH. The hair kills the
+# sliver walls that read as a dish, without the recess ends resting ON any
+# face (coincident planes split the wall into segments whose seams render
+# as faint cuts). No more than the hair, though: a recess spanning the
+# grooves' full height rams its RAMPS diagonally through their side walls
+# -- in the flat zone the floor already meets the groove floors on one
+# plane, so nothing taller was ever needed, and the grooves now run past
+# the chamfers intact.
+FURN_RH = _vp[-1] - _vp[-2] - LOUV_W + 0.3
 
 SW_D    = LOUV_DEEP                     # recess floor at the vent grooves'
                                         # own depth -- no furniture cut goes
