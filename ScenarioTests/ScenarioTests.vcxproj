@@ -162,6 +162,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />

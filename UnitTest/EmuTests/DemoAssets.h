@@ -28,6 +28,15 @@
 #define IDR_DEMO_DHGR_AUX     4006
 #define IDR_DEMO_DHGR_MAIN    4007
 
+//
+//  The Applesoft construct corpus: our own listing, and the bytes Applesoft
+//  itself stored for it. Regeneration goes through a booted guest -- see
+//  UnitTest/Fixtures/Basic/construct-inventory.md, circularity guard included.
+//
+
+#define IDR_BASIC_CORPUS_SRC  4008
+#define IDR_BASIC_CORPUS_TOK  4009
+
 #ifndef RC_INVOKED
 
 
