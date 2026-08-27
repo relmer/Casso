@@ -80,11 +80,11 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
     { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
            "-",
            CommandLineParser::FlagCategory::Listing, "<file>",
-           "Generate listing; alone, it goes to standard output" },
+           "Generate listing; alone, it goes to stdout" },
     { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::General, "",
-           "Verbose: an assembly summary on standard error" },
+           "Verbose: an assembly summary on stderr" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the
@@ -160,7 +160,7 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "l",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
             "-",
             CommandLineParser::FlagCategory::Listing, "<file>",
-            "Generate listing (-l alone = standard output, -lprog.lst = to that file)" },
+            "Generate listing (-l alone = stdout, -lprog.lst = to that file)" },
     { "p",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::Listing, "",
@@ -1061,7 +1061,7 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  because the alternative is not a missing operand -- it is an extra one. This
 //  grammar has no positional past the second, so `disk get img F -o host.bin`
 //  used to put `-o` and `host.bin` in slots nothing reads: the file went to
-//  standard output, the name the caller gave was dropped, and the exit status
+//  stdout, the name the caller gave was dropped, and the exit status
 //  said it had all worked. A flag it does not have is now a refusal, and the
 //  suggestion names the flags it does have.
 //

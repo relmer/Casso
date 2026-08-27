@@ -107,7 +107,7 @@ int DiskCommand::Run (const CommandLineOptions & options)
 
         if (FAILED (hr))
         {
-            std::cerr << "Error: could not write the extracted bytes to standard output\n";
+            std::cerr << "Error: could not write the extracted bytes to stdout\n";
             exitCode = DiskCommandResult::kNoOutput;
         }
     }

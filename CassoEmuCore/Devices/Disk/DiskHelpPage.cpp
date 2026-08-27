@@ -58,7 +58,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "get | read",
         "Read a file from the disk",
         "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
-        "  %Lout <file>            Extract the file to <file>. By default, the file is written to standard output instead\n"
+        "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
         "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
         "Applesoft BASIC programs are stored in a tokenized form on disk. Retrieving these with 'get' returns the raw tokenized file,"
@@ -155,7 +155,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Ltrack <n>             Track to read from, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15\n"
         "  %Lcount <n>             Count of sectors to read. Defaults to 1. Continues to subsequent tracks and sectors as needed\n"
-        "  %Lout <file>            File to store the read sectors in. Defaults to standard output if not specified\n",
+        "  %Lout <file>            File to store the read sectors in. Defaults to stdout if not specified\n",
         "Allows reading data directly from logical track and sector locations without relying on filesystem structure.",
         "CassoCli disk sectorread boot.dsk %Ltrack 0 %Lsector 0 %Lout boot.bin"
     },
