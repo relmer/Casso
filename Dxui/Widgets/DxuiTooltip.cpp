@@ -51,15 +51,19 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
                         anchor.right  != m_anchor.right ||
                         anchor.bottom != m_anchor.bottom;
 
-        m_anchor   = anchor;
-        m_text     = text;
-        m_hideAtMs = 0;
+        m_anchor = anchor;
+        m_text   = text;
 
-        // Already-up popup pointing at a different control: re-show it at
-        // the new anchor/text. Skip churn when nothing moved (consumers
-        // re-issue RequestShow on every mouse-move over the same control).
+        // THE DEADLINE SURVIVES A RE-REQUEST for the same tip. Consumers
+        // re-issue RequestShow on every mouse-move over the same control, so
+        // clearing the hide time here meant a resting pointer wiped it
+        // sixty times a second and the tip never dismissed itself -- the
+        // lifetime existed and could not once be reached. A move to a
+        // DIFFERENT control is a new tip and starts its own clock.
         if (changed && m_popupHost != nullptr)
         {
+            m_hideAtMs = nowMs + kMaxVisibleMs;
+
             ReleaseActivePopup();
             ShowPopup();
         }
