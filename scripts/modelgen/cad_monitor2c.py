@@ -807,7 +807,10 @@ BX0, BX1 = REAR_X0, REAR_X0 + REAR_W
 # one below it.
 _vp     = vent_positions(REAR_H, VENT_N_SIDE)
 FURN_ZC = REAR_Z0 + (_vp[-2] + LOUV_W + _vp[-1]) * 0.5
-FURN_RH = 7.0                           # recess height, inside the band
+FURN_RH = _vp[-1] - _vp[-2]             # channel center to channel center --
+                                        # the recess cuts THROUGH both vent
+                                        # walls, leaving no sliver of case
+                                        # between itself and either line
 
 SW_D    = 1.6                           # recess depth into the flank
 SW_RAMP = 10.0                          # each ramp's run
@@ -876,38 +879,42 @@ m.add("pwr_button",
       cq.Workplane("XY")
         .box(2.1, 20.0, 6.2, centered=(False, True, True))
         .translate((BX1 - 2.6, SW_YC, FURN_ZC))
-        .edges("|X").fillet(1.2),
+        .edges("|X").fillet(1.2)
+        .edges(">X").fillet(0.8),
       KEYCAP)
 
 _prx = BX1 - CUT_D
 engrave(flank_ring(_prx, ICON_FY, FURN_ZC, FLANK_S, 0.6), "<X")
 engrave(flank_circle(BX1, 1.0, ICON_FY, FURN_ZC, 1.55), "<X")
-engrave(flank_box(_prx, ICON_FY, FURN_ZC + 0.5, STROKE, 1.0), "<X")
+engrave(flank_box(_prx, ICON_FY, FURN_ZC, STROKE, 1.7), "<X")
 
-# The left flank: recess, slot, wheel, contrast glyph -- the half-filled
-# circle filled toward the FRONT, the way the Monitor II fills its right
-# half for a viewer standing before it.
+# The left flank: recess, slot, wheel, contrast glyph -- a circle divided
+# top to bottom, its VIEWED-LEFT half (the rear half, for a viewer at this
+# flank) hollowed out as a pocket, its right half intact and traced by the
+# ring alone.
 shell = shell.cut(flank_recess(BX0, -1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(6.0, 22.0, _vp[-1] - _vp[-2], centered=(False, True, True))
+      .box(6.0, 15.0, _vp[-1] - _vp[-2], centered=(False, True, True))
       .translate((BX0 - 1.0, SW_YC, FURN_ZC)))
 
 m.add("contrast_wheel",
       cq.Workplane("XY")
-        .cylinder(3.4, 10.0, direct=(0, 0, 1))
-        .translate((BX0 + 10.6, SW_YC, FURN_ZC)),
+        .cylinder(5.0, 10.0, direct=(0, 0, 1))
+        .translate((BX0 + 10.15, SW_YC, FURN_ZC)),
       KEYCAP, angular=0.05)
 
 _clx = BX0 - 0.5
 engrave(flank_ring(_clx, ICON_FY, FURN_ZC, FLANK_S, 0.6), ">X")
 engrave(flank_circle(BX0, -1.0, ICON_FY, FURN_ZC, 1.55), ">X")
-engrave(cq.Workplane("XY")
-          .cylinder(1.1, 1.55, direct=(1, 0, 0), centered=(False, True, True))
-          .translate((_clx, ICON_FY, FURN_ZC))
-          .cut(cq.Workplane("XY")
-                 .box(2.1, 3.5, 3.5, centered=(False, False, True))
-                 .translate((_clx - 0.5, ICON_FY, FURN_ZC))), ">X")
+engrave((cq.Workplane("XY")
+           .cylinder(1.1, 1.55, direct=(0, 1, 0), centered=(True, True, False))
+           .translate((0.0, -0.6, 0.0))
+           .cut(cq.Workplane("XY")
+                  .box(3.5, 2.5, 3.5, centered=(False, False, True))
+                  .translate((-3.5, -1.1, 0.0))))
+          .rotate((0, 0, 0), (0, 0, 1), 90.0)
+          .translate((BX0, ICON_FY, FURN_ZC)), ">X")
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
