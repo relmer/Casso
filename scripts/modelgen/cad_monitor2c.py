@@ -889,14 +889,15 @@ def flank_circle(wall, sign, cy, cz, r):
 
 
 # The right flank: recess, button, power glyph. A MOAT rings the button --
-# the cut in the case it moves through: a millimeter fore and aft, and
-# RUNNING INTO both grooves top and bottom, so its dark merges with theirs
-# and the opening has no horizontal edge of its own. The button nearly
-# fills the band between the grooves, the way the real switch does.
+# the cut in the case it moves through: a tight half-millimeter all round,
+# deep enough to go dark. TIGHT is the constraint that matters: a taller
+# ring crosses the vent lines, and being deeper than they are, punches
+# visibly through their floor. The button nearly fills the band between
+# the grooves, the way the real switch does.
 shell = shell.cut(flank_recess(BX1, 1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(SW_D + 3.5, 21.0, 11.0, centered=(False, True, True))
+      .box(SW_D + 3.5, 21.0, 8.0, centered=(False, True, True))
       .translate((BX1 - SW_D - 3.0, SW_YC, FURN_ZC))
       .edges("|X").fillet(1.7))
 
