@@ -273,6 +273,13 @@ public:
     // next layout pass picks up the height change.
     void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
 
+    // Turns the resize borders off and on at runtime. A window that has gone
+    // borderless-fullscreen fills the monitor and has nothing to resize TO:
+    // its edges are screen edges, and the classifier would still hand back
+    // HTBOTTOMRIGHT there, letting a drag at the corner pull the window down
+    // to a fraction of the screen with no caption left to fix it with.
+    void          SetResizable (bool resizable) { m_params.resizable = resizable; }
+
     //
     //  Adopt-mode caption hooks. A full-ownership host paints + lays out
     //  + routes the caption itself; an adopt-mode host owns no paint pump

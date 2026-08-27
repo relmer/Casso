@@ -146,6 +146,15 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // a projected box widens and narrows as the orbit turns it, and a label
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
+
+// The pointer-capture banner: how to get the mouse back, said for as long as
+// it is held. Low on the picture, where a paddle game's action is not.
+static constexpr int     s_kCaptureBannerHeightDp   = 22;
+static constexpr int     s_kCaptureBannerInsetDp    = 16;
+static constexpr float   s_kCaptureBannerFontDip    = 13.0f;
+
+static const std::wstring         s_kCaptureBanner =
+    std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
@@ -1709,9 +1718,25 @@ int EmulatorShell::DeskSceneDriveCount() const
 
 void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 {
+    // A borderless-fullscreen window fills the monitor and has nothing to
+    // resize TO: its edges ARE the screen's, and leaving the resize borders
+    // armed lets a drag at a corner pull the picture down to a fraction of
+    // the screen with no caption left to put it right with.
+    m_host->SetResizable (!hidden);
+
     m_host->SetCaptionVisible (!hidden);
     m_mainMenu.SetVisible (!hidden);
+    // The toolbar comes back on its own in fullscreen, summoned by the top
+    // edge -- so hiding the chrome parks it and TickFullscreenToolbar owns
+    // it from there.
     m_toolbar.SetVisible (!hidden);
+
+    if (hidden)
+    {
+        m_fsToolbarShown  = false;
+        m_fsToolbarLeftMs = 0;
+    }
+
     m_joystickButton.SetVisible (!hidden);
     // The band surface only exists for the 2D chrome; under the desk scene
     // the drives paint from the scene and the band would read as a leftover
@@ -1730,6 +1755,138 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     {
         m_driveChrome[0].Hide();
         m_driveChrome[1].Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncCaptureBanner
+//
+//  A persistent way OUT, for as long as the pointer is held.
+//
+//  Paddle mode takes the mouse: the cursor is hidden and clipped to the
+//  window, and the only release is a key the user has to already know. The
+//  joystick button says so -- and fullscreen hides the joystick button, which
+//  leaves a captured pointer, no cursor, and nothing on screen to read. This
+//  says it over the picture instead, in both presentations, and goes away the
+//  moment the capture does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncCaptureBanner()
+{
+    RECT  client = {};
+    RECT  rc     = {};
+
+
+
+    if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_captureBanner.SetVisible (false);
+        return;
+    }
+
+    rc.left   = client.left;
+    rc.right  = client.right;
+    rc.bottom = client.bottom - m_scaler.Px (s_kCaptureBannerInsetDp);
+    rc.top    = rc.bottom - m_scaler.Px (s_kCaptureBannerHeightDp);
+
+    m_captureBanner.SetText        (s_kCaptureBanner);
+    m_captureBanner.SetColor       (m_chromeTheme.driveLabel);
+    m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
+    m_captureBanner.SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_captureBanner.SetDpi         (m_scaler.Dpi());
+    m_captureBanner.SetRect        (rc);
+    m_captureBanner.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TickFullscreenToolbar
+//
+//  The command toolbar on the same bargain the drive strip has at the bottom:
+//  the pointer at the top edge brings it down, leaving takes it away.
+//
+//  Laid out here rather than by the chrome dock, because in fullscreen there
+//  are no bands -- the scene owns the whole client, and the toolbar is an
+//  overlay across its top rather than a strip the viewport makes room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickFullscreenToolbar()
+{
+    RECT     client = {};
+    POINT    cursor = {};
+    int      bandH  = 0;
+    bool     want   = false;
+    int64_t  nowMs  = 0;
+
+
+
+    if (!m_d3dRenderer.IsFullscreen() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        if (m_fsToolbarShown)
+        {
+            m_fsToolbarShown = false;
+            m_toolbar.SetVisible (false);
+        }
+
+        return;
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
+    bandH = m_scaler.Px (m_toolbar.BandDp());
+
+    if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
+    {
+        // The edge zone summons; the whole band holds it open, so the
+        // pointer can travel down onto the buttons without dismissing them.
+        want = m_fsToolbarShown ? (cursor.y <= bandH)
+                                : (cursor.y <= m_scaler.Px (s_kStripEdgeZoneDp));
+    }
+
+    // A menu opened from the toolbar keeps it up regardless of where the
+    // pointer wandered to reach the menu's items.
+    want = want || m_mainMenu.IsOpen();
+
+    if (want)
+    {
+        m_fsToolbarLeftMs = 0;
+    }
+    else if (m_fsToolbarShown && m_fsToolbarLeftMs == 0)
+    {
+        m_fsToolbarLeftMs = nowMs;
+    }
+
+    if (!want && m_fsToolbarShown &&
+        nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
+    {
+        m_fsToolbarShown = false;
+        m_toolbar.SetVisible (false);
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+    else if (want && !m_fsToolbarShown)
+    {
+        m_fsToolbarShown = true;
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    if (m_fsToolbarShown)
+    {
+        m_toolbar.Layout     (RECT{ client.left, client.top, client.right, client.top + bandH },
+                              m_scaler);
+        m_toolbar.SetVisible (true);
     }
 }
 
@@ -2913,6 +3070,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveChrome[1]);
     m_host->Root().Adopt (m_sceneDriveLabel[0]);
     m_host->Root().Adopt (m_sceneDriveLabel[1]);
+    m_host->Root().Adopt (m_captureBanner);
     m_host->Root().Adopt (m_toolbar);
     m_host->Root().Adopt (m_joystickButton);
     m_host->Root().Adopt (m_switchBar);
@@ -5745,6 +5903,11 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         m_diskManager->UpdateDriveWidgets();
     }
+
+    // The capture banner and the fullscreen toolbar reveal, both per-frame
+    // because both answer where the pointer is right now.
+    SyncCaptureBanner();
+    TickFullscreenToolbar();
 
 
     for (const DriveWidgetState & st : m_driveWidgetState)

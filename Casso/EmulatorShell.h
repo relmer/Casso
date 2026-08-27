@@ -785,6 +785,11 @@ private:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
+    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // both driven from the per-frame UI upkeep.
+    void    SyncCaptureBanner    ();
+    void    TickFullscreenToolbar();
+
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
 
@@ -1075,6 +1080,19 @@ private:
     // re-hang it without a layout pass and an unchanged frame does no
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
+
+    // "Paddle Mode -- press Esc to release the mouse", on screen for as long
+    // as the capture holds. The joystick button carries the same words, but
+    // it is chrome: fullscreen hides it, and a captured pointer with the
+    // cursor gone and no way out shown is how a user ends up killing the
+    // process. This rides above the picture in both presentations.
+    DxuiLabel                  m_captureBanner;
+
+    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
+    // along the top edge: shown while the pointer is up there, hidden once
+    // it leaves and the grace expires.
+    bool                       m_fsToolbarShown    = false;
+    int64_t                    m_fsToolbarLeftMs   = 0;
 
     // Last geometry passed to LayoutJoystickButton, cached so
     // RelayoutJoystickButton can resize the button in place when the
