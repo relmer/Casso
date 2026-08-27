@@ -143,12 +143,6 @@ static constexpr int     s_kSceneDriveLabelStripDp  = 18;
 static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
-// How far the inspection orbit may stray from the home pose before the
-// scene's drive labels hide. About three degrees: past that a drive's
-// projected bounds start swelling and swinging as its box turns, and
-// chrome anchored under them swims against the render.
-static constexpr float   s_kSceneLabelOrbitHomeRad  = 0.05f;
-
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
 // edge, the way the 2D widgets' band padding sat around them. (Containment
@@ -1799,13 +1793,10 @@ void EmulatorShell::SyncSceneDriveChrome()
 //  Fullscreen shows no labels: the picture owns the client and the drives are
 //  only briefly on screen in the overlay strip, which has its own tooltip.
 //
-//  And the labels hold still only in the HOME pose, which is the only pose
-//  where they mean anything -- orbit the scene and a drive's projected
-//  bounds swell and swing as its box turns, so chrome anchored under them
-//  swims against the render, and a name strip glued beneath a drive seen
-//  from behind labels nothing. Any real orbit hides them; settling back
-//  near home brings them back. The yaw accumulates unwrapped across full
-//  turns, so it is compared by its principal value, not the raw sum.
+//  Windowed, the labels ride the ORBIT: they re-hang under each drive's
+//  projected bounds on every composition pass, so they stay legible from
+//  whatever angle the inspection orbit is showing rather than vanishing the
+//  moment the camera moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1814,11 +1805,7 @@ void EmulatorShell::SyncSceneDriveLabels()
     const DeskSceneComposition &  comp    = m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.Dpi() / (float) s_kBaseDpi;
-    float                         yawOff  = std::abs (std::atan2 (std::sin (m_sceneView.orbitYawRad),
-                                                                  std::cos (m_sceneView.orbitYawRad)));
-    bool                          home    = yawOff <= s_kSceneLabelOrbitHomeRad &&
-                                            std::abs (m_sceneView.orbitPitchRad) <= s_kSceneLabelOrbitHomeRad;
-    bool                          visible = !m_d3dRenderer.IsFullscreen() && home;
+    bool                          visible = !m_d3dRenderer.IsFullscreen();
 
 
 
@@ -7831,7 +7818,12 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     //
     // Mouse mode is NOT excluded. The guest mouse has no wheel to steal the
     // notch from, so zooming stays available while pointing.
-    if (delta == 0 || !DeskSceneActive() || m_paddleCaptured)
+    //
+    // Fullscreen is: the picture owns the client and the desk is not on
+    // screen, so there is no camera to move -- only hidden state to
+    // scramble for the return to windowed.
+    if (delta == 0 || !DeskSceneActive() || m_paddleCaptured ||
+        m_d3dRenderer.IsFullscreen())
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -8103,7 +8095,9 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
     info.cbSize = sizeof (info);
 
-    if (!DeskSceneActive() ||
+    // Fullscreen shows the picture, not the desk: no gesture moves a camera
+    // that is not on screen.
+    if (!DeskSceneActive() || m_d3dRenderer.IsFullscreen() ||
         !GetGestureInfo (reinterpret_cast<HGESTUREINFO> (lParam), &info))
     {
         return DxuiMessageResult::NotHandled;
@@ -8362,7 +8356,9 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // BASIC prompt nothing is reading the mouse, so panning stays available.
     // Shift turns the press into an orbit -- the touchpad's road to it, where
     // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
-    if (DeskSceneActive() && (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen())
+    // Never in fullscreen, where the desk is not on screen.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen())
     {
         BeginSceneOrbit (x, y);
         m_sceneOrbitLeftBtn = true;
@@ -8655,11 +8651,12 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
     }
-    else if (DeskSceneActive())
+    else if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
     {
         // Right-drag orbits the scene. Unconditionally on the scene -- unlike
         // the pan there is no widget interaction to share the button with,
-        // and orbit is useful at any zoom.
+        // and orbit is useful at any zoom. Not in fullscreen, where the desk
+        // is not on screen and there is no camera to swing.
         SetCapture (m_hwnd);
         BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
         m_sceneOrbitLeftBtn = false;

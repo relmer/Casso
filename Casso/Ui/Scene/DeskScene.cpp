@@ -349,7 +349,11 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
 
         lighting.shadowTexel    = 1.0f / (float) kShadowMapTexels;
         lighting.shadowBias     = kShadowBias;
-        lighting.shadowStrength = kShadowStrength;
+
+        // The strip draws the drives with nothing above them: the shadow
+        // maps were rendered with the monitor in place, and applying them
+        // there prints a phantom of a device that is not on screen.
+        lighting.shadowStrength = m_stripPass ? 0.0f : kShadowStrength;
     }
 
     lighting.refDist = DeskSceneModel::kLightRefMm;
@@ -1613,6 +1617,8 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     hr = m_renderer.BeginDepthPass();
     CHRA (hr);
 
+    m_stripPass = true;
+
     hr = DrawShadows (strip, viewport, false);
     CHRA (hr);
 
@@ -1623,6 +1629,8 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     CHRA (hr);
 
 Error:
+    m_stripPass = false;
+
     return hr;
 }
 

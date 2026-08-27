@@ -421,6 +421,11 @@ private:
     bool   m_lampVpValid[2]    = {};
     bool   m_shadowsReady      = false;
 
+    // True while RenderStrip draws: the fullscreen overlay shows the drives
+    // ALONE, so the room-light shadow maps -- baked with the monitor in
+    // place -- must not print a phantom of it onto them.
+    bool   m_stripPass         = false;
+
     static void  TintInto (const std::vector<Dxui3DRenderer::Vertex> & base,
                            float                                       factor,
                            std::vector<Dxui3DRenderer::Vertex>       & out);
