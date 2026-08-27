@@ -33,7 +33,7 @@ build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
 `disk` subcommand, and boot configuration. Next step is `/speckit-clarify` or
 `/speckit-plan`.
 
-Three further specs are drafted but NOT started, each to be picked up in its
+Four further specs are drafted but NOT started, each to be picked up in its
 own session:
 
 - `specs/021-disk-manager` — graphical disk manager, live editing of the mounted
@@ -44,8 +44,14 @@ own session:
 - `specs/023-ca65-dialect` — ca65's absolute subset, split out of 019. Builds on
   019's dialect mechanism, which has shipped; full compatibility needs a linker
   (GH #58).
+- `specs/025-game-compat-patcher` — runtime patch table over live guest RAM,
+  defusing title protection checks that fail by design on later machines
+  (Choplifter on Enhanced //e and //c, the Karateka //c VBL spin, and a path to
+  the wider Broderbund/Gebelli catalog). Tracked by GH #94. Work continues on
+  branch `025-game-compat-patcher`; next step is `/speckit-clarify` or
+  `/speckit-plan`.
 
-A fourth is not yet written: **per-slot card configuration**
+One more is not yet written: **per-slot card configuration**
 (GH #124) — a Hardware-tab dropdown selecting any supported card for any slot,
 with default slot assignments modeling period-typical install locations. It is
 where users will pick between the Mockingboard A and C, but 024 does not depend
@@ -55,7 +61,10 @@ on it (024 selects its variant by machine configuration).
 gate was 019's dialect mechanism (023 SC-006 requires that adding ca65 change
 nothing in that mechanism), and that shipped in 1.18.0 — 023 can start any
 time. 019 and 020 shared only the CassoCli command-line surface, which lives in
-`CassoCore` with tests; 020 extends it from there.
+`CassoCore` with tests; 020 extends it from there. 025 is independent of both
+the disk and assembler tracks and can start any time; it builds on the unmerged
+`game-patch-table` proof-of-concept (see its `research/parked-branch.md` for the
+gap analysis, including an unresolved scan-cost question).
 
 **020 is partially delivered.** Its User Story 1 (assembler binary output) is
 already done and on master: `--raw` and `--dos-bin` live in

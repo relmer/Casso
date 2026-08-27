@@ -63,6 +63,7 @@ Entries before versioning was introduced use dates only.
   version mechanism (2Plus v11, 2e v10, Enhanced v4), so existing installs
   pick up the change on next launch; hand-edited profiles are backed up first,
   as always.
+- internal: the shell addresses its video modes and its //e keyboard / soft-switch bank by name instead of by position in a vector and by repeated downcast — the positional lookups made every use site restate which slot held which renderer, and the `size()` guards around them were unreachable
 - internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
 
 ### Fixed
@@ -75,6 +76,65 @@ Entries before versioning was introduced use dates only.
   out and crossfades back in rather than stepping. Verified by loopback
   capture: zero click events and zero dropout gaps over 20 s, from a ~1/s
   floor before.
+
+## [1.18.2] — truthful execution traces
+
+### Fixed
+- **`--trace` now records operand bytes from the memory bank that actually
+  executed.** The execution trace read each instruction's operands from the
+  CPU's flat backing array, but on the //e and //c the MMU rebinds pages
+  across all of `$0000-$BFFF` — so a trace could print operands from main RAM
+  while the guest executed from aux, and the disassembly read as fact while
+  describing code that never ran (a branch that plainly jumped backwards
+  showed a forward operand). Operands now come through the same read-page
+  table the instruction fetch uses. I/O space (`$C000-$CFFF`) deliberately
+  still bypasses the bus: reading a soft switch toggles it, and recording the
+  machine must never change it.
+
+## [1.18.1] — monochrome graphics fidelity
+
+The green, amber, and white monitors were showing a tinted copy of what a
+*color* monitor makes from the dots — and that decode has already thrown away
+exactly the detail a monochrome monitor exists to show. Both graphics modes
+now decode for the monitor you picked. Surfaced by
+[(Apple IIe) Sixies](https://dskilton.itch.io/apple-sixies), which asks for
+"560x192 monochrome double-hi-resolution graphics" and was unreadable on
+every monitor Casso offered.
+
+### Fixed
+- **Hi-res on a monochrome monitor now shows the 560 half-dot stream.** Green,
+  amber, and white monitors used to luminance-tint the artifact-color decode,
+  so an isolated dot — violet or green on a color monitor — came out at about
+  57% brightness where hardware shows it fully lit, and the half-dot shift was
+  invisible because the color decode folds it into a palette pair instead.
+  Monochrome monitors now decode the dots: every lit dot is full brightness,
+  and a byte with bit 7 set paints half a dot to the right of one without,
+  which is the horizontal detail 280-pixel rendering cannot represent.
+
+  Expect this to look different, not just better. On artwork authored for a
+  *color* display — anything dithered to get violet and green — a monochrome
+  monitor is supposed to look harsh and washed out, which is exactly why
+  monochrome-targeted software dithers at dot resolution instead. Measured on
+  a dithered photograph, 94.6% of lit pixels change and mean lit brightness
+  rises from 157 to 255. The color monitor is untouched.
+- **Double hi-res no longer renders auxiliary memory into both halves of the
+  picture.** DHR needs main and aux RAM at the same instant, but it read its
+  main half through the memory bus — whose `$2000-$3FFF` pages follow live
+  MMU banking. With 80STORE and HIRES set, PAGE2 alone points that whole
+  range at aux, so any program that left the switches there while a frame was
+  scanned had the aux byte rendered into both halves of every 14-dot group
+  and never saw main memory at all. DHR now reads both banks directly, the
+  way it already read aux.
+- **Double hi-res on a monochrome monitor now decodes all 560 dots.** The
+  green, amber, and white monitors used to tint the 16-color decode rather
+  than decode differently, and that decode has already thrown the detail
+  away: it collapses each group of four dots to one color, so a lone lit dot
+  came out as a four-dot-wide colored block that tinting could only turn into
+  a four-dot-wide gray block. Software written for 560x192 monochrome — which
+  is most DHR artwork, since shading it means dithering at single-dot
+  resolution — was unreadable on every monitor Casso offered. Monochrome
+  monitors now decode one dot per pixel, and lit dots reach full phosphor
+  brightness. The color monitor is unchanged.
 
 ## [1.18.0] — Merlin assembler dialect
 
