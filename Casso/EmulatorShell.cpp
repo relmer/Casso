@@ -103,7 +103,6 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // + ~8 dp bottom gap. Bumping the button's font / padding requires
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
-static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
 // Presentation pacing. At Maximum speed the CPU runs flat-out, but we only
 // rasterize + publish a framebuffer this often (wall clock), so the render
@@ -10096,26 +10095,13 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
 
-        // Entering paddle mode captures the mouse, so the hover that would
-        // normally dismiss the tooltip never fires. Show the paddle notice
-        // and let it auto-dismiss after a few seconds. Anchor: the band
-        // selector where it still exists (compact themes), else the toolbar
-        // strip -- in the desk scene the selector is hidden and its empty
-        // bounds would pin the notice to the window's top-left corner.
-        {
-            RECT  anchor = m_joystickButton.Bounds();
-
-            if (anchor.right <= anchor.left)
-            {
-                anchor = m_toolbar.Bounds();
-            }
-
-            m_joystickTooltip.ShowTimed (anchor,
-                                         m_joystickButton.TooltipText(),
-                                         nowMs,
-                                         s_kPaddleNoticeMs);
-        }
-
+        // THE HUD NOTICE SAYS THIS NOW, in both presentations. Entering
+        // paddle mode used to force a tooltip up for eight seconds, because
+        // the capture means the hover that would normally dismiss one never
+        // fires -- so it had to time out instead. That put a panel over the
+        // chrome it was anchored to, on top of whatever tooltip the pointer
+        // had already summoned, and it said what the notice over the picture
+        // now says for exactly as long as the capture lasts.
         StartPaddleCapture();
     }
 }

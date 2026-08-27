@@ -146,7 +146,14 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_text     = m_pendingText;
         m_visible  = true;
         m_pending  = false;
-        m_hideAtMs = 0;
+
+        // A TOOLTIP HAS A LIFETIME. A hover tip used to set no hide time at
+        // all, so it stayed up for as long as the pointer rested -- and a
+        // pointer that has been captured, or simply parked, rests forever.
+        // The OS dismisses its own after a few seconds for the same reason:
+        // the tip has been read by then, and what is left is an obstruction
+        // sitting over the thing it was explaining.
+        m_hideAtMs = nowMs + kMaxVisibleMs;
 
         ShowPopup();
     }

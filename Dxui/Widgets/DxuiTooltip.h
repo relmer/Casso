@@ -29,6 +29,11 @@ class DxuiTooltip : public IDxuiControl
 public:
     ~DxuiTooltip() override = default;
 
+    // How long a hover tip stays up before dismissing itself. Matches the
+    // OS default: long enough to read two lines, short enough that a parked
+    // pointer does not leave a panel sitting over the control it describes.
+    static constexpr int  kMaxVisibleMs = 5000;
+
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
