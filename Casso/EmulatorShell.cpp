@@ -149,9 +149,13 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
 // The pointer-capture banner: how to get the mouse back, said for as long as
 // it is held. Low on the picture, where a paddle game's action is not.
-static constexpr int     s_kCaptureBannerHeightDp   = 22;
+//
+// The band is deliberately taller than the line it holds: the feathered
+// shadow behind the text reaches ten pixels past the ink, and a rect fitted
+// to the glyphs would clip its own fade against the edges.
+static constexpr int     s_kCaptureBannerHeightDp   = 44;
 static constexpr int     s_kCaptureBannerInsetDp    = 16;
-static constexpr float   s_kCaptureBannerFontDip    = 13.0f;
+static constexpr float   s_kCaptureBannerFontDip    = HudBanner::kFontDip;
 
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
@@ -1790,17 +1794,28 @@ void EmulatorShell::SyncCaptureBanner()
         return;
     }
 
-    rc.left   = client.left;
-    rc.right  = client.right;
-    rc.bottom = client.bottom - m_scaler.Px (s_kCaptureBannerInsetDp);
-    rc.top    = rc.bottom - m_scaler.Px (s_kCaptureBannerHeightDp);
+    // ABOVE THE BOTTOM CHROME, not on it. Hung from the client's own bottom
+    // edge the notice straddled the switch bar, half over the scene and half
+    // over a shell band, reading as neither. Measured off the switch band
+    // rather than the drive band: under the desk scene the drive band is
+    // empty -- the scene owns the drives -- so it reports nothing to sit
+    // above. The picture is not available either; the CRT pass paints over
+    // this chrome.
+    {
+        RECT  bar    = m_switchBand.Bounds();
+        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+                     ? bar.top : client.bottom;
+
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.bottom = bottom - m_scaler.Px (s_kCaptureBannerInsetDp);
+        rc.top    = rc.bottom - m_scaler.Px (s_kCaptureBannerHeightDp);
+    }
 
     m_captureBanner.SetText        (s_kCaptureBanner);
-    m_captureBanner.SetColor       (m_chromeTheme.driveLabel);
     m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
-    m_captureBanner.SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     m_captureBanner.SetDpi         (m_scaler.Dpi());
-    m_captureBanner.SetRect        (rc);
+    m_captureBanner.Layout         (rc, m_scaler);
     m_captureBanner.SetVisible     (true);
 }
 
