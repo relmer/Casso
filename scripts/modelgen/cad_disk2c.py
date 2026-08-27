@@ -501,13 +501,22 @@ m.add("lamp",
 # stamps, gathered into one part per stripe so the mesh carries six materials
 # rather than a hundred and fifty.
 BIRD_H  = 19.0                    # front-to-back on the lid
-BIRD_X0 = 10.0
-BIRD_Y1 = D - 11.0                # the crown, rearmost
 
 _rows, _stripes = read_branding()
 _cell    = BIRD_H / len(_rows)
 _nonzero = [i for i, r in enumerate(_rows) if r]
 _first, _last = _nonzero[0], _nonzero[-1]
+
+# CENTERED IN THE PLAIN BAND between the lid's left edge and the first rib,
+# with the same margin again off the back edge. Measured on the silhouette's
+# INK, not its 64-bit grid -- the grid carries margins of its own as an
+# encoding accident, and centering those centers nothing.
+_cols   = [c for bits in _rows for c in range(64) if (bits >> c) & 1]
+_collo, _colhi = min(_cols), max(_cols)
+_inkw   = (_colhi - _collo + 1) * _cell
+_marg   = (RIB_X0 - _inkw) * 0.5
+BIRD_X0 = _marg - _collo * _cell
+BIRD_Y1 = D - _marg + _first * _cell    # the crown, rearmost
 _by_stripe = {}
 
 for row, bits in enumerate(_rows):

@@ -901,9 +901,23 @@ def flank_circle(wall, sign, cy, cz, r):
 shell = shell.cut(flank_recess(BX1, 1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(SW_D + 3.5, 21.0, 8.0, centered=(False, True, True))
-      .translate((BX1 - SW_D - 3.0, SW_YC, FURN_ZC))
+      .box(SW_D + 5.5, 21.0, 8.0, centered=(False, True, True))
+      .translate((BX1 - SW_D - 5.0, SW_YC, FURN_ZC))
       .edges("|X").fillet(1.7))
+
+# ...and the moat wears a dark TRAY liner -- floor and walls, open at the
+# mouth -- so the ring reads as a deep dark cut instead of cream all the
+# way down. The mains receptacle's molded-socket trick, squared off.
+m.add("pwr_moat",
+      cq.Workplane("XY")
+        .box(4.8, 20.9, 7.9, centered=(False, True, True))
+        .translate((BX1 - 6.9, SW_YC, FURN_ZC))
+        .edges("|X").fillet(1.65)
+        .cut(cq.Workplane("XY")
+               .box(6.0, 20.2, 7.2, centered=(False, True, True))
+               .translate((BX1 - 6.35, SW_YC, FURN_ZC))
+               .edges("|X").fillet(1.35)),
+      SOCKET)
 
 m.add("pwr_button",
       cq.Workplane("XY")
@@ -939,6 +953,21 @@ m.add("contrast_wheel",
         .cylinder(5.0, 10.0, direct=(0, 0, 1))
         .translate((BX0 + 8.4, SW_YC, FURN_ZC)),
       KEYCAP, angular=0.05)
+
+# The wheel's opening gets the same dark lining: a short tube standing in
+# the ring gap, clipped back of the wall plane so only its dark shows and
+# never its own edge.
+m.add("wheel_moat",
+      cq.Workplane("XY")
+        .cylinder(6.9, 10.9, direct=(0, 0, 1))
+        .translate((BX0 + 8.4, SW_YC, FURN_ZC))
+        .cut(cq.Workplane("XY")
+               .cylinder(7.4, 10.35, direct=(0, 0, 1))
+               .translate((BX0 + 8.4, SW_YC, FURN_ZC)))
+        .cut(cq.Workplane("XY")
+               .box(30.0, 60.0, 30.0, centered=(False, True, True))
+               .translate((BX0 - 29.7, SW_YC, FURN_ZC))),
+      SOCKET, angular=0.05)
 
 _clx = BX0 - 0.5
 engrave(flank_ring(_clx, ICON_FY, FURN_ZC, FLANK_S, 0.6), ">X")
