@@ -10102,6 +10102,17 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         // chrome it was anchored to, on top of whatever tooltip the pointer
         // had already summoned, and it said what the notice over the picture
         // now says for exactly as long as the capture lasts.
+        //
+        // AND WHATEVER IS ALREADY UP GOES NOW. The click that turns paddle
+        // mode on is a click ON a control, so its tooltip is showing -- and
+        // the capture that follows takes the pointer, so the move that would
+        // dismiss it never comes. It would sit there until its lifetime ran
+        // out, which is a long time to leave a balloon over a game.
+        m_joystickTooltip.HideImmediate();
+        m_toolbarTooltip.HideImmediate();
+        m_driveTooltip.HideImmediate();
+        m_switchBarTooltip.HideImmediate();
+
         StartPaddleCapture();
     }
 }
