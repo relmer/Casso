@@ -448,62 +448,9 @@ Entries before versioning was introduced use dates only.
 - **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
   giving no format flag already does, so it bought nothing and cost a line of the
   help. **If a command line writes it, delete the flag**; the result is
-  identical. It is refused rather than ignored, so nothing carries on quietly
-  with it: `--raw` used to be readable as the packed flags `-r -a -w`, which
-  would have complained about two flags that do not exist, silently set the
-  listing column width, and assembled anyway.
-- **BREAKING: `--verbatim` is gone.** Placing and extracting bytes unchanged is
-  the default and always was; once it became the default, the flag's only
-  remaining effect was cancelling a `--text` or `--basic` earlier on the same
-  line. **If a command line writes it, delete the flag**, unless it was there
-  to cancel a `--text`, in which case delete both.
-- **BREAKING: `--long` is gone, and a ProDOS listing always shows every
-  column.** `eof=` and `aux=`, the exact length of a file and the address a
-  binary loads at, were behind the flag, and the volume records both whether
-  or not anyone asks, so it cost a reading of the help and a second run of the
-  command to see the two fields a build loop most wants. **If a command line
-  writes it, delete the flag**; the listing it produced is now what you get
-  without it, and still fits an 80-column terminal. DOS 3.3 listings are
-  unaffected, that filesystem records neither field.
-
+  identical. It is refused rather than ignored, so a command line still carrying
+  it stops instead of quietly assembling something the flag no longer selects.
 ### Fixed
-- **`disk boot` refused to write a startup program, instead of writing one and
-  saying it would not work.** On DOS 3.3 the boot command is RUN, so a binary
-  named as the greeting leaves a disk that boots and does nothing. The command
-  used to set the name, commit the image, and then report the trouble -- which
-  is a disk changed for the worse, by a command that had already worked out it
-  would not work. It refuses before the write now, as ProDOS already did two
-  screens away in the same command, and the disk is left as it was. Measured on
-  a real 6502: the guest never executes the binary, which is what makes the
-  refusal correct rather than merely cautious.
-- **`create` and `init` reported a ProDOS volume in the case you typed, not the
-  case the disk holds.** ProDOS stores a volume name in upper case, so
-  `--volume mydisk` correctly makes `/MYDISK` -- and the confirmation said
-  `volume mydisk` while `disk list` said `/MYDISK`, over a disk that had been
-  written correctly all along. The name is uppercased where it is accepted now,
-  so both lines agree.
-- **A bad option value printed all nine disk commands; a missing operand printed
-  one.** The same command answered `sectorread` with no image in 18 lines and
-  `sectorread --track 99` in 194, though both readers had named the command they
-  wanted and differed only in how they got it wrong. A refused value now answers
-  with that command's block, whichever side caught it. An unrecognized command
-  word still prints the whole page, because a reader who has not landed on a
-  command is who that page is for.
-- **Diagnostics wrote `--flag` to a reader who types `/flag`.** The help had
-  taken the reader's prefix for a while; the messages beneath it had not, so one
-  screen could carry `/bootable` in the usage and `--bootable` in the error. The
-  cause ran deeper than the wording: the prefix was recorded only when HELP was
-  requested with a slash, so an ordinary `/type dsk` never registered at all. It
-  is read from the command line itself now, matched against the option table so
-  a ProDOS path like `/VOLUME/STARTUP` stays an operand.
-- **`disk init --type dsk` ignored the flag entirely, in both prefixes.** The
-  runner refuses `--type` under `init` -- the container is decided by the file
-  being reformatted -- but the parser filed the word under the FILE type for
-  every command except `create`, so the field that refusal reads was never set
-  and the refusal was unreachable. Found while wiring prefixes through the
-  diagnostics; the runner and the parser had drifted across the seam between
-  them, with the runner's own test setting the field directly and passing
-  throughout.
 - **Ten command-line switches had no test at all, and nothing was looking.**
   as65's `-n`, `-p`, `-c` and `-m`, `run`'s `--warn`, and `disk`'s `--format`,
   `--volume`, `--boot`, `--track` and `--sector` were parsed by the tool and
@@ -557,15 +504,8 @@ Entries before versioning was introduced use dates only.
   answered `Cannot read input file: joij` and then `Assembly failed with 0
   error(s)`, which reads as a second and contradictory claim: no assembly was
   attempted, so there were no errors to total.
-- **A bare `CassoCli` exits 1 again.** Printing the page because nothing was
-  asked for is a usage error; asking for the page is not. Both print the same
-  text, and the exit code read the wrong flag to tell them apart.
-- Two blank lines separate a usage page from the reason it was printed, and one
-  blank line closes every run, so a shell prompt does not land against the last
-  line of output.
-
 - **A command line the tool cannot read is answered with the grammar, not with
-  one line.** `CassoCli disk get img.dsk A B` said `surplus argument: B` and
+  one line.** `CassoCli as65 one.a65 two.a65` said `surplus argument: two.a65` and
   stopped, so a reader who had a command's operands wrong was told they were wrong
   and not what the right ones are. Every refusal now prints the page belonging
   to the mode that was named (the assembler's, Merlin's, `run`'s or `disk`'s)
@@ -622,9 +562,9 @@ Entries before versioning was introduced use dates only.
   nobody chose. Both now refuse and say what they could not read. A bare `-d`
   is still `DEBUG`, and a name with no `=` is still 1.
 - **An option that ran out of command line is no longer reported as one that
-  does not exist.** `disk list img.dsk --load` answered "unknown disk option:
-  `--load`" and then listed `--load` among the options to try instead. Both the
-  `disk` and `run` grammars now say the option needs a value.
+  does not exist.** `CassoCli run prog.bin --load` answered "unknown option:
+  `--load`" and then listed `--load` among the options to try instead. The
+  `run` grammar says the option needs a value now, as `disk` does.
 - **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
   AS65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
   defined nothing at all, because it took whatever followed unconditionally,
@@ -666,16 +606,6 @@ Entries before versioning was introduced use dates only.
   the width of the screen, not of the listing; it is the one column that does
   not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift
   from both authorities at once.
-- **`CassoCli disk --help` prints help.** It printed `unknown disk command` and
-  exited 2, because `--help` was recognized only as the very first argument. It
-  is now understood anywhere in a `disk` command line, in every form and
-  either prefix (`--help`, `-help`, `-?`, `/help`, `/?`), and prints the disk
-  section of the help with a clean exit status. A ProDOS path such as
-  `/HELP/STARTUP` is still a path.
-- **The unknown-command message lists the commands that exist.** It still named the
-  five original ones after eight aliases had been added, so mistyping `catalog`
-  got you a suggestion of five words that did not include `catalog`. It is now
-  read from the grammar itself.
 - **A damaged track no longer silently truncates your disk image on eject.**
   The nibble decoder stopped at the first sector it could not read on a track
   and handed back zeros for that sector and every later one on it, while
@@ -687,26 +617,6 @@ Entries before versioning was introduced use dates only.
   writes still in memory are saved beside the target as `<name>.recovered.woz`
   and the notification names that file; the original image is preserved and
   nothing the guest wrote is thrown away. (GH #115)
-- **The tool's help offered flags the tool does not accept.** Invoked as `/?`,
-  the help written options with whichever prefix the reader had typed (
-  `/out`, `/addr`, `/as`, `/type`, `/cpu`) while the grammar accepted only the
-  `--` form, so an option copied out of the help was silently ignored.
-  Rather than take the form away, the grammar now accepts both: every long
-  option works with `/` as well as `--`, including one carrying an attached
-  value (`/cpu=65c02`). A ProDOS path such as `/VOLUME/STARTUP` still reads as
-  an operand, because only an exact option name is recognized after the slash.
-  The help's own apology for the inconsistency (*"Disk options always take the
-  `--` form, whichever prefix the assembler flags are given with"*) is
-  gone, and tests drive the parser with both forms so the two cannot drift
-  apart again.
-- **A disk image whose name is not plain ASCII came back mangled.**
-  `Space Quarks (1981)(Brøderbund)(II-II+)[48K].woz` echoed out of its own
-  error message as `Br?derbund`, which is not a name anyone can paste back into
-  a command line. The bytes were right the whole way through; they were handed
-  to a console expecting a different character encoding. `disk` output is now
-  converted to whatever encoding the console is actually set to, on its way
-  out. The extracted bytes of `disk get` deliberately do not pass through that
-  conversion; those are a file's contents, not text.
 - **Pasting into the guest no longer garbles the text.** A valid Applesoft line
   pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
   by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
