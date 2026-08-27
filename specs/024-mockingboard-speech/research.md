@@ -451,6 +451,37 @@ roughly **47 px column and 33 px row pitch** — a different proposition entirel
 and very likely sufficient. The master exists; it is simply not published.
 Requesting it is a message, not a project.
 
+### D11c-extraction — the ROM has been read (2026-08-26)
+
+Route C **succeeded on the published image** — the master was not needed for
+a first read, only for independent confirmation. Full data, method, and
+validation live in **`rom-extraction/`**; the short version:
+
+- The array is 64 columns x 29 data bits per phoneme (14 row pairs + one
+  unpaired row), 40% set. The block beneath it is the column address
+  decoder (binary patterns of period 2..64), whose phases prove the
+  **mirrored column mapping**: image column `c` holds phoneme code `63-c`.
+- Cell classification is a learned patch-centroid classifier calibrated on
+  45 hand-labeled cells; validation 45/45 LOO, 0/112 false positives on
+  spacer rows, one full column hand-audited, user spot checks agree.
+- **Semantics recovered so far**: b04 = voiced flag and b03 = fricative
+  flag (each 63/64 against the datasheet, sole exception PA $00); b00 =
+  closure flag (clear exactly for B, D, HVC, HFC); duration-variant
+  families (E/AY, UH/UH1/2/3, R/R1/R2...) isolate a ~9-bit
+  duration/amplitude cluster from the spectral bits; E==AY and AI==:A are
+  bit-identical except the final row, which is therefore non-acoustic
+  (duration), and is NOT parity (35/64, with a hand-audited
+  counterexample).
+- **Open**: field boundaries/weights/polarity for the formant and amplitude
+  values (not plain contiguous binary; rank correlation vs the literature
+  table peaks at rho ~0.75 with overlapping candidates). Next route:
+  Silicon Systems / Votrax patents describing the parameter word.
+
+The extraction supersedes the pessimism of D11c-census: with the user
+supplying structural reads (stub rows, the pair model, the unused-wire
+rows, the decoder identification) and the agent supplying measurement, the
+published 7000-wide image was sufficient.
+
 ### D11-prior — the options as originally framed
 
 D10a means the acoustic-fidelity target is a scope decision, not a research task.

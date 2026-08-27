@@ -16,11 +16,14 @@ Resources/*.json alone ships NOTHING), the VIA CA1/CB1 seam, the speech demo
 disk, and Hardware-tab product naming. First light achieved audibly.
 
 Still open on the spec: T040/T060 (title regression + acceptance sets — need
-acquired period software, local gates), Phase 8 accuracy routes (visual6502
-full-res die shot request drafted at
-`specs/024-mockingboard-speech/visual6502-request-draft.md`, unsent; hardware
-recording as fallback). The voice uses a phonetics-literature formant table —
-the chip's real ROM was never published; the table is a swappable input.
+acquired period software, local gates). Phase 8 accuracy: **the phoneme ROM
+has been read off the visual6502 die shot** — matrix, method, and identified
+semantics (mirrored column map, voiced/fricative/closure flags, duration
+cluster) in `specs/024-mockingboard-speech/rom-extraction/`; open work is the
+formant/amplitude field decode (patent route next; full-res master request
+drafted at `specs/024-mockingboard-speech/visual6502-request-draft.md`,
+unsent, now for confirmation). The voice still uses the phonetics-literature
+formant table until the fields decode; the table is a swappable input.
 Related: GH #125 (audio pops are DEVICE-PATH starvation, not synthesis —
 proven with the `CASSO_AUDIO_DUMP` tap vs loopback capture; fix is a
 dedicated render pump).
