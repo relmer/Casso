@@ -139,6 +139,8 @@ bit-assignments that reproduce expected phoneme spectra.
 | File | Contents |
 |---|---|
 | `rom-region-source.jpg` | Unmodified crop of the ROM region from the visual6502 image |
+| `rom-decoded-plate.png` | **The final plate**: every bit boxed by value, rows labeled with decoded field + bit significance, columns labeled by phoneme |
+| `decoded-data.md` | The decoded data write-up: field map, cross-checks, and the full 64-phoneme table |
 | `rom-region-annotated.png` | Every cell boxed green/red with the b/PAR/column numbering |
 | `rom-bits.csv` | Machine-readable matrix, phoneme-ordered (`0x00`-`0x3F`), bit = oval present |
 | `rom-bits-by-phoneme.txt` | Human-readable dump in phoneme order |
