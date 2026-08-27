@@ -60,17 +60,23 @@ additive tap on the real board's address decode, and it powers up in the
 part's own silent Power Down state, so the **Mockingboard A** behavior every
 existing title sees is byte-for-byte unchanged (and the A remains selectable
 as the `mockingboard` device type). Boot
-`Apple2/Demos/mockingboard-speech-test.dsk` to hear it say hello.
+`Apple2/Demos/mockingboard-speech-test.dsk` to hear it speak.
 
 And a first, stated here because fidelity is the point of this project: the
 chip's own per-phoneme parameter ROM — never published, substituted-for by
 every emulator — has now been **read off the visual6502 die photographs**
-and decoded (64 phonemes; F1/F2/F3 filter codes, vocal and fricative
-amplitudes, nasal coupling, and voiced/fricative/closure flags; extraction
-data and method in `specs/024-mockingboard-speech/rom-extraction/`). The
+and fully decoded: 64 phonemes × 29 bits, six significance-interleaved
+4-bit fields (F1/F2/F3 filter codes, vocal and fricative amplitudes, nasal
+coupling) plus closure/class/fricative/voiced flags, with the on-die column
+address decoder read to prove the phoneme mapping. Extraction data, method,
+and validation are in `specs/024-mockingboard-speech/rom-extraction/`. The
 voice is driven by the silicon's own values: the ROM's filter codes map to
 frequencies through fitted curves, which remain the one approximation until
 the chip's capacitor weights are traced. The table stays a swappable input.
+
+The same push fixed the long-standing audio clicks (#125): rendering now
+runs on a dedicated event-driven WASAPI thread that keeps the device fed
+regardless of emulation cadence — verified glitch-free by loopback capture.
 
 ### Merlin assembler dialect (v1.18.0)
 

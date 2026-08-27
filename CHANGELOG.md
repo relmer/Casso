@@ -26,19 +26,34 @@ Entries before versioning was introduced use dates only.
   the part's own quiescent Power Down state — no audio, no interrupts.
 - `Apple2/Demos/mockingboard-speech-test.a65` (+ committed `.dsk`, built by the
   new `scripts/BuildBootSectorDisk.ps1`): a boot-sector smoke test that speaks
-  "HELLO" on repeat — the speech counterpart of the tone test beside it.
+  "CASSO ROCKS" on repeat — the speech counterpart of the tone test beside it,
+  with per-phoneme durations (stop bursts, full vowels, a closure before the
+  K) as a worked example of driving the chip.
 - `CASSO_AUDIO_DUMP=<file>` diagnostic tap: dumps the generated stereo mix as
   raw float32 at the hand-off to the audio device, so an audible artifact can
   be attributed to Casso's stream or to the device path (see #125).
 
 ### Changed
-- **The voice now speaks from the chip's own ROM.** The SSI 263A's phoneme
-  parameter ROM — never published, substituted-for by every emulator — was
-  read off the visual6502 die photographs and decoded (extraction under
-  `specs/024-mockingboard-speech/rom-extraction/`). The built-in phoneme
-  table is generated from the silicon's F1/F2/F3 filter codes, amplitudes,
-  and voiced/fricative flags; filter codes map to Hz through fitted curves
-  pending the chip's exact capacitor weights.
+- **The voice speaks from the chip's own ROM — a first.** The SSI 263A's
+  phoneme parameter ROM — never published, substituted-for by every emulator
+  — was read off the visual6502 die photographs and fully decoded: 64
+  phonemes × 29 bits, comprising six significance-interleaved 4-bit fields
+  (F1/F2/F3 filter codes, vocal and fricative amplitudes, nasal coupling)
+  plus closure/class/fricative/voiced flags, with the column address decoder
+  read off the metal to prove the phoneme mapping. Extraction data, method,
+  and validation live under `specs/024-mockingboard-speech/rom-extraction/`.
+  The built-in phoneme table is generated from the silicon's values; filter
+  codes map to Hz through fitted curves pending the chip's exact capacitor
+  weights.
+- **The synthesis chain earned its ears.** Diagnosed from instrumented
+  captures rather than knobs: the formant cascade gained the +6 dB/oct lip-
+  radiation tilt every Klatt-style synthesizer needs (without it F2/F3 sat
+  ~12 dB dark and vowels smeared together), frication moved to front-cavity
+  injection after the first formant stage (at the glottis it was crushed
+  into a sub-1 kHz rumble), voiced/noise gains were rebalanced from measured
+  band levels with a glided 1/F1 compensation so close vowels stay audible,
+  and a ~5.5 kHz output low-pass stands in for the card's analog output
+  stage.
 - The Hardware tab names the card model — "Mockingboard A (sound)" /
   "Mockingboard C (sound + speech)" — instead of a raw device string.
 - The 6522 VIA models CA1/CB1 control-line inputs with PCR edge selection —
@@ -48,13 +63,18 @@ Entries before versioning was introduced use dates only.
   version mechanism (2Plus v11, 2e v10, Enhanced v4), so existing installs
   pick up the change on next launch; hand-edited profiles are backed up first,
   as always.
-- The voice's per-phoneme acoustic table is derived from the published
-  phonetics literature, disclosed as such in source: the chip's own parameter
-  ROM has never been published or extracted (every emulator substitutes — see
-  research in `specs/024-mockingboard-speech/`). The table is a swappable
-  input, so measured-from-hardware or extracted-from-die data can replace it
-  wholesale later with no other change.
 - internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
+
+### Fixed
+- **Audio clicks and pops under sustained sound** (#125). The endpoint was
+  fed only when the emulation thread finished a CPU slice, so scheduling
+  jitter or clock drift drained the device buffer and the device inserted
+  hard silence — a click per starvation. Rendering now runs on a dedicated
+  event-driven WASAPI thread that keeps the device fed independent of
+  emulation cadence, holds a ~20 ms floor, and on genuine starvation fades
+  out and crossfades back in rather than stepping. Verified by loopback
+  capture: zero click events and zero dropout gaps over 20 s, from a ~1/s
+  floor before.
 
 ## [1.18.0] — Merlin assembler dialect
 
