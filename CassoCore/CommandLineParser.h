@@ -179,8 +179,8 @@ public:
     static constexpr const char *  kRunExitStatusHelpText =
         "    0  Success. Execution reached the stop address or cycle limit\n"
         "    1  Error assembling source\n"
-        "    2  Bad command line or error opening file\n"
-        "    3  Error. Execution encountered an illegal opcode";
+        "    2  Error: bad command line or error opening file\n"
+        "    3  Error: execution encountered an illegal instruction";
 
     //  The status `run` and `disk` both spend on a command line they refused.
     //  Named here rather than written as a 2 at the point of use, so it sits

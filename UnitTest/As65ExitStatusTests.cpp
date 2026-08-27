@@ -254,7 +254,7 @@ namespace As65ExitStatusTests
             Assert::AreEqual (1, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::As65),
                               L"and that is what it returns");
 
-            Assert::IsTrue (run.find ("    2  Bad command line") != std::string::npos,
+            Assert::IsTrue (run.find ("    2  Error: bad command line") != std::string::npos,
                             L"run's page folds a refusal into 2");
             Assert::AreEqual (2, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Run),
                               L"and that is what it returns");
