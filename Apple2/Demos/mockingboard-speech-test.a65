@@ -2,8 +2,8 @@
 ;  mockingboard-speech-test.a65 -- minimal Mockingboard C speech smoke test
 ;
 ;  A single boot-sector program that UNCONDITIONALLY programs the slot-4
-;  Mockingboard C's SSI 263A for a short phoneme sequence ("HELLO"), then
-;  repeats it forever. There is no card detection and no game logic: if you
+;  Mockingboard C's SSI 263A for a short phoneme sequence ("CASSO ROCKS"),
+;  then repeats it forever. There is no card detection and no game logic: if you
 ;  hear the voice, the host speech path (decode -> chip -> synthesis ->
 ;  audio source -> mixer -> WASAPI) works end-to-end. Silence means the
 ;  fault is on the host side; its tone counterpart, mockingboard-test.a65,
@@ -78,14 +78,21 @@ wait
     bne next                ; unconditional (Y never wraps within the list)
 
 
-; "HELLO" as SSI 263A phonemes: HF EH1 L :OH OU, then a pause.
+; "CASSO ROCKS" as SSI 263A phonemes: K AE S :OH OU / R1 AH K S, with a
+; pause between the words and a longer one between repeats.
 phonemes
-    .byte $2C               ; HF   h
-    .byte $0B               ; EH1  eh
-    .byte $20               ; L    l
+    .byte $29               ; K    k
+    .byte $0C               ; AE   a as in "dad"
+    .byte $30               ; S    s
     .byte $3B               ; :OH  oh
     .byte $12               ; OU   ou
+    .byte $00               ; PA   word gap
+    .byte $1E               ; R1   r as in "rug"
+    .byte $0E               ; AH   o as in "got"
+    .byte $29               ; K    k
+    .byte $30               ; S    s
     .byte $00               ; PA   pause between repeats
+    .byte $00               ; PA
     .byte $FF               ; end marker
 
 ; --- end ---
