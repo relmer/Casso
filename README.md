@@ -48,7 +48,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
-### The Mockingboard speaks — SSI-263 voice chip (unreleased)
+### The Mockingboard speaks — SSI-263 voice chip (v1.19.0)
 
 The emulated Mockingboard is now the **Mockingboard C** — the sound card plus
 Sweet Micro's speech option — by default on the ][+, //e, and //e Enhanced.

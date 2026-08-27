@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.19.0] — The Mockingboard speaks
 
 ### Added
 - **Mockingboard C — the voice chip speaks** (#123). The SSI 263A phoneme
