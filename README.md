@@ -56,7 +56,7 @@ reads files off it and puts them back: `create`, `init`, `list`, `get`, `put`,
 `delete` and `boot`, on DOS 3.3 and ProDOS volumes, in `.dsk`, `.do`, `.po` and
 `.woz` images alike, with no third-party tool anywhere in the loop. For the
 disks that carry no filesystem at all -- a demo that boots its own loader off
-track 0 -- `sectorwrite` lays bytes at a track and a logical sector and
+track 0 -- `sectorwrite` lays bytes at a track and a physical sector and
 `sectorread` takes them back, which `get` cannot do because it reads through a
 catalog these disks do not have. Source to a
 running machine, in six commands:

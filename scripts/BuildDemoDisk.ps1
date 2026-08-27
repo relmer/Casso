@@ -81,23 +81,27 @@ $kStage1Length    = $kBytesPerSector
 $kStage2Length    = $kBytesPerSector
 $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
-# DOS 3.3 logical-to-physical sector interleave. Casso's nibblization
-# layer expects .dsk files in PHYSICAL sector order; writing logical
-# sector S of track T means writing it at file offset
-# (T * 16 + LtoP[S]) * 256.
-$kDsk_LtoP = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
+# DOS 3.3 physical-to-file sector interleave, indexed by physical sector --
+# the number in the address field the drive presents at that position, which
+# is how the demo's own RWTS files what it reads. A .dsk holds its sectors in
+# DOS logical order, so placing payload page S under address mark S means
+# writing it at file offset (T * 16 + PhysicalToFile[S]) * 256. The same
+# sixteen numbers live in NibblizationLayer; `disk sectorwrite` (the default
+# path below) reads them there, and this copy is what makes -Compare an
+# independent witness.
+$kDsk_PhysicalToFile = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-function Get-LogicalSectorOffset {
+function Get-PhysicalSectorOffset {
     param(
         [int]$Track,
-        [int]$LogicalSector
+        [int]$PhysicalSector
     )
-    return ($Track * $kSectorsPerTrack + $kDsk_LtoP[$LogicalSector]) * $kBytesPerSector
+    return ($Track * $kSectorsPerTrack + $kDsk_PhysicalToFile[$PhysicalSector]) * $kBytesPerSector
 }
 
 
@@ -213,12 +217,12 @@ function Build-LayoutInPowerShell {
     $image = New-Object byte[] $kImageSize
 
     # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 0 0) $stage1
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 0 0) $stage1
 
     # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (1 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (1 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -227,19 +231,19 @@ function Build-LayoutInPowerShell {
     }
 
     # Track 3 logical sector 0: stage 2 ($1000..$10FF)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 3 0) $stage2
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 3 0) $stage2
 
     # Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
     for ($sector = 0; $sector -lt 4; $sector++) {
         $slice = New-Object byte[] $kBytesPerSector
         [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image (Get-LogicalSectorOffset 3 (1 + $sector)) $slice
+        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (1 + $sector)) $slice
     }
 
     # Tracks 4-5: DHGR main pattern
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (4 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (4 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -250,7 +254,7 @@ function Build-LayoutInPowerShell {
     # Tracks 6-7: HGR1 cassowary
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (6 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (6 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -261,7 +265,7 @@ function Build-LayoutInPowerShell {
     # Tracks 8-9: HGR2 test bands
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (8 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (8 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)

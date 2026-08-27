@@ -95,14 +95,14 @@ public:
 
 
     // DOS 3.3 nibblizes physical sector P with the source bytes from
-    // logical sector kDsk_LtoP[P]. So when we read physical sector P,
-    // the byte we get is whatever was stamped for logical kDsk_LtoP[P].
+    // logical sector kDsk_PhysicalToFile[P]. So when we read physical sector
+    // P, the byte we get is whatever was stamped for that logical sector.
     int PhysicalToLogicalDosSector (int physical)
     {
-        static constexpr int kDsk_LtoP[16] = {
+        static constexpr int kDsk_PhysicalToFile[16] = {
             0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
         };
-        return kDsk_LtoP[physical];
+        return kDsk_PhysicalToFile[physical];
     }
 
 

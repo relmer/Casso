@@ -2269,16 +2269,16 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
     CHR (hr);
 
-    //  The LOGICAL sector, translated the same way the write translates it, so
-    //  a number given to one command means the same to the other.
+    //  The PHYSICAL sector, translated the same way the write translates it,
+    //  so a number given to one command means the same to the other.
     for (int index = 0; index < options.disk.sectorCount; index++)
     {
-        size_t  running = first + (size_t) index;
-        int     track   = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
-        int     logical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
-        size_t  at      = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
-                                   + NibblizationLayer::DskFileIndexForDosLogicalSector (logical))
-                                  * NibblizationLayer::kSectorByteSize);
+        size_t  running  = first + (size_t) index;
+        int     track    = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
+        int     physical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
+        size_t  at       = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
+                                    + NibblizationLayer::DosFileIndexForPhysicalSector (physical))
+                                   * NibblizationLayer::kSectorByteSize);
 
         if (at + (size_t) NibblizationLayer::kSectorByteSize > opened.sectors.size())
         {
@@ -2336,19 +2336,22 @@ Error:
 //
 //  DiskCommandRunner::RunSectorWrite
 //
-//  A file from the host laid into an image at a track and a DOS logical sector.
+//  A file from the host laid into an image at a track and a physical sector.
 //
 //  NO FILESYSTEM IS INVOLVED, WHICH IS THE POINT. A demo that boots its own
 //  loader and reads fixed tracks has no catalog to make an entry in and no
 //  allocator to ask for space, so `put` cannot express it at all. This writes
 //  the bytes given, where it is told, and nothing else.
 //
-//  THE SECTOR IS LOGICAL, NOT PHYSICAL. Logical numbering is what a source
-//  listing and a boot loader both speak; the position on the disk differs from
-//  it by the interleave, and translating between the two belongs to the layer
-//  that owns the skew. A caller doing that arithmetic itself is a second copy
-//  of the sixteen numbers, which is how an image comes to read back perfectly
-//  through our own reader and be garbage on real hardware.
+//  THE SECTOR IS PHYSICAL: the number in the address field the drive meets at
+//  that position, which is what a boot loader asking the drive ROM for
+//  sectors actually speaks. A DOS-ordered image keeps that sector at an
+//  offset that differs by the interleave, and translating between the two
+//  belongs to the layer that owns the skew. A caller doing that arithmetic
+//  itself is a second copy of the sixteen numbers, which is how an image
+//  comes to read back perfectly through our own reader and be garbage on real
+//  hardware. This banner long claimed the opposite orientation; the skew case
+//  in DirectBootTests is what settles it against DOS's own table.
 //
 //  It runs on past the end of a track into the next one, because a payload
 //  longer than 4 KB is ordinary and splitting the call per track would put the
@@ -2426,15 +2429,15 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
         for (size_t index = 0; index < needed; index++)
         {
-            size_t  running = first + index;
-            int     track   = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
-            int     logical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
-            size_t  at      = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
-                                       + NibblizationLayer::DskFileIndexForDosLogicalSector (logical))
-                                      * NibblizationLayer::kSectorByteSize);
-            size_t  from    = index * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t  count   = std::min ((size_t) NibblizationLayer::kSectorByteSize,
-                                        payload.size() - from);
+            size_t  running  = first + index;
+            int     track    = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
+            int     physical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
+            size_t  at       = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
+                                        + NibblizationLayer::DosFileIndexForPhysicalSector (physical))
+                                       * NibblizationLayer::kSectorByteSize);
+            size_t  from     = index * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t  count    = std::min ((size_t) NibblizationLayer::kSectorByteSize,
+                                         payload.size() - from);
 
             if (at + count > edited.size())
             {

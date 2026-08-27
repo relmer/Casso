@@ -102,7 +102,7 @@ public:
                            DiskCommandResult        & result);
 
     //
-    //  Lays a file from the host into an image at a track and a DOS logical sector,
+    //  Lays a file from the host into an image at a track and a physical sector,
     //  with no filesystem involved.
     //
     //  FOR THE DISKS THAT HAVE NO FILESYSTEM TO PUT A FILE INTO. A demo that

@@ -8,6 +8,14 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+- **`disk sectorread` and `disk sectorwrite` say "physical sectors" in their
+  help, which is what they always addressed.** The sector number names the
+  address field the drive presents at that position on the track; the help
+  and several comments called it logical, which is measurably the inverse.
+  The mapping itself is unchanged, verified by rebuilding the demo disk
+  byte-identical both ways.
+
 ## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 
 ### Added

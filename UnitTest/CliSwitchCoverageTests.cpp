@@ -349,7 +349,7 @@ namespace CliSwitchCoverageTests
 
             { "disk", "sector", { "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", "--sector", "5" },
               [] (const CommandLineOptions & o) { return o.disk.sector == 5; },
-              "--sector says which logical sector to start at" },
+              "--sector says which physical sector to start at" },
 
             { "disk", "count", { "CassoCli", "disk", "sectorread", "d.dsk", "--count", "4" },
               [] (const CommandLineOptions & o) { return o.disk.sectorCount == 4; },

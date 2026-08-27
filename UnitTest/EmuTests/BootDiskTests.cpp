@@ -249,8 +249,8 @@ public:
             //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
-            //   - Track 3 logical sector 0: stage 2 code (lands at $1000).
-            //     Track 3 logical sectors 1..4: 1 KB LoRes test pattern
+            //   - Track 3 physical sector 0: stage 2 code (lands at $1000).
+            //     Track 3 physical sectors 1..4: 1 KB LoRes test pattern
             //     (lands at $1100-$14FF, copied into text page 1 in
             //     mode_lores).
             //   - Tracks 4+5: 8 KB DHGR main pattern (loaded by stage 2
@@ -268,10 +268,13 @@ public:
             //   disk reads instead of waiting for all 9. HGR1+HGR2 load
             //   in the background after first frame is up.
             //
-            //   The HGR payloads use the DOS 3.3 logical-to-physical
-            //   interleave so that when our RWTS reads logical sector S
-            //   of track T it gets exactly payload[((T-startTrack)*16+S)*256..].
-            static constexpr int  kDsk_LtoP[16] =
+            //   The payloads go through the DOS 3.3 physical-to-file
+            //   interleave so that page S of a payload sits under address
+            //   mark S: the demo's RWTS reads sectors in whatever order they
+            //   arrive and files each by its address-mark number, so the
+            //   sector the drive presents as S must hold
+            //   payload[((T-startTrack)*16+S)*256..].
+            static constexpr int  kDsk_PhysicalToFile[16] =
             {
                 0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
             };
@@ -283,16 +286,15 @@ public:
                 raw[1 + i] = asmResult.bytes[i];
             }
 
-            // Track 3 logical sector 0 -> stage 2 code at $1000.
-            // Track 3 logical sectors 1-4 -> LoRes pattern at $1100-$14FF.
-            // Use the LtoP mapping so the on-disk physical layout the
-            // nibblizer produces matches what stage 1's RWTS expects to
-            // read out by logical address.
-            auto StampTrack3Sector = [&] (int logicalSector,
+            // Track 3 physical sector 0 -> stage 2 code at $1000.
+            // Track 3 physical sectors 1-4 -> LoRes pattern at $1100-$14FF.
+            // Route through the interleave so each payload page sits under
+            // the address mark stage 1's RWTS will file it by.
+            auto StampTrack3Sector = [&] (int physicalSector,
                                           const Byte * data, size_t len)
             {
                 size_t  fileOffset = static_cast<size_t> (
-                    3 * kSectorsPerTrack + kDsk_LtoP[logicalSector])
+                    3 * kSectorsPerTrack + kDsk_PhysicalToFile[physicalSector])
                     * kSectorByteSize;
                 for (size_t i = 0; i < len; i++)
                 {
@@ -320,7 +322,7 @@ public:
                     for (int sector = 0; sector < kSectorsPerTrack; sector++)
                     {
                         size_t  fileOffset =
-                            static_cast<size_t> (track * kSectorsPerTrack + kDsk_LtoP[sector])
+                            static_cast<size_t> (track * kSectorsPerTrack + kDsk_PhysicalToFile[sector])
                             * kSectorByteSize;
                         size_t  payloadOffset =
                             static_cast<size_t> (trackOffset * kSectorsPerTrack + sector)

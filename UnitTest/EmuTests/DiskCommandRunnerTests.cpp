@@ -407,9 +407,12 @@ public:
         io.stamps[path] = stamp;
     }
 
-    //  LOGICAL SECTOR 1 IS NOT AT FILE OFFSET 256. It is at the offset the
-    //  interleave puts it, which for DOS 3.3 is physical position 7. This is
-    //  the assertion that would fail if the command wrote sequentially.
+    //  PHYSICAL SECTOR 1 IS NOT AT FILE OFFSET 256. The command's sector
+    //  numbers are physical positions -- the address field the drive meets at
+    //  that slot -- and a DOS-ordered image keeps the sector presented there
+    //  at the offset the interleave picks, which for physical 1 is DOS
+    //  logical 7. This is the assertion that would fail if the command wrote
+    //  sequentially.
     TEST_METHOD (SectorWrite_PlacesBytesWhereTheInterleavePutsThem)
     {
         FakeDiskFileIo     io;
@@ -427,7 +430,7 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         expectedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
-                              + NibblizationLayer::DskFileIndexForDosLogicalSector (1))
+                              + NibblizationLayer::DosFileIndexForPhysicalSector (1))
                              * NibblizationLayer::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0xA5, written[expectedAt], L"the skewed offset holds the bytes");
@@ -456,16 +459,16 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         //  Twenty sectors from track 1 sector 0 run to index 19, which is
-        //  four sectors into track 2: logical sector 3.
+        //  four sectors into track 2: physical sector 3.
         lastAt = (size_t) ((2 * NibblizationLayer::kSectorsPerTrack
-                          + NibblizationLayer::DskFileIndexForDosLogicalSector (3))
+                          + NibblizationLayer::DosFileIndexForPhysicalSector (3))
                          * NibblizationLayer::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0x5A, written[lastAt], L"the last sector landed on track 2");
 
         Assert::AreEqual ((Byte) 0x00,
                           written[(size_t) ((2 * NibblizationLayer::kSectorsPerTrack
-                                           + NibblizationLayer::DskFileIndexForDosLogicalSector (4))
+                                           + NibblizationLayer::DosFileIndexForPhysicalSector (4))
                                           * NibblizationLayer::kSectorByteSize)],
                           L"and the one after it was left alone");
     }
