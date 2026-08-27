@@ -56,7 +56,7 @@ Entries before versioning was introduced use dates only.
   rejoined before parsing. The signature is exact, a front half that is a
   single-dash flag group ending in a flag whose value is a name and carrying
   neither dot nor colon, with a back half beginning at the dot, and no command
-  line of that shape had a valid reading, so nothing that worked before is read
+  line written that way had a valid reading, so nothing that worked before is read
   differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
   `-o` could always be written `-o prog.bin`, and those three had no separated
   form to fall back on. With the repair in place the help no longer explains the
@@ -93,7 +93,7 @@ Entries before versioning was introduced use dates only.
   ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
   third-party tool in the loop. `put` takes `--as` to name the file on the
   disk, `--type` and `--load` for what the catalog records, and `--text` to
-  convert host text to the disk's own character convention; naming no
+  convert host text to the disk's own character convention; giving no
   conversion, the default, moves the bytes unchanged, so extract-edit-replace
   does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
   the complete new image is built and checked in memory, written beside the
@@ -115,7 +115,7 @@ Entries before versioning was introduced use dates only.
   states that the subcommand defines none above 2, which is what documenting a
   scoped status set amounts to when there are none) says that `put` and `get`
   are named from the disk's point of view, and warns about the two steps that
-  are guessed wrong: assemble with the default shape rather than `--dos-bin`,
+  are guessed wrong: assemble with the default output format rather than `--dos-bin`,
   because
   `put` writes the DOS 3.3 header itself and a file that already carries one
   has its own header loaded as code where the program should begin; and set the
@@ -144,8 +144,8 @@ Entries before versioning was introduced use dates only.
   volume is refused by name, because a startup program is the one setting with
   nothing to show for itself in a listing: a typo would surface as a machine
   booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
-  greeting, so naming a binary there succeeds and says out loud that the disk
-  will boot without running it.
+  greeting, so a binary there is refused: RUN cannot start one, and the
+  disk would boot into nothing.
 - **Unpadded and DOS 3.3 assembler output.** The assembler could only write
   a full 64 KB memory image, padded with the fill byte, correct for ROM
   burning and reference comparison, useless for loading a 2 KB routine, which
@@ -200,8 +200,8 @@ Entries before versioning was introduced use dates only.
   exit-code decisions, none of which the test assembly links and therefore none
   of which could be checked. It is 57 lines now: one `main` that calls
   `CliMain` and returns what comes back. The split is testability rather than
-  platform, so the Win32 file layer moved too. This is the shape GitHub issue
-  #85 asks every executable to take.
+  platform, so the Win32 file layer moved too. This is what GitHub issue
+  #85 asks every executable to become.
 - **Every refusal opens with `Error:` and no longer names the mode it is not an
   option of.** There were three prefixes in use, chosen by which layer happened
   to notice the problem: `Error:`, `CassoCli:`, and none at all. The mode is on
@@ -220,7 +220,7 @@ Entries before versioning was introduced use dates only.
   are. Every refusal now prints the page belonging to the mode that was named,
   then the reason, last, so the reason is the line left on screen.
 - **A lone `?` opens the general page.** It opened the assembler's while a bare
-  source file still assembled, which made the top level AS65 mode. Naming the
+  source file still assembled, which made the top level AS65 mode. Stating the
   dialect is required now, so the top level names no grammar and `?` asks the
   same question `--help` does. `CassoCli as65 ?` opens the assembler's page.
 - The help says **mode** rather than subcommand throughout, and the disk page
@@ -232,7 +232,7 @@ Entries before versioning was introduced use dates only.
   else that opened no file. So a script ported from AS65 read a warning as a
   command-line error and a command-line error as a missing file. 0 through 3 are
   AS65's meanings now, warnings report **5**, and 4 stays unused because AS65
-  spends it on an out-of-memory this tool cannot reach. Naming no source file at
+  spends it on an out-of-memory this tool cannot reach. Giving no source file at
   all is 1 rather than 2 for the same reason: nothing was opened because nothing
   was named. **This is a breaking change for any script branching on 1 or 2.**
 - **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
@@ -266,7 +266,7 @@ Entries before versioning was introduced use dates only.
   lands straight on one is still told which build is answering, and every page
   writes its flags with the prefix you typed. Options are grouped by what you
   are trying to do rather than alphabetically, which had put `-c`, `-l`, `-m`
-  and `-p` four places apart while they all shape the same listing; output and
+  and `-p` four places apart while they all control the same listing; output and
   listing options nest under assembly, since neither applies to `run` or `disk`;
   the disk commands lead with every form they accept (`cat | catalog | dir | list |
   ls`) rather than trailing aliases in an "also written" clause; and each group
@@ -312,7 +312,7 @@ Entries before versioning was introduced use dates only.
 - **BREAKING: `--cpu` is withdrawn; `-x` selects the 65C02.** The two selected
   the same instruction set, and `-x` is AS65's own name for that switch, "Use
   65SC02 extensions", so the tool carried two forms of one capability and
-  the AS65-shaped one was what an AS65 user would reach for. Both `--cpu` and
+  the AS65 one was what an AS65 user would reach for. Both `--cpu` and
   `/cpu` are answered by name, pointing at `-x`, rather than falling into the
   generic unknown-option refusal: command lines carrying the flag already
   exist, and `/cpu` would otherwise be read as the concatenated `-c -p -u`.
@@ -334,8 +334,8 @@ Entries before versioning was introduced use dates only.
   illegal option has been specified." It was dropped with a warning while the
   assembly ran on and wrote its output at status 1, a decision this project
   made deliberately and has now reversed, because a flag that does not parse is
-  the one most likely to have shaped the output, and a makefile passing a flag
-  this assembler does not have got a binary shaped by the flags that survived,
+  the one most likely to have changed the output, and a makefile passing a flag
+  this assembler does not have got a binary built from the flags that survived,
   under the same status an ordinary assembler warning earns. **If a script
   tests for 1 to mean "a flag was ignored", there is no such status now**: the
   command line is refused and exits 2. The assembler's own page is the one
@@ -344,7 +344,7 @@ Entries before versioning was introduced use dates only.
   names no file, extension or format, so `-g out.dbg` and `-gout.dbg` are both
   gone. Bare `-g` still writes the source's name with a `.dbg` extension, which
   is what it always did. **This removes a capability AS65 never had rather than
-  matching one**, naming the debug file would need a form of Casso's own.
+  matching one**: choosing the debug file's name would need a flag of Casso's own.
   Note that `-gout.dbg` now parses as `-g -out.dbg` under AS65 concatenation,
   the same reading that makes `/out` mean `-o ut`.
 - **BREAKING: a bare `CassoCli` exits 1.** It printed the general page and
@@ -369,7 +369,7 @@ Entries before versioning was introduced use dates only.
   working directory, and consumed the next argument as the input file, then
   reported exit 1, the status meaning "assembled, and the output was written".
   Every `--` option the assembly grammar does not have is now refused with a
-  message naming it and pointing at `-o <file>`. `--out` remains the `disk`
+  message that quotes it and points at `-o <file>`. `--out` remains the `disk`
   grammar's flag and `-o` the assembler's; they are deliberately not unified,
   because AS65 argument compatibility is what the assembly grammar exists for.
   The `/` forms are untouched, `/oFILE` is the glued form AS65 documents,
@@ -383,14 +383,14 @@ Entries before versioning was introduced use dates only.
   does take. A ProDOS path such as `/VOLUME/STARTUP` is still an operand, only
   a dash is treated as a mistake.
 - **BREAKING: assembling now writes the assembled bytes, not a 64 KB image.**
-  Naming no output shape used to write a full 64 KB memory image padded with
+  Giving no output format used to write a full 64KB memory image padded with
   the fill byte, so a 200-byte routine came out as a 65,536-byte file that had
   to be sliced down by hand. The padded image is what a ROM burner or a
   byte-for-byte reference comparison wants and it is still available; it is
   now written **`--flat`**. **If you relied on the padded image, add
-  `--flat`.** One consequence worth naming: the "no shape was named" test that
+  `--flat`.** One consequence worth stating: the "no format was given" test that
   lets a `.s19` or `.hex` output filename select its format is now a fact of
-  its own rather than a value of the shape, so `--flat -o out.s19` writes the
+  its own rather than a value of the format, so `--flat -o out.s19` writes the
   padded image where the filename would previously have won.
 - **`disk list` says something useful about an image with no filesystem.** It
   used to answer only *"carries no DOS 3.3 or ProDOS filesystem this tool
@@ -412,7 +412,7 @@ Entries before versioning was introduced use dates only.
   primary commands are unchanged.
 - **An explicit output-format flag now wins over the filename's extension.**
   Extension matching remains as the fallback when no flag is given, so AS65-era
-  scripts naming a `.s19` or `.hex` output keep working. Previously the
+  scripts that give a `.s19` or `.hex` output filename keep working. Previously the
   extension always won, which meant `-s -o out.dat` silently wrote a flat
   binary despite the flag asking for an S-record.
 - Command-line option modelling and parsing moved from the `CassoCli`
@@ -446,7 +446,7 @@ Entries before versioning was introduced use dates only.
   implement a conditional folding the assembler does not need. `-i` is still
   accepted, still concatenates, and now records nothing.
 - **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
-  naming no shape already does, so it bought nothing and cost a line of the
+  giving no format flag already does, so it bought nothing and cost a line of the
   help. **If a command line writes it, delete the flag**; the result is
   identical. It is refused rather than ignored, so nothing carries on quietly
   with it: `--raw` used to be readable as the packed flags `-r -a -w`, which
@@ -527,7 +527,7 @@ Entries before versioning was introduced use dates only.
   separately.
 - **A refused flag combination exited 2, and an unknown flag exited 1, for the
   same class of mistake.** as65 spends 1 on "incorrect parameter specified on
-  the commandline" and 2 on "unable to open input or output file". Naming two
+  the commandline" and 2 on "unable to open input or output file". Giving two
   output formats, or handing Merlin the `-x` it takes from the source instead,
   is the first of those and was answered with the second, by a printing helper
   that returned its own exit code on the reasoning that a refusal produces no
