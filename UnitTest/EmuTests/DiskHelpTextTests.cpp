@@ -500,7 +500,11 @@ public:
                             (L"no grammar line: " + which).c_str());
             Assert::IsTrue (entry.example != nullptr && *entry.example != '\0',
                             (L"no example: " + which).c_str());
-            Assert::IsTrue (std::string (entry.grammar).find ("CassoCli disk ") == 0,
+            //  Read through a local that cannot be null. The assert above already
+            //  failed the case if it was; an empty string fails this one too.
+            const char *  grammar = (entry.grammar != nullptr) ? entry.grammar : "";
+
+            Assert::IsTrue (std::string (grammar).find ("CassoCli disk ") == 0,
                             (L"the grammar does not open on the command: " + which).c_str());
         }
     }

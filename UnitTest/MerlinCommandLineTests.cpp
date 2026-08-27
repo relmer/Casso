@@ -655,8 +655,14 @@ namespace MerlinCommandLineTests
                 CommandLineParser::MatchFlag (DialectId::As65, "-s2out.hex", 1, matched);
 
             Assert::IsTrue (flag != nullptr, L"-s2 is matched");
-            Assert::AreEqual (std::string ("s2"), std::string (flag->option));
-            Assert::AreEqual (size_t (2), matched, L"and it consumed both characters, not one");
+
+            //  Guarded as well as asserted: the assert above fails the case, but
+            //  code analysis cannot see that it does not return.
+            if (flag != nullptr)
+            {
+                Assert::AreEqual (std::string ("s2"), std::string (flag->option));
+                Assert::AreEqual (size_t (2), matched, L"and it consumed both characters, not one");
+            }
         }
     };
 

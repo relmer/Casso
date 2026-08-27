@@ -539,7 +539,9 @@ struct CharacterMap
 
 struct FileReadResult
 {
-    bool        success;
+    //  False until a read says otherwise: a caller that checks this before
+    //  the reader has run must see failure, not whatever was on the stack.
+    bool        success = false;
     std::string contents;
     std::string error;
 };
