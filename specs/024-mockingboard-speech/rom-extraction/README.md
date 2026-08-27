@@ -70,8 +70,37 @@ Cross-validation from structure alone:
   including a fully hand-audited counterexample (C06), and no row subset
   computes it (best of 406 contiguous ranges: 43/64).
 
-**Open**: exact field boundaries, bit weights, and polarity for the filter
-and amplitude values in b05-b27.
+## DECODED (2026-08-26): the full field structure
+
+The key came from MAME's SC-01 work (`votrax.cpp`, from the 2007 sc01a.bin
+decap): Gagnon's designs store parameters **significance-interleaved** —
+one bit-plane of every parameter, then the next plane. Applying that scheme
+at stride 6 over b05-b27+PAR decodes the whole word
+(`rom-decoded-params.csv`):
+
+| Field | Rows (MSB..LSB, oval=1) | Identity | Evidence |
+|---|---|---|---|
+| flags | b00-b04 | closure, class x2, ~fricative, ~voiced | see table above |
+| FA | b05,b11,b17,b23 | Fricative/noise amplitude | 0 for ALL vowels+sonorants; 15 for S/P/T, graded down SCH/F/TH |
+| VA | b06,b12,b18,b24 | Voice amplitude | 0 for all unvoiced; 8-12 vowels; low for voiced fricatives |
+| F3 | b07,b13,b19,b25 | F3 filter code | rho 0.85 vs literature; R=1/ER=3 = the retroflex low-F3 signature |
+| NASAL | b08,b14,b20,b26 | Nasal coupling (2 active bits) | =3 for exactly M, N, NG, HN; 0 elsewhere (hence the all-zero rows) |
+| F2 | b09,b15,b21,b27 | F2 filter code | **rho 0.94** vs literature; E=14..AH=3..U=1..W=0 monotone front-to-back |
+| F1 | b10,b16,b22,PAR | F1 filter code | rho 0.89; E=2..AE=13..AH=15..U=3 = the vowel-triangle trajectory |
+
+"PAR" was F1's least-significant bit all along — which is why E/AY and
+AI/:A differ only there (adjacent F1 codes, identical in the literature),
+and why it never computed as parity.
+
+PA ($00) decodes to FA=0, VA=0 with mid-tract filter codes: silence with a
+parked vocal tract — the hardware behavior behind "pauses hold the tract."
+
+**Open**: the code-to-Hz mapping per filter (the switched-capacitor DAC
+weights). The SC-01 precedent (`votrax.cpp` bits_to_caps) says codes index
+near-binary-weighted capacitor sums; calibrating our three filter code
+tables to frequencies needs either the die-level capacitor geometry (the
+full-res master) or empirical fitting against reference audio/formant
+targets. Amplitude scaling (FA/VA codes to gain) likewise.
 
 What the field investigation established (2026-08-26):
 
