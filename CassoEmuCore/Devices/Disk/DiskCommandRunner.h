@@ -170,6 +170,12 @@ public:
     //  is OpenImage, which is handed a path and nothing else. Threading the
     //  command through every layer to reach it would put it in six signatures
     //  that have no other use for it.
+    //  A refused option VALUE: the composed sentence goes to the
+    //  diagnostics and the line is marked bad, so the edge narrows the page
+    //  to the one command the reader named. One routine, so the F-suffixed
+    //  macros can carry a snprintf-composed refusal in one action.
+    static void  RefuseBadValue (DiskCommandResult & result, const char * summary);
+
     void  ReportMissingParameter (const std::string & parameter,
                                   DiskCommandResult & result) const;
 

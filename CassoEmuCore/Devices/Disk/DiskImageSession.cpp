@@ -57,19 +57,19 @@ std::string DiskImageSession::DetailLine (const char * label, const std::string 
 
 
 
-    if (value.empty())
+    if (!value.empty())
     {
-        return text;
+        text = std::string ("  ") + label;
+
+        while (text.size() < kLabelColumn)
+        {
+            text += " ";
+        }
+
+        text += value + "\n";
     }
 
-    text = std::string ("  ") + label;
-
-    while (text.size() < kLabelColumn)
-    {
-        text += " ";
-    }
-
-    return text + value + "\n";
+    return text;
 }
 
 
@@ -99,6 +99,7 @@ std::string DiskImageSession::DetailLine (const char * label, const std::string 
 
 std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileBytes)
 {
+    HRESULT                 hr        = S_OK;   // vestigial, for the bail
     WozLoader::Description  woz;
     std::string             text;
     std::string             media;
@@ -108,10 +109,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
 
     WozLoader::Describe (fileBytes, woz);
 
-    if (!woz.isWoz)
-    {
-        return text;
-    }
+    BAIL_OUT_IF (!woz.isWoz, S_OK);
 
     snprintf (note, sizeof (note), "WOZ %d bit-stream image, INFO version %d",
               woz.wozVersion, woz.infoVersion);
@@ -186,6 +184,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         }
     }
 
+Error:
     return text;
 }
 
@@ -282,27 +281,29 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // blank would tell somebody their bootable disk does not boot.
     if (!trackZeroOk)
     {
-        return text + DetailLine ("boot sector",
+        text += DetailLine ("boot sector",
             "track 0 did not decode as standard sectors, so what it holds\n"
             "                cannot be judged from here");
     }
-
-    for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
+    else
     {
-        if (opened.sectors[i] != 0)
+        for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
         {
-            bootCode = true;
-            break;
+            if (opened.sectors[i] != 0)
+            {
+                bootCode = true;
+                break;
+            }
         }
-    }
 
-    text += DetailLine ("boot sector",
-                        bootCode
-                            ? "track 0 sector 0 carries code. The drive's ROM reads\n"
-                              "                that sector and jumps into it, so this image"
-                              " boots something.\n                It simply keeps its files"
-                              " somewhere this tool does not read"
-                            : "track 0 sector 0 is blank, so nothing here would boot");
+        text += DetailLine ("boot sector",
+                            bootCode
+                                ? "track 0 sector 0 carries code. The drive's ROM reads\n"
+                                  "                that sector and jumps into it, so this image"
+                                  " boots something.\n                It simply keeps its files"
+                                  " somewhere this tool does not read"
+                                : "track 0 sector 0 is blank, so nothing here would boot");
+    }
 
     return text;
 }
@@ -355,64 +356,46 @@ HRESULT DiskImageSession::OpenImage (
     DiskCommandResult  & result,
     bool                 requireFilesystem)
 {
-    HRESULT       hr      = S_OK;
-    bool          named   = !imagePath.empty();
-    HRESULT       statHr  = S_OK;
+    HRESULT       hr         = S_OK;
+    bool          named      = !imagePath.empty();
+    bool          identified = false;
+    HRESULT       statHr     = S_OK;
     vector<Byte>  fileBytes;
 
 
 
     outOpened.imagePath = imagePath;
 
-    if (!named)
-    {
-        //  Unreachable through the runner, which reports missing
-        //  operands before any command runs; kept for a caller
-        //  reaching the session directly. The sentence matches the
-        //  runner's; the usage block is the runner's to print.
-        result.diagnostics += "Error: required parameter <image> missing\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-        return E_INVALIDARG;
-    }
+    //  Unreachable through the runner, which reports missing operands before
+    //  any command runs; kept for a caller reaching the session directly. The
+    //  sentence matches the runner's; the usage block is the runner's to print.
+    CBRFEx (named, E_INVALIDARG,
+            (result.diagnostics += "Error: required parameter <image> missing\n",
+             result.exitStatus   = DiskCommandResult::kNoOutput));
 
     hr = m_fileIo.ReadAllBytes (imagePath, fileBytes);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (imagePath, "", "cannot be read") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-        return hr;
-    }
+    CHRF (hr, result.Fail (imagePath, "", "cannot be read"));
 
     statHr                    = m_fileIo.Stat (imagePath, outOpened.stamp);
     outOpened.stampRecorded   = SUCCEEDED (statHr);
     outOpened.fileBytes       = fileBytes;
 
     hr = VolumeImage::Load (fileBytes, imagePath, outOpened.sectors, outOpened.report);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (imagePath, "",
-            "is not a disk image this tool can read") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-        return hr;
-    }
+    CHRF (hr, result.Fail (imagePath, "", "is not a disk image this tool can read"));
 
     outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
 
-    if (outOpened.kind == VolumeKind::Unknown && requireFilesystem)
-    {
-        // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
-        // got no catalog, so this is still status 2 and still goes to the error
-        // stream -- a script that pipes a listing must not suddenly find a
-        // survey in the pipe. What changed is only how much the message says.
-        result.diagnostics += DiskCommandResult::Failure (imagePath, "", kNoFilesystemText) + "\n";
-        result.diagnostics += DescribeUnrecognizedImage (outOpened);
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-        return E_FAIL;
-    }
+    // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
+    // got no catalog, so this is still status 2 and still goes to the error
+    // stream -- a script that pipes a listing must not suddenly find a
+    // survey in the pipe. What changed is only how much the message says.
+    identified = outOpened.kind != VolumeKind::Unknown || !requireFilesystem;
+    CBRF (identified,
+          (result.Fail (imagePath, "", kNoFilesystemText),
+             result.diagnostics += DescribeUnrecognizedImage (outOpened)));
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -459,13 +442,14 @@ void DiskImageSession::RefuseCommit (
 
 std::string DiskImageSession::DescribeReplaceFailure (HRESULT hr)
 {
-    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
-    {
-        return "is write-protected. Clear its read-only attribute and try again. "
-               "Nothing was written";
-    }
+    const char *  sentence = (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+                                 ? "is write-protected. Clear its read-only attribute "
+                                   "and try again. Nothing was written"
+                                 : "could not be replaced. It may be read-only or in use";
 
-    return "could not be replaced. It may be read-only or in use";
+
+
+    return sentence;
 }
 
 

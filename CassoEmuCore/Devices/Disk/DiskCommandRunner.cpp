@@ -109,22 +109,21 @@ std::vector<std::string> DiskCommandRunner::MissingParameters (const CommandLine
 
     //  Help asks for nothing, and a command the table does not know is
     //  answered as an unknown command rather than as a missing operand.
-    if (command == Command::None || command == Command::Help)
-    {
-        return missing;
-    }
+    bool  asked = command != Command::None && command != Command::Help;
 
-    if (options.disk.imagePath.empty())
+
+
+    if (asked && options.disk.imagePath.empty())
     {
         missing.push_back ("<image>");
     }
 
-    if (wantsName && options.disk.path.empty())
+    if (asked && wantsName && options.disk.path.empty())
     {
         missing.push_back ("<name>");
     }
 
-    if (wantsFile && options.disk.hostFile.empty())
+    if (asked && wantsFile && options.disk.hostFile.empty())
     {
         missing.push_back ("<file>");
     }
@@ -390,63 +389,51 @@ std::string DiskCommandRunner::DescribeListingRefusal (
 
 std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 {
-    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+    //  A lookup rather than a ladder: eleven ifs were a table wearing
+    //  control flow, and every row added was another early return.
+    static constexpr struct { HRESULT code; const char * sentence; }  kSentences[] =
     {
-        return "is locked on this volume. Unlock it on the disk before writing over it";
+        { HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
+          "is locked on this volume. Unlock it on the disk before writing over it" },
+        { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
+          "does not fit: the volume has no room left, either for the file's "
+          "contents or for another catalog entry" },
+        { HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
+          "is not a name this filesystem can store. It must be a single "
+          "component starting with a letter, short enough for the catalog, "
+          "and free of commas and control characters" },
+        { HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+          "is not on this volume" },
+        { HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE),
+          "is larger than this filesystem can record for one file" },
+        { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
+          "is a binary, which has to be told where it loads. Give %Lload $XXXX" },
+        { HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED),
+          "is a directory, and this tool does not go inside one, so removing "
+          "it would strand everything beneath it" },
+        { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
+          "has a sector chain that cannot be followed to its end" },
+        { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+          "cannot be made this volume's startup program: the image carries no "
+          "operating system on the tracks a boot reads, so nothing would run it" },
+        { HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
+          "is not a program this volume's boot path launches. On ProDOS that "
+          "means a file of type SYS, and not the kernel itself" },
+    };
+    const char *  sentence = "was refused by the filesystem on this volume";
+
+
+
+    for (const auto & row : kSentences)
+    {
+        if (row.code == hr)
+        {
+            sentence = row.sentence;
+            break;
+        }
     }
 
-    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))
-    {
-        return "does not fit: the volume has no room left, either for the file's "
-               "contents or for another catalog entry";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))
-    {
-        return "is not a name this filesystem can store. It must be a single "
-               "component starting with a letter, short enough for the catalog, "
-               "and free of commas and control characters";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
-    {
-        return "is not on this volume";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))
-    {
-        return "is larger than this filesystem can record for one file";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))
-    {
-        return "is a binary, which has to be told where it loads. Give %Lload $XXXX";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED))
-    {
-        return "is a directory, and this tool does not go inside one, so removing "
-               "it would strand everything beneath it";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
-    {
-        return "has a sector chain that cannot be followed to its end";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
-    {
-        return "cannot be made this volume's startup program: the image carries no "
-               "operating system on the tracks a boot reads, so nothing would run it";
-    }
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE))
-    {
-        return "is not a program this volume's boot path launches. On ProDOS that "
-               "means a file of type SYS, and not the kernel itself";
-    }
-
-    return "was refused by the filesystem on this volume";
+    return sentence;
 }
 
 
@@ -731,21 +718,19 @@ Error:
 
 std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options)
 {
-    size_t  lastSeparator = options.disk.hostFile.find_last_of ("/\\");
+    size_t       lastSeparator = options.disk.hostFile.find_last_of ("/\\");
+    std::string  name          = options.disk.path;
 
 
 
-    if (!options.disk.path.empty())
+    if (name.empty())
     {
-        return options.disk.path;
+        name = (lastSeparator == std::string::npos)
+                   ? options.disk.hostFile
+                   : options.disk.hostFile.substr (lastSeparator + 1);
     }
 
-    if (lastSeparator == std::string::npos)
-    {
-        return options.disk.hostFile;
-    }
-
-    return options.disk.hostFile.substr (lastSeparator + 1);
+    return name;
 }
 
 
@@ -792,6 +777,7 @@ static constexpr size_t  s_kLinesThatProveAChain = 3;
 
 Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind kind)
 {
+    Byte    type     = 0;
     bool    isDos    = kind == VolumeKind::Dos33;
     size_t  at       = 0;
     Word    previous = 0;
@@ -819,7 +805,7 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
 
             if (landedOnTheEnd && seen > 0)
             {
-                return isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
+                type = isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
             }
 
             break;
@@ -871,7 +857,7 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
     lastLine = 0;
     seen     = 0;
 
-    while (isDos && at + 3 <= bytes.size())
+    while (type == 0 && isDos && at + 3 <= bytes.size())
     {
         Byte  length = bytes[at];
         Word  line   = (Word) (bytes[at + 1] | (bytes[at + 2] << 8));
@@ -899,11 +885,12 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
 
         if (at == bytes.size())
         {
-            return (seen >= s_kLinesThatProveAChain) ? Dos33Volume::kTypeInteger : (Byte) 0;
+            type = (seen >= s_kLinesThatProveAChain) ? Dos33Volume::kTypeInteger : (Byte) 0;
+            break;
         }
     }
 
-    return 0;
+    return type;
 }
 
 
@@ -1397,16 +1384,21 @@ Error:
 bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                                    const std::string    & name)
 {
+    bool  runnable = true;
+
+
+
     for (const FileEntry & entry : listing.entries)
     {
         if (_stricmp (entry.name.c_str(), name.c_str()) == 0)
         {
-            return entry.type == Dos33Volume::kTypeApplesoft
-                || entry.type == Dos33Volume::kTypeInteger;
+            runnable = entry.type == Dos33Volume::kTypeApplesoft
+                    || entry.type == Dos33Volume::kTypeInteger;
+            break;
         }
     }
 
-    return true;
+    return runnable;
 }
 
 
@@ -1439,32 +1431,25 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 
 DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 {
-    DiskCommandResult  result;
-    bool               refused = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
+    HRESULT                   hr               = S_OK;   // vestigial, for the bails
+    DiskCommandResult         result;
+    std::vector<std::string>  missing;
+    bool                      refused          = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
+    bool                      allOperandsGiven = false;
 
 
 
     m_command    = options.disk.command;
     m_flagPrefix = options.flagPrefix;
 
-    if (refused)
-    {
-        result.exitStatus = DiskCommandResult::kNoOutput;
-        return result;
-    }
+    CBRF (!refused, result.exitStatus = DiskCommandResult::kNoOutput);
 
     //  ASKED ONCE, BEFORE ANY COMMAND RUNS. Each command used to check its own
     //  operands wherever it first needed them, which reported whichever one
     //  that command happened to reach first and never the rest.
-    {
-        std::vector<std::string>  missing = MissingParameters (options);
-
-        if (!missing.empty())
-        {
-            ReportMissingParameters (missing, result);
-            return result;
-        }
-    }
+    missing          = MissingParameters (options);
+    allOperandsGiven = missing.empty();
+    CBRF (allOperandsGiven, ReportMissingParameters (missing, result));
 
     switch (options.disk.command)
     {
@@ -1559,6 +1544,7 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
         result.usageShown  = true;
     }
 
+Error:
     return result;
 }
 
@@ -1584,6 +1570,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
                                              DiskCommandResult        & result)
 {
     HRESULT      hr    = S_OK;
+    bool         found = false;
     std::string  asked = options.disk.containerType;
 
 
@@ -1593,40 +1580,40 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         //  No --type, so the name decides. A name carrying no extension this
         //  tool knows is refused for the same reason an unknown --type is.
         hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, outFormat);
-
-        if (FAILED (hr))
+        CHRF (hr, (result.diagnostics    += "Error: cannot tell what kind of image "
+                                          + options.disk.imagePath + " should be\n"
+                                          + WithPrefix ("       give it a .dsk, .do, .po or .woz"
+                                                        " extension, or say which with %Ltype\n"),
+                   result.exitStatus      = DiskCommandResult::kNoOutput,
+                   result.badCommandLine  = true));
+    }
+    else
+    {
+        for (char & letter : asked)
         {
-            result.diagnostics    += "Error: cannot tell what kind of image " + options.disk.imagePath
-                                   + " should be\n"
-                                   + WithPrefix ("       give it a .dsk, .do, .po or .woz extension,"
-                                                 " or say which with %Ltype\n");
-            result.exitStatus      = DiskCommandResult::kNoOutput;
-            result.badCommandLine  = true;
+            letter = (char) tolower ((unsigned char) letter);
         }
 
-        return hr;
-    }
-
-    for (char & letter : asked)
-    {
-        letter = (char) tolower ((unsigned char) letter);
-    }
-
-    for (const ContainerName & entry : s_kContainers)
-    {
-        if (asked == entry.name)
+        for (const ContainerName & entry : s_kContainers)
         {
-            outFormat = entry.format;
-            return S_OK;
+            if (asked == entry.name)
+            {
+                outFormat = entry.format;
+                found     = true;
+                break;
+            }
         }
+
+        CBRFEx (found, E_INVALIDARG,
+                (result.diagnostics    += "Error: unknown image type: "
+                                        + options.disk.containerType + "\n"
+                                          "       this tool writes dsk, do, po and woz\n",
+                 result.exitStatus      = DiskCommandResult::kNoOutput,
+                 result.badCommandLine  = true));
     }
 
-    result.diagnostics    += "Error: unknown image type: " + options.disk.containerType + "\n"
-                             "       this tool writes dsk, do, po and woz\n";
-    result.exitStatus      = DiskCommandResult::kNoOutput;
-    result.badCommandLine  = true;
-
-    return E_INVALIDARG;
+Error:
+    return hr;
 }
 
 
@@ -1652,45 +1639,42 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
                                             BlankDiskContents        & outContents,
                                             DiskCommandResult        & result)
 {
-    std::string  asked = options.disk.formatName;
+    HRESULT      hr         = S_OK;   // vestigial, for the bail
+    bool         recognized = true;
+    std::string  asked      = options.disk.formatName;
 
 
-
-    if (asked.empty())
-    {
-        outContents = BlankDiskContents::Dos33;
-        return S_OK;
-    }
 
     for (char & letter : asked)
     {
         letter = (char) tolower ((unsigned char) letter);
     }
 
-    if (asked == "dos33" || asked == "dos" || asked == "dos3.3")
+    if (asked.empty() || asked == "dos33" || asked == "dos" || asked == "dos3.3")
     {
         outContents = BlankDiskContents::Dos33;
-        return S_OK;
     }
-
-    if (asked == "prodos")
+    else if (asked == "prodos")
     {
         outContents = BlankDiskContents::ProDos;
-        return S_OK;
     }
-
-    if (asked == "none" || asked == "raw" || asked == "unformatted")
+    else if (asked == "none" || asked == "raw" || asked == "unformatted")
     {
         outContents = BlankDiskContents::Unformatted;
-        return S_OK;
+    }
+    else
+    {
+        recognized = false;
     }
 
-    result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
-                             "       this tool formats dos33, prodos, or none\n";
-    result.exitStatus      = DiskCommandResult::kNoOutput;
-    result.badCommandLine  = true;
+    CBRFEx (recognized, E_INVALIDARG,
+            (result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
+                                      "       this tool formats dos33, prodos, or none\n",
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
 
-    return E_INVALIDARG;
+Error:
+    return hr;
 }
 
 
@@ -1714,15 +1698,12 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
                                           BlankDiskSpec            & inOutSpec,
                                           DiskCommandResult        & result)
 {
-    const std::string &  asked  = options.disk.volumeName;
-    int                  number = 0;
+    HRESULT              hr             = S_OK;   // vestigial, for the bail
+    const std::string &  asked          = options.disk.volumeName;
+    int                  number         = 0;
+    bool                 isVolumeNumber = false;
 
 
-
-    if (asked.empty())
-    {
-        return S_OK;
-    }
 
     //  UPPERCASED HERE, WHERE IT IS ACCEPTED, and not only where it is
     //  written. ProDOS holds a volume name in upper case and compares without
@@ -1731,7 +1712,7 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  was tell the spec, so the line confirming the disk read back the name
     //  that was typed while `disk list` read back the name that is there, and
     //  the two disagreed over a disk that was right all along.
-    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    if (!asked.empty() && inOutSpec.contents == BlankDiskContents::ProDos)
     {
         inOutSpec.volumeName = asked;
 
@@ -1739,37 +1720,36 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
         {
             letter = (char) toupper ((unsigned char) letter);
         }
-
-        return S_OK;
     }
-
-    //  A DOS 3.3 volume number, and only a number. Read by hand so a word that
-    //  is not one at all is refused rather than quietly reading as zero.
-    for (char letter : asked)
+    else if (!asked.empty())
     {
-        if (letter < '0' || letter > '9')
+        //  A DOS 3.3 volume number, and only a number. Read by hand so a word
+        //  that is not one at all is refused rather than quietly reading as
+        //  zero.
+        for (char letter : asked)
         {
-            number = -1;
-            break;
+            if (letter < '0' || letter > '9')
+            {
+                number = -1;
+                break;
+            }
+
+            number = (number * 10) + (letter - '0');
         }
 
-        number = (number * 10) + (letter - '0');
+        isVolumeNumber = number >= 1 && number <= 254;
+        CBRFEx (isVolumeNumber, E_INVALIDARG,
+                (result.diagnostics    += "Error: " + asked + " is not a DOS 3.3 volume number\n"
+                                          "       give a number from 1 to 254, or format the disk "
+                                          "as prodos, which labels a volume with a word instead\n",
+                 result.exitStatus      = DiskCommandResult::kNoOutput,
+                 result.badCommandLine  = true));
+
+        inOutSpec.volumeNumber = (Byte) number;
     }
 
-    if (number < 1 || number > 254)
-    {
-        result.diagnostics    += "Error: " + asked + " is not a DOS 3.3 volume number\n"
-                                 "       give a number from 1 to 254, or format the disk as prodos, "
-                                 "which labels a volume with a word instead\n";
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return E_INVALIDARG;
-    }
-
-    inOutSpec.volumeNumber = (Byte) number;
-
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -1803,61 +1783,47 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     bool                   isProDos = inOutSpec.contents == BlankDiskContents::ProDos;
     StockBootDisks::Which  which    = isProDos ? StockBootDisks::Which::ProDosUsersDisk
                                                : StockBootDisks::Which::Dos33Master;
-    std::string            master   = options.disk.bootableFrom;
-    vector<Byte>           osBytes;
+    std::string   master        = options.disk.bootableFrom;
+    bool          bothWaysAsked = false;
+    bool          cached        = false;
+    vector<Byte>  osBytes;
 
 
 
     //  THE TWO WAYS TO BOOT ARE NOT VARIANTS OF ONE THING, so asking for both
     //  asks for a disk that boots twice.
-    if (!options.disk.directBootFile.empty() && options.disk.bootable)
-    {
-        result.diagnostics    += WithPrefix (
-            "Error: %Lbootable and %Lboot ask for different disks\n"
-            "       %Lbootable copies an operating system on; %Lboot starts a "
-            "binary with no operating system at all\n");
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
+    bothWaysAsked = !options.disk.directBootFile.empty() && options.disk.bootable;
+    CBRFEx (!bothWaysAsked, E_INVALIDARG,
+            (result.diagnostics    += WithPrefix (
+                 "Error: %Lbootable and %Lboot ask for different disks\n"
+                 "       %Lbootable copies an operating system on; %Lboot starts a "
+                 "binary with no operating system at all\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
 
-        return E_INVALIDARG;
-    }
-
-    if (!options.disk.bootable)
-    {
-        return S_OK;
-    }
+    //  Not asked for at all is the ordinary case, not a failure.
+    BAIL_OUT_IF (!options.disk.bootable, S_OK);
 
     //  A BARE --bootable MEANS THE ONE THE EMULATOR DOWNLOADED. Which of the
     //  two that is follows the format being written, because a ProDOS disk
     //  cannot be made bootable out of a DOS master.
     if (master.empty())
     {
-        if (!StockBootDisks::IsCached (which))
-        {
-            result.diagnostics    += std::string ("Error: the ")
-                                   + (isProDos ? "ProDOS" : "DOS 3.3")
-                                   + " master has not been downloaded yet\n"
-                                   + WithPrefix ("       run the emulator once to fetch it, or supply"
-                                                 " a master with %Lbootable <image>\n");
-            result.exitStatus      = DiskCommandResult::kNoOutput;
-            result.badCommandLine  = true;
-
-            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-        }
+        cached = StockBootDisks::IsCached (which);
+        CBRFEx (cached, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+                (result.diagnostics    += std::string ("Error: the ")
+                                        + (isProDos ? "ProDOS" : "DOS 3.3")
+                                        + " master has not been downloaded yet\n"
+                                        + WithPrefix ("       run the emulator once to fetch it, or"
+                                                      " supply a master with %Lbootable <image>\n"),
+                 result.exitStatus      = DiskCommandResult::kNoOutput,
+                 result.badCommandLine  = true));
 
         master = StockBootDisks::PathFor (which);
     }
 
     hr = m_fileIo.ReadAllBytes (master, osBytes);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (master, "",
-                                       "cannot be read, so there is no operating system to copy") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return hr;
-    }
+    CHRF (hr, result.Fail (master, "", "cannot be read, so there is no operating system to copy"));
 
     //  Which slot it fills follows the format being written, because that is
     //  the one the builder will reach for.
@@ -1872,7 +1838,8 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 
     inOutSpec.bootable = true;
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -1947,48 +1914,27 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     spec.format = format;
 
     hr = ResolveContents (options, spec.contents, result);
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     hr = ResolveVolume (options, spec, result);
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     hr = ResolveBoot (options, spec, payload, result);
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
+    //  The pairing rules are the builder's: a DOS 3.3 catalog cannot go in
+    //  a .po, a ProDOS directory cannot go in a .dsk, and a bootable spec
+    //  needs the master its own format calls for.
     hr = BlankDiskBuilder::ValidateSpec (spec);
-
-    if (FAILED (hr))
-    {
-        //  The pairing rules are the builder's: a DOS 3.3 catalog cannot go in
-        //  a .po, a ProDOS directory cannot go in a .dsk, and a bootable spec
-        //  needs the master its own format calls for.
-        result.diagnostics    += "Error: that combination cannot be written\n"
-                                 "       dsk and do carry DOS 3.3, po carries ProDOS, and woz carries "
-                                 "either; a bootable disk needs the master for its own format\n";
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
-    }
+    CHRF (hr, (result.diagnostics    += "Error: that combination cannot be written\n"
+                                        "       dsk and do carry DOS 3.3, po carries ProDOS, and woz "
+                                        "carries either; a bootable disk needs the master for its "
+                                        "own format\n",
+               result.exitStatus      = DiskCommandResult::kNoOutput,
+               result.badCommandLine  = true));
 
     hr = BlankDiskBuilder::Build (spec, payload, imageBytes);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", "could not be built") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     //  An image being made for the first time has nothing to be stale against,
     //  so the freshness guard the commit path applies to an edit is the wrong
@@ -2004,12 +1950,13 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     }
 
     hr = m_session.CommitImage (target, imageBytes, result);
+    CHR (hr);
 
-    if (SUCCEEDED (hr))
-    {
-        result.output     += options.disk.imagePath + ": " + DescribeNewDisk (spec) + "\n";
-        result.exitStatus  = DiskCommandResult::kClean;
-    }
+    result.output     += options.disk.imagePath + ": " + DescribeNewDisk (spec) + "\n";
+    result.exitStatus  = DiskCommandResult::kClean;
+
+Error:
+    return;
 }
 
 
@@ -2031,41 +1978,34 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 
 void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskCommandResult & result)
 {
-    HRESULT     hr     = S_OK;
-    DiskFormat  format = DiskFormat::Dsk;
+    HRESULT     hr           = S_OK;
+    DiskFormat  format       = DiskFormat::Dsk;
+    bool        named        = !options.disk.imagePath.empty();
+    bool        alreadyThere = false;
 
 
 
-    if (options.disk.imagePath.empty())
-    {
-        ReportMissingParameter ("<image>", result);
+    CBRF (named, ReportMissingParameter ("<image>", result));
 
-        return;
-    }
-
-    if (m_fileIo.Exists (options.disk.imagePath))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "",
-                                       "is already there, and create will not write over it. "
-                                       "Use init to reformat it, or choose another name") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    alreadyThere = m_fileIo.Exists (options.disk.imagePath);
+    CBRF (!alreadyThere, result.Fail (options.disk.imagePath, "",
+                                      "is already there, and create will not write over it. "
+                                      "Use init to reformat it, or choose another name"));
 
     hr = ResolveContainer (options, format, result);
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     if (!options.disk.directBootFile.empty())
     {
         BuildDirectBoot (options, format, result);
-        return;
+    }
+    else
+    {
+        BuildAndWrite (options, format, false, result);
     }
 
-    BuildAndWrite (options, format, false, result);
+Error:
+    return;
 }
 
 
@@ -2092,13 +2032,15 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
                                          DiskFormat                 format,
                                          DiskCommandResult        & result)
 {
-    HRESULT                        hr         = S_OK;
+    HRESULT                        hr           = S_OK;
     DirectBootSpec                 spec;
     vector<Byte>                   payload;
     vector<Byte>                   sectors;
     vector<Byte>                   imageBytes;
     DiskImageSession::OpenedImage  target;
     std::string                    refusal;
+    bool                           formatAgrees = false;
+    char                           summary[160] = {};
 
 
 
@@ -2109,41 +2051,26 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  ResolveBoot: it builds no filesystem, so it skips the code that would
     //  have caught the pair. Measured before the check went in, the two
     //  together honored --boot and dropped --bootable without a word.
-    if (options.disk.bootable)
-    {
-        result.diagnostics    += WithPrefix (
-            "Error: %Lbootable and %Lboot ask for different disks\n"
-            "       %Lbootable copies an operating system on; %Lboot starts a "
-            "binary with no operating system at all\n");
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
-    }
+    CBRF (!options.disk.bootable,
+          (result.diagnostics    += WithPrefix (
+               "Error: %Lbootable and %Lboot ask for different disks\n"
+               "       %Lbootable copies an operating system on; %Lboot starts a "
+               "binary with no operating system at all\n"),
+           result.exitStatus      = DiskCommandResult::kNoOutput,
+           result.badCommandLine  = true));
 
     //  A filesystem was asked for AND a disk with none. Refused rather than
     //  quietly dropping one of them.
-    if (!options.disk.formatName.empty() && options.disk.formatName != "none")
-    {
-        result.diagnostics    += WithPrefix ("Error: %Lboot writes no filesystem, so %Lformat ")
-                               + options.disk.formatName + " cannot be honored\n"
-                                 "       a direct-boot disk holds the binary and nothing else\n";
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
-    }
+    formatAgrees = options.disk.formatName.empty() || options.disk.formatName == "none";
+    CBRF (formatAgrees,
+          (result.diagnostics    += WithPrefix ("Error: %Lboot writes no filesystem, so %Lformat ")
+                                  + options.disk.formatName + " cannot be honored\n"
+                                    "       a direct-boot disk holds the binary and nothing else\n",
+           result.exitStatus      = DiskCommandResult::kNoOutput,
+           result.badCommandLine  = true));
 
     hr = m_fileIo.ReadAllBytes (options.disk.directBootFile, payload);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.directBootFile, "",
-                                       "cannot be read, so there is nothing to boot") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.directBootFile, "", "cannot be read, so there is nothing to boot"));
 
     //  The load address is the one the binary was assembled for, and --load is
     //  how the caller says so. The entry follows it unless named separately.
@@ -2159,43 +2086,28 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  outside the window has a capacity of zero, so blaming the payload's
     //  length for an address problem would be answering the wrong question.
     hr = DirectBootBuilder::Build (payload, spec, sectors, refusal);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.directBootFile, refusal) + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.directBootFile, refusal));
 
     hr = BlankDiskBuilder::WrapInContainer (format, false, sectors, imageBytes);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", "could not be built") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     target.imagePath     = options.disk.imagePath;
     target.stampRecorded = false;
     target.isNew         = true;
 
     hr = m_session.CommitImage (target, imageBytes, result);
+    CHR (hr);
 
-    if (SUCCEEDED (hr))
-    {
-        char  summary[160] = {};
+    snprintf (summary, sizeof (summary),
+              "%s: direct boot, %zu bytes loading at $%04X, entered at $%04X\n",
+              options.disk.imagePath.c_str(), payload.size(),
+              (unsigned) spec.loadAddress, (unsigned) spec.entryAddress);
 
-        snprintf (summary, sizeof (summary),
-                  "%s: direct boot, %zu bytes loading at $%04X, entered at $%04X\n",
-                  options.disk.imagePath.c_str(), payload.size(),
-                  (unsigned) spec.loadAddress, (unsigned) spec.entryAddress);
+    result.output     += summary;
+    result.exitStatus  = DiskCommandResult::kClean;
 
-        result.output     += summary;
-        result.exitStatus  = DiskCommandResult::kClean;
-    }
+Error:
+    return;
 }
 
 
@@ -2217,52 +2129,35 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
 
 void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommandResult & result)
 {
-    HRESULT     hr     = S_OK;
-    DiskFormat  format = DiskFormat::Dsk;
+    HRESULT     hr      = S_OK;
+    DiskFormat  format  = DiskFormat::Dsk;
+    bool        named   = !options.disk.imagePath.empty();
+    bool        exists  = false;
+    bool        untyped = options.disk.containerType.empty();
 
 
 
-    if (options.disk.imagePath.empty())
-    {
-        ReportMissingParameter ("<image>", result);
+    CBRF (named, ReportMissingParameter ("<image>", result));
 
-        return;
-    }
+    exists = m_fileIo.Exists (options.disk.imagePath);
+    CBRF (exists, result.Fail (options.disk.imagePath, "", "is not there. Use create to make one"));
 
-    if (!m_fileIo.Exists (options.disk.imagePath))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "",
-                                       "is not there. Use create to make one") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
-
-    if (!options.disk.containerType.empty())
-    {
-        result.diagnostics    += WithPrefix (
-            "Error: init does not take %Ltype\n"
-            "       the image already has a container; create makes one with a "
-            "different container\n");
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
-    }
+    CBRF (untyped,
+          (result.diagnostics    += WithPrefix (
+               "Error: init does not take %Ltype\n"
+               "       the image already has a container; create makes one with a "
+               "different container\n"),
+           result.exitStatus      = DiskCommandResult::kNoOutput,
+           result.badCommandLine  = true));
 
     //  From the file's own name, because the file is what is being reformatted.
     hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, format);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "",
-                                       "is not a kind of image this tool writes") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
 
     BuildAndWrite (options, format, true, result);
+
+Error:
+    return;
 }
 
 
@@ -2285,20 +2180,42 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void DiskCommandRunner::RefuseBadValue (DiskCommandResult & result, const char * summary)
+{
+    result.diagnostics    += summary;
+    result.exitStatus      = DiskCommandResult::kNoOutput;
+    result.badCommandLine  = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunSectorRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                                        DiskCommandResult        & result)
 {
     HRESULT                        hr           = S_OK;
     size_t                         first        = 0;
     size_t                         total        = 0;
+    bool                           onDisk       = false;
+    bool                           isARead      = false;
+    bool                           fits         = false;
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     char                           summary[192] = {};
 
 
 
-    if (options.disk.track < 0 || options.disk.track >= NibblizationLayer::kTrackCount
-     || options.disk.sector < 0 || options.disk.sector >= NibblizationLayer::kSectorsPerTrack)
+    onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
+          && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
+
+    if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
                   "Error: track %d sector %d is not on this disk\n"
@@ -2306,55 +2223,42 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   options.disk.track, options.disk.sector,
                   NibblizationLayer::kTrackCount - 1,
                   NibblizationLayer::kSectorsPerTrack - 1);
-
-        result.diagnostics    += summary;
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
     }
 
-    if (options.disk.sectorCount < 1)
+    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    isARead = options.disk.sectorCount >= 1;
+
+    if (!isARead)
     {
         snprintf (summary, sizeof (summary),
                   "Error: %d is not a number of sectors to read\n"
                   "       a read is at least one sector\n",
                   options.disk.sectorCount);
-
-        result.diagnostics    += summary;
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
     }
+
+    CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
 
     first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
                     + options.disk.sector);
     total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
+    fits  = first + (size_t) options.disk.sectorCount <= total;
 
-    if (first + (size_t) options.disk.sectorCount > total)
+    if (!fits)
     {
         snprintf (summary, sizeof (summary),
                   "Error: %d sectors will not fit from track %d sector %d\n"
                   "       the disk has %zu left there\n",
                   options.disk.sectorCount, options.disk.track, options.disk.sector,
                   total - first);
-
-        result.diagnostics    += summary;
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
     }
+
+    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
 
     //  No filesystem needed, and none looked for. That is the whole point of
     //  the command: a disk built by sectorwrite may have no catalog at all.
     hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
-
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     //  The LOGICAL sector, translated the same way the write translates it, so
     //  a number given to one command means the same to the other.
@@ -2380,15 +2284,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     if (!options.disk.hostFile.empty())
     {
         hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload);
-
-        if (FAILED (hr))
-        {
-            result.diagnostics += DiskCommandResult::Failure (options.disk.hostFile, "",
-                "could not be written") + "\n";
-            result.exitStatus   = DiskCommandResult::kNoOutput;
-
-            return;
-        }
+        CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
 
         snprintf (summary, sizeof (summary),
                   "%s: %zu bytes from track %d sector %d, %d sector(s)\n",
@@ -2418,6 +2314,9 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
         result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
+
+Error:
+    return;
 }
 
 
@@ -2454,6 +2353,9 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     HRESULT                        hr           = S_OK;
     size_t                         needed       = 0;
     size_t                         written      = 0;
+    bool                           named        = !options.disk.hostFile.empty();
+    bool                           onDisk       = false;
+    bool                           fits         = false;
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     vector<Byte>                   edited;
@@ -2461,15 +2363,12 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
 
 
-    if (options.disk.hostFile.empty())
-    {
-        ReportMissingParameter ("<file>", result);
+    CBRF (named, ReportMissingParameter ("<file>", result));
 
-        return;
-    }
+    onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
+          && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
 
-    if (options.disk.track < 0 || options.disk.track >= NibblizationLayer::kTrackCount
-     || options.disk.sector < 0 || options.disk.sector >= NibblizationLayer::kSectorsPerTrack)
+    if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
                   "Error: track %d sector %d is not on this disk\n"
@@ -2477,33 +2376,18 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
                   options.disk.track, options.disk.sector,
                   NibblizationLayer::kTrackCount - 1,
                   NibblizationLayer::kSectorsPerTrack - 1);
-
-        result.diagnostics    += summary;
-        result.exitStatus      = DiskCommandResult::kNoOutput;
-        result.badCommandLine  = true;
-
-        return;
     }
+
+    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
-
-    if (FAILED (hr))
-    {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.hostFile, "", "cannot be read") + "\n";
-        result.exitStatus   = DiskCommandResult::kNoOutput;
-
-        return;
-    }
+    CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
 
     //  A disk with no filesystem is the ordinary case here rather than a
     //  refusal: a demo that boots its own loader has no catalog, and that
     //  is exactly the disk this command exists to write.
     hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
-
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     edited = opened.sectors;
 
@@ -2518,20 +2402,18 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
                                 + options.disk.sector);
         size_t  total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
 
-        if (first + needed > total)
+        fits = first + needed <= total;
+
+        if (!fits)
         {
             snprintf (summary, sizeof (summary),
                       "Error: %zu bytes will not fit from track %d sector %d\n"
                       "       that is %zu sectors and the disk has %zu left there\n",
                       payload.size(), options.disk.track, options.disk.sector,
                       needed, total - first);
-
-            result.diagnostics    += summary;
-            result.exitStatus      = DiskCommandResult::kNoOutput;
-            result.badCommandLine  = true;
-
-            return;
         }
+
+        CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
 
         for (size_t index = 0; index < needed; index++)
         {
@@ -2559,11 +2441,7 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     }
 
     hr = m_session.SaveAndCommit (opened, edited, result);
-
-    if (FAILED (hr))
-    {
-        return;
-    }
+    CHR (hr);
 
     snprintf (summary, sizeof (summary),
               "%s: %zu bytes at track %d sector %d, %zu sector(s)\n",
@@ -2572,4 +2450,7 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
     result.output     += summary;
     result.exitStatus  = DiskCommandResult::kClean;
+
+Error:
+    return;
 }

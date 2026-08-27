@@ -385,15 +385,20 @@ std::string DiskHelpPage::BuildOneBlock (const DiskCommandHelp & entry, char fla
 std::string DiskHelpPage::BuildCommandHelp (CommandLineOptions::DiskOptions::Command command,
                                                  char flagPrefix)
 {
+    std::string  block;
+
+
+
     for (const DiskCommandHelp & entry : s_kDiskCommandHelp)
     {
         if (entry.command == command)
         {
-            return BuildOneBlock (entry, flagPrefix);
+            block = BuildOneBlock (entry, flagPrefix);
+            break;
         }
     }
 
-    return std::string();
+    return block;
 }
 
 
