@@ -78,20 +78,22 @@ wait
     bne next                ; unconditional (Y never wraps within the list)
 
 
-; "CASSO ROCKS" as SSI 263A phonemes: K AE S :OH OU / R1 AH K S, with a
-; pause between the words and a longer one between repeats.
+; "CASSO ROCKS" as SSI 263A phonemes: K AE S :OH OU / R1 AH K S. Each byte
+; carries its own DR duration in D7:6 (duration = frame x (4 - DR)): stops
+; are bursts (DR=11, shortest), fricatives and glides medium, vowels long,
+; and the inter-repeat pause is a full-length silence.
 phonemes
-    .byte $29               ; K    k
-    .byte $0C               ; AE   a as in "dad"
-    .byte $30               ; S    s
-    .byte $3B               ; :OH  oh
-    .byte $12               ; OU   ou
-    .byte $00               ; PA   word gap
-    .byte $1E               ; R1   r as in "rug"
-    .byte $0E               ; AH   o as in "got"
-    .byte $29               ; K    k
-    .byte $30               ; S    s
-    .byte $00               ; PA   pause between repeats
+    .byte $A9               ; K    k, DR=10 burst
+    .byte $4C               ; AE   a as in "dad", DR=01
+    .byte $B0               ; S    s, DR=10
+    .byte $7B               ; :OH  oh, DR=01
+    .byte $92               ; OU   ou, DR=10
+    .byte $C0               ; PA   word gap, DR=11 short
+    .byte $9E               ; R1   r as in "rug", DR=10
+    .byte $4E               ; AH   o as in "got", DR=01
+    .byte $A9               ; K    k, DR=10 burst
+    .byte $B0               ; S    s, DR=10
+    .byte $00               ; PA   pause between repeats, DR=00 long
     .byte $00               ; PA
     .byte $FF               ; end marker
 

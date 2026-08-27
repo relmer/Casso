@@ -216,4 +216,8 @@ private:
     float      m_excLp2       = 0.0f;
     uint32_t   m_lfsr         = 0xACE1u;
     float      m_noiseLp      = 0.0f;
+
+    // Radiation-characteristic differentiator history (previous cascade
+    // output sample).
+    float      m_radPrev      = 0.0f;
 };

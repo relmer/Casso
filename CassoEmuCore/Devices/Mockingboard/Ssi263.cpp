@@ -87,7 +87,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // source, per-stage resonator bandwidths, and the output level that keeps a
 // full-amplitude vowel inside the sample range after three resonators.
 static constexpr float   s_kfVoicedGain   = 5.00f;
-static constexpr float   s_kfNoiseGain    = 0.80f;
+static constexpr float   s_kfNoiseGain    = 2.40f;
 
 // Two-pole smoothing on the glottal impulse train. A bare impulse opened
 // every pitch period with a step -- an audible click at the fundamental
@@ -95,7 +95,7 @@ static constexpr float   s_kfNoiseGain    = 0.80f;
 // muffled the voice. Two cascaded one-pole sections start each pulse from
 // zero (click-free) yet keep a -12 dB/oct tail that still excites F2/F3.
 static constexpr float   s_kfSourcePole   = 0.15f;
-static constexpr float   s_kfOutputGain   = 0.25f;
+static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
 // Amplitude envelope rates: a fast attack and a slightly longer release,
@@ -303,6 +303,7 @@ void Ssi263::Reset()
     }
 
     m_envLevel     = 0.0f;
+    m_radPrev      = 0.0f;
     m_glottalPhase = 0.0;
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
@@ -508,6 +509,7 @@ double Ssi263::InflectionFrequencyHz() const
 float Ssi263::GenerateSample()
 {
     float    sample = 0.0f;
+    float    diffed = 0.0f;
     float    target = 0.0f;
     double   tau    = 0.0;
     double   coef   = 0.0;
@@ -532,6 +534,16 @@ float Ssi263::GenerateSample()
     {
         sample = Resonate (stage, sample, m_fCur[stage] * scale);
     }
+
+    // Radiation characteristic: the lips differentiate the volume flow,
+    // a +6 dB/oct tilt. Without it the -12 dB/oct glottal source leaves
+    // the cascade too dark -- F2/F3 sit far below F1 and every vowel
+    // smears toward an "aw". The first difference is normalized by the
+    // sample rate so its gain at a given frequency is host-rate-invariant.
+    diffed    = (sample - m_radPrev) *
+                (static_cast<float> (m_sampleRate) / 44100.0f);
+    m_radPrev = sample;
+    sample    = diffed;
 
     // The amplitude envelope: eases toward the active level while sounding
     // and toward zero once the phoneme has finished, so every boundary is a
@@ -709,8 +721,10 @@ float Ssi263::Excitation()
         }
 
         // One-pole smoothing: raw LFSR output swings rail to rail between
-        // adjacent samples, which is a stream of clicks, not a hiss.
-        m_noiseLp += 0.30f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
+        // adjacent samples, which is a stream of clicks, not a hiss. The
+        // coefficient sets the noise brightness -- too low and sibilants
+        // read as a dull rumble instead of a hiss.
+        m_noiseLp += 0.65f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
 
         src += m_noiseLp * s_kfNoiseGain;
     }
