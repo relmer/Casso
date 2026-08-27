@@ -706,7 +706,10 @@ namespace Ssi263TestNs
                 last = buffer[i];
             }
 
-            Assert::IsTrue (maxStep < 0.08f,
+            // Bound scaled to the voiced path's output level: continuous
+            // bright speech steps a few hundredths per sample on its own,
+            // while a gate discontinuity jumps at the signal's full scale.
+            Assert::IsTrue (maxStep < 0.20f,
                             L"The end of a phoneme must ramp, not gate -- a step is an audible click");
             Assert::IsTrue (std::abs (buffer[2047]) < 0.002f,
                             L"and the release must actually decay to silence");

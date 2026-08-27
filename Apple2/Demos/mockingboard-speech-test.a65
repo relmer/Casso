@@ -41,7 +41,9 @@ SFILT   = $C444            ; vocal-tract filter clock
 MODEDR  = $C0              ; DR=11 in D7:6 -> A/R active, phoneme timing
 CTLUP   = $80              ; CTL set: Power Down
 CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
-RATE    = $A0              ; speech rate $A in D7:4, I11/I2-I0 = 0
+RATE    = $60              ; speech rate $6 in D7:4 -- slow enough that each
+                           ; vowel settles at its formant targets before the
+                           ; next phoneme starts; I11/I2-I0 = 0
 INFL    = $C9              ; I10-I3 for roughly a 90 Hz voice
 FILT    = $D3              ; roughly a 20 KHz tract clock
 
@@ -83,15 +85,15 @@ wait
 ; are bursts (DR=11, shortest), fricatives and glides medium, vowels long,
 ; and the inter-repeat pause is a full-length silence.
 phonemes
-    .byte $A9               ; K    k, DR=10 burst
-    .byte $4C               ; AE   a as in "dad", DR=01
+    .byte $E9               ; K    k, DR=11 burst
+    .byte $0C               ; AE   a as in "dad", DR=00 full vowel
     .byte $B0               ; S    s, DR=10
-    .byte $7B               ; :OH  oh, DR=01
+    .byte $3B               ; :OH  oh, DR=00 full vowel
     .byte $92               ; OU   ou, DR=10
-    .byte $C0               ; PA   word gap, DR=11 short
+    .byte $40               ; PA   word gap, DR=01
     .byte $9E               ; R1   r as in "rug", DR=10
-    .byte $4E               ; AH   o as in "got", DR=01
-    .byte $A9               ; K    k, DR=10 burst
+    .byte $0E               ; AH   o as in "got", DR=00 full vowel
+    .byte $E9               ; K    k, DR=11 burst
     .byte $B0               ; S    s, DR=10
     .byte $00               ; PA   pause between repeats, DR=00 long
     .byte $00               ; PA

@@ -171,6 +171,7 @@ private:
     void    BeginPhoneme  (Byte outgoing);
     void    GlideFormants ();
     float   Excitation    ();
+    float   NoiseSample   ();
     float   Resonate      (int stage, float input, double centerHz);
 
     const Ssi263PhonemeSpec &  ActiveSpec () const;

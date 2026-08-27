@@ -86,8 +86,12 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
 // source, per-stage resonator bandwidths, and the output level that keeps a
 // full-amplitude vowel inside the sample range after three resonators.
-static constexpr float   s_kfVoicedGain   = 5.00f;
-static constexpr float   s_kfNoiseGain    = 2.40f;
+// The voiced gain rides well above the noise gain because the radiation
+// tilt at the output costs F1-dominant voiced energy 20+ dB while barely
+// touching the fricatives' F2-region noise; these two together set the
+// vowel-to-sibilant balance heard in connected speech.
+static constexpr float   s_kfVoicedGain   = 40.00f;
+static constexpr float   s_kfNoiseGain    = 0.085f;
 
 // Two-pole smoothing on the glottal impulse train. A bare impulse opened
 // every pitch period with a step -- an audible click at the fundamental
@@ -528,9 +532,18 @@ float Ssi263::GenerateSample()
     scale = FilterFrequencyHz() / kNominalFilterHz;
     scale = std::clamp (scale, 0.5, 2.0);
 
-    sample = Excitation();
+    // Voiced excitation drives the whole tract from the glottis; frication
+    // is front-cavity excitation and enters AFTER the first formant stage.
+    // Injecting noise at the glottis instead sent it through the F1 low-pass,
+    // which crushed sibilants into a quiet sub-1 kHz rumble.
+    sample = Resonate (0, Excitation(), m_fCur[0] * scale);
 
-    for (stage = 0; stage < 3; stage++)
+    if (ActiveSpec().fricative)
+    {
+        sample += NoiseSample() * s_kfNoiseGain;
+    }
+
+    for (stage = 1; stage < 3; stage++)
     {
         sample = Resonate (stage, sample, m_fCur[stage] * scale);
     }
@@ -670,26 +683,21 @@ void Ssi263::GlideFormants()
 //
 //  Excitation
 //
-//  The source the resonators shape: a tilted glottal pulse train at the
-//  inflection frequency for voiced phonemes, deterministic LFSR noise for
-//  fricatives, both for voiced fricatives.
+//  The glottal source: a tilted pulse train at the inflection frequency for
+//  voiced phonemes. Frication is generated separately by NoiseSample and
+//  injected past the first formant stage.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float Ssi263::Excitation()
 {
-    const Ssi263PhonemeSpec &   spec = ActiveSpec();
-
-
-
     float    src     = 0.0f;
     float    impulse = 0.0f;
     double   pitch   = 0.0;
-    Byte     bit     = 0;
 
 
 
-    if (spec.voiced)
+    if (ActiveSpec().voiced)
     {
         pitch = std::clamp (InflectionFrequencyHz(), 30.0, 400.0);
 
@@ -708,28 +716,48 @@ float Ssi263::Excitation()
         m_excLp2 += s_kfSourcePole * (m_excLp1 - m_excLp2);
 
         src = m_excLp2 * s_kfVoicedGain;
-    }
 
-    if (spec.fricative)
-    {
-        bit    = static_cast<Byte> (m_lfsr & 1u);
-        m_lfsr = m_lfsr >> 1;
-
-        if (bit != 0)
-        {
-            m_lfsr ^= 0xB400u;
-        }
-
-        // One-pole smoothing: raw LFSR output swings rail to rail between
-        // adjacent samples, which is a stream of clicks, not a hiss. The
-        // coefficient sets the noise brightness -- too low and sibilants
-        // read as a dull rumble instead of a hiss.
-        m_noiseLp += 0.65f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
-
-        src += m_noiseLp * s_kfNoiseGain;
+        // The radiation tilt at the output taxes low-F1 vowels roughly with
+        // the square of F1; compensating one power of it here keeps close
+        // vowels (OU, :OH) audible next to open ones (AH, AE) while leaving
+        // the natural open-vowels-are-louder tendency in place. Glided F1 is
+        // used so the correction moves smoothly through transitions.
+        src *= static_cast<float> (682.0 / std::max (m_fCur[0], 250.0));
     }
 
     return src;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoiseSample
+//
+//  Deterministic LFSR noise for frication, one-pole smoothed: raw LFSR
+//  output swings rail to rail between adjacent samples, which is a stream
+//  of clicks, not a hiss. The coefficient sets the noise brightness.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ssi263::NoiseSample()
+{
+    Byte   bit = static_cast<Byte> (m_lfsr & 1u);
+
+
+
+    m_lfsr = m_lfsr >> 1;
+
+    if (bit != 0)
+    {
+        m_lfsr ^= 0xB400u;
+    }
+
+    m_noiseLp += 0.65f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
+
+    return m_noiseLp;
 }
 
 
