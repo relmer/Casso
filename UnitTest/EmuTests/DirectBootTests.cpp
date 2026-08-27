@@ -22,8 +22,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  sector order reads back perfectly through our own reader -- the same skew
 //  applied on the way out and the way in is the identity -- and hands the
 //  guest its pages shuffled. So the mapping is checked against the table DOS
-//  3.3 carries inside its own boot sector, read at an absolute file offset
-//  from the stock master, rather than against the constant the builder used.
+//  3.3 carries inside its own boot sector, persisted below byte for byte from
+//  a real System Master, rather than against the constant the builder used.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,11 +31,11 @@ TEST_CLASS (DirectBootTests)
 {
 public:
     //  DOS 3.3's interleave, the inverse of the table DOS carries in its own
-    //  boot sector. Written out rather than read off a disk: what these two
-    //  cases assert is the ORDER OUR BUILDER LAYS PAGES DOWN IN, and the
-    //  interleave is only the input they need to say it. That our copy really
-    //  does match Apple's is a different claim, and a scenario test makes it
-    //  against a real master.
+    //  boot sector. Written out rather than read off a disk: what the two
+    //  builder cases assert is the ORDER OUR BUILDER LAYS PAGES DOWN IN, and
+    //  the interleave is only the input they need to say it. That our copy
+    //  really does match Apple's is a different claim, and the inverse case
+    //  below makes it against the skew persisted from a real master.
     static std::vector<int> PhysicalToLogical()
     {
         return std::vector<int> { 0, 7, 14, 6, 13, 5, 12, 4,
@@ -45,10 +45,28 @@ public:
 
 
 
-    //  DOS 3.3's boot0 keeps its logical-to-physical sector table sixteen
-    //  bytes into the second half of track 0 sector 0, where the code reaches
-    //  it as $084D,X. Published layout, restated here rather than borrowed.
-    static constexpr size_t  kDosSkewTableOffset = 0x4D;
+    //  The skew DOS 3.3 itself boots through, copied byte for byte from a
+    //  real System Master: file offset $4D-$5C of track 0 sector 0, indexed
+    //  by DOS logical sector and giving the address-field number the drive
+    //  presents that sector under.
+    //
+    //  CONSUMED BY BOOT0, NOT RWTS -- RWTS is not in memory yet. The boot ROM
+    //  loads the sector at $0800, and the instruction at $0824 is
+    //  `BD 4D 08  LDA $084D,X`, indexed by the sector counter at $08FF and
+    //  stored to $3D -- the sector number for the drive ROM's read call --
+    //  while boot0 pulls the rest of track 0 into descending pages. The skew
+    //  exists so the next wanted sector arrives under the head about when the
+    //  loader is ready for it, instead of a revolution later.
+    //
+    //  A static copy rather than a read off the master, by owner decision:
+    //  the master is only a much more involved way to obtain the same sixteen
+    //  persisted bytes, and reading it live is what kept this claim out of
+    //  the unit suite.
+    static constexpr Byte  kDos33SkewFromTheMaster[16] =
+    {
+        0x00, 0x0D, 0x0B, 0x09, 0x07, 0x05, 0x03, 0x01,
+        0x0E, 0x0C, 0x0A, 0x08, 0x06, 0x04, 0x02, 0x0F,
+    };
 
     static constexpr size_t  kSectorBytes  = (size_t) NibblizationLayer::kSectorByteSize;
     static constexpr size_t  kSectorsTrack = (size_t) NibblizationLayer::kSectorsPerTrack;
@@ -115,6 +133,52 @@ public:
     //  ------------------------------------------------------------------
 
     //
+
+    TEST_METHOD (Dos33SkewOn16SectorDisk2Media_IsTheExactInverseOfOurInterleave)
+    {
+        //  Scoped to DOS 3.3 on 16-sector 5.25-inch Disk II media, which the
+        //  Duodisk and the //c internal drive share, and said in the name
+        //  because it is NOT a universal: a .po on identical media carries a
+        //  different table, and the concept is meaningless for UniDisk 3.5,
+        //  ProFile, or any block device.
+        //
+        //  Getting the interleave wrong is SILENT in the emulator -- every
+        //  sector is still found, just a revolution later -- and only slow on
+        //  real hardware, which is why the check is worth keeping at all.
+        std::vector<bool>  seen (kSectorsTrack, false);
+        size_t             logical = 0;
+        int                skewed  = 0;
+
+
+
+        for (logical = 0; logical < kSectorsTrack; logical++)
+        {
+            int  physical = (int) kDos33SkewFromTheMaster[logical];
+
+            Assert::IsTrue (physical < (int) kSectorsTrack,
+                L"every entry in DOS's own skew table must name a sector on the track");
+
+            Assert::IsFalse (seen[(size_t) physical],
+                L"and must name a different one, or it is not a permutation and cannot be "
+                L"the mapping anything reads through");
+
+            seen[(size_t) physical] = true;
+
+            Assert::AreEqual ((int) logical,
+                              NibblizationLayer::DosFileIndexForPhysicalSector (physical),
+                L"the sector the drive presents at a physical position must be the one DOS "
+                L"3.3's own boot table says lives there");
+
+            if (physical != (int) logical)
+            {
+                skewed++;
+            }
+        }
+
+        Assert::IsTrue (skewed > 0,
+            L"and the two orders must actually differ, or every assertion above is "
+            L"satisfied by a builder that ignores the skew entirely");
+    }
 
     TEST_METHOD (Capacity_IsTheDistanceFromThePayloadToTheTopOfMemory)
     {

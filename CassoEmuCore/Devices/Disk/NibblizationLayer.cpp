@@ -47,16 +47,23 @@ static constexpr int   kThirdGroupSize        = 86;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DOS 3.3 logical-to-physical interleave (used when nibblizing .dsk/.do)
+//  DOS 3.3 physical-to-file interleave (used when nibblizing .dsk/.do)
 //
-//  Interpretation (matching the Phase 9 helper this file replaces):
-//  loop var L = 0..15 is the DOS logical sector address mark we emit; the
-//  256 source bytes for that mark come from file offset
-//  (track * 16 + kDsk_LtoP[L]) * 256.
+//  INDEXED BY PHYSICAL SECTOR. The sixteen address fields go down in
+//  sequential order, so the address-field number IS the physical position,
+//  and the 256 data bytes emitted under address mark P come from file offset
+//  (track * 16 + kDsk_PhysicalToFile[P]) * 256.
+//
+//  A .dsk stores its sectors in DOS LOGICAL order, so the file index here is
+//  also the DOS logical sector number: this table is physical-to-logical, the
+//  exact inverse of the logical-to-physical skew DOS itself boots through at
+//  $084D -- which DirectBootTests asserts against a persisted copy of that
+//  table. This constant wore the name kDsk_LtoP for a long time, and half
+//  the code reading it believed the name; the belief was measurably backwards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int kDsk_LtoP[16] =
+static constexpr int kDsk_PhysicalToFile[16] =
 {
     0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
 };
@@ -67,19 +74,17 @@ static constexpr int kDsk_LtoP[16] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDOS logical-to-physical interleave for .po
+//  ProDOS physical-to-file interleave for .po
 //
-//  .po arranges its 16 sectors per track in ProDOS-block order rather than
-//  DOS-sector order. ProDOS-sector index 0..15 stored in the file maps to
-//  DOS logical sector via kPo_FileToDosLogical:
-//      file[0] = DOS logical 0     file[8]  = DOS logical 1
-//      file[1] = DOS logical 14    file[9]  = DOS logical 13   ... etc
-//  When emitting DOS logical sector L at nibble time, the 256 source bytes
-//  live at file offset (track*16 + kPo_DosLogicalToFile[L]) * 256.
+//  INDEXED BY PHYSICAL SECTOR, exactly like its DOS neighbor above. A .po
+//  arranges its 16 sectors per track in ProDOS-block order rather than DOS
+//  logical order, so the same physical positions map to different file
+//  offsets: the 256 data bytes emitted under address mark P come from file
+//  offset (track * 16 + kPo_PhysicalToFile[P]) * 256.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int kPo_DosLogicalToFile[16] =
+static constexpr int kPo_PhysicalToFile[16] =
 {
     0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
 };
@@ -308,8 +313,9 @@ static void AppendDataField (
 //
 //  NibblizeWithMap
 //
-//  Common nibblization driver. `interleave` selects the source-byte
-//  offset for each DOS-logical sector.
+//  Common nibblization driver. The address fields go down in sequential
+//  order, so the loop variable is the physical sector; `interleave` names the
+//  file offset whose 256 bytes belong under that address mark.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,7 +326,7 @@ static HRESULT NibblizeWithMap (
 {
     HRESULT   hr        = S_OK;
     int       track     = 0;
-    int       logical   = 0;
+    int       physical  = 0;
     size_t    offset    = 0;
     size_t    rawSize   = 0;
 
@@ -335,15 +341,15 @@ static HRESULT NibblizeWithMap (
 
         out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
 
-        for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
+        for (physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
         {
-            offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[logical])
+            offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[physical])
                    * NibblizationLayer::kSectorByteSize;
 
             AppendAddressField (out.GetTrackBitsForWrite (track), bitOffset,
                                 NibblizationLayer::kDefaultVolume,
                                 static_cast<Byte> (track),
-                                static_cast<Byte> (logical));
+                                static_cast<Byte> (physical));
             AppendDataField    (out.GetTrackBitsForWrite (track), bitOffset, &raw[offset]);
         }
 
@@ -393,7 +399,7 @@ HRESULT NibblizationLayer::RenibblizeTracks (
     size_t        rawSize    = sectors.size();
     size_t        i          = 0;
     int           track      = 0;
-    int           logical    = 0;
+    int           physical   = 0;
     int           trackCount = inOutImage.GetTrackCount();
 
 
@@ -402,11 +408,11 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
     switch (fmt)
     {
-        case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
-        case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
-        case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
-        case DiskFormat::Woz: interleave = kDsk_LtoP;             break;
-        default:              hr         = E_INVALIDARG;          break;
+        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
+        case DiskFormat::Woz: interleave = kDsk_PhysicalToFile;  break;
+        default:              hr         = E_INVALIDARG;         break;
     }
 
     CHR (hr);
@@ -424,15 +430,15 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
         inOutImage.ResizeTrack (track, kTrackBitCapacity);
 
-        for (logical = 0; logical < kSectorsPerTrack; logical++)
+        for (physical = 0; physical < kSectorsPerTrack; physical++)
         {
-            size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[logical])
+            size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical])
                            * kSectorByteSize;
 
             AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
                                 kDefaultVolume,
                                 static_cast<Byte> (track),
-                                static_cast<Byte> (logical));
+                                static_cast<Byte> (physical));
             AppendDataField    (inOutImage.GetTrackBitsForWrite (track), bitOffset, &sectors[offset]);
         }
 
@@ -441,36 +447,6 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::DskFileIndexForDosLogicalSector
-//
-//  Where DOS logical sector L sits within a DOS-ordered file's track.
-//
-//  This is the table itself rather than a composition of it, because the
-//  table IS indexed by logical sector: see its own note above, which says the
-//  bytes for logical mark L come from file offset (track * 16 + kDsk_LtoP[L])
-//  * 256. The .po answer next door has to be composed because both tables
-//  there are indexed the other way round.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int NibblizationLayer::DskFileIndexForDosLogicalSector (int logicalSector)
-{
-    //  Clamped rather than asserted, because a caller reaching past the end
-    //  of a track has a bug worth a diagnostic rather than a crash, and the
-    //  disk grammar refuses an out-of-range sector before it gets here.
-    bool  inRange = logicalSector >= 0 && logicalSector < kSectorsPerTrack;
-
-
-
-    return inRange ? kDsk_LtoP[logicalSector] : 0;
 }
 
 
@@ -506,9 +482,9 @@ int NibblizationLayer::PoFileIndexForDosLogicalSector (int logicalSector)
 
     for (physical = 0; physical < kSectorsPerTrack; physical++)
     {
-        if (kDsk_LtoP[physical] == logicalSector)
+        if (kDsk_PhysicalToFile[physical] == logicalSector)
         {
-            found = kPo_DosLogicalToFile[physical];
+            found = kPo_PhysicalToFile[physical];
         }
     }
 
@@ -529,6 +505,12 @@ Error:
 //  callers that have to lay bytes down in the order a drive will hand them
 //  back rather than in the order a filesystem stores them.
 //
+//  This is the table itself rather than a composition of it, because the
+//  table IS indexed by physical sector. It used to have a twin named for a
+//  logical-sector argument, reading the same table with the same index; the
+//  two answers were byte-identical because they were the same lookup, and
+//  the twin's name was the half that lied.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
@@ -541,7 +523,7 @@ int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
 
     CBRAEx (inRange, E_INVALIDARG);
 
-    found = kDsk_LtoP[physicalSector];
+    found = kDsk_PhysicalToFile[physicalSector];
 
 Error:
     return found;
@@ -559,7 +541,7 @@ Error:
 
 HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
 
 
 
@@ -583,7 +565,7 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 
 HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
 
 
 
@@ -607,7 +589,7 @@ HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out
 
 HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kPo_DosLogicalToFile, out);
+    HRESULT   hr = NibblizeWithMap (raw, kPo_PhysicalToFile, out);
 
 
 
@@ -1251,10 +1233,10 @@ HRESULT NibblizationLayer::DecodeTracks (
 
     switch (fmt)
     {
-        case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
-        case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
-        case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
-        default:              hr         = E_INVALIDARG;          break;
+        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
+        default:              hr         = E_INVALIDARG;         break;
     }
 
     CHR (hr);

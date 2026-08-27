@@ -6,8 +6,9 @@ place where the default is deliberately weaker than what is available.
 ## Running it
 
 ```powershell
-.\scripts\RunTests.ps1 -Build            # build, then run everything
+.\scripts\RunTests.ps1 -Build            # build, then run the unit suite
 .\scripts\RunTests.ps1 -Build -Filter Merlin
+.\scripts\RunTests.ps1 -Build -Scenario  # the scenario suite -- see below
 ```
 
 `RunTests.ps1` does not build unless you pass `-Build`, and it refuses to run
@@ -27,6 +28,7 @@ would pass with the guard deleted. Run Debug before merging.
 |---|---|
 | Unit tests | Encoding, addressing modes, arithmetic, flags, assembler, audio, video, disk formats, UI models |
 | `HeadlessHost` integration | Cold boot, disk boot, framebuffer hashing, reset semantics, the emulator with no Win32 window |
+| Scenario suite (`ScenarioTests.dll`) | What a real guest makes of what we wrote, against material we do not own |
 | Dormann functional suite | That whole *programs* behave correctly on the CPU |
 | Harte SingleStepTests | That each *instruction* is correct in isolation, against real hardware |
 
@@ -34,6 +36,28 @@ Dormann and Harte cover what neither does alone. Dormann runs real 6502 code
 and catches errors that compound into wrong behavior. Harte catches a single
 flag being wrong in a case no sensible program creates, which is exactly
 where copy protection lives.
+
+## The scenario suite
+
+`ScenarioTests.dll` holds the cases that are **system tests, not unit tests**:
+they need external inputs -- the stock DOS 3.3 System Master, which is
+fetched by the emulator rather than committed -- and they boot real guests to
+ask what DOS 3.3, ProDOS, and Applesoft themselves make of the disks and
+programs this tool produced. A tokenizer checked against its own detokenizer,
+or a disk read back through the writer's own understanding, agrees with
+itself perfectly while being wrong; the guest is the oracle that cannot.
+
+They live in a **separate binary** rather than behind a category or filter,
+so they structurally cannot run in the unit suite by accident: CI names
+`UnitTest.dll` only, and `RunTests.ps1 -Scenario` is the one deliberate way
+to run them. A case that cannot reach the master FAILS rather than skipping,
+because a guest-visible gate that never started a guest has checked nothing.
+
+One scenario case doubles as a fixture generator: the Applesoft construct
+corpus (`UnitTest/Fixtures/Basic/`) is regenerated only by typing the
+committed listing into a booted master, never from the tokenizer's own
+output. The circularity guard is spelled out in the inventory beside the
+fixture.
 
 ## The Harte vectors
 

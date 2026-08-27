@@ -35,9 +35,9 @@ param(
     [string]$Configuration = 'Debug',
 
     # Lay the image out in PowerShell, the way this script always did, rather
-    # than with `CassoCli disk sectorwrite`. Kept because it is the independent
-    # witness: the two methods share no code, so agreeing byte for byte is
-    # evidence rather than a tautology. -Compare runs both and diffs them.
+    # than with `CassoCli disk sectorwrite`. Kept as the second witness: the
+    # CLI path exercises `disk create` and `disk sectorwrite` end to end,
+    # the legacy path writes raw file offsets, and -Compare diffs the two.
     [switch]$LegacyLayout,
 
     # Build the image both ways and report whether they are identical.
@@ -81,23 +81,56 @@ $kStage1Length    = $kBytesPerSector
 $kStage2Length    = $kBytesPerSector
 $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
-# DOS 3.3 logical-to-physical sector interleave. Casso's nibblization
-# layer expects .dsk files in PHYSICAL sector order; writing logical
-# sector S of track T means writing it at file offset
-# (T * 16 + LtoP[S]) * 256.
-$kDsk_LtoP = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
+# DOS 3.3 physical-to-file sector interleave, indexed by physical sector --
+# the number in the address field the drive presents at that position, which
+# is how the demo's own RWTS files what it reads. A .dsk holds its sectors in
+# DOS logical order, so placing payload page S under address mark S means
+# writing it at file offset (T * 16 + PhysicalToFile[S]) * 256. The same
+# sixteen numbers live in NibblizationLayer; `disk sectorwrite` (the default
+# path below) reads them there, and this copy is what makes -Compare an
+# independent witness.
+$kDsk_PhysicalToFile = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-function Get-LogicalSectorOffset {
+function Get-PhysicalSectorOffset {
     param(
         [int]$Track,
-        [int]$LogicalSector
+        [int]$PhysicalSector
     )
-    return ($Track * $kSectorsPerTrack + $kDsk_LtoP[$LogicalSector]) * $kBytesPerSector
+    return ($Track * $kSectorsPerTrack + $kDsk_PhysicalToFile[$PhysicalSector]) * $kBytesPerSector
+}
+
+
+# A payload whose page N belongs under address mark N, reordered into the DOS
+# logical sequence a .dsk stores -- which is what `disk sectorwrite` takes,
+# since its sector numbers are logical and it applies no interleave of its
+# own. The demo's RWTS files each sector by its address-mark number, so the
+# PHYSICAL layout is the requirement and this script owns the conversion.
+function Convert-PhysicalRunToLogicalOrder {
+    param(
+        [byte[]]$Data
+    )
+
+    if (($Data.Length % $kBytesPerTrack) -ne 0) {
+        throw "physical-run payloads are whole tracks; got $($Data.Length) bytes"
+    }
+
+    $out    = New-Object byte[] $Data.Length
+    $tracks = [int]($Data.Length / $kBytesPerTrack)
+
+    for ($trackOff = 0; $trackOff -lt $tracks; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $from = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $to   = ($trackOff * $kSectorsPerTrack + $kDsk_PhysicalToFile[$sector]) * $kBytesPerSector
+            [Array]::Copy($Data, $from, $out, $to, $kBytesPerSector)
+        }
+    }
+
+    return ,$out
 }
 
 
@@ -213,12 +246,12 @@ function Build-LayoutInPowerShell {
     $image = New-Object byte[] $kImageSize
 
     # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 0 0) $stage1
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 0 0) $stage1
 
     # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (1 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (1 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -227,19 +260,19 @@ function Build-LayoutInPowerShell {
     }
 
     # Track 3 logical sector 0: stage 2 ($1000..$10FF)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 3 0) $stage2
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 3 0) $stage2
 
     # Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
     for ($sector = 0; $sector -lt 4; $sector++) {
         $slice = New-Object byte[] $kBytesPerSector
         [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image (Get-LogicalSectorOffset 3 (1 + $sector)) $slice
+        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (1 + $sector)) $slice
     }
 
     # Tracks 4-5: DHGR main pattern
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (4 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (4 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -250,7 +283,7 @@ function Build-LayoutInPowerShell {
     # Tracks 6-7: HGR1 cassowary
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (6 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (6 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -261,7 +294,7 @@ function Build-LayoutInPowerShell {
     # Tracks 8-9: HGR2 test bands
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-LogicalSectorOffset (8 + $trackOff) $sector
+            $fileOff    = Get-PhysicalSectorOffset (8 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
             [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
@@ -278,13 +311,16 @@ function Build-LayoutInPowerShell {
 
 
 function Build-LayoutWithCassoCli {
-    #  The same layout as seven `disk sectorwrite` calls.
+    #  The same layout as six `disk sectorwrite` calls.
     #
-    #  What this buys is not brevity. The PowerShell method has to know the
-    #  DOS 3.3 interleave, so it carries its own copy of the sixteen numbers,
-    #  in a language where no compiler and no test will ever notice it
-    #  drifting from the engine. `sectorwrite` takes a track and a LOGICAL sector
-    #  and does the translation in the layer that owns the skew.
+    #  `sectorwrite` addresses DOS LOGICAL sectors -- the identity into a
+    #  .dsk's record order -- and applies no interleave of its own. The demo
+    #  wants the OTHER layout: its RWTS files each sector by address-mark
+    #  number, so page N of every region must sit under mark N. This path
+    #  therefore reorders each region into logical sequence before handing it
+    #  over, using the same sixteen numbers the legacy layout writes with.
+    #  What -Compare witnesses is the CLI's create-and-write machinery against
+    #  raw file offsets, byte for byte.
 
     $dsk = Join-Path $demoDir "casso-rocks.dsk"
 
@@ -295,35 +331,40 @@ function Build-LayoutWithCassoCli {
     & $cli disk create $dsk --type dsk --format none | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "disk create failed ($LASTEXITCODE)" }
 
-    #  Each stage goes to a scratch file first: sectorwrite takes a file, and the
-    #  assembled regions are in memory at this point.
-    $tmp1 = Join-Path $demoDir "stage1.tmp"
-    $tmp2 = Join-Path $demoDir "stage2.tmp"
+    #  Track 3 carries stage 2 at physical sector 0 and the LoRes pattern at
+    #  physical 1-4, so it is assembled as one whole physical-ordered track
+    #  and reordered with everything else. The unused sectors are zero, which
+    #  is what a fresh create left there anyway.
+    $track3 = New-Object byte[] $kBytesPerTrack
+    [Array]::Copy($stage2, 0, $track3, 0, $stage2.Length)
+    [Array]::Copy($lores,  0, $track3, $kBytesPerSector, $lores.Length)
 
-    [System.IO.File]::WriteAllBytes($tmp1, $stage1)
-    [System.IO.File]::WriteAllBytes($tmp2, $stage2)
-
-    #  Track, logical sector, and what goes there: the layout the demo
-    #  documents, in the order its boot loader reads it.
+    #  Each region goes to a scratch file first: sectorwrite takes a file, and
+    #  the reordered regions are in memory at this point. Stage 1 is a single
+    #  sector at physical 0, which is logical 0 -- nothing to reorder.
     $plan = @(
-        @{ Track = 0; Sector = 0; Path = $tmp1 },
-        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
-        @{ Track = 3; Sector = 0; Path = $tmp2 },
-        @{ Track = 3; Sector = 1; Path = (Join-Path $demoDir "lores-bars.lores") },
-        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
-        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") },
-        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "test-bands.hgr") }
+        @{ Track = 0; Name = "stage1.tmp";   Bytes = $stage1 },
+        @{ Track = 1; Name = "dhgraux.tmp";  Bytes = (Convert-PhysicalRunToLogicalOrder $dhgrAux) },
+        @{ Track = 3; Name = "track3.tmp";   Bytes = (Convert-PhysicalRunToLogicalOrder $track3) },
+        @{ Track = 4; Name = "dhgrmain.tmp"; Bytes = (Convert-PhysicalRunToLogicalOrder $dhgrMain) },
+        @{ Track = 6; Name = "hgr.tmp";      Bytes = (Convert-PhysicalRunToLogicalOrder $hgr) },
+        @{ Track = 8; Name = "bands.tmp";    Bytes = (Convert-PhysicalRunToLogicalOrder $bands) }
     )
 
     foreach ($step in $plan) {
-        & $cli disk sectorwrite $dsk $step.Path --track $step.Track --sector $step.Sector | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "disk sectorwrite failed: $($step.Path) at track $($step.Track) sector $($step.Sector)"
+        $tmp = Join-Path $demoDir $step.Name
+
+        [System.IO.File]::WriteAllBytes($tmp, $step.Bytes)
+
+        & $cli disk sectorwrite $dsk $tmp --track $step.Track --sector 0 | Out-Null
+
+        $wrote = $LASTEXITCODE
+        Remove-Item $tmp -Force
+
+        if ($wrote -ne 0) {
+            throw "disk sectorwrite failed: $($step.Name) at track $($step.Track)"
         }
     }
-
-    Remove-Item $tmp1 -Force
-    Remove-Item $tmp2 -Force
 
     return ,([System.IO.File]::ReadAllBytes($dsk))
 }

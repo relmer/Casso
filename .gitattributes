@@ -68,3 +68,9 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# Tokenized Applesoft fixtures are binary byte-for-byte oracles; never
+# normalize their line-ending-looking bytes.
+###############################################################################
+*.tok binary

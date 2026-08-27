@@ -23,3 +23,6 @@ IDR_DEMO_BANDS        RCDATA "..\\..\\Apple2\\Demos\\test-bands.hgr"
 IDR_DEMO_LORES        RCDATA "..\\..\\Apple2\\Demos\\lores-bars.lores"
 IDR_DEMO_DHGR_AUX     RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-aux.bin"
 IDR_DEMO_DHGR_MAIN    RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-main.bin"
+
+IDR_BASIC_CORPUS_SRC  RCDATA "..\\Fixtures\\Basic\\construct-corpus.bas"
+IDR_BASIC_CORPUS_TOK  RCDATA "..\\Fixtures\\Basic\\construct-corpus.tok"

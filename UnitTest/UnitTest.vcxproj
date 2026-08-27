@@ -289,6 +289,7 @@
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
+    <ClCompile Include="BasicCorpusTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\CrossFormatExtractionTests.cpp" />

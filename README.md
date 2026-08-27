@@ -26,7 +26,7 @@ The project includes:
 - **CLI tool**: an assembler under a stated dialect (`as65` or `merlin`), the `run` subcommand to load and execute a binary or assembly source, and a `disk` subcommand that makes disk images, reads files off them and puts them back: `disk create`, `init`, `list`, `get`, `put`, `delete`, `boot`, `sectorread` and `sectorwrite` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop (assemble, place, set the boot program, launch) with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
 - **First-run asset bootstrap**: Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness**: `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **4000+ unit tests**: comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
+- **4000+ unit tests**: comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. A separate scenario suite boots a real 6502 over images the command line just wrote and checks what the guest makes of them, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself; it needs the stock DOS 3.3 System Master on the machine, so it runs deliberately (`RunTests.ps1 -Scenario`) rather than in CI. See [docs/testing.md](docs/testing.md).
 
 
 ## Contents
@@ -415,7 +415,8 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — assembler CLI (`as65`, `merlin`) with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (3350+ tests)
+├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (4000+ tests)
+└── ScenarioTests/ Test DLL — system tests needing the DOS 3.3 System Master and a booted guest (`RunTests.ps1 -Scenario`)
 ```
 
 ## Requirements
