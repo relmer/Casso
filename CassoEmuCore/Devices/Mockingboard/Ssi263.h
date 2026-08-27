@@ -219,6 +219,8 @@ private:
     float      m_noiseLp      = 0.0f;
 
     // Radiation-characteristic differentiator history (previous cascade
-    // output sample).
+    // output sample) and the output low-pass state that rounds the top
+    // octave off the differentiated signal.
     float      m_radPrev      = 0.0f;
+    float      m_outLp        = 0.0f;
 };

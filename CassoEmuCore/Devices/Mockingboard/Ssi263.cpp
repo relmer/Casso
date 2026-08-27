@@ -90,15 +90,23 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // tilt at the output costs F1-dominant voiced energy 20+ dB while barely
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
-static constexpr float   s_kfVoicedGain   = 40.00f;
+static constexpr float   s_kfVoicedGain   = 60.00f;
 static constexpr float   s_kfNoiseGain    = 0.085f;
+
+// Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
+// octave the radiation tilt would otherwise push to Nyquist -- the digital
+// sheen on fricatives -- standing in for the analog output stage between
+// the chip and the card's mixer.
+static constexpr float   s_kfOutputLpCoef = 0.54f;
 
 // Two-pole smoothing on the glottal impulse train. A bare impulse opened
 // every pitch period with a step -- an audible click at the fundamental
 // rate -- while a wide shaped pulse rolled off the upper formants and
 // muffled the voice. Two cascaded one-pole sections start each pulse from
 // zero (click-free) yet keep a -12 dB/oct tail that still excites F2/F3.
-static constexpr float   s_kfSourcePole   = 0.15f;
+// The pole sets where that tail starts: higher was audibly buzzy against
+// the radiation tilt, lower muffles F2.
+static constexpr float   s_kfSourcePole   = 0.10f;
 static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
@@ -308,6 +316,7 @@ void Ssi263::Reset()
 
     m_envLevel     = 0.0f;
     m_radPrev      = 0.0f;
+    m_outLp        = 0.0f;
     m_glottalPhase = 0.0;
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
@@ -557,6 +566,9 @@ float Ssi263::GenerateSample()
                 (static_cast<float> (m_sampleRate) / 44100.0f);
     m_radPrev = sample;
     sample    = diffed;
+
+    m_outLp  += s_kfOutputLpCoef * (sample - m_outLp);
+    sample    = m_outLp;
 
     // The amplitude envelope: eases toward the active level while sounding
     // and toward zero once the phoneme has finished, so every boundary is a
