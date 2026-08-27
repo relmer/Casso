@@ -153,18 +153,31 @@ Entries before versioning was introduced use dates only.
   become the default (see Changed above), and `--dos-bin` writes that span
   behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
   carries, so the result is ready to `BLOAD` once placed on a disk.
-- **`disk stamp` writes a file into an image at a track and a sector, with no
-  filesystem involved.** A disk that boots its own loader has no directory to
-  put anything in, so building one meant computing file offsets by hand. `stamp`
-  takes a track and a *logical* sector and lays whole sectors in, applying the
-  DOS 3.3 interleave in the layer that owns it. Bytes run on into the next track
-  when they do not fit, and a placement off the end of the disk is refused
-  before anything is written rather than truncated. `scripts/BuildDemoDisk.ps1`
-  now builds `casso-rocks.dsk` through it, and keeps its hand-rolled layout as
+- **`disk sectorread` and `disk sectorwrite` move bytes at a track and a
+  sector, with no filesystem involved.** A disk that boots its own loader has no
+  directory to put anything in, so building one meant computing file offsets by
+  hand. Both take a track and a *logical* sector and work in whole sectors,
+  applying the DOS 3.3 interleave in the layer that owns it, so a number given
+  to one means the same to the other. A write runs on into the next track when
+  its file does not fit, and a placement off the end of the disk is refused
+  before anything is written rather than truncated. A read takes `--count`
+  instead, because nothing on such a disk records where anything ends, and goes
+  to `--out` or to standard output. Until `sectorread` existed nothing in the
+  tool could read these disks back at all: `get` reads through a catalog and
+  refuses a volume that has none. `scripts/BuildDemoDisk.ps1` now builds
+  `casso-rocks.dsk` through `sectorwrite`, and keeps its hand-rolled layout as
   `-LegacyLayout`: the two share no code, so `-Compare` running both and
   getting the same 143,360 bytes is evidence rather than a tautology.
 
 ### Changed
+- **Casso.exe parses its command line through the same table-driven grammar as
+  CassoCli.** The GUI's flags were a hand-rolled loop comparing wide literals:
+  only `--trace` took a slash, nothing could be unit-tested, and CassoCli's
+  worked example had to apologize for it, writing `--machine` and `--disk1`
+  with two dashes however the reader asked. `/machine`, `/disk1`, `/disk2` and
+  `/trace` now work at the emulator, the grammar lives in core with tests, and
+  the example writes the emulator's flags with the reader's own prefix like
+  every other line on the page.
 - **The disk page is one block per command, and the second words are called
   commands.** The page was four lists a reader had to join up themselves: the
   commands in one place, a grammar line in another, every option of every

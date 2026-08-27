@@ -35,7 +35,7 @@ param(
     [string]$Configuration = 'Debug',
 
     # Lay the image out in PowerShell, the way this script always did, rather
-    # than with `CassoCli disk stamp`. Kept because it is the independent
+    # than with `CassoCli disk sectorwrite`. Kept because it is the independent
     # witness: the two methods share no code, so agreeing byte for byte is
     # evidence rather than a tautology. -Compare runs both and diffs them.
     [switch]$LegacyLayout,
@@ -83,7 +83,7 @@ $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
 # DOS 3.3 logical-to-physical sector interleave. Casso's nibblization
 # layer expects .dsk files in PHYSICAL sector order; writing logical
-# sector S of track T means stamping it at file offset
+# sector S of track T means writing it at file offset
 # (T * 16 + LtoP[S]) * 256.
 $kDsk_LtoP = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
 
@@ -201,11 +201,11 @@ $bands    = Read-AssetFile 'test-bands.hgr'          $kImageLength
 $lores    = Read-AssetFile 'lores-bars.lores'        ($kBytesPerSector * 4)
 
 function Build-LayoutInPowerShell {
-    #  The original method: allocate the image, stamp every region at a
+    #  The original method: allocate the image, place every region at a
     #  computed file offset, write it out.
     #
     #  KEPT AS AN INDEPENDENT WITNESS, not as a fallback. It shares no code
-    #  with the stamp path, so the two agreeing byte for byte is evidence
+    #  with the sectorwrite path, so the two agreeing byte for byte is evidence
     #  rather than a tautology. Run -Compare to check them against each other.
 
     # $00-filled blank disk (matches the test fixture; nibblizer doesn't
@@ -278,12 +278,12 @@ function Build-LayoutInPowerShell {
 
 
 function Build-LayoutWithCassoCli {
-    #  The same layout as seven `disk stamp` calls.
+    #  The same layout as seven `disk sectorwrite` calls.
     #
     #  What this buys is not brevity. The PowerShell method has to know the
     #  DOS 3.3 interleave, so it carries its own copy of the sixteen numbers,
     #  in a language where no compiler and no test will ever notice it
-    #  drifting from the engine. `stamp` takes a track and a LOGICAL sector
+    #  drifting from the engine. `sectorwrite` takes a track and a LOGICAL sector
     #  and does the translation in the layer that owns the skew.
 
     $dsk = Join-Path $demoDir "casso-rocks.dsk"
@@ -295,7 +295,7 @@ function Build-LayoutWithCassoCli {
     & $cli disk create $dsk --type dsk --format none | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "disk create failed ($LASTEXITCODE)" }
 
-    #  Each stage goes to a scratch file first: stamp takes a file, and the
+    #  Each stage goes to a scratch file first: sectorwrite takes a file, and the
     #  assembled regions are in memory at this point.
     $tmp1 = Join-Path $demoDir "stage1.tmp"
     $tmp2 = Join-Path $demoDir "stage2.tmp"
@@ -316,9 +316,9 @@ function Build-LayoutWithCassoCli {
     )
 
     foreach ($step in $plan) {
-        & $cli disk stamp $dsk $step.Path --track $step.Track --sector $step.Sector | Out-Null
+        & $cli disk sectorwrite $dsk $step.Path --track $step.Track --sector $step.Sector | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            throw "disk stamp failed: $($step.Path) at track $($step.Track) sector $($step.Sector)"
+            throw "disk sectorwrite failed: $($step.Path) at track $($step.Track) sector $($step.Sector)"
         }
     }
 
@@ -336,7 +336,7 @@ $dskPath = Join-Path $demoDir "casso-rocks.dsk"
 if ($Verify) {
     #  Built in memory and compared. The PowerShell layout is used because it
     #  is the one that writes nothing: the CassoCli path lays the image down
-    #  with `disk create` and `disk stamp`, which is a write by construction.
+    #  with `disk create` and `disk sectorwrite`, which is a write by construction.
     $expected = Build-LayoutInPowerShell
 
     if (-not (Test-Path $dskPath)) {

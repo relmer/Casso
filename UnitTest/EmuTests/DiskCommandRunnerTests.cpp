@@ -363,7 +363,7 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  stamp: bytes at a track and a sector, with no filesystem involved.
+    //  sectorwrite: bytes at a track and a sector, no filesystem involved.
     //
     //  THE SECTOR IS LOGICAL AND THE FILE OFFSET IS NOT. They differ by the DOS
     //  3.3 interleave, and an implementation that ignored it would read back
@@ -373,13 +373,13 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static CommandLineOptions MakeStamp (const char * image, const char * file, int track, int sector)
+    static CommandLineOptions MakeSectorWrite (const char * image, const char * file, int track, int sector)
     {
         CommandLineOptions  options;
 
         options.subcommand     = CommandLineOptions::Subcommand::Disk;
-        options.disk.command      = CommandLineOptions::DiskOptions::Command::Stamp;
-        options.disk.commandWord  = "stamp";
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::SectorWrite;
+        options.disk.commandWord  = "sectorwrite";
         options.disk.imagePath = image;
         options.disk.hostFile  = file;
         options.disk.track     = track;
@@ -410,7 +410,7 @@ public:
     //  LOGICAL SECTOR 1 IS NOT AT FILE OFFSET 256. It is at the offset the
     //  interleave puts it, which for DOS 3.3 is physical position 7. This is
     //  the assertion that would fail if the command wrote sequentially.
-    TEST_METHOD (Stamp_PlacesBytesWhereTheInterleavePutsThem)
+    TEST_METHOD (SectorWrite_PlacesBytesWhereTheInterleavePutsThem)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
@@ -422,7 +422,7 @@ public:
         io.files["one.bin"] = payload;
 
         Assert::AreEqual (DiskCommandRunner::kClean,
-                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 3, 1)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -439,7 +439,7 @@ public:
 
     //  A payload longer than one track runs on into the next, because splitting
     //  the call per track would put the wrap arithmetic back in the caller.
-    TEST_METHOD (Stamp_RunsOnPastTheEndOfATrack)
+    TEST_METHOD (SectorWrite_RunsOnPastTheEndOfATrack)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
@@ -451,7 +451,7 @@ public:
         io.files["big.bin"] = payload;
 
         Assert::AreEqual (DiskCommandRunner::kClean,
-                          runner.Run (MakeStamp ("raw.dsk", "big.bin", 1, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 1, 0)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -472,7 +472,7 @@ public:
 
     //  IT WRITES WHOLE SECTORS AND DISTURBS NOTHING ELSE. A payload that does
     //  not fill its last sector leaves the rest of that sector as it was.
-    TEST_METHOD (Stamp_TouchesOnlyTheSectorsItWasGiven)
+    TEST_METHOD (SectorWrite_TouchesOnlyTheSectorsItWasGiven)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
@@ -482,7 +482,7 @@ public:
         io.files["short.bin"] = vector<Byte> (4, (Byte) 0xFF);
 
         Assert::AreEqual (DiskCommandRunner::kClean,
-                          runner.Run (MakeStamp ("raw.dsk", "short.bin", 0, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -494,7 +494,7 @@ public:
     }
 
     //  A track or sector off the end of the disk is refused, not clamped.
-    TEST_METHOD (Stamp_RefusesAPlaceThatIsNotOnTheDisk)
+    TEST_METHOD (SectorWrite_RefusesAPlaceThatIsNotOnTheDisk)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
@@ -503,16 +503,16 @@ public:
         io.files["one.bin"] = vector<Byte> (16, (Byte) 0xA5);
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput,
-                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 35, 0)).exitStatus,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 35, 0)).exitStatus,
                           L"track 35 is one past the last");
         Assert::AreEqual (DiskCommandRunner::kNoOutput,
-                          runner.Run (MakeStamp ("raw.dsk", "one.bin", 0, 16)).exitStatus,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 0, 16)).exitStatus,
                           L"and sector 16 is one past the last");
     }
 
     //  A payload that will not fit from where it was told to start is refused
     //  before anything is written, rather than truncated.
-    TEST_METHOD (Stamp_RefusesAPayloadThatRunsOffTheEnd)
+    TEST_METHOD (SectorWrite_RefusesAPayloadThatRunsOffTheEnd)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
@@ -525,7 +525,7 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", before));
 
-        result = runner.Run (MakeStamp ("raw.dsk", "big.bin", 33, 0));
+        result = runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 33, 0));
 
         Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
@@ -533,6 +533,198 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", after));
         Assert::IsTrue (before == after, L"and the image is exactly as it was");
     }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  sectorread: the same places, read back.
+    //
+    //  THE ROUND TRIP IS THE POINT. Before this existed, a disk written by
+    //  sectorwrite could not be read by anything in the tool: get goes through
+    //  a catalog and these disks have none. So the assertions that matter are
+    //  the ones that put bytes in with one command and take them out with the
+    //  other, through the same interleave, and compare.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static CommandLineOptions MakeSectorRead (const char * image, int track, int sector, int count)
+    {
+        CommandLineOptions  options;
+
+        options.subcommand        = CommandLineOptions::Subcommand::Disk;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::SectorRead;
+        options.disk.commandWord  = "sectorread";
+        options.disk.imagePath    = image;
+        options.disk.track        = track;
+        options.disk.sector       = sector;
+        options.disk.sectorCount  = count;
+
+        return options;
+    }
+
+    //  WHAT ONE COMMAND WROTE, THE OTHER READS. Written at a logical sector and
+    //  read back from the same one: if either applied the interleave and the
+    //  other did not, the bytes would come back from somewhere else entirely.
+    TEST_METHOD (SectorRead_ReturnsWhatSectorWritePutThere)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xC3);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (result.hasPayload, L"with no --out the bytes are the payload");
+        Assert::IsTrue (result.payload == payload,
+                        L"and they are the bytes that were written, from the same logical sector");
+    }
+
+    //  A COUNT IS WHAT A READ HAS INSTEAD OF A LENGTH, and it spans tracks the
+    //  same way a write does.
+    TEST_METHOD (SectorRead_RunsOnPastTheEndOfATrack)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload ((size_t) NibblizationLayer::kSectorByteSize * 3, (Byte) 0x7E);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["three.bin"] = payload;
+
+        //  Sector 14 of track 1, so the third sector lands on track 2.
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "three.bin", 1, 14)).exitStatus);
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 1, 14, 3));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsTrue (result.payload == payload,
+                        L"all three sectors come back, across the track boundary");
+    }
+
+    //  WHOLE SECTORS, AND THE TAIL IS WHAT WAS ALREADY THERE. A read has no
+    //  length to trim to, so a 10-byte write reads back as a full sector. That
+    //  is not a defect to hide: it is what a disk with no catalog can tell you.
+    TEST_METHOD (SectorRead_DeliversWholeSectors_BecauseNothingRecordsWhereBytesEnd)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (10, (Byte) 0x11);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["short.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
+
+        Assert::AreEqual ((size_t) NibblizationLayer::kSectorByteSize, result.payload.size(),
+                          L"a whole sector, not the ten bytes that were written");
+
+        Assert::IsTrue (std::equal (payload.begin(), payload.end(), result.payload.begin()),
+                        L"and it opens with them");
+    }
+
+    //  --out WRITES THROUGH THE SEAM rather than to the payload, the same
+    //  choice get makes, so a caller redirecting to a file and a caller
+    //  piping get the same bytes.
+    TEST_METHOD (SectorRead_WithAnOutFile_WritesThroughTheSeamInsteadOfThePayload)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        vector<Byte>        payload (NibblizationLayer::kSectorByteSize, (Byte) 0x2D);
+        CommandLineOptions  options = MakeSectorRead ("raw.dsk", 5, 0, 1);
+        DiskCommandResult   result;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandRunner::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 5, 0)).exitStatus);
+
+        options.disk.hostFile = "back.bin";
+        result                = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+        Assert::IsFalse (result.hasPayload, L"named a file, so nothing goes to standard output");
+        Assert::IsTrue (io.files["back.bin"] == payload, L"and the file holds the sector");
+    }
+
+    //  A FILESYSTEM IS NOT REQUIRED AND NOT LOOKED FOR, which is the whole
+    //  reason the command exists: get refuses these disks outright.
+    TEST_METHOD (SectorRead_ReadsADiskWithNoFilesystemAtAll)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus,
+                          L"an unformatted disk is the ordinary case here, not a refusal");
+    }
+
+    TEST_METHOD (SectorRead_RefusesAPlaceThatIsNotOnTheDisk)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+
+        SeedBlankImage (io, "raw.dsk");
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeSectorRead ("raw.dsk", 35, 0, 1)).exitStatus,
+                          L"there is no track 35");
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 16, 1)).exitStatus,
+                          L"and no sector 16");
+    }
+
+    //  ZERO SECTORS IS NOT A READ, and neither is a negative one. Left
+    //  unchecked the first would deliver nothing and report success.
+    TEST_METHOD (SectorRead_RefusesACountThatIsNotAReadAtAll)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+
+        SeedBlankImage (io, "raw.dsk");
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 0)).exitStatus,
+                          L"zero sectors");
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, -1)).exitStatus,
+                          L"and fewer than that");
+    }
+
+    TEST_METHOD (SectorRead_RefusesACountThatRunsOffTheEnd)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 34, 14, 5));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine);
+        Assert::IsFalse (result.hasPayload, L"and no partial read is handed back");
+    }
+
+
+
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -783,6 +975,34 @@ public:
                         L"and the word they typed is quoted back");
         Assert::IsFalse (io.Exists ("new.2mg"), L"and nothing was written");
     }
+
+    //  WHAT IS REPORTED IS WHAT IS ON THE DISK. ProDOS holds a volume name in
+    //  upper case, so `--volume mydisk` makes /MYDISK and asking for it that
+    //  way is perfectly good. The confirmation used to read back the name that
+    //  was typed while `disk list` read back the name that is there, so the
+    //  two disagreed over a disk that had been written correctly all along.
+    TEST_METHOD (Create_ReportsTheProDosVolumeInTheCaseItIsStored_NotTheCaseItWasTyped)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("new.po");
+        DiskCommandResult   result;
+
+        options.disk.formatName = "prodos";
+        options.disk.volumeName = "mydisk";
+        result                  = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kClean, result.exitStatus);
+
+        Assert::IsTrue (result.output.find ("MYDISK") != std::string::npos,
+                        L"the confirmation names the volume the disk actually has");
+
+        Assert::IsTrue (result.output.find ("mydisk") == std::string::npos,
+                        L"and never the lower-case form, which is on no disk anywhere");
+    }
+
+
+
 
     //  A DOS 3.3 volume is a NUMBER, and a word that is not one is refused
     //  rather than quietly reading as zero.
@@ -2693,32 +2913,40 @@ public:
             L"changes what runs, not what is on the volume");
     }
 
-    TEST_METHOD (Boot_ABinaryOnADos33Volume_SucceedsAndSaysDosWillNotRunIt)
+    //  A STARTUP PROGRAM DOS 3.3 CANNOT RUN IS REFUSED, AND NOTHING IS WRITTEN.
+    //
+    //  Measured on the stock master with a real 6502: the disk boots and the
+    //  binary is never executed, because DOS 3.3's boot command is RUN.
+    //
+    //  This used to set the name, commit the image and then say so, on the
+    //  reasoning that a DOS patched by hand to BRUN is a real thing and
+    //  refusing would block it. What that produced for everyone else was a
+    //  command that reported trouble and changed the disk anyway, leaving a
+    //  volume configured to start a program that cannot start -- which is
+    //  what ProDOS refuses outright in the same command.
+    TEST_METHOD (Boot_ABinaryOnADos33Volume_IsRefused_AndTheGreetingIsUntouched)
     {
-        // Measured on the stock master with a real 6502: the disk boots and the
-        // binary is never executed, because DOS 3.3's boot command is RUN. The
-        // name IS set -- refusing would be wrong, since a disk whose boot
-        // command has been patched by hand is a real thing -- so the honest
-        // answer is the complaints status and a sentence saying which.
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
         DiskCommandResult   result;
+        std::string         before;
 
         SeedRealDisk (io);
 
+        before = GreetingNameIn (io.files[kImage]);
         result = runner.Run (MakeBootOptions (kImage, kBinaryOnTheDisk));
 
-        Assert::AreEqual (DiskCommandRunner::kWithComplaints, result.exitStatus,
-            L"a startup program DOS will not run is not a clean outcome");
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus,
+            L"a startup program DOS will not run is refused, not carried out");
 
-        Assert::IsTrue (result.diagnostics.find ("RUNs its greeting") != std::string::npos,
-            L"and the complaint says what DOS does at boot");
+        Assert::IsTrue (result.diagnostics.find ("RUN") != std::string::npos,
+            L"and the refusal says what DOS does at boot");
 
         Assert::IsTrue (result.diagnostics.find (kBinaryOnTheDisk) != std::string::npos,
             L"naming the file it is about");
 
-        Assert::AreEqual (std::string (kBinaryOnTheDisk), GreetingNameIn (io.files[kImage]),
-            L"while still setting the name, which is what was asked for");
+        Assert::AreEqual (before, GreetingNameIn (io.files[kImage]),
+            L"and the greeting the disk already had is left exactly as it was");
 
         AssertNamesNoPlatformCode (result.diagnostics);
     }
@@ -2776,10 +3004,70 @@ public:
         //  asked about is there, and a command nobody asked about is not.
         Assert::IsTrue (result.output.find ("CassoCli disk boot <image> <name>") != std::string::npos,
             L"boot's own grammar");
-        Assert::IsTrue (result.output.find ("CassoCli disk stamp") == std::string::npos,
+        Assert::IsTrue (result.output.find ("CassoCli disk sectorwrite") == std::string::npos,
             L"and not every other command's");
 
         AssertImageMatches (io, kImage, original);
+    }
+
+    //  THE SAME ANSWER FOR A BAD VALUE AS FOR A MISSING OPERAND. These used to
+    //  differ: `sectorread` with no image answered in 18 lines and
+    //  `sectorread --track 99` in 194, the whole page, though both readers had
+    //  named the command they wanted and differed only in how they got it
+    //  wrong. Nothing pinned it, which is how the two drifted apart.
+    TEST_METHOD (BadOptionValue_ShowsThatCommandsUsage_NotEveryOtherCommands)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.dsk");
+
+        result = runner.Run (MakeSectorRead ("raw.dsk", 99, 0, 1));
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine, L"a value out of range is a bad command line");
+        Assert::IsTrue (result.usageShown,     L"and the reader is shown how to write it");
+
+        Assert::IsTrue (result.output.find ("CassoCli disk sectorread <image>") != std::string::npos,
+            L"sectorread's own grammar");
+        Assert::IsTrue (result.output.find ("CassoCli disk create") == std::string::npos,
+            L"and not every other command's");
+    }
+
+    //  AND THE ONE CASE THAT MUST STAY WIDE. A word the grammar does not know
+    //  leaves no command to narrow to, and a reader who has not landed on one
+    //  is exactly who the whole page is for. Narrowing this would answer an
+    //  unrecognized command with a block belonging to some other command.
+    TEST_METHOD (AnUnknownCommand_StillAnswersWithTheWholePage)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        DiskCommandResult   result;
+
+        options.subcommand       = CommandLineOptions::Subcommand::Disk;
+        options.disk.command     = CommandLineOptions::DiskOptions::Command::None;
+        options.disk.commandWord = "frobnicate";
+        options.disk.imagePath   = "raw.dsk";
+
+        SeedBlankImage (io, "raw.dsk");
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandRunner::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.badCommandLine);
+
+        Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
+            L"the word they typed is quoted back");
+
+        //  usageShown is what tells the edge the runner already answered. Left
+        //  false, the edge prints the whole page, which is the answer here.
+        Assert::IsFalse (result.usageShown,
+            L"no command to narrow to, so the edge prints the whole page");
+
+        Assert::IsTrue (result.output.empty(),
+            L"and the runner offers no block of its own to be printed instead");
     }
 
     TEST_METHOD (Boot_AVolumeWithNoOperatingSystemOnIt_IsRefusedInWordsRatherThanPatchedAnyway)

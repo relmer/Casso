@@ -332,6 +332,18 @@ public:
 
     static CommandLineOptions  Parse (int argc, char * argv[], const FileExistsFn & fileExists);
 
+    //  The emulator GUI's grammar, over the SAME option table mechanism the
+    //  tool's own modes use. Starts at argv[0] because a GUI command line has
+    //  no subcommand word ahead of its flags. See EmulatorOptions for why an
+    //  argument this grammar does not know is skipped rather than refused.
+    static CommandLineOptions::EmulatorOptions  ParseEmulator (int argc, char * argv[]);
+
+    //  A --trace size like "20M", "500000" or "2G" as a ring-entry count.
+    //  Suffixes K/M/G multiply by 1e3/1e6/1e9; an unrecognized suffix leaves
+    //  the bare number rather than rejecting it, so "20X" is 20 entries and
+    //  not an error at startup.
+    static size_t  ParseTraceSize (const std::string & text);
+
     // Whether one argument is the user asking for usage text, in any form
     // and either prefix. Public because a subcommand's own grammar has to ask
     // the same question the top level does.

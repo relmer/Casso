@@ -65,4 +65,16 @@ public:
     //  so a diagnostic is in ONE code page by the time it reaches the boundary
     //  above rather than a mixture of two.
     static std::string  Utf8ToNarrow (const std::string & text);
+
+    //  The crossings between the wide world the platform hands a GUI program
+    //  and the narrow one every string in core lives in.
+    //
+    //  NARROW MEANS GetNarrowCodePage() -- the process code page, NOT UTF-8.
+    //  Converting argv to UTF-8 here would parse beautifully and then fail at
+    //  the first file open, because the narrow file APIs read those bytes as
+    //  the process code page. These are exactly as lossy as the console
+    //  tool's own argv and no lossier, and if the process code page ever
+    //  becomes UTF-8, the same calls turn lossless with no edit here.
+    static std::string   WideToNarrow (const std::wstring & text);
+    static std::wstring  NarrowToWide (const std::string  & text);
 };

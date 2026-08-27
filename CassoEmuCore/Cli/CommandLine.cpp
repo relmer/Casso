@@ -648,7 +648,8 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix)
+void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix,
+                                CommandLineOptions::DiskOptions::Command diskCommand)
 {
     switch (mode)
     {
@@ -665,7 +666,16 @@ void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix
         break;
 
     case CommandLineOptions::Subcommand::Disk:
-        PrintUsageBlock (DiskCommandRunner::BuildHelpText (prefix, BuildBanner()));
+        if (diskCommand != CommandLineOptions::DiskOptions::Command::None
+         && diskCommand != CommandLineOptions::DiskOptions::Command::Help)
+        {
+            PrintUsageBlock (DiskCommandRunner::BuildCommandHelp (diskCommand, prefix));
+        }
+        else
+        {
+            PrintUsageBlock (DiskCommandRunner::BuildHelpText (prefix, BuildBanner()));
+        }
+
         break;
 
     default:

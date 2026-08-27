@@ -344,6 +344,35 @@ public:
     }
 
     //  The name a booted DOS will read, off the container the DRIVE sees.
+    //  The greeting field written straight into the image, going around the
+    //  runner.
+    //
+    //  THE RUNNER REFUSES TO PRODUCE THIS DISK, which is the whole point: what
+    //  a real machine does with one is what makes refusing correct, and only a
+    //  real machine can establish it. A .dsk is already sector-ordered, so the
+    //  field is at the offset GreetingNameIn reads from, stored the way DOS
+    //  stores a name -- high ASCII, padded with spaces to the full field.
+    static std::vector<Byte> ForceGreetingTo (const std::vector<Byte> & image, const char * name)
+    {
+        std::vector<Byte>  forced = image;
+        size_t             at     = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+                                  + kGreetingOffset;
+        std::string        text   = name;
+        size_t             i      = 0;
+
+        for (i = 0; i < kNameFieldBytes; i++)
+        {
+            char  c = (i < text.size()) ? text[i] : ' ';
+
+            forced[at + i] = (Byte) (c | 0x80);
+        }
+
+        return forced;
+    }
+
+
+
+
     static std::string GreetingNameIn (const std::vector<Byte> & sectors)
     {
         size_t       at = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
@@ -507,27 +536,33 @@ public:
             L"which the unconfigured disk did not");
     }
 
-    TEST_METHOD (Dos33_ABinaryNamedAsTheGreeting_IsWarnedAbout_AndTheGuestConfirmsItNeverRuns)
+    TEST_METHOD (Dos33_ABinaryForcedIntoTheGreeting_NeverRuns_WhichIsWhyItIsRefused)
     {
-        //  The measurement the warning rests on, kept as a case because nothing
+        //  The measurement the REFUSAL rests on, kept as a case because nothing
         //  else can establish it: a booting DOS 3.3 RUNs its greeting, so a
         //  binary in that field leaves a disk that boots and does nothing. Our
         //  own reader cannot tell that. The machine can.
-        std::vector<Byte>         master     = GuestSession::RequireDos33Master();
-        std::vector<Byte>         program    = MakeSystemProgram (kDosLoadAddress);
-        std::vector<Byte>         configured = CommitProgram (master, program, kDosProgram, "B",
-                                                              kDosLoadAddress, true, true,
-                                                              DiskCommandRunner::kWithComplaints);
-        std::vector<Byte>         sectors    = DecodeThroughTheDrive (configured);
+        //
+        //  The greeting is forced in directly, because `disk boot` will no
+        //  longer write one -- it refuses a type DOS cannot run rather than
+        //  configuring a disk that starts nothing. This is the disk that
+        //  refusal prevents, and this is what it would have done.
+        std::vector<Byte>         master   = GuestSession::RequireDos33Master();
+        std::vector<Byte>         program  = MakeSystemProgram (kDosLoadAddress);
+        std::vector<Byte>         placed   = CommitProgram (master, program, kDosProgram, "B",
+                                                            kDosLoadAddress, true, false,
+                                                            DiskCommandRunner::kClean);
+        std::vector<Byte>         forced   = ForceGreetingTo (placed, kDosProgram);
+        std::vector<Byte>         sectors  = DecodeThroughTheDrive (forced);
         std::vector<std::string>  rows;
 
 
 
         Assert::AreEqual (std::string (kDosProgram), GreetingNameIn (sectors),
-            L"the name is set either way -- the complaint is about what DOS will do with it");
+            L"the greeting really does name the binary");
 
-        Assert::IsFalse (DidThePlacedProgramRun (configured, rows),
-            L"and the guest agrees with the complaint: the binary is never executed");
+        Assert::IsFalse (DidThePlacedProgramRun (forced, rows),
+            L"and the machine never runs it, which is what the refusal spares the user");
     }
 
     TEST_METHOD (ProDos_ADiskToldToBootASystemProgram_LaunchesItInsteadOfTheOldOne)

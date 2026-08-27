@@ -163,3 +163,88 @@ std::string TextEncoding::Utf8ToNarrow (const std::string & text)
 {
     return Convert (text, CP_UTF8, GetNarrowCodePage());
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::WideToNarrow
+//
+//  Like Convert, a failure returns something readable rather than nothing:
+//  here that is the empty string, since wide bytes are not printable through
+//  a narrow stream anyway.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TextEncoding::WideToNarrow (const std::wstring & text)
+{
+    unsigned     codePage      = GetNarrowCodePage();
+    bool         canSubstitute = codePage != CP_UTF8 && codePage != CP_UTF7;
+    std::string  narrow;
+    int          count         = 0;
+
+
+
+    if (text.empty())
+    {
+        return std::string();
+    }
+
+    count = WideCharToMultiByte (codePage, 0, text.c_str(), (int) text.size(),
+                                 nullptr, 0,
+                                 canSubstitute ? "?" : nullptr, nullptr);
+
+    if (count <= 0)
+    {
+        return std::string();
+    }
+
+    narrow.resize ((size_t) count);
+
+    count = WideCharToMultiByte (codePage, 0, text.c_str(), (int) text.size(),
+                                 narrow.data(), count,
+                                 canSubstitute ? "?" : nullptr, nullptr);
+
+    return (count > 0) ? narrow : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextEncoding::NarrowToWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TextEncoding::NarrowToWide (const std::string & text)
+{
+    unsigned      codePage = GetNarrowCodePage();
+    std::wstring  wide;
+    int           count    = 0;
+
+
+
+    if (text.empty())
+    {
+        return std::wstring();
+    }
+
+    count = MultiByteToWideChar (codePage, 0, text.c_str(), (int) text.size(),
+                                 nullptr, 0);
+
+    if (count <= 0)
+    {
+        return std::wstring();
+    }
+
+    wide.resize ((size_t) count);
+
+    count = MultiByteToWideChar (codePage, 0, text.c_str(), (int) text.size(),
+                                 wide.data(), count);
+
+    return (count > 0) ? wide : std::wstring();
+}

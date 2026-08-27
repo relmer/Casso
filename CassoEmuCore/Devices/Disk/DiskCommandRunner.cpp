@@ -93,122 +93,138 @@ static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
 
 static constexpr DiskCommandRunner::DiskCommandHelp  s_kDiskCommandHelp[] =
 {
-    { CommandLineOptions::DiskOptions::Command::List,
-      "list | cat | catalog | dir | ls",
-      "Show what is on the disk",
-      "CassoCli disk list <image>",
-      nullptr,
-      //  NO PARAGRAPH. It used to explain that a ProDOS row carries eof= and
-      //  aux= where a DOS 3.3 row does not, which is a difference the reader
-      //  learns by running the command once. The summary says what the command
-      //  is for and the columns speak for themselves.
-      nullptr,
-      "CassoCli disk list mydisk.dsk" },
+    { 
+        CommandLineOptions::DiskOptions::Command::List,
+        "list | cat | catalog | dir | ls",
+        "Show what is on the disk",
+        "CassoCli disk list <image>",
+        nullptr,
+        //  NO PARAGRAPH. It used to explain that a ProDOS row carries eof= and
+        //  aux= where a DOS 3.3 row does not, which is a difference the reader
+        //  learns by running the command once. The summary says what the command
+        //  is for and the columns speak for themselves.
+        nullptr,
+        "CassoCli disk list mydisk.dsk" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Get,
-      "get | read",
-      "Read a file from the disk, to standard output or to %Lout <file>",
-      "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
-      "  %Lout <file>            Extract the file to <file>. Without it, the file is written to standard output\n"
-      "  %Ltext                  Convert Apple high-ASCII encoding and line endings to host text\n"
-      "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
-      "Applesoft BASIC programs are stored on disk in a tokenized form. get returns that"
-      " file as it is, so it can be copied to another disk losslessly, but the tokenized"
-      " form is not human-readable. %Lbasic detokenizes it into readable text instead,"
-      " and that copy is not identical to the stored program: it loses whitespace"
-      " outside strings, REM and DATA statements, upcases lowercase characters outside"
-      " those same three, turns the ? shorthand into PRINT, and returns the lines in"
-      " numeric order. None of that changes how the program runs, and Applesoft BASIC"
-      " performs the same conversions itself on any line entered at its prompt.",
-      "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Get,
+        "get | read",
+        "Read a file from the disk",
+        "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
+        "  %Lout <file>            Extract the file to <file>. By default, the file is written to standard output instead\n"
+        "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
+        "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
+        "Applesoft BASIC programs are stored in a tokenized form on disk. Retrieving these with 'get' returns the raw tokenized file,"
+        " so it can be copied losslessly to another disk. However, the tokenized format is not human-readable. Using the %Lbasic switch"
+        " detokenizes it into human-readable form, but this is not an identical copy of the stored program.  It loses whitespace (outside"
+        " of strings, REM, and DATA statements), converts lowercase characters (again, only outside of those three constructs) to uppercase,"
+        " converts ? shorthand to PRINT statements, and returns lines in numeric order. None of these affect the execution of the code, but"
+        " be aware that these conversions happen. Also note that Applesoft BASIC does these same conversions itself to any line entered at"
+        " the prompt.",
+        "CassoCli disk get mydisk.dsk HELLO %Lbasic %Lout hello.bas" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Put,
-      "put | write",
-      "Write a file from the host to the disk",
-      "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
-      "                                   [%Ltext | %Lbasic]",
-      "  %Las <name>             Rename the file to <name> on the disk\n"
-      "  %Ltype <t>              CassoCli detects a file's type from its contents; this overrides that. For DOS 3.3 the types are T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS, TXT, BIN, BAS and SYS\n"
-      "  %Lload $XXXX            Load address for a binary file\n"
-      "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
-      "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n",
-      "To store a human-readable Applesoft BASIC program, use %Lbasic to tokenize it into"
-      " the form Applesoft BASIC runs. A program that is ALREADY tokenized -- one taken"
-      " off a disk by get without %Lbasic -- goes onto another disk unconverted and"
-      " lands byte-for-byte, so use %Lbasic only when the conversion from plain text is"
-      " actually needed. It stores the file as Applesoft BASIC, which is the one type a"
-      " DOS 3.3 disk's RUN will execute, and it refuses %Lload, because Applesoft BASIC"
-      " keeps its program at $0801 and nowhere else.",
-      "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Put,
+        "put | write",
+        "Write a file from the host to the disk",
+        "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
+        "                                   [%Ltext | %Lbasic]",
+        "  %Las <name>             Store the file as <name> on the disk\n"
+        "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
+                                   " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
+                                   " TXT, BIN, BAS and SYS. A file it cannot identify is stored as a binary\n"
+        "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
+        "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
+        "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n",
+        "To store a human-readable Applesoft BASIC program to disk, use the %Lbasic switch to tokenize the program into Applesoft BASIC's"
+        " runnable format. If the Applesoft BASIC program is already tokenized (e.g., you retrieved it from disk without using %Lbasic),"
+        " you can simply put it on another disk without conversion.  Use %Lbasic only when conversion from plain text to tokenized Applesoft"
+        " BASIC is required.",
+        "CassoCli disk put mydisk.dsk prog.bin %Las PROG %Ltype B %Lload $6000" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Delete,
-      "delete | del | rm",
-      "Delete a file from the disk",
-      "CassoCli disk delete <image> <name>",
-      nullptr,
-      nullptr,
-      "CassoCli disk delete mydisk.dsk OLDPROG" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Delete,
+        "delete | del | rm",
+        "Delete a file from the disk",
+        "CassoCli disk delete <image> <name>",
+        nullptr,
+        nullptr,
+        "CassoCli disk delete mydisk.dsk OLDPROG" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Boot,
-      "boot",
-      "Set the program that runs when the disk is booted",
-      "CassoCli disk boot <image> <name>",
-      nullptr,
-      "The program has to be on the volume already, spelled as the catalog records it, and"
-      " the image has to carry an operating system on the tracks a boot reads. On ProDOS"
-      " it must be a file of type SYS, and not the kernel itself. On DOS 3.3 the boot"
-      " command is RUN, so an Applesoft BASIC or Integer BASIC program runs. Anything else"
-      " is set,"
-      " reported, and the disk boots without running it.",
-      "CassoCli disk boot mydisk.dsk STARTUP" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Boot,
+        "boot",
+        "Set the program that runs when the disk is booted",
+        "CassoCli disk boot <image> <name>",
+        nullptr,
+        "The program has to be on the volume already, and the image must contain the DOS 3.3 or ProDOS operating system; simply"
+        " being formatted as DOS 3.3 or ProDOS is not sufficient. On DOS 3.3 disks, the file must be an Applesoft BASIC (type A)"
+        " or Integer BASIC (type I) program. On ProDOS disks, the file must be a system file (type SYS), and cannot be the kernel itself.",
+        "CassoCli disk boot mydisk.dsk STARTUP" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Create,
-      "create | new",
-      "Make a new image file, formatted and ready to write to",
-      "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
-      "                               [%Lbootable [<image>]]\n"
-      "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
-      "  %Ltype <t>              The container: dsk, do, po or woz. Taken from the name's extension when not given\n"
-      "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33\n"
-      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
-      "  %Lbootable [<image>]    Copy an operating system on, so the disk starts by itself. It finds the master for the format being written, so supply an image only for a particular one of your own\n"
-      "  %Lboot <file>           Start this binary with no operating system on the disk at all. It must load between $0900 and $BFFF\n"
-      "  %Lload $XXXX            Where a %Lboot binary is placed in memory\n"
-      "  %Lexec $XXXX            Which address the machine jumps to once the binary is there. Defaults to the load address, and differs only for a payload that opens with data rather than code\n",
-      "It refuses to write over an image that is already there; init is the command for"
-      " meaning it. %Lboot and %Lbootable are the two ways to make a disk start something"
-      " and cannot both be asked for: one puts an operating system on, the other puts a"
-      " loader on instead of one.",
-      "CassoCli disk create mydisk.dsk %Lbootable" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Create,
+        "create | new",
+        "Make a new image file, formatted and ready to use",
+        "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
+        "                               [%Lbootable [<image>]]\n"
+        "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
+        "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
+                                   "Valid types are: dsk, do, po, or woz\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
+        "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
+                                   " for the selected format, but this can be overridden by supplying an image of your own\n"
+        "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
+        "  %Lload $XXXX            Where a %Lboot binary is loaded into memory. Valid addresses are $0900-$BFFF, inclusive\n"
+        "  %Lexec $XXXX            Memory address to jump to after loading the %Lboot binary file. Defaults to the load"
+                                   " address, and must be an address within the loaded binary\n",
+        nullptr,
+        "CassoCli disk create mydisk.dsk %Lbootable" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Init,
-      "init | format",
-      "Format an image that is already there, discarding everything on it",
-      "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
-      "  %Lformat <f>            The filesystem: dos33, prodos or none. Defaults to dos33, whatever the disk held before\n"
-      "  %Lvolume <v>            A DOS 3.3 volume number, 1 to 254, or a ProDOS volume name. Defaults to 254 and to NEWDISK\n"
-      "  %Lbootable [<image>]    Copy an operating system on, as create does\n",
-      "The container is taken as it is found, so there is no %Ltype here: an image that"
-      " already exists already is one. Wanting a different container means wanting a"
-      " different file, which is create. This is the Apple II's own INIT, which formats"
-      " and writes a fresh empty catalog; every file on the disk is gone afterwards.",
-      "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" },
+    { 
+        CommandLineOptions::DiskOptions::Command::Init,
+        "init | format",
+        "Format an existing disk, erasing any existing files",
+        "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]]",
+        "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
+        "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
+                                   " for the selected format, but this can be overridden by supplying an image of your own\n",
+        nullptr,
+        "CassoCli disk init mydisk.dsk %Lformat prodos %Lvolume WORK" 
+    },
 
-    { CommandLineOptions::DiskOptions::Command::Stamp,
-      "stamp",
-      "Write a file at a fixed track and sector, for a disk with no catalog to file it in",
-      "CassoCli disk stamp <image> <file> %Ltrack <n> %Lsector <n>",
-      "  %Ltrack <n>             Which track to write at, 0 to 34\n"
-      "  %Lsector <n>            Which DOS logical sector to start at, 0 to 15. The bytes run on into the next track if they do not fit\n",
-      "A BOOT SECTOR, A LOADER, AND THE DATA A LOADER READS all live at fixed places on"
-      " the disk rather than in a filesystem. There is no catalog for put to file them"
-      " in and nothing for the machine to look them up by: the running code goes to a"
-      " track and a sector because that is where it was told they would be. stamp is how"
-      " they get there, and it is what %Lformat none exists alongside, since a disk built"
-      " this way has no filesystem at all. The sector is the LOGICAL one, so the"
-      " interleave is applied for you and the number you give is the number DOS would"
-      " use.",
-      "CassoCli disk stamp boot.dsk loader.bin %Ltrack 0 %Lsector 0" },
+    {
+        CommandLineOptions::DiskOptions::Command::SectorRead,
+        "sectorread",
+        "Read logical sectors directly from the disk",
+        "CassoCli disk sectorread <image> %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
+        "  %Ltrack <n>             Track to read from, 0 to 34\n"
+        "  %Lsector <n>            Sector to start at, 0 to 15\n"
+        "  %Lcount <n>             Count of sectors to read. Defaults to 1. Continues to subsequent tracks and sectors as needed\n"
+        "  %Lout <file>            File to store the read sectors in. Defaults to standard output if not specified\n",
+        "Allows reading data directly from logical track and sector locations without relying on filesystem structure.",
+        "CassoCli disk sectorread boot.dsk %Ltrack 0 %Lsector 0 %Lout boot.bin"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::SectorWrite,
+        "sectorwrite",
+        "Write logical sectors directly to the disk",
+        "CassoCli disk sectorwrite <image> <file> %Ltrack <n> %Lsector <n>",
+        "  %Ltrack <n>             Track to write to, 0 to 34\n"
+        "  %Lsector <n>            Sector to start at, 0 to 15. Continues to subsequent tracks and sectors if file is larger than one sector\n",
+        "Allows writing data directly to logical track and sector locations without relying on filesystem structure. If the data doesn't fill"
+        " an entire sector, the remaining bytes from the original sector are preserved.",
+        "CassoCli disk sectorwrite boot.dsk loader.bin %Ltrack 0 %Lsector 0"
+    },
 };
 
 
@@ -271,6 +287,23 @@ std::span<const DiskCommandRunner::DiskCommandHelp> DiskCommandRunner::GetComman
 //  DiskCommandRunner::ApplyPrefixes
 //
 //  Puts the reader's own prefixes into a line of help.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::WithPrefix (const std::string & text) const
+{
+    return ApplyPrefixes (text, m_flagPrefix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyPrefixes
+//
+//  %L and %S become the long and short prefix the reader asked for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -372,17 +405,16 @@ std::string DiskCommandRunner::AsProse (const std::string & text)
 {
     std::string  out;
     bool         wasSpace = false;
-    size_t       i        = 0;
 
 
 
-    for (i = 0; i < text.size(); i++)
+    for (char letter : text)
     {
-        bool  isSpace = text[i] == ' ';
+        bool  isSpace = letter == ' ';
 
         if (!isSpace || !wasSpace)
         {
-            out += text[i];
+            out += letter;
         }
 
         wasSpace = isSpace;
@@ -487,7 +519,7 @@ std::vector<std::string> DiskCommandRunner::MissingParameters (const CommandLine
 
     std::vector<std::string>  missing;
     Command                   command   = options.disk.command;
-    bool                      wantsFile = command == Command::Put || command == Command::Stamp;
+    bool                      wantsFile = command == Command::Put || command == Command::SectorWrite;
     bool                      wantsName = command == Command::Get || command == Command::Delete
                                        || command == Command::Boot;
 
@@ -588,8 +620,10 @@ void DiskCommandRunner::ReportMissingParameter (const std::string & parameter,
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
+////////////////////////////////////////////////////////////////////////////////
+
+//
+
 //  DiskCommandRunner::BuildCommandBlocks
 //
 //  Each command, with its grammar, its own options, what no option row can
@@ -694,13 +728,14 @@ std::string DiskCommandRunner::BuildOptionsHelp (char flagPrefix)
 //  a BRK, so the machine lands in the monitor with no clue as to why.
 //
 //  The second is the greeting. A booting DOS 3.3 RUNs the name in its greeting
-//  field, which runs an Applesoft or Integer program, so naming a binary there
-//  sets the name and boots without running it. The example places a one-line
-//  greeting that BRUNs the binary, which is what actually closes the loop.
+//  field, which runs an Applesoft BASIC or Integer BASIC program, so naming a
+//  binary there is refused: RUN cannot start one, and the disk would boot into
+//  nothing. The example places a one-line greeting that BRUNs the binary, which
+//  is what actually closes the loop.
 //
-//  `--disk1` keeps the `--` form whatever the reader asked for, here as in
-//  the commands themselves: it is the emulator's flag rather than this tool's.
-//  See CommandLineHelp::BuildExampleCommands.
+//  The emulator's own flags take the reader's prefix like everything else,
+//  because Casso.exe parses through the same table. See
+//  CommandLineHelp::BuildExampleCommands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -713,18 +748,16 @@ std::string DiskCommandRunner::BuildExampleHelp (char flagPrefix)
 
     return CommandLineHelp::BuildExampleCommands (flagPrefix) +
         "\n"
-        "  create makes the disk the rest of the loop writes to, and " + lp + "bootable copies"
-        " an operating system onto it so the machine has something to start. " + sp + "o sets"
-        " the assembled output file. The last line is the emulator's"
-        " own command line rather than this tool's, which is why its flags are written"
-        " with two dashes whatever prefix you asked for here: --machine Apple2e opens"
-        " an Apple //e, and --disk1 puts the image in drive 1 as it starts.\n"
-        "  Assemble with the default output rather than " + lp + "dos-bin: put writes the"
-        " DOS 3.3 header itself from " + lp + "addr, and a file that already carries one has"
-        " its own header loaded as code where the program should begin.\n"
-        "  greet.bas holds one Applesoft BASIC line, 10 PRINT CHR$(4);\"BRUN PROG\", because a"
-        " booting DOS 3.3 volume RUNs its greeting. A binary there is recorded and the"
-        " disk boots without running it.\n";
+        "  1. The 'create' command makes the disk that the rest of the loop writes to, and " + lp + "bootable copies an operating"
+        " system onto it so the machine has something to start.\n"
+        "  2. The " + sp + "o sets the name for the assembled output file.\n"
+        "  3. We assemble with the default output format rather than " + lp + "dos-bin because 'put' writes the DOS 3.3 header itself"
+        " from " + lp + "load, and a file that already carries one has its own header indicating where the program should load.\n"
+        "  4. The last line is the emulator's own command line rather than this tool's: " + lp + "machine Apple2e opens an Apple //e, and"
+        " " + lp + "disk1 puts the image in drive 1 for it to boot.\n"
+        "  5. Greet.bas consists of a single Applesoft BASIC line, \"10 PRINT CHR$(4);\\\"BRUN PROG\\\"\", because a bootable DOS 3.3 volume"
+        " executes its startup program using the RUN command. Using a binary file there is not allowed because RUN would fail, and the disk"
+        " would not boot.\n";
 }
 
 
@@ -798,6 +831,25 @@ std::string DiskCommandRunner::DescribeAcceptedCommands()
 //  Image, file, reason, in that order. A script's user sees the first line and
 //  needs to know which disk before anything else; the reason is useless without
 //  it when a build places twenty files.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::Fail (DiskCommandResult   & result,
+                              const std::string   & imagePath,
+                              const std::string   & name,
+                              const std::string   & sentence)
+{
+    result.diagnostics += Failure (imagePath, name, sentence) + "\n";
+    result.exitStatus   = kNoOutput;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::Failure
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -888,9 +940,6 @@ std::string DiskCommandRunner::DescribeWozChunks (const std::vector<Byte> & file
     WozLoader::Description  woz;
     std::string             text;
     std::string             media;
-
-
-
     char                    note[160] = {};
 
 
@@ -1014,9 +1063,6 @@ std::string DiskCommandRunner::DescribeSurface (const OpenedImage & opened)
     bool         trackZeroOk = true;
     bool         bootCode    = false;
     std::string  text;
-
-
-
     char         note[512]   = {};
 
 
@@ -1449,7 +1495,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))
     {
-        return "is a binary, which has to be told where it loads. Give --load $XXXX";
+        return "is a binary, which has to be told where it loads. Give %Lload $XXXX";
     }
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED))
@@ -1656,15 +1702,12 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     HRESULT             hr           = S_OK;
     OpenedImage         opened;
     VolumeListing       listing;
-
-
-
     char                summary[128] = {};
 
 
 
     hr = OpenImage (options.disk.imagePath, opened, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     {
         Dos33Volume   dos (opened.sectors);
@@ -1673,15 +1716,11 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
+
+
         hr = volume.Enumerate (listing);
 
-        if (FAILED (hr))
-        {
-            result.diagnostics += Failure (options.disk.imagePath, "",
-                "catalog could not be read") + "\n";
-            result.exitStatus   = kNoOutput;
-            BAIL_OUT_IF (true, hr);
-        }
+        CHRF (hr, Fail (result, options.disk.imagePath, "", "catalog could not be read"));
 
         if (listing.hasVolumeName)
         {
@@ -1798,7 +1837,8 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             if (FAILED (hr))
             {
                 result.diagnostics += DescribeListingRefusal (
-                    "--basic cannot read this file as an Applesoft BASIC program", listingError);
+                    ApplyPrefixes ("%Lbasic cannot read this file as an Applesoft "
+                                   "BASIC program", options.flagPrefix).c_str(), listingError);
 
                 result.exitStatus   = kNoOutput;
                 break;
@@ -1841,21 +1881,14 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     OpenedImage         opened;
     FilePayload         payload;
     FilePath            path;
-
-
-
     char                note[128] = {};
 
 
 
-    if (!named)
-    {
-        ReportMissingParameter ("<name>", result);
-        BAIL_OUT_IF (true, E_INVALIDARG);
-    }
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
     hr = OpenImage (options.disk.imagePath, opened, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     path = FilePath::Parse (options.disk.path);
 
@@ -1869,28 +1902,17 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         hr = volume.Read (path, payload);
     }
 
-    if (FAILED (hr))
-    {
-        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
-            "could not be read from this volume") + "\n";
-        result.exitStatus   = kNoOutput;
-        BAIL_OUT_IF (true, hr);
-    }
+    CHRF (hr, Fail (result, options.disk.imagePath, options.disk.path,
+                    "could not be read from this volume"));
 
     hr = ApplyEncoding (options, payload, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     if (!options.disk.hostFile.empty())
     {
         hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload.bytes);
 
-        if (FAILED (hr))
-        {
-            result.diagnostics += Failure (options.disk.hostFile, "",
-                "could not be written") + "\n";
-            result.exitStatus   = kNoOutput;
-            BAIL_OUT_IF (true, hr);
-        }
+        CHRF (hr, Fail (result, options.disk.hostFile, "", "could not be written"));
     }
     else
     {
@@ -2020,6 +2042,8 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
         Word    line       = 0;
         size_t  terminator = at + 4;
 
+
+
         if (next == 0)
         {
             //  The chain ends here, and it has to end WITH the file.
@@ -2083,6 +2107,8 @@ Byte DiskCommandRunner::DetectFileType (const vector<Byte> & bytes, VolumeKind k
     {
         Byte  length = bytes[at];
         Word  line   = (Word) (bytes[at + 1] | (bytes[at + 2] << 8));
+
+
 
         if (length < 4 || at + length > bytes.size())
         {
@@ -2204,7 +2230,8 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
     if (!recognized)
     {
-        result.diagnostics += "--type " + options.disk.typeName + " means nothing on this volume: "
+        result.diagnostics += ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
+                            + " means nothing on this volume: "
                             + (isDos ? "DOS 3.3 takes T, I, A, B or R"
                                      : "ProDOS takes TXT, BIN, BAS or SYS")
                             + "\n";
@@ -2251,9 +2278,6 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     HRESULT                hr        = S_OK;
     Byte                   type      = 0;
     size_t                 badOffset = 0;
-
-
-
     char                   note[160] = {};
     std::string            hostText;
     ApplesoftListingError  listingError;
@@ -2305,8 +2329,9 @@ HRESULT DiskCommandRunner::BuildPutPayload (
                 // and nowhere else, so an address here is a request that cannot
                 // be honored. Accepting and ignoring it would place the program
                 // and leave the caller believing it loads somewhere it does not.
-                result.diagnostics += "--load means nothing with --basic: "
-                                      "an Applesoft BASIC program always loads at $0801\n";
+                result.diagnostics += ApplyPrefixes (
+                    "%Lload means nothing with %Lbasic: "
+                    "an Applesoft BASIC program always loads at $0801\n", options.flagPrefix);
                 result.exitStatus   = kNoOutput;
                 hr                  = HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER);
                 break;
@@ -2319,7 +2344,8 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             if (FAILED (hr))
             {
                 result.diagnostics += DescribeListingRefusal (
-                    "--basic cannot make an Applesoft BASIC program of this listing", listingError);
+                    ApplyPrefixes ("%Lbasic cannot make an Applesoft BASIC program of "
+                                   "this listing", options.flagPrefix).c_str(), listingError);
 
                 result.exitStatus   = kNoOutput;
                 break;
@@ -2428,26 +2454,17 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
 
 
-    if (!named)
-    {
-        ReportMissingParameter ("<file>", result);
-        BAIL_OUT_IF (true, E_INVALIDARG);
-    }
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<file>", result));
 
     hr = OpenImage (options.disk.imagePath, opened, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
 
-    if (FAILED (hr))
-    {
-        result.diagnostics += Failure (options.disk.hostFile, "", "cannot be read") + "\n";
-        result.exitStatus   = kNoOutput;
-        BAIL_OUT_IF (true, hr);
-    }
+    CHRF (hr, Fail (result, options.disk.hostFile, "", "cannot be read"));
 
     hr = BuildPutPayload (options, opened.kind, hostBytes, payload, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     path = FilePath::Parse (diskName);
 
@@ -2461,16 +2478,11 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
         hr = volume.Write (path, payload, edited);
     }
 
-    if (FAILED (hr))
-    {
-        result.diagnostics += Failure (options.disk.imagePath, diskName,
-                                       DescribeVolumeRefusal (hr)) + "\n";
-        result.exitStatus   = kNoOutput;
-        BAIL_OUT_IF (true, hr);
-    }
+    CHRF (hr, Fail (result, options.disk.imagePath, diskName,
+                    WithPrefix (DescribeVolumeRefusal (hr))));
 
     hr = SaveAndCommit (opened, edited, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
 Error:
     return;
@@ -2507,14 +2519,10 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
 
 
-    if (!named)
-    {
-        ReportMissingParameter ("<name>", result);
-        BAIL_OUT_IF (true, E_INVALIDARG);
-    }
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
     hr = OpenImage (options.disk.imagePath, opened, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     path = FilePath::Parse (options.disk.path);
 
@@ -2525,19 +2533,16 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
+
+
         hr = volume.Delete (path, edited, outcome);
     }
 
-    if (FAILED (hr))
-    {
-        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
-                                       DescribeVolumeRefusal (hr)) + "\n";
-        result.exitStatus   = kNoOutput;
-        BAIL_OUT_IF (true, hr);
-    }
+    CHRF (hr, Fail (result, options.disk.imagePath, options.disk.path,
+                    WithPrefix (DescribeVolumeRefusal (hr))));
 
     hr = SaveAndCommit (opened, edited, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     for (const std::string & warning : outcome.warnings)
     {
@@ -2596,14 +2601,10 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
 
 
 
-    if (!named)
-    {
-        ReportMissingParameter ("<name>", result);
-        BAIL_OUT_IF (true, E_INVALIDARG);
-    }
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
     hr = OpenImage (options.disk.imagePath, opened, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
+    CHR (hr);
 
     path = FilePath::Parse (options.disk.path);
 
@@ -2613,6 +2614,8 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
         IVolume     & volume = (opened.kind == VolumeKind::Dos33)
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
+
+
 
         hr = volume.SetStartupProgram (path, edited);
 
@@ -2625,26 +2628,26 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
         }
     }
 
-    if (FAILED (hr))
-    {
-        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
-                                       DescribeVolumeRefusal (hr)) + "\n";
-        result.exitStatus   = kNoOutput;
-        BAIL_OUT_IF (true, hr);
-    }
+    CHRF (hr, Fail (result, options.disk.imagePath, options.disk.path,
+                    WithPrefix (DescribeVolumeRefusal (hr))));
+
+    //  REFUSED BEFORE ANYTHING IS WRITTEN, not reported after.
+    //
+    //  This used to set the name, commit the image, and then say the disk
+    //  would boot without running it. The reasoning was that a DOS patched by
+    //  hand to BRUN rather than RUN is a real thing and refusing would block
+    //  it. What it produced for everyone else was a command that reported
+    //  trouble and changed the disk anyway, leaving a volume configured to
+    //  start a program that cannot start -- which is what ProDOS refuses
+    //  outright, two screens away in the same command.
+    CBRFEx (runnable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
+            Fail (result, options.disk.imagePath, options.disk.path,
+                  "is not a program a booting DOS 3.3 can run. Its greeting is RUN, "
+                  "which starts an Applesoft BASIC or Integer BASIC program, and "
+                  "this file is neither"));
 
     hr = SaveAndCommit (opened, edited, result);
-    BAIL_OUT_IF (FAILED (hr), hr);
-
-    if (!runnable)
-    {
-        result.diagnostics += Failure (options.disk.imagePath, options.disk.path,
-            "is set as the startup program, but a booting DOS 3.3 RUNs its greeting, "
-            "which runs an Applesoft BASIC or Integer BASIC program. This file is neither, so the "
-            "disk will boot without running it") + "\n";
-
-        result.exitStatus   = kWithComplaints;
-    }
+    CHR (hr);
 
 Error:
     return;
@@ -2765,8 +2768,12 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             RunBoot (options, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Command::Stamp:
-            RunStamp (options, result);
+        case CommandLineOptions::DiskOptions::Command::SectorRead:
+            RunSectorRead (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::SectorWrite:
+            RunSectorWrite (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Create:
@@ -2810,6 +2817,28 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
     }
 
+    //  THE ONE COMMAND'S BLOCK, NOT ALL NINE.
+    //
+    //  A missing operand already answered this way and a bad option value did
+    //  not, so the same command answered `sectorread` with no image in 18
+    //  lines and `sectorread --track 99` in 194. Both readers have said which
+    //  command they want; the difference was in how they got it wrong, which
+    //  is no reason to hand one of them every other command on the page.
+    //
+    //  Here rather than at each refusal, so a refusal added later cannot
+    //  forget it and the sites stay about the reason. An unrecognized command
+    //  word is deliberately excluded: it leaves the command as None, and a
+    //  reader who has not landed on a command is the one case the whole page
+    //  is the answer to.
+    if (result.badCommandLine
+        && !result.usageShown
+        && options.disk.command != CommandLineOptions::DiskOptions::Command::None
+        && options.disk.command != CommandLineOptions::DiskOptions::Command::Help)
+    {
+        result.output     += BuildCommandHelp (m_command, m_flagPrefix);
+        result.usageShown  = true;
+    }
+
     return result;
 }
 
@@ -2849,7 +2878,8 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         {
             result.diagnostics    += "Error: cannot tell what kind of image " + options.disk.imagePath
                                    + " should be\n"
-                                     "       give it a .dsk, .do, .po or .woz extension, or say which with --type\n";
+                                   + WithPrefix ("       give it a .dsk, .do, .po or .woz extension,"
+                                                 " or say which with %Ltype\n");
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
         }
@@ -2974,9 +3004,22 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
         return S_OK;
     }
 
+    //  UPPERCASED HERE, WHERE IT IS ACCEPTED, and not only where it is
+    //  written. ProDOS holds a volume name in upper case and compares without
+    //  regard to case, so `--volume mydisk` is a perfectly good way to ask for
+    //  /MYDISK. The skeleton has always stored it correctly. What it did not do
+    //  was tell the spec, so the line confirming the disk read back the name
+    //  that was typed while `disk list` read back the name that is there, and
+    //  the two disagreed over a disk that was right all along.
     if (inOutSpec.contents == BlankDiskContents::ProDos)
     {
         inOutSpec.volumeName = asked;
+
+        for (char & letter : inOutSpec.volumeName)
+        {
+            letter = (char) toupper ((unsigned char) letter);
+        }
+
         return S_OK;
     }
 
@@ -3049,9 +3092,10 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     //  asks for a disk that boots twice.
     if (!options.disk.directBootFile.empty() && options.disk.bootable)
     {
-        result.diagnostics    += "Error: --bootable and --boot ask for different disks\n"
-                                 "       --bootable copies an operating system on; --boot starts a "
-                                 "binary with no operating system at all\n";
+        result.diagnostics    += WithPrefix (
+            "Error: %Lbootable and %Lboot ask for different disks\n"
+            "       %Lbootable copies an operating system on; %Lboot starts a "
+            "binary with no operating system at all\n");
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
@@ -3073,8 +3117,8 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
             result.diagnostics    += std::string ("Error: the ")
                                    + (isProDos ? "ProDOS" : "DOS 3.3")
                                    + " master has not been downloaded yet\n"
-                                     "       run the emulator once to fetch it, or supply a master with "
-                                     "--bootable <image>\n";
+                                   + WithPrefix ("       run the emulator once to fetch it, or supply"
+                                                 " a master with %Lbootable <image>\n");
             result.exitStatus      = kNoOutput;
             result.badCommandLine  = true;
 
@@ -3131,9 +3175,9 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
 
     switch (spec.contents)
     {
-    case BlankDiskContents::Dos33:       text = "DOS 3.3";      break;
-    case BlankDiskContents::ProDos:      text = "ProDOS";       break;
-    default:                             text = "unformatted";  break;
+        case BlankDiskContents::Dos33:       text = "DOS 3.3";      break;
+        case BlankDiskContents::ProDos:      text = "ProDOS";       break;
+        default:                             text = "unformatted";  break;
     }
 
     if (spec.contents == BlankDiskContents::Dos33)
@@ -3347,9 +3391,10 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  together honored --boot and dropped --bootable without a word.
     if (options.disk.bootable)
     {
-        result.diagnostics    += "Error: --bootable and --boot ask for different disks\n"
-                                 "       --bootable copies an operating system on; --boot starts a "
-                                 "binary with no operating system at all\n";
+        result.diagnostics    += WithPrefix (
+            "Error: %Lbootable and %Lboot ask for different disks\n"
+            "       %Lbootable copies an operating system on; %Lboot starts a "
+            "binary with no operating system at all\n");
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
@@ -3360,7 +3405,7 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  quietly dropping one of them.
     if (!options.disk.formatName.empty() && options.disk.formatName != "none")
     {
-        result.diagnostics    += "Error: --boot writes no filesystem, so --format "
+        result.diagnostics    += WithPrefix ("Error: %Lboot writes no filesystem, so %Lformat ")
                                + options.disk.formatName + " cannot be honored\n"
                                  "       a direct-boot disk holds the binary and nothing else\n";
         result.exitStatus      = kNoOutput;
@@ -3475,9 +3520,10 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 
     if (!options.disk.containerType.empty())
     {
-        result.diagnostics    += "Error: init does not take --type\n"
-                                 "       the image already has a container; create makes one with a "
-                                 "different container\n";
+        result.diagnostics    += WithPrefix (
+            "Error: init does not take %Ltype\n"
+            "       the image already has a container; create makes one with a "
+            "different container\n");
         result.exitStatus      = kNoOutput;
         result.badCommandLine  = true;
 
@@ -3505,7 +3551,162 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::RunStamp
+//  DiskCommandRunner::RunSectorRead
+//
+//  THE OTHER HALF OF sectorwrite, and the reason it is worth having: get goes
+//  through a catalog, so on a disk with no filesystem there was no way at all
+//  to read back what had just been written. The listing said as much -- "it
+//  simply keeps its files somewhere this tool does not read" -- which was true
+//  and is no longer.
+//
+//  A count is a parameter here and not on the write because a write knows its
+//  own length and a read cannot: what usually records where a file ends is the
+//  catalog, and these are the disks that have none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
+                                       DiskCommandResult        & result)
+{
+    HRESULT       hr           = S_OK;
+    size_t        first        = 0;
+    size_t        total        = 0;
+    OpenedImage   opened;
+    vector<Byte>  payload;
+    char          summary[192] = {};
+
+
+
+    if (options.disk.track < 0 || options.disk.track >= NibblizationLayer::kTrackCount
+     || options.disk.sector < 0 || options.disk.sector >= NibblizationLayer::kSectorsPerTrack)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: track %d sector %d is not on this disk\n"
+                  "       tracks run 0 to %d and sectors 0 to %d\n",
+                  options.disk.track, options.disk.sector,
+                  NibblizationLayer::kTrackCount - 1,
+                  NibblizationLayer::kSectorsPerTrack - 1);
+
+        result.diagnostics    += summary;
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    if (options.disk.sectorCount < 1)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: %d is not a number of sectors to read\n"
+                  "       a read is at least one sector\n",
+                  options.disk.sectorCount);
+
+        result.diagnostics    += summary;
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
+                    + options.disk.sector);
+    total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
+
+    if (first + (size_t) options.disk.sectorCount > total)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: %d sectors will not fit from track %d sector %d\n"
+                  "       the disk has %zu left there\n",
+                  options.disk.sectorCount, options.disk.track, options.disk.sector,
+                  total - first);
+
+        result.diagnostics    += summary;
+        result.exitStatus      = kNoOutput;
+        result.badCommandLine  = true;
+
+        return;
+    }
+
+    //  No filesystem needed, and none looked for. That is the whole point of
+    //  the command: a disk built by sectorwrite may have no catalog at all.
+    hr = OpenImage (options.disk.imagePath, opened, result, false);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    //  The LOGICAL sector, translated the same way the write translates it, so
+    //  a number given to one command means the same to the other.
+    for (int index = 0; index < options.disk.sectorCount; index++)
+    {
+        size_t  running = first + (size_t) index;
+        int     track   = (int) (running / (size_t) NibblizationLayer::kSectorsPerTrack);
+        int     logical = (int) (running % (size_t) NibblizationLayer::kSectorsPerTrack);
+        size_t  at      = (size_t) ((track * NibblizationLayer::kSectorsPerTrack
+                                   + NibblizationLayer::DskFileIndexForDosLogicalSector (logical))
+                                  * NibblizationLayer::kSectorByteSize);
+
+        if (at + (size_t) NibblizationLayer::kSectorByteSize > opened.sectors.size())
+        {
+            break;
+        }
+
+        payload.insert (payload.end(),
+                        opened.sectors.begin() + (ptrdiff_t) at,
+                        opened.sectors.begin() + (ptrdiff_t) (at + NibblizationLayer::kSectorByteSize));
+    }
+
+    if (!options.disk.hostFile.empty())
+    {
+        hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload);
+
+        if (FAILED (hr))
+        {
+            result.diagnostics += Failure (options.disk.hostFile, "",
+                "could not be written") + "\n";
+            result.exitStatus   = kNoOutput;
+
+            return;
+        }
+
+        snprintf (summary, sizeof (summary),
+                  "%s: %zu bytes from track %d sector %d, %d sector(s)\n",
+                  options.disk.hostFile.c_str(), payload.size(),
+                  options.disk.track, options.disk.sector, options.disk.sectorCount);
+
+        result.output += summary;
+    }
+    else
+    {
+        result.payload    = payload;
+        result.hasPayload = true;
+    }
+
+    result.exitStatus = kClean;
+
+    //  DAMAGE IS REPORTED RATHER THAN HIDDEN, and it matters more here than
+    //  anywhere: these bytes have no catalog and no length behind them, so a
+    //  sector delivered as zeros looks exactly like a sector that holds zeros.
+    if (opened.report.HasDataLoss())
+    {
+        snprintf (summary, sizeof (summary),
+                  "%d sector(s) could not be decoded. Any of them in this range "
+                  "were delivered as zeros",
+                  opened.report.GetUnrecoveredCount());
+
+        result.diagnostics += Failure (options.disk.imagePath, "", summary) + "\n";
+        result.exitStatus   = kWithComplaints;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunSectorWrite
 //
 //  A file from the host laid into an image at a track and a DOS logical sector.
 //
@@ -3527,7 +3728,8 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskCommandRunner::RunStamp (const CommandLineOptions & options, DiskCommandResult & result)
+void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
+                                       DiskCommandResult        & result)
 {
     HRESULT       hr           = S_OK;
     size_t        needed       = 0;

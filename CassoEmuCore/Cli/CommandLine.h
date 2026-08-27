@@ -152,7 +152,12 @@ public:
     //  Public because a REFUSAL prints it too, not only a help request: the
     //  answer to "you typed this wrong" is the grammar, so main and the disk
     //  edge reach for the same page a --help would have opened.
-    static void                PrintPageFor              (CommandLineOptions::Subcommand mode, char prefix);
+    //  `diskCommand` narrows the disk page to the block for one command,
+    //  which is what a reader who already named one is asking about. None
+    //  prints the whole page, and is right for a reader who has not.
+    static void                PrintPageFor              (CommandLineOptions::Subcommand mode, char prefix,
+                                                          CommandLineOptions::DiskOptions::Command diskCommand
+                                                              = CommandLineOptions::DiskOptions::Command::None);
 
 private:
     //  How wide the reader's terminal is, or 80 when there is no terminal.

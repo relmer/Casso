@@ -121,7 +121,10 @@ int CliMain (int argc, char * argv[])
         // the message on it and the page above it. Usage goes to stdout and
         // the reason to stderr, so stdout is flushed between them to make the
         // order on the screen the order written here.
-        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+        //  Narrowed to the one disk command when the reader named one:
+        //  the runner already answers its own refusals that way, and which
+        //  side caught the mistake is not something the reader can see.
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix, options.disk.command);
         CommandLine::FlushOutput();
 
         std::cerr << CommandLine::kGapBeforeTheReason << options.refusalMessage;

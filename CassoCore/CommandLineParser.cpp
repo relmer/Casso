@@ -42,24 +42,25 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 //
 static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
 {
-    { "list",    CommandLineOptions::DiskOptions::Command::List   },
-    { "ls",      CommandLineOptions::DiskOptions::Command::List   },
-    { "dir",     CommandLineOptions::DiskOptions::Command::List   },
-    { "cat",     CommandLineOptions::DiskOptions::Command::List   },
-    { "catalog", CommandLineOptions::DiskOptions::Command::List   },
-    { "get",     CommandLineOptions::DiskOptions::Command::Get    },
-    { "read",    CommandLineOptions::DiskOptions::Command::Get    },
-    { "put",     CommandLineOptions::DiskOptions::Command::Put    },
-    { "write",   CommandLineOptions::DiskOptions::Command::Put    },
-    { "delete",  CommandLineOptions::DiskOptions::Command::Delete },
-    { "rm",      CommandLineOptions::DiskOptions::Command::Delete },
-    { "del",     CommandLineOptions::DiskOptions::Command::Delete },
-    { "boot",    CommandLineOptions::DiskOptions::Command::Boot   },
-    { "create",  CommandLineOptions::DiskOptions::Command::Create },
-    { "new",     CommandLineOptions::DiskOptions::Command::Create },
-    { "init",    CommandLineOptions::DiskOptions::Command::Init   },
-    { "stamp",   CommandLineOptions::DiskOptions::Command::Stamp  },
-    { "format",  CommandLineOptions::DiskOptions::Command::Init   },
+    { "list",        CommandLineOptions::DiskOptions::Command::List        },
+    { "ls",          CommandLineOptions::DiskOptions::Command::List        },
+    { "dir",         CommandLineOptions::DiskOptions::Command::List        },
+    { "cat",         CommandLineOptions::DiskOptions::Command::List        },
+    { "catalog",     CommandLineOptions::DiskOptions::Command::List        },
+    { "get",         CommandLineOptions::DiskOptions::Command::Get         },
+    { "read",        CommandLineOptions::DiskOptions::Command::Get         },
+    { "put",         CommandLineOptions::DiskOptions::Command::Put         },
+    { "write",       CommandLineOptions::DiskOptions::Command::Put         },
+    { "delete",      CommandLineOptions::DiskOptions::Command::Delete      },
+    { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
+    { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
+    { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
+    { "create",      CommandLineOptions::DiskOptions::Command::Create      },
+    { "new",         CommandLineOptions::DiskOptions::Command::Create      },
+    { "init",        CommandLineOptions::DiskOptions::Command::Init        },
+    { "format",      CommandLineOptions::DiskOptions::Command::Init        },
+    { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
+    { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
 };
 
 
@@ -231,6 +232,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "exec",
     "track",
     "sector",
+    "count",
 };
 
 
@@ -242,6 +244,18 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 {
     "flat",
     "dos-bin",
+};
+
+
+//  The emulator GUI's flags. `trace` is here so `/trace=50M` canonicalizes
+//  the same way `/out` does; its `=` tail rides through CanonicalLongFlag
+//  untouched.
+static constexpr const char *  s_kpszEmulatorOptions[] =
+{
+    "machine",
+    "disk1",
+    "disk2",
+    "trace",
 };
 
 
@@ -839,26 +853,27 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Comman
 
     switch (command)
     {
-    //  Create and init name an image and nothing else. Everything they take
-    //  beyond that arrives as an option, so a second operand is a mistake
-    //  and is refused rather than dropped.
-    case CommandLineOptions::DiskOptions::Command::List:
-    case CommandLineOptions::DiskOptions::Command::Create:
-    case CommandLineOptions::DiskOptions::Command::Init:
-        count = 1;
-        break;
+        //  Create and init name an image and nothing else. Everything they take
+        //  beyond that arrives as an option, so a second operand is a mistake
+        //  and is refused rather than dropped.
+        case CommandLineOptions::DiskOptions::Command::List:
+        case CommandLineOptions::DiskOptions::Command::Create:
+        case CommandLineOptions::DiskOptions::Command::Init:
+        case CommandLineOptions::DiskOptions::Command::SectorRead:
+            count = 1;
+            break;
 
-    case CommandLineOptions::DiskOptions::Command::Get:
-    case CommandLineOptions::DiskOptions::Command::Put:
-    case CommandLineOptions::DiskOptions::Command::Delete:
-    case CommandLineOptions::DiskOptions::Command::Boot:
-    case CommandLineOptions::DiskOptions::Command::Stamp:
-        count = 2;
-        break;
+        case CommandLineOptions::DiskOptions::Command::Get:
+        case CommandLineOptions::DiskOptions::Command::Put:
+        case CommandLineOptions::DiskOptions::Command::Delete:
+        case CommandLineOptions::DiskOptions::Command::Boot:
+        case CommandLineOptions::DiskOptions::Command::SectorWrite:
+            count = 2;
+            break;
 
-    default:
-        count = 0;
-        break;
+        default:
+            count = 0;
+            break;
     }
 
     return count;
@@ -1108,6 +1123,29 @@ void CommandLineParser::ParseDiskOptions (
 
     limit = DiskOperandCount (options.disk.command);
 
+    //  THE PREFIX THE READER ACTUALLY WROTE.
+    //
+    //  It used to be recorded only when HELP was asked for with a slash, so
+    //  `disk init d.dsk /type dsk` was refused in words offering `--type` --
+    //  a form that reader had just demonstrated they do not write. Every
+    //  diagnostic carrying a flag name was affected, and the page above it
+    //  was not, so a single screen showed both.
+    //
+    //  Scanned ahead of the loop rather than set inside it, so a refusal
+    //  raised at the first argument is worded the same as one raised at the
+    //  last. Matched against the option table rather than on the leading
+    //  character, for the reason CanonicalDiskFlag is a table lookup at all:
+    //  `/VOLUME/STARTUP` is a ProDOS path and comes back unchanged.
+    for (int probe = i; probe < argc; probe++)
+    {
+        if (argv[probe][0] == '/'
+         && CanonicalDiskFlag (argv[probe]).rfind ("--", 0) == 0)
+        {
+            options.flagPrefix = '/';
+            break;
+        }
+    }
+
     for ( ; i < argc; i++)
     {
         std::string  arg      = CanonicalDiskFlag (argv[i]);
@@ -1146,7 +1184,12 @@ void CommandLineParser::ParseDiskOptions (
         //  word serves both and the help says which is which under each.
         if (arg == "--type" && hasValue)
         {
-            if (options.disk.command == CommandLineOptions::DiskOptions::Command::Create)
+            //  `init` reads it as a container too, though it takes none: the
+            //  runner refuses it there, and could not while the word landed in
+            //  the file-type field instead. That refusal was unreachable, so
+            //  `disk init d.dsk --type dsk` quietly ignored the flag.
+            if (options.disk.command == CommandLineOptions::DiskOptions::Command::Create
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Init)
             {
                 options.disk.containerType = argv[i + 1];
             }
@@ -1162,7 +1205,7 @@ void CommandLineParser::ParseDiskOptions (
         //  A track and a sector are plain decimals rather than addresses, so
         //  they are read here rather than through ParseAddress, and a word
         //  that is not a number is refused rather than reading as zero.
-        if ((arg == "--track" || arg == "--sector") && hasValue)
+        if ((arg == "--track" || arg == "--sector" || arg == "--count") && hasValue)
         {
             std::string  text  = argv[i + 1];
             int          value = 0;
@@ -1175,19 +1218,17 @@ void CommandLineParser::ParseDiskOptions (
 
             if (ok)
             {
-                if (arg == "--track")
-                {
-                    options.disk.track = value;
-                }
-                else
-                {
-                    options.disk.sector = value;
-                }
+                if      (arg == "--track")  { options.disk.track       = value; }
+                else if (arg == "--sector") { options.disk.sector      = value; }
+                else                        { options.disk.sectorCount = value; }
             }
             else
             {
-                Refusal (options) << "Error: " << argv[i + 1] << " is not a "
-                                  << (arg == "--track" ? "track" : "sector") << " number\n";
+                std::string  what = (arg == "--count")
+                                        ? std::string ("number of sectors")
+                                        : arg.substr (2) + " number";
+
+                Refusal (options) << "Error: " << argv[i + 1] << " is not a " << what << "\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1254,7 +1295,7 @@ void CommandLineParser::ParseDiskOptions (
             else
             {
                 Refusal (options) << "Error: " << argv[i + 1] << " is not an address\n"
-                                  << "       write it as $XXXX\n";
+                                  << "       write it as $XXXX or 0xXXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1279,7 +1320,7 @@ void CommandLineParser::ParseDiskOptions (
             else
             {
                 Refusal (options) << "Error: " << argv[i + 1] << " is not an address\n"
-                                  << "       write it as $XXXX\n";
+                                  << "       write it as $XXXX or 0xXXXX\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1347,13 +1388,13 @@ void CommandLineParser::ParseDiskOptions (
         }
         else if (positional == 1)
         {
-            // `put` and `stamp` take a HOST file here; every other command takes
-            // a path on the disk. --as may override the on-disk name
-            // afterwards. Stamp has no on-disk name at all: it writes to a
-            // track and a sector, and the disk it writes to may have no
+            // `put` and `sectorwrite` take a HOST file here; every other command
+            // takes a path on the disk. --as may override the on-disk name
+            // afterwards. sectorwrite has no on-disk name at all: it writes to
+            // a track and a sector, and the disk it writes to may have no
             // filesystem to hold a name in.
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::Stamp)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite)
             {
                 options.disk.hostFile = arg;
             }
@@ -3678,4 +3719,97 @@ std::string CommandLineParser::ApplyListingExtension (const std::string & name)
     }
 
     return name + ".lst";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ParseEmulator
+//
+//  The emulator GUI's grammar, over the same table mechanism as every other
+//  mode, so `/machine` works wherever `--machine` does and the help can write
+//  the flags with the reader's own prefix.
+//
+//  This replaced a hand-rolled loop in Casso.exe's Main.cpp that compared
+//  wide literals, took only the `--` form for everything but `--trace`, and
+//  could not be reached by a test. An argument the table does not know is
+//  SKIPPED rather than refused -- see EmulatorOptions for why a GUI program
+//  must not fail to start over a shell-supplied argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, char * argv[])
+{
+    CommandLineOptions::EmulatorOptions  parsed;
+
+
+
+    for (int i = 0; i < argc; i++)
+    {
+        std::string  arg      = CanonicalLongFlag (argv[i],
+                                    std::span<const char * const> (s_kpszEmulatorOptions));
+        bool         hasValue = (i + 1) < argc;
+
+        if      (arg == "--machine" && hasValue) { parsed.machine = argv[++i]; }
+        else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
+        else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
+        else if (arg == "--trace")
+        {
+            parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
+
+            //  Optional space-separated size override: `--trace 50M`.
+            if (hasValue && isdigit ((unsigned char) argv[i + 1][0]))
+            {
+                parsed.traceEntries = ParseTraceSize (argv[++i]);
+            }
+        }
+        else if (arg.rfind ("--trace=", 0) == 0)
+        {
+            parsed.traceEntries = ParseTraceSize (arg.substr (arg.find ('=') + 1));
+        }
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ParseTraceSize
+//
+//  An unrecognized suffix leaves the bare number rather than rejecting it, so
+//  "--trace 20X" is 20 entries and not an error at startup.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CommandLineParser::ParseTraceSize (const std::string & text)
+{
+    unsigned long long   value = 0;
+    char               * end   = nullptr;
+
+
+
+    if (!text.empty())
+    {
+        value = strtoull (text.c_str(), &end, 10);
+
+        if (end != nullptr && *end != '\0')
+        {
+            switch (toupper ((unsigned char) *end))
+            {
+                case 'K':  value *= 1000ull;        break;
+                case 'M':  value *= 1000000ull;     break;
+                case 'G':  value *= 1000000000ull;  break;
+                default:                            break;
+            }
+        }
+    }
+
+    return (size_t) value;
 }

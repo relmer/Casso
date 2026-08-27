@@ -188,7 +188,8 @@ public:
     //  entry in and no allocator to ask for space. This writes exactly the
     //  bytes given, exactly where it is told.
     //
-    void  RunStamp (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunSectorRead  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunSectorWrite (const CommandLineOptions & options, DiskCommandResult & result);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
@@ -269,12 +270,12 @@ public:
     //
     static constexpr const char *  kExitStatusHelpText =
         "    0  Success\n"
-        "    1  Success, with a warning: a listing cut short by damage, a file"
-        " delivered with unreadable sectors as zeros, or a startup program a booting"
-        " DOS 3.3 will not actually run\n"
+        "    1  Success, with a warning: a listing cut short by damage or a file"
+        " delivered with unreadable sectors as zeros\n"
         "    2  Error, and nothing was done: a command or option refused, an image"
         " that cannot be read or holds no filesystem, a file that is not on the"
-        " volume, or a write the volume or the host refused. The image is"
+        " volume, a startup program a booting DOS 3.3 cannot run, or a write the"
+        " volume or the host refused. The image is"
         " byte-for-byte as it was";
 
     //  The sentence a listing gives when neither filesystem is there. Named so
@@ -367,6 +368,14 @@ struct DiskCommandHelp
 
 
     static std::string  ApplyPrefixes      (const std::string & text, char flagPrefix);
+
+    //  The same substitution, against the prefix THIS run was asked for.
+    //
+    //  For diagnostics rather than for the page, and applied to the literal
+    //  rather than to the finished sentence: a diagnostic carries file names
+    //  and volume labels, and a sweep over the whole thing would rewrite a
+    //  name that happened to hold %L.
+    std::string         WithPrefix         (const std::string & text) const;
     static std::string  BuildSubcommandHelp (char flagPrefix);
     static std::string  BuildCommandBlocks  (char flagPrefix);
     static std::string  BuildOptionsHelp    (char flagPrefix);
@@ -520,6 +529,14 @@ private:
 
     //  Names the image, the file, and the reason -- in that order, because a
     //  script's user reads the first line and needs to know which disk.
+    //  The failure ROUTINE the F-suffixed macros call: the sentence goes to
+    //  the diagnostics and the status says nothing was done. One action, so a
+    //  CHRF site is one line instead of a five-line if-block around a bail.
+    static void  Fail (DiskCommandResult   & result,
+                       const std::string   & imagePath,
+                       const std::string   & name,
+                       const std::string   & sentence);
+
     static std::string  Failure (const std::string & imagePath,
                                  const std::string & fileName,
                                  const std::string & reason);

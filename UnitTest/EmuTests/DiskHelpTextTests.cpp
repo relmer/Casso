@@ -291,7 +291,7 @@ public:
         //  A sweep of the parser's own table rather than a list retyped here:
         //  a command added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (18), commands.size(), L"eight commands and ten aliases");
+        Assert::AreEqual (size_t (19), commands.size(), L"nine commands and ten aliases");
 
         for (const auto & command : commands)
         {
@@ -795,9 +795,17 @@ public:
 
     TEST_METHOD (HelpText_SpellsEveryDiskOptionWithThePrefixTheReaderAsked_AndNeverTheOther)
     {
+        //  EVERY OPTION THE PAGE DOCUMENTS, which is what the name promises.
+        //  The list used to name six, one of them `addr` -- an option that had
+        //  been renamed to `load` and survived here only because a stale
+        //  sentence of prose still said it. A list that covers the table is
+        //  what catches the next rename; a list of six covers whichever six
+        //  were current when it was written.
         std::string   slashHelp = DiskCommandRunner::BuildHelpText ('/');
         std::string   dashHelp  = DiskCommandRunner::BuildHelpText ('-');
-        const char *  options[] = { "out", "as", "type", "addr", "text", "basic" };
+        const char *  options[] = { "out", "as", "type", "load", "text", "basic",
+                                    "format", "volume", "bootable", "boot", "exec",
+                                    "track", "sector" };
 
         for (const char * option : options)
         {
@@ -957,9 +965,9 @@ public:
         std::string  general = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
         std::string  disk    = DiskCommandRunner::BuildHelpText ('-');
 
-        Assert::IsTrue (disk.find ("its own header loaded as code") != std::string::npos,
+        Assert::IsTrue (disk.find ("its own header indicating") != std::string::npos,
                         L"the disk page explains the doubled header");
-        Assert::IsTrue (general.find ("its own header loaded as code") == std::string::npos,
+        Assert::IsTrue (general.find ("its own header indicating") == std::string::npos,
                         L"and the general page does not");
 
         Assert::IsTrue (general.find ("Exit status") == std::string::npos,

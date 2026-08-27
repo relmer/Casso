@@ -2973,6 +2973,12 @@ namespace CommandLineTests
                 { "rm",      CommandLineOptions::DiskOptions::Command::Delete },
                 { "del",     CommandLineOptions::DiskOptions::Command::Delete },
                 { "boot",    CommandLineOptions::DiskOptions::Command::Boot   },
+
+                //  Both halves of the sector pair, which is the case worth
+                //  sweeping: they share a prefix, and a table matched by
+                //  anything less than the whole word would fold them together.
+                { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
+                { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
             };
 
             for (const auto & form : kSpellings)
@@ -2988,8 +2994,153 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (18), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (19), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
+        }
+
+        //  AN ADDRESS TAKES BOTH NOTATIONS. `$6000` is the 6502 world's and
+        //  `0x6000` is the C world's; strtol took the second by accident long
+        //  before the help promised it, and a promise resting on an accident
+        //  needs a pin. The dollar form has its own coverage elsewhere; this
+        //  holds the pair together.
+        TEST_METHOD (Address_TakesDollarAndZeroXAlike)
+        {
+            ArgVector           dollar = { "CassoCli", "disk", "put", "d.dsk", "p.bin",
+                                           "--load", "$6000" };
+            ArgVector           zerox  = { "CassoCli", "disk", "put", "d.dsk", "p.bin",
+                                           "--load", "0x6000" };
+            ArgVector           broken = { "CassoCli", "disk", "put", "d.dsk", "p.bin",
+                                           "--load", "0xZZ" };
+
+            CommandLineOptions  a = CommandLineParser::Parse (dollar.Count(), dollar.Data(), NoProbe());
+            CommandLineOptions  b = CommandLineParser::Parse (zerox.Count(),  zerox.Data(),  NoProbe());
+            CommandLineOptions  c = CommandLineParser::Parse (broken.Count(), broken.Data(), NoProbe());
+
+            Assert::AreEqual ((int) 0x6000, (int) a.disk.loadAddress);
+            Assert::AreEqual ((int) 0x6000, (int) b.disk.loadAddress,
+                L"the 0x form reaches the same address");
+            Assert::IsTrue (b.disk.hasLoadAddress);
+
+            Assert::IsTrue (c.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"and a broken 0x form is refused, not read as zero");
+        }
+
+        //  THE EMULATOR GUI'S GRAMMAR, which until now was a private loop in
+        //  Main.cpp comparing wide literals: only `--trace` took a slash, and
+        //  no test could reach any of it. It parses in core now, and these are
+        //  the tests that loop never had.
+        TEST_METHOD (Emulator_ParsesItsFlags_InEitherPrefix)
+        {
+            ArgVector  dashes  = { "Casso.exe", "--machine", "Apple2e",
+                                   "--disk1", "a.dsk", "--disk2", "b.dsk" };
+            ArgVector  slashes = { "Casso.exe", "/machine", "Apple2c",
+                                   "/disk1", "c.woz" };
+
+            CommandLineOptions::EmulatorOptions  dashed  =
+                CommandLineParser::ParseEmulator (dashes.Count(),  dashes.Data());
+            CommandLineOptions::EmulatorOptions  slashed =
+                CommandLineParser::ParseEmulator (slashes.Count(), slashes.Data());
+
+            Assert::AreEqual (std::string ("Apple2e"), dashed.machine);
+            Assert::AreEqual (std::string ("a.dsk"),   dashed.disk1);
+            Assert::AreEqual (std::string ("b.dsk"),   dashed.disk2);
+
+            Assert::AreEqual (std::string ("Apple2c"), slashed.machine,
+                L"the slash form reaches the same field, which the old loop refused");
+            Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
+        }
+
+        //  Bare, space-separated, and `=`; a suffix the table does not know
+        //  leaves the bare number rather than failing at startup.
+        TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)
+        {
+            ArgVector  bare   = { "Casso.exe", "--trace" };
+            ArgVector  spaced = { "Casso.exe", "--trace", "50M" };
+            ArgVector  joined = { "Casso.exe", "/trace=2G" };
+
+            Assert::AreEqual (CommandLineOptions::EmulatorOptions::kTraceDefaultEntries,
+                CommandLineParser::ParseEmulator (bare.Count(), bare.Data()).traceEntries,
+                L"bare --trace takes the default ring");
+
+            Assert::AreEqual ((size_t) 50000000,
+                CommandLineParser::ParseEmulator (spaced.Count(), spaced.Data()).traceEntries);
+
+            Assert::AreEqual ((size_t) 2000000000,
+                CommandLineParser::ParseEmulator (joined.Count(), joined.Data()).traceEntries,
+                L"and the = form canonicalizes through the same table as /out does");
+
+            Assert::AreEqual ((size_t) 20, CommandLineParser::ParseTraceSize ("20X"),
+                L"an unknown suffix leaves the bare number");
+        }
+
+        //  A GUI program must not fail to start over an argument nobody asked
+        //  about, so the grammar SKIPS what it does not know -- including a
+        //  flag missing its value at the end of the line.
+        TEST_METHOD (Emulator_IgnoresWhatItDoesNotKnow_AndAValuelessTail)
+        {
+            ArgVector  noisy = { "Casso.exe", "C:\\shell\\handed.this",
+                                 "--frobnicate", "--machine", "Apple2e",
+                                 "--disk1" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (noisy.Count(), noisy.Data());
+
+            Assert::AreEqual (std::string ("Apple2e"), parsed.machine,
+                L"the flags it knows still land");
+
+            Assert::IsTrue (parsed.disk1.empty(),
+                L"a flag with no value left to take is skipped, not read past the end");
+        }
+
+        //  THE PREFIX IS TAKEN FROM THE LINE, NOT ONLY FROM A HELP REQUEST.
+        //
+        //  It used to be recorded only when help was ASKED FOR with a slash,
+        //  so `disk init d.dsk /type dsk` was refused in words offering
+        //  `--type`: a form that reader had just shown they do not write. The
+        //  page beside the refusal used the slash correctly, so one screen
+        //  carried both.
+        TEST_METHOD (Disk_ASlashWrittenOptionSetsThePrefix_EvenWithNoHelpRequest)
+        {
+            ArgVector           args = { "CassoCli", "disk", "init", "d.dsk", "/type", "dsk" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual ('/', opts.flagPrefix,
+                L"a working command line written with slashes is answered in slashes");
+        }
+
+        //  AND A PRODOS PATH IS NOT A FLAG. The prefix is read from the option
+        //  table for the same reason the parser matches one at all: a volume
+        //  path begins with a slash and would otherwise flip every diagnostic
+        //  on the line into a form the reader never used.
+        TEST_METHOD (Disk_AProDosPathDoesNotSetTheSlashPrefix)
+        {
+            ArgVector           args = { "CassoCli", "disk", "get", "d.po", "/VOLUME/STARTUP" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual ('-', opts.flagPrefix,
+                L"an operand that looks like a flag is still an operand");
+
+            Assert::AreEqual (std::string ("/VOLUME/STARTUP"), opts.disk.path,
+                L"and it is still the path");
+        }
+
+        //  `--type` UNDER init HAS TO REACH THE FIELD init CHECKS.
+        //
+        //  The runner refuses it, and could not: the parser routed the word to
+        //  the FILE type field for every command but create, so the container
+        //  field the refusal reads was never set and `disk init d.dsk --type
+        //  dsk` quietly ignored the flag. The runner's own test set the field
+        //  directly and passed throughout, which is how the two sides drifted.
+        TEST_METHOD (Disk_InitReadsTypeAsAContainer_SoTheRefusalCanSeeIt)
+        {
+            ArgVector           args = { "CassoCli", "disk", "init", "d.dsk", "--type", "dsk" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::AreEqual (std::string ("dsk"), opts.disk.containerType,
+                L"init reads it as a container, which is what it refuses");
+
+            Assert::IsTrue (opts.disk.typeName.empty(),
+                L"and not as a file type, which is what put reads");
         }
 
         //  `disk --help` used to reach the command table, be told `--help` is not

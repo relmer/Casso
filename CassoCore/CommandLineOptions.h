@@ -110,7 +110,8 @@ struct CommandLineOptions
         //  --help` resolves to. Keeping it out of that table is deliberate:
         //  the table is swept to check every command is described in the help,
         //  and the help request is not one of the things being described.
-        enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init, Stamp, Help };
+        enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
+                                  SectorRead, SectorWrite, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -171,13 +172,21 @@ struct CommandLineOptions
         bool         hasEntryAddress = false;
 
         //
-        //  Where `stamp` lays its bytes down: a track and a DOS LOGICAL
+        //  Where `sectorwrite` lays its bytes down and `sectorread` picks
+        //  them up: a track and a DOS LOGICAL
         //  sector, which is the numbering a source listing and a boot loader
         //  both speak. The physical position on the disk differs from it by
         //  the interleave, and translating between the two is the engine's
         //  job rather than the caller's.
         int          track           = 0;
         int          sector          = 0;
+
+        //  HOW MANY SECTORS TO READ, which only `sectorread` needs. A write
+        //  takes its length from the file it is given; a read has nothing to
+        //  take one from, and a disk with no filesystem has no record of where
+        //  anything ends. One sector is the useful default: a boot sector is
+        //  one, and it is the thing most often looked at.
+        int          sectorCount     = 1;
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because
@@ -256,6 +265,30 @@ struct CommandLineOptions
 
     //  Live only when subcommand == Disk. Grouped so its boundary is visible
     //  at every use site rather than mixed into the assembler's fields.
+    //
+    //  THE EMULATOR GUI'S OWN FEW OPTIONS, parsed by the same table-driven
+    //  grammar as everything else so both prefixes work at both executables
+    //  and the help can write them with the reader's own prefix.
+    //
+    //  Unrecognized arguments are IGNORED under this grammar rather than
+    //  refused: Casso.exe is a GUI program that Windows may launch with a
+    //  shell-supplied argument, and refusing to start over one nobody asked
+    //  about is worse than skipping it.
+    //
+    struct EmulatorOptions
+    {
+        //  ~1 minute of emulated 6502 time (~340K instructions/sec). Each
+        //  ring entry is ~10 bytes, so the default ring is ~200 MB. A trace
+        //  too short to contain the fault is worth nothing, and anyone
+        //  passing the flag has already accepted the cost.
+        static constexpr size_t  kTraceDefaultEntries = 20000000;
+
+        std::string  machine;                          // --machine <name>
+        std::string  disk1;                            // --disk1 <image>
+        std::string  disk2;                            // --disk2 <image>
+        size_t       traceEntries = 0;                 // --trace [size]; 0 = off
+    };
+
     DiskOptions   disk;
 
     //  Whether a prefixed argument has been seen yet, which is what makes the

@@ -174,11 +174,11 @@ std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
 //  shows the loop and then says why two of its steps look the way they do.
 //  Splitting the block is what lets both have it without either owning a copy.
 //
-//  ONE FLAG HERE KEEPS THE `--` FORM WHATEVER THE READER ASKED FOR, and it
-//  is the one belonging to a different program. `--disk1` is the emulator's
-//  flag, not this tool's, and the emulator accepts only that form; printing
-//  `/disk1` because the reader typed `/?` would be a promise this executable is
-//  not the one keeping.
+//  THE LAST LINE'S FLAGS TAKE THE READER'S PREFIX TOO, though they belong to
+//  a different program. They can, because Casso.exe parses its command line
+//  through the same table this tool uses -- printing `/disk1` to a reader who
+//  typed `/?` is a promise the emulator actually keeps. It was hardcoded `--`
+//  here while the emulator's parser was a private loop that took nothing else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +196,7 @@ std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
                  + lp + "type B " + lp + "load $6000\n"
         "  CassoCli disk put mydisk.dsk greet.bas " + lp + "as STARTUP " + lp + "basic\n"
         "  CassoCli disk boot mydisk.dsk STARTUP\n"
-        "  Casso.exe --machine Apple2e --disk1 mydisk.dsk\n";
+        "  Casso.exe " + lp + "machine Apple2e " + lp + "disk1 mydisk.dsk\n";
 }
 
 

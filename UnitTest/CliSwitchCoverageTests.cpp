@@ -343,13 +343,17 @@ namespace CliSwitchCoverageTests
               { return o.disk.hasEntryAddress && o.disk.entryAddress == 0x0910; },
               "--exec starts the payload somewhere other than its first byte" },
 
-            { "disk", "track", { "CassoCli", "disk", "stamp", "d.dsk", "p.bin", "--track", "3" },
+            { "disk", "track", { "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", "--track", "3" },
               [] (const CommandLineOptions & o) { return o.disk.track == 3; },
-              "--track says which track to stamp at" },
+              "--track says which track to write at" },
 
-            { "disk", "sector", { "CassoCli", "disk", "stamp", "d.dsk", "p.bin", "--sector", "5" },
+            { "disk", "sector", { "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", "--sector", "5" },
               [] (const CommandLineOptions & o) { return o.disk.sector == 5; },
               "--sector says which logical sector to start at" },
+
+            { "disk", "count", { "CassoCli", "disk", "sectorread", "d.dsk", "--count", "4" },
+              [] (const CommandLineOptions & o) { return o.disk.sectorCount == 4; },
+              "--count is how many sectors a read takes, having no file to take a length from" },
         };
     }
 
@@ -1157,7 +1161,7 @@ namespace CliSwitchCoverageTests
             for (const char * option : { "--track", "--sector" })
             {
                 CommandLineOptions  opts =
-                    ParseOf ({ "CassoCli", "disk", "stamp", "d.dsk", "p.bin", option, "$3" });
+                    ParseOf ({ "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", option, "$3" });
 
                 Assert::IsFalse (opts.refusalMessage.empty(),
                                  Widen (std::string (option) + " took a hex value").c_str());
