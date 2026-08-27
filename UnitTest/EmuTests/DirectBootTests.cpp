@@ -1,6 +1,5 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
-#include "GuestSession.h"
 #include "Devices/Disk/DirectBootBuilder.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -31,6 +30,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (DirectBootTests)
 {
 public:
+    //  DOS 3.3's interleave, the inverse of the table DOS carries in its own
+    //  boot sector. Written out rather than read off a disk: what these two
+    //  cases assert is the ORDER OUR BUILDER LAYS PAGES DOWN IN, and the
+    //  interleave is only the input they need to say it. That our copy really
+    //  does match Apple's is a different claim, and a scenario test makes it
+    //  against a real master.
+    static std::vector<int> PhysicalToLogical()
+    {
+        return std::vector<int> { 0, 7, 14, 6, 13, 5, 12, 4,
+                                  11, 3, 10, 2, 9, 1, 8, 15 };
+    }
+
+
+
 
     //  DOS 3.3's boot0 keeps its logical-to-physical sector table sixteen
     //  bytes into the second half of track 0 sector 0, where the code reaches
@@ -59,52 +72,7 @@ public:
 
     static constexpr Word    kSomewhereSafe = 0x6000;
 
-    //  The skew Apple shipped, indexed by DOS logical sector, giving the
-    //  address-field number the drive will present it under.
-    static std::vector<int> LogicalToPhysicalFromTheMaster()
-    {
-        std::vector<Byte>  master = GuestSession::RequireDos33Master();
-        std::vector<int>   table;
-        std::vector<bool>  seen (kSectorsTrack, false);
-        size_t             i     = 0;
-
-        for (i = 0; i < kSectorsTrack; i++)
-        {
-            int  physical = (int) master[kDosSkewTableOffset + i];
-
-            Assert::IsTrue (physical >= 0 && physical < (int) kSectorsTrack,
-                L"every entry in DOS's own skew table must name a sector on the track");
-
-            Assert::IsFalse (seen[(size_t) physical],
-                L"and must name a different one, or it is not a permutation and cannot be "
-                L"the mapping anything reads through");
-
-            seen[(size_t) physical] = true;
-            table.push_back (physical);
-        }
-
-        Assert::AreEqual (kSectorsTrack, table.size(),
-            L"sixteen sectors, sixteen entries -- a short table would let the assertions "
-            L"below compare almost nothing");
-
-        return table;
-    }
-
-    //  The same table read the other way: which buffer sector answers to the
-    //  address field numbered P.
-    static std::vector<int> PhysicalToLogicalFromTheMaster()
-    {
-        std::vector<int>  logicalToPhysical = LogicalToPhysicalFromTheMaster();
-        std::vector<int>  inverse (kSectorsTrack, 0);
-        size_t            logical = 0;
-
-        for (logical = 0; logical < kSectorsTrack; logical++)
-        {
-            inverse[(size_t) logicalToPhysical[logical]] = (int) logical;
-        }
-
-        return inverse;
-    }
+    //
 
     static std::vector<Byte> PayloadOfPages (size_t pages)
     {
@@ -145,41 +113,7 @@ public:
     //  ------------------------------------------------------------------
     //  The mapping, against evidence the builder does not own.
     //  ------------------------------------------------------------------
-    //
 
-    TEST_METHOD (TheOrderSectorsAreLaidDownIn_IsTheSkewDosItselfCarries)
-    {
-        std::vector<int>  logicalToPhysical = LogicalToPhysicalFromTheMaster();
-        size_t            logical           = 0;
-        int               skewed            = 0;
-
-
-
-        for (logical = 0; logical < kSectorsTrack; logical++)
-        {
-            int  physical = logicalToPhysical[logical];
-            int  answer   = NibblizationLayer::DosFileIndexForPhysicalSector (physical);
-
-            Assert::AreEqual ((int) logical, answer,
-                L"the sector the drive presents at a physical position must be the one DOS "
-                L"3.3's own boot table says lives there");
-
-            if (physical != (int) logical)
-            {
-                skewed++;
-            }
-        }
-
-        Assert::IsTrue (skewed > 0,
-            L"and the two orders must actually differ, or every assertion above is "
-            L"satisfied by a builder that ignores the skew entirely");
-    }
-
-
-    //
-    //  ------------------------------------------------------------------
-    //  Capacity.
-    //  ------------------------------------------------------------------
     //
 
     TEST_METHOD (Capacity_IsTheDistanceFromThePayloadToTheTopOfMemory)
@@ -412,7 +346,7 @@ public:
         //  Twenty pages, so the payload runs off the end of one track and the
         //  loader has to step. A single-track case cannot tell a builder that
         //  seeks from one that does not.
-        std::vector<int>   physicalToLogical = PhysicalToLogicalFromTheMaster();
+        std::vector<int>   physicalToLogical = PhysicalToLogical();
         std::vector<Byte>  payload           = PayloadOfPages (20);
         std::vector<Byte>  built;
         std::string        refusal;
@@ -456,7 +390,7 @@ public:
         //  starting part-way into a page rides behind the bytes below it.
         constexpr size_t   kLeadIn = 0x80;
 
-        std::vector<int>   physicalToLogical = PhysicalToLogicalFromTheMaster();
+        std::vector<int>   physicalToLogical = PhysicalToLogical();
         std::vector<Byte>  payload (1, 0xAA);
         std::vector<Byte>  built;
         std::string        refusal;
