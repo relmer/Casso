@@ -223,6 +223,12 @@ REAR_X0  = (W - REAR_W) * 0.5
 REAR_Z0  = (H - REAR_H) * 0.5
 REAR_Z1  = REAR_Z0 + REAR_H
 
+# THE BACK LEANS. The side view shows the rear face raked forward -- nearest
+# the front at its crown, farthest at its base, which alone touches the full
+# depth D.
+RAKE_ANG = 7.0
+RAKE_T   = math.tan(math.radians(RAKE_ANG))
+
 # Louvers: along the depth on both flanks, across the width on the lid.
 # THE VENTS, exactly as the case is cut: sixteen lines across the lid and
 # sixteen across the underside, eleven down each flank, each set CENTERED on
@@ -306,15 +312,24 @@ shell = cq.Workplane(obj=cq.Solid.makeLoft(cap_sections, True))
 shell = shell.edges(">Y").fillet(EDGE_R)
 
 # The electronics box behind it. It overlaps well into the housing, so the
-# union has no coincident faces to trip over.
-shell = shell.union(
-    cq.Workplane(obj=cq.Solid.extrudeLinear(
-        cq.Face.makeFromWires(round_rect_wire(REAR_Y0, REAR_X0, REAR_X0 + REAR_W,
-                                              REAR_Z0, REAR_Z1, R_REAR)),
-        cq.Vector(0.0, D - REAR_Y0, 0.0))))
+# union has no coincident faces to trip over. ITS BACK LEANS: the wedge
+# comes off and the new face's rim is rolled while the box stands alone,
+# because a lone box's rearmost face is findable and the unioned shell's is
+# not. The wedge pivots just BELOW the box, so the raked plane crosses the
+# whole back face and leaves no sliver of the old one standing at the base
+# -- a strip like that becomes the rearmost face and steals the rim fillet.
+_rear = (cq.Workplane(obj=cq.Solid.extrudeLinear(
+             cq.Face.makeFromWires(round_rect_wire(REAR_Y0, REAR_X0, REAR_X0 + REAR_W,
+                                                   REAR_Z0, REAR_Z1, R_REAR)),
+             cq.Vector(0.0, D - REAR_Y0, 0.0)))
+           .cut(cq.Workplane("XY")
+                  .box(REAR_W + 20.0, 40.0, REAR_H + 40.0, centered=(False, False, False))
+                  .translate((REAR_X0 - 10.0, D, REAR_Z0 - 20.0))
+                  .rotate((REAR_X0, D, REAR_Z0 - 2.0),
+                          (REAR_X0 + REAR_W, D, REAR_Z0 - 2.0), RAKE_ANG))
+           .faces(">Y").edges().fillet(EDGE_R))
 
-# And the box's own back rim.
-shell = shell.edges(">Y").fillet(EDGE_R)
+shell = shell.union(_rear)
 
 # THE BEZEL, cut off the frame's inner edge: a tangent ARC out of the frame's
 # lean and into the steeper run down to the tube, so the two bands meet on a
@@ -391,20 +406,26 @@ def vent_positions(span, count):
     return [gap + i * (LOUV_W + gap) for i in range(count)]
 
 
-# The flanks: eleven lines each, centered on the box's height.
+# The flanks: eleven lines each, centered on the box's height. Each stops
+# at the terminating ring, WHICH LEANS WITH THE BACK -- so the higher the
+# line, the shorter its run.
 for dz in vent_positions(REAR_H, VENT_N_SIDE):
+    _end = VENT_Y1 - (dz + LOUV_W * 0.5) * RAKE_T
     for x in (REAR_X0 - 1.0, REAR_X0 + REAR_W - LOUV_DEEP + 1.0):
         shell = shell.cut(
             cq.Workplane("XY")
-              .box(LOUV_DEEP + 1.0, VENT_RUN, LOUV_W, centered=(False, False, False))
+              .box(LOUV_DEEP + 1.0, _end - VENT_Y0, LOUV_W, centered=(False, False, False))
               .translate((x, VENT_Y0, REAR_Z0 + dz)))
 
-# The lid and the underside: sixteen lines each, centered on the box's width.
+# The lid and the underside: sixteen lines each, centered on the box's
+# width. The lid's stop where the leaning ring crosses the crown; the
+# underside's keep the full run, because the rake pivots at the base.
 for dx in vent_positions(REAR_W, VENT_N_LID):
-    for z in (REAR_Z1 - LOUV_DEEP, REAR_Z0 - 1.0):
+    for z, _end in ((REAR_Z1 - LOUV_DEEP, VENT_Y1 - REAR_H * RAKE_T),
+                    (REAR_Z0 - 1.0, VENT_Y1)):
         shell = shell.cut(
             cq.Workplane("XY")
-              .box(LOUV_W, VENT_RUN, LOUV_DEEP + 1.0, centered=(False, False, False))
+              .box(LOUV_W, _end - VENT_Y0, LOUV_DEEP + 1.0, centered=(False, False, False))
               .translate((REAR_X0 + dx, VENT_Y0, z)))
 
 # THE TERMINATING RING: one continuous groove around the box's circumference,
@@ -421,7 +442,9 @@ shell = shell.cut(
                    REAR_X0 + LOUV_DEEP, REAR_X0 + REAR_W - LOUV_DEEP,
                    REAR_Z0 + LOUV_DEEP, REAR_Z1 - LOUV_DEEP,
                    R_REAR - LOUV_DEEP)),
-               cq.Vector(0.0, LOUV_W + 2.0, 0.0)))))
+               cq.Vector(0.0, LOUV_W + 2.0, 0.0))))
+      .rotate((REAR_X0, VENT_Y1, REAR_Z0),
+              (REAR_X0 + REAR_W, VENT_Y1, REAR_Z0), RAKE_ANG))
 
 # ...AND THE FRONT MASS'S OWN RING, a gap and a half forward of its rear
 # face -- the one line the big smooth housing carries.
@@ -625,14 +648,16 @@ m.add("rca_bore",
 # Each cutter is a stroke solid exactly as the Monitor II builds its relief,
 # subtracted instead of added. Cuts land in the bay floor at PANEL_Y.
 
-def engrave(solid):
-    """Cut one mark into the bay floor, its floor rounded over first."""
+def engrave(solid, floor="<Y"):
+    """Cut one mark into a face, its floor rounded over first. `floor`
+    names the cut's deepest face: "<Y" on the bay, "<X" or ">X" on a
+    flank."""
     global shell
 
     try:
-        solid = solid.edges("<Y").fillet(ENGRAVE_ROUND)
+        solid = solid.edges(floor).fillet(ENGRAVE_ROUND)
     except Exception:
-        print("WARNING: engrave: floor round-over FAILED, cutting square")
+        print("WARNING: engrave(" + floor + "): floor round-over FAILED, cutting square")
 
     shell = shell.cut(solid)
 
@@ -759,6 +784,127 @@ engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
 engrave(outline_ring(RCA_CX, ICON_CZ, ICON_S - 2.6, (ICON_S - 2.6) * 0.75, 1.8))
 engrave(stroke_box(RCA_CX - 3.65, ICON_CZ, STROKE, (ICON_S - 2.6) * 0.75))
 engrave(stroke_box(RCA_CX + 3.65, ICON_CZ, STROKE, (ICON_S - 2.6) * 0.75))
+
+# ----------------------------------------------------- the flank furniture
+#
+# THE POWER SWITCH rides the RIGHT flank near its crown, in the gap between
+# the top two vent lines: a shallow recess whose fore and aft ends RAMP
+# smoothly down to its floor, with a push button standing off that floor to
+# just shy of the wall's surface. Aft of it, where the ramp has climbed back
+# to the full width, the power glyph -- ring and bar in a box, the rear
+# row's engraving grammar turned on its side. THE CONTRAST WHEEL mirrors
+# the whole arrangement on the LEFT flank: a thumbwheel mostly buried in
+# the housing, only its rim showing through a slot, marked by the
+# half-filled circle the Monitor II wears -- engraved here rather than
+# standing proud.
+
+BX0, BX1 = REAR_X0, REAR_X0 + REAR_W
+
+# The vent-gap band the furniture occupies, between the top line and the
+# one below it.
+_vp     = vent_positions(REAR_H, VENT_N_SIDE)
+FURN_ZC = REAR_Z0 + (_vp[-2] + LOUV_W + _vp[-1]) * 0.5
+FURN_RH = 7.0                           # recess height, inside the band
+
+SW_D    = 1.6                           # recess depth into the flank
+SW_RAMP = 10.0                          # each ramp's run
+SW_Y0   = FRONT_D + 18.0
+SW_Y1   = SW_Y0 + 44.0
+SW_YC   = (SW_Y0 + SW_Y1) * 0.5
+ICON_FY = SW_Y1 + 7.0                   # the glyph, aft of the aft ramp
+FLANK_S = 6.0                           # flank icon box side
+
+
+def flank_recess(wall, sign):
+    """The ramped recess cutter on a flank: a trapezoid prism whose floor
+    sits SW_D into the wall and whose ends climb back to the surface."""
+    z0 = FURN_ZC - FURN_RH * 0.5
+
+    return cq.Workplane(obj=cq.Solid.extrudeLinear(
+        cq.Face.makeFromWires(cq.Wire.makePolygon([
+            cq.Vector(wall + sign, SW_Y0, z0),
+            cq.Vector(wall - sign * SW_D, SW_Y0 + SW_RAMP, z0),
+            cq.Vector(wall - sign * SW_D, SW_Y1 - SW_RAMP, z0),
+            cq.Vector(wall + sign, SW_Y1, z0),
+            cq.Vector(wall + sign, SW_Y0, z0),
+        ])),
+        cq.Vector(0.0, 0.0, FURN_RH)))
+
+
+def flank_box(x0, cy, cz, w, h):
+    """A stroke cutter standing on a flank wall, spanning from x0 out."""
+    return (cq.Workplane("XY")
+              .box(CUT_D + 0.5, w, h, centered=(False, True, True))
+              .translate((x0, cy, cz)))
+
+
+def flank_ring(x0, cy, cz, s, r):
+    """A square outline cutter on a flank wall."""
+    outer = flank_box(x0, cy, cz, s, s).edges("|X").fillet(r)
+    inner = (cq.Workplane("XY")
+               .box(CUT_D + 1.5, s - 2.0 * STROKE, s - 2.0 * STROKE,
+                    centered=(False, True, True))
+               .translate((x0 - 0.5, cy, cz))
+               .edges("|X").fillet(max(0.3, r - STROKE)))
+
+    return outer.cut(inner)
+
+
+def flank_circle(wall, sign, cy, cz, r):
+    """A circle outline cutter on a flank wall. BUILT FACING +Y and rotated
+    into place: the same annulus constructed along x refuses its floor
+    round-over outright, and the bay-built one takes it every time."""
+    ring = (cq.Workplane("XY")
+              .cylinder(CUT_D + 0.5, r, direct=(0, 1, 0), centered=(True, True, False))
+              .translate((0.0, -CUT_D, 0.0))
+              .cut(cq.Workplane("XY")
+                     .cylinder(CUT_D + 0.7, r - STROKE, direct=(0, 1, 0),
+                               centered=(True, True, False))
+                     .translate((0.0, -CUT_D - 0.1, 0.0))))
+
+    return (ring.rotate((0, 0, 0), (0, 0, 1), -90.0 * sign)
+                .translate((wall, cy, cz)))
+
+
+# The right flank: recess, button, power glyph.
+shell = shell.cut(flank_recess(BX1, 1.0))
+
+m.add("pwr_button",
+      cq.Workplane("XY")
+        .box(2.1, 20.0, 6.2, centered=(False, True, True))
+        .translate((BX1 - 2.6, SW_YC, FURN_ZC))
+        .edges("|X").fillet(1.2),
+      KEYCAP)
+
+_prx = BX1 - CUT_D
+engrave(flank_ring(_prx, ICON_FY, FURN_ZC, FLANK_S, 0.6), "<X")
+engrave(flank_circle(BX1, 1.0, ICON_FY, FURN_ZC - 0.3, 1.55), "<X")
+engrave(flank_box(_prx, ICON_FY, FURN_ZC + 0.9, STROKE, 1.9), "<X")
+
+# The left flank: recess, slot, wheel, contrast glyph -- the half-filled
+# circle filled toward the FRONT, the way the Monitor II fills its right
+# half for a viewer standing before it.
+shell = shell.cut(flank_recess(BX0, -1.0))
+shell = shell.cut(
+    cq.Workplane("XY")
+      .box(6.0, 22.0, 4.6, centered=(False, True, True))
+      .translate((BX0 - 1.0, SW_YC, FURN_ZC)))
+
+m.add("contrast_wheel",
+      cq.Workplane("XY")
+        .cylinder(3.4, 10.0, direct=(0, 0, 1))
+        .translate((BX0 + 10.6, SW_YC, FURN_ZC)),
+      KEYCAP)
+
+_clx = BX0 - 0.5
+engrave(flank_ring(_clx, ICON_FY, FURN_ZC, FLANK_S, 0.6), ">X")
+engrave(flank_circle(BX0, -1.0, ICON_FY, FURN_ZC, 1.55), ">X")
+engrave(cq.Workplane("XY")
+          .cylinder(CUT_D + 0.5, 1.55, direct=(1, 0, 0), centered=(False, True, True))
+          .translate((_clx, ICON_FY, FURN_ZC))
+          .cut(cq.Workplane("XY")
+                 .box(CUT_D + 1.5, 3.5, 3.5, centered=(False, False, True))
+                 .translate((_clx - 0.5, ICON_FY, FURN_ZC))), ">X")
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
 
