@@ -1093,6 +1093,7 @@ private:
     // it leaves and the grace expires.
     bool                       m_fsToolbarShown    = false;
     int64_t                    m_fsToolbarLeftMs   = 0;
+    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
 
     // Last geometry passed to LayoutJoystickButton, cached so
     // RelayoutJoystickButton can resize the button in place when the

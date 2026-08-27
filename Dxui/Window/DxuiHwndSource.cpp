@@ -3563,7 +3563,13 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 
     // Host-owned caption wins over the consumer's root content (it is
     // drawn on top of the top strip). Buttons / caption / nothing.
-    if (!claimed && m_caption != nullptr)
+    //
+    // A HIDDEN caption claims nothing. It keeps its bounds while parked --
+    // SetCaptionVisible stops it painting and reserving height, not
+    // existing -- so classifying against it left a fullscreen window with an
+    // invisible drag strip across its top, and the picture could be hauled
+    // around by a piece of chrome that was not there.
+    if (!claimed && m_caption != nullptr && m_captionVisible)
     {
         rc = m_caption->Bounds();
 

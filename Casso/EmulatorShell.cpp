@@ -1810,10 +1810,40 @@ void EmulatorShell::SyncCaptureBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MirroredSlideStart
+//
+//  A slide start time that PRESERVES the current position when the direction
+//  reverses: a band caught half-way out and sent back should leave from where
+//  it is, not jump to the far end and crawl. The elapsed time is mirrored
+//  about the animation length, which is the same trick the drive strip's FSM
+//  plays on itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int64_t MirroredSlideStart (int64_t nowMs, int64_t animStartMs)
+{
+    int64_t  elapsed = nowMs - animStartMs;
+
+
+
+    if (elapsed >= FullscreenStripState::kSlideMs)
+    {
+        return nowMs;
+    }
+
+    return nowMs - (FullscreenStripState::kSlideMs - elapsed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::TickFullscreenToolbar
 //
 //  The command toolbar on the same bargain the drive strip has at the bottom:
-//  the pointer at the top edge brings it down, leaving takes it away.
+//  the pointer at the top edge slides it down, leaving slides it away.
 //
 //  Laid out here rather than by the chrome dock, because in fullscreen there
 //  are no bands -- the scene owns the whole client, and the toolbar is an
@@ -1872,21 +1902,40 @@ void EmulatorShell::TickFullscreenToolbar()
     if (!want && m_fsToolbarShown &&
         nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
     {
-        m_fsToolbarShown = false;
-        m_toolbar.SetVisible (false);
+        m_fsToolbarShown  = false;
+        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
     else if (want && !m_fsToolbarShown)
     {
-        m_fsToolbarShown = true;
+        m_fsToolbarShown  = true;
+        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
-    if (m_fsToolbarShown)
+    // The band SLIDES: it hangs off the top by the part of itself that has
+    // not arrived, so it enters and leaves the way the drive strip does
+    // rather than blinking into place. Reversing mid-slide keeps the current
+    // position (see MirroredSlideStart) instead of snapping to the far end.
     {
-        m_toolbar.Layout     (RECT{ client.left, client.top, client.right, client.top + bandH },
-                              m_scaler);
+        float  t        = std::clamp ((float) (nowMs - m_fsToolbarAnimMs) /
+                                      (float) FullscreenStripState::kSlideMs, 0.0f, 1.0f);
+        float  progress = m_fsToolbarShown ? t : 1.0f - t;
+        int    top      = client.top - (int) ((1.0f - progress) * (float) bandH);
+
+        if (progress <= 0.0f)
+        {
+            m_toolbar.SetVisible (false);
+            return;
+        }
+
+        m_toolbar.Layout     (RECT{ client.left, top, client.right, top + bandH }, m_scaler);
         m_toolbar.SetVisible (true);
+
+        if (t < 1.0f)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 }
 
@@ -1964,10 +2013,17 @@ void EmulatorShell::SyncSceneDriveChrome()
 
 void EmulatorShell::SyncSceneDriveLabels()
 {
-    const DeskSceneComposition &  comp    = m_deskScene.Composition();
+    // FULLSCREEN LABELS THE STRIP'S DRIVES, not the desk's: the overlay is
+    // the only place drives appear there, and a drive worth revealing is
+    // worth naming. Its composition is the strip's, and the labels come and
+    // go with the slide.
+    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
+                                            m_stripComp.driveCount > 0;
+    const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.Dpi() / (float) s_kBaseDpi;
-    bool                          visible = !m_d3dRenderer.IsFullscreen();
+    bool                          visible = !fs || onStrip;
 
 
 
@@ -3585,7 +3641,16 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
     // The command toolbar rides its band: re-lay it every viewport pass so a
     // resize / DPI change reflows the buttons with the strip.
-    m_toolbar.Layout (m_toolbarBand.Bounds(), m_scaler);
+    //
+    // EXCEPT IN FULLSCREEN, where the reveal overlay owns it. Both were
+    // laying it out -- the dock into a band the fullscreen viewport does not
+    // show, the overlay across the top -- so whichever ran last won, and the
+    // buttons painted at one height while their hit rects sat at the other.
+    // A single owner per presentation, or they disagree.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        m_toolbar.Layout (m_toolbarBand.Bounds(), m_scaler);
+    }
 
     return m_centerBand.Bounds();
 }
@@ -6049,14 +6114,23 @@ bool EmulatorShell::TryPresentUiFrame()
             {
                 HRESULT  hrStrip = S_OK;
 
+                RECT  driveRow = {};
+
                 m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+
+                // The drives get the band LESS the name strip, the way the
+                // windowed drive band reserves it: the disk's name and its
+                // padlock belong under the drive here too, and a row composed
+                // into the whole band would put them off the screen's edge.
+                driveRow         = m_stripRectPx;
+                driveRow.bottom -= m_scaler.Px (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
                 // The drive band's calibrated look-down, not the desk's
                 // near-level default: the band angle is what shows the
                 // drives' tops, and the fullscreen strip is the same
                 // drives-only row the windowed band composes.
-                hrStrip = DeskSceneLayout::ComputeStrip (m_stripRectPx, m_scaler.Dpi(),
+                hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.Dpi(),
                                                          DeskSceneDriveCount(),
                                                          m_deskScene.Metrics(), m_stripComp,
                                                          DeskSceneLayout::kDriveBandGazeDownRad);
@@ -6068,6 +6142,10 @@ bool EmulatorShell::TryPresentUiFrame()
                 m_stripComp   = {};
             }
         }
+
+        // The strip's names ride its slide: re-hung every pass so they track
+        // the band on its way in and out, and retire with it.
+        SyncSceneDriveLabels();
 
         if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
         {
@@ -7648,8 +7726,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         std::wstring  tip;
         RECT          anchor = {};
 
-        if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+        if (DeskSceneActive())
         {
+            // The name strip answers for the padlock in BOTH presentations:
+            // the strip carries names and locks in fullscreen now, so the
+            // lock explains itself there the same way it does on the desk.
             for (int i = 0; i < (int) m_sceneDriveLabelRect.size(); i++)
             {
                 POINT  lp = { x, y };
@@ -7668,7 +7749,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                 }
             }
         }
-        else if (DeskSceneActive())
+
+        if (tip.empty() && DeskSceneActive() && m_d3dRenderer.IsFullscreen())
         {
             POINT  pt = { x, y };
 
@@ -7694,7 +7776,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                 }
             }
         }
-        else if (wpDrive != nullptr && !overBtn)
+
+        if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr && !overBtn)
         {
             std::wstring  imageName = std::filesystem::path (
                 m_diskStore.GetSourcePath (6, wpDrive->Drive())).filename().wstring();
