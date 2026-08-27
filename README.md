@@ -23,10 +23,10 @@ The project includes:
 - **6502 CPU emulator**: passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family). The Harte vectors are recorded from real hardware, so they are an independent oracle rather than a restatement of our own assumptions. 200 vectors per opcode are checked in and run on every build; the full 10,000 per opcode are a download away and are what you run when touching the CPU core; see [docs/testing.md](docs/testing.md).
 - **AS65-compatible assembler**: a from-scratch reimplementation of Frank A. Vorstenbosch's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **Merlin dialect**: `CassoCli merlin <source>` assembles Glen Bredon's Merlin, in the absolute subset that needs no linker. A dialect is a directive table and a line model behind one profile seam, with the two-pass engine, the expression evaluator and the opcode tables shared with AS65; the invocation names the dialect and the source is read strictly under it. Merlin brings its field-based line model, its own directive vocabulary, macros and variable symbols, local labels, left-to-right expressions in unsigned 16-bit arithmetic, and a relocating origin. Where support ends is stated by name rather than failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md). **ca65** is the next dialect (`specs/023-ca65-dialect`), and it is deliberately gated on this mechanism rather than on more Merlin: adding it must change nothing here. Its absolute subset comes first, since full compatibility needs a linker.
-- **CLI tool**: an assembler under a named dialect (`as65` or `merlin`), the `run` subcommand to load and execute a binary or assembly source, and a `disk` subcommand that reads files off an Apple II disk image and puts them back: `disk list`, `get`, `put`, `delete`, and `boot` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop (assemble, place, set the boot program, launch) with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
+- **CLI tool**: an assembler under a named dialect (`as65` or `merlin`), the `run` subcommand to load and execute a binary or assembly source, and a `disk` subcommand that makes disk images, reads files off them and puts them back: `disk create`, `init`, `list`, `get`, `put`, `delete`, `boot`, `sectorread` and `sectorwrite` work on DOS 3.3 and ProDOS volumes in `.dsk`, `.do`, `.po` and `.woz` images alike. That closes the build loop (assemble, place, set the boot program, launch) with one invocation per step and no third-party tool. `CassoCli --help` carries a worked example of the whole loop rather than only a flag list.
 - **First-run asset bootstrap**: Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness**: `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **3500+ unit tests**: comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
+- **4000+ unit tests**: comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, DOS 3.3 + ProDOS file read/write and the command path over them, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines. Several of them boot a real 6502 over an image the command line just wrote and check what the guest makes of it, because that is the only oracle for "the disk is right" that our own reader cannot satisfy by agreeing with itself.
 
 
 ## Contents
@@ -54,13 +54,17 @@ internals (projects, threading, the memory model, and the optimization log).
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk,
 reads files off it and puts them back: `create`, `init`, `list`, `get`, `put`,
 `delete` and `boot`, on DOS 3.3 and ProDOS volumes, in `.dsk`, `.do`, `.po` and
-`.woz` images alike, with no third-party tool anywhere in the loop. Source to a
+`.woz` images alike, with no third-party tool anywhere in the loop. For the
+disks that carry no filesystem at all -- a demo that boots its own loader off
+track 0 -- `sectorwrite` lays bytes at a track and a logical sector and
+`sectorread` takes them back, which `get` cannot do because it reads through a
+catalog these disks do not have. Source to a
 running machine, in six commands:
 
 ```powershell
 CassoCli disk create mydisk.dsk --bootable
 CassoCli as65 prog.a65 -oprog.bin
-CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --addr $6000
+CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --load $6000
 CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic
 CassoCli disk boot mydisk.dsk STARTUP
 Casso.exe --machine Apple2e --disk1 mydisk.dsk
@@ -443,7 +447,7 @@ CassoCli as65 input.a65 -s   -ooutput.s19
 CassoCli as65 input.a65 -s2  -ooutput.hex
 
 # The default is the assembled bytes and nothing else. --flat pads out to a
-# full 64 KB image at the origin; --dos-bin writes a BLOAD-ready DOS 3.3 binary.
+# full 64KB image at the origin; --dos-bin writes a BLOAD-ready DOS 3.3 binary.
 CassoCli as65 input.a65 --flat     -ooutput.bin
 CassoCli as65 input.a65 --dos-bin  -ooutput.bin
 
@@ -468,7 +472,7 @@ CassoCli merlin SOURCE.S
 # There is no CPU flag here: Merlin selects its CPU in the source, with XC, and
 # -x is refused rather than quietly ignored.
 
-# The assembled bytes are the default. --flat pads them out to a full 64 KB
+# The assembled bytes are the default. --flat pads them out to a full 64KB
 # memory image; --dos-bin puts a BLOAD-ready DOS 3.3 header in front of them.
 CassoCli input.a65            -ooutput.bin
 CassoCli input.a65 --flat     -ooutput.bin
@@ -538,7 +542,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 | Expressions | full operator set: `+ - * / % & \| ^ ~ << >>`, `<label`, `>label`, current-PC `*` |
 | Listing output | `-l [file]` (stdout or file), `-c` for cycle counts, `-m` for macro expansion |
 | Symbol table | `-t` |
-| Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64 KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
+| Output formats | the assembled span (the default, with no flag to name it), `--flat` (full 64KB image padded with the fill byte), `--dos-bin` (span behind a DOS 3.3 load-address/length header), `-s` (S-record), `-s2` (Intel HEX) |
 | Fill control | `-z` for `$00` fill (default `$FF`) |
 | Pre-defined symbols | `-dNAME` or `-dNAME=VALUE` (attached, AS65-style) |
 | Debug info | `-g` (named for the source, `.dbg`) |

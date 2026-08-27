@@ -35,10 +35,10 @@ Entries before versioning was introduced use dates only.
   it, so there is no DOS to wait for and none of the memory it would occupy is
   spent. Two commands from source to a booting disk instead of five, and no
   Applesoft one-liner whose only job is to `BRUN` the thing you actually wrote.
-  `--addr` names the load address, which must fall between `$0900` and `$BFFF`
-  because page `$08` carries the loader and `$C000` is not memory; `--entry`
+  `--load` names the load address, which must fall between `$0900` and `$BFFF`
+  because page `$08` carries the loader and `$C000` is not memory; `--exec`
   starts it somewhere other than its first byte, for a payload that begins with
-  a header or a jump table. It is refused alongside `--bootable`, which is the
+  a header or a jump table, and has to land inside the loaded bytes. It is refused alongside `--bootable`, which is the
   other way to boot and not a variant of this one, and alongside any `--format`
   but none, because there is no filesystem here to format. Works into `.dsk`,
   `.do`, `.po` and `.woz` alike.
@@ -92,7 +92,7 @@ Entries before versioning was introduced use dates only.
   file, `disk put` places one, and `disk delete` removes one, on DOS 3.3 and
   ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
   third-party tool in the loop. `put` takes `--as` to name the file on the
-  disk, `--type` and `--addr` for what the catalog records, and `--text` to
+  disk, `--type` and `--load` for what the catalog records, and `--text` to
   convert host text to the disk's own character convention; naming no
   conversion, the default, moves the bytes unchanged, so extract-edit-replace
   does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
@@ -168,6 +168,11 @@ Entries before versioning was introduced use dates only.
   `casso-rocks.dsk` through `sectorwrite`, and keeps its hand-rolled layout as
   `-LegacyLayout`: the two share no code, so `-Compare` running both and
   getting the same 143,360 bytes is evidence rather than a tautology.
+- **An address is written `$6000` or `0x6000`, and the help says so.** The
+  C form already parsed, by accident of `strtol` reading a base-16 prefix, so
+  a promise nothing made was being kept anyway. It is documented on `put
+  --load` and in both refusals now, and pinned by a test, so the accident is a
+  guarantee.
 
 ### Changed
 - **Casso.exe parses its command line through the same table-driven grammar as
@@ -462,6 +467,43 @@ Entries before versioning was introduced use dates only.
   unaffected, that filesystem records neither field.
 
 ### Fixed
+- **`disk boot` refused to write a startup program, instead of writing one and
+  saying it would not work.** On DOS 3.3 the boot command is RUN, so a binary
+  named as the greeting leaves a disk that boots and does nothing. The command
+  used to set the name, commit the image, and then report the trouble -- which
+  is a disk changed for the worse, by a command that had already worked out it
+  would not work. It refuses before the write now, as ProDOS already did two
+  screens away in the same command, and the disk is left as it was. Measured on
+  a real 6502: the guest never executes the binary, which is what makes the
+  refusal correct rather than merely cautious.
+- **`create` and `init` reported a ProDOS volume in the case you typed, not the
+  case the disk holds.** ProDOS stores a volume name in upper case, so
+  `--volume mydisk` correctly makes `/MYDISK` -- and the confirmation said
+  `volume mydisk` while `disk list` said `/MYDISK`, over a disk that had been
+  written correctly all along. The name is uppercased where it is accepted now,
+  so both lines agree.
+- **A bad option value printed all nine disk commands; a missing operand printed
+  one.** The same command answered `sectorread` with no image in 18 lines and
+  `sectorread --track 99` in 194, though both readers had named the command they
+  wanted and differed only in how they got it wrong. A refused value now answers
+  with that command's block, whichever side caught it. An unrecognized command
+  word still prints the whole page, because a reader who has not landed on a
+  command is who that page is for.
+- **Diagnostics wrote `--flag` to a reader who types `/flag`.** The help had
+  taken the reader's prefix for a while; the messages beneath it had not, so one
+  screen could carry `/bootable` in the usage and `--bootable` in the error. The
+  cause ran deeper than the wording: the prefix was recorded only when HELP was
+  requested with a slash, so an ordinary `/type dsk` never registered at all. It
+  is read from the command line itself now, matched against the option table so
+  a ProDOS path like `/VOLUME/STARTUP` stays an operand.
+- **`disk init --type dsk` ignored the flag entirely, in both prefixes.** The
+  runner refuses `--type` under `init` -- the container is decided by the file
+  being reformatted -- but the parser filed the word under the FILE type for
+  every command except `create`, so the field that refusal reads was never set
+  and the refusal was unreachable. Found while wiring prefixes through the
+  diagnostics; the runner and the parser had drifted across the seam between
+  them, with the runner's own test setting the field directly and passing
+  throughout.
 - **Ten command-line switches had no test at all, and nothing was looking.**
   as65's `-n`, `-p`, `-c` and `-m`, `run`'s `--warn`, and `disk`'s `--format`,
   `--volume`, `--boot`, `--track` and `--sector` were parsed by the tool and
@@ -573,15 +615,15 @@ Entries before versioning was introduced use dates only.
   at all. `-h` as the FIRST argument is still the help request. The four bare
   forms AS65 does document (`-w`, `-l`, `-d`, `-g`) are unchanged.
 - **A value that cannot be read is refused instead of being replaced.**
-  `disk put img prog.bin --addr zzz` dropped the address and then answered "is
-  a binary, which has to be told where it loads, give `--addr $XXXX`" to
-  somebody who had just given `--addr`. `-dADDR=$6000` and `-dVER=1.0` each
+  `disk put img prog.bin --load zzz` dropped the address and then answered "is
+  a binary, which has to be told where it loads, give `--load $XXXX`" to
+  somebody who had just given `--load`. `-dADDR=$6000` and `-dVER=1.0` each
   defined the symbol as `1` in silence, so the source assembled down a branch
   nobody chose. Both now refuse and say what they could not read. A bare `-d`
   is still `DEBUG`, and a name with no `=` is still 1.
 - **An option that ran out of command line is no longer reported as one that
-  does not exist.** `disk list img.dsk --addr` answered "unknown disk option:
-  `--addr`" and then listed `--addr` among the options to try instead. Both the
+  does not exist.** `disk list img.dsk --load` answered "unknown disk option:
+  `--load`" and then listed `--load` among the options to try instead. Both the
   `disk` and `run` grammars now say the option needs a value.
 - **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
   AS65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
@@ -601,7 +643,7 @@ Entries before versioning was introduced use dates only.
 - **A mistyped option no longer reports success.** `CassoCli run prog.a65 --cpu
   65c02` printed `Error: Unknown option` and then exited 0, the complaint
   reached your screen and never reached your build script. Seven paths did
-  this: every unreadable value in the `run` grammar (`--load`, `--entry`,
+  this: every unreadable value in the `run` grammar (`--load`, `--exec`,
   `--stop`, `--max-cycles`, `--fill`), an option `run` does not know, and an
   unknown `--cpu` target, which printed an error, printed the whole help, and
   called it success. The statuses now match what the tool already documents: a
