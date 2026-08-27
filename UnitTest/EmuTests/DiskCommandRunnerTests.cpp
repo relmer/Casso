@@ -6,6 +6,7 @@
 #include "Devices/Disk/DirectBootBuilder.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/Dos33Skeleton.h"
+#include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -1767,6 +1768,23 @@ public:
             L"a refusal must not carry a raw platform code");
     }
 
+    //  For the refusals that must state exactly one reason: a count of one
+    //  newline is what separates a single sentence from a message that
+    //  reported its cause and then carried on into something else.
+    static size_t CountNewlines (const std::string & text)
+    {
+        size_t  newlines = 0;
+        size_t  at       = 0;
+
+        while ((at = text.find ('\n', at)) != std::string::npos)
+        {
+            newlines++;
+            at++;
+        }
+
+        return newlines;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  WHAT put's THREE NAMING OPTIONS DEFAULT TO.
@@ -1977,6 +1995,55 @@ public:
             L"and the load address survived the round trip");
     }
 
+    //  The committed image decoded the way the DRIVE sees it -- laid down as
+    //  nibbles and read back through the hardware interleave -- rather than
+    //  through the path that wrote it. This is the unit-suite half of the
+    //  guest-visible placement gate: a placement written through a wrong
+    //  understanding reads back perfectly through the same wrong
+    //  understanding, and only the drive's own decode or a booted guest can
+    //  say otherwise. The booted guest stays in the scenario suite.
+    TEST_METHOD (Put_TheCommittedImage_DecodesThroughTheDriveWithThePlacedFileIntact)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskImage           image;
+        SectorDecodeReport  report;
+        vector<Byte>        payload = MakePayload();
+        vector<Byte>        decoded;
+        FilePayload         placed;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   payload);
+
+        options.disk.typeName       = "B";
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
+            L"the placement must succeed before there is anything to decode");
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (io.files[kBlankImage], image));
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+
+        Assert::IsTrue (decoded == io.files[kBlankImage],
+            L"every sector of the committed image must come back off the drive as it "
+            L"went on");
+
+        {
+            Dos33Volume  volume (decoded);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("PROG"), placed));
+        }
+
+        Assert::IsTrue (placed.bytes == payload,
+            L"and the placed file must read back byte for byte off the container the "
+            L"drive presents");
+
+        Assert::IsTrue (placed.hasLoadAddress, L"with a load address recorded");
+        Assert::AreEqual (kLoadAddress, placed.loadAddress);
+    }
+
     TEST_METHOD (PutVerbatim_RoundTripsTheFILEBytes_NotTheImageBytes)
     {
         // THE GATE FOR THE UNCONVERTED PATH, AND THE ASSERTION IS FILE EQUALITY.
@@ -2105,6 +2172,15 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
             L"the refusal must say the file is locked, not merely that something failed");
+
+        Assert::IsTrue (result.diagnostics.find ("PROG") != std::string::npos,
+            L"naming the file");
+        Assert::IsTrue (result.diagnostics.find (kBlankImage) != std::string::npos,
+            L"and the image");
+
+        Assert::AreEqual (size_t (1), CountNewlines (result.diagnostics),
+            L"and as ONE reason: a second line means the refusal reported its cause and "
+            L"then carried on far enough to trip over something else");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);
@@ -2869,6 +2945,28 @@ public:
         return name;
     }
 
+    //  The raw thirty bytes of the field, not merely the name they spell: the
+    //  name in high ASCII, padded with high-ASCII spaces to the width of a
+    //  catalog name field, which is the shape a booting DOS matches against
+    //  its own catalog. A field holding the right letters in the wrong
+    //  encoding names a file DOS then fails to find.
+    static void AssertGreetingFieldHolds (const vector<Byte> & image, const char * name)
+    {
+        size_t       at   = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+                          + kGreetingOffset;
+        std::string  text = name;
+        size_t       i    = 0;
+
+        for (i = 0; i < kNameFieldBytes; i++)
+        {
+            Byte  expected = (i < text.size()) ? (Byte) (text[i] | 0x80) : (Byte) 0xA0;
+
+            Assert::AreEqual ((int) expected, (int) image[at + i],
+                L"the greeting field must hold the name in high ASCII, space-padded to "
+                L"the width of a catalog name field");
+        }
+    }
+
     CommandLineOptions MakeBootOptions (const char * image, const char * path)
     {
         CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Boot, image);
@@ -2910,6 +3008,8 @@ public:
         Assert::AreEqual (std::string (kDosProgram), GreetingNameIn (io.files[kImage]),
             L"and the name the guest reads at boot is the one that was asked for -- read "
             L"back off the COMMITTED image, not out of a buffer the runner still held");
+
+        AssertGreetingFieldHolds (io.files[kImage], kDosProgram);
 
         Assert::IsTrue (ListCommittedImage (io, kImage).find (" A 004 HELLO") != std::string::npos,
             L"while the greeting it used to run is still on the disk, untouched: this "
