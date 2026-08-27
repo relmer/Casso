@@ -816,12 +816,14 @@ BX0, BX1 = REAR_X0, REAR_X0 + REAR_W
 # one below it.
 _vp     = vent_positions(REAR_H, VENT_N_SIDE)
 FURN_ZC = REAR_Z0 + (_vp[-2] + LOUV_W + _vp[-1]) * 0.5
-FURN_RH = _vp[-1] + LOUV_W - _vp[-2]    # groove top edge to groove bottom
-                                        # edge -- the recess floor IS the
-                                        # grooves' floor, one plane, so the
-                                        # only edges left are the top of the
-                                        # groove above and the bottom of the
-                                        # groove below
+# Groove top edge to groove bottom edge, LESS A HAIR: the recess floor is
+# one plane with the grooves' floors, so the only edges left are the top of
+# the groove above and the bottom of the groove below. The hair matters --
+# ends placed exactly ON the grooves' outer walls are coincident planes,
+# and the boolean splits those walls into segments whose seams show as
+# faint vertical lines at the recess's extremes. Pulled inside the grooves'
+# open air, the ends cut nothing and mark nothing.
+FURN_RH = _vp[-1] + LOUV_W - _vp[-2] - 0.3
 
 SW_D    = LOUV_DEEP                     # recess floor at the vent grooves'
                                         # own depth -- no furniture cut goes
@@ -893,9 +895,9 @@ def flank_circle(wall, sign, cy, cz, r):
 shell = shell.cut(flank_recess(BX1, 1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(SW_D + 2.0, 22.0, 11.0, centered=(False, True, True))
-      .translate((BX1 - SW_D - 1.5, SW_YC, FURN_ZC))
-      .edges("|X").fillet(2.2))
+      .box(SW_D + 3.5, 21.0, 11.0, centered=(False, True, True))
+      .translate((BX1 - SW_D - 3.0, SW_YC, FURN_ZC))
+      .edges("|X").fillet(1.7))
 
 m.add("pwr_button",
       cq.Workplane("XY")
