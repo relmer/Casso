@@ -177,7 +177,7 @@ public:
     static std::string  ApplyListingExtension (const std::string & name);
 
     static constexpr const char *  kRunExitStatusHelpText =
-        "    0  Success. Execution reached the stop address or cycle limit\n"
+        "    0  Success: execution reached the stop address or cycle limit\n"
         "    1  Error assembling source\n"
         "    2  Error: bad command line or error opening file\n"
         "    3  Error: execution encountered an illegal instruction";
