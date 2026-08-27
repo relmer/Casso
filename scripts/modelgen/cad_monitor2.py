@@ -21,6 +21,15 @@ Modeled from photographs of the real unit:
     power LED behind it -- a wide, short rectangle, long axis left to right.
     Modeled with the button already down, which is the state a running
     machine is in.
+  - THE REAR IS A LECTERN, not a wall. The top rear of the case is sheared
+    off at a slope, and that sloped face carries a recessed panel between two
+    full-depth side cheeks: vent slots across its upper band, a blank spec
+    plate over their middle, and the tube's BELL emerging through its lower
+    half -- a gray hopper in the bezel's color, not the case's, wearing the
+    cassowary where the real unit wears its maker's sticker. Below the slope
+    a vertical strip carries the control panel: a lighter inset plate with
+    the mains inlet, three recessed thumbwheels, the video-in RCA, and an
+    engraved icon over each control.
 
 X right, Y back, Z up; the case front sits at y=0.
 """
@@ -226,6 +235,16 @@ BEZEL     = (0.720, 0.644, 0.531)     # 0.82 of the frame, a touch warmer
 BEZEL_DK  = (0.726, 0.654, 0.507)     # the power button: warmer still
 CAVITY    = (0.105, 0.098, 0.086)
 
+# The rear's own parts. Chosen clear of the loader's finish markers
+# (kPlatePebbledKd, kPlateRecessKd, and cadkit.KD) by more than kKdEpsilon in
+# at least one channel -- a color inside that band is an IDENTITY, and a
+# thumbwheel that happened to land on the pebble marker would come back
+# repainted matte black with a molded grain.
+LABEL_GRAY = (0.600, 0.585, 0.555)    # the blank spec plate
+PANEL_GRAY = (0.820, 0.805, 0.770)    # the control panel's lighter inset
+DARK_PART  = (0.085, 0.085, 0.090)    # wheels, inlet, RCA barrel and bore
+RCA_RING   = (0.920, 0.910, 0.890)
+
 m = Model()
 
 # --------------------------------------------------------------------- case
@@ -308,11 +327,384 @@ except Exception as exc:
           f"({type(exc).__name__}: {exc}) -- the pocket keeps a sharp rim",
           file=sys.stderr)
 
+# ------------------------------------------------------------------ the rear
+#
+# The case's top rear is SHEARED OFF at a slope, and everything on that slope
+# is built flat and tilted into place: the recess, its vents, and the spec
+# plate are all constructed against a vertical rear face at y = D -- plain
+# boxes -- then rotated about the slope's hinge line as one gesture. Working
+# in the tilted plane directly means every cutter needs its own rotated
+# frame; working flat and tilting the finished cutter needs one.
+#
+# Coordinates on the slope are measured ALONG it from the hinge, so the
+# pre-tilt z axis is arc length up the face.
+STRIP_TOP  = 95.0                     # the vertical rear strip below the slope
+REAR_RUN   = 72.0                     # how far forward the slope's top lands
+SLOPE_LEN  = math.hypot (REAR_RUN, H - STRIP_TOP)
+SLOPE_ANG  = math.degrees (math.atan2 (REAR_RUN, H - STRIP_TOP))
+REAR_RIM   = 15.0                     # case border around the recess
+REAR_DEEP  = 9.0                      # the recess, into the slope
+
+
+def tilt_rear(wp):
+    """Rotate a pre-tilt cutter or part built against the vertical y = D
+    plane into the sloped rear face, about the slope's hinge line."""
+    return wp.rotate ((0.0, D, STRIP_TOP), (1.0, D, STRIP_TOP), SLOPE_ANG)
+
+
+# The shear itself: everything behind the sloped plane, above the strip.
+case = case.cut (tilt_rear (
+    cq.Workplane ("XY")
+      .box (W + 2.0, 220.0, H + 150.0 - STRIP_TOP, centered=(False, False, False))
+      .translate ((-1.0, D, STRIP_TOP))))
+
+# The recessed panel, inset a rim's width from the slope's edges. Its corners
+# round in the pre-tilt plane, which is what makes them round IN the face.
+case = case.cut (tilt_rear (
+    cq.Workplane ("XY")
+      .box (W - REAR_RIM * 2.0, REAR_DEEP + 60.0, SLOPE_LEN - REAR_RIM * 2.0,
+            centered=(False, False, False))
+      .edges ("|Y").fillet (6.0)
+      .translate ((REAR_RIM, D - REAR_DEEP, STRIP_TOP + REAR_RIM))))
+
+# Vent slots across the recess's upper band: two rows of narrow vertical
+# slots, cut as ONE compound rather than eighty booleans.
+VENT_SLOT_W  = 2.5
+VENT_PITCH   = 6.5
+VENT_ROW_H   = 20.0
+VENT_X0      = 60.0
+VENT_X1      = W - 60.0
+VENT_ROWS_Z  = (STRIP_TOP + SLOPE_LEN - 67.0, STRIP_TOP + SLOPE_LEN - 43.0)
+
+_slots = []
+
+for _rz in VENT_ROWS_Z:
+    _x = VENT_X0
+
+    while _x + VENT_SLOT_W <= VENT_X1:
+        _slots.append (cq.Workplane ("XY")
+                         .box (VENT_SLOT_W, REAR_DEEP + 8.0, VENT_ROW_H,
+                               centered=(False, False, False))
+                         .translate ((_x, D - REAR_DEEP - 6.0, _rz))
+                         .val())
+        _x += VENT_PITCH
+
+case = case.cut (tilt_rear (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
+
+# ------------------------------------------------------------ control panel
+#
+# The vertical strip under the slope carries the controls on a LIGHTER inset
+# plate -- the real panel is its own molding, a shade off the case around it.
+# The pocket is cut here; the plate itself is a separate part below, and the
+# icons engrave into the plate rather than the case.
+PANEL_W   = 300.0
+PANEL_X0  = (W - PANEL_W) * 0.5
+PANEL_Z0  = 16.0
+PANEL_Z1  = STRIP_TOP - 16.0
+PANEL_IN  = 2.0                       # the pocket
+PANEL_SET = 0.3                       # the plate's face behind the case face
+
+case = case.cut (
+    cq.Workplane ("XY")
+      .box (PANEL_W, PANEL_IN + 4.0, PANEL_Z1 - PANEL_Z0, centered=(False, False, False))
+      .edges ("|Y").fillet (4.0)
+      .translate ((PANEL_X0, D - PANEL_IN, PANEL_Z0)))
+
+# Control positions, left to right AS READ FROM BEHIND: mains inlet, then
+# three thumbwheels, then the RCA, an engraved icon over each of the four
+# rightmost. A reader standing behind the monitor sees model +x on their
+# LEFT, so the inlet takes the positive offset -- laid out the other way the
+# whole row came out mirrored against the photographs.
+AC_CX    = W * 0.5 + 118.0
+CTRL_CXS = (W * 0.5 + 45.0, W * 0.5 - 5.0, W * 0.5 - 55.0)
+RCA_CX   = W * 0.5 - 105.0
+CTRL_CZ  = PANEL_Z0 + 20.0            # the controls' row
+ICON_CZ  = PANEL_Z1 - 17.0            # the icons' row
+
+# The wheel wells, drilled into the CASE here while it is still being cut --
+# the plate's own holes are drilled where the plate is built, but a hole
+# through a 1.7 mm plate with solid case behind it just shows beige where
+# the wheel should be. The well is what the wheel stands in.
+for _cx in CTRL_CXS:
+    case = case.cut (
+        cq.Workplane ("XY")
+          .cylinder (14.0, 6.2, direct=(0, 1, 0), centered=(True, True, False))
+          .translate ((_cx, D - 13.0, CTRL_CZ)))
+
 # Finer than the default, and note it is the ANGULAR tolerance doing the
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
 # so the stock setting spent about three segments on a quarter turn and the
 # corners read as facets meeting at an angle rather than as rounds.
 m.add("case", case, BEIGE, angular=CORNER_ANG)
+
+# --------------------------------------------------------------- rear parts
+
+# THE BELL: the tube's rear housing, emerging through the recess and running
+# back to the strip's plane. Lofted between two VERTICAL sections -- a wide
+# tall one buried inside the case and the narrow low rear face -- so the top
+# slopes down toward the back, the sides draw in, and the bottom stays
+# nearly level, exactly the hopper the photographs show. IN THE BEZEL'S
+# COLOR: the bell, the tilting bezel, and the power button are the same gray
+# molding family on the real unit, and the case's beige is not in it.
+BELL_REAR_Y = D - 0.6                 # a hair inside the strip's plane
+
+bell = cq.Solid.makeLoft ([
+    round_rect_wire (D - 95.0, W * 0.5 - 128.0, W * 0.5 + 128.0, 96.0, 205.0, 18.0),
+    round_rect_wire (BELL_REAR_Y, W * 0.5 - 96.0, W * 0.5 + 96.0, 101.0, 162.0, 12.0),
+])
+
+m.add ("bell", cq.Workplane (obj=bell), BEZEL, angular=CORNER_ANG)
+
+# The cassowary on the bell's rear face, where the real unit wears its
+# maker's sticker: read out of CassoBranding.cpp exactly as the Disk IIc's
+# lid mark is, so the bird keeps its one definition.
+def read_branding():
+    import io, os, re
+
+    src = io.open (os.path.join (os.path.dirname (os.path.abspath (__file__)),
+                                 "..", "..", "Casso", "Ui", "Chrome", "CassoBranding.cpp"),
+                   encoding="cp1252").read()
+
+    rows_m    = re.search (r"s_kSilhouette\[[^\]]*\]\s*=\s*\{(.*?)\};", src, re.S)
+    rows      = [int (h, 16) for h in re.findall (r"0x([0-9A-Fa-f]+)ULL", rows_m.group (1))]
+    stripes_m = re.search (r"s_kStripeColors\[[^\]]*\]\s*=\s*\{(.*?)\};", src, re.S)
+    stripes   = [tuple (int (h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+                 for h in re.findall (r"0x[Ff]{2}([0-9A-Fa-f]{6})", stripes_m.group (1))]
+
+    return rows, stripes
+
+
+BELL_BIRD_H  = 22.0
+BELL_BIRD_CZ = 138.0
+
+_rows, _stripes = read_branding()
+_cell     = BELL_BIRD_H / len (_rows)
+_nonzero  = [i for i, r in enumerate (_rows) if r]
+_first    = _nonzero[0]
+_cols     = [c for bits in _rows for c in range (64) if (bits >> c) & 1]
+_collo    = min (_cols)
+_colhi    = max (_cols)
+_bird_x0  = W * 0.5 - ((_collo + _colhi + 1) * 0.5) * _cell
+_bird_z1  = BELL_BIRD_CZ + BELL_BIRD_H * 0.5 + _first * _cell
+_by_stripe = {}
+
+for _row, _bits in enumerate (_rows):
+    if not _bits:
+        continue
+
+    _banded = min (_nonzero[-1], max (_first, _row))
+    _stripe = ((_banded - _first) * len (_stripes)) // (_nonzero[-1] - _first + 1)
+    _rz0    = _bird_z1 - (_row + 1) * _cell
+    _col    = 0
+
+    while _col < 64:
+        if not (_bits >> _col) & 1:
+            _col += 1
+            continue
+
+        _run = _col
+        while _run < 64 and (_bits >> _run) & 1:
+            _run += 1
+
+        _by_stripe.setdefault (_stripe, []).append (
+            cq.Workplane ("XY")
+              .box ((_run - _col) * _cell, 0.35, _cell + 0.02,
+                    centered=(False, False, False))
+              .translate ((_bird_x0 + _col * _cell, BELL_REAR_Y - 0.2, _rz0))
+              .val())
+        _col = _run
+
+for _stripe, _solids in sorted (_by_stripe.items()):
+    m.add (f"bellbird{_stripe}", cq.Compound.makeCompound (_solids), _stripes[_stripe])
+
+# The spec plate: a blank rounded plate over the middle of the vent band,
+# where the real unit rivets its ratings label. Blank on purpose -- the
+# scene's branding is the cassowary, not a wall of small print.
+m.add ("rear_label",
+       tilt_rear (cq.Workplane ("XY")
+                    .box (94.0, 1.4, 38.0, centered=(False, False, False))
+                    .edges ("|Y").fillet (2.0)
+                    .translate ((W * 0.5 - 47.0, D - REAR_DEEP,
+                                 STRIP_TOP + SLOPE_LEN - 69.0))),
+       LABEL_GRAY, angular=CORNER_ANG)
+
+# ------------------------------------------------- the engraved control row
+#
+# The Monitor //c's engraving grammar, brought back to the machine it grew
+# from: hairline cuts exactly as deep as they are wide, floors rounded over
+# so the line reads by the shadow it holds, glyphs boxed in rounded squares.
+# Here they cut into the PANEL PLATE rather than a bay floor.
+STROKE  = 0.35
+CUT_D   = STROKE
+ICON_S  = 13.0
+BOX_R   = 0.9
+
+ENGRAVE_ROUND = min (0.35, STROKE * 0.45)
+
+PANEL_FACE_Y = D - PANEL_SET          # the plate's face, where cuts begin
+
+panel = (cq.Workplane ("XY")
+         .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 - 1.0,
+               centered=(False, False, False))
+         .edges ("|Y").fillet (3.6)
+         .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
+
+
+def engrave(solid):
+    """Cut one mark into the panel plate, its floor rounded over first."""
+    global panel
+
+    try:
+        solid = solid.edges ("<Y").fillet (ENGRAVE_ROUND)
+    except Exception:
+        print ("WARNING: engrave: floor round-over FAILED, cutting square")
+
+    panel = panel.cut (solid)
+
+
+def stroke_box(cx, cz, w, h, rot_deg=0.0):
+    """A stroke cutter centered at (cx, cz) on the plate, optionally rotated
+    about its own y-axis center."""
+    s = (cq.Workplane ("XY")
+         .box (w, CUT_D + 0.5, h, centered=(True, False, True))
+         .translate ((0.0, PANEL_FACE_Y - CUT_D, 0.0)))
+
+    if rot_deg != 0.0:
+        s = s.rotate ((0, 0, 0), (0, 1, 0), rot_deg)
+
+    return s.translate ((cx, 0.0, cz))
+
+
+def outline_ring(cx, cz, w, h, r):
+    """A rounded-rectangle OUTLINE cutter: outer minus inner."""
+    y = PANEL_FACE_Y - CUT_D
+
+    outer = cq.Solid.extrudeLinear (
+        cq.Face.makeFromWires (round_rect_wire (y, cx - w * 0.5, cx + w * 0.5,
+                                                cz - h * 0.5, cz + h * 0.5, r)),
+        cq.Vector (0.0, CUT_D + 0.5, 0.0))
+    inner = cq.Solid.extrudeLinear (
+        cq.Face.makeFromWires (round_rect_wire (y - 0.1,
+                                                cx - w * 0.5 + STROKE, cx + w * 0.5 - STROKE,
+                                                cz - h * 0.5 + STROKE, cz + h * 0.5 - STROKE,
+                                                max (0.4, r - STROKE))),
+        cq.Vector (0.0, CUT_D + 0.7, 0.0))
+
+    return cq.Workplane (obj=outer).cut (cq.Workplane (obj=inner))
+
+
+def circle_ring(cx, cz, r):
+    """A circle OUTLINE cutter: an annulus one stroke wide."""
+    outer = (cq.Workplane ("XY")
+               .cylinder (CUT_D + 0.5, r, direct=(0, 1, 0), centered=(True, True, False))
+               .translate ((cx, PANEL_FACE_Y - CUT_D, cz)))
+    inner = (cq.Workplane ("XY")
+               .cylinder (CUT_D + 0.7, r - STROKE, direct=(0, 1, 0), centered=(True, True, False))
+               .translate ((cx, PANEL_FACE_Y - CUT_D - 0.1, cz)))
+
+    return outer.cut (inner)
+
+
+def arrow_head(cx, cz, w, h, up):
+    """A solid triangular arrowhead cutter, apex up or down."""
+    y  = PANEL_FACE_Y - CUT_D
+    zt = cz + (h * 0.5 if up else -h * 0.5)
+    zb = cz - (h * 0.5 if up else -h * 0.5)
+
+    return cq.Workplane (obj=cq.Solid.extrudeLinear (
+        cq.Face.makeFromWires (cq.Wire.makePolygon ([
+            cq.Vector (cx - w * 0.5, y, zb),
+            cq.Vector (cx + w * 0.5, y, zb),
+            cq.Vector (cx, y, zt),
+            cq.Vector (cx - w * 0.5, y, zb),
+        ])),
+        cq.Vector (0.0, CUT_D + 0.5, 0.0)))
+
+
+CRT_W = ICON_S - 3.6
+CRT_H = (ICON_S - 3.6) * 0.75
+
+# Vertical hold, over the first wheel: the screen alone in its box.
+engrave (outline_ring (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave (outline_ring (CTRL_CXS[0], ICON_CZ, CRT_W, CRT_H, 2.4))
+
+# Vertical size, over the second: the screen with an up arrowhead rising
+# out of a base stroke.
+engrave (outline_ring (CTRL_CXS[1], ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave (outline_ring (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H, 2.4))
+engrave (arrow_head (CTRL_CXS[1], ICON_CZ + 1.2, 2.6, 1.6, True))
+engrave (stroke_box (CTRL_CXS[1], ICON_CZ - 1.2, 3.2, STROKE))
+
+# Brightness, over the third: the circle with eight short rays that touch
+# nothing -- the //c rear's sun, the same rotation lesson included: a
+# rotation about +y runs OPPOSITE the position angle in the x-z plane.
+engrave (outline_ring (CTRL_CXS[2], ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave (circle_ring (CTRL_CXS[2], ICON_CZ, 2.2))
+
+for _k in range (8):
+    _ang = _k * 45.0
+    _rx  = CTRL_CXS[2] + 4.0 * math.cos (math.radians (_ang))
+    _rz  = ICON_CZ + 4.0 * math.sin (math.radians (_ang))
+
+    engrave (stroke_box (_rx, _rz, STROKE, 1.6, 90.0 - _ang))
+
+# Video in, over the RCA: the screen with a stroke arriving from the left
+# through its wall, ending in an arrowhead laid on its side.
+engrave (outline_ring (RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
+engrave (outline_ring (RCA_CX + 0.9, ICON_CZ, CRT_W - 1.8, CRT_H, 2.0))
+engrave (stroke_box (RCA_CX + 3.6, ICON_CZ, 3.4, STROKE))
+engrave (stroke_box (RCA_CX + 1.2, ICON_CZ, 2.2, 2.2, 45.0))
+
+# The thumbwheel holes, drilled through the plate into the case behind it.
+for _cx in CTRL_CXS:
+    panel = panel.cut (
+        cq.Workplane ("XY")
+          .cylinder (12.0, 6.0, direct=(0, 1, 0), centered=(True, True, False))
+          .translate ((_cx, D - 11.0, CTRL_CZ)))
+
+m.add ("ctrl_panel", panel, PANEL_GRAY, angular=CORNER_ANG)
+
+# The wheels themselves: vertical-axis discs standing behind each hole, so
+# what shows through is the rim edge-on -- which is all the real ones show.
+for _i, _cx in enumerate (CTRL_CXS):
+    m.add (f"ctrl_wheel{_i}",
+           cq.Workplane ("XY")
+             .cylinder (4.5, 8.0, direct=(0, 0, 1))
+             .translate ((_cx, D - 10.5, CTRL_CZ)),
+           DARK_PART, angular=0.05)
+
+# The mains inlet: a dark molded block with the captive cord's boss -- the
+# A2M2010 has no removable lead, so there is no receptacle to model, just
+# the molding the cord leaves through.
+m.add ("ac_inlet",
+       cq.Workplane ("XY")
+         .box (34.0, 4.0, 22.0, centered=(False, False, False))
+         .edges ("|Y").fillet (3.0)
+         .translate ((AC_CX - 17.0, D - 3.0, CTRL_CZ - 11.0)),
+       DARK_PART)
+m.add ("ac_boss",
+       cq.Workplane ("XY")
+         .cylinder (4.0, 5.0, direct=(0, 1, 0), centered=(True, True, False))
+         .translate ((AC_CX, D - 1.0, CTRL_CZ)),
+       DARK_PART, angular=0.05)
+
+# The RCA jack, exactly the //c rear's recipe: dark barrel, white insulator
+# ring, dark center bore.
+m.add ("rca_body",
+       cq.Workplane ("XY")
+         .cylinder (4.5, 4.6, direct=(0, 1, 0), centered=(True, True, False))
+         .translate ((RCA_CX, D - 1.0, CTRL_CZ)),
+       DARK_PART, angular=0.05)
+m.add ("rca_ring",
+       cq.Workplane ("XY")
+         .cylinder (5.1, 3.0, direct=(0, 1, 0), centered=(True, True, False))
+         .translate ((RCA_CX, D - 1.0, CTRL_CZ)),
+       RCA_RING, angular=0.05)
+m.add ("rca_bore",
+       cq.Workplane ("XY")
+         .cylinder (5.5, 1.3, direct=(0, 1, 0), centered=(True, True, False))
+         .translate ((RCA_CX, D - 1.0, CTRL_CZ)),
+       DARK_PART, angular=0.05)
 
 # The cavity's inner surfaces, so the recess around the bezel reads dark
 # rather than as more case. A thin shell lining the pocket.
@@ -716,15 +1108,6 @@ if DEBUG_CENTER_LINE:
             .box(1.2, 0.6, 76.2, centered=(False, False, False))
             .translate((REVEAL_CX - 0.6, -0.6, 0.0)),
           (1.0, 0.0, 1.0))
-
-# Rear lid vents, as shallow cuts rather than proud strips.
-for i in range(9):
-    m.add(f"vent{i}",
-          cq.Workplane("XY")
-            .box(W - 130.0, 7.0, 1.0, centered=(False, False, False))
-            .translate((65.0, D - 92.0 + i * 9.0, H - 1.0)),
-          BEIGE_DK)
-
 
 if __name__ == "__main__":
     import os
