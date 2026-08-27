@@ -150,12 +150,12 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 // The pointer-capture banner: how to get the mouse back, said for as long as
 // it is held. Low on the picture, where a paddle game's action is not.
 //
-// The band is deliberately taller than the line it holds: the feathered
-// shadow behind the text reaches ten pixels past the ink, and a rect fitted
-// to the glyphs would clip its own fade against the edges.
+// The band is deliberately taller than the line it holds: the halo behind
+// the text spreads past the ink, and a rect fitted to the glyphs would clip
+// its own shadow against the edges.
 static constexpr int     s_kCaptureBannerHeightDp   = 44;
 static constexpr int     s_kCaptureBannerInsetDp    = 16;
-static constexpr float   s_kCaptureBannerFontDip    = HudBanner::kFontDip;
+static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
 
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";

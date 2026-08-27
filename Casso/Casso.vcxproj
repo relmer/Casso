@@ -250,7 +250,6 @@
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
     <ClCompile Include="Ui\Chrome\CommandToolbar.cpp" />
-    <ClCompile Include="Ui\Chrome\HudBanner.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceSelector.cpp" />
     <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
@@ -351,7 +350,6 @@
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
     <ClInclude Include="Ui\Chrome\CommandToolbar.h" />
-    <ClInclude Include="Ui\Chrome\HudBanner.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceSelector.h" />
     <ClInclude Include="Ui\Chrome\Apple2cSwitchBar.h" />

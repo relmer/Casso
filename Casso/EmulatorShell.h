@@ -28,7 +28,7 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
-#include "Ui/Chrome/HudBanner.h"
+#include "Widgets/DxuiHudNotice.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -1087,7 +1087,7 @@ private:
     // it is chrome: fullscreen hides it, and a captured pointer with the
     // cursor gone and no way out shown is how a user ends up killing the
     // process. This rides above the picture in both presentations.
-    HudBanner                  m_captureBanner;
+    DxuiHudNotice              m_captureBanner;
 
     // The fullscreen toolbar reveal, the drive strip's bargain mirrored
     // along the top edge: shown while the pointer is up there, hidden once
