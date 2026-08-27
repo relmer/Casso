@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "../EhmTestHelper.h"
+#include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "HeadlessHost.h"
