@@ -162,6 +162,20 @@ Error:
 
 void DeskScene::BuildDerivedGeometry()
 {
+    // THE POSED DOORS BELONG TO THE MODEL THAT WAS POSED, and the model has
+    // just been replaced. They are cached until the door's progress moves --
+    // which a machine switch does not move, since both machines' doors are
+    // equally shut -- so the old drive's door survived the swap and drew
+    // over the new one: the //c's lever and its keycap-gray latch printed on
+    // a Disk II's faceplate, which is exactly as wrong as it sounds. The
+    // progress goes with them so the next pose rebuilds from the new
+    // geometry rather than matching against a stale value.
+    for (int drive = 0; drive < 2; drive++)
+    {
+        m_driveDoorVerts[drive].clear();
+        m_doorProgress[drive] = -1.0f;
+    }
+
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
