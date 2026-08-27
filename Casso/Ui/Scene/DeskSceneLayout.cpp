@@ -618,6 +618,22 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             outPx.right  = (LONG) std::ceil (pxMax[0]);
             outPx.bottom = (LONG) std::ceil (pxMax[1]);
         }
+
+        // The label anchor: the drive's front-bottom center, one FIXED model
+        // point rather than the box's swelling projected bounds.
+        if (i >= 0 && all)
+        {
+            float   anchor[3]  = { (boxMin[0] + boxMax[0]) * 0.5f, boxMin[1], boxMin[2] };
+            float   worldPt[3] = {};
+            float   px[2]      = {};
+
+            if (SceneCamera::TransformPoint (world, anchor, worldPt) &&
+                SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
+            {
+                out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
+                out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
+            }
+        }
     }
 
     // Scene scale and the projected glass rect: the glass's on-screen
@@ -843,6 +859,24 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
             out.driveRectPx[i].top    = (LONG) std::floor (pxMin[1]);
             out.driveRectPx[i].right  = (LONG) std::ceil (pxMax[0]);
             out.driveRectPx[i].bottom = (LONG) std::ceil (pxMax[1]);
+        }
+
+        // The label anchor, same as the desk composition fills it -- unused
+        // by the strip today, but the field promises a value wherever the
+        // drive projected.
+        if (all)
+        {
+            float   anchor[3]  = { (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f,
+                                   metrics.driveMin[1], metrics.driveMin[2] };
+            float   worldPt[3] = {};
+            float   px[2]      = {};
+
+            if (SceneCamera::TransformPoint (out.driveWorld[i], anchor, worldPt) &&
+                SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
+            {
+                out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
+                out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
+            }
         }
     }
 

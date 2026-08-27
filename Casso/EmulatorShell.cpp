@@ -141,6 +141,11 @@ static constexpr int     s_kStripEdgeZoneDp = 8;
 // reads off the screen instead of only out of a tooltip.
 static constexpr int     s_kSceneDriveLabelStripDp  = 18;
 static constexpr int     s_kSceneDriveLabelGapDp    = 2;
+
+// The name strip's width, CONSTANT rather than the drive's projected width:
+// a projected box widens and narrows as the orbit turns it, and a label
+// that keeps changing size while it moves reads as chrome coming unglued.
+static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
@@ -1842,10 +1847,18 @@ void EmulatorShell::SyncSceneDriveLabels()
             continue;
         }
 
-        strip.left   = comp.driveRectPx[i].left;
-        strip.right  = comp.driveRectPx[i].right;
-        strip.top    = comp.driveRectPx[i].bottom + m_scaler.Px (s_kSceneDriveLabelGapDp);
-        strip.bottom = strip.top + m_scaler.Px (s_kSceneDriveLabelStripDp);
+        // Hung from the drive's projected FRONT-BOTTOM CENTER -- one fixed
+        // model point -- at a constant width, so the label rides the drive
+        // rigidly through the orbit instead of tracking a bounding box that
+        // swells and swings as the case turns.
+        {
+            int  halfW = m_scaler.Px (s_kSceneDriveLabelWidthDp) / 2;
+
+            strip.left   = comp.driveLabelPx[i].x - halfW;
+            strip.right  = comp.driveLabelPx[i].x + halfW;
+            strip.top    = comp.driveLabelPx[i].y + m_scaler.Px (s_kSceneDriveLabelGapDp);
+            strip.bottom = strip.top + m_scaler.Px (s_kSceneDriveLabelStripDp);
+        }
 
         // A strip that does not fit inside the client is not a label, it is a
         // stray string: the rect comes from PROJECTING the drive through the
@@ -5876,9 +5889,14 @@ bool EmulatorShell::TryPresentUiFrame()
                 m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
 
+                // The drive band's calibrated look-down, not the desk's
+                // near-level default: the band angle is what shows the
+                // drives' tops, and the fullscreen strip is the same
+                // drives-only row the windowed band composes.
                 hrStrip = DeskSceneLayout::ComputeStrip (m_stripRectPx, m_scaler.Dpi(),
                                                          DeskSceneDriveCount(),
-                                                         m_deskScene.Metrics(), m_stripComp);
+                                                         m_deskScene.Metrics(), m_stripComp,
+                                                         DeskSceneLayout::kDriveBandGazeDownRad);
                 IGNORE_RETURN_VALUE (hrStrip, S_OK);
             }
             else

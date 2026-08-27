@@ -137,6 +137,12 @@ struct DeskSceneComposition
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
     RECT   monitorRectPx    = {};     // projected monitor bounds -- chrome lays out against its edges
     RECT   driveRectPx[2]   = {};     // projected per-drive bounds -- tooltip anchors + drop targets
+
+    // Each drive's FRONT-BOTTOM CENTER projected to the screen: the fixed
+    // model point the 2D name strip hangs from. A box's projected bounds
+    // swell and swing as it turns, so chrome hung from them swims; one
+    // point rides the drive rigidly through any orbit.
+    POINT  driveLabelPx[2]  = {};
 };
 
 
