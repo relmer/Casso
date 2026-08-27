@@ -8,522 +8,263 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-## [1.20.0]: disk file access and AS65 command line fidelity improvements
+## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 
 ### Added
 - **A `disk` subcommand: read files off an Apple II disk image and put them
-  back.** `CassoCli disk list <image>` catalogs a volume, `disk get` extracts a
-  file, `disk put` places one, and `disk delete` removes one, on DOS 3.3 and
-  ProDOS, in `.dsk`, `.do`, `.po` and `.woz` images alike, without a
-  third-party tool in the loop. `put` takes `--as` to name the file on the
-  disk, `--type` and `--load` for what the catalog records, and `--text` to
-  convert host text to the disk's own character convention; giving no
-  conversion, the default, moves the bytes unchanged, so extract-edit-replace
-  does not perturb anything the edit did not touch. Writes are all-or-nothing and crash-safe:
-  the complete new image is built and checked in memory, written beside the
-  target and put in place atomically, so any failure (a locked file, a
-  write-protected image, a volume with no room, a track that cannot be
-  re-encoded, or the image changing under us) leaves the original
-  byte-for-byte as it was, with no leftover temporary and a message saying
-  which of those it was rather than a platform error code. That guarantee is
-  the command line's alone, deliberately: an image edited by a running guest is
-  written back when the drive flushes, and a flush interrupted partway has no
-  such protection. Neither side can see the other holding the image, either;
-  the command line refuses when some *other* program has the file open, but a
-  mounted image is not held open, so noticing that a disk is in use here is out
-  of scope rather than solved, and the help says so instead of implying a clean
-  check means a mounted disk is safe.
-- **`disk` takes the words the machines themselves used.** `catalog` and `cat`
-  list a disk, because those are the literal DOS 3.3 and ProDOS commands;
-  `dir` and `del` are there for the habits a host shell teaches; `read` and
-  `write` alias `get` and `put`; `ls` and `rm` work too.
-- **`disk list` describes an image that carries no filesystem.** Twelve of
-  fourteen real disk images tested carry no DOS 3.3 or ProDOS catalog, this
-  project's own demo disk among them, and every one is a working bootable
-  image. For those, the listing reports what it can still determine: for a WOZ
-  image, who imaged it, whether the disk is write-protected, which boot-sector
-  format it claims, how many of the 160 quarter-track positions carry data, and
-  its title and publisher when the file records them; for any image, the
-  geometry, how the tracks decoded, and whether track 0 sector 0 holds
-  anything a boot would run.
-- **`--basic`: an Applesoft listing written as host text becomes a program the
-  guest can `LIST` and `RUN`, and back again.** `disk put --basic` tokenizes a
-  listing and stores it under the Applesoft type without being asked to;
-  `disk get --basic` turns a stored program back into a listing. A listing that
-  cannot be tokenized is refused with the offending line number and the line
-  itself quoted, and the disk is left untouched. Extracting a program and
-  placing it back is byte-exact; the reverse, a listing placed and extracted
-  again, is not, because Applesoft itself normalizes a line when it is typed:
-  spacing outside strings, `REM` and `DATA` is dropped, `?` becomes `PRINT`,
-  lowercase outside those three becomes uppercase, and lines are ordered by
-  number. The help output says so rather than leaving it to be discovered.
-- **`disk boot <image> <program>`: the disk runs your program at boot, with
-  nothing typed.** The two filesystems do this by entirely different means and
-  both are handled: DOS 3.3 keeps the name of the program it runs inside its
-  own image, so that field is patched in place and the catalog is left alone;
-  ProDOS has no such field at all, it launches the first system program its
-  volume directory reaches, so the chosen one is moved in front of it, and
-  the ProDOS kernel itself is never nominated. A program that is not on the
-  volume is refused by name, because a startup program is the one setting with
-  nothing to show for itself in a listing: a typo would surface as a machine
-  booting to an error, later and somewhere else. A booting DOS 3.3 RUNs its
-  greeting, so a binary there is refused: RUN cannot start one, and the
-  disk would boot into nothing.
+  back.** `list` catalogs a volume, `get` extracts a file, `put` places one,
+  `delete` removes one, on DOS 3.3 and ProDOS, in `.dsk`, `.do`, `.po` and
+  `.woz` alike. `put` takes `--as` for the on-disk name, `--type` and `--load`
+  for what the catalog records, and `--text` to convert host text to the
+  disk's encoding; by default the bytes move unchanged. Writes are atomic: the
+  new image is built and checked in memory, written beside the target and put
+  in place in one step, so a locked file, a full volume, a track that cannot
+  be re-encoded or an image that changed underneath leaves the original
+  byte-for-byte intact, with no leftover temporary. A disk mounted in the
+  emulator is not detected as in use, and the help says so.
+- **`disk` takes the words the machines used.** `catalog` and `cat` list a
+  disk, as DOS 3.3 and ProDOS do; `dir`, `del`, `ls` and `rm` follow
+  host-shell habit; `read` and `write` alias `get` and `put`.
+- **`disk list` describes an image that carries no filesystem.** Many real
+  disks have no catalog, this project's demo disk among them. The listing then
+  reports what it can: for a WOZ image, who imaged it, whether it is
+  write-protected, which boot-sector format it claims, how many of the 160
+  quarter-track positions carry data, and its title and publisher when
+  recorded; for any image, the geometry, how the tracks decoded, and whether
+  track 0 sector 0 holds anything a boot would run.
+- **`--basic` converts between an Applesoft listing and a tokenized program.**
+  `put --basic` tokenizes a listing and stores it under the Applesoft type;
+  `get --basic` reverses it. A listing that will not tokenize is refused with
+  the line number and the line quoted, and the disk is untouched. Program to
+  program is byte-exact; listing to listing is not, because Applesoft
+  normalizes on entry: spacing outside strings, `REM` and `DATA` is dropped,
+  `?` becomes `PRINT`, lowercase becomes uppercase, and lines sort by number.
+- **`disk boot <image> <program>` sets what the disk runs at boot.** The two
+  filesystems differ: DOS 3.3 patches its greeting field in place, while
+  ProDOS has no such field, so the chosen system program is moved to the front
+  of the volume directory. A program that is not on the volume is refused, and
+  on DOS 3.3 it must be an Applesoft or Integer BASIC program, since boot RUNs
+  its greeting.
 - **`disk create` and `disk init` make the disk the rest of the loop writes
-  to.** Every step of the worked example began `disk put mydisk.dsk`, and
-  nothing anywhere made `mydisk.dsk`, so following it from an empty directory
-  failed at step two. `create` writes a new image and decides its container,
-  from `--type` or from the name's extension; `init` reformats one that is
-  already there and takes the container as it finds it. `create` refuses to
-  write over something that exists and points at `init` for meaning it.
-  Both take `--format dos33|prodos|none` and `--volume`, which is a number
-  under DOS 3.3 and a name under ProDOS: which one the word is read as follows
-  from the format rather than from how the word looks, or a ProDOS volume
-  legitimately called `254` would silently become a DOS volume number. `new`
-  and `format` are accepted as aliases.
+  to.** `create` writes a new image, its container from `--type` or the name's
+  extension; `init` reformats one already there and takes the container as it
+  finds it. Both take `--format dos33|prodos|none` and `--volume`, a number
+  under DOS 3.3 and a name under ProDOS. Aliases: `new`, `format`.
 - **`--bootable` copies an operating system on, and finds it by itself.** Bare,
   it takes the master matching the format being written from the cache the
-  emulator downloads into, and says which one is missing and how to fetch it
-  when the cache is empty. `--bootable <image>` gives one explicitly, for a
-  script pointing at its own. The locating half moved into the library as
-  `StockBootDisks`; the downloading stays in the GUI, which is where consent
-  and a network stack belong.
+  emulator downloads into, and says which one is missing when the cache is
+  empty. `--bootable <image>` gives one explicitly.
 - **`disk create --boot <binary>` makes a disk that starts a program with no
-  operating system on it at all.** The boot sector loads the binary and jumps to
-  it, so there is no DOS to wait for and none of the memory it would occupy is
-  spent. Two commands from source to a booting disk instead of five, and no
-  Applesoft one-liner whose only job is to `BRUN` the thing you actually wrote.
-  `--load` gives the load address, which must fall between `$0900` and `$BFFF`
-  because page `$08` carries the loader and `$C000` is not memory; `--exec`
-  starts it somewhere other than its first byte, for a payload that begins with
-  a header or a jump table, and has to land inside the loaded bytes. It is refused alongside `--bootable`, which is the
-  other way to boot and not a variant of this one, and alongside any `--format`
-  but none, because there is no filesystem here to format. Works into `.dsk`,
-  `.do`, `.po` and `.woz` alike.
-- **`disk sectorread` and `disk sectorwrite` move bytes at a track and a
-  sector, with no filesystem involved.** A disk that boots its own loader has no
-  directory to put anything in, so building one meant computing file offsets by
-  hand. Both take a track and a *logical* sector and work in whole sectors,
-  applying the DOS 3.3 interleave in the layer that owns it, so a number given
-  to one means the same to the other. A write runs on into the next track when
-  its file does not fit, and a placement off the end of the disk is refused
-  before anything is written rather than truncated. A read takes `--count`
-  instead, because nothing on such a disk records where anything ends, and goes
-  to `--out` or to standard output. Until `sectorread` existed nothing in the
-  tool could read these disks back at all: `get` reads through a catalog and
-  refuses a volume that has none. `scripts/BuildDemoDisk.ps1` now builds
-  `casso-rocks.dsk` through `sectorwrite`, and keeps its hand-rolled layout as
-  `-LegacyLayout`: the two share no code, so `-Compare` running both and
-  getting the same 143,360 bytes is evidence rather than a tautology.
-- **Unpadded and DOS 3.3 assembler output.** The assembler could only write
-  a full 64 KB memory image, padded with the fill byte, correct for ROM
-  burning and reference comparison, useless for loading a 2 KB routine, which
-  meant slicing 64 KB down by hand. Writing only the assembled span has since
-  become the default (see Changed above), and `--dos-bin` writes that span
-  behind the 4-byte load-address/length header an Apple DOS 3.3 binary file
-  carries, so the result is ready to `BLOAD` once placed on a disk.
-- **An address is written `$6000` or `0x6000`, and the help says so.** The
-  C form already parsed, by accident of `strtol` reading a base-16 prefix, so
-  a promise nothing made was being kept anyway. It is documented on `put
-  --load` and in both refusals now, and pinned by a test, so the accident is a
-  guarantee.
-- **A listing file gets `.lst` when you do not name an extension.** `-lfoo`
-  wrote a file called `foo`, which is what AS65 does with the name and is a
-  file a person then has to work out how to open. An extension you gave is
-  untouched, a dot inside a directory name does not count as one, and a
-  trailing dot asks for no extension and gets none, so `-lfoo.` still writes
-  `foo`.
-- **`-n` points at the issue that tracks it.** It is accepted and does nothing; the
-  page said "no-op", which is a status a reader cannot check from a help page.
-  It now points at https://github.com/relmer/Casso/issues/118.
-- **PowerShell no longer breaks an ordinary AS65 command line.** `CassoCli
-  prog.a65 -oprog.bin` arrives as `-oprog` and `.bin`, because a PowerShell
-  parameter name cannot contain a dot, and the tool used to refuse it and
-  explain the shell to a user who had typed it correctly. The halves are now
-  rejoined before parsing. The signature is exact, a front half that is a
-  single-dash flag group ending in a flag whose value is a name and carrying
-  neither dot nor colon, with a back half beginning at the dot, and no command
-  line written that way had a valid reading, so nothing that worked before is read
-  differently. It repairs `-l`, `-d` and `-s` too, which mattered more than `-o`:
-  `-o` could always be written `-o prog.bin`, and those three had no separated
-  form to fall back on. With the repair in place the help no longer explains the
-  shell at all, and simply states that the space after `-o` is optional.
-- **A bare `?` shows the usage text.** AS65 prints its help when the only
-  parameter is a question mark. `-?` and `/?` already worked; the unadorned one
-  was read as a source filename, so `CassoCli ?` went looking for a file called
-  `?` and exited saying it could not open one. Every subcommand takes it too,
-  `CassoCli as65 ?` is where an AS65 user types it now that assembling states its
-  dialect, and `merlin`, `run` and `disk` answer with their own pages. Typed
-  alone it opens the general page, like every other form of the request at that
-  level: no subcommand was given, so no grammar's page is the answer. Only
-  the single-argument case changed, `?` alongside anything else is still an
-  ordinary argument, because a question mark further along a command line is
-  somebody's operand, and a DOS 3.3 catalog will hold a file called `?`.
-- **A worked example of the whole loop in the help output.** The `disk` section
-  is no longer a flag list. It carries the commands that take an edited source
-  file to a program running in the emulator, documents the exit statuses (and
-  states that the subcommand defines none above 2, which is what documenting a
-  scoped status set amounts to when there are none) says that `put` and `get`
-  are worded from the disk's point of view, and warns about the two steps that
-  are guessed wrong: assemble with the default output format rather than `--dos-bin`,
-  because
-  `put` writes the DOS 3.3 header itself and a file that already carries one
-  has its own header loaded as code where the program should begin; and set the
-  boot program to an Applesoft greeting that `BRUN`s the binary, because a
-  booting DOS 3.3 RUNs its greeting. The example and the help are checked
-  against each other, every command the grammar accepts and every option the
-  example types has to appear in the same help output.
+  operating system on it.** The boot sector loads the binary and jumps to it:
+  no DOS to wait for, none of the memory it would occupy spent, and no
+  Applesoft one-liner whose only job is to `BRUN` what you wrote. `--load`
+  gives the load address, which must fall in `$0900`-`$BFFF`, and `--exec` the
+  entry, which must land inside the loaded bytes. Refused alongside
+  `--bootable`, and alongside any `--format` but `none`. Works into all four
+  containers.
+- **`disk sectorread` and `disk sectorwrite` work at a logical track and
+  sector, with no filesystem involved.** For the disks that boot their own
+  loader and have no directory to file anything in. Both apply the DOS 3.3
+  interleave, so a number given to one means the same to the other, and both
+  work in whole sectors. A write spills into the next track and is refused
+  past the end of the disk; a read takes `--count`, since nothing on such a
+  disk records where the bytes end, and goes to `--out` or stdout.
+  `scripts/BuildDemoDisk.ps1` builds `casso-rocks.dsk` through `sectorwrite`
+  and keeps its hand-rolled layout as `-LegacyLayout`, so `-Compare` running
+  both is evidence rather than a tautology.
+- **Unpadded and DOS 3.3 assembler output.** The assembler could write only a
+  full 64KB padded image, useless for loading a 2KB routine. The assembled
+  span is the default now (see Changed), and `--dos-bin` puts that span behind
+  the 4-byte load-address/length header, ready to `BLOAD`.
+- **An address can be written `$6000` or `0x6000`.** A PowerShell affordance:
+  `$6000` is expanded away as an undefined variable before Casso sees it.
+- **A listing file gets `.lst` when you give no extension.** `-lfoo` wrote a
+  file called `foo`, which is what AS65 does. An extension you gave is
+  untouched, and a trailing dot asks for none, so `-lfoo.` still writes `foo`.
+- **PowerShell no longer breaks an ordinary AS65 command line.** `-oprog.bin`
+  arrives as `-oprog` and `.bin`, because a PowerShell parameter name cannot
+  contain a dot. The halves are rejoined before parsing, on a signature no
+  valid command line matches, so nothing that worked reads differently. It
+  repairs `-l`, `-d` and `-s` too, which have no separated form to fall back
+  on.
+- **A bare `?` shows the usage text**, as AS65 does. `-?` and `/?` already
+  worked; `?` alone was read as a source filename. Every subcommand takes it.
+  Only the single-argument case changed: `?` alongside anything else is still
+  an operand, since a DOS 3.3 catalog can hold a file called `?`.
+- **A worked example of the whole loop in the help.** The `disk` page carries
+  the commands that take an edited source to a program running in the
+  emulator, and warns about the two steps most often guessed wrong: assemble
+  with the default output rather than `--dos-bin`, since `put` writes the DOS
+  3.3 header itself; and set the boot program to an Applesoft greeting that
+  `BRUN`s the binary, since a booting DOS 3.3 RUNs its greeting. A test checks
+  the example against the help.
 - **Exit code 4 is documented, and is never returned.** AS65 spends it on a
-  failed allocation, so a script ported from AS65 may still test for it, and a
-  list jumping from 3 to 5 left its author guessing whether the status had been
-  renumbered or folded into another. It is documented as AS65's, with the reason it
-  cannot arrive here.
+  failed allocation, so a ported script may still test for it, and a list
+  jumping from 3 to 5 leaves a reader guessing.
+
 ### Changed
-- **Casso.exe parses its command line through the same table-driven grammar as
-  CassoCli.** The GUI's flags were a hand-rolled loop comparing wide literals:
-  only `--trace` took a slash, nothing could be unit-tested, and CassoCli's
-  worked example had to apologize for it, writing `--machine` and `--disk1`
-  with two dashes however the reader asked. `/machine`, `/disk1`, `/disk2` and
-  `/trace` now work at the emulator, the grammar lives in core with tests, and
-  the example writes the emulator's flags with the reader's own prefix like
-  every other line on the page.
-- **The executable is a shim, and everything it used to do is in the library.**
+- **Casso.exe parses its command line through the same grammar as CassoCli.**
+  `/machine`, `/disk1`, `/disk2` and `/trace` work at the emulator now, the
+  grammar lives in core with tests, and CassoCli's worked example writes the
+  emulator's flags with the reader's own prefix.
+- **The executable is a shim, and everything it did is in the library.**
   `CassoCli.exe` was 3,639 lines of parsing, dispatch, page composition and
-  exit-code decisions, none of which the test assembly links and therefore none
-  of which could be checked. It is 57 lines now: one `main` that calls
-  `CliMain` and returns what comes back. The split is testability rather than
-  platform, so the Win32 file layer moved too. This is what GitHub issue
-  #85 asks every executable to become.
+  exit-code decisions, none of which the test assembly links. It is 57 lines
+  now: a `main` that calls `CliMain`. The split is testability rather than
+  platform, so the Win32 file layer moved too (GH #85).
 - **A mode typed with nothing after it opens that mode's page.** `CassoCli
-  as65` returned `No input file specified`, which tells a reader who has just
-  found the mode the one thing they had already worked out. `disk` did this
-  from the start; the other three do now. Still a non-zero exit, because a
+  as65` returned `No input file specified`. Still a non-zero exit, because a
   script that invokes the tool wrongly has to fail.
-- **A bad command line is answered with the grammar, not one line.** `CassoCli
-  as65 one.a65 two.a65` returned `surplus argument: two.a65` and stopped, so a
-  reader who had a command's operands wrong learned they were wrong and not
-  what the right ones are. Every refusal now prints the page belonging to the mode that was typed,
-  then the reason, last, so the reason is the line left on screen.
-- **`-o` takes a separated filename as well as an attached one.** `-o prog.bin`
-  is equivalent to `-oprog.bin`. This is an affordance for PowerShell which parses a token
-  beginning with a single `-` as a parameter name, and since parameter names may not
-  contain a dot, it cut `-oprog.bin` into `-oprog` and `.bin` before passing to Casso.
-  Allowing the filename to be separated from the option prevents that incorrect parsing.
+- **A bad command line is answered with the grammar, not one line.** Every
+  refusal prints the page for the mode that was typed, then the reason, last,
+  so the reason is the line left on screen.
+- **`-o` takes a separated filename as well as an attached one.** `-o
+  prog.bin` is equivalent to `-oprog.bin`. Another PowerShell affordance: it
+  cuts `-oprog.bin` into `-oprog` and `.bin` before Casso is started, since a
+  parameter name may not contain a dot.
 - **`CassoCli --help` is one screen, and each mode's flags wait behind that
-  mode's own help.** It was 180 lines, four screens of every flag of three
-  grammars, three blocks of exit statuses, and the worked loop at the bottom
-  where a reader who had scrolled past the flags never arrived. The general
-  page is now twenty lines: what the tool is, one line per mode, the route to
-  each mode's page, and the loop from source to a program running in the
-  emulator. `CassoCli ?` opens the assembler's page (that is AS65's own
-  convention, usage when the only parameter is a question mark, and assembling
-  is as65 mode) while `CassoCli run --help` and `CassoCli disk --help` open
-  theirs. `-?`, `-h` as the first argument, `--help`, the `/` form of each,
-  and the tool's bare name all still open the general page. Every page opens
-  with the banner (name, version, architecture, copyright) so a reader who
-  lands straight on one is still told which build is answering, and every page
-  writes its flags with the prefix you typed. Options are grouped by what you
-  are trying to do rather than alphabetically, which had put `-c`, `-l`, `-m`
-  and `-p` four places apart while they all control the same listing; output and
-  listing options nest under assembly, since neither applies to `run` or `disk`;
-  the disk commands lead with every form they accept (`cat | catalog | dir | list |
-  ls`) rather than trailing aliases in an "also written" clause; and each group
-  carries its own example. The assembly page opens with an AS65 compatibility
-  section, stating the grammar rules that hold for every command line on it (
-  single-letter switches chain into one argument, values attach with no space,
-  and `-o` is the one whose value may be separated) instead of leaving them as
-  footnotes under individual flags. Each mode's exit codes stay on that mode's
-  page and appear on no other, because they differ.
-- **`CassoCli run --help` now exists.** The `run` grammar
-  had no help request in it, so asking for one was an option it did not
-  recognize: a diagnostic, a refusal, and exit 2. `run` and `disk` now both take
-  `--help`, `-help`, `-?`, `-h` and the `/` form of each, anywhere among
-  their arguments, `-h` included, because the listing page height it collides
-  with exists only inside the assembler's flag walk, which neither grammar
-  reaches. The assembler's own `-h` is unchanged: help as the first argument,
-  the page height everywhere else.
+  mode's own help.** It was 180 lines: every flag of three grammars, three
+  blocks of exit statuses, and the worked loop at the bottom where a reader
+  never arrived. The general page is twenty lines now: what the tool is, one
+  line per mode, the route to each mode's page, and the loop. Every page opens
+  with the banner and writes its flags with the prefix you typed, options are
+  grouped by what you are trying to do rather than alphabetically, and each
+  mode's exit codes stay on its own page, because they differ.
+- **`CassoCli run --help` now exists.** Asking for it was an option the
+  grammar did not recognize: a refusal and exit 2. `run` and `disk` both take
+  `--help`, `-?`, `-h` and the `/` forms, anywhere among their arguments. The
+  assembler's `-h` is unchanged: help as the first argument, page height
+  everywhere else.
 - **`--out` typed at the assembler is refused instead of half-obeyed.** It
-  warned `Unknown flag: --`, wrote the output to a file called `ut` in the
-  working directory, and consumed the next argument as the input file, then
-  reported exit 1, the status meaning "assembled, and the output was written".
-  Every `--` option the assembly grammar does not have is now refused with a
-  message that quotes it and points at `-o <file>`. `--out` remains the `disk`
-  grammar's flag and `-o` the assembler's; they are deliberately not unified,
-  because AS65 argument compatibility is what the assembly grammar exists for.
-  The `/` forms are untouched, `/oFILE` is the glued form AS65 documents,
-  so `/out` still means `-o ut`.
-- **An explicit output-format flag now wins over the filename's extension.**
-  Extension matching remains as the fallback when no flag is given, so AS65-era
-  scripts that give a `.s19` or `.hex` output filename keep working. Previously the
-  extension always won, which meant `-s -o out.dat` silently wrote a flat
+  warned `Unknown flag: --`, wrote the output to a file called `ut`, consumed
+  the next argument as the source, and exited 1. Every `--` option the
+  assembly grammar does not have is refused now, pointing at `-o <file>`.
+  `--out` stays the `disk` flag and `-o` the assembler's; `/out` still means
+  `-o ut`, the glued form AS65 documents.
+- **An explicit output-format flag wins over the filename's extension.**
+  Extension matching stays as the fallback when no flag is given, so AS65-era
+  scripts keep working. Previously `-s -o out.dat` silently wrote a flat
   binary despite the flag asking for an S-record.
-- Command-line option modelling and parsing moved from the `CassoCli`
-  executable into `CassoCore`, where the test project can link it. Parsing was
-  previously unreachable from any test. Behavior is unchanged and now pinned by
-  tests; the grammar's one filesystem question, does `build` name a real
-  `build.a65`?, is injected rather than probed directly.
+- Command-line option modelling and parsing moved from `CassoCli` into
+  `CassoCore`, where the test project can link it. Behavior is unchanged and
+  now pinned by tests.
 - internal: CheckStyle's declaration-block and banner rules now see wrapped
   signatures, constructor-form declarations, and a statement sitting directly
   under the block; the ~400 pre-existing hits across the tree were swept.
 
 ### Removed
-- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is what
-  giving no format flag already does, so it bought nothing and cost a line of the
-  help. **If a command line writes it, delete the flag**; the result is
-  identical. It is refused rather than ignored, so a command line still carrying
-  it stops instead of quietly assembling something the flag no longer selects.
+- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which is
+  what giving no format flag already does. **If a command line writes it,
+  delete the flag**; the result is identical. It is refused rather than
+  ignored, so a command line still carrying it stops.
+
 ### Fixed
-- **The assembler's exit codes are AS65's.** AS65 documents `1 - Incorrect
-  parameter specified on the commandline`, 2 for "unable to open input or
-  output file" and 3 for "assembly gave errors". This tool spent 1 on an
-  assembly that warned, and collapsed a bad command line, an unopenable source
-  and a source full of errors all into 2, so a script ported from AS65 read a
-  warning as a command-line error and a command-line error as a missing file.
-  The distinction 2 and 3 draw is exactly the one a build script acts on: fix
-  the path, or fix the code. 0 through 3 are AS65's meanings now, warnings
-  report **5**, and 4 stays unused because AS65 spends it on an out-of-memory
-  this tool cannot reach. Giving no source file at all is 1 rather than 2, for
-  the same reason: nothing was opened because nothing was given. **If a script
-  tests for 2 to mean "the assembly failed", change it to 3**, and if it branches
-  on 1 or 2 at all, re-read the assembler page's list.
-- **Every assembler value attaches to its flag, as AS65 requires.** AS65 glues every parameter it takes (the manual
-  notates them `-d<name>`, `-h<lines>`, `-w<width>`, `-l<filename>`,
-  `-o<filename>`) and each separated form Casso accepted was its own
-  invention. **`-l out.lst` becomes `-lout.lst`**, and the same goes for
-  `-d NAME` → `-dNAME`, `-w 100` → `-w100`, `-h 60` → `-h60`. Casso's own
-  examples were written with the separated forms, and every one of them, in
-  the help and the README, has been rewritten. `-o` is the exception and takes
-  both, for the reason its own entry gives. The bare forms AS65 documents are
-  untouched: `-l` alone still lists to stdout, `-w` alone is still 133 columns,
-  `-d` alone still defines `DEBUG`. **`--flat`, `--dos-bin` and `-s2` are
-  untouched**; they are Casso's own, name output formats AS65 has no equivalent for,
-  and are deliberately kept.
-- **A flag with a numeric value no longer swallows the rest of its
-  group.** AS65: "no other option can follow one that may have a string
-  parameter. Other options can follow one that has a numeric parameter", with
-  `-h80t` as its own worked example, 80 lines per page and a symbol table.
-  `-h` and `-w` ran to the end of the argument and discarded whatever trailed,
-  so `-h80t` produced a listing with **no** symbol table and reported success.
-  They now consume exactly their digits and hand the rest back.
-- **An unrecognized assembler flag prints usage and assembles
-  nothing.** AS65: "Help message if only parameter is a question mark, or if an
-  illegal option has been specified." It was dropped with a warning while the
-  assembly ran on and wrote its output at status 1, a decision this project
-  made deliberately and has now reversed, because a flag that does not parse is
-  the one most likely to have changed the output, and a makefile passing a flag
-  this assembler does not have got a binary built from the flags that survived,
-  under the same status an ordinary assembler warning earns. **If a script
-  tests for 1 to mean "a flag was ignored", there is no such status now**: the
-  command line is refused and exits 2. The assembler's own page is the one
-  printed, and the complaint goes to stderr while the page goes to stdout.
-- **`-g` takes no filename, which is all AS65 documents for it.** AS65's entry for it is one sentence and
-  mentions no file, extension or format, so `-g out.dbg` and `-gout.dbg` are both
-  gone. Bare `-g` still writes the source's name with a `.dbg` extension, which
-  is what it always did. **This removes a capability AS65 never had rather than
-  matching one**: choosing the debug file's name would need a flag of Casso's own.
-  Note that `-gout.dbg` now parses as `-g -out.dbg` under AS65 concatenation,
-  the same reading that makes `/out` mean `-o ut`.
-- **A bare `CassoCli` exits 1 rather than 0.** It printed the general page and
-  exited 0, so a script invoking the tool with an argument variable that
-  happened to be empty was told the run had worked. Asking for the page still
-  exits 0; being shown it because nothing could be done is a command line that
-  could not be acted on, which is AS65's status 1.
-- **Exit statuses are documented per mode, because they differ.** The
-  help stated one set of meanings and claimed it held everywhere. It did not:
-  an assembly error exits **3** when a source file is assembled and **1** when
-  `run` assembles the same file, and status 1 means "the output was written
-  anyway" under the assembler and "nothing ran" under `run`. A script that read
-  the shared block and branched on 1 learned the opposite of the truth in
-  whichever mode its author was not picturing. Each mode's section now ends
-  with its own list, and every line was measured by running the tool rather
-  than carried over from the text it replaces. The assembler's list also covers
-  AS65's status 4, no memory could be allocated, and says outright that this
-  assembler does not produce it, so a script ported from AS65 does not have to
-  work out by experiment which status replaced it.
-- **Assembling writes the assembled bytes, which is what AS65 writes, not a 64KB image.**
-  Giving no output format used to write a full 64KB memory image padded with
-  the fill byte, so a 200-byte routine came out as a 65,536-byte file that had
-  to be sliced down by hand. The padded image is what a ROM burner or a
-  byte-for-byte reference comparison wants and it is still available; it is
-  now written **`--flat`**. **If you relied on the padded image, add
-  `--flat`.** One consequence worth stating: the "no format was given" test that
-  lets a `.s19` or `.hex` output filename select its format is now a fact of
-  its own rather than a value of the format, so `--flat -o out.s19` writes the
-  padded image where the filename would previously have won.
-- **Ten command-line switches had no test at all, and nothing was looking.**
-  as65's `-n`, `-p`, `-c` and `-m`, `run`'s `--warn`, and `disk`'s `--format`,
-  `--volume`, `--boot`, `--track` and `--sector` were parsed by the tool and
-  exercised by nothing. A switch nobody exercises is a switch nobody notices
-  breaking. Every switch of every mode now has a case that parses it and
-  asserts what it did, and the coverage is checked against the parser's own
-  tables rather than a list somebody has to remember to extend: a row added
-  without a case fails, and a case for a row that no longer exists fails too.
-  Illegal combinations are covered the same way, including every pairing of
-  the four output formats, and each asserts the status a shell is handed
-  rather than only the message printed.
-- **Three documented exit statuses had never been returned in a test.** 0, 5
-  and the 2 a failed write earns all require an assembly that SUCCEEDS, and a
-  successful assembly wrote its object before returning, so asserting them
-  meant putting real files on a real disk, which the unit tests do not do. The
-  two writes on that path now go through an `ArtifactSink`, alongside the
-  `FileReader` that supplies the source; both default to the real thing, so
-  every production caller reads and writes exactly as before. All five statuses
-  are now asserted through a real assembly of source that exists on no disk,
-  and the failed-write path is asserted for the listing and the object
-  separately.
-- **A refused flag combination exited 2, and an unknown flag exited 1, for the
-  same class of mistake.** as65 spends 1 on "incorrect parameter specified on
-  the commandline" and 2 on "unable to open input or output file". Giving two
-  output formats is the first of those and was answered with the second, by a printing helper
-  that returned its own exit code on the reasoning that a refusal produces no
-  file. A command line refused before anything is opened has not been near a
-  file. Both now map through `ExitCodeForRefusal`, the way every other refusal
-  already did, so each mode still reports its own status while the
-  assembler dialects report the bad command line. Nothing had pinned the codes:
-  the refusals were asserted for their message text and never for what they
-  returned, which is how they drifted apart.
+- **The assembler's exit codes are AS65's.** AS65 gives 1 to a bad command
+  line, 2 to a file it cannot open and 3 to an assembly with errors. This tool
+  spent 1 on an assembly that warned and collapsed the other three into 2, so
+  a script ported from AS65 read a warning as a command-line error and a
+  command-line error as a missing file. 0 through 3 are AS65's now, warnings
+  report **5**, and 4 stays unused. **If a script tests for 2 to mean "the
+  assembly failed", change it to 3.**
+- **Every assembler value attaches to its flag, as AS65 requires.** **`-l
+  out.lst` becomes `-lout.lst`**, and likewise `-dNAME`, `-w100`, `-h60`. `-o`
+  is the exception and takes both. The bare forms AS65 documents are
+  untouched: `-l` alone lists to stdout, `-w` alone is 133 columns, `-d` alone
+  defines `DEBUG`. `--flat`, `--dos-bin` and `-s2` are Casso's own and are
+  kept.
+- **A flag with a numeric value no longer swallows the rest of its group.**
+  AS65 documents `-h80t` as 80 lines per page and a symbol table; `-h` and
+  `-w` ran to the end of the argument and discarded whatever trailed, so
+  `-h80t` produced no symbol table and reported success.
+- **An unrecognized assembler flag prints usage and assembles nothing.** It
+  was dropped with a warning while the assembly ran on at status 1, so a
+  makefile passing a flag this assembler does not have got a binary built from
+  the flags that survived. **There is no status meaning "a flag was ignored"
+  now**: the command line is refused and exits 2.
+- **`-g` takes no filename, which is all AS65 documents for it.** `-g out.dbg`
+  and `-gout.dbg` are gone; bare `-g` still writes the source's name with a
+  `.dbg` extension. Note that `-gout.dbg` now parses as `-g -out.dbg`.
+- **A bare `CassoCli` exits 1 rather than 0.** A script invoking the tool with
+  an argument variable that happened to be empty was told the run had worked.
+  Asking for the page still exits 0.
+- **Exit statuses are documented per mode, because they differ.** An assembly
+  error exits **3** under the assembler and **1** under `run`, and status 1
+  means "the output was written anyway" in one and "nothing ran" in the other.
+  Each mode's page ends with its own list, measured by running the tool.
+- **Assembling writes the assembled bytes, which is what AS65 writes, not a
+  64KB image.** A 200-byte routine came out as a 65,536-byte file. The padded
+  image is still available as **`--flat`**. One consequence: `--flat -o
+  out.s19` writes the padded image, where the filename would previously have
+  won.
+- **A refused flag combination exited 2 and an unknown flag exited 1, for the
+  same class of mistake.** Both map through `ExitCodeForRefusal` now. Nothing
+  had pinned the codes: the refusals were asserted for their message text and
+  never for what they returned.
 - **The help fills the terminal, which it did almost nowhere.**
   `GetConsoleScreenBufferInfo` needs a readable console handle, and a `stdout`
-  that has been through a shell is not one: it is write-only or a pipe, and the
-  call fails however wide the window behind it is. Measured against a
-  112-column console, the handle answered nothing under a redirect, a pipe and
-  `> CON` alike, while `CONOUT$` answered 112 every time. The terminal is asked
-  directly now. A redirect to a file keeps folding at 80, because a file will
-  be opened in an editor. `COLUMNS` overrides everything, which is the
-  convention and is what lets a script set a width and measure what came back.
-  The disk page was also hand-wrapped at 72 columns in its own source and
-  printed without folding at all, so it could not widen twice over.
+  that has been through a shell is not one. The terminal is asked directly
+  through `CONOUT$`. A redirect to a file keeps folding at 80; `COLUMNS`
+  overrides everything.
 - **A refusal no longer prints in the middle of the page it interrupts.**
-  `std::println` writes to the C `stdout` stream and `std::cout` is a separate
-  C++ one over the same descriptor; every ordering point flushed only the
-  second, so the unbuffered `stderr` overtook a page still sitting in a buffer
-  nobody had emptied. `as65 -asdf` printed the reason inside the flag table.
-- **An unreadable source no longer claims a count it cannot have.** `as65 joij`
-  answered `Cannot read input file: joij` and then `Assembly failed with 0
-  error(s)`, which reads as a second and contradictory claim: no assembly was
-  attempted, so there were no errors to total.
-- **A command line the tool cannot read is answered with the grammar, not with
-  one line.** `CassoCli as65 one.a65 two.a65` said `surplus argument: two.a65` and
-  stopped, so a reader who had a command's operands wrong was told they were wrong
-  and not what the right ones are. Every refusal now prints the page belonging
-  to the mode that was typed (the assembler's, Merlin's, `run`'s or `disk`'s)
-  and then the reason, last, so the reason is the line left on screen. An
-  unrecognized flag printed a page already, but printed the general one: a
-  table of contents that lists the four modes and not one flag of any of
-  them, which is the single page in the tool least able to answer "which flag
-  did you mean?". The reason itself moved out of `std::cerr` and onto the parse
-  result, which is what allows it to be printed after the page instead of
-  before it, and what allows a test to read any of the twenty-three refusal
-  messages for the first time.
-- **An argument with nowhere to go is now an error instead of being thrown
-  away.** `CassoCli pg.a65 -opg.bin -h 60` assembled, wrote the binary, exited
-  0, and never said that `60` had gone nowhere, so a build script asking for
-  something the tool did not do was told it had worked. All three grammars
-  dropped a surplus argument: assembling took the first bare argument as the
-  source and discarded the rest, and `disk` filled two operand slots whatever
-  the command, so `disk list img.dsk PROG` cataloged the whole disk without
-  mentioning `PROG` and `disk get img.dsk PROG extra` extracted `PROG` without
-  mentioning `extra`. Each is now refused at the status its own mode documents
-  for a command line that was refused, **1** for the assembling modes, which
-  is AS65's "incorrect parameter specified on the commandline", and **2** for
-  `run` and `disk`, which have no such status and call it having started
-  nothing. Nothing is assembled, nothing run, and nothing written. The message
-  quotes the argument, and where the likely cause is visible it says that too:
-  a value typed with a space in front of it earns `-w100, not -w 100`. `run`
-  already refused these and called them "Unknown option", which sent the reader
-  looking for a flag they had not typed; it calls them surplus arguments now.
+  `std::println` and `std::cout` are separate streams over one descriptor and
+  only the second was flushed, so the unbuffered `stderr` overtook a page
+  still sitting in a buffer.
+- **An unreadable source no longer claims a count it cannot have.** `as65
+  joij` answered `Cannot read input file: joij` and then `Assembly failed with
+  0 error(s)`.
+- **An argument with nowhere to go is an error instead of being discarded.**
+  `CassoCli pg.a65 -opg.bin -h 60` assembled, exited 0, and never said that
+  `60` had gone nowhere. All three grammars dropped a surplus argument. Each
+  is refused now at its own mode's documented status, **1** for the assembling
+  modes and **2** for `run` and `disk`, and nothing is assembled, run or
+  written. Where the likely cause is visible the message says it: `-w100, not
+  -w 100`.
 - **A refused command line no longer runs anyway.** The refusal was reported
-  and then ignored: the executable had no arm for it, so `CassoCli as65
-  prog.a65 extra.a65` printed the surplus-argument error, went on to assemble,
-  and reported that it could not read a source file the refusal had said
-  nothing about, exiting 2, the code for a file that could not be opened,
-  where the documented status for a bad command line is 1. Only `disk` acted on
-  a refusal, because its runner assigns its own statuses. The decision now
-  lives in the library beside the tables that document it, where the test
-  assembly can reach it; it was previously made in `main`, which nothing links.
-  Merlin was not refusing a second source file at all, AS65 stopped discarding
-  one and Merlin kept doing it, so the same mistake was an error in one
-  grammar and silent in the other. It is an error in both.
-- **A bare `-h` is refused rather than silently doing nothing.** AS65 documents
-  the bare form of `-w` ("If the -w option is given without a number following
-  it, then the listing will be 133 columns wide") and documents no bare form
-  of `-h` on the same page. Casso accepted one and ignored it: the page height
-  kept whatever it already had, and the flag might as well not have been typed.
-  It now says so and points at `-h0`, which is the real form for no page breaks
-  at all. `-h` as the FIRST argument is still the help request. The four bare
-  forms AS65 does document (`-w`, `-l`, `-d`, `-g`) are unchanged.
+  and then ignored, so `as65 prog.a65 extra.a65` printed the surplus-argument
+  error, assembled anyway, and exited 2. Merlin was not refusing a second
+  source file at all; both grammars do now.
+- **A bare `-h` is refused rather than silently doing nothing.** AS65
+  documents a bare `-w` and no bare `-h`. Casso accepted one and ignored it,
+  leaving the page height at whatever it already had. It points at `-h0` now,
+  the real form for no page breaks. `-h` as the first argument is still the
+  help request.
 - **A value that cannot be read is refused instead of being replaced.**
-  `disk put img prog.bin --load zzz` dropped the address and then answered "is
-  a binary, which has to be told where it loads, give `--load $XXXX`" to
-  somebody who had just given `--load`. `-dADDR=$6000` and `-dVER=1.0` each
-  defined the symbol as `1` in silence, so the source assembled down a branch
-  nobody chose. Both now refuse and say what they could not read. A bare `-d`
-  is still `DEBUG`, and a name with no `=` is still 1.
+  `disk put img prog.bin --load zzz` dropped the address and then asked for
+  one; `-dADDR=$6000` defined the symbol as `1` in silence, so the source
+  assembled down a branch nobody chose.
 - **An option that ran out of command line is no longer reported as one that
   does not exist.** `CassoCli run prog.bin --load` answered "unknown option:
-  `--load`" and then listed `--load` among the options to try instead. The
-  `run` grammar says the option needs a value now, as `disk` does.
+  `--load`" and then listed `--load` among the options to try instead.
 - **A bare `-d` defines `DEBUG`, and stops eating the argument next to it.**
-  AS65 documents `-d` with no name as defining `DEBUG`, equated to 1. It
-  defined nothing at all, because it took whatever followed unconditionally,
-  and the two things that follow a flag are the source file and the next flag.
-  `CassoCli -d prog.a65` defined a label called `prog.a65` and then reported
-  `No input file specified`, a complaint about the argument it had just
-  swallowed; `CassoCli prog.a65 -d -oout.bin` defined a label called
-  `-oout.bin`, lost the output name, wrote `prog.bin` instead, and exited 0.
-  A bare `-d` now means `DEBUG`, wherever it appears.
+  It took whatever followed unconditionally, so `CassoCli -d prog.a65` defined
+  a label called `prog.a65` and then reported no input file.
 - **A trailing `-o` no longer hangs the assembler forever.** `CassoCli
-  demo.a65 -o`, with no filename after the flag, printed nothing and never
-  returned; it had to be killed. Neither branch of the flag's parsing ran and
-  neither advanced the walk over the concatenated flags, so the same character
-  was read for as long as the process lived. It is now refused, with the form
-  to type instead.
-- **A mistyped option no longer reports success.** `CassoCli run prog.a65
-  --frobnicate` printed `Error: Unknown option` and then exited 0, the complaint
-  reached your screen and never reached your build script. Seven paths did
-  this: every unreadable value in the `run` grammar (`--load`, `--exec`,
-  `--stop`, `--max-cycles`, `--fill`) and an option `run` does not know, each of
-  which printed an error, printed the whole help, and called it success. The statuses now match what the tool already documents: a
-  command line the parser refused exits 2 and, for `run`, executes nothing;
-  an option it could not read might have moved the load address, so what would
-  have run is not what was asked for.
-- **`-h<lines>` now actually breaks the listing into pages.** It never did.
-  The page height was carried into the assembler's options and read by nothing
-; there was no pagination anywhere in the tool, so a listing produced with
-  `-h10` and one produced with no flag at all were byte-for-byte identical,
-  form feeds included. Pagination now exists and a page break repeats the
-  listing title the way a `.page` directive already did. No `-h` still means
-  one continuous page, so existing listings are unchanged.
+  demo.a65 -o` printed nothing and never returned: neither branch of the
+  flag's parsing advanced the walk over the concatenated flags.
+- **A mistyped option no longer reports success.** Seven paths in the `run`
+  grammar printed an error, printed the whole help, and exited 0. A command
+  line the parser refused exits 2 now, and `run` executes nothing.
+- **`-h<lines>` now actually breaks the listing into pages.** There was no
+  pagination anywhere in the tool, so `-h10` and no flag at all produced
+  byte-identical listings. A page break repeats the listing title. No `-h` is
+  still one continuous page.
 - **A bare `-w` selects the 133-column listing the help has always said it
-  selects**, which it previously did not. That bare form is AS65's own:
-  "If the -w option is given without a number following it, then the listing
-  will be 133 columns wide."
-- **The default listing width is 79, not 80.** AS65: "Normally, the listing is
-  printed using 79 columns for output to a 80-column screen or printer." 80 is
-  the width of the screen, not of the listing; it is the one column that does
-  not fit on it. Casso's own 002 contract said 79 as well, so the 80 was drift
-  from both authorities at once.
+  selects**, which it previously did not.
+- **The default listing width is 79, not 80.** 80 is the width of the screen,
+  not of the listing.
 - **A damaged track no longer silently truncates your disk image on eject.**
   The nibble decoder stopped at the first sector it could not read on a track
-  and handed back zeros for that sector and every later one on it, while
-  reporting success. The emulator's flush path is the one place that mattered:
-  a guest that left a track partly written could lose the rest of it the moment
-  the disk was ejected, with nothing said. The decoder now reports what it
-  actually recovered, track by track, and a flush that would write a hole is
-  refused instead. A refusal on its own would strand the session's work, so the
-  writes still in memory are saved beside the target as `<name>.recovered.woz`
-  and the notification quotes that file; the original image is preserved and
-  nothing the guest wrote is thrown away. (GH #115)
-- **Pasting into the guest no longer garbles the text.** A valid Applesoft line
-  pasted at the `]` prompt produced a SYNTAX ERROR while typing the same line
-  by hand worked. Two independent causes, both fixed: Ctrl+V is claimed as a
-  host shortcut but Windows synthesizes its control character anyway, so a
-  `^V` reached the guest keyboard ahead of the pasted text; and characters were
-  fed faster than the guest could take them. Feeding is now paced in emulated
-  cycles and waits for the keyboard strobe to stay clear, because the guest
-  clears it the moment it takes a key but may flush the keyboard again while
-  processing one, so a character sent on the first clear reading races into
-  that window and is dropped.
+  and handed back zeros for that sector and every later one, while reporting
+  success, so a guest that left a track partly written could lose the rest of
+  it on eject. The decoder reports what it recovered now, track by track, and
+  a flush that would write a hole is refused; the writes still in memory are
+  saved beside the target as `<name>.recovered.woz`. (GH #115)
+- **Pasting into the guest no longer garbles the text.** Two causes: Ctrl+V is
+  claimed as a host shortcut but Windows synthesizes its control character
+  anyway, so a `^V` reached the guest ahead of the pasted text; and characters
+  were fed faster than the guest could take them. Feeding is paced in emulated
+  cycles and waits for the keyboard strobe to stay clear.
+
 ## [1.19.0] — The Mockingboard speaks
 
 ### Added
