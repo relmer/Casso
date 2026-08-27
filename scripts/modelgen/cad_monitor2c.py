@@ -816,10 +816,12 @@ BX0, BX1 = REAR_X0, REAR_X0 + REAR_W
 # one below it.
 _vp     = vent_positions(REAR_H, VENT_N_SIDE)
 FURN_ZC = REAR_Z0 + (_vp[-2] + LOUV_W + _vp[-1]) * 0.5
-FURN_RH = _vp[-1] - _vp[-2]             # channel center to channel center --
-                                        # the recess cuts THROUGH both vent
-                                        # walls, leaving no sliver of case
-                                        # between itself and either line
+FURN_RH = _vp[-1] + LOUV_W - _vp[-2]    # groove top edge to groove bottom
+                                        # edge -- the recess floor IS the
+                                        # grooves' floor, one plane, so the
+                                        # only edges left are the top of the
+                                        # groove above and the bottom of the
+                                        # groove below
 
 SW_D    = LOUV_DEEP                     # recess floor at the vent grooves'
                                         # own depth -- no furniture cut goes
@@ -883,8 +885,15 @@ def flank_circle(wall, sign, cy, cz, r):
                 .translate((wall, cy, cz)))
 
 
-# The right flank: recess, button, power glyph.
+# The right flank: recess, button, power glyph. A MOAT rings the button --
+# the cut in the case the button moves through, a millimeter all round and
+# deep enough to go dark, so the case shadows the button across the gap.
 shell = shell.cut(flank_recess(BX1, 1.0))
+shell = shell.cut(
+    cq.Workplane("XY")
+      .box(SW_D + 2.0, 22.0, 8.2, centered=(False, True, True))
+      .translate((BX1 - SW_D - 1.5, SW_YC, FURN_ZC))
+      .edges("|X").fillet(2.2))
 
 m.add("pwr_button",
       cq.Workplane("XY")
@@ -904,15 +913,21 @@ engrave(flank_box(_prx, ICON_FY, FURN_ZC, STROKE, 1.7), "<X")
 # flank) hollowed out as a pocket, its right half intact and traced by the
 # ring alone.
 shell = shell.cut(flank_recess(BX0, -1.0))
+
+# The wheel's opening is CONCENTRIC WITH THE WHEEL, one millimeter clear
+# all round -- the gap reads dark, the case shadows the rim across it, and
+# the wheel is seen to come THROUGH the case rather than lie on it. The
+# wheel itself stands just proud of the body, the flat around its opening
+# a few millimeters wide before the ramps take over.
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(LOUV_DEEP + 1.0, 15.0, _vp[-1] - _vp[-2], centered=(False, True, True))
-      .translate((BX0 - 1.0, SW_YC, FURN_ZC)))
+      .cylinder(7.0, 11.0, direct=(0, 0, 1))
+      .translate((BX0 + 9.2, SW_YC, FURN_ZC)))
 
 m.add("contrast_wheel",
       cq.Workplane("XY")
         .cylinder(5.0, 10.0, direct=(0, 0, 1))
-        .translate((BX0 + 10.15, SW_YC, FURN_ZC)),
+        .translate((BX0 + 9.2, SW_YC, FURN_ZC)),
       KEYCAP, angular=0.05)
 
 _clx = BX0 - 0.5
