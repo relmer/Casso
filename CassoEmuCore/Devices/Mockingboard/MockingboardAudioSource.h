@@ -29,8 +29,10 @@ class MockingboardAudioSource : public IDriveAudioSource
 {
 public:
     // Headroom: two PSGs (three channels each) sum into the stereo bus
-    // alongside the speaker and Disk II audio, so each channel is
-    // attenuated to keep the pre-clamp sum civil.
+    // alongside the speaker, Disk II audio, and -- on the sound+speech
+    // card -- the center-panned voice source (0.45). Each channel is
+    // attenuated to keep the pre-clamp sum civil; the three-source card
+    // budget is pinned by FullVolumeCardOutputLeavesHeadroom.
     static constexpr float    kMasterGain = 0.28f;
 
     // One-pole DC-blocker pole. y[n] = x[n] - x[n-1] + R*y[n-1].

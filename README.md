@@ -49,7 +49,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
-### Disk file access from the command line (v1.19.0)
+### Disk file access from the command line (v1.20.0)
 
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk,
 reads files off it and puts them back: `create`, `init`, `list`, `get`, `put`,
@@ -105,6 +105,36 @@ partway carries no such guarantee. Nor does either side detect the other:
 mounted image is not held open, so a disk mounted in Casso is neither noticed
 nor protected. Detecting in-use is out of scope, and the tool says so rather
 than implying a clean check means a mounted disk is safe.
+
+### The Mockingboard speaks — SSI-263 voice chip (v1.19.0)
+
+The emulated Mockingboard is now the **Mockingboard C** — the sound card plus
+Sweet Micro's speech option — by default on the ][+, //e, and //e Enhanced.
+A clean-room **SSI 263A** core written from the chip's datasheet provides the
+five attribute registers, all 64 phonemes, the documented timing formulas, and
+formant synthesis, with the ready line wired to the VIA's CA1 the way speech
+drivers expect. Sound-only software is untouched: the speech chip is an
+additive tap on the real board's address decode, and it powers up in the
+part's own silent Power Down state, so the **Mockingboard A** behavior every
+existing title sees is byte-for-byte unchanged (and the A remains selectable
+as the `mockingboard` device type). Boot
+`Apple2/Demos/mockingboard-speech-test.dsk` to hear it speak.
+
+And a first, stated here because fidelity is the point of this project: the
+chip's own per-phoneme parameter ROM — never published, substituted-for by
+every emulator — has now been **read off the visual6502 die photographs**
+and fully decoded: 64 phonemes × 29 bits, six significance-interleaved
+4-bit fields (F1/F2/F3 filter codes, vocal and fricative amplitudes, nasal
+coupling) plus closure/class/fricative/voiced flags, with the on-die column
+address decoder read to prove the phoneme mapping. Extraction data, method,
+and validation are in `specs/024-mockingboard-speech/rom-extraction/`. The
+voice is driven by the silicon's own values: the ROM's filter codes map to
+frequencies through fitted curves, which remain the one approximation until
+the chip's capacitor weights are traced. The table stays a swappable input.
+
+The same push fixed the long-standing audio clicks (#125): rendering now
+runs on a dedicated event-driven WASAPI thread that keeps the device fed
+regardless of emulation cadence — verified glitch-free by loopback capture.
 ### Merlin assembler dialect (v1.18.0)
 
 `CassoCli` now assembles **Merlin** source (Glen Bredon's Merlin Pro, the

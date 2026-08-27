@@ -26,10 +26,17 @@ Byte Via6522::ReadRegister (Byte reg)
     switch (reg & kRegisterMask)
     {
     case kRegOrb:
+        ClearFlag (kIrqCb1);
         result = GetPortB();
         break;
 
     case kRegOra:
+        // Reading the handshaking port clears CA1; $F is the no-handshake
+        // alias and deliberately does not.
+        ClearFlag (kIrqCa1);
+        result = GetPortA();
+        break;
+
     case kRegOraNh:
         result = GetPortA();
         break;
@@ -119,10 +126,15 @@ void Via6522::WriteRegister (Byte reg, Byte value)
     switch (reg & kRegisterMask)
     {
     case kRegOrb:
+        ClearFlag (kIrqCb1);
         m_orb = value;
         break;
 
     case kRegOra:
+        ClearFlag (kIrqCa1);
+        m_ora = value;
+        break;
+
     case kRegOraNh:
         m_ora = value;
         break;
@@ -180,11 +192,12 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         break;
 
     case kRegPcr:
-        // CA1/CA2/CB1/CB2 handshaking is unmodeled. The Mockingboard drives
-        // the AY from the ports, not the handshake lines, so a non-zero PCR
-        // means a title depends on something we do not implement.
+        // The CA1/CB1 active-edge selects are modeled -- a speech card drives
+        // its ready line into one of them, and software must be able to choose
+        // the edge. The CA2/CB2 output modes remain unmodeled, so a write that
+        // configures one still asserts to surface the dependency.
         m_pcr = value;
-        CBRAEx (value == 0, E_INVALIDARG);
+        CBRAEx ((value & ~kPcrModeled) == 0, E_INVALIDARG);
         break;
 
     case kRegIfr:
@@ -266,6 +279,9 @@ void Via6522::Reset()
     m_ddrb  = 0;
     m_portAIn = 0;
     m_portBIn = 0;
+
+    m_ca1 = true;
+    m_cb1 = true;
 
     m_sr    = 0;
     m_acr   = 0;
@@ -435,6 +451,75 @@ void Via6522::TickTimer2 (uint32_t cycles)
 
         remaining   = static_cast<int64_t> (cycles) - toUnderflow;
         m_t2Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCa1
+//
+//  Drives the CA1 control-line input from an external peripheral. The active
+//  edge is selected by PCR bit 0 (0 = falling, 1 = rising); crossing it latches
+//  the CA1 interrupt flag, which software clears by accessing ORA ($1) or by
+//  writing the bit back to IFR.
+//
+//  A device that never calls this leaves the line at its idle-high reset value,
+//  so no edge is ever seen and the VIA behaves exactly as it did before control
+//  lines were modeled. That is what keeps a card without a handshaking
+//  peripheral free of interrupt sources it never had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::SetCa1 (bool level)
+{
+    bool   rising = false;
+    bool   active = false;
+
+
+
+    rising = (!m_ca1 && level);
+    active = ((m_pcr & kPcrCa1Rising) != 0) ? rising : (m_ca1 && !level);
+
+    m_ca1 = level;
+
+    if (active)
+    {
+        SetFlag (kIrqCa1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCb1
+//
+//  CB1 counterpart of SetCa1. The active edge is selected by PCR bit 4 and the
+//  flag is cleared by accessing ORB ($0).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::SetCb1 (bool level)
+{
+    bool   rising = false;
+    bool   active = false;
+
+
+
+    rising = (!m_cb1 && level);
+    active = ((m_pcr & kPcrCb1Rising) != 0) ? rising : (m_cb1 && !level);
+
+    m_cb1 = level;
+
+    if (active)
+    {
+        SetFlag (kIrqCb1);
     }
 }
 

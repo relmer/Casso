@@ -1234,7 +1234,8 @@ HRESULT SettingsPanelState::ExtractHardware (
     {
         { "disk-ii",                 "Disk ][" },
         { "smartport",               "SmartPort" },
-        { "mockingboard",            "Mockingboard" },
+        { "mockingboard",            "Mockingboard A (sound)" },
+        { "mockingboard-c",          "Mockingboard C (sound + speech)" },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
         { "parallel",                "Parallel Printer" },

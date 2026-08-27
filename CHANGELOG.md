@@ -8,7 +8,7 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-## [1.19.0]: disk file access + breaking command-line changes
+## [1.20.0]: disk file access + breaking command-line changes
 
 ### Added
 - **`disk create` and `disk init` make the disk the rest of the loop writes
@@ -717,7 +717,137 @@ Entries before versioning was introduced use dates only.
   clears it the moment it takes a key but may flush the keyboard again while
   processing one, so a character sent on the first clear reading races into
   that window and is dropped.
-## [1.18.0]: Merlin assembler dialect
+## [1.19.0] — The Mockingboard speaks
+
+### Added
+- **Mockingboard C — the voice chip speaks** (#123). The SSI 263A phoneme
+  speech synthesizer joins the Mockingboard as a clean-room core written from
+  its datasheet: five attribute registers, all 64 phoneme codes, the published
+  duration/inflection/filter formulas, and formant synthesis (glottal or noise
+  excitation through three gliding resonators) with the amplitude transitioning
+  the datasheet describes. The chip's ready line drives VIA #1's CA1, so speech
+  software paces by polling or by interrupt, exactly as on hardware.
+- **Two card models, matching the product line.** `mockingboard` remains the
+  sound-only **Mockingboard A** (two empty speech sockets), byte-for-byte what
+  shipped before; the new `mockingboard-c` is the **Mockingboard C** — the A
+  with one SSI 263A installed in socket 1 (`$Cn40`/`$Cn60`). The ][+, //e, and
+  //e Enhanced profiles now install the C by default. As on the real board, the
+  speech chip is a tap: its address ranges still mirror the VIA for writes, so
+  sound-only software sees nothing new, and an unprogrammed chip powers up in
+  the part's own quiescent Power Down state — no audio, no interrupts.
+- `Apple2/Demos/mockingboard-speech-test.a65` (+ committed `.dsk`, built by the
+  new `scripts/BuildBootSectorDisk.ps1`): a boot-sector smoke test that speaks
+  "CASSO ROCKS" on repeat — the speech counterpart of the tone test beside it,
+  with per-phoneme durations (stop bursts, full vowels, a closure before the
+  K) as a worked example of driving the chip.
+- `CASSO_AUDIO_DUMP=<file>` diagnostic tap: dumps the generated stereo mix as
+  raw float32 at the hand-off to the audio device, so an audible artifact can
+  be attributed to Casso's stream or to the device path (see #125).
+
+### Changed
+- **The voice speaks from the chip's own ROM — a first.** The SSI 263A's
+  phoneme parameter ROM — never published, substituted-for by every emulator
+  — was read off the visual6502 die photographs and fully decoded: 64
+  phonemes × 29 bits, comprising six significance-interleaved 4-bit fields
+  (F1/F2/F3 filter codes, vocal and fricative amplitudes, nasal coupling)
+  plus closure/class/fricative/voiced flags, with the column address decoder
+  read off the metal to prove the phoneme mapping. Extraction data, method,
+  and validation live under `specs/024-mockingboard-speech/rom-extraction/`.
+  The built-in phoneme table is generated from the silicon's values; filter
+  codes map to Hz through fitted curves pending the chip's exact capacitor
+  weights.
+- **The synthesis chain earned its ears.** Diagnosed from instrumented
+  captures rather than knobs: the formant cascade gained the +6 dB/oct lip-
+  radiation tilt every Klatt-style synthesizer needs (without it F2/F3 sat
+  ~12 dB dark and vowels smeared together), frication moved to front-cavity
+  injection after the first formant stage (at the glottis it was crushed
+  into a sub-1 kHz rumble), voiced/noise gains were rebalanced from measured
+  band levels with a glided 1/F1 compensation so close vowels stay audible,
+  and a ~5.5 kHz output low-pass stands in for the card's analog output
+  stage.
+- The Hardware tab names the card model — "Mockingboard A (sound)" /
+  "Mockingboard C (sound + speech)" — instead of a raw device string.
+- The 6522 VIA models CA1/CB1 control-line inputs with PCR edge selection —
+  the seam the speech chip's ready line needs, reusable by any future card. A
+  VIA whose lines are never driven behaves exactly as before, verified by test.
+- Machine profiles now ship the speech-equipped default via the embedded-config
+  version mechanism (2Plus v11, 2e v10, Enhanced v4), so existing installs
+  pick up the change on next launch; hand-edited profiles are backed up first,
+  as always.
+- internal: the shell addresses its video modes and its //e keyboard / soft-switch bank by name instead of by position in a vector and by repeated downcast — the positional lookups made every use site restate which slot held which renderer, and the `size()` guards around them were unreachable
+- internal: CheckStyle's declaration-block and banner rules now see wrapped signatures, constructor-form declarations, and a statement sitting directly under the block; the ~400 pre-existing hits across the tree were swept
+
+### Fixed
+- **Audio clicks and pops under sustained sound** (#125). The endpoint was
+  fed only when the emulation thread finished a CPU slice, so scheduling
+  jitter or clock drift drained the device buffer and the device inserted
+  hard silence — a click per starvation. Rendering now runs on a dedicated
+  event-driven WASAPI thread that keeps the device fed independent of
+  emulation cadence, holds a ~20 ms floor, and on genuine starvation fades
+  out and crossfades back in rather than stepping. Verified by loopback
+  capture: zero click events and zero dropout gaps over 20 s, from a ~1/s
+  floor before.
+
+## [1.18.2] — truthful execution traces
+
+### Fixed
+- **`--trace` now records operand bytes from the memory bank that actually
+  executed.** The execution trace read each instruction's operands from the
+  CPU's flat backing array, but on the //e and //c the MMU rebinds pages
+  across all of `$0000-$BFFF` — so a trace could print operands from main RAM
+  while the guest executed from aux, and the disassembly read as fact while
+  describing code that never ran (a branch that plainly jumped backwards
+  showed a forward operand). Operands now come through the same read-page
+  table the instruction fetch uses. I/O space (`$C000-$CFFF`) deliberately
+  still bypasses the bus: reading a soft switch toggles it, and recording the
+  machine must never change it.
+
+## [1.18.1] — monochrome graphics fidelity
+
+The green, amber, and white monitors were showing a tinted copy of what a
+*color* monitor makes from the dots — and that decode has already thrown away
+exactly the detail a monochrome monitor exists to show. Both graphics modes
+now decode for the monitor you picked. Surfaced by
+[(Apple IIe) Sixies](https://dskilton.itch.io/apple-sixies), which asks for
+"560x192 monochrome double-hi-resolution graphics" and was unreadable on
+every monitor Casso offered.
+
+### Fixed
+- **Hi-res on a monochrome monitor now shows the 560 half-dot stream.** Green,
+  amber, and white monitors used to luminance-tint the artifact-color decode,
+  so an isolated dot — violet or green on a color monitor — came out at about
+  57% brightness where hardware shows it fully lit, and the half-dot shift was
+  invisible because the color decode folds it into a palette pair instead.
+  Monochrome monitors now decode the dots: every lit dot is full brightness,
+  and a byte with bit 7 set paints half a dot to the right of one without,
+  which is the horizontal detail 280-pixel rendering cannot represent.
+
+  Expect this to look different, not just better. On artwork authored for a
+  *color* display — anything dithered to get violet and green — a monochrome
+  monitor is supposed to look harsh and washed out, which is exactly why
+  monochrome-targeted software dithers at dot resolution instead. Measured on
+  a dithered photograph, 94.6% of lit pixels change and mean lit brightness
+  rises from 157 to 255. The color monitor is untouched.
+- **Double hi-res no longer renders auxiliary memory into both halves of the
+  picture.** DHR needs main and aux RAM at the same instant, but it read its
+  main half through the memory bus — whose `$2000-$3FFF` pages follow live
+  MMU banking. With 80STORE and HIRES set, PAGE2 alone points that whole
+  range at aux, so any program that left the switches there while a frame was
+  scanned had the aux byte rendered into both halves of every 14-dot group
+  and never saw main memory at all. DHR now reads both banks directly, the
+  way it already read aux.
+- **Double hi-res on a monochrome monitor now decodes all 560 dots.** The
+  green, amber, and white monitors used to tint the 16-color decode rather
+  than decode differently, and that decode has already thrown the detail
+  away: it collapses each group of four dots to one color, so a lone lit dot
+  came out as a four-dot-wide colored block that tinting could only turn into
+  a four-dot-wide gray block. Software written for 560x192 monochrome — which
+  is most DHR artwork, since shading it means dithering at single-dot
+  resolution — was unreadable on every monitor Casso offered. Monochrome
+  monitors now decode one dot per pixel, and lit dots reach full phosphor
+  brightness. The color monitor is unchanged.
+
+## [1.18.0] — Merlin assembler dialect
 
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself

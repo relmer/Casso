@@ -18,6 +18,12 @@ class DriveAudioMixer;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// The render side runs on its own event-driven thread: WASAPI signals the
+// event each device quantum, and the pump moves pending samples into the
+// endpoint independent of the emulation thread's cadence. When the pending
+// queue runs dry the pump writes a short fade-out of the last frame instead
+// of letting the device insert hard silence -- an underrun becomes a ramp,
+// not a click (#125).
 class WasapiAudio
 {
 public:
@@ -55,6 +61,9 @@ public:
     void  SetMasterGain (float gain01) { m_masterGain.store (gain01, std::memory_order_relaxed); }
 
 private:
+    void    RenderPump ();
+    void    DrainFrames (UINT32 toWrite, BYTE * buffer);
+
     ComPtr<IMMDeviceEnumerator>  m_enumerator;
     ComPtr<IMMDevice>            m_device;
     ComPtr<IAudioClient>         m_audioClient;
@@ -66,19 +75,39 @@ private:
     UINT32  m_channels        = 1;
     bool    m_initialized     = false;
 
-    // Pending interleaved samples waiting to be drained into WASAPI.
-    // Layout matches m_channels: mono buffers store one float per
-    // frame; stereo buffers store interleaved L,R pairs (2 floats
-    // per frame). The drain loop divides size() by m_channels to
-    // compute frame counts.
+    // Pending interleaved-STEREO samples waiting for the render pump.
+    // Written by the emulation thread in SubmitFrame, consumed by the
+    // pump thread; m_pendingMutex guards every access.
     vector<float> m_pendingSamples;
+    std::mutex    m_pendingMutex;
+
+    // Render pump thread state: the WASAPI buffer-ready event, the stop
+    // flag, and the last stereo frame written -- the seed for the fade-out
+    // filler that replaces hard underrun silence.
+    std::thread         m_renderThread;
+    HANDLE              m_renderEvent = nullptr;
+    std::atomic<bool>   m_renderStop { false };
+    float               m_lastL = 0.0f;
+    float               m_lastR = 0.0f;
+
+    // Frames left in the filler-to-real resume crossfade (see DrainFrames).
+    UINT32              m_resumeRamp = 0;
 
     // Per-frame scratch buffers. Reused across SubmitFrame() calls
-    // to avoid per-frame allocation.
+    // to avoid per-frame allocation. m_mixScratch holds the completed
+    // stereo mix before it is appended to the pending queue under lock.
     vector<float> m_speakerScratch;
     vector<float> m_driveScratch;
+    vector<float> m_mixScratch;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
+
+    // Diagnostic tap: when CASSO_AUDIO_DUMP names a file, every generated
+    // stereo sample is appended to it as raw float32 pairs -- the exact
+    // stream handed to the device, captured before the device can touch
+    // it. Opened lazily on first use; empty when the variable is unset.
+    FILE *  m_dumpFile    = nullptr;
+    bool    m_dumpChecked = false;
     std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
 };
 
