@@ -422,7 +422,11 @@ def vent_positions(span, count):
 # line, the shorter its run.
 for dz in vent_positions(REAR_H, VENT_N_SIDE):
     _end = VENT_Y1 - (dz + LOUV_W * 0.5) * RAKE_T
-    for x in (REAR_X0 - 1.0, REAR_X0 + REAR_W - LOUV_DEEP + 1.0):
+    # The right-hand start had carried a +1 meant as OUTWARD overhang that
+    # instead pulled the cutter out of the wall, leaving that flank's
+    # grooves a millimeter shallow -- invisible until the switch recess put
+    # a true full-depth floor beside them.
+    for x in (REAR_X0 - 1.0, REAR_X0 + REAR_W - LOUV_DEEP):
         shell = shell.cut(
             cq.Workplane("XY")
               .box(LOUV_DEEP + 1.0, _end - VENT_Y0, LOUV_W, centered=(False, False, False))
