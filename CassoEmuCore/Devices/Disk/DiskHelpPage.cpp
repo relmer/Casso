@@ -150,24 +150,24 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     {
         CommandLineOptions::DiskOptions::Command::SectorRead,
         "sectorread",
-        "Read physical sectors directly from the disk",
+        "Read logical sectors directly from the disk",
         "CassoCli disk sectorread <image> %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
         "  %Ltrack <n>             Track to read from, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15\n"
         "  %Lcount <n>             Count of sectors to read. Defaults to 1. Continues to subsequent tracks and sectors as needed\n"
         "  %Lout <file>            File to store the read sectors in. Defaults to stdout if not specified\n",
-        "Allows reading data directly from physical track and sector locations, as the drive presents them, without relying on filesystem structure.",
+        "Allows reading data directly from logical track and sector locations without relying on filesystem structure.",
         "CassoCli disk sectorread boot.dsk %Ltrack 0 %Lsector 0 %Lout boot.bin"
     },
 
     {
         CommandLineOptions::DiskOptions::Command::SectorWrite,
         "sectorwrite",
-        "Write physical sectors directly to the disk",
+        "Write logical sectors directly to the disk",
         "CassoCli disk sectorwrite <image> <file> %Ltrack <n> %Lsector <n>",
         "  %Ltrack <n>             Track to write to, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15. Continues to subsequent tracks and sectors if file is larger than one sector\n",
-        "Allows writing data directly to physical track and sector locations, as the drive presents them, without relying on filesystem structure. If the data doesn't fill"
+        "Allows writing data directly to logical track and sector locations without relying on filesystem structure. If the data doesn't fill"
         " an entire sector, the remaining bytes from the original sector are preserved.",
         "CassoCli disk sectorwrite boot.dsk loader.bin %Ltrack 0 %Lsector 0"
     },

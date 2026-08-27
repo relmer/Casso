@@ -176,12 +176,13 @@ public:
     //  owns. Writing that skew down a second time is what the composition
     //  above exists to prevent, so it is answered here instead.
     //
-    //  The sector commands and the demo-disk build script travel through this
-    //  too: their track/sector numbers address the disk the way the drive
-    //  counts it, and this is where a physical position becomes the offset a
-    //  DOS-ordered image keeps that sector at. It once had a twin under a
-    //  logical-sector name performing the identical lookup; the twin's name
-    //  claimed the inverse of what the shared table does, so it is gone.
+    //  NOT for addressing an image's records by sector number: a DOS-ordered
+    //  image keeps logical sector S at record (T * 16 + S), the identity, and
+    //  the sector commands take that path. This function once had a twin
+    //  under a logical-sector name performing the identical lookup, which the
+    //  sector commands routed their numbers through -- the twin's name
+    //  claimed the inverse of what the shared table does, and following the
+    //  name put user bytes on the wrong sector. The twin is gone.
     static int      DosFileIndexForPhysicalSector (int physicalSector);
 
 private:

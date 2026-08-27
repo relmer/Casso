@@ -9,12 +9,16 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Fixed
-- **`disk sectorread` and `disk sectorwrite` say "physical sectors" in their
-  help, which is what they always addressed.** The sector number names the
-  address field the drive presents at that position on the track; the help
-  and several comments called it logical, which is measurably the inverse.
-  The mapping itself is unchanged, verified by rebuilding the demo disk
-  byte-identical both ways.
+- **`disk sectorread` and `disk sectorwrite` now address the DOS logical
+  sectors their help always promised.** The commands routed the sector
+  number through the physical interleave, so `--sector 1` landed on logical
+  sector 7 -- silently, because both commands applied the same wrong map and
+  read each other back perfectly. Logical sector S of track T is now the
+  image record at (T x 16 + S), the identity, matching what catalogs, RWTS
+  callers and DOS-era sector editors mean by a sector number. Disks written
+  through the old mapping hold their bytes on the sectors the interleave
+  picked; `scripts/BuildDemoDisk.ps1` reorders the demo's regions itself
+  now, and `casso-rocks.dsk` is unchanged byte for byte.
 
 ## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 

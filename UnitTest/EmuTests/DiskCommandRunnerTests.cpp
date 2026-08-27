@@ -408,19 +408,20 @@ public:
         io.stamps[path] = stamp;
     }
 
-    //  PHYSICAL SECTOR 1 IS NOT AT FILE OFFSET 256. The command's sector
-    //  numbers are physical positions -- the address field the drive meets at
-    //  that slot -- and a DOS-ordered image keeps the sector presented there
-    //  at the offset the interleave picks, which for physical 1 is DOS
-    //  logical 7. This is the assertion that would fail if the command wrote
-    //  sequentially.
-    TEST_METHOD (SectorWrite_PlacesBytesWhereTheInterleavePutsThem)
+    //  LOGICAL SECTOR 1 IS AT FILE OFFSET 256, because a .dsk keeps its
+    //  sectors in DOS logical order and the command's numbers are logical.
+    //  The second assertion is the regression proof: this command used to
+    //  route the number through the physical interleave, landing these bytes
+    //  on logical sector 7 -- silently, since sectorread applied the same
+    //  wrong map and read them back perfectly.
+    TEST_METHOD (SectorWrite_PlacesBytesAtTheLogicalSectorsOwnOffset)
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xA5);
         vector<Byte>       written;
-        size_t             expectedAt = 0;
+        size_t             logicalAt = (size_t) (3 * 16 + 1) * 256;
+        size_t             skewedAt  = 0;
 
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = payload;
@@ -430,15 +431,20 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
-        expectedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
-                              + NibblizationLayer::DosFileIndexForPhysicalSector (1))
-                             * NibblizationLayer::kSectorByteSize);
+        skewedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+                            + NibblizationLayer::DosFileIndexForPhysicalSector (1))
+                           * NibblizationLayer::kSectorByteSize);
 
-        Assert::AreEqual ((Byte) 0xA5, written[expectedAt], L"the skewed offset holds the bytes");
-        Assert::AreNotEqual ((size_t) (3 * 16 + 1) * 256, expectedAt,
-                             L"and that is not where a sequential write would have put them");
-        Assert::AreEqual ((Byte) 0x00, written[(size_t) (3 * 16 + 1) * 256],
-                          L"which is still untouched");
+        Assert::AreEqual ((Byte) 0xA5, written[logicalAt],
+                          L"logical sector 1 of track 3 holds the bytes, at its own offset");
+
+        Assert::AreNotEqual (logicalAt, skewedAt,
+                             L"the two offsets must differ for this sector, or the assertion "
+                             L"below discriminates nothing");
+
+        Assert::AreEqual ((Byte) 0x00, written[skewedAt],
+                          L"and the offset the old interleave routing would have hit is "
+                          L"untouched");
     }
 
     //  A payload longer than one track runs on into the next, because splitting
@@ -460,16 +466,14 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         //  Twenty sectors from track 1 sector 0 run to index 19, which is
-        //  four sectors into track 2: physical sector 3.
-        lastAt = (size_t) ((2 * NibblizationLayer::kSectorsPerTrack
-                          + NibblizationLayer::DosFileIndexForPhysicalSector (3))
+        //  four sectors into track 2: logical sector 3, at its own offset.
+        lastAt = (size_t) ((2 * NibblizationLayer::kSectorsPerTrack + 3)
                          * NibblizationLayer::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0x5A, written[lastAt], L"the last sector landed on track 2");
 
         Assert::AreEqual ((Byte) 0x00,
-                          written[(size_t) ((2 * NibblizationLayer::kSectorsPerTrack
-                                           + NibblizationLayer::DosFileIndexForPhysicalSector (4))
+                          written[(size_t) ((2 * NibblizationLayer::kSectorsPerTrack + 4)
                                           * NibblizationLayer::kSectorByteSize)],
                           L"and the one after it was left alone");
     }
