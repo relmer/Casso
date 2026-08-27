@@ -429,11 +429,12 @@ Error:
 //  RenderPump
 //
 //  The dedicated render thread (#125). WASAPI signals the event once per
-//  device quantum; each wake fills the endpoint's free space from the
-//  pending queue. When the queue runs dry the remaining space is filled
-//  with a fade-out of the last frame, so a starved stream decays smoothly
-//  instead of stepping to the silence the device would otherwise insert --
-//  the step, not the starvation itself, is what the ear caught as a click.
+//  device quantum; each wake feeds the endpoint from the pending queue.
+//  Filler is a LAST RESORT, written only when the device is about to run
+//  dry: an early version padded all free space with filler whenever the
+//  queue was momentarily short, and every filler-to-real resume was a
+//  small step -- a steady tick under sustained audio. Normally the pump
+//  writes exactly what is pending and lets the device padding ride.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -443,11 +444,18 @@ void WasapiAudio::RenderPump()
     DWORD     waitMs    = 200;
     UINT32    padding   = 0;
     UINT32    available = 0;
+    UINT32    pending   = 0;
+    UINT32    floorFr   = 0;
+    UINT32    toWrite   = 0;
     BYTE    * buffer    = nullptr;
 
 
 
     SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+
+    // Keep at least ~20 ms queued in the device so scheduling jitter on
+    // the producer side never reaches the speaker.
+    floorFr = m_sampleRate / 50;
 
     while (!m_renderStop.load (std::memory_order_relaxed))
     {
@@ -467,21 +475,37 @@ void WasapiAudio::RenderPump()
 
         available = m_bufferFrames - padding;
 
-        if (available == 0)
+        {
+            std::lock_guard<std::mutex>   lock (m_pendingMutex);
+
+            pending = static_cast<UINT32> (m_pendingSamples.size() / 2);
+        }
+
+        // Write everything pending (up to the free space); extend with
+        // filler only as far as needed to keep the device at the floor.
+        toWrite = (pending < available) ? pending : available;
+
+        if (padding + toWrite < floorFr)
+        {
+            toWrite = ((floorFr - padding) < available) ? (floorFr - padding)
+                                                        : available;
+        }
+
+        if (toWrite == 0)
         {
             continue;
         }
 
-        hr = m_renderClient->GetBuffer (available, &buffer);
+        hr = m_renderClient->GetBuffer (toWrite, &buffer);
 
         if (FAILED (hr))
         {
             continue;
         }
 
-        DrainFrames (available, buffer);
+        DrainFrames (toWrite, buffer);
 
-        m_renderClient->ReleaseBuffer (available, 0);
+        m_renderClient->ReleaseBuffer (toWrite, 0);
     }
 }
 
@@ -503,13 +527,17 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
 {
     // The fade coefficient takes the held frame to inaudible within a few
     // milliseconds -- fast enough to sound like a release, not an echo.
-    static constexpr float   kFillerDecay = 0.995f;
+    // The resume ramp reconnects real audio to the faded state over ~2 ms,
+    // so coming BACK from filler is as step-free as entering it.
+    static constexpr float    kFillerDecay      = 0.995f;
+    static constexpr UINT32   kResumeRampFrames = 96;
 
 
 
     UINT32   fromPending = 0;
     UINT32   i           = 0;
     float  * samples     = reinterpret_cast<float *> (buffer);
+    float    blend       = 0.0f;
     float    left        = 0.0f;
     float    right       = 0.0f;
 
@@ -531,6 +559,17 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
             left  = m_pendingSamples[2 * i];
             right = m_pendingSamples[2 * i + 1];
 
+            if (m_resumeRamp > 0)
+            {
+                blend = static_cast<float> (m_resumeRamp) /
+                        static_cast<float> (kResumeRampFrames);
+
+                left  += (m_lastL - left)  * blend;
+                right += (m_lastR - right) * blend;
+
+                m_resumeRamp--;
+            }
+
             m_lastL = left;
             m_lastR = right;
         }
@@ -541,6 +580,8 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
 
             left  = m_lastL;
             right = m_lastR;
+
+            m_resumeRamp = kResumeRampFrames;
         }
 
         if (m_channels == 1)

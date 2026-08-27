@@ -90,6 +90,9 @@ private:
     float               m_lastL = 0.0f;
     float               m_lastR = 0.0f;
 
+    // Frames left in the filler-to-real resume crossfade (see DrainFrames).
+    UINT32              m_resumeRamp = 0;
+
     // Per-frame scratch buffers. Reused across SubmitFrame() calls
     // to avoid per-frame allocation. m_mixScratch holds the completed
     // stereo mix before it is appended to the pending queue under lock.
