@@ -315,7 +315,7 @@ static constexpr CommandLineParser::OutputFormatFlag  s_kMerlinOutputFormats[] =
     { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
                    "Write the bytes behind a 4-byte DOS 3.3 header" },
     { "--flat",    CommandLineOptions::OutputFormat::Binary,
-                   "Write a full 64 KB image at the origin, padded with $FF" },
+                   "Write a full 64KB image at the origin, padded with $FF" },
 };
 
 
@@ -336,7 +336,7 @@ static constexpr CommandLineParser::OutputFormatFlag  s_kMerlinOutputFormats[] =
 static constexpr CommandLineParser::OutputFormatFlag  s_kAs65OutputFormats[] =
 {
     { "--flat",    CommandLineOptions::OutputFormat::Binary,
-                   "Write a full 64 KB image at the origin, padded with the fill byte" },
+                   "Write a full 64KB image at the origin, padded with the fill byte" },
     { "--dos-bin", CommandLineOptions::OutputFormat::DosBinary,
                    "Write the bytes behind a 4-byte DOS 3.3 header (load address + length), ready to BLOAD" },
 };
@@ -476,7 +476,7 @@ int CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand mode)
 //  WHAT THE OS REPORTS IS NOT WHAT IS FITTED. A machine with 32 GB in it
 //  answers something under 32: the firmware reserves a slice for itself before
 //  Windows ever counts, and the count is in bytes of 2^30 rather than the
-//  round number on the box. Printing that verbatim gives "on your 31 GB
+//  round number on the box. Printing that verbatim gives "on your 31GB
 //  machine", which reads like a bug in the tool rather than a fact about the
 //  machine.
 //
@@ -544,7 +544,7 @@ std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabyt
 {
     std::string  machine = (installedGigabytes == 0)
                                ? std::string ("your machine")
-                               : std::to_string (installedGigabytes) + " GB machine";
+                               : std::to_string (installedGigabytes) + "GB machine";
     std::string  text;
 
 
@@ -1777,7 +1777,7 @@ std::string CommandLineParser::FormatLongOption (const std::string & canonical, 
 //
 //  This exists because the slash form used to fall through to the LETTER loop,
 //  where it did not fail -- it did something else. `/raw` became `-raw`, warned
-//  about an unknown `-r` and `-a`, and wrote the 64 KB image the flag was asked
+//  about an unknown `-r` and `-a`, and wrote the 64KB image the flag was asked
 //  to suppress; `/dos-bin` became `-dos-bin`, where `-d` swallowed `os-bin` as
 //  a symbol definition and no warning appeared at all. Both produced the wrong
 //  file and reported success.
@@ -2276,7 +2276,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         //
         // THE DEFAULT IS THE ASSEMBLED BYTES, which is what `--raw` used to
         // name. A flag for the default is a flag that does nothing, so it was
-        // withdrawn and `--flat` asks for the full 64 KB image instead -- the
+        // withdrawn and `--flat` asks for the full 64KB image instead -- the
         // shape a ROM burner or a byte-for-byte comparison wants, and the one
         // thing the default cannot give you. Merlin's table already reads this
         // way; this is as65 agreeing with it.

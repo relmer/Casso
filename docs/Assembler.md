@@ -66,7 +66,7 @@ CassoCli as65 input.a65 -tlfile        # same as -t -l file
 | Flag | Meaning |
 |---|---|
 | `-o <file>` | Output file. Default: the input with a `.bin` extension. |
-| `--flat` | Write a full 64 KB image with the bytes at their origin, padded with the fill byte. |
+| `--flat` | Write a full 64KB image with the bytes at their origin, padded with the fill byte. |
 | `--dos-bin` | Write the assembled bytes behind a 4-byte DOS 3.3 header (load address + length), ready to `BLOAD`. |
 | `-s` | Motorola S-record (`.s19`). |
 | `-s2` | Intel HEX (`.hex`). |
@@ -161,7 +161,7 @@ currently nothing for `-n` to switch off.
 | Format | Flag | What is written |
 |---|---|---|
 | Assembled span | *(default)* | Only the bytes the source assembled, with no address. |
-| Full image | `--flat` | 64 KB, the bytes at their origin, padded with the fill byte. The only format that pads. |
+| Full image | `--flat` | 64KB, the bytes at their origin, padded with the fill byte. The only format that pads. |
 | DOS 3.3 binary | `--dos-bin` | Load address (2 bytes, little-endian), length (2 bytes), then the span. `BLOAD`-ready. |
 | S-record | `-s` | Only the assembled span, as Motorola S1 records that each carry their address. |
 | Intel HEX | `-s2` | Only the assembled span, as Intel HEX records that each carry their address. |
@@ -326,7 +326,7 @@ CassoCli merlin <source> [flags]
 | `-d <symbol>[=<value>]` | Define a symbol the source expects. Without a value it is defined as `1`. |
 | `-v` | Verbose: an assembly summary on stderr. |
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
-| `--flat` | Write a full 64 KB image with the bytes at their origin, padded with `$FF`. |
+| `--flat` | Write a full 64KB image with the bytes at their origin, padded with `$FF`. |
 
 **The default output is the assembled bytes and nothing around them**, which is
 what `as65` writes by default too. A Merlin source names its own origin, and

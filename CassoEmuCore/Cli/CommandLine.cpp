@@ -391,7 +391,7 @@ void CommandLine::PrintPageBanner (CommandLineOptions::Subcommand mode)
 //  columns of s_kAs65Flags and s_kMerlinFlags, and DialectHelp reads the same
 //  rows the walk does. That is the whole reason the tables exist. The help this
 //  replaced was hand-written and had drifted in five places at once -- it
-//  offered a withdrawn `--raw`, called the default a padded 64 KB image after
+//  offered a withdrawn `--raw`, called the default a padded 64KB image after
 //  the default became the assembled bytes, called `-h` unimplemented after it
 //  was implemented, gave `-g` a filename it does not take, and wrote `-d` with
 //  a space that this grammar does not accept.
@@ -519,7 +519,7 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintUsageLine ("      Assembles prog.a65 with the 65C02 opcodes available and the symbol FAST defined as 1, then writes the assembled bytes to prog.bin beside the source.");
     std::println (s_pUsageStream, "");
     PrintUsageLine (std::format ("  CassoCli as65 rom.a65 {0}orom.bin {1}flat {0}z", sp, (prefix == '/') ? "/" : "--"));
-    PrintUsageLine ("      Writes rom.bin as a full 64 KB image, with every byte the source did not fill set to $00 instead of $FF. That is what a ROM burner takes, and what a byte-for-byte comparison against a reference image needs.");
+    PrintUsageLine ("      Writes rom.bin as a full 64KB image, with every byte the source did not fill set to $00 instead of $FF. That is what a ROM burner takes, and what a byte-for-byte comparison against a reference image needs.");
     std::println (s_pUsageStream, "");
     PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}lprog.lst {0}c {0}t", sp));
     PrintUsageLine ("      Writes prog.lst alongside prog.bin: each source line with the bytes it generated and the cycles it costs, then the symbol table at the end.");

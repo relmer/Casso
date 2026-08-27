@@ -160,7 +160,7 @@ public:
     //
     //  A machine with 32 GB fitted answers 31 or 34,359,738,368-minus-a-bit
     //  depending on which API is asked and what the firmware reserved, and
-    //  "on your 31 GB machine" reads like a bug. Rounded UP to the next size
+    //  "on your 31GB machine" reads like a bug. Rounded UP to the next size
     //  anybody actually buys.
     static unsigned  RoundToInstalledSize (uint64_t bytes);
 
