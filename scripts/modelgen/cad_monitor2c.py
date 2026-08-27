@@ -217,7 +217,10 @@ GLASS_Y     = FRAME_IN_Y + CROWN_SET + SAG               # the tube's rim
 # depth.
 REAR_W   = 190.0
 REAR_H   = 112.0
-R_REAR   = 14.0
+R_REAR   = 8.0                    # tight enough that the flank stays FLAT
+                                  # through the furniture band -- at 14 the
+                                  # corner roll began below the top vent line
+                                  # and ate the icons' upper edges
 REAR_Y0  = FRONT_D - 25.0         # overlapped into the front mass, so the union solids
 REAR_X0  = (W - REAR_W) * 0.5
 REAR_Z0  = (H - REAR_H) * 0.5
@@ -878,8 +881,8 @@ m.add("pwr_button",
 
 _prx = BX1 - CUT_D
 engrave(flank_ring(_prx, ICON_FY, FURN_ZC, FLANK_S, 0.6), "<X")
-engrave(flank_circle(BX1, 1.0, ICON_FY, FURN_ZC - 0.3, 1.55), "<X")
-engrave(flank_box(_prx, ICON_FY, FURN_ZC + 0.9, STROKE, 1.9), "<X")
+engrave(flank_circle(BX1, 1.0, ICON_FY, FURN_ZC, 1.55), "<X")
+engrave(flank_box(_prx, ICON_FY, FURN_ZC + 0.5, STROKE, 1.0), "<X")
 
 # The left flank: recess, slot, wheel, contrast glyph -- the half-filled
 # circle filled toward the FRONT, the way the Monitor II fills its right
@@ -887,23 +890,23 @@ engrave(flank_box(_prx, ICON_FY, FURN_ZC + 0.9, STROKE, 1.9), "<X")
 shell = shell.cut(flank_recess(BX0, -1.0))
 shell = shell.cut(
     cq.Workplane("XY")
-      .box(6.0, 22.0, 4.6, centered=(False, True, True))
+      .box(6.0, 22.0, _vp[-1] - _vp[-2], centered=(False, True, True))
       .translate((BX0 - 1.0, SW_YC, FURN_ZC)))
 
 m.add("contrast_wheel",
       cq.Workplane("XY")
         .cylinder(3.4, 10.0, direct=(0, 0, 1))
         .translate((BX0 + 10.6, SW_YC, FURN_ZC)),
-      KEYCAP)
+      KEYCAP, angular=0.05)
 
 _clx = BX0 - 0.5
 engrave(flank_ring(_clx, ICON_FY, FURN_ZC, FLANK_S, 0.6), ">X")
 engrave(flank_circle(BX0, -1.0, ICON_FY, FURN_ZC, 1.55), ">X")
 engrave(cq.Workplane("XY")
-          .cylinder(CUT_D + 0.5, 1.55, direct=(1, 0, 0), centered=(False, True, True))
+          .cylinder(1.1, 1.55, direct=(1, 0, 0), centered=(False, True, True))
           .translate((_clx, ICON_FY, FURN_ZC))
           .cut(cq.Workplane("XY")
-                 .box(CUT_D + 1.5, 3.5, 3.5, centered=(False, False, True))
+                 .box(2.1, 3.5, 3.5, centered=(False, False, True))
                  .translate((_clx - 0.5, ICON_FY, FURN_ZC))), ">X")
 
 m.add("shell", shell, PLAT, angular=CORNER_ANG)
