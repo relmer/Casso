@@ -80,11 +80,11 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
     { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
            "-",
            CommandLineParser::FlagCategory::Listing, "<file>",
-           "Generate listing; alone, it goes to stdout" },
+           "Generate listing; alone, it goes to standard output" },
     { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::General, "",
-           "Verbose: an assembly summary on stderr" },
+           "Verbose: an assembly summary on standard error" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the
@@ -160,7 +160,7 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "l",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
             "-",
             CommandLineParser::FlagCategory::Listing, "<file>",
-            "Generate listing (-l alone = stdout, -lprog.lst = to that file)" },
+            "Generate listing (-l alone = standard output, -lprog.lst = to that file)" },
     { "p",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::Listing, "",
