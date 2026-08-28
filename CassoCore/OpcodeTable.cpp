@@ -108,12 +108,25 @@ OpcodeTable::OpcodeTable()
 //
 //  GetCycleCounts — standard 6502 cycle counts per opcode
 //
+//  Keyed by opcode, which is right for the NMOS set and only approximately
+//  right for the CMOS one: several 65C02 opcodes reuse a slot the NMOS table
+//  scores as illegal, so they read back as 0 and the listing then omits their
+//  count. BRA is corrected here because the assembler now EMITS it -- a jump
+//  replaced by a branch would otherwise lose the timing the jump had -- and it
+//  cannot be corrected in the table, because slot $80 is the undocumented
+//  two-cycle NOP on NMOS. The rest of the CMOS gap is untouched and still open.
+//
+//  An always-taken branch is scored at three. Its neighbors are scored NOT
+//  taken, which is why they read two; BRA has no not-taken case, so three is
+//  its base rather than a penalty added to one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte GetCycleCounts (Byte opcode)
+static Byte GetCycleCounts (const Microcode & instruction, Byte opcode)
 {
+    constexpr Byte     kBranchAlwaysCycles = 3;
     // Standard 6502 cycle counts (no page-crossing or branch-taken penalties)
-    static const Byte s_cycles[256] =
+    static const Byte  s_cycles[256]       =
     {
         7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,  // $00-$0F
         2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $10-$1F
@@ -135,7 +148,8 @@ static Byte GetCycleCounts (Byte opcode)
 
 
 
-    return s_cycles[opcode];
+    return (instruction.operation == Microcode::BranchAlways) ? kBranchAlwaysCycles
+                                                              : s_cycles[opcode];
 }
 
 
@@ -189,7 +203,7 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
         OpcodeEntry entry = {};
         entry.opcode      = (Byte) i;
         entry.operandSize = GetOperandSize (mc.globalAddressingMode);
-        entry.cycleCounts = GetCycleCounts ((Byte) i);
+        entry.cycleCounts = GetCycleCounts (mc, (Byte) i);
 
         m_table[mnemonic][mode] = entry;
     }

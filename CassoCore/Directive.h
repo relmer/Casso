@@ -50,6 +50,15 @@ enum class Directive
     List,
     MultiNop,
     Nolist,
+
+    //  The optimization switches, SEPARATE tokens rather than shades of
+    //  OptNoop, because they steer what gets emitted. OptNoop is what a
+    //  directive that changes no byte resolves to -- Merlin's listing options
+    //  reuse it -- so folding these into it would either make those listing
+    //  options rewrite jumps or make these two do nothing.
+    NoOptimize,             // NOOPT
+    Optimize,               // OPT
+
     OptNoop,
     Org,
     Page,

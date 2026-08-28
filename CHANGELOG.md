@@ -21,6 +21,24 @@ Entries before versioning was introduced use dates only.
   is unaffected -- it needs no assembler, so there is nothing to name, and
   `run prog.bin` is unchanged.
 
+- **`as65 -x` now emits `BRA` where AS65 does, so some sources assemble to
+  different bytes than before.** AS65 rewrites `JMP addr` as a two-byte `BRA`
+  when the 65SC02 set is active, the target is already defined, and the
+  displacement fits in a signed byte; Casso always wrote the three-byte `JMP`.
+  A source with a backward, in-range `jmp` assembled under `-x` therefore
+  produces a different, one-byte-shorter image than it did in 1.20.1, and every
+  label below that line moves with it. This is the compatibility fix — the old
+  output was the divergence — but it is a visible one. Pass `-n`, or put `NOOPT`
+  in the source, to keep the previous bytes. Nothing changes without `-x`, and a
+  forward reference is never rewritten.
+
+### Added
+- **`OPT` and `NOOPT` control the substitution, and `-n` switches it off.**
+  Optimization is on by default, as in AS65. `NOOPT` turns it off from that line
+  on and `OPT` turns it back on; `-n` disables it for the whole assembly and
+  outranks an `OPT` in the source. All three were previously accepted and
+  ignored.
+
 ### Fixed
 - **`run` diagnostics quoted flags back in the wrong convention.** The grammar
   canonicalizes `/max-cycles` to `--max-cycles` before matching it, and the
@@ -28,6 +46,11 @@ Entries before versioning was introduced use dates only.
   Windows convention was answered in the Unix one, including by the
   diagnostics that tell them what to type instead. The prefix is now taken from
   the argument as typed.
+- **`-c` reported no cycle count for `BRA`.** The listing scored instructions
+  from an NMOS table in which `BRA`'s opcode slot is illegal, so the line came
+  out with the count omitted entirely. An always-taken branch is now scored at
+  three, and a `JMP` rewritten as a `BRA` reports the branch's timing rather
+  than the jump's.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

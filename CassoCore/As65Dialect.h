@@ -58,4 +58,9 @@ public:
     // `NOP <count>` emits that many, which is as65's alone. Merlin has no such
     // form, and a fixed spelling in the engine gave it one.
     const char *        GetMultiNopMnemonic () const override { return "NOP"; }
+
+    // as65 rewrites a backward, in-range `JMP` as a `BRA` on the 65SC02, and
+    // gives the source OPT / NOOPT to steer it. Merlin does neither, so this is
+    // stated here rather than made the engine's ambient behavior.
+    bool                HasJumpToBranchOptimization () const override { return true; }
 };

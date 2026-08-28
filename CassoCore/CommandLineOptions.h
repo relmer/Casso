@@ -361,7 +361,7 @@ struct CommandLineOptions
     bool                                      symbolTable       = false;   // -t
     bool                                      debugInfo         = false;   // -g
     bool                                      quiet             = false;   // -q
-    bool                                      disableOpt        = false;   // -n (no-op)
+    bool                                      disableOpt        = false;   // -n
     bool                                      fillZero          = false;   // -z
     std::unordered_map<std::string, int32_t>  predefinedSymbols;   // -d
 };
