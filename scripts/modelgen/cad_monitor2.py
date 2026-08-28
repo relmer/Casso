@@ -435,7 +435,11 @@ rear_liner = (cq.Workplane ("XY")
 # thirteen a side of the spec plate, ending just above where the bell
 # starts -- the bell covers none of them.
 VENT_SLOT_W = 2.0
-VENT_SLOT_H = 24.0
+
+# Tall enough to FILL the notch: the band clears the bell below it by a
+# margin, and it now stands off the notch's top wall by the same margin
+# instead of leaving a third of the recess blank.
+VENT_SLOT_H = 38.0
 VENT_N      = 13
 VENT_BAND_Z = STRIP_TOP + SLOPE_LEN - 62.0
 VENT_IN_X0  = 50.0                    # bank inner edge, off the column axis
@@ -720,6 +724,18 @@ panel = (cq.Workplane ("XY")
          .edges ("|Y").fillet (3.6)
          .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
 
+# ...and FLUSH where it meets the hinge. PANEL_SET holds the plate a third
+# of a millimeter behind the case face, which is the recessed look the
+# panel wants everywhere the icons are -- but at the hinge that setback
+# leaves the case's own beige edge standing proud of the dark, and THAT
+# pale line is what still read as a break in the one-piece rear molding.
+# The top of the plate comes out to the case face, so the edge has nothing
+# left to catch.
+panel = panel.union (cq.Workplane ("XY")
+                       .box (PANEL_W - 1.0, PANEL_IN, 20.0,
+                             centered=(False, False, False))
+                       .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z1 - 8.0)))
+
 # The plate opens for the knobs, the RCA, and the receptacle -- the case
 # behind carries the counterbores; the plate just clears them.
 for _cx in CTRL_CXS:
@@ -809,53 +825,95 @@ def ridge_tri(cx, cz, w, h, rot_deg):
 
 CRT_W = ICON_S - 3.4
 CRT_H = (ICON_S - 3.4) * 0.72
+# A tube's face BULGES: the screens bow OUTWARD, top, bottom, and sides.
+# Bowed inward they read as an hourglass, which is the opposite of a
+# picture tube and the opposite of the panel photograph.
+CRT_BOW   = 0.14                      # top and bottom, as a share of height
+CRT_BOW_X = 0.04                      # the sides, as a share of width
+
+
+def bowed_screen_wire(y, x0, x1, z0, z1):
+    """The closed outline of a picture tube's face in the plane at `y`: four
+    arcs bulging outward, meeting at the corners.
+
+    Built from three-point arcs rather than by biting cylinders out of a
+    rectangle. The cylinder route is the obvious one and it is wrong here
+    for the reason the //c work already recorded: an X-axis cylinder placed
+    with `centered` flags lands somewhere other than where the arithmetic
+    says, and the glyph comes out with one side eaten away."""
+    cx   = (x0 + x1) * 0.5
+    cz   = (z0 + z1) * 0.5
+    bowZ = (z1 - z0) * CRT_BOW
+    bowX = (x1 - x0) * CRT_BOW_X
+    tl   = cq.Vector (x0, y, z1)
+    tr   = cq.Vector (x1, y, z1)
+    br   = cq.Vector (x1, y, z0)
+    bl   = cq.Vector (x0, y, z0)
+
+    return cq.Wire.assembleEdges ([
+        cq.Edge.makeThreePointArc (tl, cq.Vector (cx, y, z1 + bowZ), tr),
+        cq.Edge.makeThreePointArc (tr, cq.Vector (x1 + bowX, y, cz), br),
+        cq.Edge.makeThreePointArc (br, cq.Vector (cx, y, z0 - bowZ), bl),
+        cq.Edge.makeThreePointArc (bl, cq.Vector (x0 - bowX, y, cz), tl),
+    ])
+
+
+def crt_outline(cx, cz, w, h):
+    """A CRT screen OUTLINE, one stroke wide. Every screen on this panel is
+    drawn the same way, so the shape is one helper rather than four
+    hand-built variants."""
+    outer = cq.Workplane (obj=cq.Solid.extrudeLinear (
+        cq.Face.makeFromWires (bowed_screen_wire (PANEL_FACE_Y,
+                                                  cx - w * 0.5, cx + w * 0.5,
+                                                  cz - h * 0.5, cz + h * 0.5)),
+        cq.Vector (0.0, RIDGE_H, 0.0)))
+    inner = cq.Workplane (obj=cq.Solid.extrudeLinear (
+        cq.Face.makeFromWires (bowed_screen_wire (PANEL_FACE_Y - 0.1,
+                                                  cx - w * 0.5 + REAR_RIDGE,
+                                                  cx + w * 0.5 - REAR_RIDGE,
+                                                  cz - h * 0.5 + REAR_RIDGE,
+                                                  cz + h * 0.5 - REAR_RIDGE)),
+        cq.Vector (0.0, RIDGE_H + 0.2, 0.0)))
+
+    return outer.cut (inner)
+
+
+def crt_inner_z(cz, h):
+    """Where an arrowhead has to stop to TOUCH a bowed screen's wall. The
+    bulge pushes the top and bottom edges OUT at their centers, which is
+    exactly where a centered arrow meets them, so the flat rectangle's
+    half-height is short by one bow."""
+    reach = h * 0.5 + h * CRT_BOW - REAR_RIDGE
+
+    return (cz + reach, cz - reach)
+
 
 # The glyphs, read off the real panel left to right. VERTICAL HOLD is the
-# picture rolling: a screen-wide band whose top and bottom edges BOW INWARD
-# -- built by biting two horizontal cylinders out of both the band and its
-# opening, so the pinch carries through the outline at constant width.
-_vh_r  = 9.0
-_vh    = cq.Workplane (obj=cq.Solid.extrudeLinear (
-    cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y,
-                                            CTRL_CXS[0] - CRT_W * 0.5, CTRL_CXS[0] + CRT_W * 0.5,
-                                            ICON_CZ - CRT_H * 0.5, ICON_CZ + CRT_H * 0.5, 1.6)),
-    cq.Vector (0.0, RIDGE_H, 0.0)))
+# picture rolling out of frame: one screen with a second, slightly smaller
+# screen riding a fifth of a screen-height above it.
+_vh_off = CRT_H * 0.10
 
-for _s in (1.0, -1.0):
-    _vh = _vh.cut (
-        cq.Workplane ("XY")
-          .cylinder (CRT_W + 4.0, _vh_r, direct=(1, 0, 0), centered=(False, True, True))
-          .translate ((CTRL_CXS[0] - CRT_W * 0.5 - 2.0, PANEL_FACE_Y + RIDGE_H * 0.5,
-                       ICON_CZ + _s * (CRT_H * 0.5 + _vh_r - 1.4))))
-
-_vh_in = cq.Workplane (obj=cq.Solid.extrudeLinear (
-    cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y - 0.1,
-                                            CTRL_CXS[0] - CRT_W * 0.5 + REAR_RIDGE,
-                                            CTRL_CXS[0] + CRT_W * 0.5 - REAR_RIDGE,
-                                            ICON_CZ - CRT_H * 0.5 + REAR_RIDGE,
-                                            ICON_CZ + CRT_H * 0.5 - REAR_RIDGE, 1.0)),
-    cq.Vector (0.0, RIDGE_H + 0.2, 0.0)))
-
-for _s in (1.0, -1.0):
-    _vh_in = _vh_in.union (
-        cq.Workplane ("XY")
-          .cylinder (CRT_W + 4.0, _vh_r + REAR_RIDGE, direct=(1, 0, 0), centered=(False, True, True))
-          .translate ((CTRL_CXS[0] - CRT_W * 0.5 - 2.0, PANEL_FACE_Y + RIDGE_H * 0.5,
-                       ICON_CZ + _s * (CRT_H * 0.5 + _vh_r - 1.4))))
-
-vhold = (cq.Workplane (obj=cq.Compound.makeCompound ([
-             ridge_frame (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
-             _vh.cut (_vh_in).val()])))
+vhold = cq.Workplane (obj=cq.Compound.makeCompound ([
+    ridge_frame (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
+    crt_outline (CTRL_CXS[0], ICON_CZ - _vh_off, CRT_W, CRT_H).val(),
+    crt_outline (CTRL_CXS[0], ICON_CZ + _vh_off, CRT_W * 0.86, CRT_H * 0.86).val(),
+]))
 
 m.add ("icon_vhold", _relief (vhold), PANEL_GRAY, angular=CORNER_ANG)
 
-# VERTICAL SIZE: the screen with an up arrow standing inside it, stem down
-# to the bottom wall, head shy of the top.
+# VERTICAL SIZE: the screen with a DOUBLE-headed arrow standing in it, one
+# head up and one down on a single stem, each head just touching the wall
+# it points at.
+_vs_top, _vs_bot = crt_inner_z (ICON_CZ, CRT_H)
+_vs_head         = 2.0
+
 vsize = cq.Workplane (obj=cq.Compound.makeCompound ([
     ridge_frame (CTRL_CXS[1], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
-    ridge_frame (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H, 1.6).val(),
-    ridge_box (CTRL_CXS[1], ICON_CZ - 0.5, REAR_RIDGE, CRT_H - 2.4).val(),
-    ridge_tri (CTRL_CXS[1], ICON_CZ + 1.1, 2.6, 1.5, 0.0).val(),
+    crt_outline (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H).val(),
+    ridge_box (CTRL_CXS[1], ICON_CZ, REAR_RIDGE,
+               (_vs_top - _vs_head) - (_vs_bot + _vs_head)).val(),
+    ridge_tri (CTRL_CXS[1], _vs_top - _vs_head * 0.5, 2.8, _vs_head, 0.0).val(),
+    ridge_tri (CTRL_CXS[1], _vs_bot + _vs_head * 0.5, 2.8, _vs_head, 180.0).val(),
 ]))
 
 m.add ("icon_vsize", _relief (vsize), PANEL_GRAY, angular=CORNER_ANG)
@@ -876,15 +934,18 @@ for _k in range (8):
 m.add ("icon_sun", _relief (cq.Workplane (obj=cq.Compound.makeCompound (_sun))),
        PANEL_GRAY, angular=CORNER_ANG)
 
-# VIDEO IN: the screen with an arrow arriving through its left wall -- the
-# stem crosses the wall from outside, the head flies inside pointing right.
-# "Left" is the READER's left, and the reader stands behind the monitor
-# where model +x is on their left.
+# VIDEO IN: the screen -- CENTERED in its border, not shouldered aside --
+# with an arrow arriving through one wall and flying to the READER'S
+# RIGHT. The reader stands behind the monitor, so their right is model
+# MINUS x: the head rotates -90 about +y, and that sign is the whole
+# difference between an input mark and an output one.
+_vi_w = CRT_W - 1.4
+
 video = cq.Workplane (obj=cq.Compound.makeCompound ([
     ridge_frame (RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
-    ridge_frame (RCA_CX - 0.7, ICON_CZ, CRT_W - 1.4, CRT_H, 1.6).val(),
-    ridge_box (RCA_CX + 3.2, ICON_CZ, 4.2, REAR_RIDGE).val(),
-    ridge_tri (RCA_CX + 0.6, ICON_CZ, 2.4, 1.5, 90.0).val(),
+    crt_outline (RCA_CX, ICON_CZ, _vi_w, CRT_H).val(),
+    ridge_box (RCA_CX + 3.4, ICON_CZ, 5.2, REAR_RIDGE).val(),
+    ridge_tri (RCA_CX - 0.2, ICON_CZ, 2.0, 2.4, -90.0).val(),
 ]))
 
 m.add ("icon_video", _relief (video), PANEL_GRAY, angular=CORNER_ANG)
