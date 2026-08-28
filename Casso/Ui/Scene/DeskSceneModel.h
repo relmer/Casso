@@ -425,7 +425,7 @@ public:
     // Toward-viewer lift applied to the glass (verts + surface together) so
     // its corners never depth-tie with the cavity front they were generated
     // coplanar with.
-    static constexpr float  kGlassLiftMm      = 0.6f;
+    static constexpr float  kGlassLiftMm      = 2.0f;
 
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
