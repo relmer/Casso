@@ -403,6 +403,66 @@ JsonValue UserConfigStore::BuildObjectWithEnabled (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  KeepColorModeExplicit
+//
+//  Carries `colorMode` into a UI-prefs delta even when it matches the shared
+//  default table.
+//
+//  EVERY OTHER UI PREFERENCE CAN BE STORED AS A DELTA against
+//  BuildUiPrefsDefaults, because for those the table IS the default: dropping
+//  a value that matches it loses nothing, since an absent key and the table's
+//  value mean the same thing on the way back in.
+//
+//  The color mode stopped being one of those the moment its default became a
+//  property of the machine's monitor. A green tube reads an absent key as
+//  green, so a user who deliberately picks Color on a //c writes a delta that
+//  is empty, saves nothing, and gets green back on the next launch -- their
+//  choice silently discarded precisely because it agreed with a table that no
+//  longer decides anything. A value whose default depends on the hardware
+//  cannot be encoded as a difference from hardware-independent defaults, so
+//  this one is always written out once the user has touched the machine's
+//  settings at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr const char *  kpszColorModeKey = "colorMode";
+
+
+static JsonValue  KeepColorModeExplicit (JsonValue uiDiff, const JsonValue & current)
+{
+    std::string  colorMode;
+    bool         haveColor = current.HasString (kpszColorModeKey, colorMode);
+
+
+
+    if (!haveColor || uiDiff.GetType() != JsonType::Object)
+    {
+        return uiDiff;
+    }
+
+    for (const auto & entry : uiDiff.GetObjectEntries())
+    {
+        if (entry.first == kpszColorModeKey)
+        {
+            return uiDiff;
+        }
+    }
+
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entries = uiDiff.GetObjectEntries();
+
+        entries.emplace_back (kpszColorModeKey, JsonValue (colorMode));
+
+        return JsonValue (std::move (entries));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::BuildUiPrefsDefaults
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,7 +475,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
 
 
     uiObj.emplace_back ("speedMode",          JsonValue (std::string ("authentic")));
-    uiObj.emplace_back ("colorMode",          JsonValue (std::string ("color")));
+    uiObj.emplace_back (kpszColorModeKey,     JsonValue (std::string ("color")));
     uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
@@ -1570,7 +1630,7 @@ JsonValue UserConfigStore::DiffJson (
         {
             if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
             {
-                JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
+                JsonValue uiDiff = KeepColorModeExplicit (DiffJson (cv, BuildUiPrefsDefaults()), cv);
                 if (!uiDiff.GetObjectEntries().empty())
                 {
                     diff.emplace_back (key, std::move (uiDiff));
@@ -1646,7 +1706,7 @@ void UserConfigStore::DiffMatchedKey (
     }
     else if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
     {
-        JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
+        JsonValue uiDiff = KeepColorModeExplicit (DiffJson (cv, BuildUiPrefsDefaults()), cv);
 
         if (!uiDiff.GetObjectEntries().empty())
         {
