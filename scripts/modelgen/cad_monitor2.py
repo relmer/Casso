@@ -588,11 +588,62 @@ for _by in BOT_BANDS_Y:
 
 case = case.cut (cq.Workplane (obj=cq.Compound.makeCompound (_bslats)))
 
+# ------------------------------------------------------ the contrast wheel
+#
+# A thumbwheel buried in the RIGHT flank, standing a couple of millimeters
+# proud through a hole in the case, on the same center line as the contrast
+# mark on the front -- the mark names the control, so the two share
+# CONTRAST_CZ rather than each carrying its own copy of H * 0.5.
+#
+# The //c's wheel is the same idea with its axis turned: that one spins
+# about the vertical and shows a wide, short sliver, while this one spins
+# about the DEPTH axis and shows a tall, narrow one, which is what the
+# photographs of this machine show. Turning the axis is also what lets the
+# wheel be thicker without growing: the thickness runs front to back now,
+# where the //c's ran top to bottom.
+CONTRAST_CZ  = H * 0.5
+WHEEL_R      = 9.0
+WHEEL_T      = 8.0                    # thicker than the //c's five
+WHEEL_CY     = 18.0                   # just aft of the front face
+WHEEL_PROUD  = 2.2
+WHEEL_CX     = W - WHEEL_R + WHEEL_PROUD
+
+# The opening is CONCENTRIC WITH THE WHEEL and a millimeter clear all round,
+# the //c's lesson: the gap reads dark, the case shadows the rim across it,
+# and the wheel is seen to come THROUGH the case rather than to lie on it.
+case = case.cut (cq.Workplane ("XY")
+                   .cylinder (WHEEL_T + 2.0, WHEEL_R + 1.0, direct=(0, 1, 0))
+                   .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ)))
+
 # Finer than the default, and note it is the ANGULAR tolerance doing the
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
 # so the stock setting spent about three segments on a quarter turn and the
 # corners read as facets meeting at an angle rather than as rounds.
 m.add("case", case, BEIGE, angular=CORNER_ANG)
+
+# The wheel itself, in the power button's warmer gray -- it is the same
+# molding family as the button, not the case's beige...
+m.add ("contrast_wheel",
+       cq.Workplane ("XY")
+         .cylinder (WHEEL_T, WHEEL_R, direct=(0, 1, 0))
+         .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ)),
+       BEZEL_DK, angular=0.05)
+
+# ...and the opening wears a dark sleeve, so the clearance around the wheel
+# reads as a deep cut on every side rather than as beige seen edge-on. It is
+# clipped back of the outer wall, since a sleeve flush with the flank stands
+# proud of it as a dark collar sitting on the case.
+m.add ("wheel_moat",
+       cq.Workplane ("XY")
+         .cylinder (WHEEL_T + 1.9, WHEEL_R + 0.9, direct=(0, 1, 0))
+         .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ))
+         .cut (cq.Workplane ("XY")
+                 .cylinder (WHEEL_T + 0.4, WHEEL_R + 0.35, direct=(0, 1, 0))
+                 .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ)))
+         .cut (cq.Workplane ("XY")
+                 .box (40.0, 60.0, 60.0, centered=(False, True, True))
+                 .translate ((W - 0.6, WHEEL_CY, CONTRAST_CZ))),
+       DARK_PART, angular=0.05)
 
 # --------------------------------------------------------------- rear parts
 
@@ -1299,7 +1350,7 @@ m.add("icon_bar",  round_front(icon_bar,  name="icon_bar"),  BEIGE)
 # the filled half meets the open one, is a real molded edge and should carry
 # its own round-over.
 
-BRT_CZ = H * 0.5                           # the case's vertical midpoint
+BRT_CZ = CONTRAST_CZ                       # the wheel's center line
 BRT_X0 = ICON_CX - ICON_S * 0.5
 BRT_Z0 = BRT_CZ - ICON_S * 0.5
 
