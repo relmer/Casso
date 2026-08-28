@@ -3551,11 +3551,8 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 //  Refuses a `run` command line that hands over source without saying which
 //  assembler reads it, and words the refusal.
 //
-//  The refusal NAMES BOTH FLAGS rather than telling the reader to consult the
-//  help. There are exactly two answers, the reader is one word away from the
-//  command they meant, and a diagnostic that withholds the fix to save a line
-//  costs them a round trip through `run --help` to learn something this
-//  sentence could have said.
+//  The refusal names both flags, because there are exactly two answers and the
+//  reader is one word away from the command they meant.
 //
 //  Driven by the same predicate the runner uses to decide whether to assemble
 //  at all, so the two cannot disagree about what a source file is: anything
@@ -3572,10 +3569,9 @@ bool CommandLineParser::RefuseSourceWithoutDialect (CommandLineOptions & options
 
     if (needsDialect)
     {
-        Refusal (options) << "Error: " << options.inputFile
-                          << " is source, and `run` was not told which assembler reads it\n"
-                          << "       Name one: " << FormatLongOption ("--as65", options.flagPrefix)
-                          << " or " << FormatLongOption ("--merlin", options.flagPrefix) << "\n";
+        Refusal (options) << "Error: required parameter "
+                          << FormatLongOption ("--as65", options.flagPrefix) << " or "
+                          << FormatLongOption ("--merlin", options.flagPrefix) << " missing.\n";
     }
 
     return needsDialect;
