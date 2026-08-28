@@ -8,17 +8,30 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-### Fixed
-- **`disk sectorread` and `disk sectorwrite` now address the DOS logical
-  sectors their help always promised.** The commands routed the sector
-  number through the physical interleave, so `--sector 1` landed on logical
-  sector 7 -- silently, because both commands applied the same wrong map and
-  read each other back perfectly. Logical sector S of track T is now the
-  image record at (T x 16 + S), the identity, matching what catalogs, RWTS
-  callers and DOS-era sector editors mean by a sector number. Disks written
-  through the old mapping hold their bytes on the sectors the interleave
-  picked; `scripts/BuildDemoDisk.ps1` reorders the demo's regions itself
-  now, and `casso-rocks.dsk` is unchanged byte for byte.
+### Changed
+- **`disk sectorread` and `disk sectorwrite` require `--logical` or
+  `--physical`, with no default.** The same sixteen sectors answer to two
+  orders -- logical, what catalogs, DOS tools and reference books speak, the
+  identity into the image's record order; and physical, the address-field
+  order a boot loader reads off the drive -- and 1.20.0 shipped the pair
+  silently applying the physical interleave while their help said logical:
+  `--sector 1` landed on logical sector 7, invisibly, because both commands
+  applied the same map and read each other back perfectly. The numbering is
+  now declared on every invocation, and a command line that omits it is
+  refused with the flag to add rather than acted on by a guess. Under
+  `--physical` a multi-sector payload lands page N under address mark N,
+  which is what a boot loader that files sectors by address mark wants:
+  `scripts/BuildDemoDisk.ps1` now says exactly that, and `casso-rocks.dsk`
+  is unchanged byte for byte.
+
+### Added
+- **`disk blockread` and `disk blockwrite`: the 512-byte ProDOS view.**
+  Addressed by block number, 0 to 279 on a 5.25-inch image; a block is two
+  sector records spread across its track by the ProDOS interleave, answered
+  through the same single block map the ProDOS reader and writer use. Blocks
+  have only one numbering, so there is nothing to declare. Works on any
+  container, not only `.po` -- a ProDOS volume shipped inside a `.dsk` reads
+  by block number naturally.
 
 ## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 

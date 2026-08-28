@@ -37,12 +37,13 @@ public:
     static HRESULT  InstallBoot (vector<Byte> & buffer, const vector<Byte> & usersDisk);
 
     //  Byte offset of a position inside a ProDOS block within the DOS 3.3
-    //  logical-sector buffer. Public so the file writer / reader and the
-    //  builder's tests address blocks the same single way.
+    //  logical-sector buffer. Public so the file writer / reader, the block
+    //  commands and the builder's tests address blocks the same single way.
     static size_t   BlockByteOffset (int block, size_t offsetInBlock);
 
-private:
     static constexpr int     kBlockByteSize   = 512;
+
+private:
     static constexpr int     kBlocksPerTrack  = 8;
     static constexpr int     kDirKeyBlock     = 2;
     static constexpr int     kDirLastBlock    = 5;

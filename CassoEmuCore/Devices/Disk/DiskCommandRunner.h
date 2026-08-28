@@ -113,6 +113,15 @@ public:
     //
     void  RunSectorRead  (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunSectorWrite (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunBlockRead   (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunBlockWrite  (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  The record a sector command's Nth position addresses, as a byte
+    //  offset into the DOS-ordered buffer. Positions advance linearly --
+    //  sector, then track -- and each maps through the stated numbering
+    //  independently.
+    static size_t  SectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
+                                       size_t                                     running);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
