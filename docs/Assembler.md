@@ -247,6 +247,7 @@ would benefit from a concrete case to be designed against.
 | Numbers | `$FF` hex, `%10101010` binary, `255` decimal |
 | Expressions | `+ - * / % & \| ^ ~ << >>`, `<label` low byte, `>label` high byte, `*` current PC |
 | Listing control | `.page` is accepted and acts at listing time |
+| Optimization control | `OPT` and `NOOPT` are accepted and **ignored**. Zero-page narrowing is unconditional: an operand that resolves to `$00`–`$FF` assembles to the zero-page form wherever the mnemonic has one, and there is currently no way to switch that off. Tracked by [#118](https://github.com/relmer/Casso/issues/118) |
 | Case | Mnemonics, directives and instruction aliases are matched case-insensitively in **both** dialects; **labels are case-sensitive**. The asymmetry is deliberate: period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. A label written `lda` stays legal, and is warned about rather than refused. |
 
 ---
