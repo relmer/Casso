@@ -457,15 +457,26 @@ def vent_face(wp):
 # of case standing at the pocket's lower rim beside the bell -- a beige tab
 # cutting across the dark just above it, the exact width of the corner
 # radius. The top corners keep their rounds, which is where they read.
-case = case.cut (vent_face (
-    cq.Workplane ("XY")
-      .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
-            centered=(False, False, False))
-      .edges ("|Y").fillet (6.0)
-      .union (cq.Workplane ("XY")
-                .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, 20.0,
-                      centered=(False, False, False)))
-      .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0))))
+# A FUNCTION, because the apron below is trimmed by this same cutter --
+# the rim line is then shared geometry, not two frames' approximations of
+# it -- but shifted a millimeter UP-SLOPE, so the apron's end reaches past
+# the rim and into the tub's bottom wall. Trimmed exactly at the rim, the
+# apron's end face and the pocket's wall were coplanar, and a coplanar
+# joint between separate solids renders as a black slit wherever the eye
+# lines up with it. Overlap is what a one-piece molding actually is.
+def _pocket_cutter(zshift):
+    return vent_face (
+        cq.Workplane ("XY")
+          .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
+                centered=(False, False, False))
+          .edges ("|Y").fillet (6.0)
+          .union (cq.Workplane ("XY")
+                    .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, 20.0,
+                          centered=(False, False, False)))
+          .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0 + zshift)))
+
+
+case = case.cut (_pocket_cutter (0.0))
 
 # The notch is dark ALL THE WAY IN: not a dark floor with beige walls, but
 # a TUB -- floor, both side walls, and the top wall, one part in the rear
@@ -717,22 +728,22 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 # sloped face, standing two tenths proud, in the same plastic as everything
 # else back here. The bell interpenetrates it; both are one color, and
 # interpenetrating solids in one scene cost nothing.
-# HOW FAR UP THE APRON RUNS, and the trap in computing it: PKT_Z0 is a
-# coordinate in the POCKET CUTTER'S frame, and that frame is tilted by
-# VENT_TILT about a line buried VENT_IN_BOT below the slope's surface --
-# so the pocket's bottom rim lands on the slope VENT_IN_BOT*tan(VENT_TILT)
-# HIGHER than the raw coordinate says. An apron run to the coordinate
-# stopped four millimeters short, and the bare band of slope between its
-# top edge and the rim was the beige strap cutting across the dark, twice
-# survived because it was measured in the wrong frame both times.
-APRON_LEN = (PKT_Z0 - STRIP_TOP) + VENT_IN_BOT * math.tan (math.radians (VENT_TILT)) + 2.0
-
-# ...and a hair WIDER than the pocket, not narrower: flush edges left a
-# half-millimeter thread of slope beside each side rim.
+# THE APRON IS PART OF THE ONE MOLDING, and a molding has no seams with
+# itself. Its edges are therefore THE SAME EDGES as its neighbors', not
+# near misses: it spans exactly the pocket's width, so its flanks are
+# coplanar with the pocket's side walls -- one continuous line, where an
+# apron a millimeter wider drew a visible jog beside the bell -- and it is
+# built over-long and TRIMMED BY THE POCKET'S OWN CUTTER, so its top edge
+# lies exactly on the rim however the cutter's tilted frame lands on the
+# slope. Two earlier aprons computed that landing by hand, in the wrong
+# frame and then in the right one, and both left a seam; sharing the
+# cutter leaves nothing to compute.
 m.add ("rear_apron",
        tilt_rear (cq.Workplane ("XY")
-                    .box (COL_HW * 2.0 + 2.0, 1.4, APRON_LEN, centered=(False, False, False))
-                    .translate ((BELL_CX - COL_HW - 1.0, D - 1.2, STRIP_TOP))),
+                    .box (COL_HW * 2.0, 1.4, (PKT_Z0 - STRIP_TOP) + 40.0,
+                          centered=(False, False, False))
+                    .translate ((BELL_CX - COL_HW, D - 1.2, STRIP_TOP)))
+         .cut (_pocket_cutter (1.0)),
        PANEL_GRAY, angular=CORNER_ANG)
 
 # The wheel itself, in the power button's warmer gray -- it is the same
