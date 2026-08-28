@@ -754,14 +754,31 @@ panel = panel.cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
 m.add ("ctrl_panel", panel, PANEL_GRAY, angular=CORNER_ANG)
 
 
+# The rear's strokes are thinner than the front's, so they get their own
+# round-over: RELIEF_ROUND is sized against RIDGE_W and is too generous for
+# a REAR_RIDGE stroke.
+REAR_ROUND = min (0.18, REAR_RIDGE * 0.45, RIDGE_H * 0.4)
+
+
 def _relief(solid):
-    """Round a relief's rear (outward-facing) edges; keep it sharp if the
-    kernel refuses, exactly as the front icons degrade."""
-    try:
-        return solid.edges (">Y").fillet (RELIEF_ROUND)
-    except Exception:
-        print ("WARNING: rear relief: round-over FAILED, keeping sharp edges")
-        return solid
+    """Round a relief's outward-facing edges so the strokes CATCH LIGHT --
+    a sharp-topped ridge takes the same shade as the plate it stands on and
+    the glyph disappears into the panel.
+
+    One stroke at a time, not the whole glyph at once: a single fillet
+    across a compound fails as a unit, so the kernel refusing one arc used
+    to leave an entire icon sharp. Per-stroke, a refusal costs only that
+    stroke."""
+    pieces = []
+
+    for _s in solid.val().Solids():
+        try:
+            pieces.append (cq.Workplane (obj=_s).edges (">Y").fillet (REAR_ROUND).val())
+        except Exception:
+            print ("WARNING: rear relief: round-over FAILED on one stroke, keeping it sharp")
+            pieces.append (_s)
+
+    return cq.Workplane (obj=cq.Compound.makeCompound (pieces))
 
 
 def ridge_box(cx, cz, w, h, rot_deg=0.0):
@@ -890,13 +907,19 @@ def crt_inner_z(cz, h):
 
 # The glyphs, read off the real panel left to right. VERTICAL HOLD is the
 # picture rolling out of frame: one screen with a second, slightly smaller
-# screen riding a fifth of a screen-height above it.
+# screen riding a quarter of a screen-height above it.
+#
+# The two are separate strokes that OVERLAP rather than one cut out of the
+# other, so the larger screen's top arc carries on THROUGH the smaller's
+# opening -- which is the whole reading of the glyph: a picture caught mid
+# roll, not two screens stacked.
 _vh_off = CRT_H * 0.10
+_vh_up  = CRT_H * 0.15
 
 vhold = cq.Workplane (obj=cq.Compound.makeCompound ([
     ridge_frame (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
     crt_outline (CTRL_CXS[0], ICON_CZ - _vh_off, CRT_W, CRT_H).val(),
-    crt_outline (CTRL_CXS[0], ICON_CZ + _vh_off, CRT_W * 0.86, CRT_H * 0.86).val(),
+    crt_outline (CTRL_CXS[0], ICON_CZ + _vh_up, CRT_W * 0.86, CRT_H * 0.86).val(),
 ]))
 
 m.add ("icon_vhold", _relief (vhold), PANEL_GRAY, angular=CORNER_ANG)
