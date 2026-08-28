@@ -494,37 +494,58 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             }
         }
 
-        // THE ORBIT, after the seat is solved. The eye swings about the gaze
-        // target on the sphere its own distance defines -- yaw around world
-        // up, pitch added to the seated elevation -- and the solved fov stays
-        // frontal: re-solving containment per angle would make the scene
-        // breathe as it spins, which is worse than the cropping it prevents.
-        // At extreme angles the answer is the zoom and pan the user already
-        // has.
+        // THE ORBIT ROTATES THE SCENE, NOT THE CAMERA. The eye stays in its
+        // solved seat and the DEVICES turn about the gaze target -- yaw about
+        // world up, pitch about the screen's horizontal through the same
+        // point. On screen the two are the same turntable; under the LIGHTS
+        // they are not. The room lights live at fixed world positions, so a
+        // swinging camera kept every face lit exactly as it was and the whole
+        // rotation read as a trick -- shadows frozen mid-turn. With the
+        // models actually turning, the world matrices carry the rotation into
+        // the lighting and the shadow passes for free, and the light falls
+        // where the new pose says it should.
         //
-        // Elevation is clamped HERE, on the total, not in the input handler
-        // on the delta: the handler's own clamp cannot know the seat's
-        // baseline, and the failure of an over-wound pitch is LookAt's basis
-        // collapsing at the pole.
+        // The angles are the INVERSE of the eye swing they replace, so every
+        // gesture keeps the direction it had: rotating the camera one way and
+        // the world the other way are the same picture.
+        //
+        // The fov stays frontal, solved for the unrotated pose: re-solving
+        // containment per angle would make the scene breathe as it spins,
+        // which is worse than the cropping it prevents. At extreme angles the
+        // answer is the zoom and pan the user already has.
         if (view.orbitYawRad != 0.0f || view.orbitPitchRad != 0.0f)
         {
-            float   off[3]  = { 0.0f - at[0], eyeY - at[1], eyeZ - at[2] };
-            float   radius  = std::sqrt (off[0] * off[0] + off[1] * off[1] + off[2] * off[2]);
-            float   elev    = std::asin (std::clamp (off[1] / radius, -1.0f, 1.0f));
-            float   azim    = std::atan2 (off[0], off[2]);
-            float   eye[3]  = {};
+            float  cy = std::cos (-view.orbitYawRad);
+            float  sy = std::sin (-view.orbitYawRad);
+            float  cp = std::cos (view.orbitPitchRad);
+            float  sp = std::sin (view.orbitPitchRad);
 
-            azim += view.orbitYawRad;
-            elev  = std::clamp (elev + view.orbitPitchRad, -kOrbitMaxElevRad, kOrbitMaxElevRad);
+            // RotY(-yaw) * RotX(+pitch), row-vector convention, then the
+            // pivot carried through and put back: p' = (p - at) * R + at.
+            float  rot[16] =
+            {
+                cy,        sy * sp,        -sy * cp,       0.0f,
+                0.0f,      cp,              sp,            0.0f,
+                sy,        -cy * sp,        cy * cp,       0.0f,
+                0.0f,      0.0f,            0.0f,          1.0f,
+            };
 
-            eye[0] = at[0] + radius * std::sin (azim) * std::cos (elev);
-            eye[1] = at[1] + radius * std::sin (elev);
-            eye[2] = at[2] + radius * std::cos (azim) * std::cos (elev);
+            rot[12] = at[0] - (at[0] * rot[0] + at[1] * rot[4] + at[2] * rot[8]);
+            rot[13] = at[1] - (at[0] * rot[1] + at[1] * rot[5] + at[2] * rot[9]);
+            rot[14] = at[2] - (at[0] * rot[2] + at[1] * rot[6] + at[2] * rot[10]);
 
-            SceneCamera::LookAtRH (eye, at, out.view);
+            {
+                float  rotated[16] = {};
 
-            eyeY = eye[1];
-            eyeZ = eye[2];
+                SceneCamera::Mul44 (out.monitorWorld, rot, rotated);
+                memcpy (out.monitorWorld, rotated, sizeof (rotated));
+
+                for (int i = 0; i < out.driveCount; i++)
+                {
+                    SceneCamera::Mul44 (out.driveWorld[i], rot, rotated);
+                    memcpy (out.driveWorld[i], rotated, sizeof (rotated));
+                }
+            }
         }
 
         fovY = std::clamp (2.0f * std::atan (tanHalfY), kMinFovY, kMaxFovY);

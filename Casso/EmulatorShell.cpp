@@ -8375,7 +8375,11 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
         }
         else
         {
-            OrbitSceneBy (0.0f, -notch * s_kOrbitRadPerNotch);
+            // POSITIVE notch, measured on the hardware: with the negative
+            // that mirrored the pan's convention, sliding up turned the
+            // machine DOWN -- the opposite of the compass's up arrow, which
+            // is the reference the gesture is judged against.
+            OrbitSceneBy (0.0f, notch * s_kOrbitRadPerNotch);
         }
 
         return DxuiMessageResult::Handled;

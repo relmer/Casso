@@ -108,10 +108,12 @@ struct DeskSceneView
     float  panX = 0.0f;    // NDC, +right
     float  panY = 0.0f;    // NDC, +up
 
-    // The inspection orbit: the EYE swings about the gaze target, the models
-    // never move. Yaw is about the world's up axis; pitch adds to the seated
-    // eye's own elevation and is clamped at solve time, so a wound-up value
-    // cannot flip the camera over the pole. Zero-zero is the composed seat.
+    // The inspection orbit: the MODELS turn about the gaze target, the eye
+    // never moves. Yaw is about the world's up axis, pitch about the
+    // screen's horizontal, and the room lights stay put in the world -- so
+    // turning the scene changes what they light, which is the whole reason
+    // the rotation lives on the models rather than the camera. Zero-zero is
+    // the composed pose.
     float  orbitYawRad   = 0.0f;
     float  orbitPitchRad = 0.0f;
 
