@@ -8,6 +8,16 @@ Ka 0 0 0
 Kd 0.845 0.796 0.67
 d 1
 
+newmtl contrast_wheel
+Ka 0 0 0 
+Kd 0.726 0.654 0.507
+d 1
+
+newmtl wheel_moat
+Ka 0 0 0 
+Kd 0.085 0.085 0.09
+d 1
+
 newmtl bell
 Ka 0 0 0 
 Kd 0.5 0.48 0.455

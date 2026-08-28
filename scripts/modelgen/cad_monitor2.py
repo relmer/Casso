@@ -602,11 +602,30 @@ case = case.cut (cq.Workplane (obj=cq.Compound.makeCompound (_bslats)))
 # wheel be thicker without growing: the thickness runs front to back now,
 # where the //c's ran top to bottom.
 CONTRAST_CZ  = H * 0.5
-WHEEL_R      = 9.0
-WHEEL_T      = 8.0                    # thicker than the //c's five
-WHEEL_CY     = 18.0                   # just aft of the front face
+WHEEL_R      = 18.0
+WHEEL_T      = 12.0                   # far thicker than the //c's five
 WHEEL_PROUD  = 2.2
 WHEEL_CX     = W - WHEEL_R + WHEEL_PROUD
+
+# A wheel this size no longer fits between the front face and the parting
+# line: at WHEEL_R it wants 38 mm of depth and there are only 32 before the
+# groove. So it sits far enough back that its opening never breaks the FRONT
+# face -- a wheel poking out the front would be nonsense -- and the groove is
+# simply interrupted where the opening crosses it, which is what a molding
+# does when a hole lands on its parting line.
+WHEEL_CY     = 23.0
+
+# KNURLED, and not only because the real control is. A smooth cylinder this
+# size hands the eye one broad specular band, and the shader's specular is
+# additive white: the sliver washed out to a neutral near-white that read as
+# the wrong material entirely, even though its Kd matched the power button's
+# byte for byte. The ribs break that one band into many small ones, and the
+# tint survives. Compounded with the barrel rather than unioned onto it --
+# interpenetrating solids in one part tessellate fine and cost nothing, the
+# rear knobs' lesson.
+WHEEL_RIBS   = 32
+WHEEL_RIB_W  = 1.0
+WHEEL_RIB_D  = 0.7
 
 # The opening is CONCENTRIC WITH THE WHEEL and a millimeter clear all round,
 # the //c's lesson: the gap reads dark, the case shadows the rim across it,
@@ -623,11 +642,20 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 
 # The wheel itself, in the power button's warmer gray -- it is the same
 # molding family as the button, not the case's beige...
-m.add ("contrast_wheel",
-       cq.Workplane ("XY")
-         .cylinder (WHEEL_T, WHEEL_R, direct=(0, 1, 0))
-         .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ)),
-       BEZEL_DK, angular=0.05)
+_wribs = [cq.Workplane ("XY")
+            .cylinder (WHEEL_T, WHEEL_R, direct=(0, 1, 0))
+            .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ))
+            .val()]
+
+for _k in range (WHEEL_RIBS):
+    _wribs.append (cq.Workplane ("XY")
+                     .box (WHEEL_RIB_W, WHEEL_T - 1.0, WHEEL_RIB_D)
+                     .translate ((0.0, 0.0, WHEEL_R))
+                     .rotate ((0, 0, 0), (0, 1, 0), _k * (360.0 / WHEEL_RIBS))
+                     .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ))
+                     .val())
+
+m.add ("contrast_wheel", cq.Compound.makeCompound (_wribs), BEZEL_DK, angular=0.05)
 
 # ...and the opening wears a dark sleeve, so the clearance around the wheel
 # reads as a deep cut on every side rather than as beige seen edge-on. It is
