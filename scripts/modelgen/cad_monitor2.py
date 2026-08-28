@@ -404,7 +404,20 @@ REAR_RIM   = 15.0                     # case border above the dark column
 # screen's axis and the beige stands one full reveal wider on the rear's
 # left than on its right.
 BELL_CX = DX * 0.5
-COL_HW  = 108.0
+
+# THE RECESS FITS INSIDE THE BELL'S FLAT TOP, which is what lets its side
+# walls run down and MERGE INTO that top instead of past it. Wider, and
+# beside the bell there is a strip of pocket floor with nothing to stop it:
+# it drops to the pocket's own bottom, and the step between that floor and
+# the bell surface is the line that kept crossing the bell.
+#
+# The number is solved, not chosen. The bell's top edge crosses the slope
+# at z 169.8 / y 208.6; the loft is 102.6 half-wide there and its corner
+# radius is 4.7, so its FLAT top spans only 98 -- the rounding is why the
+# bell's usable width is eleven less than the 105 its front wire suggests,
+# and why matching the wire alone still left a step. A hair inside that
+# lands the walls on the flat.
+COL_HW  = 97.0
 
 
 def tilt_rear(wp):
