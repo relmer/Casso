@@ -34,17 +34,13 @@ Two of the three built-in themes booting the
   <td valign="top" width="50%"><img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="100%" /></td>
 </tr></table>
 
-`CassoCli` accelerates the development loop: a full 6502/65C02 assembler, disk
-management, headless execution, and it launches the GUI with a machine and
-disks already selected.
+`CassoCli` accelerates the retro development loop, with no third-party tool in it:
 
-- **Assembler** — from-scratch implementation
-  - AS65-compatible command line and directives
-  - Merlin's absolute subset; relocatable assembly arrives with the linker ([#112](https://github.com/relmer/Casso/issues/112))
-  - ca65 next, more on request
-- **Disk management** — `.woz`, `.dsk`, `.do` and `.po` containers
-  - Create, initialize, catalog, read and write files, logical or physical
-    sectors, and ProDOS blocks
+- **Assembler** — from-scratch, AS65-compatible, and assembles Merlin; ca65 next
+- **Disk management** — create, initialize, catalog, read and write files,
+  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do` and `.po`
+- **Headless execution** — assemble and run 6502 code with no GUI
+- **Launches the emulator** — with a machine and disks already selected
 
 ## Contents
 
