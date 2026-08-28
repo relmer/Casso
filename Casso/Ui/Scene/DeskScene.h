@@ -58,6 +58,34 @@ public:
     HRESULT  AdoptModelsFrom (const DeskScene & other);
 
     const DeskSceneModel &  MonitorModel () const { return m_monitor; }
+
+    // THE BEZEL'S TILT, in radians, positive tipping the top back.
+    //
+    // Carried as a transform rather than baked into the vertices, which is
+    // what lets one number steer the mesh, its shadows and the hit test
+    // against the glass without three copies of the geometry drifting apart.
+    // Clamped to the assembly's measured travel: past it the leading edge
+    // would pass through the frame it is set into.
+    float  BezelTiltRad    () const { return m_bezelTiltRad; }
+    float  MaxBezelTiltRad () const { return m_monitor.MaxTiltRad(); }
+
+    void   SetBezelTilt (float radians)
+    {
+        float  limit   = m_monitor.MaxTiltRad();
+        float  clamped = std::clamp (radians, -limit, limit);
+
+        if (clamped != m_bezelTiltRad)
+        {
+            m_bezelTiltRad = clamped;
+            m_plateValid   = false;
+        }
+    }
+
+    // The monitor's placement with the tilt folded in: what the assembly,
+    // the tube, and anything hit-testing the glass must all use.
+    void  BuildTiltedMonitorWorld (const DeskSceneComposition & comp, float out[16]) const;
+
+    static void  BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16]);
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
     // The measured metrics DeskSceneLayout composes with.
@@ -524,33 +552,6 @@ private:
     void  TouchGeometry  () { m_geometryRev++; m_plateValid = false; }
     void  InvalidatePlate() { m_plateValid = false; }
 
-    // THE BEZEL'S TILT, in radians, positive tipping the top back.
-    //
-    // Carried as a transform rather than baked into the vertices, which is
-    // what lets one number steer the mesh, its shadows and the hit test
-    // against the glass without three copies of the geometry drifting apart.
-    // Clamped to the assembly's measured travel: past it the leading edge
-    // would pass through the frame it is set into.
-    float  BezelTiltRad    () const { return m_bezelTiltRad; }
-    float  MaxBezelTiltRad () const { return m_monitor.MaxTiltRad(); }
-
-    void   SetBezelTilt (float radians)
-    {
-        float  limit   = m_monitor.MaxTiltRad();
-        float  clamped = std::clamp (radians, -limit, limit);
-
-        if (clamped != m_bezelTiltRad)
-        {
-            m_bezelTiltRad = clamped;
-            m_plateValid   = false;
-        }
-    }
-
-    // The monitor's placement with the tilt folded in: what the assembly,
-    // the tube, and anything hit-testing the glass must all use.
-    void  BuildTiltedMonitorWorld (const DeskSceneComposition & comp, float out[16]) const;
-
-    static void  BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16]);
 
     // The plate: every layer but the picture, drawn once into a texture and
     // laid back down each frame. See RenderPlate.

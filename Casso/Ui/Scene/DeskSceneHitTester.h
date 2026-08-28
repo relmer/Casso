@@ -30,12 +30,17 @@ struct SceneHitResult
         None,
         Glass,
         Drive,
+        BezelTilt,
     };
 
     Target             target        = Target::None;
     int                driveIndex    = -1;
     DriveWidgetRegion  region        = {};
     POINT              emulatedPixel = {};
+
+    // Which tilt mark was grabbed: +1 the up one, -1 the down one. Only
+    // meaningful for BezelTilt.
+    int                tiltDirection = 0;
 };
 
 
@@ -55,7 +60,9 @@ public:
                                      float                              screenY,
                                      int                                displayW,
                                      int                                displayH,
-                                     bool                               includeGlass = true);
+                                     bool                               includeGlass = true,
+                                     const std::vector<DeskTiltGrip> *  tiltGrips    = nullptr,
+                                     const float *                      monitorWorld = nullptr);
 
 private:
     // Slab test; reports the entry distance so drives can compete on

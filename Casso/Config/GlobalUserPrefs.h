@@ -71,6 +71,12 @@ struct GlobalUserPrefs
     bool              arrowsToJoystick = false;
     InputMappingMode  pointerMapping   = InputMappingMode::Off;
 
+    // HOW FAR EACH MONITOR'S BEZEL IS TILTED, in radians, keyed by the
+    // monitor's catalog name. A property of the MONITOR rather than of the
+    // machine, for the same reason its phosphor is: stand the same tube in
+    // front of another machine and it is still tilted the way it was left.
+    std::map<std::string, float>  monitorTilt;
+
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is
     // the default; Green / Amber tint only the text; Custom uses the RGB in

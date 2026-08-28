@@ -966,6 +966,19 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
 
+    // monitorTilt: radians by monitor name. Written only for monitors the
+    // user has actually moved, so an untouched install carries none.
+    {
+        JsonObject  tiltObj;
+
+        for (const auto & kv : monitorTilt)
+        {
+            tiltObj.emplace_back (kv.first, JsonValue ((double) kv.second));
+        }
+
+        root.emplace_back ("monitorTilt", JsonValue (std::move (tiltObj)));
+    }
+
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
@@ -1128,6 +1141,23 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             if (crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
             {
                 CrtModeFromJson (*modeObj, crtByMode[i]);
+            }
+        }
+    }
+
+    {
+        const JsonValue *  tiltObj = nullptr;
+
+        if (v.HasObject ("monitorTilt", tiltObj) && tiltObj != nullptr)
+        {
+            monitorTilt.clear();
+
+            for (const auto & kv : tiltObj->GetObjectEntries())
+            {
+                if (kv.second.GetType() == JsonType::Number)
+                {
+                    monitorTilt[kv.first] = (float) kv.second.GetNumber();
+                }
             }
         }
     }

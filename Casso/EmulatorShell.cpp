@@ -1313,6 +1313,68 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplySavedBezelTilt
+//
+//  Restores the tilt this MONITOR was left at. Keyed by the monitor rather
+//  than by the machine, because the tilt is a property of the thing standing
+//  on the desk: put the same tube in front of another machine and it is still
+//  angled the way it was left.
+//
+//  A monitor nobody has touched has no entry, which reads as square-on -- and
+//  the setter clamps whatever it finds, so a file carrying a tilt from a
+//  bezel with more travel cannot push this one through its frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplySavedBezelTilt()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    auto                 found   = m_globalPrefs.monitorTilt.find (std::string (monitor.configName));
+    float                radians = (found != m_globalPrefs.monitorTilt.end()) ? found->second : 0.0f;
+
+
+
+    m_deskScene.SetBezelTilt (radians);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PersistBezelTilt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistBezelTilt()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+
+
+
+    m_globalPrefs.monitorTilt[std::string (monitor.configName)] = m_deskScene.BezelTiltRad();
+
+    if (m_userConfigStore != nullptr)
+    {
+        HRESULT  hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResolveMonitorForCurrentMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
 {
     JsonValue          doc;
@@ -1363,6 +1425,9 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     CHRA (hr);
 
     m_deskSceneMachineIsC = isC;
+
+    // The monitor that just loaded brings its own tilt with it.
+    ApplySavedBezelTilt();
 
 Error:
     return hr;
@@ -1513,6 +1578,10 @@ Error:
 
 SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 {
+    float  tiltWorld[16] = {};
+
+    m_deskScene.BuildTiltedMonitorWorld (m_deskScene.Composition(), tiltWorld);
+
     return DeskSceneHitTester::Classify (m_deskScene.Composition(),
                                          m_deskScene.MonitorModel().Surface(),
                                          m_deskScene.DriveModel().RegionBoxes(),
@@ -1520,7 +1589,9 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          (float) yPx,
                                          kFramebufferWidth,
                                          kFramebufferHeight,
-                                         CrtMonitorActive());
+                                         CrtMonitorActive(),
+                                         &m_deskScene.MonitorModel().TiltGrips(),
+                                         tiltWorld);
 }
 
 
@@ -7641,6 +7712,20 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    // THE TILT FOLLOWS THE POINTER, not the mark. Dragging up tips the face
+    // up and dragging down tips it down, whichever mark the gesture started
+    // on -- the marks say which way the control goes, they are not two
+    // separate handles that move in opposite senses. Screen y grows downward,
+    // so the travel is negated to get "up is up".
+    if (m_bezelTilting && leftDown && !m_paddleCaptured)
+    {
+        m_deskScene.SetBezelTilt (m_bezelTiltStartRad
+                                  + ((float) (m_bezelTiltStartPx.y - y)) * kBezelTiltRadPerPx);
+        InvalidateSceneComposition();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (m_scenePanning && leftDown && !m_paddleCaptured)
     {
         RECT   box    = m_deskScene.Composition().viewportPx;
@@ -8683,6 +8768,25 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
+    // Grabbing a tilt mark starts the bezel drag. Before the pan, which is
+    // the only other thing a press on the scene begins, and which would
+    // otherwise swallow the gesture whenever the view happened to be zoomed.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
+        && !GuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
+    {
+        SceneHitResult  hit = DeskSceneHit (x, y);
+
+        if (hit.target == SceneHitResult::Target::BezelTilt)
+        {
+            m_bezelTilting      = true;
+            m_bezelTiltStartPx  = POINT { x, y };
+            m_bezelTiltStartRad = m_deskScene.BezelTiltRad();
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
     if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen()
         && !GuestMouseLive())
     {
@@ -8779,6 +8883,18 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     {
         m_sceneOrbiting = false;
         ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    // ...and a bezel tilt's, which also writes where it came to rest. Saved
+    // on release rather than on every step of the drag: the tilt is a
+    // preference, not an animation, and a file rewritten per mouse-move is a
+    // file rewritten a hundred times a second.
+    if (m_bezelTilting)
+    {
+        m_bezelTilting = false;
+        ReleaseCapture();
+        PersistBezelTilt();
         return DxuiMessageResult::Handled;
     }
 

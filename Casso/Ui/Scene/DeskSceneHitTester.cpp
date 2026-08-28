@@ -73,7 +73,9 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              float                              screenY,
                                              int                                displayW,
                                              int                                displayH,
-                                             bool                               includeGlass)
+                                             bool                               includeGlass,
+                                             const std::vector<DeskTiltGrip> *  tiltGrips,
+                                             const float *                      monitorWorld)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -81,10 +83,16 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
     float            dir[3]          = {};
     float            bestT           = FLT_MAX;
 
+    // The monitor's placement, tilt and all. The caller hands one in when the
+    // bezel has moved, because the tube and its marks travel with it -- test
+    // them against where they were drawn, not against where the untilted
+    // model puts them.
+    const float *    monWorld        = (monitorWorld != nullptr) ? monitorWorld : comp.monitorWorld;
+
 
 
     if (includeGlass &&
-        CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, comp.monitorWorld, comp.viewProj,
+        CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, monWorld, comp.viewProj,
                                                       comp.viewportPx, screenX, screenY,
                                                       displayW, displayH, result.emulatedPixel))
     {
@@ -96,6 +104,41 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         !SceneCamera::ScreenRayFromPx (invViewProj, comp.viewportPx, screenX, screenY, origin, dir))
     {
         return result;
+    }
+
+    // The bezel's tilt marks. They are on the monitor rather than on a drive,
+    // so they get their own pass -- and they join the same nearest-wins
+    // contest, so a drive standing in front of the monitor still takes the
+    // click.
+    if (tiltGrips != nullptr && !tiltGrips->empty())
+    {
+        float   invWorld[16]   = {};
+        float   modelOrigin[3] = {};
+        float   modelDir[3]    = {};
+
+        if (SceneCamera::Inverse44 (monWorld, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+        {
+            SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+            for (const DeskTiltGrip & grip : *tiltGrips)
+            {
+                float   tNear = 0.0f;
+
+                if (!RayHitsBox (modelOrigin, modelDir, grip.boxMin, grip.boxMax, tNear))
+                {
+                    continue;
+                }
+
+                if (tNear < bestT)
+                {
+                    bestT                = tNear;
+                    result.target        = SceneHitResult::Target::BezelTilt;
+                    result.tiltDirection = grip.direction;
+                    result.driveIndex    = -1;
+                }
+            }
+        }
     }
 
     for (int drive = 0; drive < comp.driveCount; drive++)

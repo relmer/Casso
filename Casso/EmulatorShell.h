@@ -913,6 +913,23 @@ private:
     HINSTANCE  m_hInstance             = nullptr;
     HWND       m_hwnd                  = nullptr;
     bool       m_initialSizeReconciled = false;
+
+    // Dragging a bezel tilt mark. The gesture is the mark's, but the motion
+    // is the pointer's: how far the mouse has travelled vertically since the
+    // press is the whole input, so which mark started it only decides that a
+    // drag started at all.
+    bool       m_bezelTilting          = false;
+    POINT      m_bezelTiltStartPx      = {};
+    float      m_bezelTiltStartRad     = 0.0f;
+
+    // How much tilt a pixel of drag is worth. The assembly's whole travel is
+    // about eleven degrees each way, so this spends it over a couple of
+    // hundred pixels -- far enough that the limit is reached deliberately
+    // rather than by flinching.
+    static constexpr float  kBezelTiltRadPerPx = 0.0022f;
+
+    void  ApplySavedBezelTilt ();
+    void  PersistBezelTilt    ();
     bool       m_startMaximized        = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
