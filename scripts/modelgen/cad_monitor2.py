@@ -435,11 +435,13 @@ VENT_IN_BOT = 1.0 * 25.4
 # actually notched.
 #
 # Where that line is comes from the geometry, not from a guess: the bell's
-# top edge runs from (D - 80, 180) to (D + 55, 150) in y-z, the slope's
-# surface leaves the hinge at SLOPE_ANG, and this is their intersection
-# expressed as a height along the pre-tilt cutter, the frame every rear
-# cutter is built in.
-PKT_Z0      = STRIP_TOP + 94.0
+# top edge crosses the slope 94 units up the pre-tilt cutter frame -- and
+# the pocket's rim stops FOURTEEN SHORT of that, tucked behind the bell.
+# Set exactly at the crossing, the rim and the bell shared an edge with
+# zero overlap, and what a shared edge shows is both cut faces: a light rim
+# above the bell and a beige case strip across the column, each a sliver
+# wide and each visible from every angle that mattered.
+PKT_Z0      = STRIP_TOP + 80.0
 PKT_Z1      = STRIP_TOP + SLOPE_LEN - REAR_RIM
 VENT_TILT   = math.degrees (math.atan2 (VENT_IN_TOP - VENT_IN_BOT, PKT_Z1 - PKT_Z0))
 
