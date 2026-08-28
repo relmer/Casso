@@ -1717,7 +1717,7 @@ Direct3D swap chain directly.
   it misreported instructions in banked regions (Language Card / ROM). It now
   logs the byte the CPU actually executed.
 
-## [1.5.1526]: The one that started on undocumented opcodes
+## [1.5.1526]: The one with Space Quarks' quarky opcodes
 
 ### Added
 - **feat(cpu): NMOS 6502 undocumented opcodes DOP and DCP.** Implements
