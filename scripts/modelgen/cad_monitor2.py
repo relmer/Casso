@@ -485,35 +485,6 @@ def _pocket_cutter(zshift):
 
 case = case.cut (_pocket_cutter (0.0))
 
-# The notch is dark ALL THE WAY IN: not a dark floor with beige walls, but
-# a TUB -- floor, both side walls, and the top wall, one part in the rear
-# molding's gray. The walls are built over-tall and shaved flush with the
-# slope afterward, because their true height varies along the pocket and a
-# trim against the case's own surface is exact where arithmetic would be
-# eleven guesses.
-_tubY0 = D - VENT_IN_BOT
-_tubY1 = D + 45.0
-
-rear_liner = (cq.Workplane ("XY")
-              .box (COL_HW * 2.0 - 1.0, 1.2, PKT_Z1 - PKT_Z0 - 1.0,
-                    centered=(False, False, False))
-              .translate ((BELL_CX - COL_HW + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5))
-              .union (cq.Workplane ("XY")
-                        .box (2.5, _tubY1 - _tubY0, PKT_Z1 - PKT_Z0 - 1.0,
-                              centered=(False, False, False))
-                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z0 + 0.5)))
-              .union (cq.Workplane ("XY")
-                        .box (2.5, _tubY1 - _tubY0, PKT_Z1 - PKT_Z0 - 1.0,
-                              centered=(False, False, False))
-                        .translate ((BELL_CX + COL_HW - 3.0, _tubY0, PKT_Z0 + 0.5)))
-              .union (cq.Workplane ("XY")
-                        .box (COL_HW * 2.0 - 1.0, _tubY1 - _tubY0, 2.5,
-                              centered=(False, False, False))
-                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z1 - 3.0)))
-              .union (cq.Workplane ("XY")
-                        .box (COL_HW * 2.0 - 1.0, _tubY1 - _tubY0, 2.5,
-                              centered=(False, False, False))
-                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z0 + 0.5))))
 
 # THE VENTS: one row of SIMPLE VERTICAL HOLES straight through the plastic,
 # thirteen a side of the spec plate, ending just above where the bell
@@ -542,18 +513,7 @@ for _side in (-1.0, 1.0):
                          .translate ((_x, D - VENT_IN_BOT - 15.0, VENT_BAND_Z))
                          .val())
 
-case       = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
-rear_liner = rear_liner.cut (cq.Workplane (obj=cq.Compound.makeCompound (_slots)))
-
-# Into place, then SHAVED FLUSH with the sloped face: everything of the
-# tub's walls that would stand proud of the case is cut away against the
-# slope's own plane.
-m.add ("rear_liner",
-       vent_face (rear_liner)
-         .cut (tilt_rear (cq.Workplane ("XY")
-                            .box (W + 40.0, 300.0, H + 300.0, centered=(False, False, False))
-                            .translate ((-20.0, D, -50.0)))),
-       PANEL_GRAY, angular=CORNER_ANG)
+case = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
 
 # ------------------------------------------------------- circumference line
 #
@@ -726,6 +686,43 @@ case = case.cut (cq.Workplane ("XY")
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
 # so the stock setting spent about three segments on a quarter turn and the
 # corners read as facets meeting at an angle rather than as rounds.
+# THE REAR MOLDING IS NOT CLADDING. Four generations of liner plates and
+# aprons tried to dress the pocket and the slope in dark plastic, and every
+# one of them met its neighbors at an edge it had to be aligned to: too
+# narrow left beige threads, too wide drew a jog, coplanar rendered a black
+# slit, overlapped hung a dark strap over the recess. A joint between
+# separate solids is a seam by construction, and the molding has no seams
+# because a real molding IS ONE PIECE.
+#
+# So the molding is made of the case itself: a region solid is intersected
+# with the finished case -- pocket cuts, vent slots, everything -- and that
+# intersection becomes the dark part while the case loses the same region.
+# Its surfaces are the case's own surfaces, recolored; there is nothing to
+# align, and no angle from which a joint can show, because there is no
+# joint. The region's own boundary surfaces lie buried inside the material
+# except where they cross the case's skin, and a crossing on a continuous
+# surface is a clean color line -- the molding's real edge against the
+# shell.
+#
+# The region: the pocket, inflated three millimeters so the intersection
+# keeps a wall-following shell of material around it, unioned with a slab
+# lying under the slope from the hinge up past the rim, column-wide.
+_molding_region = (
+    vent_face (
+        cq.Workplane ("XY")
+          .box (COL_HW * 2.0 + 6.0, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + 6.0,
+                centered=(False, False, False))
+          .translate ((BELL_CX - COL_HW - 3.0, D - VENT_IN_BOT - 3.0, PKT_Z0 - 3.0)))
+      .union (tilt_rear (
+          cq.Workplane ("XY")
+            .box (COL_HW * 2.0, 3.5, (PKT_Z0 - STRIP_TOP) + 12.0,
+                  centered=(False, False, False))
+            .translate ((BELL_CX - COL_HW, D - 3.3, STRIP_TOP)))))
+
+m.add ("rear_molding", case.intersect (_molding_region), PANEL_GRAY, angular=CORNER_ANG)
+
+case = case.cut (_molding_region)
+
 m.add("case", case, BEIGE, angular=CORNER_ANG)
 
 # THE APRON: the dark molding does not stop at the hinge. From the control
@@ -735,24 +732,6 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 # sloped face, standing two tenths proud, in the same plastic as everything
 # else back here. The bell interpenetrates it; both are one color, and
 # interpenetrating solids in one scene cost nothing.
-# THE APRON IS PART OF THE ONE MOLDING, and a molding has no seams with
-# itself. Its edges are therefore THE SAME EDGES as its neighbors', not
-# near misses: it spans exactly the pocket's width, so its flanks are
-# coplanar with the pocket's side walls -- one continuous line, where an
-# apron a millimeter wider drew a visible jog beside the bell -- and it is
-# built over-long and TRIMMED BY THE POCKET'S OWN CUTTER, so its top edge
-# lies exactly on the rim however the cutter's tilted frame lands on the
-# slope. Two earlier aprons computed that landing by hand, in the wrong
-# frame and then in the right one, and both left a seam; sharing the
-# cutter leaves nothing to compute.
-m.add ("rear_apron",
-       tilt_rear (cq.Workplane ("XY")
-                    .box (COL_HW * 2.0, 1.4, (PKT_Z0 - STRIP_TOP) + 40.0,
-                          centered=(False, False, False))
-                    .translate ((BELL_CX - COL_HW, D - 1.2, STRIP_TOP)))
-         .cut (_pocket_cutter (1.0)),
-       PANEL_GRAY, angular=CORNER_ANG)
-
 # The wheel itself, in the power button's warmer gray -- it is the same
 # molding family as the button, not the case's beige...
 m.add ("contrast_wheel",

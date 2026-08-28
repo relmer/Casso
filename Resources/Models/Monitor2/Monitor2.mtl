@@ -1,4 +1,4 @@
-newmtl rear_liner
+newmtl rear_molding
 Ka 0 0 0 
 Kd 0.56 0.545 0.52
 d 1
@@ -6,11 +6,6 @@ d 1
 newmtl case
 Ka 0 0 0 
 Kd 0.845 0.796 0.67
-d 1
-
-newmtl rear_apron
-Ka 0 0 0 
-Kd 0.56 0.545 0.52
 d 1
 
 newmtl contrast_wheel
