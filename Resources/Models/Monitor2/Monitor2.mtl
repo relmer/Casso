@@ -48,29 +48,59 @@ Ka 0 0 0
 Kd 0.82 0.805 0.77
 d 1
 
-newmtl ctrl_wheel0
+newmtl icon_vhold
 Ka 0 0 0 
-Kd 0.085 0.085 0.09
+Kd 0.82 0.805 0.77
 d 1
 
-newmtl ctrl_wheel1
+newmtl icon_vsize
 Ka 0 0 0 
-Kd 0.085 0.085 0.09
+Kd 0.82 0.805 0.77
 d 1
 
-newmtl ctrl_wheel2
+newmtl icon_sun
 Ka 0 0 0 
-Kd 0.085 0.085 0.09
+Kd 0.82 0.805 0.77
 d 1
 
-newmtl ac_inlet
+newmtl icon_video
 Ka 0 0 0 
-Kd 0.085 0.085 0.09
+Kd 0.82 0.805 0.77
 d 1
 
-newmtl ac_boss
+newmtl knob_cup0
 Ka 0 0 0 
-Kd 0.085 0.085 0.09
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl knob0
+Ka 0 0 0 
+Kd 0.24 0.24 0.25
+d 1
+
+newmtl knob_cup1
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl knob1
+Ka 0 0 0 
+Kd 0.24 0.24 0.25
+d 1
+
+newmtl knob_cup2
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl knob2
+Ka 0 0 0 
+Kd 0.24 0.24 0.25
+d 1
+
+newmtl rca_cup
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
 d 1
 
 newmtl rca_body
@@ -86,6 +116,56 @@ d 1
 newmtl rca_bore
 Ka 0 0 0 
 Kd 0.085 0.085 0.09
+d 1
+
+newmtl ac_liner
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl acpin-6
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl acpin0
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl acpin6
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl foot0
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
+d 1
+
+newmtl foot1
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
+d 1
+
+newmtl foot2
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
+d 1
+
+newmtl foot3
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
+d 1
+
+newmtl foot4
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
+d 1
+
+newmtl foot5
+Ka 0 0 0 
+Kd 0.1 0.1 0.1
 d 1
 
 newmtl cavity

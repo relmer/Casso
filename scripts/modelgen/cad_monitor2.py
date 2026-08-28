@@ -133,7 +133,12 @@ OPEN_H = GLASS_H + (GAP + BEZEL_FW) * 2.0
 
 W = OPEN_W + MARGIN * 2.0 + STRIP_W
 H = OPEN_H + MARGIN * 2.0
-D = H * 1.18                      # the real case's depth-to-height proportion
+# The case, LESS THE BELL. The reference meshes put the case's own depth
+# just under its height, with the tube's bell running well past the rear
+# face -- the earlier 1.18 put all of that depth into the case and left the
+# bell buried flush, a monitor with a backpack molded into its shirt.
+D         = H * 0.95
+BELL_BACK = 55.0                  # how far the bell runs past the case
 
 DX  = W - STRIP_W                 # the reveal's position
 
@@ -338,8 +343,8 @@ except Exception as exc:
 #
 # Coordinates on the slope are measured ALONG it from the hinge, so the
 # pre-tilt z axis is arc length up the face.
-STRIP_TOP  = 95.0                     # the vertical rear strip below the slope
-REAR_RUN   = 72.0                     # how far forward the slope's top lands
+STRIP_TOP  = 84.0                     # the vertical rear strip below the slope
+REAR_RUN   = 68.0                     # how far forward the slope's top lands
 SLOPE_LEN  = math.hypot (REAR_RUN, H - STRIP_TOP)
 SLOPE_ANG  = math.degrees (math.atan2 (REAR_RUN, H - STRIP_TOP))
 REAR_RIM   = 15.0                     # case border around the recess
@@ -421,15 +426,71 @@ RCA_CX   = W * 0.5 - 105.0
 CTRL_CZ  = PANEL_Z0 + 20.0            # the controls' row
 ICON_CZ  = PANEL_Z1 - 17.0            # the icons' row
 
-# The wheel wells, drilled into the CASE here while it is still being cut --
-# the plate's own holes are drilled where the plate is built, but a hole
-# through a 1.7 mm plate with solid case behind it just shows beige where
-# the wheel should be. The well is what the wheel stands in.
+# Each knob stands out of a counterbore whose interior goes BLACK -- the
+# gap around a knob and the hole it protrudes through, cut into the case
+# here while it is still being cut. The dark cup parts come later.
+KNOB_BORE_R = 7.2
+KNOB_BORE_D = 2.5
+
 for _cx in CTRL_CXS:
     case = case.cut (
         cq.Workplane ("XY")
-          .cylinder (14.0, 6.2, direct=(0, 1, 0), centered=(True, True, False))
-          .translate ((_cx, D - 13.0, CTRL_CZ)))
+          .cylinder (KNOB_BORE_D + 1.5, KNOB_BORE_R, direct=(0, 1, 0), centered=(True, True, False))
+          .translate ((_cx, D - KNOB_BORE_D, CTRL_CZ)))
+
+# The RCA's counterbore, the Monitor //c's own.
+case = case.cut (
+    cq.Workplane ("XY")
+      .cylinder (3.0, 6.6, direct=(0, 1, 0), centered=(True, True, False))
+      .translate ((RCA_CX, D - 1.5, CTRL_CZ)))
+
+# THE MAINS INLET IS THE MONITOR //c's RECEPTACLE, by direction: the same
+# recessed rounded rectangle with its top corners clipped at forty-five
+# degrees, cut eight millimeters into the strip.
+AC_W, AC_H, AC_CLIP, AC_DEEP = 24.0, 17.0, 5.0, 8.0
+
+_acx0, _acx1 = AC_CX - AC_W * 0.5, AC_CX + AC_W * 0.5
+_acz0, _acz1 = CTRL_CZ - AC_H * 0.5, CTRL_CZ + AC_H * 0.5
+
+_ac_face = cq.Face.makeFromWires (cq.Wire.makePolygon ([
+    cq.Vector (_acx0, D + 0.5, _acz0),
+    cq.Vector (_acx1, D + 0.5, _acz0),
+    cq.Vector (_acx1, D + 0.5, _acz1 - AC_CLIP),
+    cq.Vector (_acx1 - AC_CLIP, D + 0.5, _acz1),
+    cq.Vector (_acx0 + AC_CLIP, D + 0.5, _acz1),
+    cq.Vector (_acx0, D + 0.5, _acz1 - AC_CLIP),
+    cq.Vector (_acx0, D + 0.5, _acz0),
+]))
+
+case = case.cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
+    _ac_face, cq.Vector (0.0, -(AC_DEEP + 0.5), 0.0))))
+
+# ------------------------------------------------------------ the underside
+#
+# From the reference photographs of the bottom: two bands of vent slats
+# across the middle, each slat running front to back, and six square feet in
+# two rows of three. The feet are parts (they stand PROUD of the underside);
+# the slats are cuts, gathered into one compound per band.
+BOT_SLAT_W  = 2.5
+BOT_PITCH   = 6.5
+BOT_SLAT_L  = 26.0
+BOT_BANDS_Y = (88.0, 128.0)
+BOT_X0      = 45.0
+BOT_X1      = W - 45.0
+
+_bslats = []
+
+for _by in BOT_BANDS_Y:
+    _x = BOT_X0
+
+    while _x + BOT_SLAT_W <= BOT_X1:
+        _bslats.append (cq.Workplane ("XY")
+                          .box (BOT_SLAT_W, BOT_SLAT_L, 4.0, centered=(False, False, False))
+                          .translate ((_x, _by, -2.0))
+                          .val())
+        _x += BOT_PITCH
+
+case = case.cut (cq.Workplane (obj=cq.Compound.makeCompound (_bslats)))
 
 # Finer than the default, and note it is the ANGULAR tolerance doing the
 # work: at 3 mm the chords never sag far enough for the linear one to bite,
@@ -446,11 +507,14 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 # nearly level, exactly the hopper the photographs show. IN THE BEZEL'S
 # COLOR: the bell, the tilting bezel, and the power button are the same gray
 # molding family on the real unit, and the case's beige is not in it.
-BELL_REAR_Y = D - 0.6                 # a hair inside the strip's plane
+BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
+                                      # meshes show the bell overhanging the
+                                      # control strip by a third of the
+                                      # case's own depth
 
 bell = cq.Solid.makeLoft ([
-    round_rect_wire (D - 95.0, W * 0.5 - 128.0, W * 0.5 + 128.0, 96.0, 205.0, 18.0),
-    round_rect_wire (BELL_REAR_Y, W * 0.5 - 96.0, W * 0.5 + 96.0, 101.0, 162.0, 12.0),
+    round_rect_wire (D - 80.0, W * 0.5 - 128.0, W * 0.5 + 128.0, 90.0, 195.0, 18.0),
+    round_rect_wire (BELL_REAR_Y, W * 0.5 - 96.0, W * 0.5 + 96.0, 95.0, 150.0, 12.0),
 ])
 
 m.add ("bell", cq.Workplane (obj=bell), BEZEL, angular=CORNER_ANG)
@@ -528,20 +592,17 @@ m.add ("rear_label",
                                  STRIP_TOP + SLOPE_LEN - 69.0))),
        LABEL_GRAY, angular=CORNER_ANG)
 
-# ------------------------------------------------- the engraved control row
+# ------------------------------------------------- the embossed control row
 #
-# The Monitor //c's engraving grammar, brought back to the machine it grew
-# from: hairline cuts exactly as deep as they are wide, floors rounded over
-# so the line reads by the shadow it holds, glyphs boxed in rounded squares.
-# Here they cut into the PANEL PLATE rather than a bay floor.
-STROKE  = 0.35
-CUT_D   = STROKE
+# EMBOSSED, NOT ENGRAVED. The Monitor II speaks in mold relief -- its power
+# icon, its brightness mark, its tilt arrows all stand proud of the case --
+# and the rear panel speaks the same language: RIDGE_W strokes standing
+# RIDGE_H off the plate, front edges rounded over exactly as the front's
+# marks are. The //c engraves; this machine does not.
 ICON_S  = 13.0
 BOX_R   = 0.9
 
-ENGRAVE_ROUND = min (0.35, STROKE * 0.45)
-
-PANEL_FACE_Y = D - PANEL_SET          # the plate's face, where cuts begin
+PANEL_FACE_Y = D - PANEL_SET          # the plate's face the relief stands on
 
 panel = (cq.Workplane ("XY")
          .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 - 1.0,
@@ -549,25 +610,40 @@ panel = (cq.Workplane ("XY")
          .edges ("|Y").fillet (3.6)
          .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
 
+# The plate opens for the knobs, the RCA, and the receptacle -- the case
+# behind carries the counterbores; the plate just clears them.
+for _cx in CTRL_CXS:
+    panel = panel.cut (
+        cq.Workplane ("XY")
+          .cylinder (12.0, KNOB_BORE_R, direct=(0, 1, 0), centered=(True, True, False))
+          .translate ((_cx, D - 11.0, CTRL_CZ)))
 
-def engrave(solid):
-    """Cut one mark into the panel plate, its floor rounded over first."""
-    global panel
+panel = panel.cut (
+    cq.Workplane ("XY")
+      .cylinder (12.0, 6.6, direct=(0, 1, 0), centered=(True, True, False))
+      .translate ((RCA_CX, D - 11.0, CTRL_CZ)))
+panel = panel.cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
+    _ac_face, cq.Vector (0.0, -(AC_DEEP + 0.5), 0.0))))
 
+m.add ("ctrl_panel", panel, PANEL_GRAY, angular=CORNER_ANG)
+
+
+def _relief(solid):
+    """Round a relief's rear (outward-facing) edges; keep it sharp if the
+    kernel refuses, exactly as the front icons degrade."""
     try:
-        solid = solid.edges ("<Y").fillet (ENGRAVE_ROUND)
+        return solid.edges (">Y").fillet (RELIEF_ROUND)
     except Exception:
-        print ("WARNING: engrave: floor round-over FAILED, cutting square")
+        print ("WARNING: rear relief: round-over FAILED, keeping sharp edges")
+        return solid
 
-    panel = panel.cut (solid)
 
-
-def stroke_box(cx, cz, w, h, rot_deg=0.0):
-    """A stroke cutter centered at (cx, cz) on the plate, optionally rotated
-    about its own y-axis center."""
+def ridge_box(cx, cz, w, h, rot_deg=0.0):
+    """A relief stroke standing RIDGE_H proud of the plate, optionally
+    rotated about its own y-axis center."""
     s = (cq.Workplane ("XY")
-         .box (w, CUT_D + 0.5, h, centered=(True, False, True))
-         .translate ((0.0, PANEL_FACE_Y - CUT_D, 0.0)))
+         .box (w, RIDGE_H, h, centered=(True, False, True))
+         .translate ((0.0, PANEL_FACE_Y, 0.0)))
 
     if rot_deg != 0.0:
         s = s.rotate ((0, 0, 0), (0, 1, 0), rot_deg)
@@ -575,121 +651,179 @@ def stroke_box(cx, cz, w, h, rot_deg=0.0):
     return s.translate ((cx, 0.0, cz))
 
 
-def outline_ring(cx, cz, w, h, r):
-    """A rounded-rectangle OUTLINE cutter: outer minus inner."""
-    y = PANEL_FACE_Y - CUT_D
-
+def ridge_frame(cx, cz, w, h, r):
+    """A rounded-rectangle relief OUTLINE: outer minus inner."""
     outer = cq.Solid.extrudeLinear (
-        cq.Face.makeFromWires (round_rect_wire (y, cx - w * 0.5, cx + w * 0.5,
+        cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y,
+                                                cx - w * 0.5, cx + w * 0.5,
                                                 cz - h * 0.5, cz + h * 0.5, r)),
-        cq.Vector (0.0, CUT_D + 0.5, 0.0))
+        cq.Vector (0.0, RIDGE_H, 0.0))
     inner = cq.Solid.extrudeLinear (
-        cq.Face.makeFromWires (round_rect_wire (y - 0.1,
-                                                cx - w * 0.5 + STROKE, cx + w * 0.5 - STROKE,
-                                                cz - h * 0.5 + STROKE, cz + h * 0.5 - STROKE,
-                                                max (0.4, r - STROKE))),
-        cq.Vector (0.0, CUT_D + 0.7, 0.0))
+        cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y - 0.1,
+                                                cx - w * 0.5 + RIDGE_W, cx + w * 0.5 - RIDGE_W,
+                                                cz - h * 0.5 + RIDGE_W, cz + h * 0.5 - RIDGE_W,
+                                                max (0.4, r - RIDGE_W))),
+        cq.Vector (0.0, RIDGE_H + 0.2, 0.0))
 
     return cq.Workplane (obj=outer).cut (cq.Workplane (obj=inner))
 
 
-def circle_ring(cx, cz, r):
-    """A circle OUTLINE cutter: an annulus one stroke wide."""
+def ridge_ring(cx, cz, r):
+    """A circular relief outline: an annulus one ridge wide."""
     outer = (cq.Workplane ("XY")
-               .cylinder (CUT_D + 0.5, r, direct=(0, 1, 0), centered=(True, True, False))
-               .translate ((cx, PANEL_FACE_Y - CUT_D, cz)))
+               .cylinder (RIDGE_H, r, direct=(0, 1, 0), centered=(True, True, False))
+               .translate ((cx, PANEL_FACE_Y, cz)))
     inner = (cq.Workplane ("XY")
-               .cylinder (CUT_D + 0.7, r - STROKE, direct=(0, 1, 0), centered=(True, True, False))
-               .translate ((cx, PANEL_FACE_Y - CUT_D - 0.1, cz)))
+               .cylinder (RIDGE_H + 0.2, r - RIDGE_W, direct=(0, 1, 0), centered=(True, True, False))
+               .translate ((cx, PANEL_FACE_Y - 0.1, cz)))
 
     return outer.cut (inner)
 
 
-def arrow_head(cx, cz, w, h, up):
-    """A solid triangular arrowhead cutter, apex up or down."""
-    y  = PANEL_FACE_Y - CUT_D
-    zt = cz + (h * 0.5 if up else -h * 0.5)
-    zb = cz - (h * 0.5 if up else -h * 0.5)
-
-    return cq.Workplane (obj=cq.Solid.extrudeLinear (
+def ridge_tri(cx, cz, w, h, rot_deg):
+    """A solid triangular relief, apex toward rot_deg (0 = up)."""
+    s = cq.Workplane (obj=cq.Solid.extrudeLinear (
         cq.Face.makeFromWires (cq.Wire.makePolygon ([
-            cq.Vector (cx - w * 0.5, y, zb),
-            cq.Vector (cx + w * 0.5, y, zb),
-            cq.Vector (cx, y, zt),
-            cq.Vector (cx - w * 0.5, y, zb),
+            cq.Vector (-w * 0.5, PANEL_FACE_Y, -h * 0.5),
+            cq.Vector (w * 0.5, PANEL_FACE_Y, -h * 0.5),
+            cq.Vector (0.0, PANEL_FACE_Y, h * 0.5),
+            cq.Vector (-w * 0.5, PANEL_FACE_Y, -h * 0.5),
         ])),
-        cq.Vector (0.0, CUT_D + 0.5, 0.0)))
+        cq.Vector (0.0, RIDGE_H, 0.0)))
+
+    if rot_deg != 0.0:
+        s = s.rotate ((0, 0, 0), (0, 1, 0), rot_deg)
+
+    return s.translate ((cx, 0.0, cz))
 
 
-CRT_W = ICON_S - 3.6
-CRT_H = (ICON_S - 3.6) * 0.75
+CRT_W = ICON_S - 3.4
+CRT_H = (ICON_S - 3.4) * 0.72
 
-# Vertical hold, over the first wheel: the screen alone in its box.
-engrave (outline_ring (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R))
-engrave (outline_ring (CTRL_CXS[0], ICON_CZ, CRT_W, CRT_H, 2.4))
+# The glyphs, read off the real panel left to right. VERTICAL HOLD is the
+# picture rolling: a screen-wide band whose top and bottom edges BOW INWARD
+# -- built by biting two horizontal cylinders out of both the band and its
+# opening, so the pinch carries through the outline at constant width.
+_vh_r  = 9.0
+_vh    = cq.Workplane (obj=cq.Solid.extrudeLinear (
+    cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y,
+                                            CTRL_CXS[0] - CRT_W * 0.5, CTRL_CXS[0] + CRT_W * 0.5,
+                                            ICON_CZ - CRT_H * 0.5, ICON_CZ + CRT_H * 0.5, 1.6)),
+    cq.Vector (0.0, RIDGE_H, 0.0)))
 
-# Vertical size, over the second: the screen with an up arrowhead rising
-# out of a base stroke.
-engrave (outline_ring (CTRL_CXS[1], ICON_CZ, ICON_S, ICON_S, BOX_R))
-engrave (outline_ring (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H, 2.4))
-engrave (arrow_head (CTRL_CXS[1], ICON_CZ + 1.2, 2.6, 1.6, True))
-engrave (stroke_box (CTRL_CXS[1], ICON_CZ - 1.2, 3.2, STROKE))
+for _s in (1.0, -1.0):
+    _vh = _vh.cut (
+        cq.Workplane ("XY")
+          .cylinder (CRT_W + 4.0, _vh_r, direct=(1, 0, 0), centered=(False, True, True))
+          .translate ((CTRL_CXS[0] - CRT_W * 0.5 - 2.0, PANEL_FACE_Y + RIDGE_H * 0.5,
+                       ICON_CZ + _s * (CRT_H * 0.5 + _vh_r - 1.4))))
 
-# Brightness, over the third: the circle with eight short rays that touch
-# nothing -- the //c rear's sun, the same rotation lesson included: a
-# rotation about +y runs OPPOSITE the position angle in the x-z plane.
-engrave (outline_ring (CTRL_CXS[2], ICON_CZ, ICON_S, ICON_S, BOX_R))
-engrave (circle_ring (CTRL_CXS[2], ICON_CZ, 2.2))
+_vh_in = cq.Workplane (obj=cq.Solid.extrudeLinear (
+    cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y - 0.1,
+                                            CTRL_CXS[0] - CRT_W * 0.5 + RIDGE_W,
+                                            CTRL_CXS[0] + CRT_W * 0.5 - RIDGE_W,
+                                            ICON_CZ - CRT_H * 0.5 + RIDGE_W,
+                                            ICON_CZ + CRT_H * 0.5 - RIDGE_W, 1.0)),
+    cq.Vector (0.0, RIDGE_H + 0.2, 0.0)))
+
+for _s in (1.0, -1.0):
+    _vh_in = _vh_in.union (
+        cq.Workplane ("XY")
+          .cylinder (CRT_W + 4.0, _vh_r + RIDGE_W, direct=(1, 0, 0), centered=(False, True, True))
+          .translate ((CTRL_CXS[0] - CRT_W * 0.5 - 2.0, PANEL_FACE_Y + RIDGE_H * 0.5,
+                       ICON_CZ + _s * (CRT_H * 0.5 + _vh_r - 1.4))))
+
+vhold = (cq.Workplane (obj=cq.Compound.makeCompound ([
+             ridge_frame (CTRL_CXS[0], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
+             _vh.cut (_vh_in).val()])))
+
+m.add ("icon_vhold", _relief (vhold), PANEL_GRAY, angular=CORNER_ANG)
+
+# VERTICAL SIZE: the screen with an up arrow standing inside it, stem down
+# to the bottom wall, head shy of the top.
+vsize = cq.Workplane (obj=cq.Compound.makeCompound ([
+    ridge_frame (CTRL_CXS[1], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
+    ridge_frame (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H, 1.6).val(),
+    ridge_box (CTRL_CXS[1], ICON_CZ - 0.5, RIDGE_W, CRT_H - 2.4).val(),
+    ridge_tri (CTRL_CXS[1], ICON_CZ + 1.1, 2.6, 1.5, 0.0).val(),
+]))
+
+m.add ("icon_vsize", _relief (vsize), PANEL_GRAY, angular=CORNER_ANG)
+
+# BRIGHTNESS: the circle with eight short rays that touch nothing. The
+# rotation lesson still applies: about +y, pointing a ray outward takes 90
+# MINUS its bearing.
+_sun = [ridge_frame (CTRL_CXS[2], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
+        ridge_ring (CTRL_CXS[2], ICON_CZ, 2.2).val()]
 
 for _k in range (8):
     _ang = _k * 45.0
     _rx  = CTRL_CXS[2] + 4.0 * math.cos (math.radians (_ang))
     _rz  = ICON_CZ + 4.0 * math.sin (math.radians (_ang))
 
-    engrave (stroke_box (_rx, _rz, STROKE, 1.6, 90.0 - _ang))
+    _sun.append (ridge_box (_rx, _rz, RIDGE_W, 1.6, 90.0 - _ang).val())
 
-# Video in, over the RCA: the screen with a stroke arriving from the left
-# through its wall, ending in an arrowhead laid on its side.
-engrave (outline_ring (RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R))
-engrave (outline_ring (RCA_CX + 0.9, ICON_CZ, CRT_W - 1.8, CRT_H, 2.0))
-engrave (stroke_box (RCA_CX + 3.6, ICON_CZ, 3.4, STROKE))
-engrave (stroke_box (RCA_CX + 1.2, ICON_CZ, 2.2, 2.2, 45.0))
+m.add ("icon_sun", _relief (cq.Workplane (obj=cq.Compound.makeCompound (_sun))),
+       PANEL_GRAY, angular=CORNER_ANG)
 
-# The thumbwheel holes, drilled through the plate into the case behind it.
-for _cx in CTRL_CXS:
-    panel = panel.cut (
-        cq.Workplane ("XY")
-          .cylinder (12.0, 6.0, direct=(0, 1, 0), centered=(True, True, False))
-          .translate ((_cx, D - 11.0, CTRL_CZ)))
+# VIDEO IN: the screen with an arrow arriving through its left wall -- the
+# stem crosses the wall from outside, the head flies inside pointing right.
+# "Left" is the READER's left, and the reader stands behind the monitor
+# where model +x is on their left.
+video = cq.Workplane (obj=cq.Compound.makeCompound ([
+    ridge_frame (RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
+    ridge_frame (RCA_CX - 0.7, ICON_CZ, CRT_W - 1.4, CRT_H, 1.6).val(),
+    ridge_box (RCA_CX + 3.2, ICON_CZ, 4.2, RIDGE_W).val(),
+    ridge_tri (RCA_CX + 0.6, ICON_CZ, 2.4, 1.5, 90.0).val(),
+]))
 
-m.add ("ctrl_panel", panel, PANEL_GRAY, angular=CORNER_ANG)
+m.add ("icon_video", _relief (video), PANEL_GRAY, angular=CORNER_ANG)
 
-# The wheels themselves: vertical-axis discs standing behind each hole, so
-# what shows through is the rim edge-on -- which is all the real ones show.
+# ------------------------------------------------------- knobs, jack, mains
+
+# THE KNOBS: knurled dark cylinders standing five millimeters proud of the
+# plate, each rising out of its black-lined counterbore. The knurl is
+# sixteen ribs riding the rim, compounded with the barrel rather than
+# unioned onto it -- interpenetrating solids in one part tessellate fine
+# and cost nothing.
+KNOB_R     = 5.0
+KNOB_PROUD = 5.0
+KNOB_BLACK = (0.030, 0.030, 0.030)
+KNOB_GRAY  = (0.240, 0.240, 0.250)
+
 for _i, _cx in enumerate (CTRL_CXS):
-    m.add (f"ctrl_wheel{_i}",
+    # The black interior of the hole the knob protrudes through.
+    m.add (f"knob_cup{_i}",
            cq.Workplane ("XY")
-             .cylinder (4.5, 8.0, direct=(0, 0, 1))
-             .translate ((_cx, D - 10.5, CTRL_CZ)),
-           DARK_PART, angular=0.05)
+             .cylinder (KNOB_BORE_D - 0.15, KNOB_BORE_R - 0.05, direct=(0, 1, 0),
+                        centered=(True, True, False))
+             .translate ((_cx, D - KNOB_BORE_D + 0.05, CTRL_CZ)),
+           KNOB_BLACK, angular=0.05)
 
-# The mains inlet: a dark molded block with the captive cord's boss -- the
-# A2M2010 has no removable lead, so there is no receptacle to model, just
-# the molding the cord leaves through.
-m.add ("ac_inlet",
-       cq.Workplane ("XY")
-         .box (34.0, 4.0, 22.0, centered=(False, False, False))
-         .edges ("|Y").fillet (3.0)
-         .translate ((AC_CX - 17.0, D - 3.0, CTRL_CZ - 11.0)),
-       DARK_PART)
-m.add ("ac_boss",
-       cq.Workplane ("XY")
-         .cylinder (4.0, 5.0, direct=(0, 1, 0), centered=(True, True, False))
-         .translate ((AC_CX, D - 1.0, CTRL_CZ)),
-       DARK_PART, angular=0.05)
+    _ribs = [cq.Workplane ("XY")
+               .cylinder (KNOB_BORE_D + KNOB_PROUD, KNOB_R, direct=(0, 1, 0),
+                          centered=(True, True, False))
+               .translate ((_cx, D - KNOB_BORE_D, CTRL_CZ))
+               .val()]
 
-# The RCA jack, exactly the //c rear's recipe: dark barrel, white insulator
-# ring, dark center bore.
+    for _k in range (16):
+        _ribs.append (cq.Workplane ("XY")
+                        .box (0.8, KNOB_BORE_D + KNOB_PROUD - 0.6, 0.6,
+                              centered=(True, False, True))
+                        .translate ((0.0, 0.0, KNOB_R))
+                        .rotate ((0, 0, 0), (0, 1, 0), _k * 22.5)
+                        .translate ((_cx, D - KNOB_BORE_D, CTRL_CZ))
+                        .val())
+
+    m.add (f"knob{_i}", cq.Compound.makeCompound (_ribs), KNOB_GRAY, angular=0.05)
+
+# THE RCA, the Monitor //c's whole recipe: counterbore already cut, a dark
+# cup lining it, then barrel, insulator ring, and bore.
+m.add ("rca_cup",
+       cq.Workplane ("XY")
+         .cylinder (1.35, 6.55, direct=(0, 1, 0), centered=(True, True, False))
+         .translate ((RCA_CX, D - 1.45, CTRL_CZ)),
+       (0.200, 0.200, 0.220), angular=0.05)
 m.add ("rca_body",
        cq.Workplane ("XY")
          .cylinder (4.5, 4.6, direct=(0, 1, 0), centered=(True, True, False))
@@ -705,6 +839,57 @@ m.add ("rca_bore",
          .cylinder (5.5, 1.3, direct=(0, 1, 0), centered=(True, True, False))
          .translate ((RCA_CX, D - 1.0, CTRL_CZ)),
        DARK_PART, angular=0.05)
+
+# THE MAINS RECEPTACLE, the //c's socket brought over whole: the dark
+# open-fronted liner in the clipped-corner cavity, and the three plated
+# blades, LOW - HIGH - LOW.
+AC_SILVER = (0.760, 0.765, 0.780)
+AC_SOCKET = (0.200, 0.200, 0.220)
+
+
+def ac_profile(inset, y):
+    """The receptacle profile drawn `inset` inside the cavity, at depth y."""
+    return cq.Wire.makePolygon ([
+        cq.Vector (_acx0 + inset, y, _acz0 + inset),
+        cq.Vector (_acx1 - inset, y, _acz0 + inset),
+        cq.Vector (_acx1 - inset, y, _acz1 - AC_CLIP - inset * 0.41),
+        cq.Vector (_acx1 - AC_CLIP - inset * 0.41, y, _acz1 - inset),
+        cq.Vector (_acx0 + AC_CLIP + inset * 0.41, y, _acz1 - inset),
+        cq.Vector (_acx0 + inset, y, _acz1 - AC_CLIP - inset * 0.41),
+        cq.Vector (_acx0 + inset, y, _acz0 + inset),
+    ])
+
+
+m.add ("ac_liner",
+       cq.Workplane (obj=cq.Solid.extrudeLinear (
+           cq.Face.makeFromWires (ac_profile (0.25, D - 0.2)),
+           cq.Vector (0.0, -(AC_DEEP - 0.4), 0.0)))
+         .cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
+             cq.Face.makeFromWires (ac_profile (1.2, D + 0.3)),
+             cq.Vector (0.0, -(AC_DEEP - 1.4), 0.0)))),
+       AC_SOCKET)
+
+for _dx, _dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
+    m.add (f"acpin{int (_dx)}",
+           cq.Workplane ("XY")
+             .box (2.0, 5.0, 4.5, centered=(True, False, False))
+             .translate ((AC_CX + _dx, D - AC_DEEP, CTRL_CZ + _dz - 2.25)),
+           AC_SILVER)
+
+# THE FEET: six square pads in two rows of three, standing proud of the
+# underside -- they are what the monitor actually rests on.
+FOOT_S   = 22.0
+FOOT_H   = 2.8
+FOOT_RGB = (0.100, 0.100, 0.100)
+
+for _fi, (_fx, _fy) in enumerate (((40.0, 45.0), (W * 0.5, 45.0), (W - 40.0, 45.0),
+                                   (40.0, D - 45.0), (W * 0.5, D - 45.0), (W - 40.0, D - 45.0))):
+    m.add (f"foot{_fi}",
+           cq.Workplane ("XY")
+             .box (FOOT_S, FOOT_S, FOOT_H + 1.0, centered=(True, True, False))
+             .edges ("|Z").fillet (2.5)
+             .translate ((_fx, _fy, -FOOT_H)),
+           FOOT_RGB)
 
 # The cavity's inner surfaces, so the recess around the bezel reads dark
 # rather than as more case. A thin shell lining the pocket.
