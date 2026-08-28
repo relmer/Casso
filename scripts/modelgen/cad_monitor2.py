@@ -1282,10 +1282,22 @@ m.add("bezel", bezel, BEZEL, angular=CORNER_ANG)
 GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - GLASS_INSET * 2.0) * 0.5,
                              (GZ1 - GZ0 - GLASS_INSET * 2.0) * 0.5)
 
+# HOW DEEP THE TUBE IS SEATED. Its rim was left on the mouth's own plane,
+# which put the sheet's CROWN -- a full sag ahead of the rim -- out past the
+# front of the bezel that is supposed to contain it. Seen from the side the
+# tube appeared to burst through the bezel's face.
+#
+# Seated back by this much, two things come right at once: the crown sits
+# behind the bezel's front face, and the rim sits behind the mouth, so the
+# bezel LAPS the tube instead of meeting it edge to edge. That lap is also
+# what covers the funnel's inner ramp, which used to show as beige wedges
+# cutting into the picture wherever the two surfaces crossed.
+GLASS_SET = 4.5
+
 m.add_triangles("glass",
                 sag_sheet(GX0 + GLASS_INSET, GX1 - GLASS_INSET,
                           GZ0 + GLASS_INSET, GZ1 - GLASS_INSET,
-                          front_y=-PROTRUDE + TUBE_DROP,
+                          front_y=-PROTRUDE + TUBE_DROP + GLASS_SET,
                           radius_scale=FACE_R / GLASS_HALF_DIAG),
                 KD["glass"])
 
