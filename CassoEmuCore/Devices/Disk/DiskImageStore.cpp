@@ -104,6 +104,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsMountableImageExtension
+//
+//  The question every file filter in the product should be asking, answered
+//  by the same code that routes the mount.
+//
+//  There used to be a second list. `Casso/Ui/DriveWidgetState.h` carried its
+//  own array of extensions for the drag-and-drop filter and the disk picker,
+//  and it held one -- `.nib` -- that the routing below has never handled. A
+//  file that passed the filter and then failed to load produced no message at
+//  all: the mount runs on the CPU thread and its result is dropped, so the
+//  disk simply never appeared. Asking the router directly is what makes that
+//  class of disagreement unrepresentable rather than merely fixed.
+//
+//  A rejected extension is an ordinary answer here, not a failure, so the
+//  detector's E_FAIL is read as `false` and goes no further.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsMountableImageExtension (const string & path)
+{
+    HRESULT     hr  = S_OK;
+    DiskFormat  fmt = DiskFormat::Dsk;
+
+
+
+    hr = DetectFormatByExtension (path, fmt);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMountableImageExtension  (wide)
+//
+//  The overload the interface actually calls. Narrowing happens here, once,
+//  rather than at each filter -- a per-call-site conversion is the seam the
+//  two answers would drift apart through next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsMountableImageExtension (const wstring & path)
+{
+    string  narrowed = fs::path (path).string();
+
+
+
+    return IsMountableImageExtension (narrowed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MountFromBytes
 //
 //  Test-friendly mount path that bypasses the host filesystem. The

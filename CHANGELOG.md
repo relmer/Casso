@@ -8,6 +8,24 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+- **Dropping a `.nib` onto a drive did nothing, silently.** The drag-and-drop
+  filter and the disk picker's folder scan accepted five extensions; the mount
+  router has only ever handled four. A nibble image therefore passed the
+  filter, was accepted as a drop, and then failed to load with no message at
+  all -- the mount runs on the CPU thread and its result is dropped, so the
+  drive simply stayed empty. On the drop path it was worse than silent: the
+  file was recorded in the recent-disks list as though it had mounted. `.nib`
+  is now refused at the filter, so the drag shows the reject cursor and the
+  picker no longer lists nibble images. Casso mounts `.dsk`, `.do`, `.po` and
+  `.woz`; nibble-image support is a separate, planned piece of work.
+
+### Changed
+- **One list decides which disk images Casso offers.** The filter no longer
+  keeps its own array of extensions -- it asks the mount router directly
+  (`DiskImageStore::IsMountableImageExtension`), so an interface that offers a
+  file and a loader that refuses it can no longer disagree.
+
 ## [1.20.1]: The one with logical or physical sector addresses
 
 ### Fixed
