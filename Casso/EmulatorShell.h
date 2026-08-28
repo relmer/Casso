@@ -906,6 +906,7 @@ private:
     HINSTANCE  m_hInstance             = nullptr;
     HWND       m_hwnd                  = nullptr;
     bool       m_initialSizeReconciled = false;
+    bool       m_startMaximized        = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after

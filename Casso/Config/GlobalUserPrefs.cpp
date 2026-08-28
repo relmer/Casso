@@ -477,6 +477,7 @@ JsonValue GlobalUserPrefs::PlacementsToJson (const std::map<std::string, WindowB
         bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
         bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
         bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
+        bounds.emplace_back ("max", JsonValue (kv.second.maximized));
         placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
     }
 
@@ -631,7 +632,8 @@ void GlobalUserPrefs::PlacementsFromJson (
         b.x = GetIntOpt (kv.second, "x", 0);
         b.y = GetIntOpt (kv.second, "y", 0);
         b.w = GetIntOpt (kv.second, "w", 0);
-        b.h = GetIntOpt (kv.second, "h", 0);
+        b.h         = GetIntOpt (kv.second, "h", 0);
+        b.maximized = TryGetBoolOpt (kv.second, "max", false);
         placements[kv.first] = b;
     }
 }

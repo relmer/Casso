@@ -61,6 +61,28 @@ public:
         Assert::AreEqual (s_kSavedY, loaded.y);
         Assert::AreEqual (s_kSavedW, loaded.w);
         Assert::AreEqual (s_kSavedH, loaded.h);
+        Assert::IsFalse  (loaded.maximized,
+                          L"a plain windowed save must not restore maximized");
+    }
+
+
+    TEST_METHOD (Save_ThenLoad_RoundTripsMaximized)
+    {
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  loaded;
+        WindowPlacementProfile::Bounds  saved  = {};
+        WindowPlacementProfile           profile (prefs);
+        saved = { s_kSavedX, s_kSavedY, s_kSavedW, s_kSavedH, true };
+
+        profile.Save (s_kpszKeyA, saved);
+
+        Assert::IsTrue (profile.TryLoad (s_kpszKeyA, loaded),
+                        L"TryLoad must report the freshly saved bounds");
+        Assert::IsTrue (loaded.maximized,
+                        L"the maximized flag rides the placement so a user who"
+                        L" always runs maximized restarts maximized");
+        Assert::AreEqual (s_kSavedX, loaded.x);
+        Assert::AreEqual (s_kSavedH, loaded.h);
     }
 
 

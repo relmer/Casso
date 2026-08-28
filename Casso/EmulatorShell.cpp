@@ -810,8 +810,11 @@ HRESULT EmulatorShell::Initialize (
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
-    // Show window
-    ShowWindow (m_hwnd, SW_SHOW);
+    // Show window. A placement saved while maximized restores the state,
+    // not just the normal rect it was created with: showing maximized
+    // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
+    // flash of the restored-size window.
+    ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
@@ -3031,7 +3034,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
+    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition

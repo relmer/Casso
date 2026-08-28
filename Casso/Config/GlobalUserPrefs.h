@@ -109,10 +109,17 @@ struct GlobalUserPrefs
 
     struct WindowBounds
     {
-        int  x = 0;
-        int  y = 0;
-        int  w = 0;
-        int  h = 0;
+        int   x = 0;
+        int   y = 0;
+        int   w = 0;
+        int   h = 0;
+
+        // Whether the window was MAXIMIZED when this placement was saved.
+        // The rect above stays the NORMAL (restored) rect either way -- a
+        // maximized window's own rect is the monitor's, and persisting that
+        // as the windowed placement is the classic way to lose the user's
+        // real window size.
+        bool  maximized = false;
     };
 
     struct
