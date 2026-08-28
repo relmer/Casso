@@ -461,10 +461,10 @@ namespace Ssi263TestNs
             StartVowelAh1 (chip);
             RenderSteadyState (chip, buffer.data());
 
-            // AH1 ("father"): 682 / 1210 / 2399 Hz in the built-in table.
-            inBand = BandPower (buffer.data(), 682.0) +
-                     BandPower (buffer.data(), 1210.0) +
-                     BandPower (buffer.data(), 2399.0);
+            // AH1 ("father"): 731 / 1387 / 2511 Hz in the built-in table.
+            inBand = BandPower (buffer.data(), 731.0) +
+                     BandPower (buffer.data(), 1387.0) +
+                     BandPower (buffer.data(), 2511.0);
 
             outBand = BandPower (buffer.data(), 4000.0) +
                       BandPower (buffer.data(), 5200.0) +
@@ -521,15 +521,15 @@ namespace Ssi263TestNs
             StartVowelAh1 (raised);
 
             // Raise the vocal-tract clock ~1.5x (a HIGHER register value means
-            // a smaller divisor, so a faster clock): F2 at 1210 should migrate
-            // toward ~1815, so probe power there.
+            // a smaller divisor, so a faster clock): F2 at 1387 should migrate
+            // toward ~2081, so probe power there.
             raised.WriteRegister (Ssi263::kRegFilterFreq, 0xE2);
 
             RenderSteadyState (nominal, buffer.data());
-            nominalHigh = BandPower (buffer.data(), 1815.0);
+            nominalHigh = BandPower (buffer.data(), 2081.0);
 
             RenderSteadyState (raised, buffer.data());
-            raisedHigh = BandPower (buffer.data(), 1815.0);
+            raisedHigh = BandPower (buffer.data(), 2081.0);
 
             Assert::IsTrue (raisedHigh > 2.0 * nominalHigh,
                             L"A faster filter clock must shift formants upward");
@@ -585,15 +585,15 @@ namespace Ssi263TestNs
             StartVowelAh1 (chip);
             RenderSteadyState (chip, buffer.data());
 
-            // Switch to E ("meet", F2 = 2184) at the slowest articulation.
+            // Switch to E ("meet", F2 = 2330) at the slowest articulation.
             chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x0F);   // articulation 0, amp $F
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
 
             // Immediately after the switch the tract must still sound like
             // the OLD vowel -- a jump would already be at the new target.
             RenderInto (chip, buffer.data(), kRenderSamples);
-            earlyOld = BandPower (buffer.data(), 1210.0);
-            earlyNew = BandPower (buffer.data(), 2184.0);
+            earlyOld = BandPower (buffer.data(), 1387.0);
+            earlyNew = BandPower (buffer.data(), 2330.0);
 
             Assert::IsTrue (earlyOld > earlyNew,
                             L"Right after a transition the old formants must still dominate");
@@ -602,8 +602,8 @@ namespace Ssi263TestNs
             RenderInto (chip, buffer.data(), kRenderSamples);
             RenderInto (chip, buffer.data(), kRenderSamples);
             RenderInto (chip, buffer.data(), kRenderSamples);
-            lateNew = BandPower (buffer.data(), 2184.0);
-            lateOld = BandPower (buffer.data(), 1210.0);
+            lateNew = BandPower (buffer.data(), 2330.0);
+            lateOld = BandPower (buffer.data(), 1387.0);
 
             Assert::IsTrue (lateNew > lateOld,
                             L"Long after a transition the new formants must dominate");
@@ -655,7 +655,7 @@ namespace Ssi263TestNs
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
             RenderInto (chip, buffer.data(), 4);
 
-            Assert::AreEqual (2184.0, chip.FormantCenter (1), 1.0,
+            Assert::AreEqual (2330.0, chip.FormantCenter (1), 1.0,
                               L"After a silence the next phoneme starts at its own targets");
         }
 

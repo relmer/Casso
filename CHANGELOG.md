@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Changed
+- **The voice's frequency scale is now silicon-derived too.** Cross-checking
+  our SSI 263A ROM extraction against the 2007 SC-01A decap (the data every
+  other emulator substitutes) showed the two chips share one parameter code
+  scale — 22 of 46 name-matched phonemes carry identical formant codes, the
+  closure flag agrees 46/46 — which validates the extraction end-to-end and
+  licenses the SC-01's measured capacitor network as the code-to-Hz mapping.
+  The phoneme table now derives its frequencies from that network instead of
+  literature-fitted lines (AH1's F1 code lands on 731 Hz; the textbook value
+  for "father" is 730). Comparison data and stats:
+  `specs/024-mockingboard-speech/rom-extraction/decoded-data.md`.
+
 ## [1.19.0] — The Mockingboard speaks
 
 ### Added

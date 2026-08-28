@@ -54,24 +54,48 @@ AI/:A) differ only there.
 - The NAS field's exact partition (M, N, NG, HN vs everything else) was
   discovered from the data, not assumed.
 
-## Hz scale (the one approximation)
+## Cross-check against the SC-01A decap — and what it settled
 
-Filter codes are DAC selections for the chip's switched-capacitor filter
-sections; the code→Hz curves below are affine fits anchored to the
-acoustic-phonetics literature over the sonorant set. Rank order and all
-ratios are the silicon's; the absolute scale awaits capacitor-weight
-tracing (or empirical calibration against real-hardware audio):
+The one dataset other emulators use is the 2007 decap of the predecessor
+chip (`sc01a.bin`, published by the decapper at og.kervella.org/sc01a/,
+CRC `fc416227`; MAME documents its layout). Aligning the two chips'
+phoneme sets by mnemonic gives 46 matched pairs, and the comparison is
+decisive:
 
-    F1 ≈ 264 + 27.9 × code      F2 ≈ 820 + 97.4 × code      F3 ≈ 1360 + 94.4 × code   (Hz)
+- **22 of 46 phonemes carry identical F1/F2/F3 codes, digit for digit**
+  (A, AE, AH, AW, AY, B, D, E, EH, ER, I, K, O, OO, P, PA, SCH, TH, UH2,
+  V, W); 29/46 agree within ±1 on all three.
+- Rank correlations: F2 +0.93, F1 +0.88, F3 +0.87, VA +0.85, FA +0.99
+  (38/46 FA values exactly equal). **Closure flag: 46/46.**
+- The differences are the SSI-263's refinements: duration-variant vowels
+  that were byte-identical duplicates on the SC-01 (E1, AE1, UH1, UH3)
+  get distinct acoustics; R becomes more retroflex (F3 code 3 → 1); S and
+  F drop F1; U1 separates from U.
+- 18 SSI-263 phonemes have no SC-01 counterpart at all (YI, IE, AI, the
+  five holds, KV, R1, R2, L1, LF, IU1, and the international set) — this
+  extraction is their only source.
 
-Starred columns in the table below use these fits. Amplitude codes are
-0–15, linear DAC assumed.
+Beyond validating the extraction end-to-end against independent silicon,
+this settled the Hz scale: the chips share one code scale, so the SC-01
+decap's **measured capacitor network** (the `bits_to_caps` weights and
+filter topology MAME models) applies to these codes. Casso's phoneme
+table now derives its frequencies from that network — e.g. AH1's F1 code
+15 maps to 731 Hz, where the phonetics literature lists "father" at 730.
+The earlier affine fits (F1 ≈ 264 + 27.9c, F2 ≈ 820 + 97.4c,
+F3 ≈ 1360 + 94.4c) are retained here only as history.
+
+## Hz scale
+
+Starred columns in the table below still show the affine-fit values from
+the original decode pass; the emulator itself now uses the SC-01
+capacitor-network curves described above. Amplitude codes are 0–15,
+linear DAC assumed.
 
 ## The decoded table
 
 | Code | Phon | Example | Flags b00-b04 | FA | VA | F3 | NAS | F2 | F1 | F1 Hz* | F2 Hz* | F3 Hz* |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| $00 | PA | (pause) | `10100` | 0 | 0 | 12 | 0 | 9 | 7 | � | � | � |
+| $00 | PA | (pause) | `10100` | 0 | 0 | 12 | 0 | 9 | 7 | � | � | � |
 | $01 | E | meet | `11110` | 0 | 12 | 14 | 0 | 14 | 2 | 319 | 2184 | 2682 |
 | $02 | E1 | bent | `11110` | 0 | 10 | 13 | 0 | 14 | 5 | 403 | 2184 | 2588 |
 | $03 | Y | before | `11110` | 0 | 11 | 14 | 0 | 13 | 1 | 291 | 2086 | 2682 |
