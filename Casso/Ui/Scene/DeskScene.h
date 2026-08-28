@@ -77,7 +77,14 @@ public:
         if (clamped != m_bezelTiltRad)
         {
             m_bezelTiltRad = clamped;
-            m_plateValid   = false;
+
+            // The glare has to move ACROSS the face as the face turns, or
+            // the tilt reads as a decal sliding rather than a tube tipping
+            // under the room's light. The sheen bakes its light and eye in
+            // model space, so it is rebuilt against the new angle -- and the
+            // geometry revision moves so the renderer re-uploads it.
+            BuildGlassSheen (m_monitor.Surface(), m_bezelTiltRad);
+            TouchGeometry();
         }
     }
 
@@ -328,6 +335,21 @@ public:
     static constexpr float  kSheenStrength   = 0.15f;
     static constexpr float  kSheenLiftMm     = 0.52f;
 
+    // How far the glare travels per radian of bezel tilt, as a multiple of
+    // the light's counter-rotation.
+    //
+    // ONE would be exact physics, and exact physics shows nothing: the face
+    // is a section of a sphere, and a sphere turned about any axis is the
+    // same sphere, so with the room's light and the viewer fixed the
+    // highlight lands on the same room-space point at every tilt. Measured,
+    // the brightness profile at full tilt matched the untilted one to the
+    // decimal. A real CRT reads closer to flat glass, where the reflection
+    // swings at TWICE the surface's rotation and keeps moving with the
+    // viewer's near eye -- so the light's counter-rotation is exaggerated
+    // until the band visibly sweeps and brightens over the eleven degrees
+    // of travel the bezel actually has.
+    static constexpr float  kSheenTiltGlareGain = 3.0f;
+
     // And it fades out on the same rounded outline the tube layers stop on.
     // The sheen is lifted above all of them, so square corners would put the
     // brightest thing in the scene on top of the bezel's mouth.
@@ -368,7 +390,7 @@ private:
     void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
     void     RebuildLampVerts ();
     void     BuildDerivedGeometry ();
-    void     BuildGlassSheen  (const CurvedDisplaySurface & surface);
+    void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawLampGlows    (const DeskSceneComposition & comp,
                                const D3D11_VIEWPORT       & viewport,

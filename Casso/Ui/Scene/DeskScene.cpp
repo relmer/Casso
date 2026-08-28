@@ -775,7 +775,7 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
     }
 
     m_glassUv      = displayUv;
-    BuildGlassSheen (surface);
+    BuildGlassSheen (surface, m_bezelTiltRad);
 
     m_glassUvDirty = false;
 
@@ -803,16 +803,47 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
+void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface, float tiltRad)
 {
     float   cx     = (surface.x0 + surface.x1) * 0.5f;
     float   cz     = (surface.z0 + surface.z1) * 0.5f;
     float   apexY  = surface.baseY - CurvedDisplayMath::MaxSag (surface);
     float   ctr[3] = { cx, apexY + surface.radius, cz };
     float   eye[3] = { cx, apexY - kSheenEyeMm, cz };
-    float   ll     = std::sqrt (kSheenLight[0] * kSheenLight[0] +
-                                kSheenLight[1] * kSheenLight[1] +
-                                kSheenLight[2] * kSheenLight[2]);
+    float   lgt[3] = { kSheenLight[0], kSheenLight[1], kSheenLight[2] };
+
+    // THE ROOM DOES NOT TILT WITH THE TUBE. These verts ride the tilted
+    // transform at draw time, so anything built here in model space turns
+    // with the glass -- including, before this, the light and the viewer,
+    // which froze the glare onto the face like a decal. Rotating both by the
+    // INVERSE tilt puts them where the fixed room lands in tilted model
+    // space, so at draw time they come out stationary and the highlight
+    // slides across the face as the tube turns under it -- the one visible
+    // proof that the glass is really moving.
+    {
+        float  c  = std::cos (tiltRad);
+        float  s  = std::sin (tiltRad);
+        float  ga = tiltRad * kSheenTiltGlareGain;
+        float  gc = std::cos (ga);
+        float  gs = std::sin (ga);
+        float  py = m_monitor.TiltPivotY();
+        float  pz = m_monitor.TiltPivotZ();
+        float  dy = eye[1] - py;
+        float  dz = eye[2] - pz;
+        float  ly = lgt[1];
+        float  lz = lgt[2];
+
+        eye[1] = py + dy * c - dz * s;
+        eye[2] = pz + dy * s + dz * c;
+
+        // The light takes the exaggerated angle -- see kSheenTiltGlareGain.
+        lgt[1] = ly * gc - lz * gs;
+        lgt[2] = ly * gs + lz * gc;
+    }
+
+    float   ll     = std::sqrt (lgt[0] * lgt[0] +
+                                lgt[1] * lgt[1] +
+                                lgt[2] * lgt[2]);
 
 
 
@@ -872,7 +903,7 @@ void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface)
             {
                 for (int i = 0; i < 3; i++)
                 {
-                    h[i] = toEye[i] / el + kSheenLight[i] / ll;
+                    h[i] = toEye[i] / el + lgt[i] / ll;
                 }
 
                 hl = std::sqrt (h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
