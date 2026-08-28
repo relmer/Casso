@@ -246,7 +246,12 @@ CAVITY    = (0.105, 0.098, 0.086)
 # thumbwheel that happened to land on the pebble marker would come back
 # repainted matte black with a molded grain.
 LABEL_GRAY = (0.600, 0.585, 0.555)    # the blank spec plate
-PANEL_GRAY = (0.820, 0.805, 0.770)    # the control panel's lighter inset
+
+# The rear is A DIFFERENT PLASTIC from the case: the vent surface, the
+# control panel, its embossed marks, and the bell are all one darker molding
+# family, a full step down from the beige -- and the bell a step below that.
+PANEL_GRAY = (0.560, 0.545, 0.520)
+BELL_GRAY  = (0.500, 0.480, 0.455)
 DARK_PART  = (0.085, 0.085, 0.090)    # wheels, inlet, RCA barrel and bore
 RCA_RING   = (0.920, 0.910, 0.890)
 
@@ -363,14 +368,41 @@ case = case.cut (tilt_rear (
       .box (W + 2.0, 220.0, H + 150.0 - STRIP_TOP, centered=(False, False, False))
       .translate ((-1.0, D, STRIP_TOP))))
 
-# The recessed panel, inset a rim's width from the slope's edges. Its corners
-# round in the pre-tilt plane, which is what makes them round IN the face.
-case = case.cut (tilt_rear (
+# The recessed vent surface, inset a rim's width from the slope's edges --
+# and NOT PARALLEL TO THE SLOPE: it sits an inch into the housing where it
+# meets the bell and an inch and a half at the top, so it leans at its own
+# angle. Built with a SECOND rotation composed onto the slope's: cutters
+# stand against the vertical plane at the bell-junction depth, lean by the
+# surface's own tilt, then ride the slope like everything else back here.
+VENT_IN_TOP = 1.5 * 25.4
+VENT_IN_BOT = 1.0 * 25.4
+PKT_Z0      = STRIP_TOP + REAR_RIM
+PKT_Z1      = STRIP_TOP + SLOPE_LEN - REAR_RIM
+VENT_TILT   = math.degrees (math.atan2 (VENT_IN_TOP - VENT_IN_BOT, PKT_Z1 - PKT_Z0))
+
+
+def vent_face(wp):
+    """The composed transform for everything on the vent surface: its own
+    lean about the surface's bottom edge, then the slope's tilt."""
+    return tilt_rear (wp.rotate ((0.0, D - VENT_IN_BOT, PKT_Z0),
+                                 (1.0, D - VENT_IN_BOT, PKT_Z0), VENT_TILT))
+
+
+case = case.cut (vent_face (
     cq.Workplane ("XY")
-      .box (W - REAR_RIM * 2.0, REAR_DEEP + 60.0, SLOPE_LEN - REAR_RIM * 2.0,
+      .box (W - REAR_RIM * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
             centered=(False, False, False))
       .edges ("|Y").fillet (6.0)
-      .translate ((REAR_RIM, D - REAR_DEEP, STRIP_TOP + REAR_RIM))))
+      .translate ((REAR_RIM, D - VENT_IN_BOT, PKT_Z0))))
+
+# The surface itself is the darker rear molding, so it is a LINER PART lying
+# on the pocket floor rather than bare case: the slots cut through the liner
+# and on into the case behind it.
+rear_liner = (cq.Workplane ("XY")
+              .box (W - REAR_RIM * 2.0 - 1.0, 1.2, PKT_Z1 - PKT_Z0 - 1.0,
+                    centered=(False, False, False))
+              .edges ("|Y").fillet (5.5)
+              .translate ((REAR_RIM + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5)))
 
 # Vent slots across the recess's upper band: two rows of narrow vertical
 # slots, cut as ONE compound rather than eighty booleans.
@@ -388,13 +420,37 @@ for _rz in VENT_ROWS_Z:
 
     while _x + VENT_SLOT_W <= VENT_X1:
         _slots.append (cq.Workplane ("XY")
-                         .box (VENT_SLOT_W, REAR_DEEP + 8.0, VENT_ROW_H,
+                         .box (VENT_SLOT_W, 12.0, VENT_ROW_H,
                                centered=(False, False, False))
-                         .translate ((_x, D - REAR_DEEP - 6.0, _rz))
+                         .translate ((_x, D - VENT_IN_BOT - 6.0, _rz))
                          .val())
         _x += VENT_PITCH
 
-case = case.cut (tilt_rear (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
+case       = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
+rear_liner = rear_liner.cut (cq.Workplane (obj=cq.Compound.makeCompound (_slots)))
+
+m.add ("rear_liner", vent_face (rear_liner), PANEL_GRAY, angular=CORNER_ANG)
+
+# ------------------------------------------------------- circumference line
+#
+# An engraved line rings the case in the X-Z plane, a quarter inch behind
+# the power notch's rear wall -- the molding's parting line, the one mark
+# the big smooth flanks carry. Cut as slab-minus-inner-prism so the groove
+# follows the case's rounded corners instead of breaking at them.
+RING_Y = NOTCH_D + 0.25 * 25.4
+RING_W = 1.5
+RING_D = 1.2
+
+case = case.cut (
+    cq.Workplane ("XY")
+      .box (W + 20.0, RING_W, H + 20.0, centered=(False, False, False))
+      .translate ((-10.0, RING_Y - RING_W * 0.5, -10.0))
+      .cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
+                cq.Face.makeFromWires (round_rect_wire (
+                    RING_Y - RING_W,
+                    RING_D, W - RING_D, RING_D, H - RING_D,
+                    max (0.5, 3.0 - RING_D))),
+                cq.Vector (0.0, RING_W + 2.0, 0.0)))))
 
 # ------------------------------------------------------------ control panel
 #
@@ -512,12 +568,19 @@ BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
                                       # control strip by a third of the
                                       # case's own depth
 
+# ON THE TUBE'S AXIS, NOT THE CASE'S. The case is wider than its screen by
+# the right-hand reveal, so a bell centered on the case sits off the tube it
+# houses -- it centers on the screen opening and lands a half-reveal left.
+# And its edges are barely broken: the real housing is an angular sheet-
+# steel-looking molding, not a pillow.
+BELL_CX = DX * 0.5
+
 bell = cq.Solid.makeLoft ([
-    round_rect_wire (D - 80.0, W * 0.5 - 128.0, W * 0.5 + 128.0, 90.0, 195.0, 18.0),
-    round_rect_wire (BELL_REAR_Y, W * 0.5 - 96.0, W * 0.5 + 96.0, 95.0, 150.0, 12.0),
+    round_rect_wire (D - 80.0, BELL_CX - 128.0, BELL_CX + 128.0, 90.0, 195.0, 5.0),
+    round_rect_wire (BELL_REAR_Y, BELL_CX - 96.0, BELL_CX + 96.0, 95.0, 150.0, 4.0),
 ])
 
-m.add ("bell", cq.Workplane (obj=bell), BEZEL, angular=CORNER_ANG)
+m.add ("bell", cq.Workplane (obj=bell), BELL_GRAY, angular=CORNER_ANG)
 
 # The cassowary on the bell's rear face, where the real unit wears its
 # maker's sticker: read out of CassoBranding.cpp exactly as the Disk IIc's
@@ -539,7 +602,7 @@ def read_branding():
 
 
 BELL_BIRD_H  = 22.0
-BELL_BIRD_CZ = 138.0
+BELL_BIRD_CZ = 122.0
 
 _rows, _stripes = read_branding()
 _cell     = BELL_BIRD_H / len (_rows)
@@ -548,7 +611,7 @@ _first    = _nonzero[0]
 _cols     = [c for bits in _rows for c in range (64) if (bits >> c) & 1]
 _collo    = min (_cols)
 _colhi    = max (_cols)
-_bird_x0  = W * 0.5 - ((_collo + _colhi + 1) * 0.5) * _cell
+_bird_x0  = BELL_CX - ((_collo + _colhi + 1) * 0.5) * _cell
 _bird_z1  = BELL_BIRD_CZ + BELL_BIRD_H * 0.5 + _first * _cell
 _by_stripe = {}
 
@@ -585,22 +648,26 @@ for _stripe, _solids in sorted (_by_stripe.items()):
 # where the real unit rivets its ratings label. Blank on purpose -- the
 # scene's branding is the cassowary, not a wall of small print.
 m.add ("rear_label",
-       tilt_rear (cq.Workplane ("XY")
+       vent_face (cq.Workplane ("XY")
                     .box (94.0, 1.4, 38.0, centered=(False, False, False))
                     .edges ("|Y").fillet (2.0)
-                    .translate ((W * 0.5 - 47.0, D - REAR_DEEP,
-                                 STRIP_TOP + SLOPE_LEN - 69.0))),
+                    .translate ((BELL_CX - 47.0, D - VENT_IN_BOT + 1.2,
+                                 STRIP_TOP + SLOPE_LEN - 54.0))),
        LABEL_GRAY, angular=CORNER_ANG)
 
 # ------------------------------------------------- the embossed control row
 #
 # EMBOSSED, NOT ENGRAVED. The Monitor II speaks in mold relief -- its power
 # icon, its brightness mark, its tilt arrows all stand proud of the case --
-# and the rear panel speaks the same language: RIDGE_W strokes standing
+# and the rear panel speaks the same language: REAR_RIDGE strokes standing
 # RIDGE_H off the plate, front edges rounded over exactly as the front's
 # marks are. The //c engraves; this machine does not.
 ICON_S  = 13.0
 BOX_R   = 0.9
+
+# Thinner than the front's relief: the rear marks are finer work on the
+# real panel, and the front's full millimeter read as piping back here.
+REAR_RIDGE = 0.6
 
 PANEL_FACE_Y = D - PANEL_SET          # the plate's face the relief stands on
 
@@ -660,9 +727,9 @@ def ridge_frame(cx, cz, w, h, r):
         cq.Vector (0.0, RIDGE_H, 0.0))
     inner = cq.Solid.extrudeLinear (
         cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y - 0.1,
-                                                cx - w * 0.5 + RIDGE_W, cx + w * 0.5 - RIDGE_W,
-                                                cz - h * 0.5 + RIDGE_W, cz + h * 0.5 - RIDGE_W,
-                                                max (0.4, r - RIDGE_W))),
+                                                cx - w * 0.5 + REAR_RIDGE, cx + w * 0.5 - REAR_RIDGE,
+                                                cz - h * 0.5 + REAR_RIDGE, cz + h * 0.5 - REAR_RIDGE,
+                                                max (0.4, r - REAR_RIDGE))),
         cq.Vector (0.0, RIDGE_H + 0.2, 0.0))
 
     return cq.Workplane (obj=outer).cut (cq.Workplane (obj=inner))
@@ -674,7 +741,7 @@ def ridge_ring(cx, cz, r):
                .cylinder (RIDGE_H, r, direct=(0, 1, 0), centered=(True, True, False))
                .translate ((cx, PANEL_FACE_Y, cz)))
     inner = (cq.Workplane ("XY")
-               .cylinder (RIDGE_H + 0.2, r - RIDGE_W, direct=(0, 1, 0), centered=(True, True, False))
+               .cylinder (RIDGE_H + 0.2, r - REAR_RIDGE, direct=(0, 1, 0), centered=(True, True, False))
                .translate ((cx, PANEL_FACE_Y - 0.1, cz)))
 
     return outer.cut (inner)
@@ -720,16 +787,16 @@ for _s in (1.0, -1.0):
 
 _vh_in = cq.Workplane (obj=cq.Solid.extrudeLinear (
     cq.Face.makeFromWires (round_rect_wire (PANEL_FACE_Y - 0.1,
-                                            CTRL_CXS[0] - CRT_W * 0.5 + RIDGE_W,
-                                            CTRL_CXS[0] + CRT_W * 0.5 - RIDGE_W,
-                                            ICON_CZ - CRT_H * 0.5 + RIDGE_W,
-                                            ICON_CZ + CRT_H * 0.5 - RIDGE_W, 1.0)),
+                                            CTRL_CXS[0] - CRT_W * 0.5 + REAR_RIDGE,
+                                            CTRL_CXS[0] + CRT_W * 0.5 - REAR_RIDGE,
+                                            ICON_CZ - CRT_H * 0.5 + REAR_RIDGE,
+                                            ICON_CZ + CRT_H * 0.5 - REAR_RIDGE, 1.0)),
     cq.Vector (0.0, RIDGE_H + 0.2, 0.0)))
 
 for _s in (1.0, -1.0):
     _vh_in = _vh_in.union (
         cq.Workplane ("XY")
-          .cylinder (CRT_W + 4.0, _vh_r + RIDGE_W, direct=(1, 0, 0), centered=(False, True, True))
+          .cylinder (CRT_W + 4.0, _vh_r + REAR_RIDGE, direct=(1, 0, 0), centered=(False, True, True))
           .translate ((CTRL_CXS[0] - CRT_W * 0.5 - 2.0, PANEL_FACE_Y + RIDGE_H * 0.5,
                        ICON_CZ + _s * (CRT_H * 0.5 + _vh_r - 1.4))))
 
@@ -744,7 +811,7 @@ m.add ("icon_vhold", _relief (vhold), PANEL_GRAY, angular=CORNER_ANG)
 vsize = cq.Workplane (obj=cq.Compound.makeCompound ([
     ridge_frame (CTRL_CXS[1], ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
     ridge_frame (CTRL_CXS[1], ICON_CZ, CRT_W, CRT_H, 1.6).val(),
-    ridge_box (CTRL_CXS[1], ICON_CZ - 0.5, RIDGE_W, CRT_H - 2.4).val(),
+    ridge_box (CTRL_CXS[1], ICON_CZ - 0.5, REAR_RIDGE, CRT_H - 2.4).val(),
     ridge_tri (CTRL_CXS[1], ICON_CZ + 1.1, 2.6, 1.5, 0.0).val(),
 ]))
 
@@ -761,7 +828,7 @@ for _k in range (8):
     _rx  = CTRL_CXS[2] + 4.0 * math.cos (math.radians (_ang))
     _rz  = ICON_CZ + 4.0 * math.sin (math.radians (_ang))
 
-    _sun.append (ridge_box (_rx, _rz, RIDGE_W, 1.6, 90.0 - _ang).val())
+    _sun.append (ridge_box (_rx, _rz, REAR_RIDGE, 1.6, 90.0 - _ang).val())
 
 m.add ("icon_sun", _relief (cq.Workplane (obj=cq.Compound.makeCompound (_sun))),
        PANEL_GRAY, angular=CORNER_ANG)
@@ -773,7 +840,7 @@ m.add ("icon_sun", _relief (cq.Workplane (obj=cq.Compound.makeCompound (_sun))),
 video = cq.Workplane (obj=cq.Compound.makeCompound ([
     ridge_frame (RCA_CX, ICON_CZ, ICON_S, ICON_S, BOX_R).val(),
     ridge_frame (RCA_CX - 0.7, ICON_CZ, CRT_W - 1.4, CRT_H, 1.6).val(),
-    ridge_box (RCA_CX + 3.2, ICON_CZ, 4.2, RIDGE_W).val(),
+    ridge_box (RCA_CX + 3.2, ICON_CZ, 4.2, REAR_RIDGE).val(),
     ridge_tri (RCA_CX + 0.6, ICON_CZ, 2.4, 1.5, 90.0).val(),
 ]))
 
