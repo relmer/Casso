@@ -6,10 +6,25 @@
 [![Downloads](https://img.shields.io/github/downloads/relmer/Casso/total)](https://github.com/relmer/Casso/releases)
 -->
 
-Casso is a retro / classic-machine platform emulator and a from-scratch
-AS65-compatible 6502 / 65C02 assembler, written in C++. Today it emulates the
-Apple II family — ][, ][+, //e, //e Enhanced, and **//c** — with the
-abstractions kept generic enough to host other 6502 machines later.
+Casso is a retro platform emulator, 6502/65C02 assembler, and disk manager,
+written in C++ with hardware-accelerated DirectX rendering and a multithreaded
+core.
+
+*It's your retro Swiss Army knife.*
+
+Today it emulates the Apple II family:
+
+- Apple ][
+- Apple ][+
+- Apple //e
+- Apple //e Enhanced
+- Apple //c
+
+On the horizon:
+
+- Apple IIgs
+- Atari 400/800
+- Commodore VIC-20, 64
 
 Two of the three built-in themes booting the
 [casso-rocks demo disk](Apple2/Demos), same Apple //e core, different chrome:
@@ -18,6 +33,18 @@ Two of the three built-in themes booting the
   <td valign="top" width="50%"><img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="100%" /></td>
   <td valign="top" width="50%"><img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="100%" /></td>
 </tr></table>
+
+`CassoCli` accelerates the development loop: a full 6502/65C02 assembler, disk
+management, headless execution, and it launches the GUI with a machine and
+disks already selected.
+
+- **Assembler** — from-scratch implementation
+  - AS65-compatible command line and directives
+  - Merlin's absolute subset; relocatable assembly arrives with the linker ([#112](https://github.com/relmer/Casso/issues/112))
+  - ca65 next, more on request
+- **Disk management** — `.woz`, `.dsk`, `.do` and `.po` containers
+  - Create, initialize, catalog, read and write files, logical or physical
+    sectors, and ProDOS blocks
 
 ## Contents
 
@@ -226,7 +253,7 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do`, `.po` and `.nib` images all mount. Casso can **create
+`.woz`, `.dsk`, `.do` and `.po` images all mount. Casso can **create
 blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK
 and PO, optionally bootable from the stock masters — and a created disk is
 usable immediately, with no `INIT` step.
