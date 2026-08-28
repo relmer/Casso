@@ -432,12 +432,12 @@ CassoCli as65 input.a65c -x -ooutput.bin
 CassoCli merlin SOURCE.S
 CassoCli merlin SOURCE.S -o OBJECT
 
-# Assemble and run in one step. `run` assembles as AS65 by default; --merlin
-# reads the source as Merlin instead.
-CassoCli run input.a65
+# Assemble and run in one step. `run` names its assembler for the same reason
+# assembling does -- a source with neither flag is refused, not guessed at.
+CassoCli run input.a65 --as65
 CassoCli run PROG.S --merlin
 
-# Run a pre-assembled binary at a chosen address
+# A binary names no assembler, because none reads it
 CassoCli run output.bin --load $8000
 ```
 

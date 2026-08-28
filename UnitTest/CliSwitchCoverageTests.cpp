@@ -269,17 +269,17 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.fillByte == 0xEA; },
               "--fill sets the byte unwritten memory holds" },
 
-            { "run", "warn", { "CassoCli", "run", "p.a65", "--warn" },
+            { "run", "warn", { "CassoCli", "run", "p.a65", "--as65", "--warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::Warn; },
               "--warn asks for warnings, which is also the default" },
 
-            { "run", "no-warn", { "CassoCli", "run", "p.a65", "--no-warn" },
+            { "run", "no-warn", { "CassoCli", "run", "p.a65", "--as65", "--no-warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::NoWarn; },
               "--no-warn silences them" },
 
-            { "run", "fatal-warnings", { "CassoCli", "run", "p.a65", "--fatal-warnings" },
+            { "run", "fatal-warnings", { "CassoCli", "run", "p.a65", "--as65", "--fatal-warnings" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::FatalWarnings; },
               "--fatal-warnings promotes them to errors" },

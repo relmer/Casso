@@ -528,6 +528,7 @@ private:
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
+    static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);
     static void  RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options);
 
     static bool  ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options);

@@ -27,7 +27,9 @@ the modern conveniences are opt-in.
 ```
 CassoCli as65 <source> [flags]         assemble as65 syntax
 CassoCli merlin <source> [flags]       assemble Merlin syntax
-CassoCli run <binary | source> [opts]  assemble-and-run, or run a binary
+CassoCli run <binary> [opts]           run a binary
+CassoCli run <source> --as65|--merlin [opts]
+                                       assemble under the named dialect, then run
 CassoCli --help | -?
 CassoCli --version
 ```
@@ -178,15 +180,19 @@ the one that does not.
 `run` takes either a binary or a source file. Given source, it assembles first
 and runs the result, no intermediate file.
 
-**`run` names its assembler.** `--as65` (the default) or `--merlin` decides which
-dialect reads a source; the flag is ignored for a binary, which needs no
-assembler at all. After it, that assembler's own switches are accepted for the
-ones that change what is assembled. The rest describe a file `run` never
-writes.
+**`run` names its assembler, and a source must name one.** `--as65` or
+`--merlin` decides which dialect reads a source. There is no default: which
+assembler reads a file decides what the file means, so a source given with
+neither flag is refused rather than assembled under a guess, exactly as the
+bare `CassoCli input.a65` form was. A binary is unaffected — it needs no
+assembler, so there is nothing to name.
+
+After the dialect, that assembler's own switches are accepted for the ones that
+change what is assembled. The rest describe a file `run` never writes.
 
 | Option | Meaning |
 |---|---|
-| `--as65` | Assemble the source as AS65. **Default.** Takes `-x` and `-d` as well. |
+| `--as65` | Assemble the source as AS65. Takes `-x` and `-d` as well. |
 | `--merlin` | Assemble the source as Merlin. Takes `-d` as well. Merlin selects its CPU in the source, with `XC`. |
 | `-x` | The 65C02, as in AS65 mode. `--as65` only. |
 | `-d <name>[=<value>]` | Define a symbol, as in the assembler's own mode. |
@@ -288,7 +294,7 @@ CassoCli as65 input.a65c -x -o output.bin
 Assemble and run in one step, stopping at a known address:
 
 ```powershell
-CassoCli run input.a65 --stop $8010
+CassoCli run input.a65 --as65 --stop $8010
 ```
 
 Run a pre-assembled binary at a chosen address, bounded by a cycle budget:

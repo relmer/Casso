@@ -709,7 +709,10 @@ void CommandLine::PrintRunPage (char prefix)
     PrintPageBanner (CommandLineOptions::Subcommand::Run);
     std::println (s_pUsageStream, "");
     PrintUsageLine ("  <binary>   An assembled image to load and execute.");
-    PrintUsageLine ("  <source>   An assembly source file to assemble and then execute.");
+    PrintUsageLine ("  <source>   An assembly source file to assemble and then execute. Name the assembler,");
+    PrintUsageLine (std::format ("             {} or {}.",
+                                 CommandLineParser::FormatLongOption ("--as65", prefix),
+                                 CommandLineParser::FormatLongOption ("--merlin", prefix)));
 
     PrintSectionHeading ("Run options");
 
@@ -724,14 +727,20 @@ void CommandLine::PrintRunPage (char prefix)
     //  The two dialects get a row each rather than sharing one, because what
     //  differs between them is which assembler options come along -- and that
     //  belongs beside the name that admits them.
-    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65 (the default). Allows AS65 {}x and {}d.",
+    //
+    //  One of them is REQUIRED for a source input, and the line above says so
+    //  where the reader meets <source>, rather than here where they would have
+    //  to notice that neither row claims to be the default.
+    PrintUsageLine (std::format ("  {:<22} Assemble the source as AS65. Allows AS65 {}x and {}d.",
                                  CommandLineParser::FormatLongOption ("--as65", prefix), sp, sp));
     PrintUsageLine (std::format ("  {:<22} Assemble the source as Merlin. Allows {}d; the CPU comes from the source's XC directive.",
                                  CommandLineParser::FormatLongOption ("--merlin", prefix), sp));
 
     PrintSectionHeading ("Examples");
-    PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}stop $6010 {0}max-cycles 10000", lp));
-    PrintUsageLine ("      Assembles prog.a65, loads it at $8000, and runs until the PC reaches $6010 or ten thousand cycles have passed, whichever comes first.");
+    PrintUsageLine (std::format ("  CassoCli run prog.a65 {0}as65 {0}stop $6010 {0}max-cycles 10000", lp));
+    PrintUsageLine ("      Assembles prog.a65 as AS65, loads it at $8000, and runs until the PC reaches $6010 or ten thousand cycles have passed, whichever comes first.");
+    PrintUsageLine (std::format ("  CassoCli run prog.bin {0}load $8000", lp));
+    PrintUsageLine ("      Loads an already-assembled binary at $8000 and runs it. A binary names no assembler, because none reads it.");
 
     PrintExitCodes (std::string (CommandLineParser::kRunExitStatusHelpText));
 }

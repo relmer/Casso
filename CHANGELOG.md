@@ -8,6 +8,27 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Changed
+- **`run` no longer assembles a source under an assembler nobody named.**
+  `CassoCli run prog.a65` picked as65, which is the same guess the bare
+  `CassoCli prog.a65` form was removed for in 1.18.0: which dialect reads a
+  file decides what the file means, so the same text assembles two ways, or
+  assembles one way and fails the other. A source now names `--as65` or
+  `--merlin`, and one given with neither is refused, naming both flags, with
+  exit status 2. **This changes behavior scripts may depend on:** a `run`
+  invocation written before this that passed a source and no dialect flag now
+  fails instead of assembling as65. Add `--as65` to keep what it did. A binary
+  is unaffected -- it needs no assembler, so there is nothing to name, and
+  `run prog.bin` is unchanged.
+
+### Fixed
+- **`run` diagnostics quoted flags back in the wrong convention.** The grammar
+  canonicalizes `/max-cycles` to `--max-cycles` before matching it, and the
+  prefix was read after that, so it was always a dash: a reader working in the
+  Windows convention was answered in the Unix one, including by the
+  diagnostics that tell them what to type instead. The prefix is now taken from
+  the argument as typed.
+
 ## [1.20.1]: The one with logical or physical sector addresses
 
 ### Fixed
