@@ -139,6 +139,26 @@ shipped, and their opcode slots behave as NOPs.
 
 > The three warning flags are accepted but are not yet listed in `--help`.
 
+### Optimization
+
+| Flag | Meaning |
+|---|---|
+| `-n` | Disable optimizations. Permanent: an `OPT` later in the source cannot turn them back on. |
+
+Optimization is **on by default**, as it is in AS65, and there is one of them:
+under `-x`, a `JMP` to an address the assembler has already seen is emitted as
+a two-byte `BRA` when the target is within a branch's reach. The target must
+already be defined — a forward reference stays a three-byte `JMP` — and the
+displacement must fit in a signed byte, so `JMP` is still what you get across a
+long file. Without `-x` there is no `BRA` to emit and nothing changes.
+
+`NOOPT` turns the substitution off from that line on, `OPT` turns it back on,
+and `-n` outranks both.
+
+With `-c`, a substituted line reports the branch's timing rather than the
+jump's: `BRA` is three cycles, and four when the branch crosses a page
+boundary. `JMP` absolute is always three.
+
 ### Accepted but not yet implemented
 
 Both are parsed and then read by no code, so passing them changes nothing.
@@ -148,11 +168,7 @@ They exist so an AS65 invocation is not refused outright. Tracked by
 | Flag | AS65 behavior | Casso today |
 |---|---|---|
 | `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored: and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
-| `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 | `-h <lines>` | Listing page height; `0` disables pagination. | Accepted, ignored. The listing is not paginated at all. |
-
-`OPT` and `NOOPT` are likewise accepted and ignored as directives, so there is
-currently nothing for `-n` to switch off.
 
 ---
 
@@ -241,6 +257,7 @@ would benefit from a concrete case to be designed against.
 | Numbers | `$FF` hex, `%10101010` binary, `255` decimal |
 | Expressions | `+ - * / % & \| ^ ~ << >>`, `<label` low byte, `>label` high byte, `*` current PC |
 | Listing control | `.page` is accepted and acts at listing time |
+| Optimization control | `OPT` and `NOOPT` switch the `JMP`-to-`BRA` substitution on and off; see [Optimization](#optimization) |
 | Case | Mnemonics, directives and instruction aliases are matched case-insensitively in **both** dialects; **labels are case-sensitive**. The asymmetry is deliberate: period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. A label written `lda` stays legal, and is warned about rather than refused. |
 
 ---

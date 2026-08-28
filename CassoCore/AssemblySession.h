@@ -75,6 +75,20 @@ struct LineInfo
     // leave pass 2 emitting against a table pass 1 never used, surfacing as a
     // byte mismatch arbitrarily far from its cause.
     bool             usedExtendedSet = false;
+
+    // Whether this line was written as an absolute jump and sized as a relative
+    // branch. as65 substitutes one for the other when optimization is on, the
+    // extended set is active, and the target is already known and near enough
+    // to reach, so the line is two bytes instead of three.
+    //
+    // THE DECISION IS RECORDED, not the state that fed it, and that is the
+    // usedExtendedSet rule applied rather than bent. Pass 2 must encode the line
+    // exactly as pass 1 sized it, and it cannot re-derive the decision even in
+    // principle: the deciding question is whether the target was defined YET,
+    // and by pass 2 every symbol is defined. Recording only "optimization was
+    // on here" would leave pass 2 recomputing the half of the answer it can no
+    // longer see.
+    bool             jumpOptimizedToBranch = false;
 };
 
 
@@ -222,6 +236,11 @@ private:
     // Recognized, and deliberately does nothing in pass 1 (.OPT_NOOP is
     // accepted for as65 source compatibility; .PAGE acts at listing time).
     HRESULT IgnorePass1Directive (const PendingLine & current, LineInfo & info);
+
+    // OPT and NOOPT, one handler reading its own token. Two handlers would be
+    // one flag written from two places, which is how the two spellings end up
+    // disagreeing about what they toggle.
+    HRESULT HandlePass1OptimizeControl (const PendingLine & current, LineInfo & info);
 
     HRESULT EmitTextDirective     (const LineInfo & info, Word & emitPC);
     HRESULT EmitStringDirective   (const LineInfo & info, Word & emitPC);
@@ -467,6 +486,25 @@ private:
                                                                  const std::string & mnemonic,
                                                                  int32_t value, bool resolved) const;
 
+    // Whether an absolute jump may be emitted as an always-taken branch
+    // instead. All four of as65's conditions, and no fifth of our own.
+    bool CanReplaceJumpWithBranch (const LineInfo & info,
+                                   GlobalAddressingMode::AddressingMode mode,
+                                   int32_t value, bool resolved) const;
+
+    // The mnemonic a line is ENCODED as, which is the one it was written with
+    // unless pass 1 substituted the branch. Both the emitter and the listing ask
+    // through here, so the bytes and the cycle count cannot describe different
+    // instructions.
+    static std::string EncodedMnemonic (const LineInfo & info);
+
+    // The always-taken branch an absolute jump is replaced by, and the jump it
+    // replaces. Named once because more than one place has to agree on them --
+    // and JSR carries the same addressing mode as JMP, so the mode alone does
+    // not identify the instruction that may be rewritten.
+    static constexpr const char *  kBranchAlwaysMnemonic = "BRA";
+    static constexpr const char *  kJumpMnemonic         = "JMP";
+
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);
 
@@ -585,6 +623,17 @@ private:
     const InstructionSetProvider  & m_instructionSets;
     const OpcodeTable             * m_opcodeTable;
     bool                            m_extendedActive = false;
+
+    // Whether the emitted-code optimizations are on right now. ON at the start
+    // of an assembly unless the command line disabled them, and toggled by
+    // OPT / NOOPT as pass 1 walks the source. Seeded in the constructor rather
+    // than here, because the answer comes from the options.
+    //
+    // The command-line switch is PERMANENT: an OPT in the source cannot turn
+    // optimization back on after it. That is why the switch is re-read where
+    // OPT is applied instead of only seeding this once -- seeding alone would
+    // let the first OPT undo it.
+    bool                            m_optimizeEnabled;
 
     const AssemblerOptions & m_options;
 

@@ -137,7 +137,7 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "n",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::AssembledCode, "",
-            "Disable optimizations; NYI. Tracked at https://github.com/relmer/Casso/issues/118" },
+            "Disable optimizations, even where the source says OPT" },
 
     { "o",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOrSeparate,
             nullptr,
@@ -2695,11 +2695,10 @@ void CommandLineParser::ApplyAs65Flag (const DialectFlag * flag,
     }
     else if (option == "i" || option == "n")
     {
-        //  Accepted and recorded nowhere. `-i` asks for case-insensitive
-        //  opcodes, which this assembler does unconditionally; `-n` is not
-        //  implemented, and its help says where that is tracked. Both must
-        //  parse, because an as65 command line carrying either is a command
-        //  line this mode exists to accept.
+        //  `-i` asks for case-insensitive opcodes, which this assembler does
+        //  unconditionally, so it is recorded nowhere. `-n` disables the
+        //  emitted-code optimizations for the whole assembly and outranks an
+        //  OPT in the source; the session reads it where OPT is applied.
         if (option == "n")
         {
             options.disableOpt = true;
