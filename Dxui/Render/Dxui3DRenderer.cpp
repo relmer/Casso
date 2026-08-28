@@ -309,6 +309,20 @@ static const char s_kPixelShaderSrc[] =
     "                float  lvis = 1.0f;\n"
     "                if (lampShadowParm.x > 0.0f && emit * recv > 0.0f)\n"
     "                {\n"
+    // OUTSIDE THIS LAMP'S FRUSTUM IS UNLIT, which is the opposite of the rule
+    // the room lights use a few lines up -- and both are right. A room light's
+    // frustum covers the whole scene, so a point falling outside it means
+    // nothing was in the way. A lamp's frustum is a narrow cone covering only
+    // its own reach, so falling outside it means the point is not in the beam
+    // at all.
+    //
+    // Treating the two the same is what let the Monitor II's power notch take
+    // full lamp light on surfaces the button stands squarely in front of: the
+    // lookup landed off the map, and off the map read as nothing in the way.
+    // The tell was that changing the shadow bias moved nothing there while it
+    // moved plenty elsewhere -- a lookup that never happened cannot care what
+    // its bias is.
+    "                    lvis = 0.0f;\n"
     "                    float4 lc = mul (float4 (input.wp, 1.0f), lampShadow);\n"
     "                    if (lc.w > 0.0f)\n"
     "                    {\n"
