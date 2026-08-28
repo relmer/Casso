@@ -471,16 +471,44 @@ def vent_face(wp):
 # apron's end face and the pocket's wall were coplanar, and a coplanar
 # joint between separate solids renders as a black slit wherever the eye
 # lines up with it. Overlap is what a one-piece molding actually is.
+# ONE WIDTH FOR THE WHOLE REAR. Every opening back here -- the vent recess,
+# the control panel -- is exactly this wide and starts at exactly this x, so
+# the dark column's edges are ONE STRAIGHT LINE from the vents to the
+# receptacle. The previous rear had three widths within six millimeters of
+# each other (recess 216, molding 222, panel 215) and every pair of them
+# drew a step where they met.
+#
+# The dark MOLDING runs DARK_BLEED wider on each side than the openings, so
+# the material around an opening's walls is dark too -- but it is the same
+# bleed above and below, so it moves the column's edge without bending it.
+DARK_X0   = BELL_CX - COL_HW
+DARK_W    = COL_HW * 2.0
+DARK_BLEED = 3.0
+
+# THE BELL, needed here rather than where it is added: the pocket's bottom
+# is CUT BY THE BELL ITSELF, so the recess ends exactly on the bell's
+# contour. Every hand-picked bottom height left either a sliver of rim
+# showing across the bell or a wall hanging below it beside the bell --
+# there is no single height that does both, because the bell's top is a
+# slanted line and a pocket floor is a plane. Cutting with the part removes
+# the choice.
+_bell_solid = cq.Solid.makeLoft ([
+    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 180.0, 5.0),
+    round_rect_wire (D + BELL_BACK, BELL_CX - 98.0, BELL_CX + 98.0, 95.0, 150.0, 4.0),
+])
+
+
 def _pocket_cutter(zshift):
     return vent_face (
         cq.Workplane ("XY")
-          .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
+          .box (DARK_W, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
                 centered=(False, False, False))
           .edges ("|Y").fillet (6.0)
           .union (cq.Workplane ("XY")
-                    .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, 20.0,
+                    .box (DARK_W, VENT_IN_BOT + 80.0, 20.0,
                           centered=(False, False, False)))
-          .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0 + zshift)))
+          .translate ((DARK_X0, D - VENT_IN_BOT, PKT_Z0 + zshift))
+          .cut (cq.Workplane (obj=_bell_solid)))
 
 
 case = case.cut (_pocket_cutter (0.0))
@@ -552,8 +580,8 @@ case = case.cut (
 # plate -- the real panel is its own molding, a shade off the case around it.
 # The pocket is cut here; the plate itself is a separate part below, and the
 # icons engrave into the plate rather than the case.
-PANEL_W   = COL_HW * 2.0 - 1.0        # the dark column, nothing past it
-PANEL_X0  = BELL_CX - PANEL_W * 0.5
+PANEL_W   = DARK_W                    # THE SAME WIDTH as the vent recess
+PANEL_X0  = DARK_X0                   # ...and the same left edge
 PANEL_Z0  = 16.0
 PANEL_Z1  = STRIP_TOP                 # to the hinge, meeting the liner
 PANEL_IN  = 2.0                       # the pocket
@@ -707,17 +735,29 @@ case = case.cut (cq.Workplane ("XY")
 # The region: the pocket, inflated three millimeters so the intersection
 # keeps a wall-following shell of material around it, unioned with a slab
 # lying under the slope from the hinge up past the rim, column-wide.
+_mold_x0 = DARK_X0 - DARK_BLEED
+_mold_w  = DARK_W + DARK_BLEED * 2.0
+
 _molding_region = (
+    # the vent recess, with the bleed around its walls
     vent_face (
         cq.Workplane ("XY")
-          .box (COL_HW * 2.0 + 6.0, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + 6.0,
+          .box (_mold_w, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + 6.0,
                 centered=(False, False, False))
-          .translate ((BELL_CX - COL_HW - 3.0, D - VENT_IN_BOT - 3.0, PKT_Z0 - 3.0)))
+          .translate ((_mold_x0, D - VENT_IN_BOT - 3.0, PKT_Z0 - 3.0)))
+      # the slope between the recess and the hinge
       .union (tilt_rear (
           cq.Workplane ("XY")
-            .box (COL_HW * 2.0, 3.5, (PKT_Z0 - STRIP_TOP) + 12.0,
+            .box (_mold_w, 6.0, (PKT_Z0 - STRIP_TOP) + 14.0,
                   centered=(False, False, False))
-            .translate ((BELL_CX - COL_HW, D - 3.3, STRIP_TOP)))))
+            .translate ((_mold_x0, D - 5.8, STRIP_TOP - 2.0))))
+      # ...and on down the vertical strip, over the control panel, so the
+      # column is one dark run from the vents to the receptacle
+      .union (
+          cq.Workplane ("XY")
+            .box (_mold_w, 34.0, (STRIP_TOP - PANEL_Z0) + 6.0,
+                  centered=(False, False, False))
+            .translate ((_mold_x0, D - 30.0, PANEL_Z0 - 3.0))))
 
 m.add ("rear_molding", case.intersect (_molding_region), PANEL_GRAY, angular=CORNER_ANG)
 
@@ -779,10 +819,7 @@ BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
 # meets the surface but the highest point of its whole silhouette -- the
 # buried front section's top edge, which projects over the band however
 # far back the actual emergence sits.
-bell = cq.Solid.makeLoft ([
-    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 180.0, 5.0),
-    round_rect_wire (BELL_REAR_Y, BELL_CX - 98.0, BELL_CX + 98.0, 95.0, 150.0, 4.0),
-])
+bell = _bell_solid
 
 m.add ("bell", cq.Workplane (obj=bell), BELL_GRAY, angular=CORNER_ANG)
 
@@ -887,6 +924,7 @@ panel = (cq.Workplane ("XY")
                centered=(False, False, False))
          .edges ("|Y").fillet (3.6)
          .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
+
 
 # ...and FLUSH where it meets the hinge. PANEL_SET holds the plate a third
 # of a millimeter behind the case face, which is the recessed look the
