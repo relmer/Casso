@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "GuestSession.h"
 #include "HeadlessHost.h"
 #include "FixtureProvider.h"
 #include "Devices/Disk/WozLoader.h"
@@ -27,6 +28,22 @@ namespace fs = std::filesystem;
 //  rendered" checks -- detecting that requires a frame grabber. The
 //  multi-track signal is enough to catch the regressions Phase A/B/C
 //  guard against and to flag genuine boot stalls.
+//
+//  THE CHEAP QUESTIONS COME FIRST, and here they are the weak ones on purpose.
+//  A boot the guest cannot make sense of spends the whole cycle budget below
+//  executing data, and this build writes an instruction look-back for every
+//  illegal opcode it reaches -- a failure mode that has twice filled a disk and
+//  killed a run. So before any processor starts, the loaded image is asked
+//  whether it is holding at least as many written tracks as the case is about
+//  to require the head to visit, and whether track 0 carries address fields at
+//  all.
+//
+//  IT IS NOT ASKED FOR ITS BOOT SECTOR, and that is a limit of our reader, not
+//  of these disks. `Denibblize` recovers zero sectors from track 0 of all three
+//  titles here, every one of which the controller ROM boots perfectly: it
+//  abandons a track at the first sector whose data field it cannot find, and a
+//  protection that rewrites data prologues puts one of those in its way inside
+//  the first revolution. Measured, not assumed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,6 +205,8 @@ public:
 
         core.diskController->SetExternalDisk (kDrive1, external);
 
+        GuestSession::AssertTheDriveHoldsWrittenTracks (*external, minTracks, label);
+
         core.bus->WriteByte (kIntCxRomOff, 0);
 
         core.cpu->SetPC (kBootRomEntry);
@@ -296,6 +315,8 @@ public:
             Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
 
             core.diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
+
+            GuestSession::AssertTheDriveHoldsWrittenTracks (*internal, minTracks, label);
 
             // Cold-boot: firmware runs the RAM test then autoboots the slot-6
             // IWM. No forced $C600 entry -- this is the real //c boot path.

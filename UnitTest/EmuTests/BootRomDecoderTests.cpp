@@ -72,10 +72,10 @@ public:
 
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
-        // .dsk physical layout: track N sector N starts at offset
-        // (track * 16 + sector_physical) * 256. The DOS 3.3 to-physical
-        // map kDsk_LtoP starts with logical 0 -> physical 0, so DOS
-        // logical sector 0 of track 0 lives at file offset 0.
+        // A .dsk holds its sectors in DOS logical order: logical sector S of
+        // track T starts at file offset (T * 16 + S) * 256. The DOS 3.3
+        // interleave maps physical 0 to logical 0, so the sector the boot ROM
+        // reads first is the one at file offset 0 either way.
         for (i = 0; i < kSectorBytes; i++)
         {
             raw[i] = patternFn (i);

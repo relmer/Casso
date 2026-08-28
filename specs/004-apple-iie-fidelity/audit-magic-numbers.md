@@ -1,7 +1,7 @@
-# T131 — Magic-number audit (new files only)
+# T131: Magic-number audit (new files only)
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T131
-**Constitution**: §I 1.4.0 — "No magic numbers — all numeric literals must be
+**Constitution**: §I 1.4.0, "No magic numbers, all numeric literals must be
 named constants with clear intent. Exceptions: 0, 1, -1, `nullptr`, and
 `sizeof` expressions."
 **Audit date**: Phase 16
@@ -15,7 +15,7 @@ optional `U`/`L`/`F`/`f`/`u`/`ULL` suffix). Skip:
 - The constitutional exemptions (`0`, `1`, `-1`, `0.0`, `1.0`,
   `nullptr`, `sizeof(...)`)
 - Right-hand sides of named-constant declarations (`static constexpr`,
-  `const`, `#define`) — these literals **define** the named constant.
+  `const`, `#define`), these literals **define** the named constant.
 - Enum bodies (`kFoo = 0x10,`).
 - Aggregate initializer rows (`{0xFF, 0x00, …}`).
 - Microsoft test attribute macros (`TEST_OWNER`, `TEST_PRIORITY`,
@@ -57,14 +57,14 @@ This establishes that bit-mask hex literals (`0xFF`, `0xFF00`, `0x80`,
 `>> 8`, `<< 16`, `>> 24`) are **accepted as universal C bit-twiddle
 idioms** under the project's interpretation of the constitution. Were
 these treated strictly as magic numbers, the entire pre-existing `Cpu.cpp`
-(and every assembler/disassembler module) would also be flagged — this is
+(and every assembler/disassembler module) would also be flagged; this is
 not the project's working interpretation.
 
 ### Domain-specific literals confirmed as named constants
 
-For literals that are *not* universal bit-twiddle idioms — disk-format
+For literals that are *not* universal bit-twiddle idioms (disk-format
 sizes, address-space landmarks, track/sector counts, 6502 vectors, etc.
-— spot inspection of the new files confirms each is defined via
+) spot inspection of the new files confirms each is defined via
 `static constexpr` at file top before first use:
 
 - `Cpu6502.h`: `kStatusBreakBit = 0x10`, `kStatusAlwaysOneBit = 0x20`,
@@ -88,13 +88,13 @@ sizes, address-space landmarks, track/sector counts, 6502 vectors, etc.
 - `PerformanceTests.cpp`: `kPerfMeasureCycles`, `kPerformanceCeilingMs`,
   `kStabilityRunCount`, `kStabilityToleranceFraction`.
 
-The audit confirms that for every domain-specific magnitude — hardware
+The audit confirms that for every domain-specific magnitude (hardware
 addresses, ROM sizes, cycle counts beyond 6502-spec defaults, video
-geometry, disk format sizes — a named constant exists.
+geometry, disk format sizes) a named constant exists.
 
 ## Verdict
 
-**PASS** — 0 magic-number violations under the project's working
+**PASS**, 0 magic-number violations under the project's working
 interpretation of Constitution §I 1.4.0. Universal C bit-twiddle masks
 and byte-boundary shift counts are exempt by project precedent (matches
 master). Domain-specific literals are all bound to named constants in

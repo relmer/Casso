@@ -11,7 +11,7 @@ added and what is guaranteed untouched.
 These are pinned by `UnitTest/CommandLineTests.cpp`, which spec 020 is also
 developing against. Breaking any of them breaks that session too.
 
-- `CassoCli run …` — untouched.
+- `CassoCli run …`: untouched.
 - Every existing AS65 flag, its spelling, its concatenation rules, and its
   defaults.
 - Both flag prefixes: the parser records which one the user typed and echoes it
@@ -28,7 +28,7 @@ developing against. Breaking any of them breaks that session too.
 CassoCli as65 <source> [options]
 ```
 
-FR-001 requires an **explicit** selection of AS65, and there was none — AS65 was
+FR-001 requires an **explicit** selection of AS65, and there was none, AS65 was
 reachable only by inference, through the fallback heuristic. That is a gap in the
 contract, not a stylistic one: without it, "the assembler accepts an explicit
 dialect selection covering AS65 and Merlin" is half true.
@@ -40,8 +40,8 @@ and is already where the fallback landed.
 
 ### The unrecognized-first-argument fallback
 
-`CassoCli input.a65 -o out.bin` — treating an unrecognized first argument as a
-source filename — **is removed** (GitHub issue #92). The replacement is
+`CassoCli input.a65 -o out.bin`, treating an unrecognized first argument as a
+source filename, **is removed** (GitHub issue #92). The replacement is
 `CassoCli as65 input.a65 -o out.bin`.
 
 This is a **breaking change to the most common existing invocation**, taken as a
@@ -50,7 +50,7 @@ follow from it, and neither is optional:
 
 - **`UnitTest/CommandLineTests.cpp` changes.** It pins the fallback's behavior,
   and spec 020 is developing against that same file with 384 lines in flight
-  across the shared command-line surface. **020 merges first**, then this lands —
+  across the shared command-line surface. **020 merges first**, then this lands,
   the session holding unmerged work does not resolve around the other's edit. The
   deeper reason is not conflict: 020 adds `disk` to `s_kSubcommands`, and that
   table is what decides which bare words reach the fallback, so removing it
@@ -67,7 +67,7 @@ follow from it, and neither is optional:
 - **A prominent `CHANGELOG.md` entry**, under breaking changes rather than inside
   the feature announcement. A script that has invoked Casso this way for its whole
   life will stop working, and the error it gets must name the replacement rather
-  than print usage — a bare "unknown argument" turns a one-line fix into a
+  than print usage, a bare "unknown argument" turns a one-line fix into a
   bisect.
 
 The removal is only *possible* because `as65` now exists: the heuristic cannot be
@@ -82,7 +82,7 @@ CassoCli merlin <source> [options]
 
 A bare word matching the `run` precedent, not a `--merlin` flag. Implemented as
 one row in the subcommand table, one enumerator, one arm in `Parse`, and one
-flag parser — the additive shape the table was made data for.
+flag parser, the additive shape the table was made data for.
 
 ### Flags
 
@@ -95,21 +95,21 @@ flag parser — the additive shape the table was made data for.
 | `--cpu <target>` | **Refused.** Merlin selects its CPU in source; the message names that directive. |
 
 `--cpu` is refused rather than ignored because a flag that is accepted and does
-nothing is worse than one that errors — and because accepting extended opcodes
+nothing is worse than one that errors, and because accepting extended opcodes
 without the in-source directive would assemble source real Merlin rejects,
 violating FR-005.
 
 ## Dialect reporting
 
-Both halves of SC-005 — the dialect **and** the CPU target — are covered.
+Both halves of SC-005, the dialect **and** the CPU target, are covered.
 
 | Situation | Where reported |
 |---|---|
-| Dialect stated by subcommand | Nowhere — the invocation is the record |
+| Dialect stated by subcommand | Nowhere, the invocation is the record |
 | Dialect defaulted (caller set none), `-v` given | stderr |
 | Dialect defaulted, listing produced | Listing header |
 | Dialect defaulted, neither `-v` nor a listing | Not reported; discoverable, not unconditionally emitted |
-| CPU stated by `--cpu` | Nowhere — the invocation is the record |
+| CPU stated by `--cpu` | Nowhere, the invocation is the record |
 | CPU selected in source, `-v` given | stderr |
 | CPU selected in source, listing produced | Listing header |
 | CPU left at the dialect's default | Reported wherever the dialect is, so "no directive was seen" is not read as "the flag was ignored" |
@@ -119,7 +119,7 @@ and it must never mean printed on stdout.
 
 The three "defaulted" rows survived the fallback's removal but changed what
 triggers them. They no longer describe the CLI guessing from an unrecognized
-argument — that path is gone, and via the command line the dialect is now always
+argument; that path is gone, and via the command line the dialect is now always
 stated. They describe a **caller** that set no dialect and took
 `AssemblerOptions`' AS65 default, which FR-006 makes reachable from entry points
 that are not the command line. Deleting the rows along with the heuristic would
@@ -153,7 +153,7 @@ do today.
 ## Subset-boundary refusals
 
 Distinguishable from syntax errors, and all of them reported in one pass rather
-than stopping at the first — so the scale of the gap is visible at once. Each
+than stopping at the first, so the scale of the gap is visible at once. Each
 names the construct and the reason, and never surfaces as an unknown-directive
 error.
 
@@ -164,9 +164,9 @@ no per-subcommand knowledge of what a number means.
 
 | Code | Meaning |
 |---|---|
-| 0 | Clean — assembled, no complaints |
-| 1 | Succeeded with complaints — assembled, but warnings were emitted |
-| 2 | No output — assembly failed, including every subset-boundary refusal |
+| 0 | Clean: assembled, no complaints |
+| 1 | Succeeded with complaints: assembled, but warnings were emitted |
+| 2 | No output: assembly failed, including every subset-boundary refusal |
 
 This matches the existing assembler path (`0` clean, `1` warned, `2` no output).
 The `run` path extends the same vocabulary with `3` for an illegal opcode, which

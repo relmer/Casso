@@ -15,6 +15,7 @@
 static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
 {
     CommandLineParser::FlagCategory::AssembledCode,
+    CommandLineParser::FlagCategory::OutputFormat,
     CommandLineParser::FlagCategory::Listing,
     CommandLineParser::FlagCategory::Debug,
     CommandLineParser::FlagCategory::General,
@@ -40,7 +41,7 @@ static constexpr CommandLineParser::FlagCategory  s_kCategoryOrder[] =
 
 std::string DialectHelp::GetAllDialects (char flagPrefix)
 {
-    std::string  text = "\nDialects -- the assembler the source is written for, named rather than guessed:\n";
+    std::string  text = "\nDialects (the assembler the source is written for, named rather than guessed):\n";
 
 
 
@@ -112,16 +113,21 @@ std::string DialectHelp::GetDialectFlags (const DialectProfile & profile, char f
 //
 //  A dialect's own flags, from the same table its parser walks.
 //
-//  A dialect whose grammar is not table-driven contributes nothing here, which
-//  is why an empty span is a legitimate answer rather than a missing case: the
-//  AS65 grammar is a hand-rolled walk over a historical command line, and its
-//  flag reference is printed from where that walk lives.
+//  BOTH DIALECTS FEED THIS NOW. AS65's grammar resisted a table only while a
+//  row was a single character -- `-s2` is not `-s` followed by `2` -- and an
+//  option matched as a STRING, longest first, settled that. An empty span is
+//  still a legitimate answer, for a dialect that adds no flags of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
 {
-    constexpr size_t                                      kDescriptionColumn = 25;
+    //  Wide enough for the longest rendered flag plus a real gutter. as65's
+    //  `-d[<name>[=<value>]]` is 20 characters at an indent of 4, and a row
+    //  that reaches the description column with one space left has no gutter
+    //  for the wrapper to find -- so its continuation fell back to the left
+    //  margin instead of lining up under the text it continues.
+    constexpr size_t                                      kDescriptionColumn = 27;
     std::span<const CommandLineParser::DialectFlag>       flags              = CommandLineParser::GetFlags (dialect);
     std::span<const CommandLineParser::OutputFormatFlag>  formats            = CommandLineParser::GetOutputFormats (dialect);
     std::string                                           text;
@@ -143,26 +149,39 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
                 continue;
             }
 
-            rendered = std::string ("    ") + flagPrefix + flag.letter;
+            rendered = std::string ("    ") + flagPrefix + flag.option;
 
-            // An OPTIONAL value attaches or is absent -- there is no separated
-            // form to write -- so it is shown joined to its flag. Writing
-            // `-l <file>` would document a form the parser reads as a filename
-            // named `<file>` and a source that has gone missing.
+            // Three shapes, and each one is read off the row rather than chosen
+            // here. A value that may be SEPARATED is written with the space,
+            // because that form parses; writing `-l <file>` would document a
+            // form the parser reads as a filename called `<file>` and a source
+            // that has gone missing. An attached value is joined, and it is
+            // bracketed only when the flag HAS a bare form -- brackets mean
+            // optional, and `-h[<lines>]` promised a bare `-h` that is refused.
             if (flag.valueName[0] != '\0')
             {
-                bool  attachesOnly = flag.argument == CommandLineParser::FlagArgument::Optional;
+                bool  separable = flag.attachment == CommandLineParser::Attachment::AttachedOrSeparate;
+                bool  optional  = flag.bareDefault != nullptr;
 
-                rendered += attachesOnly ? std::string ("[") + flag.valueName + "]"
-                                         : std::string (" ") + flag.valueName;
+                if (separable)
+                {
+                    rendered += std::string (" ") + flag.valueName;
+                }
+                else
+                {
+                    rendered += optional ? std::string ("[") + flag.valueName + "]"
+                                         : std::string (flag.valueName);
+                }
             }
 
             group += PadTo (rendered, kDescriptionColumn) + flag.description + "\n";
         }
 
-        // The output formats are assembled-code options and print with them,
-        // rather than in a section of their own that says the same thing.
-        if (category == CommandLineParser::FlagCategory::AssembledCode)
+        // The long-option formats print under the same heading as `-s` and
+        // `-s2`, because they answer the same question and only one of the
+        // four can be asked. They used to sit with the assembled-code flags,
+        // which left a reader picking the formats out of a run of eight.
+        if (category == CommandLineParser::FlagCategory::OutputFormat)
         {
             for (const CommandLineParser::OutputFormatFlag & format : formats)
             {

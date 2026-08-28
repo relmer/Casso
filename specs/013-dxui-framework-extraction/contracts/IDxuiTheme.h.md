@@ -64,5 +64,5 @@ public:
 
 - Casso's existing `ChromeTheme` (under `Casso/Ui/Chrome/ChromeTheme.h`) becomes the concrete implementation in Phase 5 (FR-092). Skeuomorphic palette + scanline tint stay in `ChromeTheme`; `IDxuiTheme` exposes only what widgets need.
 - Colors are `UINT32` ARGB to keep the interface allocation-free and Direct2D-friendly.
-- `DxuiFontHandle` is intentionally opaque — widgets pass it to `IDxuiTextRenderer::DrawText` / `Measure` and don't poke at its internals.
+- `DxuiFontHandle` is intentionally opaque, widgets pass it to `IDxuiTextRenderer::DrawText` / `Measure` and don't poke at its internals.
 - All methods are `const`. Theme objects are effectively immutable; theme **changes** = swap the theme pointer and broadcast `OnThemeChanged` via `IDxuiControl` (FR-033).

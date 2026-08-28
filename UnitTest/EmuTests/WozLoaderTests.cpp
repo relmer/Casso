@@ -26,6 +26,69 @@ TEST_CLASS (WozLoaderTests)
 {
 public:
 
+    //  A WOZ v2 header with an INFO, a TMAP and a META chunk and nothing else.
+    //
+    //  Describe reads chunks and never touches track data, so an image with no
+    //  TRKS at all is a legitimate subject for it -- and building one keeps the
+    //  test about what the chunks say rather than about track encoding.
+    void BuildChunksOnlyV2 (Byte           infoVersion,
+                            Byte           diskType,
+                            bool           writeProtected,
+                            Byte           bootSectorFormat,
+                            const char *   creator,
+                            const char *   metaText,
+                            int            quarterTracksWithData,
+                            vector<Byte> & out)
+    {
+        const Byte  sig[8]     = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
+        size_t      metaLength = strlen (metaText);
+        int         qt         = 0;
+
+        out.assign (sig, sig + 8);
+        out.insert (out.end(), 4, 0);                       // header CRC, unchecked here
+
+        // INFO
+        out.insert (out.end(), { 'I', 'N', 'F', 'O' });
+        out.insert (out.end(), { 60, 0, 0, 0 });
+
+        {
+            vector<Byte>  info (WozLoader::kInfoChunkSize, 0);
+
+            info[WozLoader::kInfoOffsetVersion]        = infoVersion;
+            info[WozLoader::kInfoOffsetDiskType]       = diskType;
+            info[WozLoader::kInfoOffsetWriteProtected] = writeProtected ? 1 : 0;
+            info[WozLoader::kInfoOffsetSynchronized]   = 1;
+            info[WozLoader::kInfoOffsetCleaned]        = 1;
+
+            memset (info.data() + WozLoader::kInfoOffsetCreator, ' ',
+                    WozLoader::kInfoCreatorLength);
+            memcpy (info.data() + WozLoader::kInfoOffsetCreator, creator, strlen (creator));
+
+            info[WozLoader::kInfoOffsetBootSectorFormat] = bootSectorFormat;
+
+            out.insert (out.end(), info.begin(), info.end());
+        }
+
+        // TMAP: the first `quarterTracksWithData` positions map to distinct
+        // slots, so the two counts differ and each is checked on its own.
+        out.insert (out.end(), { 'T', 'M', 'A', 'P' });
+        out.insert (out.end(), { 160, 0, 0, 0 });
+
+        for (qt = 0; qt < 160; qt++)
+        {
+            out.push_back (qt < quarterTracksWithData ? static_cast<Byte> (qt) : Byte (0xFF));
+        }
+
+        // META
+        out.insert (out.end(), { 'M', 'E', 'T', 'A' });
+        out.push_back (static_cast<Byte> (metaLength         & 0xFF));
+        out.push_back (static_cast<Byte> ((metaLength >>  8) & 0xFF));
+        out.push_back (static_cast<Byte> ((metaLength >> 16) & 0xFF));
+        out.push_back (static_cast<Byte> ((metaLength >> 24) & 0xFF));
+        out.insert (out.end(), metaText, metaText + metaLength);
+    }
+
+
     static constexpr size_t  kTestBitCount = 51200;   // ~6400 bytes / track 0
     static constexpr size_t  kChunkHeader  = 8;       // 4-byte id + 4-byte size
     static constexpr size_t  kCreatorSize  = 32;      // INFO creator field, space-padded
@@ -1802,5 +1865,79 @@ public:
         Assert::IsTrue (FAILED (hr), L"no INFO chunk means there is no flag to set");
         Assert::IsTrue (woz == original, L"and nothing may be written on the way to failing");
     }
+
+    TEST_METHOD (Describe_AnswersNothingForBytesThatAreNotAWoz)
+    {
+        WozLoader::Description  woz;
+        vector<Byte>            notAWoz (200, 0x42);
+
+        //  Nothing here fails: the caller has already been told the image could
+        //  not be used, and a second error code adds nothing it can act on.
+        WozLoader::Describe (notAWoz, woz);
+
+        Assert::IsFalse (woz.isWoz,   L"a non-WOZ is reported as one, not guessed at");
+        Assert::AreEqual (0, woz.wozVersion);
+        Assert::AreEqual (size_t (0), woz.meta.size());
+    }
+
+
+    TEST_METHOD (Describe_ReadsWhatTheImageSaysAboutItself_FromInfoTmapAndMeta)
+    {
+        WozLoader::Description  woz;
+        vector<Byte>            image;
+
+        //  No trailing newline on the last pair, deliberately: real images are
+        //  written both ways and a reader that needs one loses whichever key
+        //  the writer happened to put last.
+        BuildChunksOnlyV2 (2, WozLoader::kDiskType525, true, WozLoader::kBootSector16,
+                           "Applesauce v1.2.5",
+                           "title\tKarateka\n"
+                           "publisher\tBroderbund Software\n"
+                           "requires_ram\t48K",
+                           8, image);
+
+        WozLoader::Describe (image, woz);
+
+        Assert::IsTrue (woz.isWoz,             L"the signature is recognized");
+        Assert::AreEqual (2, woz.wozVersion,   L"and its version");
+        Assert::AreEqual (2, woz.infoVersion,  L"INFO reports its own version separately");
+        Assert::IsTrue (woz.writeProtected,    L"the write-protect flag is read");
+        Assert::IsTrue (woz.synchronized,      L"so is synchronized");
+        Assert::IsTrue (woz.cleaned,           L"and cleaned");
+        Assert::IsTrue (woz.hasBootSectorFormat, L"a v2 INFO carries the boot-sector field");
+        Assert::AreEqual (WozLoader::kBootSector16, woz.bootSectorFormat);
+
+        Assert::AreEqual (std::string ("Applesauce v1.2.5"), woz.creator,
+                          L"the creator field loses its padding, not its content");
+
+        Assert::AreEqual (8, woz.quarterTracksWithData, L"TMAP positions holding data");
+        Assert::AreEqual (8, woz.trackSlotsWithData,    L"and the distinct slots behind them");
+
+        Assert::AreEqual (size_t (3), woz.meta.size(), L"every META pair, the last one included");
+        Assert::AreEqual (std::string ("title"),     woz.meta[0].key);
+        Assert::AreEqual (std::string ("Karateka"),  woz.meta[0].value);
+        Assert::AreEqual (std::string ("requires_ram"), woz.meta[2].key);
+        Assert::AreEqual (std::string ("48K"),          woz.meta[2].value);
+    }
+
+
+    TEST_METHOD (Describe_RecordsAV1InfoAsHavingNoBootSectorField_RatherThanAnUnknownOne)
+    {
+        WozLoader::Description  woz;
+        vector<Byte>            image;
+
+        //  Version 1 of the INFO chunk stops before that field. Reporting it as
+        //  the "unknown" value would say the image answered when it did not,
+        //  and a reader cannot tell those two apart afterwards.
+        BuildChunksOnlyV2 (1, WozLoader::kDiskType525, false, WozLoader::kBootSector13,
+                           "Passport.py by 4am", "title\tSpace Quarks\n", 4, image);
+
+        WozLoader::Describe (image, woz);
+
+        Assert::AreEqual (1, woz.infoVersion);
+        Assert::IsFalse (woz.hasBootSectorFormat,
+                         L"a v1 INFO has no boot-sector field to report");
+    }
+
 };
 

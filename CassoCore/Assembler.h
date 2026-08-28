@@ -54,6 +54,28 @@ public:
     static std::vector<std::string> FormatListingRows (const AssemblyLine & line,
                                                        bool showCycleCounts,
                                                        int  columnWidth);
+
+    //
+    //  The whole listing: every line wrapped to the column width, broken into
+    //  pages of the given height, under the title the source named.
+    //
+    //  IT COMPOSES THE TWO RULES RATHER THAN CHOOSING BETWEEN THEM. Wrapping is
+    //  about how wide a row may be and pagination about how many rows fit, and
+    //  they arrived from different directions -- one from the dialect work, one
+    //  from the assembler's command line -- so a caller doing only one of them
+    //  silently drops a flag the tool documents. `-w` and `-h` both land here.
+    //
+    //  PAGINATION COUNTS ROWS, NOT SOURCE LINES, which is the only reading that
+    //  fills a page: a wrapped line occupies as many rows as it wrapped to, and
+    //  counting it once would overrun the paper by however much wrapping added.
+    //
+    //  A height of 0 or less means one continuous page, which is the default and
+    //  is what a listing to a screen wants.
+    //
+    static std::string FormatListing (const AssemblyResult & result,
+                                      int  pageHeight     = 0,
+                                      bool showCycleCounts = false,
+                                      int  columnWidth     = 0);
     static std::string FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds);
     static std::string FormatDebugInfo   (const std::unordered_map<std::string, Word> & symbols);

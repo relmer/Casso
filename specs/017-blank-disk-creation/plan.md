@@ -13,11 +13,11 @@ format (WOZ/DSK/PO), contents (DOS 3.3 / ProDOS 1.1.1 / unformatted), and a
 bootable toggle whose OS payload arrives via the existing stock-disk download
 catalog. The new image is written to disk and mounted through the existing
 mount path. Adjacent scope: an image-level write-protect toggle (Disk menu,
-per drive) — WOZ via its INFO flag, DSK/PO via the host read-only attribute.
+per drive), WOZ via its INFO flag, DSK/PO via the host read-only attribute.
 
-Technical approach (research.md): all generation is pure core code —
+Technical approach (research.md): all generation is pure core code (
 `NibblizationLayer::Nibblize` over a skeleton sector buffer already yields
-formatted tracks, and `WozLoader::Serialize` already writes valid WOZ v2 — so
+formatted tracks, and `WozLoader::Serialize` already writes valid WOZ v2) so
 the new core surface is the filesystem skeleton writers (DOS 3.3 VTOC/catalog,
 ProDOS directory/bitmap, boot payload installers) plus a pure
 `FileBrowseModel` behind the dialog. The shell adds the dialog view, the
@@ -32,27 +32,27 @@ pinned picker row, two menu items, and one persisted pref.
 (`s_kDos33Disk`, `s_kProDOSDisk`), Dxui widgets (`DxuiListView`,
 `DxuiTextInput`, `DxuiDropdown`, `DxuiCheckbox`, `DxuiDialogWindow`).
 
-**Storage**: Host files — created `.woz`/`.dsk`/`.po` images (user-chosen
+**Storage**: Host files, created `.woz`/`.dsk`/`.po` images (user-chosen
 folder, default `Documents\Casso Disks`); one new `GlobalUserPrefs` string
 (`lastDiskCreateFolder`); downloaded OS masters cached in the existing
 `%LOCALAPPDATA%\Casso\Disks`.
 
 **Testing**: VS UnitTest (MSTest C++), existing suites as pattern:
 `NibblizationTests`, `DiskWritePathTests`, `CatalogReproductionTest` (real DOS
-boot + `SAVE` via `KeystrokeInjector`/`TextScreenScraper` — reused for SC-001/
+boot + `SAVE` via `KeystrokeInjector`/`TextScreenScraper`, reused for SC-001/
 SC-006 end-to-end gates).
 
 **Target Platform**: Windows 10/11 x64 (+ ARM64 build-only)
 
-**Project Type**: Desktop app — core library (`CassoEmuCore`) + Win32 shell
+**Project Type**: Desktop app, core library (`CassoEmuCore`) + Win32 shell
 (`Casso`) + UI framework (`Dxui`) + `UnitTest`
 
 **Performance Goals**: Create-and-mount well under 1s (SC-001's 30s budget is
 user time); zero impact on emulation thread.
 
-**Constraints**: Core/shell doctrine — generation and browse logic must be
+**Constraints**: Core/shell doctrine, generation and browse logic must be
 UT-reachable (no window/file/registry deps in core logic; file access only
-through `IFileSystem`). OS payloads never bundled (copyright) — consent-based
+through `IFileSystem`). OS payloads never bundled (copyright), consent-based
 download only.
 
 **Scale/Scope**: 140K 5.25" media only; 3 formats × 3 contents + bootable;
@@ -62,27 +62,27 @@ two drives; one new dialog, one new picker row, two menu items.
 
 *Constitution v1.8.0. GATE evaluated pre-Phase-0 and re-checked post-design.*
 
-- **I. Code Quality (NON-NEGOTIABLE)** — PASS (design-time): new code follows
+- **I. Code Quality (NON-NEGOTIABLE)**: PASS (design-time): new code follows
   EHM single-exit, banners, decl-at-top, no anonymous namespaces; gated by
   CheckStyle CS0001–CS0019 pre-push + CI.
-- **II. Testing Discipline (NON-NEGOTIABLE)** — PASS with one documented
+- **II. Testing Discipline (NON-NEGOTIABLE)**: PASS with one documented
   exception: every pure component (skeleton writers, payload installers,
   `FileBrowseModel`, WP state logic) is tested against mock `IFileSystem` /
   synthetic bytes with no system state. The END-TO-END gates (T007/T020/T025)
   reuse the established real-CPU DOS-boot harness, which reads cached disk
-  assets from the host (`Disks/Apple/dos33-master.dsk` idiom) — a sanctioned
+  assets from the host (`Disks/Apple/dos33-master.dsk` idiom); a sanctioned
   exception carried over from the existing suite, kept deterministic by the
   mandatory graceful SKIP-if-missing behavior on machines without the asset.
-- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)** — PASS: FR-013
+- **VI. Thin Executable, Testable Core (NON-NEGOTIABLE)**: PASS: FR-013
   restates it. Core owns: `BlankDiskBuilder`, `Dos33Skeleton`,
   `ProDosSkeleton`, `Dos33FileWriter` (HELLO), `ProDosFileWriter`,
   `ProDosReader` (payload extraction), `FileBrowseModel`. Shell owns only:
   dialog widgets/wiring, picker row decode, menu items, known-folder
   resolution, the actual file write + mount calls, attribute flip via the new
   `IFileSystem` seam.
-- **Commit discipline** — commit + push after each completed phase.
+- **Commit discipline**: commit + push after each completed phase.
 
-**Post-design re-check**: PASS — no violations introduced; Complexity Tracking
+**Post-design re-check**: PASS, no violations introduced; Complexity Tracking
 empty.
 
 ## Project Structure
@@ -141,4 +141,4 @@ class and wiring only. No new projects, no new dependencies.
 
 ## Complexity Tracking
 
-*No constitution violations — table intentionally empty.*
+*No constitution violations, table intentionally empty.*

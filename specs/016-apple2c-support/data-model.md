@@ -24,7 +24,7 @@ Components / entities introduced or extended. "Entities" here are emulated hardw
 |---|---|---|---|---|
 | `Acia6551` | `MemoryDevice` (new; registered `acia-6551`) | data, status, command, control; RX/TX shift; baud/framing | TX-empty / RX-full IRQ via `InterruptController` | TX→host file; loopback (v1) |
 | `AppleMouse` | `MemoryDevice` (new; `apple-mouse`) | X, Y, button, mode; clamp bounds | VBL + mouse-move IRQ sources | host pointer → guest |
-| `Iwm` | `MemoryDevice` (new; `iwm`) | motor, phase, Q6/Q7, drive-select | — | delegates to Disk II/WOZ nibble engine |
+| `Iwm` | `MemoryDevice` (new; `iwm`) | motor, phase, Q6/Q7, drive-select | n/a | delegates to Disk II/WOZ nibble engine |
 
 ## Soft switches (//c-specific)
 

@@ -1024,7 +1024,7 @@ std::string AssemblySession::DescribeUnknownOperation (const ParsedLine & parsed
 
     if (foreign.dialect != nullptr)
     {
-        message += std::string (" -- ") + parsed.mnemonic + " is " + foreign.category + " belonging to the "
+        message += std::string (". ") + parsed.mnemonic + " is " + foreign.category + " belonging to the "
                  + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
     }
 
@@ -1072,7 +1072,7 @@ std::string AssemblySession::DescribeUnknownDirective (const ParsedLine & parsed
 
     if (foreign.dialect != nullptr)
     {
-        message += std::string (" -- ") + bareWord + " is " + foreign.category + " belonging to the "
+        message += std::string (". ") + bareWord + " is " + foreign.category + " belonging to the "
                  + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
     }
 
@@ -3090,7 +3090,7 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
             message += " (" + prompt + ")";
         }
 
-        message += " -- define it on the command line, for example "
+        message += ". Define it on the command line, for example "
                  + std::string (1, m_options.flagPrefix) + "d " + name + "=0";
 
         RecordError (current.sourceLineNumber, message);
@@ -4769,7 +4769,7 @@ HRESULT AssemblySession::BindPositionalParameters (int                 lineNumbe
 
     if (!hasValues && !isFinalPass)
     {
-        RecordError (lineNumber, parsed.directive + " binds no parameters -- values are separated by '"
+        RecordError (lineNumber, parsed.directive + " binds no parameters. Values are separated by '"
                                  + std::string (1, syntax.argumentSeparator) + "'");
     }
 

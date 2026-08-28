@@ -2,7 +2,7 @@
 
 **Feature Branch**: `009-monitor-frames-and-dockable-chrome` (proposed)
 **Created**: 2026-05-25
-**Status**: Draft (deferred — depends on the chrome layout manager shipped in 007)
+**Status**: Draft (deferred, depends on the chrome layout manager shipped in 007)
 **Input**: User-described future capabilities that build on the chrome layout
 manager primitive (`ChromeLayout`, `IChromeContributor`, edge slots, center
 layers) shipped in spec 007.
@@ -16,19 +16,19 @@ bottom edge and zero registered center layers. This spec consumes that
 foundation to deliver two long-promised capabilities:
 
 1. **The drive bar becomes dockable** to any of the four window edges (top,
-   bottom, left, right), driven by user config and — eventually — drag
+   bottom, left, right), driven by user config and, eventually, drag
    gestures.
 2. **The Skeuomorphic theme grows a monitor-frame center layer** that wraps the
    emulator viewport in a realistic CRT bezel selected per-machine or
    per-user-override.
 
-Neither capability requires re-architecting chrome sizing math — they slot into
+Neither capability requires re-architecting chrome sizing math, they slot into
 `ChromeLayout` as additional contributors and inherit its single-source-of-truth
 sizing discipline.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Drive Bar Docks to Any Edge (Priority: P1)
+### User Story 1: Drive Bar Docks to Any Edge (Priority: P1)
 
 When the user opens Settings → Display, they see a "Drive bar position"
 dropdown with the four cardinal directions (top, bottom, left, right). Picking
@@ -63,7 +63,7 @@ new chrome geometry.
 
 ---
 
-### User Story 2 — Drag-to-Dock the Drive Bar (Priority: P3)
+### User Story 2: Drag-to-Dock the Drive Bar (Priority: P3)
 
 When the user drags the drive bar's caption / handle region, drop zones light
 up at each edge of the window. Releasing over a zone redocks the drive bar to
@@ -74,13 +74,13 @@ Settings; drag is the discoverable surface.
 
 ---
 
-### User Story 3 — Monitor Frame Wraps the Emulator (Priority: P2)
+### User Story 3: Monitor Frame Wraps the Emulator (Priority: P2)
 
 When the active theme is Skeuomorphic, the emulator image renders inside a
 realistic CRT bezel that visually matches the active machine (Apple ][, ][+,
 //e, //c, etc.). The bezel contributes uneven padding on all four sides of
-the emulator viewport — typically heavier on the bottom for the brand logo
-and power LED — and the window grows to accommodate the bezel while keeping
+the emulator viewport, typically heavier on the bottom for the brand logo
+and power LED, and the window grows to accommodate the bezel while keeping
 the emulator pixel grid unchanged.
 
 **Why this priority**: Highest-impact visual identity payoff. The whole
@@ -111,7 +111,7 @@ resizes to absorb the bezel padding without distorting the framebuffer.
 
 ---
 
-### User Story 4 — Machine Picks a Default Theme (Priority: P3)
+### User Story 4: Machine Picks a Default Theme (Priority: P3)
 
 The active machine config carries an optional `defaultTheme` field. On first
 load of a machine for a given user (or when the user has never explicitly
@@ -136,7 +136,7 @@ global default. Explicit user choices override and persist.
 - **FR-003**: Drive-bar slot assignment persists in `GlobalUserPrefs` under
   `chrome.dockSlots.driveBar`.
 - **FR-004**: The compact `DriveWidget` paint path adapts to the perpendicular
-  axis of its slot — drives stack horizontally on top/bottom edges, vertically
+  axis of its slot, drives stack horizontally on top/bottom edges, vertically
   on left/right edges. LED placement and label legibility are preserved.
 - **FR-005**: `ChromeLayout` supports an `ICenterLayer` interface contributors
   can implement to reserve `{topPad, bottomPad, leftPad, rightPad}` around the
@@ -181,6 +181,6 @@ global default. Explicit user choices override and persist.
 - **Hard**: the `ChromeLayout`, `IChromeContributor`, edge-slot registration,
   center-layer interface, and theme-listener resize orchestration shipped in
   spec 007 must be merged before this spec can begin.
-- **Soft**: spec 008 (3D chrome rendering) is orthogonal but compatible — the
+- **Soft**: spec 008 (3D chrome rendering) is orthogonal but compatible, the
   monitor frame center layer could be rendered through the 3D pipeline once it
   lands, or via the existing 2D painter, at the implementer's discretion.

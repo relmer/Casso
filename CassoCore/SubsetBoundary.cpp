@@ -67,7 +67,7 @@ std::string SubsetBoundary::ComposeRefusal (const SubsetBoundaryRow & row,
 
 
     text = std::string (row.spelling) + ": " + row.construct + " is outside the " + dialectName
-         + " subset Casso supports -- " + row.explanation + ". Widens with " + row.widensWith + ".";
+         + " subset Casso supports: " + row.explanation + ". Widens with " + row.widensWith + ".";
 
     if (row.workaround != nullptr)
     {
@@ -110,7 +110,7 @@ std::string SubsetBoundary::ComposeHelpText (std::span<const SubsetBoundaryRow> 
 
     for (const SubsetBoundaryRow & row : rows)
     {
-        text += std::string ("  ") + row.spelling + " -- " + row.construct
+        text += std::string ("  ") + row.spelling + ": " + row.construct
               + " [" + ReasonLabel (row.reason) + "]. " + row.explanation
               + ". Widens with " + row.widensWith + ".\n";
     }

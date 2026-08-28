@@ -207,11 +207,16 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormatFlushLossMessage
+//  FormatDamagedImageMessage
 //
-//  User-facing message for a flush that failed to persist a dirty image,
-//  built from the mount path (widened) the store already holds. Handed to
-//  the CHRN/CBRN notifications in FlushEntry.
+//  User-facing message for a disk this tool will not write back, because
+//  rewriting it would give damaged data a freshly computed checksum and
+//  leave nothing able to detect the damage again.
+//
+//  THE BANNER ABOVE THIS USED TO NAME THE FUNCTION BELOW IT, which was the
+//  next one down: this function was spliced in after the banner rather than
+//  before it, so both carried the same title and neither described what it
+//  sat on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,9 +252,12 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatFlushLossMessage (const string & path)
+wstring DiskImageStore::FormatFlushLossMessage (const string & path,
+                                                const string & recoveryPath)
 {
-    wstring  widePath = fs::path (path).wstring();
+    wstring  widePath     = fs::path (path).wstring();
+    wstring  wideRecovery = fs::path (recoveryPath).wstring();
+    wstring  message;
 
 
 
@@ -258,10 +266,144 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
         widePath = L"(unknown path)";
     }
 
-    return L"Casso could not save changes to the disk image:\n\n" + widePath +
-           L"\n\nYour recent writes were NOT persisted. The file on disk is "
-           L"unchanged. If this is a .dsk, try a .woz image -- WOZ round-trips "
-           L"writes reliably.";
+    message = L"Casso could not save changes to the disk image:\n\n" + widePath +
+              L"\n\nThe file on disk is unchanged.";
+
+    // A refusal that leaves the user with no way back to their work is only
+    // half a fix, so say where the work went rather than only what failed.
+    if (!wideRecovery.empty())
+    {
+        message += L" Your session was preserved here instead:\n\n" + wideRecovery +
+                   L"\n\nThat copy is complete. It keeps the track that could not "
+                   L"be written back. Mount it to carry on from where you were.";
+    }
+    else
+    {
+        message += L" Your recent writes were NOT persisted. If this is a .dsk, "
+                   L"try a .woz image. WOZ round-trips writes reliably.";
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::MakeRecoveryPath
+//
+//  Recovery images sit beside the original under its own name, so the pairing
+//  is obvious in a folder listing. WOZ because it is the only format that can
+//  hold what the sector formats could not -- including the very track whose
+//  content caused the refusal.
+//
+//  The attempt index exists so an earlier recovery is never overwritten; losing
+//  a previous rescue to a later one would repeat the mistake being fixed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+string DiskImageStore::MakeRecoveryPath (const string & imagePath, int attempt)
+{
+    fs::path  base = fs::path (imagePath);
+    string    stem;
+
+
+
+    base.replace_extension();
+    stem = base.string();
+
+    if (attempt <= 0)
+    {
+        return stem + ".recovered.woz";
+    }
+
+    return stem + ".recovered." + std::to_string (attempt) + ".woz";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::TryWriteRecoveryImage
+//
+//  Serializes the live image to WOZ and lands it beside the original. WOZ is
+//  chosen deliberately over the denibblized sector buffer: that buffer holds
+//  zeros exactly where the unreadable track should be, so writing it would
+//  discard the one thing the refusal was protecting. WozLoader::Serialize takes
+//  the per-track bit streams verbatim and is format-agnostic, so a .dsk-sourced
+//  mount round-trips whole.
+//
+//  Never overwrites an existing file, and never touches the original or what is
+//  currently mounted -- preserving the work and adopting it are different
+//  operations, and only the first belongs here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
+{
+    HRESULT       hr        = S_OK;
+    string        candidate;
+    int           attempt   = 0;
+    bool          haveImage = entry.image != nullptr;
+    bool          havePath  = !entry.path.empty();
+    bool          haveName  = false;
+    bool          fileOk    = false;
+    vector<Byte>  wozBytes;
+
+
+
+    outPath.clear();
+
+    CBR (haveImage);
+    CBR (havePath);
+
+    hr = WozLoader::Serialize (*entry.image, wozBytes);
+    CHR (hr);
+
+    for (attempt = 0; !haveName && attempt < kMaxRecoveryNameAttempts; attempt++)
+    {
+        candidate = MakeRecoveryPath (entry.path, attempt);
+
+        // With a sink installed there is no host file to collide with -- the
+        // sink is the filesystem, and it decides what to do with the name.
+        if (m_flushSink)
+        {
+            haveName = true;
+        }
+        else
+        {
+            bool  taken = fs::exists (fs::path (candidate));
+
+            haveName = !taken;
+        }
+    }
+
+    CBR (haveName);
+
+    if (m_flushSink)
+    {
+        hr = m_flushSink (candidate, wozBytes);
+        CHR (hr);
+    }
+    else
+    {
+        ofstream  file (candidate, ios::binary);
+
+        fileOk = file.good();
+        CBR (fileOk);
+
+        file.write (reinterpret_cast<const char *> (wozBytes.data()),
+                    static_cast<streamsize> (wozBytes.size()));
+    }
+
+    outPath = candidate;
+
+Error:
+    return hr;
 }
 
 
@@ -282,7 +424,9 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
-    HRESULT       hr     = S_OK;
+    HRESULT       hr         = S_OK;
+    HRESULT       hrRecovery = S_OK;
+    string        recoveryPath;
     vector<Byte>  bytes;
 
 
@@ -307,6 +451,10 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // here through the shared EHM notifier rather than a return nobody
     // checks. The image keeps its dirty bit on failure so a later flush
     // can retry.
+    // Serialization now refuses rather than quietly emitting a buffer with
+    // zeros where a track could not be read. That protects the file on disk,
+    // but it strands the session unless the session goes somewhere -- so
+    // preserve it losslessly beside the original before reporting the loss.
     //
     // There is deliberately no warning here about overwriting an image whose
     // stored checksum did not validate at load. There used to be, and it is
@@ -315,12 +463,19 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // rewritten. The user is told at mount instead, which is earlier and is
     // where the decision actually gets made.
     hr = entry.image->Serialize (bytes);
-    CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+
+    if (FAILED (hr))
+    {
+        hrRecovery = TryWriteRecoveryImage (entry, recoveryPath);
+        IGNORE_RETURN_VALUE (hrRecovery, S_OK);
+    }
+
+    CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
     }
     else if (!entry.path.empty())
     {
@@ -328,8 +483,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         // have already truncated the user's image, trading a stale file for
         // no file at all. The dirty bit survives a failure, so a later flush
         // retries.
+        //
+        // The failure message names the recovery copy written above, because
+        // a flush that cannot land is exactly when the session's only
+        // lossless copy of the disk is the one sitting beside the original.
         hr = WriteFileAtomically (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
     }
 
     // The file now carries a freshly computed CRC that matches it, so the

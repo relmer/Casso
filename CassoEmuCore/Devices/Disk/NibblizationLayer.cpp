@@ -47,16 +47,23 @@ static constexpr int   kThirdGroupSize        = 86;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DOS 3.3 logical-to-physical interleave (used when nibblizing .dsk/.do)
+//  DOS 3.3 physical-to-file interleave (used when nibblizing .dsk/.do)
 //
-//  Interpretation (matching the Phase 9 helper this file replaces):
-//  loop var L = 0..15 is the DOS logical sector address mark we emit; the
-//  256 source bytes for that mark come from file offset
-//  (track * 16 + kDsk_LtoP[L]) * 256.
+//  INDEXED BY PHYSICAL SECTOR. The sixteen address fields go down in
+//  sequential order, so the address-field number IS the physical position,
+//  and the 256 data bytes emitted under address mark P come from file offset
+//  (track * 16 + kDsk_PhysicalToFile[P]) * 256.
+//
+//  A .dsk stores its sectors in DOS LOGICAL order, so the file index here is
+//  also the DOS logical sector number: this table is physical-to-logical, the
+//  exact inverse of the logical-to-physical skew DOS itself boots through at
+//  $084D -- which DirectBootTests asserts against a persisted copy of that
+//  table. This constant wore the name kDsk_LtoP for a long time, and half
+//  the code reading it believed the name; the belief was measurably backwards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int kDsk_LtoP[16] =
+static constexpr int kDsk_PhysicalToFile[16] =
 {
     0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
 };
@@ -67,19 +74,17 @@ static constexpr int kDsk_LtoP[16] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDOS logical-to-physical interleave for .po
+//  ProDOS physical-to-file interleave for .po
 //
-//  .po arranges its 16 sectors per track in ProDOS-block order rather than
-//  DOS-sector order. ProDOS-sector index 0..15 stored in the file maps to
-//  DOS logical sector via kPo_FileToDosLogical:
-//      file[0] = DOS logical 0     file[8]  = DOS logical 1
-//      file[1] = DOS logical 14    file[9]  = DOS logical 13   ... etc
-//  When emitting DOS logical sector L at nibble time, the 256 source bytes
-//  live at file offset (track*16 + kPo_DosLogicalToFile[L]) * 256.
+//  INDEXED BY PHYSICAL SECTOR, exactly like its DOS neighbor above. A .po
+//  arranges its 16 sectors per track in ProDOS-block order rather than DOS
+//  logical order, so the same physical positions map to different file
+//  offsets: the 256 data bytes emitted under address mark P come from file
+//  offset (track * 16 + kPo_PhysicalToFile[P]) * 256.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int kPo_DosLogicalToFile[16] =
+static constexpr int kPo_PhysicalToFile[16] =
 {
     0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
 };
@@ -308,8 +313,9 @@ static void AppendDataField (
 //
 //  NibblizeWithMap
 //
-//  Common nibblization driver. `interleave` selects the source-byte
-//  offset for each DOS-logical sector.
+//  Common nibblization driver. The address fields go down in sequential
+//  order, so the loop variable is the physical sector; `interleave` names the
+//  file offset whose 256 bytes belong under that address mark.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,7 +326,7 @@ static HRESULT NibblizeWithMap (
 {
     HRESULT   hr        = S_OK;
     int       track     = 0;
-    int       logical   = 0;
+    int       physical  = 0;
     size_t    offset    = 0;
     size_t    rawSize   = 0;
 
@@ -335,15 +341,15 @@ static HRESULT NibblizeWithMap (
 
         out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
 
-        for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
+        for (physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
         {
-            offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[logical])
+            offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[physical])
                    * NibblizationLayer::kSectorByteSize;
 
             AppendAddressField (out.GetTrackBitsForWrite (track), bitOffset,
                                 NibblizationLayer::kDefaultVolume,
                                 static_cast<Byte> (track),
-                                static_cast<Byte> (logical));
+                                static_cast<Byte> (physical));
             AppendDataField    (out.GetTrackBitsForWrite (track), bitOffset, &raw[offset]);
         }
 
@@ -365,13 +371,177 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblizationLayer::RenibblizeTracks
+//
+//  Re-encodes only the named tracks, leaving every other track's packed bits
+//  exactly as they are.
+//
+//  This is what makes a write to a bit-stream image safe. Re-encoding the whole
+//  image would replace all 35 tracks with freshly synthesized standard nibbles,
+//  discarding timing, sync patterns, and weak bits everywhere -- including on
+//  tracks the operation never touched. A 512-byte file has no business
+//  rewriting a disk.
+//
+//  Tracks outside the image are skipped rather than treated as an error: the
+//  caller names the tracks its edit landed on, and an image shorter than the
+//  nominal geometry simply has nothing at those positions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::RenibblizeTracks (
+    const vector<Byte>    &  sectors,
+    DiskFormat               fmt,
+    std::span<const int>     tracks,
+    DiskImage             &  inOutImage)
+{
+    HRESULT       hr         = S_OK;
+    const int *   interleave = nullptr;
+    size_t        rawSize    = sectors.size();
+    size_t        i          = 0;
+    int           track      = 0;
+    int           physical   = 0;
+    int           trackCount = inOutImage.GetTrackCount();
+
+
+
+    CBRAEx (rawSize == (size_t) kImageByteSize, E_INVALIDARG);
+
+    switch (fmt)
+    {
+        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
+        case DiskFormat::Woz: interleave = kDsk_PhysicalToFile;  break;
+        default:              hr         = E_INVALIDARG;         break;
+    }
+
+    CHR (hr);
+
+    for (i = 0; i < tracks.size(); i++)
+    {
+        size_t  bitOffset = 0;
+
+        track = tracks[i];
+
+        if (track < 0 || track >= kTrackCount || track >= trackCount)
+        {
+            continue;
+        }
+
+        inOutImage.ResizeTrack (track, kTrackBitCapacity);
+
+        for (physical = 0; physical < kSectorsPerTrack; physical++)
+        {
+            size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical])
+                           * kSectorByteSize;
+
+            AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
+                                kDefaultVolume,
+                                static_cast<Byte> (track),
+                                static_cast<Byte> (physical));
+            AppendDataField    (inOutImage.GetTrackBitsForWrite (track), bitOffset, &sectors[offset]);
+        }
+
+        inOutImage.SetTrackBitCount (track, bitOffset);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::PoFileIndexForDosLogicalSector
+//
+//  Both interleave tables answer the same question -- which file offset holds
+//  the sector the drive will see at physical position P -- so the mapping
+//  between the two FILE layouts is their composition, and is derived here
+//  rather than written down a third time.
+//
+//  Writing it down again is the specific hazard. A reorder table restated by
+//  hand can be wrong in a way nothing notices: the file is written through it
+//  and read back through it, so every round trip agrees with itself and the
+//  image is unreadable only on a real machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int NibblizationLayer::PoFileIndexForDosLogicalSector (int logicalSector)
+{
+    HRESULT  hr       = S_OK;
+    int      physical = 0;
+    int      found    = 0;
+    bool     inRange  = logicalSector >= 0 && logicalSector < kSectorsPerTrack;
+
+
+
+    CBRAEx (inRange, E_INVALIDARG);
+
+    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    {
+        if (kDsk_PhysicalToFile[physical] == logicalSector)
+        {
+            found = kPo_PhysicalToFile[physical];
+        }
+    }
+
+Error:
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::DosFileIndexForPhysicalSector
+//
+//  The same table the nibblizer reads when it decides which of a buffer's
+//  sixteen sectors to encode under each address-field number, answered for
+//  callers that have to lay bytes down in the order a drive will hand them
+//  back rather than in the order a filesystem stores them.
+//
+//  This is the table itself rather than a composition of it, because the
+//  table IS indexed by physical sector. It used to have a twin named for a
+//  logical-sector argument, reading the same table with the same index; the
+//  two answers were byte-identical because they were the same lookup, and
+//  the twin's name was the half that lied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
+{
+    HRESULT  hr      = S_OK;
+    int      found   = 0;
+    bool     inRange = physicalSector >= 0 && physicalSector < kSectorsPerTrack;
+
+
+
+    CBRAEx (inRange, E_INVALIDARG);
+
+    found = kDsk_PhysicalToFile[physicalSector];
+
+Error:
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblizationLayer::NibblizeDsk / NibblizeDo / NibblizePo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
 
 
 
@@ -395,7 +565,7 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 
 HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
 
 
 
@@ -419,7 +589,7 @@ HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out
 
 HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kPo_DosLogicalToFile, out);
+    HRESULT   hr = NibblizeWithMap (raw, kPo_PhysicalToFile, out);
 
 
 
@@ -634,7 +804,8 @@ static HRESULT DecodeOneSector (
     size_t            &  bitPos,
     Byte              &  outSector,
     Byte              *  outData,
-    SectorOutcome     &  outcome)
+    SectorOutcome     &  outcome,
+    size_t            &  outFieldStart)
 {
     HRESULT   hr                        = S_OK;
     Byte      n0                        = 0;
@@ -667,6 +838,7 @@ static HRESULT DecodeOneSector (
     size_t    trackBits                 = img.GetTrackBitCount (track);
     size_t    startBitPos               = bitPos;
     size_t    bitsConsumed              = 0;
+    size_t    addrFieldStart            = 0;
 
 
 
@@ -674,9 +846,13 @@ static HRESULT DecodeOneSector (
 
     foundProlog = 0;
 
+    outFieldStart = SIZE_MAX;
+
     while (foundProlog == 0)
     {
-        n0 = ReadNibbleAt (img, track, bitPos);
+        addrFieldStart = bitPos;
+        n0             = ReadNibbleAt (img, track, bitPos);
+
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
@@ -692,6 +868,13 @@ static HRESULT DecodeOneSector (
             foundProlog = 1;
         }
     }
+
+    //  WHERE THE HEADER WAS, not where the cursor ended up. The caller bounds
+    //  the scan at one revolution and has to test the header's position to do
+    //  it: the cursor can still sit inside the gap trailing the last sector, so
+    //  bounding on the cursor lets one more attempt wrap onto a header already
+    //  read and report it as a duplicate the disk does not have.
+    outFieldStart = addrFieldStart;
 
     vOdd  = ReadNibbleAt (img, track, bitPos);
     vEven = ReadNibbleAt (img, track, bitPos);
@@ -850,11 +1033,29 @@ Error:
 
 HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, vector<Byte> & out)
 {
-    DenibblizeReport  ignored;
+    HRESULT             hr          = S_OK;
+    SectorDecodeReport  coverage;
+    bool                lostSectors = false;
 
 
 
-    return Denibblize (img, fmt, out, ignored);
+    hr = Denibblize (img, fmt, out, coverage);
+    CHR (hr);
+
+    //  THE REPORTLESS SIGNATURE IS NOT AN ESCAPE HATCH. It exists for callers
+    //  that do not want the detail, not for callers that want to ignore it, and
+    //  DiskImage::Serialize -- the flush path, where silent truncation cost data
+    //  in the first place -- is the one production caller.
+    //
+    //  IT ASKS COVERAGE RATHER THAN THE SECTOR COUNTS, and the difference is a
+    //  track whose sixteen slots are all filled because one sector arrived
+    //  twice. The counts read that as complete; coverage reads it as a slot
+    //  claimed by a sector that cannot be the one belonging to it.
+    lostSectors = coverage.HasDataLoss();
+    CBR (!lostSectors);
+
+Error:
+    return hr;
 }
 
 
@@ -898,7 +1099,45 @@ HRESULT NibblizationLayer::SalvageSectors (
 
 
 
-    hr = DecodeTracks (img, fmt, true, out, report);
+    hr = DecodeTracks (img, fmt, true, out, report, nullptr);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblize
+//
+//  The same decode, reported as COVERAGE rather than as sector counts.
+//
+//  IT SUCCEEDS OVER DAMAGE ON PURPOSE. The strict overload refuses, because its
+//  caller is about to write the buffer back over the user's file. This one is
+//  for callers that can present a partial result -- listing a damaged disk,
+//  extracting the files that survived -- and refusing would leave them with
+//  nothing to show for sectors that read perfectly well.
+//
+//  Both reports come off ONE pass, so they cannot disagree about the same disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibblizationLayer::Denibblize (
+    const DiskImage     &  img,
+    DiskFormat             fmt,
+    vector<Byte>        &  out,
+    SectorDecodeReport  &  outReport)
+{
+    HRESULT           hr      = S_OK;
+    DenibblizeReport  sectors;
+
+
+
+    hr = DecodeTracks (img, fmt, false, out, sectors, &outReport);
     CHR (hr);
 
 Error:
@@ -926,7 +1165,7 @@ HRESULT NibblizationLayer::Denibblize (
 
 
 
-    hr = DecodeTracks (img, fmt, false, out, report);
+    hr = DecodeTracks (img, fmt, false, out, report, nullptr);
     CHR (hr);
 
     // A half-decoded track means the output holds zeros where the user's data
@@ -955,11 +1194,12 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT NibblizationLayer::DecodeTracks (
-    const DiskImage   &  img,
-    DiskFormat           fmt,
-    bool                 keepRecovered,
-    vector<Byte>      &  out,
-    DenibblizeReport  &  report)
+    const DiskImage     &  img,
+    DiskFormat             fmt,
+    bool                   keepRecovered,
+    vector<Byte>        &  out,
+    DenibblizeReport    &  report,
+    SectorDecodeReport  *  outCoverage)
 {
     // Enough attempts to still find all sixteen good sectors when several
     // reads fail or repeat, without letting a hostile track spin forever.
@@ -976,6 +1216,8 @@ HRESULT NibblizationLayer::DecodeTracks (
     uint16_t      mask                  = 0;
     uint16_t      recovered             = 0;
     uint16_t      lost                  = 0;
+    uint16_t      duplicated            = 0;
+    uint16_t      slotMask              = 0;
     Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
@@ -991,10 +1233,10 @@ HRESULT NibblizationLayer::DecodeTracks (
 
     switch (fmt)
     {
-        case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
-        case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
-        case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
-        default:              hr         = E_INVALIDARG;          break;
+        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
+        default:              hr         = E_INVALIDARG;         break;
     }
 
     CHR (hr);
@@ -1006,19 +1248,34 @@ HRESULT NibblizationLayer::DecodeTracks (
 
     report.decodedSectorMask.assign (static_cast<size_t> (trackLimit), 0);
 
+    if (outCoverage != nullptr)
+    {
+        outCoverage->Reset (trackLimit);
+    }
+
     for (track = 0; track < trackLimit; track++)
     {
-        bitPos    = 0;
-        mask      = 0;
-        recovered = 0;
-        lost      = 0;
+        bitPos     = 0;
+        mask       = 0;
+        recovered  = 0;
+        lost       = 0;
+        duplicated = 0;
+        slotMask   = 0;
         trackBits = img.GetTrackBitCount (track);
 
         for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
         {
-            SectorOutcome  outcome  = SectorOutcome::Lost;
-            HRESULT        hrSector = DecodeOneSector (img, track, bitPos, outSector,
-                                                       data, outcome);
+            //  DUPLICATES ARE ONLY MEANINGFUL WITHIN ONE REVOLUTION. This loop
+            //  deliberately keeps scanning after the cursor has been all the way
+            //  round, because that is how it retries the sectors a damaged header
+            //  cost it -- and a second pass necessarily meets headers it has
+            //  already read. Counting those would invent damage the scan caused
+            //  rather than report damage the disk carries.
+            size_t         fieldStart = SIZE_MAX;
+            SectorOutcome  outcome    = SectorOutcome::Lost;
+            HRESULT        hrSector   = DecodeOneSector (img, track, bitPos, outSector,
+                                                         data, outcome, fieldStart);
+            bool           firstPass  = fieldStart < trackBits;
 
             // A hard failure means no address field could be found before the
             // cursor wrapped -- there is nothing further on this track. Keep
@@ -1058,11 +1315,53 @@ HRESULT NibblizationLayer::DecodeTracks (
 
             if (outcome == SectorOutcome::Verified)
             {
+                //  A SECOND COPY OF A SECTOR IS DAMAGE, AND SETTING THE BIT
+                //  AGAIN HIDES IT. The buffer keeps whichever copy landed last,
+                //  the mask is full either way, and every count below reads the
+                //  track as complete -- so coverage has to be asked whether each
+                //  slot was filled EXACTLY once, not merely whether it is full.
+                if (firstPass && (mask & (1 << outSector)) != 0)
+                {
+                    duplicated = static_cast<uint16_t> (duplicated | (1 << outSector));
+                }
+
                 mask = static_cast<uint16_t> (mask | (1 << outSector));
+
+                //  COVERAGE IS INDEXED BY OUTPUT SLOT, and the mask above is
+                //  indexed by the number the address field carried. The two
+                //  differ by the interleave, so a consumer holding the buffer
+                //  and reading the mask directly would test the wrong sector
+                //  and find zeros in a slot the report calls present.
+                slotMask = static_cast<uint16_t> (slotMask | (1 << interleave[outSector]));
             }
         }
 
         report.decodedSectorMask[static_cast<size_t> (track)] = mask;
+
+        //  UNFORMATTED IS DECIDED BY THE BITS, NOT BY THE MASK. A track that
+        //  holds no bits at all was never written; a track that holds bits but
+        //  yielded no sector is damaged, and calling that one blank is what
+        //  licenses writing zeros over it.
+        if (outCoverage != nullptr)
+        {
+            TrackDecodeOutcome  outcome = TrackDecodeOutcome::Partial;
+
+            //  UNFORMATTED MEANS NO ADDRESS FIELD ANYWHERE, not "no bits". A
+            //  wiped track still carries bits, and a track whose headers are all
+            //  destroyed yields nothing at all -- while a track that yielded
+            //  something and then failed is damaged, which is a different thing
+            //  and must not license writing zeros over it.
+            if (trackBits == 0 || (slotMask == 0 && recovered == 0 && lost == 0))
+            {
+                outcome = TrackDecodeOutcome::Unformatted;
+            }
+            else if (slotMask == kAllSectorsMask && duplicated == 0)
+            {
+                outcome = TrackDecodeOutcome::Complete;
+            }
+
+            outCoverage->SetOutcome (track, outcome, slotMask, duplicated != 0);
+        }
 
         if (trackBits == 0)
         {

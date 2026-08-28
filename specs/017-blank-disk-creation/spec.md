@@ -8,7 +8,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "There's a glaring omission — no way to create a blank disk of a given format and then insert that into the drive."
+**Input**: User description: "There's a glaring omission, no way to create a blank disk of a given format and then insert that into the drive."
 
 ## Overview
 
@@ -17,14 +17,14 @@ Casso can insert existing disk images into a drive, but there is no way to
 that needs a fresh place to write: saving a BASIC program, `INIT`-ing a disk,
 capturing a game's save state, or letting an application (e.g. The Print Shop)
 store its configuration to a data disk. Users must currently fabricate a blank
-image with an external tool and then insert it — a gap that makes the emulator
+image with an external tool and then insert it; a gap that makes the emulator
 feel read-only.
 
 This feature adds a first-class "create a blank disk" action, discovered where
 users already go to get a disk into a drive: the insert-disk picker carries a
 **`<Create new disk...>`** entry pinned as its first row. Selecting it opens a
-create dialog the user can navigate like a real file-save dialog — browse
-folders, see existing files, choose the location and name — plus the image
+create dialog the user can navigate like a real file-save dialog (browse
+folders, see existing files, choose the location and name) plus the image
 type choices (format and initial contents). The new disk is created on the
 host and mounted into the chosen drive, ready to use.
 
@@ -36,10 +36,10 @@ it get an on/off write-protect toggle.
 
 ### Session 2026-07-08
 
-- Q: Default image format for a new writable disk? → A: WOZ — its writes
+- Q: Default image format for a new writable disk? → A: WOZ; its writes
   round-trip reliably; `.dsk` writes are currently broken (tracked separately
   as a defect) so WOZ is the safe default for a disk the user intends to write.
-  *(2026-08-08 update: the `.dsk` write defect — GH #89 — was fixed 2026-07-09
+  *(2026-08-08 update: the `.dsk` write defect, GH #89, was fixed 2026-07-09
   and `.dsk`/`.po` writes now round-trip. WOZ remains the default: it is
   order-agnostic and represents any filesystem, so the default stays the most
   robust choice rather than a workaround.)*
@@ -53,21 +53,21 @@ it get an on/off write-protect toggle.
   insert-disk picker, as a `<Create new disk...>` row pinned as the FIRST item
   regardless of the list's sort order. Selecting it opens the create dialog.
 - Q: What is the create dialog? → A: An in-app themed dialog that is navigable
-  like a real file-save dialog — the user can browse folders, see existing
-  files, and choose the destination folder and file name inside the dialog —
+  like a real file-save dialog (the user can browse folders, see existing
+  files, and choose the destination folder and file name inside the dialog)
   alongside the image-type controls (format WOZ/DSK/PO; contents DOS 3.3 /
   ProDOS / unformatted).
 - Q: Additional scope? → A: The user needs a way to toggle write protection
   on/off for a mounted image, for image formats that support it (WOZ carries an
   in-image write-protect flag; formats without one use the host file's
   read-only attribute).
-- Q: Should a pre-formatted disk be data-only or bootable? → A: Both — the
+- Q: Should a pre-formatted disk be data-only or bootable? → A: Both; the
   create dialog gets a **bootable** toggle, and the contents choice is a
   listbox naming the OS (DOS 3.3, ProDOS by version, unformatted). Bootable
   writes the chosen OS onto the disk, sourced through the existing
   consent-based asset bootstrap (the same mechanism that fetches ROMs); the
   OS is never bundled in the binary. Default remains data-only.
-- Q: Write-protect toggle on DSK/PO (no in-image flag)? → A: All formats —
+- Q: Write-protect toggle on DSK/PO (no in-image flag)? → A: All formats,
   WOZ flips its in-image flag; DSK/PO set/clear the host file's read-only
   attribute.
 - Q: Default destination folder? → A: `Documents\Casso Disks` on first use
@@ -86,7 +86,7 @@ document, an app's settings). They click the drive to insert a disk, choose the
 create dialog, and the app creates a fresh, pre-formatted disk and mounts it in
 the drive. They immediately `SAVE`/store from the guest and it succeeds.
 
-**Why this priority**: This is the whole point of the feature — turning the
+**Why this priority**: This is the whole point of the feature, turning the
 emulator from read-only into something a user can actually save to. Delivered
 alone, it unblocks every "save my work" workflow. Choosing WOZ + a standard
 filesystem by default means the saved data reliably round-trips.
@@ -123,7 +123,7 @@ game-save vs. a ProDOS data disk). Without a choice, the feature only serves the
 default case. It builds directly on US1's create-and-mount flow.
 
 **Independent Test**: Create a disk for each supported combination and confirm
-the guest recognizes it — e.g. a ProDOS-formatted disk `CAT`s clean under
+the guest recognizes it, e.g. a ProDOS-formatted disk `CAT`s clean under
 ProDOS; a DOS 3.3 disk `CATALOG`s clean under DOS 3.3; an unformatted disk is
 rejected until the guest `INIT`s/formats it.
 
@@ -148,7 +148,7 @@ rejected until the guest `INIT`s/formats it.
 ### User Story 3 - Name and locate the new disk in-dialog (Priority: P3)
 
 A user wants the new disk saved to a sensible place with a clear name, chosen
-without leaving the create dialog — navigating it the way they would a real
+without leaving the create dialog, navigating it the way they would a real
 file-save dialog.
 
 **Why this priority**: Quality-of-life. The disk has to live somewhere on the
@@ -179,7 +179,7 @@ confirm it lands there and mounts.
 A user wants to protect a disk from accidental writes (a master disk, a golden
 save), or un-protect one they previously locked, from within the app.
 
-**Why this priority**: Write protection is half of a real disk workflow — the
+**Why this priority**: Write protection is half of a real disk workflow, the
 notch tab on a physical 5.25" floppy. Casso already *honors* write protection;
 this story makes it *controllable*. It is user-requested scope for this
 feature.
@@ -249,11 +249,11 @@ and confirm the same behavior.
 - **FR-006**: The create dialog MUST let the user choose the destination
   **inside the dialog**, navigating like a real file-save dialog: browse
   folders (including up/into), see the existing files of the current folder,
-  and edit the file name — with a unique default name carrying the chosen
+  and edit the file name, with a unique default name carrying the chosen
   format's correct extension. The default folder is `Documents\Casso Disks`
   (created on demand) on first use, and thereafter the last folder a disk was
   created in (persisted across sessions).
-- **FR-007**: The app MUST NOT silently overwrite an existing host file — it
+- **FR-007**: The app MUST NOT silently overwrite an existing host file, it
   MUST auto-generate a unique name or require explicit confirmation.
 - **FR-008**: After creation the app MUST mount the new disk into the target
   drive, reusing the existing mount path so the drive widget, MRU, and
@@ -270,7 +270,7 @@ and confirm the same behavior.
   intends to write to them).
 - **FR-013**: The blank-image construction (track/sector layout, filesystem
   skeleton for DOS 3.3 / ProDOS, format encoding) MUST be pure and unit-testable
-  — no window, file, or registry dependency in the generation logic — with only
+ (no window, file, or registry dependency in the generation logic) with only
   the host file write and mount as the thin shell edge (per the core/shell
   doctrine: logic in core for UT coverage).
 - **FR-014**: The app MUST provide a user-invocable toggle for a mounted
@@ -289,7 +289,7 @@ and confirm the same behavior.
   contents. When enabled, the chosen OS (DOS 3.3 or the selected ProDOS
   version) is written onto the new disk so it boots in the emulator. The OS
   payload MUST be sourced through the existing consent-based asset bootstrap
-  (as ROMs are) — never bundled with the app; when the payload is not
+  (as ROMs are); never bundled with the app; when the payload is not
   available (no consent, offline, not yet downloaded), the toggle MUST be
   unavailable with a clear explanation, and data-only creation still works.
 - **FR-018**: The create dialog MUST refuse a destination path that is
@@ -299,7 +299,7 @@ and confirm the same behavior.
 ### Key Entities *(include if feature involves data)*
 
 - **Blank Disk Template** *(implemented as `BlankDiskSpec`)*: The in-memory
-  description of a disk to create — format, contents (OS + version or
+  description of a disk to create, format, contents (OS + version or
   unformatted), bootable flag, size (140K 5.25"), volume name/number. Produced
   by pure logic; serialized to the chosen on-disk format.
 - **Boot Payload**: The OS content a bootable disk carries (DOS 3.3 system
@@ -310,11 +310,11 @@ and confirm the same behavior.
   flag), DSK (DOS 3.3 sector order), PO (ProDOS sector order). Governs
   encoding, which filesystems are representable, and where write protection
   lives.
-- **Filesystem Skeleton**: The empty on-disk structures for a formatted volume —
-  DOS 3.3 (VTOC + catalog track) or ProDOS (volume bitmap + volume directory) —
+- **Filesystem Skeleton**: The empty on-disk structures for a formatted volume, 
+  DOS 3.3 (VTOC + catalog track) or ProDOS (volume bitmap + volume directory),
   or none for unformatted.
-- **Write-Protect State**: A mounted image's effective protection — sourced
-  from the WOZ INFO flag or the host file's read-only attribute — surfaced by
+- **Write-Protect State**: A mounted image's effective protection, sourced
+  from the WOZ INFO flag or the host file's read-only attribute, surfaced by
   the drive's indication and controlled by the new toggle.
 
 ## Success Criteria *(mandatory)*
@@ -322,7 +322,7 @@ and confirm the same behavior.
 ### Measurable Outcomes
 
 - **SC-001**: From a running machine, a user can create a writable disk and
-  successfully `SAVE` a file from the guest — with no external tools — in under
+  successfully `SAVE` a file from the guest, with no external tools, in under
   30 seconds and a handful of clicks.
 - **SC-002**: A file written to a newly created (default WOZ) disk reliably
   round-trips: it re-reads correctly in the same session and after re-mounting
@@ -336,7 +336,7 @@ and confirm the same behavior.
   host filesystem unchanged, 100% of the time.
 - **SC-005**: Toggling write protection takes effect on the very next guest
   write attempt, in both directions, for every mounted format the UI offers
-  the toggle on — and the indicated state never disagrees with the enforced
+  the toggle on, and the indicated state never disagrees with the enforced
   state.
 - **SC-006**: A disk created with the bootable option boots the chosen OS in
   the emulator to its prompt, for every OS the listbox offers.
@@ -369,7 +369,7 @@ and confirm the same behavior.
 
 ## Dependencies
 
-- **Writable target correctness**: RESOLVED — GH #89 (`.dsk` write round-trip)
+- **Writable target correctness**: RESOLVED, GH #89 (`.dsk` write round-trip)
   was fixed 2026-07-09 and #88 closed 2026-07-10; all v1 formats are reliably
   writable. WOZ remains the default for robustness.
 - Reuses the existing disk **mount** path (drive widget, MRU, per-machine

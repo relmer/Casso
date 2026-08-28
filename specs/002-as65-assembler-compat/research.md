@@ -10,30 +10,30 @@
 **Rationale**: The AS65 expression grammar has 11 precedence levels (from unary to logical OR). A recursive descent parser maps each level to a function, is easy to understand, requires no external tools, and handles the `*` disambiguation (current-PC vs multiplication) naturally via context. Alternatives considered: Pratt parser (slightly less readable, similar performance), shunting-yard (harder to handle unary operators and `*` disambiguation).
 
 **AS65 Precedence (high to low)**:
-1. `()` — parenthetical grouping
-2. `* $` — current location counter (primary position only)
-3. Unary `+ - ! ~` — unary plus, negation, logical NOT, binary NOT
-4. `* / %` — multiplication, division, modulo
-5. `+ -` — addition, subtraction
-6. `<< >>` — shift left, shift right
-7. `< > <= >=` — comparison for greater/less than
-8. `= !=` — equality comparison (`==` is synonym for `=`)
-9. `&` — binary AND
-10. `^` — binary XOR
-11. `|` — binary OR
-12. `&&` — logical AND
-13. `||` — logical OR
-14. `hi lo` — high byte, low byte (keyword unary operators, same level as `< >` unary)
+1. `()`: parenthetical grouping
+2. `* $`: current location counter (primary position only)
+3. Unary `+ - ! ~`, unary plus, negation, logical NOT, binary NOT
+4. `* / %`: multiplication, division, modulo
+5. `+ -`: addition, subtraction
+6. `<< >>`: shift left, shift right
+7. `< > <= >=`: comparison for greater/less than
+8. `= !=`: equality comparison (`==` is synonym for `=`)
+9. `&`: binary AND
+10. `^`: binary XOR
+11. `|`: binary OR
+12. `&&`: logical AND
+13. `||`: logical OR
+14. `hi lo`: high byte, low byte (keyword unary operators, same level as `< >` unary)
 
 **Number formats**: `$hex`, `%binary`, `@octal`, `0xhex`, `0bbin`, `<base>#<value>`, decimal, `'char'`.
 
-**`*` disambiguation**: `*` is current-PC when it appears as a primary (start of expression, after an operator, after `(`). It is multiplication when it appears after a number, identifier, or `)`. Same rule applies to `%` (binary prefix vs modulo) — `%` is binary only when followed by `0`/`1` and preceded by an operator or start-of-expression.
+**`*` disambiguation**: `*` is current-PC when it appears as a primary (start of expression, after an operator, after `(`). It is multiplication when it appears after a number, identifier, or `)`. Same rule applies to `%` (binary prefix vs modulo), `%` is binary only when followed by `0`/`1` and preceded by an operator or start-of-expression.
 
 ## 2. Macro Expansion Strategy
 
 **Decision**: Text-based expansion during source line processing, before parsing.
 
-**Rationale**: AS65 macros are textual substitution — `\1` through `\9` are replaced literally with argument text, `\?` with a unique suffix, `\0` with argument count. Named parameters are mapped to the same positional slots. This must happen before the line is parsed as an instruction, because macro arguments can contain partial expressions (e.g., `\1&m8i`).
+**Rationale**: AS65 macros are textual substitution, `\1` through `\9` are replaced literally with argument text, `\?` with a unique suffix, `\0` with argument count. Named parameters are mapped to the same positional slots. This must happen before the line is parsed as an instruction, because macro arguments can contain partial expressions (e.g., `\1&m8i`).
 
 **Implementation**: When a macro invocation is detected (name matches a defined macro), expand the macro body by:
 1. Split invocation arguments on commas (respecting parentheses depth)
@@ -74,7 +74,7 @@
 
 **Decision**: Injectable file reader interface for testability.
 
-**Rationale**: Constitution principle II requires test isolation — no real filesystem access in unit tests. The include mechanism needs a seam where tests can provide synthetic file contents.
+**Rationale**: Constitution principle II requires test isolation, no real filesystem access in unit tests. The include mechanism needs a seam where tests can provide synthetic file contents.
 
 **Implementation**: `Assembler` accepts an optional `FileReader` interface (with a default implementation that reads from disk). Tests inject a mock that returns in-memory strings. Include nesting limit: 16 levels. Path resolution: relative to the including file's directory.
 
@@ -92,7 +92,7 @@
 
 **Rationale**: The `-g` flag produces a debug file. The `as65_142.zip` includes `READDBG` sample code showing the format. This is a low-priority P3 feature but must match for full parity.
 
-**Alternatives considered**: Inventing our own format (rejected — breaks AS65 compatibility goal).
+**Alternatives considered**: Inventing our own format (rejected, breaks AS65 compatibility goal).
 
 ## 9. Listing Format
 

@@ -2,7 +2,7 @@
 
 **Feature**: 001-assembler | **Date**: 2026-04-23
 
-## Public API — CassoCore (Assembler)
+## Public API: CassoCore (Assembler)
 
 ### Construction
 
@@ -35,7 +35,7 @@ AssemblyResult result = assembler.Assemble (sourceText);
 ```
 
 **Parameters**:
-- `sourceText` — `const std::string&` — the full assembly source as a single string (lines separated by `\n`)
+- `sourceText`: `const std::string&`, the full assembly source as a single string (lines separated by `\n`)
 
 **Returns**: `AssemblyResult` struct containing all outputs
 
@@ -68,15 +68,15 @@ bool found = opcodeTable.Lookup ("LDA", GlobalAddressingMode::Immediate, entry);
 ```
 
 **Parameters**:
-- `mnemonic` — uppercase mnemonic string
-- `mode` — `GlobalAddressingMode::AddressingMode` enum value
-- `result` — output `OpcodeEntry`
+- `mnemonic`: uppercase mnemonic string
+- `mode`: `GlobalAddressingMode::AddressingMode` enum value
+- `result`: output `OpcodeEntry`
 
 **Returns**: `true` if the combination is valid, `false` otherwise
 
 ---
 
-## Public API — TestCpu Integration (UnitTest)
+## Public API: TestCpu Integration (UnitTest)
 
 ### TestCpu::Assemble
 
@@ -89,8 +89,8 @@ AssemblyResult result = cpu.Assemble ("LDA #$42\nSTA $10");
 ```
 
 **Parameters**:
-- `source` — `const char*` — assembly source text
-- `startAddress` — `Word` — where to place assembled bytes in memory (default `0x8000`)
+- `source`: `const char*`, assembly source text
+- `startAddress`: `Word`, where to place assembled bytes in memory (default `0x8000`)
 
 **Postconditions**:
 - On success: bytes written to `memory[startAddress..]`, PC set to `startAddress`
@@ -104,8 +104,8 @@ cpu.RunUntil (0x8004, 10000);     // Run with 10000-cycle limit
 ```
 
 **Parameters**:
-- `targetAddress` — `Word` — stop when `PC == targetAddress`
-- `maxCycles` — `uint32_t` — optional cycle limit (0 = unlimited)
+- `targetAddress`: `Word`, stop when `PC == targetAddress`
+- `maxCycles`: `uint32_t`, optional cycle limit (0 = unlimited)
 
 **Stop conditions** (in priority order):
 1. `PC == targetAddress` → normal completion
@@ -119,14 +119,14 @@ Word addr = cpu.LabelAddress (result, "loop");
 ```
 
 **Parameters**:
-- `result` — `const AssemblyResult&` — result from a prior `Assemble()` call
-- `name` — `const char*` — label name (case-sensitive)
+- `result`: `const AssemblyResult&`, result from a prior `Assemble()` call
+- `name`: `const char*`, label name (case-sensitive)
 
 **Returns**: The resolved address of the label
 
 ---
 
-## CLI Contract — Casso Executable
+## CLI Contract: Casso Executable
 
 ### Subcommand: `assemble`
 

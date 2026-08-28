@@ -25,14 +25,14 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-### I. Code Quality — PASS
+### I. Code Quality: PASS
 - Formatting: Will follow existing Casso style (spaces, column alignment, 80-char comment delimiters)
 - EHM macros: The assembler core is pure (string → result struct); EHM patterns used in CLI file I/O layer
 - Smart pointers: Used for macro storage and include file handles
 - Precompiled headers: All new `.cpp` files will include `"Pch.h"` first
 - Function size: Expression evaluator uses recursive descent with small per-precedence-level functions; macro expansion and conditional assembly factored into separate methods
 
-### II. Testing Discipline — PASS
+### II. Testing Discipline: PASS
 - All assembler logic is pure (string in → bytes/errors/symbols out); no system state dependency
 - Tests in `UnitTest/` project using CppUnitTestFramework
 - `include` directive tests use in-memory file resolution (injectable file reader), not real filesystem
@@ -41,25 +41,25 @@ Extend the existing two-pass `Assembler` class (from spec 001) into a full AS65-
 - Existing spec 001 tests remain unchanged (backward compatibility SC-004)
 - No GPL code or proprietary executables committed to the repo
 
-### III. User Experience Consistency — PASS
+### III. User Experience Consistency: PASS
 - Extends existing `assemble`/`run` CLI with new AS65-compatible flags (`-c`, `-d`, `-g`, `-h`, `-i`, `-l`, `-m`, `-n`, `-o`, `-p`, `-q`, `-s`, `-s2`, `-t`, `-v`, `-w`, `-z`)
 - Error messages follow existing format (file:line: message)
 - `--help` updated with all new flags
 - Existing CLI behavior preserved (backward compatible)
 
-### IV. Performance Requirements — PASS
+### IV. Performance Requirements: PASS
 - Dormann suite with macro expansion generates ~30K effective lines; two passes over this is well within 1s budget
 - Expression evaluator is recursive descent with no backtracking
 - Character map is a 256-byte lookup table (O(1) per character)
 
-### V. Simplicity & Maintainability — PASS
+### V. Simplicity & Maintainability: PASS
 - New expression evaluator is a single new file (~600 lines); recursive descent is the simplest correct approach
 - Macro/conditional/include processing added to existing `Assembler` class as private methods
-- No new projects added — all code fits in existing CassoCore/Casso/UnitTest
+- No new projects added: all code fits in existing CassoCore/Casso/UnitTest
 - Struct/cmap are self-contained features with no coupling to the main assembler loop beyond directive dispatch
-- **CPU extensibility**: The assembler engine (expressions, macros, conditionals, directives, segments, listing, CLI) is fully CPU-independent. The instruction set is injected via `OpcodeTable` at construction. Adding 65C02 or other architectures requires only a new instruction table and any new addressing mode patterns — no changes to core assembler logic.
+- **CPU extensibility**: The assembler engine (expressions, macros, conditionals, directives, segments, listing, CLI) is fully CPU-independent. The instruction set is injected via `OpcodeTable` at construction. Adding 65C02 or other architectures requires only a new instruction table and any new addressing mode patterns, no changes to core assembler logic.
 
-### Gate Result: **PASS** — No violations. Proceed to Phase 0.
+### Gate Result: **PASS**: No violations. Proceed to Phase 0.
 
 ## Project Structure
 
@@ -111,8 +111,8 @@ UnitTest/
 ├── OutputFormatTests.cpp         # NEW
 ├── ConformanceTests.cpp          # NEW: data-driven test runner for ~200 conformance cases
 ├── DormannIntegrationTests.cpp   # NEW
-├── AssemblerTests.cpp            # Existing — must still pass
-├── ParserTests.cpp               # Existing — must still pass
+├── AssemblerTests.cpp            # Existing, must still pass
+├── ParserTests.cpp               # Existing, must still pass
 └── (existing files)              # Unchanged
 ```
 

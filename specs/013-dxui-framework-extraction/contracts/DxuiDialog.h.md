@@ -34,7 +34,7 @@ public:
 class DxuiDialogWindow : public DxuiWindow { /* content panel + button row */ };
 ```
 
-## Paged sheet — `DxuiPropertySheet` / `DxuiPropertyPage` (FR-129)
+## Paged sheet: `DxuiPropertySheet` / `DxuiPropertyPage` (FR-129)
 
 ```cpp
 // Dxui/Window/DxuiPropertyPage.h  (excerpt)
@@ -74,7 +74,7 @@ public:
   notice and a Theme "Apply now" affordance to that bespoke panel; a later migration onto
   `DxuiPropertySheet` is the natural end-state.
 
-## Historical (deleted) — original FR-070/071/072 shape
+## Historical (deleted): original FR-070/071/072 shape
 
 ```cpp
 // REMOVED. Kept only to explain what the coverage matrix's FR-070/071/072 rows meant.

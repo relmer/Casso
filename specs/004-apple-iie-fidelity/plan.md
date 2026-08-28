@@ -14,26 +14,26 @@ correct two-odd-read pre-write, full keyboard ($C061-$C063), composed video
 nibble-level Disk II controller with WOZ + .dsk/.do/.po support, ROM mapping
 honoring INTCXROM / SLOTC3ROM / INTC8ROM, IRQ infrastructure with vectored
 dispatch, VBL tied to a video timing model, distinct soft-vs-power reset
-semantics, and a true headless test harness — all delivered by **composition
+semantics, and a true headless test harness, all delivered by **composition
 over branching** so that ][/][+ remain unmodified and 65C02, //c, //e Enhanced,
 clock card, mouse card, and Mockingboard are trivial future additions.
 
 The CPU is refactored behind a strategy interface. The MMU absorbs and replaces
 the buggy `AuxRamCard` ($C003-$C006) soft-switch routing into a coherent
 //e-MMU subsystem driven by a single banking-changed callback over the existing
-page-table fast path. Tests use a true headless host — no window, no audio
+page-table fast path. Tests use a true headless host, no window, no audio
 device, no host filesystem outside in-repo `UnitTest/Fixtures/`.
 
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145 (VS 2026)
-**Primary Dependencies**: Windows SDK + STL only — no third-party libraries
+**Primary Dependencies**: Windows SDK + STL only, no third-party libraries
 **Storage**: In-repo binary fixtures under `UnitTest/Fixtures/`; runtime ROMs under `ROMs/`
 **Testing**: Microsoft C++ Unit Test Framework (CppUnitTestFramework) in `UnitTest/`
 **Target Platform**: Windows 10/11, x64 and ARM64
 **Project Type**: Desktop GUI application + static libraries + unit-test DLL (existing 5-project solution)
 **Performance Goals**: ≤ ~1% of one host core for an idle 1.023 MHz //e (FR-042); 60 Hz steady frame pacing
-**Constraints**: Test isolation NON-NEGOTIABLE (constitution §II) — no host I/O outside in-repo fixtures; ][/][+ behavior MUST NOT regress; deterministic outputs across runs
+**Constraints**: Test isolation NON-NEGOTIABLE (constitution §II), no host I/O outside in-repo fixtures; ][/][+ behavior MUST NOT regress; deterministic outputs across runs
 **Scale/Scope**: ~40-50 new/modified C++ files, ~8-12k LOC delta, ~150-250 new test cases, 4 disk-image fixtures, 1 DHR golden framebuffer hash
 
 ## Constitution Check
@@ -41,22 +41,22 @@ device, no host filesystem outside in-repo `UnitTest/Fixtures/`.
 *GATE: re-checked post Phase 1 design (see end of section). Phase 12.4.0 amendments
 are explicitly enumerated.*
 
-### Principle I — Code Quality (NON-NEGOTIABLE) — Phase 12.4.0 amendments
+### Principle I: Code Quality (NON-NEGOTIABLE), Phase 12.4.0 amendments
 
 | Rule | How this plan complies |
 |---|---|
 | Formatting Preservation (no blank-line / column-alignment loss) | All edits will be surgical; existing aligned blocks (e.g. `MemoryBus` page-table struct, `AppleSoftSwitchBank` register table) preserved. New files use the project's 5-blank-line / 3-blank-line rules. |
 | EHM applies to **any** function with fallible internals (1.4.0 expansion) | New subsystems (`AppleIIeMmu`, `DiskIINibbleEngine`, `WozLoader`, `NibblizationLayer`, `InterruptController`, `HeadlessHost`, `VideoTiming`) declared up front to follow EHM internally even when their public return type is `void` or domain-typed. Helper functions that allocate, parse, or call Win32 follow `HRESULT hr; ... Error: ...; return hr;` and surface results to callers via out-params. |
-| No calls inside macro arguments (1.4.0) | All macro callsites — `CHR(...)`, `Assert::*`, `Logger::*`, `IGNORE_RETURN_VALUE` — will store call results into a local first. Reviewed during code review of every PR phase. |
+| No calls inside macro arguments (1.4.0) | All macro callsites: `CHR(...)`, `Assert::*`, `Logger::*`, `IGNORE_RETURN_VALUE`, will store call results into a local first. Reviewed during code review of every PR phase. |
 | Single exit via `Error:` label | Every new HRESULT-returning function uses the project pattern. |
 | Avoid Nesting (1-2 typical, 3 max indent beyond EHM) (1.4.0) | New device classes are factored aggressively. The MMU dispatch (the deepest natural nest) extracts per-region resolvers into helpers (`ResolveZeroPage`, `ResolveMain02_BF`, `ResolveText04_07`, `ResolveHires20_3F`, `ResolveCxxx`, `ResolveLcD000_FFFF`) so each helper stays at ≤ 2 indent levels. |
 | Variable Declarations at Top of Scope (1.4.0) | All new functions declare locals at top of the enclosing scope, column-aligned per project rules. Reviewed in PR. |
 | No Unnecessary Scope Blocks (1.4.0) | No `{ … }` blocks introduced for visual grouping. |
 | Function Comments in `.cpp` Only (1.4.0) | All new headers carry only declaration comments; doc blocks live in `.cpp` with the 80-`/` delimiters. Header comment audit added to the post-implementation polish phase. |
-| Function Spacing — `func()`, `func (a, b)`, `if (...)`, `for (...)` (1.4.0) | New code adheres; review checklist includes a grep for `\b[a-zA-Z_]\w*\(` violations on changed lines. |
+| Function Spacing: `func()`, `func (a, b)`, `if (...)`, `for (...)` (1.4.0) | New code adheres; review checklist includes a grep for `\b[a-zA-Z_]\w*\(` violations on changed lines. |
 | Smart Pointers | `unique_ptr` for owned subsystems registered in `ComponentRegistry`; no `shared_ptr` introduced. |
 
-### Principle V — Function Size & Structure (NON-NEGOTIABLE)
+### Principle V: Function Size & Structure (NON-NEGOTIABLE)
 
 All new functions targeted ≤ 50 lines (100 absolute max), 1-2 indent levels
 beyond EHM (3 max). Anticipated worst-case offenders are pre-decomposed in
@@ -65,7 +65,7 @@ the data-model:
 - `DiskIINibbleEngine::Tick` → state-machine helper per LSS phase.
 - `Apple80ColTextMode::Render` (mixed-mode aware) → row renderer extracted.
 
-### Principle II — Testing Discipline (NON-NEGOTIABLE: Test Isolation)
+### Principle II: Testing Discipline (NON-NEGOTIABLE: Test Isolation)
 
 | Rule | Compliance plan |
 |---|---|
@@ -73,15 +73,15 @@ the data-model:
 | No registry / network / env | None of the new subsystems use Win32 registry or network. Environment access (e.g. user data dir for ROMs in production) goes through the existing `PathResolver` interface, mocked in tests. |
 | No real audio device | The existing speaker path already separates `AppleSpeaker` (logic) from a `IAudioSink`; the headless harness binds it to a `MockAudioSink` that drops samples and counts toggles. |
 | No real window / input | New `IHostShell` interface owns window + input. GUI implementation lives in `Casso/`. Tests use `HeadlessHost` (no window, no message pump). |
-| Deterministic | Power-on RAM uses a seeded PRNG (`SplitMix64` in EmuCore). Production uses a per-launch random seed (`time(nullptr) ^ pid`-derived) so each cold boot is genuinely random — matching real //e DRAM indeterminacy. The headless test harness pins seed = `0xCA550001` for reproducibility. The seed source is injected via the same constructor — production is NOT a hardcoded fallback, it's an explicit "random seed" code path. |
+| Deterministic | Power-on RAM uses a seeded PRNG (`SplitMix64` in EmuCore). Production uses a per-launch random seed (`time(nullptr) ^ pid`-derived) so each cold boot is genuinely random: matching real //e DRAM indeterminacy. The headless test harness pins seed = `0xCA550001` for reproducibility. The seed source is injected via the same constructor: production is NOT a hardcoded fallback, it's an explicit "random seed" code path. |
 
-### Principle III — UX Consistency
+### Principle III: UX Consistency
 
 No new CLI surface. Machine selection remains via existing `Machines/*.json` +
 GUI menu. `Apple2e.json` will be updated to declare the new MMU + IRQ
 controller; `Apple2.json` and `Apple2Plus.json` remain unchanged.
 
-### Principle IV — Performance
+### Principle IV: Performance
 
 Budget owned by FR-042 / SC-007. Plan includes `EmuTests/PerformanceTests.cpp`
 that measures wall-clock cost of N emulated cycles in a tight loop and asserts
@@ -95,7 +95,7 @@ standard `Build + Test Release` task; failure on it fails CI. See
   exceptions requested.
 - **Post Phase 1 gate**: ✅ PASS (see end of doc).
 
-No entries in **Complexity Tracking** — nothing waived.
+No entries in **Complexity Tracking**, nothing waived.
 
 ## Project Structure
 
@@ -231,11 +231,11 @@ UnitTest/                                  # CppUnitTestFramework DLL (existing)
 **Structure Decision**: Retain the existing 5-project layout (CassoCore,
 CassoEmuCore, Casso, CassoCli, UnitTest). All new functionality lives inside
 those projects, organized into the existing `Core/` `Devices/` `Video/`
-`Audio/` subfolders — plus one new `Devices/Disk/` subfolder for the disk
+`Audio/` subfolders, plus one new `Devices/Disk/` subfolder for the disk
 stack and one new `UnitTest/Fixtures/` for in-repo binary test data. No
 project additions; no architectural restructuring at the solution level.
 
-## Phase 0 — Outline & Research
+## Phase 0: Outline & Research
 
 See [`research.md`](./research.md). Summary of decisions:
 
@@ -264,12 +264,12 @@ See [`research.md`](./research.md). Summary of decisions:
 10. **Fixtures provenance**: only public-domain or project-original artifacts.
     Provenance documented in `UnitTest/Fixtures/README.md`.
 
-## Phase 1 — Design & Contracts
+## Phase 1: Design & Contracts
 
 See:
-- [`data-model.md`](./data-model.md) — entities, state machines, relationships.
-- [`contracts/`](./contracts/) — internal module contracts (C++ interface docs).
-- [`quickstart.md`](./quickstart.md) — build, run, test, headless invocation.
+- [`data-model.md`](./data-model.md): entities, state machines, relationships.
+- [`contracts/`](./contracts/): internal module contracts (C++ interface docs).
+- [`quickstart.md`](./quickstart.md): build, run, test, headless invocation.
 
 Agent context updated: `.github/copilot-instructions.md` SPECKIT block now
 references this plan.
@@ -279,77 +279,77 @@ references this plan.
 > Foundational first; user stories layered. **Each phase commits independently
 > per constitution Commit Discipline.**
 
-### Phase 0 — Setup
+### Phase 0: Setup
 - Create `UnitTest/Fixtures/` and the `IFixtureProvider` plumbing.
 - Add `Prng` (SplitMix64). Add `MockAudioSink`, `MockIrqAsserter`, `HeadlessHost`.
 - Add `ICpu`, `I6502DebugInfo`, `IInterruptController`, `IHostShell`, `IMmu`, `IDiskImage`,
   `IVideoTiming` headers (declarations only).
 
-### Phase 1 — CPU strategy + IRQ infrastructure (FR-030, FR-031, FR-032)
+### Phase 1: CPU strategy + IRQ infrastructure (FR-030, FR-031, FR-032)
 - Extract `Cpu6502` from `Cpu` behind `ICpu`. Wire IRQ line + $FFFE dispatch.
 - Implement `InterruptController`. Tests: `InterruptControllerTests`.
 - Gate: existing `CpuOperationTests`, `Dormann`, `Harte` all still green.
 
-### Phase 2 — //e MMU consolidation (FR-001..FR-007, FR-026..FR-029)
+### Phase 2: //e MMU consolidation (FR-001..FR-007, FR-026..FR-029)
 - Build `AppleIIeMmu`. Move soft-switch ownership from `AuxRamCard` and from
   `AppleIIeSoftSwitchBank`'s incorrect mapping into the MMU. Delete
   `AuxRamCard`. Wire status reads $C013-$C018 + RD80STORE.
-- Implement INTCXROM, SLOTC3ROM, INTC8ROM ROM-mapper rules — unblocks slot 6.
+- Implement INTCXROM, SLOTC3ROM, INTC8ROM ROM-mapper rules, unblocks slot 6.
 - Tests: `MmuTests`, expanded `SoftSwitchTests`. ][/][+ tests must stay green.
 
-### Phase 3 — Language Card rewrite (FR-008..FR-012)
+### Phase 3: Language Card rewrite (FR-008..FR-012)
 - Rewrite pre-write state machine; ALTZP-controlled aux LC bank routing;
   power-on default; reset preservation. Tests: `LanguageCardTests` rewrite.
 
-### Phase 4 — Reset semantics + RAM seeding (FR-034, FR-035)
+### Phase 4: Reset semantics + RAM seeding (FR-034, FR-035)
 - Split `SoftReset()` / `PowerCycle()` paths. Seed RAM via `Prng` on power.
 - Tests: `ResetSemanticsTests`.
 
-### Phase 5 — Video timing + VBL (FR-033, FR-020)
+### Phase 5: Video timing + VBL (FR-033, FR-020)
 - Add `VideoTiming` driving `IsInVblank()`. Wire $C019 status read through it.
 - Tests: `VideoTimingTests`.
 
-### Phase 6 — Keyboard completion (FR-013, FR-014)
+### Phase 6: Keyboard completion (FR-013, FR-014)
 - Extend `AppleIIeKeyboard::GetEnd()` to $C063; ensure $C011-$C01F do NOT
   clear the strobe. Tests: `KeyboardTests` updates.
 
 ### Then layer User Stories:
 
-### Phase 7 (P1) — Cold boot to BASIC prompt + PR#3
+### Phase 7 (P1): Cold boot to BASIC prompt + PR#3
 Depends on Phases 0-6. Adds: integration test scenarios in `EmuIntegrationTests`.
 
-### Phase 8 (P1) — //e-specific memory & LC programs
+### Phase 8 (P1): //e-specific memory & LC programs
 Depends on Phase 2, Phase 3, Phase 4. Adds: targeted memory + LC scenarios.
 
-### Phase 9 — Disk II nibble engine (FR-021, FR-022, FR-024)
+### Phase 9: Disk II nibble engine (FR-021, FR-022, FR-024)
 Depends on Phase 2 (so slot 6 is reachable). Adds: `DiskIINibbleEngine`,
 nibble-level controller rewrite, `WozLoader`. Tests: `DiskIITests` rewrite,
 `WozLoaderTests`.
 
-### Phase 10 — Nibblization layer + auto-flush (FR-023, FR-025)
+### Phase 10: Nibblization layer + auto-flush (FR-023, FR-025)
 Depends on Phase 9. Adds: `NibblizationLayer`, `DiskImageStore`. Tests:
 `NibblizationTests`, `DiskImageStoreTests`.
 
-### Phase 11 (P1) — Disk-based real software incl. CP
+### Phase 11 (P1): Disk-based real software incl. CP
 Depends on Phase 9+Phase 10. Adds: DOS 3.3 / ProDOS / WOZ / CP integration scenarios.
 
-### Phase 12 — Video correctness (FR-016, FR-017, FR-017a, FR-018, FR-019)
+### Phase 12: Video correctness (FR-016, FR-017, FR-017a, FR-018, FR-019)
 Adds: 80-col interleave fix, ALTCHARSET, mixed-mode 80-col routing through
 the same composed renderer, NTSC artifact, DHR interleave fix. Tests:
 `VideoModeTests`, `VideoRenderTests` golden-hash assertions.
 
-### Phase 13 (P1) — Headless harness validation suite
+### Phase 13 (P1): Headless harness validation suite
 Depends on Phases 0-6, Phase 12, Phase 9+Phase 10. Adds: complete FR-045 scenario set in
 `EmuIntegrationTests`.
 
-### Phase 14 (P1) — Backwards compat
+### Phase 14 (P1): Backwards compat
 Continuous gate from Phase 0 onward. Adds: explicit `BackwardsCompatTests`
 re-asserting pre-feature ][/][+ behaviors so regressions are caught precisely.
 
-### Phase 15 (P2) — Performance
+### Phase 15 (P2): Performance
 Adds: `PerformanceTests` budget assertion (FR-042 / SC-007).
 
-### Phase 16 — Polish
+### Phase 16: Polish
 - Header-comment audit (constitution §I 1.4.0).
 - Macro-argument grep audit on changed lines.
 - Function-spacing grep audit on changed lines.
@@ -361,7 +361,7 @@ Adds: `PerformanceTests` budget assertion (FR-042 / SC-007).
 `UnitTest/EmuTests/PerformanceTests.cpp` runs in **Release** only. It executes
 1,000,000 emulated cycles on a //e at the BASIC idle loop and asserts the
 wall-clock cost is below a threshold computed for ~10 % of one host core
-(generous local margin) — the spec's ~1 % is the production target with
+(generous local margin), the spec's ~1 % is the production target with
 throttling; the unthrottled measurement just needs to demonstrate ≥ 10x
 headroom over real //e speed. CI integration: included in the standard
 `Build + Test Release` task; failure fails CI. The threshold is centralized
@@ -376,24 +376,24 @@ All under `UnitTest/Fixtures/`, documented in `Fixtures/README.md`:
 | `Apple2e.rom`, `Apple2e_Video.rom` | Already in `ROMs/`. Used as-is by tests via `IFixtureProvider`. | Apple-distributable ROM image used in many open-source emulators; status documented in repo README. |
 | `dos33.dsk` | DOS 3.3 system master, public-domain release | Public domain |
 | `prodos.po` | ProDOS boot disk, public-domain release | Public domain |
-| `sample.woz` | Project-original WOZ image generated by repo tooling | Original — MIT (project) |
+| `sample.woz` | Project-original WOZ image generated by repo tooling | Original, MIT (project) |
 | `copyprotected.woz` | Public-domain CP sample (e.g. demo with custom track sync) | Public domain |
-| `golden/*.hash` | Project-generated SHA-256 framebuffer hashes | Original — MIT (project) |
+| `golden/*.hash` | Project-generated SHA-256 framebuffer hashes | Original, MIT (project) |
 
 Fixtures are committed as binary blobs in-repo. They are read **only** through
 `IFixtureProvider`, which constrains all paths to within `UnitTest/Fixtures/`.
 
-## Constitution Re-Check (post Phase 1) — ✅ PASS
+## Constitution Re-Check (post Phase 1): ✅ PASS
 
 Re-verified against the Phase 12.4.0 amendments after data-model and contracts were
 written. No new violations introduced. No entries required in Complexity
 Tracking. The architecture preserves Principle V (Simplicity) by removing one
 device (`AuxRamCard`) for every two added (`AppleIIeMmu`, `InterruptController`)
-— net device count is reduced after counting the `Disk/*` regrouping.
+, net device count is reduced after counting the `Disk/*` regrouping.
 
 ## Complexity Tracking
 
-> *Empty — Constitution Check PASSES with no waivers.*
+> *Empty, Constitution Check PASSES with no waivers.*
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|

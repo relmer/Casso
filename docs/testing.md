@@ -6,8 +6,9 @@ place where the default is deliberately weaker than what is available.
 ## Running it
 
 ```powershell
-.\scripts\RunTests.ps1 -Build            # build, then run everything
+.\scripts\RunTests.ps1 -Build            # build, then run the unit suite
 .\scripts\RunTests.ps1 -Build -Filter Merlin
+.\scripts\RunTests.ps1 -Build -Scenario  # the scenario suite -- see below
 ```
 
 `RunTests.ps1` does not build unless you pass `-Build`, and it refuses to run
@@ -18,7 +19,7 @@ confident green, which has bitten this project before.
 Debug and Release do **not** run the same tests, and Release is not a
 substitute for Debug. `ExpectedEhmAssert` has its `RequireCount()` and its
 destructor's did-an-assert-fire check compiled out in Release, so those tests
-still execute the code under test but verify nothing about the assert — they
+still execute the code under test but verify nothing about the assert; they
 would pass with the guard deleted. Run Debug before merging.
 
 ## What the suite is made of
@@ -26,14 +27,37 @@ would pass with the guard deleted. Run Debug before merging.
 | Layer | What it proves |
 |---|---|
 | Unit tests | Encoding, addressing modes, arithmetic, flags, assembler, audio, video, disk formats, UI models |
-| `HeadlessHost` integration | Cold boot, disk boot, framebuffer hashing, reset semantics — the emulator with no Win32 window |
+| `HeadlessHost` integration | Cold boot, disk boot, framebuffer hashing, reset semantics, the emulator with no Win32 window |
+| Scenario suite (`ScenarioTests.dll`) | What a real guest makes of what we wrote, against material we do not own |
 | Dormann functional suite | That whole *programs* behave correctly on the CPU |
 | Harte SingleStepTests | That each *instruction* is correct in isolation, against real hardware |
 
 Dormann and Harte cover what neither does alone. Dormann runs real 6502 code
 and catches errors that compound into wrong behavior. Harte catches a single
-flag being wrong in a case no sensible program creates — which is exactly
+flag being wrong in a case no sensible program creates, which is exactly
 where copy protection lives.
+
+## The scenario suite
+
+`ScenarioTests.dll` holds the cases that are **system tests, not unit tests**:
+they need external inputs -- the stock DOS 3.3 System Master, which is
+fetched by the emulator rather than committed -- and they boot real guests to
+ask what DOS 3.3, ProDOS, and Applesoft themselves make of the disks and
+programs this tool produced. A tokenizer checked against its own detokenizer,
+or a disk read back through the writer's own understanding, agrees with
+itself perfectly while being wrong; the guest is the oracle that cannot.
+
+They live in a **separate binary** rather than behind a category or filter,
+so they structurally cannot run in the unit suite by accident: CI names
+`UnitTest.dll` only, and `RunTests.ps1 -Scenario` is the one deliberate way
+to run them. A case that cannot reach the master FAILS rather than skipping,
+because a guest-visible gate that never started a guest has checked nothing.
+
+One scenario case doubles as a fixture generator: the Applesoft construct
+corpus (`UnitTest/Fixtures/Basic/`) is regenerated only by typing the
+committed listing into a booted master, never from the tokenizer's own
+output. The circularity guard is spelled out in the inventory beside the
+fixture.
 
 ## The Harte vectors
 
@@ -47,7 +71,7 @@ name=a9 cc 21   pc=B36A a=43 x=91 y=96 s=AC p=ED   ram=B36A:A9 B36B:CC B36C:21
 ```
 
 Set the CPU to that exact state, execute one instruction, compare every field
-of the result — registers, flags, and touched memory — against the recorded
+of the result (registers, flags, and touched memory) against the recorded
 final state.
 
 The randomness is in the *input*. Nobody computed the expected output; it was
@@ -72,7 +96,7 @@ the Dormann tests and the disk-timing tests.
 under `UnitTest/HarteVectors/`. Every clone, every worktree, and CI get real
 opcode coverage with no setup.
 
-**The full set is 10,000 per opcode** — about 186 MB, not checked in.
+**The full set is 10,000 per opcode**, about 186 MB, not checked in.
 
 ### Why the default is reduced
 
@@ -91,7 +115,7 @@ each without loading a vector. A missing per-opcode file is a legitimate skip,
 so nothing reported it.
 
 Checking in a reduced set removes the whole failure mode. No download, no
-cache, no provisioning step, no network — a fresh clone is correct
+cache, no provisioning step, no network; a fresh clone is correct
 immediately.
 
 ### Why 200 is a defensible default
@@ -99,7 +123,7 @@ immediately.
 - **It is a fair sample.** The vectors arrive in random order, not sorted:
   initial PC is non-monotonic across the file, and the first 200 alone cover
   60 of the 64 reachable flag combinations and 135 of 256 accumulator values.
-  Truncation is unbiased, and deterministic — the same input always produces
+  Truncation is unbiased, and deterministic, the same input always produces
   the same output.
 - **It is ~82,000 vectors across the suite**, not a token gesture.
 - **10,000 is redundant for most opcodes.** `LDA #imm` derives only N and Z
@@ -111,7 +135,7 @@ immediately.
 The count earns its keep where the state space is genuinely large, and 200 is
 a thin sample of it. Use the full set when:
 
-- **You touched the CPU core** — `CassoCore/Cpu.cpp`, `Microcode.h`, the
+- **You touched the CPU core**: `CassoCore/Cpu.cpp`, `Microcode.h`, the
   opcode tables, `CassoEmuCore/Core/Cpu65C02.cpp`, or anything that changes
   instruction dispatch, flag computation, or addressing.
 - **You are chasing a copy-protection or "this game misbehaves" bug.** These
@@ -152,9 +176,9 @@ That reads the existing `.bin` files and truncates them. No network.
 
 `GetHarteTestDataDir` resolves at runtime, richest set first:
 
-1. `CASSO_HARTE_DIR` — explicit override, for CI or a scratch set
-2. `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\` — the full set, if generated
-3. `UnitTest/HarteVectors/<cpu>/` — the checked-in reduced set
+1. `CASSO_HARTE_DIR`: explicit override, for CI or a scratch set
+2. `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`: the full set, if generated
+3. `UnitTest/HarteVectors/<cpu>/`: the checked-in reduced set
 
 So generating the full set silently upgrades every subsequent run, and
 deleting it falls back to the reduced set.
@@ -168,7 +192,7 @@ Harte 6502: 153 opcodes, 10000 vectors each (1530000 total) -- FULL depth.
 
 The numbers are read out of the file headers, never hardcoded, so the message
 cannot drift out of step with the data. The same test **fails** when the
-directory is empty — that is the guard against the silent-pass mode returning.
+directory is empty; that is the guard against the silent-pass mode returning.
 
 A note on `rockwell65c02`: upstream depth is not uniform there, ranging from
 1,000 to 10,000 vectors per opcode, which is why the report shows a range
@@ -178,8 +202,8 @@ rather than a single number.
 
 `GenerateHarteTests.py` currently fetches from the upstream `main` branch
 rather than a pinned commit, so a regeneration could silently pick up changed
-data. Checking in the reduced set mitigates this — the bytes are now in git
-history and upstream drift shows up as a reviewable diff — but pinning
+data. Checking in the reduced set mitigates this, the bytes are now in git
+history and upstream drift shows up as a reviewable diff, but pinning
 `BASE_URL` to a commit SHA is still worth doing.
 
 ## Suite performance
@@ -190,9 +214,9 @@ signature of compiler flags, not a hotspot. Measured contributions:
 
 | cause | share of the gap |
 |---|---|
-| `/Od` (no inlining) | ~49% — not recoverable; it is what makes Debug steppable |
+| `/Od` (no inlining) | ~49%, not recoverable; it is what makes Debug steppable |
 | `_ITERATOR_DEBUG_LEVEL=2` | 34% |
-| `/RTC1` | 22% — **deliberately kept.** It catches local-buffer overruns and uninitialized reads, and the emulator writes through raw memory buffers |
+| `/RTC1` | 22%: **deliberately kept.** It catches local-buffer overruns and uninitialized reads, and the emulator writes through raw memory buffers |
 
 Two fixes already landed: `/JMC` is off in `Directory.Build.props`
 (`__CheckForDebuggerJustMyCode` was 24.5% of all Debug samples, the largest
@@ -201,5 +225,5 @@ until the machine is idle rather than spending a fixed cycle budget that was
 16–50× larger than the work required.
 
 When measuring, note that **a worktree and the primary repo do not run the
-same amount of work** unless both have the same vector depth available — the
+same amount of work** unless both have the same vector depth available, the
 resolver prefers a full set in the cache. Always state which you measured.

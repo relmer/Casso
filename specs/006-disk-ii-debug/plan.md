@@ -2,14 +2,14 @@
 
 **Branch**: `feature/006-disk-ii-debug` | **Date**: 2026-05-17 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification at `specs/006-disk-ii-debug/spec.md`
-**Research basis**: [`research.md`](./research.md) — Disk II nibble-format anchors, Win32 virtual-mode ListView idioms, and SPSC ring patterns
+**Research basis**: [`research.md`](./research.md), Disk II nibble-format anchors, Win32 virtual-mode ListView idioms, and SPSC ring patterns
 **Constitution**: `.specify/memory/constitution.md`
 
 ## Summary
 
 Add a modeless **Disk II Debug** window to the Casso shell that surfaces a
 live, scrolling, append-only log of `DiskIIController` events for developers
-diagnosing disk behavior — head-stuck-spinning, RWTS-failing-to-find-an-
+diagnosing disk behavior, head-stuck-spinning, RWTS-failing-to-find-an-
 address-mark, custom-protected-loaders-reading-non-standard-sectors. The
 window opens from **View → Disk II Debug...** (Ctrl+Shift+D), hosts a Win32
 ListView in virtual + report mode, and tails events at ~30 Hz with an
@@ -25,7 +25,7 @@ existing motor/head/mount call site, guarded so that a no-sink build is
 100% byte-identical to the pre-feature controller. The motor lifecycle
 is split across **four** events (`OnMotorCommandOn` / `OnMotorEngaged` /
 `OnMotorCommandOff` / `OnMotorDisengaged`) so consumers can distinguish
-strobes from logical engagement edges — see FR-006 and A-009.
+strobes from logical engagement edges; see FR-006 and A-009.
 `DiskIIAudioSource` gains a parallel `IDriveAudioEventSink*` pointer
 that fires one of six audio-decision outcomes (Started / Restarted /
 Continued / Silent / LoopStarted / LoopStopped) from inside its existing
@@ -45,12 +45,12 @@ the next drain. The UI thread maintains a
 100,000) that the virtual-mode ListView pulls from via `LVN_GETDISPINFO`.
 
 This feature is independent of #51 (interactive debugger engine) and #59
-(GUI debugger panel) — it is a passive event log, not a CPU debugger.
+(GUI debugger panel); it is a passive event log, not a CPU debugger.
 
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145 (VS 2026)
-**Primary Dependencies**: Windows SDK only — User32 (modeless dialog +
+**Primary Dependencies**: Windows SDK only, User32 (modeless dialog +
 accelerators), ComCtl32 v6 (virtual-mode ListView). No new third-party
 libraries.
 **Storage**: None. v1 does not persist filter / pause / column-width /
@@ -60,7 +60,7 @@ registry tier is a follow-up.
 **Testing**: Microsoft C++ Unit Test Framework in `UnitTest/`. New
 `DiskIIEventRingTests.cpp`, `DiskIIAddressMarkWatcherTests.cpp`,
 `DiskIIControllerEventTests.cpp` (extends the existing controller test
-surface), and `DiskIIDebugDialogTests.cpp` (projection-logic-only — no
+surface), and `DiskIIDebugDialogTests.cpp` (projection-logic-only, no
 real `HWND`, no real ListView, no real timer per NFR-002).
 **Target Platform**: Windows 10/11, x64 and ARM64
 **Project Type**: Existing 5-project solution; new code in `CassoEmuCore`
@@ -81,11 +81,11 @@ HWND (NFR-002).
 contracts + dialog + projection + filter parser), ~6 touched files
 (controller, audio source, shell, menu, resource, machine-shell for
 Uptime anchor reseed), ~50–75 new test cases. New modeless dialog
-(small, programmatically constructed — no .rc dialog template).
+(small, programmatically constructed, no .rc dialog template).
 
 ## Constitution Check
 
-### Principle I — Code Quality (NON-NEGOTIABLE)
+### Principle I: Code Quality (NON-NEGOTIABLE)
 
 | Rule                                              | How this plan complies                                                                                                                  |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
@@ -97,7 +97,7 @@ Uptime anchor reseed), ~50–75 new test cases. New modeless dialog
 | Avoid Nesting (≤ 2-3 indent beyond EHM)           | Watcher state machine factored into per-state helper methods (`StepAddrMarkState`, `StepDataMarkState`), each ≤ 2 levels. Drain loop factored into `DrainRing` + `ProjectToView` helpers. |
 | Variable Declarations at Top of Scope             | All new functions follow this; column-aligned per project rules (type / `*`-`&` column / name / `=` / value). |
 | Function Comments in `.cpp` Only                  | Headers carry only declaration comments; doc blocks live in `.cpp` with 80-`/` delimiters.                                              |
-| Function Spacing — `func()` vs `func (a, b)`      | Verified via `rg -n '\w \(\)' CassoEmuCore/Devices/ Casso/` before commit on every PR phase.                                            |
+| Function Spacing, `func()` vs `func (a, b)`      | Verified via `rg -n '\w \(\)' CassoEmuCore/Devices/ Casso/` before commit on every PR phase.                                            |
 | Smart Pointers                                    | `DiskIIDebugDialog` is owned by `EmulatorShell` directly (composition); no smart pointer needed. `DiskIIEventRing` and `DiskIIAddressMarkWatcher` are direct members of `DiskIIController` / the dialog respectively. |
 | PascalCase file names                             | All new source files (`IDiskIIEventSink.h`, `DiskIIEventRing.{h,cpp}`, `DiskIIAddressMarkWatcher.{h,cpp}`, `DiskIIDebugDialog.{h,cpp}`) and test files use PascalCase with no underscores. |
 | No magic numbers                                  | `kEventRingCapacity = 4096`, `kDisplayDequeCap = 100000`, `kDrainTimerHz = 30`, `kDrainTimerMs = 33`, `kAddrMarkPrologue0 = 0xD5`, `kAddrMarkPrologue1 = 0xAA`, `kAddrMarkPrologue2 = 0x96`, `kDataMarkPrologue2 = 0xAD`, `kSectorEpilogue0 = 0xDE`, `kSectorEpilogue1 = 0xAA`, `kSectorEpilogue2 = 0xEB`, `kDataNibbleCount = 342`, `kFilterTextDebounceMs = 250` (Track/Sector text-input debounce per FR-014d), `kFilterRichEditClass = L"RICHEDIT50W"` and `kFilterRichEditModule = L"msftedit.dll"` (Track/Sector RichEdit class + module per FR-014e), `kFilterSquiggleUnderlineColor = CFU_UNDERLINECOLOR_RED` (per FR-014e), and column-width constants `kColWallWidth = 110`, `kColUptimeWidth = 90`, `kColCycleWidth = 110`, `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px), are all named constants. |
@@ -105,7 +105,7 @@ Uptime anchor reseed), ~50–75 new test cases. New modeless dialog
 | `std::numbers` for math constants                 | No math constants needed by this feature (ring/deque are integer-indexed; time formatting uses integer ms).                            |
 | American English                                  | Verified (e.g., "behavior", not "behavior"; "canceled", not "canceled").                                                              |
 
-### Principle II — Test Isolation (NON-NEGOTIABLE)
+### Principle II: Test Isolation (NON-NEGOTIABLE)
 
 All tests run on the same headless harness as existing `CassoEmuCore`
 tests. The ring buffer, watcher, and event-sink mock are pure data
@@ -116,7 +116,7 @@ equivalent) that tests instantiate directly; the Win32 wiring layer
 (`WM_INITDIALOG`, `WM_TIMER`, `LVN_GETDISPINFO`, button handlers) is
 exercised by manual / integration testing only and is intentionally thin.
 
-### Principle V — Function Size & Structure
+### Principle V: Function Size & Structure
 
 The longest behavior-carrying function is `DiskIIAddressMarkWatcher::ObserveNibble`,
 which factors as:
@@ -141,7 +141,7 @@ DrainAndProject (ring, deque, filterMask)
 
 All helpers stay under ~30 LOC.
 
-### Principle III — Concurrency Discipline
+### Principle III: Concurrency Discipline
 
 The CPU thread is the sole producer; the UI thread is the sole consumer.
 The SPSC ring uses `std::atomic<uint32_t>` head/tail indices with
@@ -282,7 +282,7 @@ sink-attach pattern from Feature 005's drive-audio wiring).
    `OnMotorCommandOff` / `OnMotorCommandOn` AND, on transition, the
    `OnMotorDisengaged` / `OnMotorEngaged` edge events.
 3. `DiskIIDebugDialog::OnHeadStep` (or any `IDiskIIEventSink` /
-   `IDriveAudioEventSink` method — the dialog implements both interfaces
+   `IDriveAudioEventSink` method, the dialog implements both interfaces
    per FR-024) packs a `DiskIIEvent` POD (`EventCategory` tag +
    event-type enum + cycle counter snapshot + integer payload union)
    and calls `m_ring.TryPush (event)`. On ring full, the push returns
@@ -295,8 +295,8 @@ sink-attach pattern from Feature 005's drive-audio wiring).
    inside `ObserveNibble`, which routes through the same SPSC ring push.
 4a. Independently, the audio path: when `DiskIIAudioSource` receives a
    controller-event callback (`OnMotorEngaged`, `OnHeadStep`, etc.) it
-   makes its audio decision exactly as before, then — if
-   `m_audioEventSink != nullptr` — fires exactly one of the six
+   makes its audio decision exactly as before, then, if
+   `m_audioEventSink != nullptr`, fires exactly one of the six
    `IDriveAudioEventSink` methods describing the outcome (Started /
    Restarted / Continued / Silent / LoopStarted / LoopStopped) with the
    `SoundKind` that was decided on. These events ALSO route through the
@@ -319,11 +319,11 @@ sink-attach pattern from Feature 005's drive-audio wiring).
    then calls `ListView_SetItemCountEx (lv, deque.size(), LVSICF_NOSCROLL)`.
    If "at tail" was true, it calls `ListView_EnsureVisible (lv, deque.size() - 1, FALSE)`.
 7. The ListView's `LVN_GETDISPINFO` handler responds to row-fetch requests
-   by indexing into a per-filter index vector — see "Filter Projection
-   Architecture" below — and then into `m_deque` (O(1) random access),
+   by indexing into a per-filter index vector, see "Filter Projection
+   Architecture" below, and then into `m_deque` (O(1) random access),
    returning the appropriate string for the requested column. The
    ListView's column index is the **visible-subset ordinal** (per
-   FR-026's logical column model — hidden columns are absent from the
+   FR-026's logical column model, hidden columns are absent from the
    ListView entirely, not zero-width). The handler maps the visible
    ordinal back to the `LogicalColumn::id` via the active visible-subset
    list.
@@ -371,7 +371,7 @@ treatment.
 
 ### Track / Sector RichEdit + squiggle (FR-014e)
 
-The Track and Sector inputs are **RichEdit 4.1** controls — class
+The Track and Sector inputs are **RichEdit 4.1** controls, class
 `RICHEDIT50W`, registered by loading `msftedit.dll` exactly once in
 the dialog's `Create` path (`LoadLibraryW(kFilterRichEditModule)`).
 The handle is leaked intentionally (process-lifetime cost is
@@ -413,7 +413,7 @@ not `m_deque.size()`. `LVN_GETDISPINFO` resolves
 
 ### Column Show/Hide (FR-026 / FR-027 / NFR-006)
 
-The dialog owns a **logical column model** — `std::array<LogicalColumn, 5> m_columns` covering all five user-facing columns in fixed id order (Wall, Uptime, Cycle, Event, Detail):
+The dialog owns a **logical column model**, `std::array<LogicalColumn, 5> m_columns` covering all five user-facing columns in fixed id order (Wall, Uptime, Cycle, Event, Detail):
 
 ```cpp
 struct LogicalColumn {
@@ -478,7 +478,7 @@ void RebuildListViewColumns ()
 }
 ```
 
-**User-dragged width capture**: a header `HDN_ENDTRACK` notification triggers `CaptureCurrentWidthsIntoModel ()` — walks the ListView's current columns, maps each back to the corresponding `LogicalColumn` via the visible-subset order, and writes the current width into `savedWidth`. This ensures a subsequent hide/show cycle restores whatever width the user last picked.
+**User-dragged width capture**: a header `HDN_ENDTRACK` notification triggers `CaptureCurrentWidthsIntoModel ()`, walks the ListView's current columns, maps each back to the corresponding `LogicalColumn` via the visible-subset order, and writes the current width into `savedWidth`. This ensures a subsequent hide/show cycle restores whatever width the user last picked.
 
 The header right-click handler builds a `TrackPopupMenu` with five `MF_CHECKED`/`MF_UNCHECKED` items (one per `LogicalColumn`, checked iff `visible`). Selection invokes `ToggleColumn(id)`.
 
@@ -496,7 +496,7 @@ m_shell->ResetUptimeAnchor();   // m_uptimeAnchor = steady_clock::now();
 
 The debug dialog reads the anchor through a shell-provided accessor on
 each event-format pass; the Uptime column shows `(now - anchor)`
-formatted as `MM:SS.mmm`. No new thread synchronization is needed —
+formatted as `MM:SS.mmm`. No new thread synchronization is needed;
 the anchor is written on the UI thread (reset is initiated by user
 input) and read on the UI thread (the dialog's `WM_TIMER` drain).
 
@@ -514,9 +514,9 @@ Normative for this feature. Controller-side events (`EventCategory::Controller`)
 | `OnHeadBump`           | `qtDelta != 0` AND post-clamp `m_quarterTrack == 0` (from < 0) OR `== kMaxQuarterTrack` (from > kMaxQuarterTrack) | Same `HandlePhase` site |
 | `OnAddressMark`        | Watcher decoded `D5 AA 96` + 4-and-4 fields + verified XOR checksum      | `DiskIIAddressMarkWatcher::StepAddrMarkState` accept terminal  |
 | `OnDataMarkRead`       | Watcher decoded `D5 AA AD` + counted 342 6-and-2 nibbles + saw `DE AA EB` | `DiskIIAddressMarkWatcher::StepDataMarkState` accept terminal  |
-| `OnDataMarkWrite`      | NEVER FIRES IN v1 — interface method defined for forward compatibility per A-010. A symmetric write watcher lands with issue #67 (bit-level write path through Q6/Q7). | (no v1 fire site) |
+| `OnDataMarkWrite`      | NEVER FIRES IN v1, interface method defined for forward compatibility per A-010. A symmetric write watcher lands with issue #67 (bit-level write path through Q6/Q7). | (no v1 fire site) |
 | `OnDriveSelect`        | Active drive index changes via `$C0EA` / `$C0EB`                         | `HandleSwitch` cases `0xA` / `0xB`                             |
-| `OnDiskInserted`       | Disk image newly mounted (every mount fires for the debug log — unlike audio spec-005 FR-013, which suppresses the *sound* on cold-boot; the controller event still fires, and the suppression decision is logged via the audio sink — see FR-025) | `MountImage` (or shell-level mount path) |
+| `OnDiskInserted`       | Disk image newly mounted (every mount fires for the debug log: unlike audio spec-005 FR-013, which suppresses the *sound* on cold-boot; the controller event still fires, and the suppression decision is logged via the audio sink, see FR-025) | `MountImage` (or shell-level mount path) |
 | `OnDiskEjected`        | Disk image unmounted                                                     | `EjectImage` (or shell-level eject path)                       |
 
 `OnHeadStep` and `OnHeadBump` are mutually exclusive for any single
@@ -678,7 +678,7 @@ The dialog's `WM_CLOSE` handler hides the window and revokes the sink
 (`controller.SetEventSink (nullptr)`); the dialog is reused on the next
 open. The dialog is fully destroyed only on shell shutdown.
 
-## Constitution Check — Post-Design Re-Validation
+## Constitution Check: Post-Design Re-Validation
 
 - ✅ All new functions stay within size and indent budgets.
 - ✅ EHM applied only where fallibility exists (`CreateWindowEx`, accelerator
@@ -701,32 +701,32 @@ The implementation follows the dependency order required by the design:
 interface first, then producer-side pieces, then consumer-side pieces,
 then the Win32 wiring, then polish. Phase summary:
 
-1. **Phase 0 — Contracts**: `IDiskIIEventSink` interface (12 methods,
+1. **Phase 0, Contracts**: `IDiskIIEventSink` interface (12 methods,
    four-event motor lifecycle per FR-006), `IDriveAudioEventSink`
    interface (6 methods + `SoundKind` + `SilentReason` enums per FR-021),
    `EventCategory` enum (FR-023), `DiskIIEvent` POD, `DiskIIEventDisplay`
    struct, named constants (including column widths per the No-magic-
    numbers row of the Constitution table). Header-only.
-2. **Phase 1 — SPSC ring**: `DiskIIEventRing.{h,cpp}` + exhaustive
+2. **Phase 1, SPSC ring**: `DiskIIEventRing.{h,cpp}` + exhaustive
    single-threaded and two-threaded tests (push fills, pop drains,
    wrap-around, overflow returns false without corruption).
-3. **Phase 2 — Address-mark watcher**: `DiskIIAddressMarkWatcher.{h,cpp}`
+3. **Phase 2, Address-mark watcher**: `DiskIIAddressMarkWatcher.{h,cpp}`
    with both state machines + tests against synthetic nibble streams
    (stock DOS 3.3 cadence, bad checksum rejection, mid-stream resync,
    data-mark without preceding address mark, garbage stream produces
    zero false positives).
-3a. **Phase 2a — Track/Sector filter parser**: `TrackSectorPredicate.{h,cpp}`
+3a. **Phase 2a, Track/Sector filter parser**: `TrackSectorPredicate.{h,cpp}`
    + tests for the FR-014a/b syntax (integers, decimals, ranges, lists,
-   raw-qt mode, weird-input tolerance — `abc` and `999` accepted without
+   raw-qt mode, weird-input tolerance, `abc` and `999` accepted without
    throwing).
-4. **Phase 3 — Controller integration**: `IDiskIIEventSink* m_eventSink` +
+4. **Phase 3, Controller integration**: `IDiskIIEventSink* m_eventSink` +
    `SetEventSink` + fire-site insertions at every existing motor/head/
-   mount call site (including the **four-event motor lifecycle** —
+   mount call site (including the **four-event motor lifecycle**,
    re-wire existing `OnMotorStart`/`OnMotorStop` fire sites in
    `DiskIIController.cpp` to the four new methods) + watcher invocation
    in the nibble read path. Tests using a recording mock sink confirm
    event ordering and that the no-sink path is byte-identical to baseline.
-4a. **Phase 3a — Audio source integration**: `IDriveAudioEventSink*
+4a. **Phase 3a, Audio source integration**: `IDriveAudioEventSink*
    m_audioEventSink` + `SetAudioEventSink` on `DiskIIAudioSource`.
    Migrate `DiskIIAudioSource`'s existing `OnMotorStart`/`OnMotorStop`
    listeners to `OnMotorEngaged`/`OnMotorDisengaged` (the audio-relevant
@@ -737,12 +737,12 @@ then the Win32 wiring, then polish. Phase summary:
    dialog open and revoke both on close. Tests with a recording mock
    `IDriveAudioEventSink` confirm each of the six outcomes fires under
    reproducible conditions.
-5. **Phase 4 — UI-thread projection helper**: `DebugDialogProjection`
-   (or equivalent) — the non-Win32 helper that drains the ring into the
+5. **Phase 4, UI-thread projection helper**: `DebugDialogProjection`
+   (or equivalent), the non-Win32 helper that drains the ring into the
    deque, formats per FR-005 (covers both `EventCategory::Controller`
    and `EventCategory::Audio` events), applies the rolling cap, and
    inserts the `[N events lost]` marker. Pure data-structure tests.
-6. **Phase 5 — Dialog skeleton**: `DiskIIDebugDialog.{h,cpp}` —
+6. **Phase 5, Dialog skeleton**: `DiskIIDebugDialog.{h,cpp}`,
    programmatic `WM_INITDIALOG` that creates the ListView (virtual mode,
    **5 columns** per FR-004: Wall, Uptime, Cycle, Event, Detail with
    widths from `kColWallWidth`/`kColUptimeWidth`/etc.), event-type
@@ -750,38 +750,38 @@ then the Win32 wiring, then polish. Phase summary:
    with raw-qt toggle, Audio sub-checkboxes, Pause and Clear buttons.
    No event data yet; the dialog renders an empty list. Hooks
    `WM_DESTROY` / `WM_CLOSE`.
-7. **Phase 6 — Drain timer + auto-tail**: `WM_TIMER` handler invokes the
+7. **Phase 6, Drain timer + auto-tail**: `WM_TIMER` handler invokes the
    projection helper, captures `wasAtTail`, calls
    `ListView_SetItemCountEx`, conditionally `ListView_EnsureVisible`.
    `LVN_GETDISPINFO` handler returns deque entries by index (via the
-   `m_filteredIndices` vector — Phase 7 wires the real filter; for now,
+   `m_filteredIndices` vector, Phase 7 wires the real filter; for now,
    identity mapping).
-8. **Phase 7 — Filter projection**: Wire the event-type checkboxes,
+8. **Phase 7, Filter projection**: Wire the event-type checkboxes,
    Drive radio, Track/Sector inputs, and Audio sub-checkboxes into the
    `FilterState` struct and rebuild `m_filteredIndices` on any change.
    Tests confirm chronological preservation when a filter is re-checked
    and full logical-AND composition across all filter axes (SC-016).
-9. **Phase 8 — Pause / Resume / Clear**: Wire buttons. Pause stops the
+9. **Phase 8, Pause / Resume / Clear**: Wire buttons. Pause stops the
    drain (events keep accumulating in the ring); Clear empties the deque
    but does not flush the ring. Tests confirm in-flight events survive
    Clear and the `[N events lost]` marker appears exactly once after
    any number of pause-induced overflows.
-10. **Phase 9 — Clipboard copy**: Ctrl+C selection → tab-separated text
+10. **Phase 9, Clipboard copy**: Ctrl+C selection → tab-separated text
     on the clipboard (FR-019), respecting visible-column ordering
     (hidden columns omitted per FR-026).
-11. **Phase 10 — Menu / accelerator / shell wiring**: `Casso.rc`,
+11. **Phase 10, Menu / accelerator / shell wiring**: `Casso.rc`,
     `resource.h`, `MenuSystem.{h,cpp}`, `EmulatorShell` open/close
     handler with sink attach/revoke (both `SetEventSink` AND
     `SetAudioEventSink` per FR-024). Multi-controller indicator if
     `MachineConfig` reports > 1 Disk II. Wire the Uptime anchor
     reseed into `MachineShell::SoftReset` and `PowerCycle` (FR-004a).
-12. **Phase 10a — Column show/hide**: Header right-click handler
+12. **Phase 10a, Column show/hide**: Header right-click handler
     (`NM_RCLICK` / `WM_CONTEXTMENU`) builds the popup menu; toggles
     rebuild the ListView's column set from the logical column model
     (`std::array<LogicalColumn, 5>`) via delete-and-recreate per
     FR-026/FR-027 (no width-to-zero hack). No cross-session persistence
     (NFR-006).
-13. **Phase 11 — Polish**: CHANGELOG, README, manual DOS 3.3 boot
+13. **Phase 11, Polish**: CHANGELOG, README, manual DOS 3.3 boot
     sanity, manual Karateka / Choplifter / HardHatMack inspection,
     final constitution sweep (`Pch.h` first, spacing, declarations
     aligned).
@@ -794,7 +794,7 @@ then the Win32 wiring, then polish. Phase summary:
 | Address-mark watcher emits false positives on garbage nibbles                         | Checksum verification (FR-008 step 2) rejects every accidental `D5 AA 96` lookalike that doesn't have a matching XOR. Tests include a random-nibble torture set that asserts zero `OnAddressMark` calls. |
 | Watcher perturbs the existing nibble engine                                            | Watcher is `const`-on-the-engine: it only reads what `NibbleReadByte` returns to the CPU. Existing `DiskIIControllerTests` must pass byte-identically with the sink-attached-but-stubbed configuration (SC-007). |
 | ListView in virtual mode chokes on the row-count-update + ensure-visible cycle         | Virtual mode is specifically designed for this; AppleWin, x64dbg, and Process Explorer all use the same pattern at higher rates. 30 Hz updates with ≤ 4,096 new rows per tick is trivially within the control's documented envelope. |
-| Cross-thread torn reads of `DiskIIEvent` fields                                       | The ring's release/acquire pairing on the index publish/observe is the standard SPSC happens-before edge. The slot data itself is plain-old-data — no torn reads possible because the publish is the index update, and the index update happens after the slot write on the producer side and before the slot read on the consumer side. |
+| Cross-thread torn reads of `DiskIIEvent` fields                                       | The ring's release/acquire pairing on the index publish/observe is the standard SPSC happens-before edge. The slot data itself is plain-old-data: no torn reads possible because the publish is the index update, and the index update happens after the slot write on the producer side and before the slot read on the consumer side. |
 | Filter checkbox toggle stalls UI on a 100,000-entry deque                              | Filter projection is computed lazily inside `LVN_GETDISPINFO` (only visible rows are touched); the recomputation on toggle is O(visible rows), not O(deque size). If a precomputed index vector is used, the rebuild is O(deque size) but happens on a user-driven event, not in the drain timer. |
 | Dialog opened mid-session shows no historical context                                  | This is by design (FR-018). README and CHANGELOG mention "open the debug window *before* the operation you want to investigate." |
 | Multi-controller machine config in the future                                          | v1 surfaces a clear indicator and monitors controller #0 only. The interface and ring are per-window so a future v2 can host one window per controller without changing the underlying contract. |

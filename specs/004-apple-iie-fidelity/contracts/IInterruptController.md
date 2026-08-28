@@ -25,7 +25,7 @@ public:
 
 ## In-scope users
 
-None — the //e (non-Enhanced) has no built-in IRQ source. The infrastructure
+None, the //e (non-Enhanced) has no built-in IRQ source. The infrastructure
 exists for future clock card, mouse card, Mockingboard.
 
 ## Test obligations

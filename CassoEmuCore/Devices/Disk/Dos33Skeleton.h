@@ -33,6 +33,11 @@ public:
     //  Copies tracks 0-2 verbatim from the System Master image.
     static HRESULT  InstallDos (vector<Byte> & buffer, const vector<Byte> & masterSectors);
 
+    //  Byte offset of (track, logical sector) in the DOS 3.3-ordered buffer.
+    //  Public so the volume reader, the file writer, and the tests all address
+    //  sectors the same single way -- matching ProDosSkeleton::BlockByteOffset.
+    static size_t   SectorOffset (int track, int sector);
+
 private:
     //  DOS 3.3 on-disk geometry (Beneath Apple DOS ch. 4). The VTOC lives at
     //  T17 S0; the catalog chains T17 S15 down to S1.
@@ -56,10 +61,8 @@ private:
     static constexpr Byte  kMaxTsPairs            = 122;
     static constexpr int   kDosImageTracks        = 3;      // tracks 0-2 carry DOS
 
-    //  Byte offset of (track, logical sector) in the DOS 3.3-ordered buffer.
-    static size_t  SectorOffset (int track, int sector);
-
     friend class Dos33FileWriter;
+    friend class Dos33Volume;
 };
 
 

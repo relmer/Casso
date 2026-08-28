@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs the Casso unit tests using vstest.console.
 
@@ -39,6 +39,14 @@
     The Debug suite takes roughly 15 minutes, which is long enough that people
     route around it. This exists so the edit-test loop does not have to.
 
+.PARAMETER Scenario
+    Run ScenarioTests.dll instead of UnitTest.dll. This is the ONE deliberate
+    way to run the scenario suite: those cases need external inputs (the stock
+    DOS 3.3 System Master, fetched rather than committed) and boot real guests,
+    so they live in a separate binary that CI never names and this script never
+    runs by default. A scenario run is not the unit-test suite, and the banner
+    says so.
+
 .EXAMPLE
     ./scripts/RunTests.ps1 -Build
     Builds, then runs the full suite.
@@ -50,6 +58,11 @@
 .EXAMPLE
     ./scripts/RunTests.ps1 -Filter "FullyQualifiedName~Merlin&Name!~Slow"
     Passes a full vstest filter expression through unchanged.
+
+.EXAMPLE
+    ./scripts/RunTests.ps1 -Build -Scenario
+    Builds, then runs the scenario suite -- the system tests that need the
+    DOS 3.3 System Master and a booted guest.
 #>
 [CmdletBinding()]
 param(
@@ -63,7 +76,9 @@ param(
 
     [switch]$AllowStale,
 
-    [string]$Filter = ''
+    [string]$Filter = '',
+
+    [switch]$Scenario
 )
 
 if ($Platform -eq 'Auto') {
@@ -79,20 +94,23 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 
 #
-#  The newest write time among tracked sources that compile into UnitTest.dll.
+#  The newest write time among tracked sources that compile into the selected
+#  test DLL.
 #
 #  Enumerated via `git ls-files` rather than the filesystem so build output can
 #  never be mistaken for a source, and narrowed to the projects the test DLL
 #  actually links -- CassoCli builds a separate executable, so editing it does
-#  not make the test assembly stale and must not trip the guard.
+#  not make the test assembly stale and must not trip the guard. The scenario
+#  DLL compiles UnitTest's shared guest helpers, so UnitTest/ stays on its
+#  list; it never links Dxui or the Casso exe's objects, so those stay off.
 #
 #  Returns $null when the answer cannot be determined (no git, no matches), and
 #  the caller treats that as "cannot judge" rather than as "stale".
 #
 function Get-NewestSourceTimestamp {
-    param([string]$RepoRoot)
+    param([string]$RepoRoot, [string[]]$Projects)
 
-    $projects   = @('CassoCore/', 'CassoEmuCore/', 'Dxui/', 'Casso/', 'UnitTest/')
+    $projects   = $Projects
     $extensions = @('.cpp', '.c', '.h', '.hpp', '.inl', '.vcxproj')
 
     Push-Location $RepoRoot
@@ -148,7 +166,15 @@ if (-not $vstestPath) {
     throw 'vstest.console.exe not found in VS 2026 (v18.x). Install VS 2026 with Test workload.'
 }
 
-$testAssembly = Join-Path -Path $repoRoot -ChildPath "$Platform\$Configuration\UnitTest.dll"
+$assemblyName    = 'UnitTest.dll'
+$sourceProjects  = @('CassoCore/', 'CassoEmuCore/', 'Dxui/', 'Casso/', 'UnitTest/')
+
+if ($Scenario) {
+    $assemblyName   = 'ScenarioTests.dll'
+    $sourceProjects = @('CassoCore/', 'CassoEmuCore/', 'UnitTest/', 'ScenarioTests/')
+}
+
+$testAssembly = Join-Path -Path $repoRoot -ChildPath "$Platform\$Configuration\$assemblyName"
 if (-not (Test-Path -Path $testAssembly)) {
     throw "Test assembly not found at $testAssembly. Build the tests before running them, or pass -Build."
 }
@@ -158,7 +184,7 @@ if (-not (Test-Path -Path $testAssembly)) {
 # not in the count, with nothing to say so. Refuse rather than mislead.
 if (-not $AllowStale) {
     $assemblyStamp = (Get-Item -LiteralPath $testAssembly).LastWriteTime
-    $newestSource  = Get-NewestSourceTimestamp -RepoRoot $repoRoot
+    $newestSource  = Get-NewestSourceTimestamp -RepoRoot $repoRoot -Projects $sourceProjects
 
     if ($null -ne $newestSource -and $newestSource -gt $assemblyStamp) {
         Write-Host ''
@@ -173,6 +199,16 @@ if (-not $AllowStale) {
 
 Write-Host "Running tests from $testAssembly" -ForegroundColor Cyan
 Write-Host "vstest.console path: $vstestPath" -ForegroundColor DarkGray
+
+if ($Scenario) {
+    # A scenario run is not the unit-test suite, and a green one says nothing
+    # about it: these cases need the DOS 3.3 System Master on this machine and
+    # boot real guests, which is exactly why they live in their own DLL.
+    Write-Host ''
+    Write-Host 'SCENARIO SUITE -- system tests, NOT the unit-test suite.' -ForegroundColor Yellow
+    Write-Host '  Needs external inputs (the stock DOS 3.3 System Master) and boots real guests.' -ForegroundColor DarkGray
+    Write-Host ''
+}
 
 $vstestArgs = @($testAssembly)
 
@@ -196,7 +232,89 @@ if ($Filter) {
     Write-Host ''
 }
 
+# A TEST RUN MUST LEAVE THE WORKING TREE EXACTLY AS IT FOUND IT.
+#
+# Measured before and after, because one test did not. BootDiskTests wrote the
+# image it had just built over Apple2/Demos/casso-rocks.dsk on every run,
+# called out in the code as a deliberate side effect. It normally wrote
+# byte-identical content -- until the day it wrote a different image, with a
+# whole track zeroed, and a corrupted binary asset landed in the tree from a
+# test run.
+#
+# MTIMES, NOT `git status`. Measured: rewriting a tracked file with its own
+# bytes moves the mtime and `git status --porcelain` still reports nothing,
+# because git re-hashes and finds the content identical. That is exactly the
+# case that hid this write for as long as it hid: a test that scribbles the
+# same bytes every run looks clean right up until the run where it does not.
+# The rule is that a unit test never touches system state, so what is compared
+# is whether any tracked file was TOUCHED.
+$stateBefore = $null
+$insideGit   = $false
+
+function Get-TrackedFileState {
+    $state = @{}
+
+    foreach ($relative in (& git ls-files)) {
+        if (-not $relative) { continue }
+
+        $item = Get-Item -LiteralPath $relative -ErrorAction SilentlyContinue
+
+        if ($item -and -not $item.PSIsContainer) {
+            $state[$relative] = "$($item.LastWriteTimeUtc.Ticks):$($item.Length)"
+        }
+    }
+
+    return $state
+}
+
+try {
+    $null      = & git rev-parse --is-inside-work-tree 2>$null
+    $insideGit = ($LASTEXITCODE -eq 0)
+} catch {
+    $insideGit = $false
+}
+
+if ($insideGit) {
+    $stateBefore = Get-TrackedFileState
+}
+
 & $vstestPath @vstestArgs
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+$testExit = $LASTEXITCODE
+
+if ($insideGit) {
+    $stateAfter = Get-TrackedFileState
+    $touched    = @()
+
+    foreach ($relative in $stateAfter.Keys) {
+        if (-not $stateBefore.ContainsKey($relative)) {
+            $touched += "created  $relative"
+        }
+        elseif ($stateBefore[$relative] -ne $stateAfter[$relative]) {
+            $touched += "written  $relative"
+        }
+    }
+
+    foreach ($relative in $stateBefore.Keys) {
+        if (-not $stateAfter.ContainsKey($relative)) {
+            $touched += "deleted  $relative"
+        }
+    }
+
+    if ($touched.Count -gt 0) {
+        Write-Host ''
+        Write-Host 'THE TEST RUN TOUCHED THE SOURCE TREE.' -ForegroundColor Red
+        Write-Host 'A unit test may not write into it, even the same bytes back:' -ForegroundColor Red
+        Write-Host ''
+
+        foreach ($line in ($touched | Sort-Object)) {
+            Write-Host "  $line" -ForegroundColor Yellow
+        }
+
+        Write-Host ''
+        exit 1
+    }
+}
+
+if ($testExit -ne 0) {
+    exit $testExit
 }

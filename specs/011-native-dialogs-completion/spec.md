@@ -7,11 +7,11 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Unified first-run asset download (Priority: P1)
+### User Story 1: Unified first-run asset download (Priority: P1)
 
 A new user launches Casso for the first time without the Apple II ROM images (and optionally without the Disk II audio WAVs). Instead of being walked through two or three separate native MessageBox / TaskDialog prompts before the emulator can boot, the user sees a single themed dialog that lists every missing asset, lets them approve or decline the downloads in one decision, and shows live progress until the downloads finish (or the user cancels and accepts a degraded boot).
 
-**Why this priority**: This is the very first thing a brand-new user sees. Today it is also the loudest remaining departure from the native DX look introduced in spec 007 — three different Win32 prompt styles in a row before any pixel of the emulator chrome renders. Consolidating them is the highest-visibility win and unblocks removal of `MessageBoxW` / `TaskDialogIndirect` from `AssetBootstrap.cpp`.
+**Why this priority**: This is the very first thing a brand-new user sees. Today it is also the loudest remaining departure from the native DX look introduced in spec 007, three different Win32 prompt styles in a row before any pixel of the emulator chrome renders. Consolidating them is the highest-visibility win and unblocks removal of `MessageBoxW` / `TaskDialogIndirect` from `AssetBootstrap.cpp`.
 
 **Independent Test**: Delete the local ROM cache (and optionally the Disk II audio cache), launch Casso, and confirm exactly one themed dialog appears that enumerates every missing asset, that approving downloads them all with visible progress before the emulator boots, and that declining boots Casso with the documented degradation (no ROMs => emulator does not start; no audio => Disk II runs silently).
 
@@ -24,11 +24,11 @@ A new user launches Casso for the first time without the Apple II ROM images (an
 
 ---
 
-### User Story 2 — Boot disk picker with MRU (Priority: P1)
+### User Story 2: Boot disk picker with MRU (Priority: P1)
 
 When the user launches a machine that has a Disk II controller in slot 6, drive 1 is empty, and the per-machine config did not pin a disk image (or pinned one that no longer exists on disk), the user sees a themed picker that lists their previously-mounted disk images at the top and the two downloadable system disks (DOS 3.3 System Master, ProDOS Users Disk) inline below. Picking an MRU entry mounts it; picking a download entry downloads then mounts; canceling lets the machine boot with no disk just as today.
 
-**Why this priority**: Disk II is the primary way users get software into the emulator, and the current `PromptBootDisk` is one of only two remaining native TaskDialogs. Adding the MRU also delivers visible day-to-day workflow value beyond pure cosmetic conversion — users stop re-navigating to the same `.dsk` files via the file picker.
+**Why this priority**: Disk II is the primary way users get software into the emulator, and the current `PromptBootDisk` is one of only two remaining native TaskDialogs. Adding the MRU also delivers visible day-to-day workflow value beyond pure cosmetic conversion, users stop re-navigating to the same `.dsk` files via the file picker.
 
 **Independent Test**: With a fresh user-prefs file, launch a Disk II machine: only the two download entries appear. Mount three disk images over time via the file picker / drag-drop / this dialog. Relaunch with drive 1 empty: those three filenames appear above the download entries, in most-recently-mounted order, and selecting one mounts that disk.
 
@@ -41,11 +41,11 @@ When the user launches a machine that has a Disk II controller in slot 6, drive 
 5. **Given** the user cancels the picker, **When** the picker dismisses, **Then** the machine boots with drive 1 empty (same as today's Skip path).
 6. **Given** the user has mounted a disk image via any path (file picker, drag-drop, or this dialog), **When** the mount succeeds, **Then** the MRU is updated and persisted to user prefs.
 7. **Given** an MRU entry's underlying file no longer exists on disk, **When** the picker renders, **Then** that entry is pruned from the displayed list (and from persisted prefs).
-8. **Given** the MRU is empty and no embedded boot disk applies, **When** the picker renders, **Then** only the two download entries (plus Cancel) are shown — matching today's `PromptBootDisk` behavior.
+8. **Given** the MRU is empty and no embedded boot disk applies, **When** the picker renders, **Then** only the two download entries (plus Cancel) are shown, matching today's `PromptBootDisk` behavior.
 
 ---
 
-### User Story 3 — Themed About / Keymap / Machine Info (Priority: P2)
+### User Story 3: Themed About / Keymap / Machine Info (Priority: P2)
 
 A user opens Help → About, Help → Keymap, or the machine-info popup. Instead of a system MessageBox, they see a themed dialog that matches the rest of the emulator chrome, with the About box now showing the Casso app icon and a clickable repository hyperlink.
 
@@ -62,11 +62,11 @@ A user opens Help → About, Help → Keymap, or the machine-info popup. Instead
 
 ---
 
-### User Story 4 — Drive widget filename label (Priority: P2)
+### User Story 4: Drive widget filename label (Priority: P2)
 
 A user mounts a disk image into a drive. The drive widget now shows the disk's filename (basename only) directly below the existing "Drive N" label. When the user ejects the disk, the filename label disappears. When the filename is too long for the widget, it is truncated with an ellipsis.
 
-**Why this priority**: Pure UX win delivered alongside the boot-disk MRU work — once we are touching the mount path to record MRU entries, surfacing the mounted filename on the widget itself is a small additional change with high day-to-day value. P2 because the emulator is fully usable without it.
+**Why this priority**: Pure UX win delivered alongside the boot-disk MRU work, once we are touching the mount path to record MRU entries, surfacing the mounted filename on the widget itself is a small additional change with high day-to-day value. P2 because the emulator is fully usable without it.
 
 **Independent Test**: Mount a disk with a short name, observe its basename appears below "Drive N". Mount a disk with a very long basename, observe ellipsis truncation. Eject, observe the label disappears. Mount again, observe it reappears immediately.
 
@@ -79,7 +79,7 @@ A user mounts a disk image into a drive. The drive widget now shows the disk's f
 
 ---
 
-### User Story 5 — Single disk-insert file picker (Priority: P2)
+### User Story 5: Single disk-insert file picker (Priority: P2)
 
 A user invokes Disk → Insert Disk 1 / Insert Disk 2. They see the modern Win11 `IFileOpenDialog` (the same picker used by all other disk-image entry points), not the legacy `GetOpenFileName` dialog.
 
@@ -94,7 +94,7 @@ A user invokes Disk → Insert Disk 1 / Insert Disk 2. They see the modern Win11
 
 ---
 
-### User Story 6 — Themed Debug Console (Priority: P3)
+### User Story 6: Themed Debug Console (Priority: P3)
 
 A developer opens the Debug Console. Instead of a Win32 EDIT child window, they see a themed DX text panel with monospace font, scrolling, and copy-to-clipboard support, hosted like the SettingsWindow.
 
@@ -110,7 +110,7 @@ A developer opens the Debug Console. Instead of a Win32 EDIT child window, they 
 
 ---
 
-### User Story 7 — Themed Disk II Debug Dialog (Priority: P3)
+### User Story 7: Themed Disk II Debug Dialog (Priority: P3)
 
 A developer opens the Disk II Debug Dialog. They see a themed DX dialog that preserves every existing capability: event-type filter checkboxes, audio master/sub toggles, raw-quarter-track filter, drive radio buttons, track and sector text filters with validation feedback, pause and clear buttons, a sortable ListView (Time / Event / Detail) with column-header show/hide, and tooltips for filter help.
 
@@ -182,18 +182,18 @@ A developer opens the Disk II Debug Dialog. They see a themed DX dialog that pre
 - **Themed Dialog Definition**: title, optional icon resource id, body content (text plus zero or more hyperlinks), button row (zero or more single-line buttons each with a label and a result code), modality. Hosted by the new primitive under `Casso/Ui/Dialog/`.
 - **Asset Download Request**: identifier (which ROM or which Disk II audio WAV), destination, source URL, expected size for progress reporting. Aggregated into a `Startup Download Set` consumed by the unified startup dialog.
 - **Disk MRU Entry**: filesystem path of a previously-mounted disk image, timestamp (or implicit ordering position) used to display most-recent-first. Persisted as an ordered list under a new key in the `GlobalUserPrefs` JSON store, capped at 16 entries.
-- **Boot Disk Choice**: discriminated value — either an MRU entry path, a download entry (DOS 3.3 / ProDOS), or Cancel.
+- **Boot Disk Choice**: discriminated value, either an MRU entry path, a download entry (DOS 3.3 / ProDOS), or Cancel.
 - **Drive Widget State (extended)**: existing fields plus the mounted image path or basename used to paint the new filename label.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: After the feature ships, `rg -n "MessageBox|TaskDialog|GetOpenFileName" Casso/` returns at most the two intentional surfaces (`IFileOpenDialog` in `PromptForDiskImage`, `MessageBoxW` in the `Main.cpp` EHM notify handler) plus comments — zero other matches.
+- **SC-001**: After the feature ships, `rg -n "MessageBox|TaskDialog|GetOpenFileName" Casso/` returns at most the two intentional surfaces (`IFileOpenDialog` in `PromptForDiskImage`, `MessageBoxW` in the `Main.cpp` EHM notify handler) plus comments, zero other matches.
 - **SC-002**: A fresh user with no cached ROMs sees exactly one themed dialog before the emulator boots (down from the current three-dialog sequence).
 - **SC-003**: A user with a populated MRU sees their previously-mounted disk images at the top of the boot-disk picker, in most-recent-first order, and can mount any of them in one click without re-navigating a file dialog.
 - **SC-004**: The disk MRU never exceeds 16 persisted entries and never displays an entry whose file does not currently exist.
-- **SC-005**: Every dialog introduced by this feature renders correctly under all three themes (DarkModern, Skeuomorphic, GreenScreen) and at all four supported DPI scales (100%, 125%, 150%, 200%) — verified by visual inspection in each combination.
+- **SC-005**: Every dialog introduced by this feature renders correctly under all three themes (DarkModern, Skeuomorphic, GreenScreen) and at all four supported DPI scales (100%, 125%, 150%, 200%), verified by visual inspection in each combination.
 - **SC-006**: Clicking the repository hyperlink in the About dialog opens `https://github.com/relmer/Casso` in the user's default browser.
 - **SC-007**: The drive widget displays the mounted disk image's basename below the "Drive N" label within one frame of a successful mount, removes the label within one frame of an eject, and truncates with an ellipsis when the basename exceeds the widget width.
 - **SC-008**: Existing keyboard accelerators (Ctrl+1, Ctrl+2, F1) continue to invoke the corresponding (now-themed) dialogs.
@@ -204,7 +204,7 @@ A developer opens the Disk II Debug Dialog. They see a themed DX dialog that pre
 
 - The existing `SettingsWindow` / `SettingsPanel` infrastructure is a sufficient foundation for the new reusable dialog primitive; no new DX painter primitives beyond those already used by `SettingsWindow` are required for the simple dialogs (About / Keymap / Machine Info / unified download / boot picker / settings stray).
 - The `GlobalUserPrefs` JSON store is the right home for the disk MRU; integration follows the same pattern as the recent `fix(prefs): preserve machines section in GlobalUserPrefs::Save` change.
-- Hyperlink rendering inside dialog body text is a new but bounded extension of the existing text-painting code in `DxUiPainter` — clickable hit-testing, hover styling, and `ShellExecuteW` dispatch are in scope for the primitive.
+- Hyperlink rendering inside dialog body text is a new but bounded extension of the existing text-painting code in `DxUiPainter`, clickable hit-testing, hover styling, and `ShellExecuteW` dispatch are in scope for the primitive.
 - The unified startup download dialog blocks boot when ROMs are missing because the emulator cannot run without them; this matches today's behavior on decline (just consolidated into one dialog).
 - Embedded boot-disk detection (cases where the active machine ships with a built-in default disk image) is out of scope for changes; the boot picker only appears when no embedded boot disk applies, as today.
 - The Debug Console and Disk II Debug Dialog conversions are the heaviest items and are sequenced as later phases (P3) so that the new dialog primitive lands and stabilizes via the simpler P1 / P2 dialogs first.

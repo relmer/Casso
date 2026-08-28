@@ -95,9 +95,9 @@ Reverse lookup from (mnemonic, addressing mode) to opcode byte.
 | m_table | `std::unordered_map<std::string, std::unordered_map<int, OpcodeEntry>>` | mnemonic → (addressingMode → OpcodeEntry) |
 
 **Key methods**:
-- Constructor: `OpcodeTable(const Microcode instructionSet[256])` — iterates all 256 entries, records legal ones
+- Constructor: `OpcodeTable(const Microcode instructionSet[256])`, iterates all 256 entries, records legal ones
 - `bool Lookup(const std::string& mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry& result) const`
-- `bool IsMnemonic(const std::string& name) const` — for label validation
+- `bool IsMnemonic(const std::string& name) const`: for label validation
 - `bool HasMode(const std::string& mnemonic, GlobalAddressingMode::AddressingMode mode) const`
 
 ### CommandLineOptions
@@ -147,8 +147,8 @@ CommandLineOptions
 
 1. **No dependency on Cpu**: The `Assembler` class takes a `const Microcode[]` reference at construction, not a `Cpu` reference. It never reads/writes CPU registers or memory (FR-017).
 
-2. **Existing instruction table is the source of truth**: The `OpcodeTable` is built by iterating `instructionSet[256]` — no hardcoded opcode values in the assembler.
+2. **Existing instruction table is the source of truth**: The `OpcodeTable` is built by iterating `instructionSet[256]`, no hardcoded opcode values in the assembler.
 
-3. **Instance-based, reusable**: Configuration is set once at construction. `Assemble()` is stateless between calls — all per-assembly state is local to the call and returned in `AssemblyResult` (FR-039, FR-041).
+3. **Instance-based, reusable**: Configuration is set once at construction. `Assemble()` is stateless between calls; all per-assembly state is local to the call and returned in `AssemblyResult` (FR-039, FR-041).
 
 4. **Flat memory image output**: The `bytes` vector covers `[startAddress, endAddress)` with unused gaps filled by `fillByte`. The vector index `i` corresponds to address `startAddress + i` (FR-035, FR-036).

@@ -205,6 +205,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ResourceCompile Include="EmuTests\DemoAssets.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -221,6 +224,7 @@
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />
+    <ClCompile Include="As65ExitStatusTests.cpp" />
     <ClCompile Include="AssemblerTests.cpp" />
     <ClCompile Include="IntegrationTests.cpp" />
     <ClCompile Include="ExpressionEvaluatorTests.cpp" />
@@ -228,11 +232,14 @@
     <ClCompile Include="MacroTests.cpp" />
     <ClCompile Include="ConstantTests.cpp" />
     <ClCompile Include="CommandLineTests.cpp" />
+    <ClCompile Include="EmuTests\DemoAssets.cpp" />
+    <ClCompile Include="CliMainTests.cpp" />
+    <ClCompile Include="CliSwitchCoverageTests.cpp" />
+    <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="DialectReportingTests.cpp" />
-    <ClCompile Include="AssemblerExitCodeTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
     <ClCompile Include="MerlinDirectiveTests.cpp" />
     <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
@@ -247,7 +254,6 @@
     <ClCompile Include="OutputFormatTests.cpp" />
     <ClCompile Include="ConformanceTests.cpp" />
     <ClCompile Include="DialectEquivalenceTests.cpp" />
-    <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
@@ -281,6 +287,21 @@
     <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="AppleTextCodecTests.cpp" />
+    <ClCompile Include="ApplesoftTokenizerTests.cpp" />
+    <ClCompile Include="BasicCorpusTests.cpp" />
+    <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
+    <ClCompile Include="EmuTests\VolumeIntegrityTests.cpp" />
+    <ClCompile Include="EmuTests\CrossFormatExtractionTests.cpp" />
+    <ClCompile Include="EmuTests\CrossFormatWriteTests.cpp" />
+    <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
+    <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
+    <ClCompile Include="EmuTests\DiskHelpTextTests.cpp" />
+    <ClCompile Include="EmuTests\TextEncodingTests.cpp" />
+    <ClCompile Include="EmuTests\DiskFailureModeTests.cpp" />
+    <ClCompile Include="EmuTests\DirectBootTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosSyntheticShapeTests.cpp" />
+    <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
@@ -294,6 +315,7 @@
     <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
     <ClCompile Include="EmuTests\MockHostShell.cpp" />
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
@@ -548,6 +570,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EmuTests\DemoAssets.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
     <ClInclude Include="MockFileReader.h" />
@@ -561,6 +584,7 @@
     <ClInclude Include="EmuTests\MockAudioSink.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\MockHostShell.h" />
+    <ClInclude Include="EmuTests\GuestSession.h" />
     <ClInclude Include="EmuTests\HeadlessHost.h" />
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />

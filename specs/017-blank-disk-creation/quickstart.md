@@ -8,19 +8,19 @@ are the user-level proof.
 
 1. Launch Casso (//e), click an empty drive → insert picker opens.
 2. `<Create new disk...>` is the FIRST row; sort by any column, type in the
-   search box — it stays first and never filters out.
+   search box; it stays first and never filters out.
 3. Select it; the create dialog opens in `Documents\Casso Disks` (created on
    demand) with a unique default name like `Blank Disk.woz`, format WOZ,
    contents DOS 3.3, bootable off.
 4. Click Create. The drive mounts the new disk (door closes, widget shows it,
    MRU gains it).
 5. In the guest (with DOS booted from a master in drive 1):
-   `SAVE TEST` → `LOAD TEST` → `LIST` — no I/O error.
+   `SAVE TEST` → `LOAD TEST` → `LIST`, no I/O error.
 6. Quit, relaunch, remount the image: `LOAD TEST` still works (SC-002).
 
 ## 2. Format × contents matrix (US2, SC-003)
 
-For each offered combination — WOZ×{DOS 3.3, ProDOS, unformatted},
+For each offered combination, WOZ×{DOS 3.3, ProDOS, unformatted},
 DSK×{DOS 3.3, unformatted}, PO×{ProDOS, unformatted}:
 
 - DOS 3.3 disks: guest `CATALOG` lists clean and empty.
@@ -45,7 +45,7 @@ DSK×{DOS 3.3, unformatted}, PO×{ProDOS, unformatted}:
    the list show that folder's existing images (folders first, name-sorted).
 2. Type an existing image's name → Create asks for explicit overwrite confirm;
    declining changes nothing (FR-007).
-3. Create in a custom folder; reopen the dialog later — it opens in that
+3. Create in a custom folder; reopen the dialog later, it opens in that
    folder (lastDiskCreateFolder persisted; survives relaunch).
 4. Keyboard-only pass: Tab through list → name → format → contents → bootable
    → buttons; Enter in the name field creates; Escape cancels.

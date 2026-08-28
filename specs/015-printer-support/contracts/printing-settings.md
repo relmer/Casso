@@ -1,6 +1,6 @@
 # Contract: Printing Settings, Machine Config, Persistence Sidecar
 
-## GlobalUserPrefs additions (global — host print services, FR-011)
+## GlobalUserPrefs additions (global: host print services, FR-011)
 
 ```json
 {
@@ -20,7 +20,7 @@ FR-034). Like the render
 options these write straight into `GlobalUserPrefs`; the sound binds when the
 printer next sounds (`EmulatorShell::UpdatePrinterPreview` reads them per
 frame). The delivery target is NOT a stored
-preference — it is chosen per action by the preview's Print / Save / Copy
+preference; it is chosen per action by the preview's Print / Save / Copy
 controls (FR-013/FR-014), so there is no `printDestination` and no
 `printPngFolder`; Save prompts for the path via a file dialog defaulting to
 `<Pictures>/Casso Prints`. Unknown fields (including these two if present in
@@ -42,7 +42,7 @@ an older prefs file) are preserved on round-trip per existing prefs behavior.
 
 Location: `<per-machine user state>/PendingPrint/`
 
-- `strip.png` — native-grid raster, indexed-color PNG (lossless; ink
+- `strip.png`: native-grid raster, indexed-color PNG (lossless; ink
   bitfield values 0-15 as palette indices).
 - `strip.json`:
 
@@ -60,7 +60,7 @@ Rules: load at machine open (missing/corrupt/newer version → empty paper,
 silent); write on clean exit and after Print / Save / Copy / discard; delete
 directory contents on discard success only (Print / Save / Copy are
 non-destructive and keep the strip). Renderer settings are deliberately NOT
-persisted here — the native grid is the source of truth and re-renders under
+persisted here; the native grid is the source of truth and re-renders under
 current settings (research R-010).
 
 ## Recognition signature table (embedded, FR-022/023/025)

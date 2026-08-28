@@ -1,4 +1,4 @@
-# UnitTest/Fixtures/Disks — real Apple II volumes
+# UnitTest/Fixtures/Disks: real Apple II volumes
 
 **These files are third-party material under a license that is not Casso's, and
 they contain runnable third-party software.** Read the license section before
@@ -13,7 +13,7 @@ its own reader.
 
 The distinction matters more than it sounds. A synthetic image is written by the
 same understanding of the format that the code under test uses, so the two agree
-by construction — including where both are wrong. These disks were written in
+by construction, including where both are wrong. These disks were written in
 1984 and 1985 by software that had never heard of Casso, and they carry the
 irregularities that come with that: entries for deleted files, decorative
 zero-length catalog rows, locked files, missing timestamps, near-exhausted free
@@ -24,7 +24,7 @@ specific shape needs to be constructed on purpose. See the parent README.
 
 ## License
 
-Merlin Pro is **CC BY-NC-ND 3.0** — https://creativecommons.org/licenses/by-nc-nd/3.0/
+Merlin Pro is **CC BY-NC-ND 3.0**, https://creativecommons.org/licenses/by-nc-nd/3.0/
 
 - **Author**: Glen Bredon
 - **Publisher**: Roger Wagner Publishing, 1984–1985
@@ -36,7 +36,7 @@ because this directory goes further than any other fixture here:
 
 1. **These files are not MIT.** Casso is MIT; this directory is not. The
    distinction is per-file and stops at this directory.
-2. **They contain executable software**, not just data — `MERLIN.SYSTEM`,
+2. **They contain executable software**, not just data, `MERLIN.SYSTEM`,
    `PRODOS`, `BASIC.SYSTEM`, `ASM.1`, `ASM.2` and the assembler itself are all
    present and bootable. That is a larger step than shipping source text, and it
    was taken deliberately rather than by extending an earlier precedent.
@@ -78,7 +78,7 @@ reference's trailing `]` prompt against our free-space summary. Free space is
 ## All three images are in DOS sector order
 
 Including the two holding ProDOS volumes. This is the single most useful
-property of the set, and it is not a quirk — it is how these images were
+property of the set, and it is not a quirk; it is how these images were
 captured and how a great many `.dsk` files in the wild are.
 
 It means a reader cannot infer the filesystem from the sector order, or the
@@ -89,8 +89,8 @@ rather than at byte offset 1024.
 ## The DOS 3.3 image defeats a naive ProDOS probe
 
 `Merlin-proDos2.23.dsk` is a DOS 3.3 disk. Probe it as though it were
-ProDOS-ordered and read the storage-type nibble at offset 1024 — where a ProDOS
-volume directory header would sit — and the high nibble is `$F`, exactly what a
+ProDOS-ordered and read the storage-type nibble at offset 1024, where a ProDOS
+volume directory header would sit, and the high nibble is `$F`, exactly what a
 volume header looks like. The "volume name" that follows decodes to garbage,
 because those bytes are 6502 boot code that happens to land that way.
 
@@ -102,7 +102,7 @@ construct a hostile case.
 ## A binary's load address lives inside the file on DOS 3.3 and outside it on ProDOS
 
 The same asymmetry, measured on both filesystems here. It is the shape that
-produces a four-byte offset bug on one filesystem only — and a reader unified
+produces a four-byte offset bug on one filesystem only, and a reader unified
 across the two acquires it.
 
 ```
@@ -115,7 +115,7 @@ ProDOS    PARMS                     3C ...
 
 So a DOS 3.3 binary's stored size is its payload plus four, and its declared
 length is checkable against that. A ProDOS binary's stored size *is* its EOF and
-there is nothing to cross-check — apply DOS-style stripping to one and it comes
+there is nothing to cross-check, apply DOS-style stripping to one and it comes
 back four bytes short with no other symptom.
 
 Verified on this set: `PARMS` on `/MERLIN` is type `$06`, one block, EOF 44,
@@ -124,8 +124,8 @@ aux `$8000`, first stored byte `$3C`.
 ## The DOS 3.3 disk's decorative catalog entries are drawn with backspaces
 
 Twenty of its sixty-three entries occupy no sectors and exist to draw section
-headings in `CATALOG`. All twenty carry a track/sector pointer of `$7F/$7F` — a
-sentinel never meant to be followed — and a sector count of zero.
+headings in `CATALOG`. All twenty carry a track/sector pointer of `$7F/$7F`, a
+sentinel never meant to be followed, and a sector count of zero.
 
 Their *names* are the part worth knowing about. The first is:
 
@@ -166,14 +166,14 @@ with `$0D`. Measured here:
 | `PI.NAMES.S` | `/APPLESOFT` | 223 of 256 high, with 33 plain `$20` spaces among them |
 
 The conclusion is narrower than either claim: **the `TXT` type does not imply a
-convention — the producer does.** So a decoder must strip bit 7 and may never
+convention; the producer does.** So a decoder must strip bit 7 and may never
 assert it, on *either* filesystem. The `UnitTest/Fixtures/Merlin` README documents
 the same rule for DOS 3.3 with the field-separator-versus-comment-space detail.
 
 ## What these volumes cannot exercise
 
 Stated so neither reads later as a coverage gap. Both need a constructed
-fixture, which is the legitimate use of one — these volumes simply cannot reach
+fixture, which is the legitimate use of one, these volumes simply cannot reach
 the shape:
 
 | Shape | Why not |
@@ -190,8 +190,8 @@ every text file here and be indistinguishable from a correct one.
 | | |
 |---|---|
 | `Merlin-proDos2.23` | DOS 3.3: 63 catalog entries chained across multiple catalog sectors, locked files, decorative zero-sector entries, both `T` and `B` file types, track/sector lists, and files large enough to need more than one. |
-| `2.33-a` (`/MERLIN`) | ProDOS with **subdirectories** — `SOURCEROR`, `LIB`, `SOURCE`, `PI`, `UTIL` — so directory traversal is exercised rather than assumed. `SYS`, `BIN`, `DIR` and `TXT` types; `<NO DATE>` timestamps; per-file load addresses and record lengths. |
-| `2.33-b` (`/APPLESOFT`) | ProDOS storage types beyond seedling: `WHATSIT.A.Q` is 29798 bytes across 60 blocks, so it is a sapling with an index block. Also `BAS` and `SYS` types, and a nearly full volume — 8 blocks free of 280 — for free-space edges. |
+| `2.33-a` (`/MERLIN`) | ProDOS with **subdirectories**: `SOURCEROR`, `LIB`, `SOURCE`, `PI`, `UTIL`: so directory traversal is exercised rather than assumed. `SYS`, `BIN`, `DIR` and `TXT` types; `<NO DATE>` timestamps; per-file load addresses and record lengths. |
+| `2.33-b` (`/APPLESOFT`) | ProDOS storage types beyond seedling: `WHATSIT.A.Q` is 29798 bytes across 60 blocks, so it is a sapling with an index block. Also `BAS` and `SYS` types, and a nearly full volume, 8 blocks free of 280, for free-space edges. |
 
 `2.33-a` also carries its own copy of `LABELS`/`LABELS.S`, at different sizes
 from the DOS 3.3 disk's. That is a later build, not a discrepancy: source and
@@ -209,6 +209,6 @@ oracle pairs are all drawn from the single DOS 3.3 image for that reason.
 
 ## See also
 
-- `scripts/FetchMerlin.ps1` — obtains and hash-verifies these files
-- `UnitTest/Fixtures/Merlin/` — source/object oracle pairs from the DOS 3.3 image
-- `specs/020-disk-file-access/spec.md` — the filesystem layer these validate
+- `scripts/FetchMerlin.ps1`: obtains and hash-verifies these files
+- `UnitTest/Fixtures/Merlin/`: source/object oracle pairs from the DOS 3.3 image
+- `specs/020-disk-file-access/spec.md`: the filesystem layer these validate

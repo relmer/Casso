@@ -353,7 +353,6 @@ struct AssemblerOptions
     bool                                        macroExpansion    = false;   // -m flag (show macro expansion in listing)
     int                                         pageHeight        = 0;   // -h flag (0 = no pagination)
     int                                         pageWidth         = 79;   // -w flag (as65's default)
-    bool                                        caseSensitive     = false;   // -i flag (we're case-insensitive by default)
     bool                                        pass1Listing      = false;   // -p flag
     bool                                        symbolTable       = false;   // -t flag
     bool                                        debugInfo         = false;   // -g flag
@@ -540,7 +539,9 @@ struct CharacterMap
 
 struct FileReadResult
 {
-    bool        success;
+    //  False until a read says otherwise: a caller that checks this before
+    //  the reader has run must see failure, not whatever was on the stack.
+    bool        success = false;
     std::string contents;
     std::string error;
 };

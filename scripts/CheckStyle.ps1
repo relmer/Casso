@@ -845,10 +845,19 @@ function Test-Structure
                 if ($sig -notmatch '^[A-Za-z_~][A-Za-z0-9_:<>,&*\s]*\(')                                  { continue }
                 if ($sig -match '^\s*(if|for|while|switch|else|do|struct|class|enum|namespace|union|TEST_CLASS)\b')   { continue }
 
-                # CS0014 -- banner anywhere in the 12 lines above the signature.
+                # CS0014 -- banner anywhere in the 12 lines above the SIGNATURE.
+                #
                 # The window is measured from the line that names the function,
-                # not from the brace: a wrapped parameter list would otherwise
-                # push the banner out of view.
+                # not from the brace: a parameter list broken one per line puts
+                # arbitrarily many lines between the two, and they would eat the
+                # window. ProDosVolume::WriteDirectoryEntry takes nine, so its
+                # banner sat 14 lines above the brace and was reported missing
+                # while being right there.
+                #
+                # BOTH BRANCHES FOUND THIS AND FIXED IT DIFFERENTLY -- one ended
+                # the walk at the brace, one at the signature. The signature is
+                # kept, because that is the variant the tree-wide sweep was run
+                # against and the whole tree now satisfies.
                 $hasBanner = $false
                 for ($k = [Math]::Max(0, $s - 12); $k -lt $s; $k++)
                 {

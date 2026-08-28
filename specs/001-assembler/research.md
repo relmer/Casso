@@ -6,7 +6,7 @@
 
 **Decision**: Build a `std::unordered_map<string, std::unordered_map<GlobalAddressingMode::AddressingMode, Byte>>` at Assembler construction time by iterating over the existing `instructionSet[256]` array.
 
-**Rationale**: The emulator already has a complete 256-entry `Microcode instructionSet[]` that maps opcode byte → (name, addressing mode, operation). The assembler needs the reverse: (name, addressing mode) → opcode byte. Building from the existing table guarantees consistency — if the emulator supports an instruction, the assembler will too, with zero risk of table drift.
+**Rationale**: The emulator already has a complete 256-entry `Microcode instructionSet[]` that maps opcode byte → (name, addressing mode, operation). The assembler needs the reverse: (name, addressing mode) → opcode byte. Building from the existing table guarantees consistency, if the emulator supports an instruction, the assembler will too, with zero risk of table drift.
 
 **Alternatives considered**:
 - **Separate static table**: Hardcode a second table of (mnemonic, mode) → opcode. Rejected because it duplicates data and risks drift when instructions are added/modified.
@@ -22,7 +22,7 @@
 
 **Alternatives considered**:
 - **Single-pass with backpatching**: Track unresolved forward references and patch them after the pass. Rejected because it adds complexity (managing a backpatch list) and doesn't handle the case where a forward reference determines the instruction size (zero-page vs. absolute).
-- **Three-pass**: Add a pre-pass for directives. Rejected — unnecessary complexity; `.org` and `.byte` work fine in two passes.
+- **Three-pass**: Add a pre-pass for directives. Rejected, unnecessary complexity; `.org` and `.byte` work fine in two passes.
 
 **Key detail**: On Pass 1, when a line has a parse error, the assembler uses best-effort size estimation (e.g., assume 2 bytes for unknown mnemonics, 1 byte for implied) to advance the PC. This minimizes cascading label offset errors.
 
@@ -75,7 +75,7 @@ The parser first strips comments, splits into label/mnemonic/operand, then class
 
 **Alternatives considered**:
 - **Argument parsing library (CLI11, cxxopts)**: Rejected per constitution principle V (no external dependencies).
-- **Windows-style `/flag` syntax**: Rejected — the spec defines Unix-style `--flag` and `-f` syntax, which is more standard for cross-platform tools and matches ACME conventions.
+- **Windows-style `/flag` syntax**: Rejected, the spec defines Unix-style `--flag` and `-f` syntax, which is more standard for cross-platform tools and matches ACME conventions.
 
 **Architecture**:
 - `CommandLine` class in Casso project parses `argc/argv` into a typed options struct
@@ -125,6 +125,6 @@ $8004  EA        NOP
 **Rationale**: `TestCpu` already extends `Cpu` to expose protected members. Adding assembly integration here keeps test infrastructure in one place and avoids modifying production code. The `Assembler` class is in CassoCore (which UnitTest already links), so `TestCpu` can instantiate it directly.
 
 **Methods**:
-- `AssemblyResult Assemble(const char* source, Word startAddress = 0x8000)` — assembles source, writes bytes to `memory[]`, returns result
-- `void RunUntil(Word targetAddress, uint32_t maxCycles = 0)` — executes instructions until PC == target, illegal opcode, or cycle limit
-- `Word LabelAddress(const AssemblyResult& result, const char* name)` — looks up a label's address from the result's symbol table
+- `AssemblyResult Assemble(const char* source, Word startAddress = 0x8000)`: assembles source, writes bytes to `memory[]`, returns result
+- `void RunUntil(Word targetAddress, uint32_t maxCycles = 0)`: executes instructions until PC == target, illegal opcode, or cycle limit
+- `Word LabelAddress(const AssemblyResult& result, const char* name)`: looks up a label's address from the result's symbol table

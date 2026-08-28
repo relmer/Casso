@@ -32,6 +32,33 @@ TEST_CLASS (DiskImageStoreTests)
 {
 public:
 
+    //  Breaks one address field's checksum so the track can no longer be
+    //  denibblized without loss, which is what makes Serialize refuse.
+    static void CorruptOneAddressField (DiskImage & img, int track)
+    {
+        vector<Byte> &  bits   = img.GetTrackBitsForWrite (track);
+        size_t          i      = 0;
+        bool            done   = false;
+
+
+
+        for (i = 0; i + 10 < bits.size() && !done; i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0x96)
+            {
+                // Write a checksum that cannot be right for any header. The
+                // encoded odd/even pair carries only the value's own bits, so
+                // replacing both is unconditional where flipping one is not.
+                bits[i + 9]  = 0xAA;
+                bits[i + 10] = 0xAA;
+                done         = true;
+            }
+        }
+
+        Assert::IsTrue (done, L"the track must carry an address field to corrupt");
+    }
+
+
     static constexpr int   kSlot  = 6;
     static constexpr int   kDrive = 0;
 
@@ -1093,6 +1120,125 @@ public:
             Assert::IsTrue (blob.find ("Casso ") != string::npos,
                 L"but Casso wrote this file and says so in creator");
         }
+    }
+
+
+    TEST_METHOD (FlushEntry_RecoveryImage_KeepsTheTrackThatCausedTheRefusal)
+    {
+        // The whole point of choosing WOZ over the denibblized sector buffer:
+        // that buffer holds zeros exactly where the unreadable track was, so it
+        // would discard the very content the refusal existed to protect.
+        DiskImageStore  store;
+        DiskImageStore  reloaded;
+        vector<Byte>    recoveryBytes;
+        vector<Byte>    originalTrackBits;
+        size_t          originalBitCount = 0;
+        const int       kTrack           = 3;
+
+        store.SetFlushSink ([&](const string & path, const vector<Byte> & bytes)
+        {
+            if (path.ends_with (".recovered.woz"))
+            {
+                recoveryBytes = bytes;
+            }
+
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Session.dsk",
+                                               DiskFormat::Dsk, MakeDsk (0x33)));
+
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), kTrack);
+        originalTrackBits = store.GetImage (kSlot, kDrive)->GetTrackBits (kTrack);
+        originalBitCount  = store.GetImage (kSlot, kDrive)->GetTrackBitCount (kTrack);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue (recoveryBytes.size() > 0, L"a recovery image must have been produced");
+
+        AssertSucceeded (reloaded.MountFromBytes (kSlot, kDrive, "C:\\disks\\Session.recovered.woz",
+                                                  DiskFormat::Woz, recoveryBytes));
+
+        {
+            DiskImage *  after     = reloaded.GetImage (kSlot, kDrive);
+            size_t       bit       = 0;
+            bool         identical = after->GetTrackBitCount (kTrack) == originalBitCount;
+
+            Assert::IsTrue (originalBitCount > 0, L"the reference track must carry bits");
+            Assert::IsTrue (identical, L"the recovery image must keep the track's bit length");
+
+            // Compare the DATA, not the container: WOZ pads packed bytes out to
+            // a block boundary, so a raw byte-vector compare would fail on
+            // padding while the recorded bits are identical.
+            for (bit = 0; identical && bit < originalBitCount; bit++)
+            {
+                Byte  expected = (Byte) ((originalTrackBits[bit / 8] >> (7 - (bit % 8))) & 1);
+
+                identical = after->ReadBit (kTrack, bit) == expected;
+            }
+
+            Assert::IsTrue (identical,
+                L"the damaged track's own bits must survive into the recovery image");
+        }
+    }
+
+
+    TEST_METHOD (FlushEntry_UnserializableImage_WritesLosslessRecoveryBesideOriginal)
+    {
+        // The refusal protects the file on disk; the recovery image is what
+        // stops it from stranding the session. Both must happen, and the
+        // original must NOT be written.
+        DiskImageStore                       store;
+        std::vector<std::pair<string, int>>  writes;
+        string                               recoveryPath;
+        vector<Byte>                         recoveryBytes;
+        bool                                 wroteOriginal = false;
+
+        store.SetFlushSink ([&](const string & path, const vector<Byte> & bytes)
+        {
+            writes.push_back ({ path, (int) bytes.size() });
+
+            if (path.ends_with (".recovered.woz"))
+            {
+                recoveryPath  = path;
+                recoveryBytes = bytes;
+            }
+            else
+            {
+                wroteOriginal = true;
+            }
+
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Session.dsk",
+                                               DiskFormat::Dsk, MakeDsk (0x5A)));
+
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsFalse (wroteOriginal,
+            L"the original must not be overwritten with a buffer that lost a track");
+        Assert::AreEqual (string ("C:\\disks\\Session.recovered.woz"), recoveryPath,
+            L"the recovery image sits beside the original under its own name");
+        Assert::IsTrue (recoveryBytes.size() > 0, L"the recovery image must have content");
+    }
+
+
+    TEST_METHOD (MakeRecoveryPath_NeverCollidesWithAnEarlierRescue)
+    {
+        // Overwriting a previous recovery would repeat the mistake being fixed:
+        // one rescue must never cost another.
+        string  first  = DiskImageStore::MakeRecoveryPath ("C:\\disks\\Work.dsk", 0);
+        string  second = DiskImageStore::MakeRecoveryPath ("C:\\disks\\Work.dsk", 1);
+
+
+
+        Assert::AreEqual (string ("C:\\disks\\Work.recovered.woz"), first);
+        Assert::AreNotEqual (first, second, L"a second rescue must take a different name");
     }
 
 };

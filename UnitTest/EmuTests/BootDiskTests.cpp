@@ -1,9 +1,11 @@
 #include "Pch.h"
+#include "DemoAssets.h"
 
 #include "Cpu.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 
+#include "GuestSession.h"
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -44,6 +46,14 @@ namespace fs = std::filesystem;
 //  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
 //  page-1 writes -> Apple2eSoftSwitchBank graphics-mode latching.
+//
+//  THE CHEAP QUESTIONS COME FIRST. The demo has no operating system to fall
+//  back on -- the boot ROM reads track 0's first sector and jumps into it, and
+//  a stitched image the drive cannot read makes the 6502 execute the framebuffer
+//  instead. This build writes an instruction look-back for every illegal opcode
+//  it reaches, so that failure is measured in gigabytes rather than in a red
+//  assertion. Both questions below are asked of the mounted container and
+//  before the processor is pointed at the boot ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,36 +147,31 @@ public:
         return bytes;
     }
 
+    //
+    //  NOTHING IN HERE OPENS A FILE.
+    //
+    //  The demo's two sources and its five payloads are compiled into the test
+    //  assembly by DemoAssets.rc, so the resource compiler reads them at build
+    //  time and this test reads a pointer into its own module image.
+    //
+    //  It used to read all seven off the repo and write the built image back
+    //  over Apple2/Demos/casso-rocks.dsk. The write normally put the same
+    //  bytes there, so the only trace was a changed timestamp, until a run
+    //  that built a different image and left a corrupted asset in the tree.
+    //  Reading was the same mistake in miniature: a test that reads the tree
+    //  reports on the machine it happens to be running on, and skipped itself
+    //  entirely on a checkout arranged differently -- which is a test that can
+    //  pass by not running.
+    //
+    //  THE SKIP IS GONE WITH THE READS. An embedded resource is either in the
+    //  assembly or the assembly did not build, so there is no absence left to
+    //  tolerate and no way for this to quietly not run.
+    //
     TEST_METHOD (CassoRocks_DemoDisk_DisplaysHgrCassowary)
     {
-        fs::path  src           = FindRepoFile ("Apple2/Demos/casso-rocks.a65");
-        fs::path  stage2Src     = FindRepoFile ("Apple2/Demos/casso-rocks-stage2.a65");
-        fs::path  hgrPath       = FindRepoFile ("Apple2/Demos/cassowary.hgr");
-        fs::path  bandsPath     = FindRepoFile ("Apple2/Demos/test-bands.hgr");
-        fs::path  loresPath     = FindRepoFile ("Apple2/Demos/lores-bars.lores");
-        fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-cassowary-aux.bin");
-        fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-cassowary-main.bin");
-
-        // The demo sources are not in every clone, so a missing one is a skip,
-        // not a failure -- but a PRESENT one has to hold up to every assertion
-        // below, which is why this is the only tolerated absence.
-        bool  haveSources = !src.empty()          && !stage2Src.empty()
-                         && !hgrPath.empty()      && !bandsPath.empty()
-                         && !loresPath.empty()
-                         && !dhgrAuxPath.empty()  && !dhgrMainPath.empty();
-
-        if (!haveSources)
         {
-            Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
-                                  "files (casso-rocks*.a65, cassowary.hgr, "
-                                  "test-bands.hgr, lores-bars.lores, "
-                                  "dhgr-cassowary-{aux,main}.bin) not "
-                                  "found in this checkout.\n");
-        }
-        else
-        {
-            std::string              source          = ReadFileText (src);
-            std::string              stage2Source    = ReadFileText (stage2Src);
+            std::string              source          = DemoAssets::Text (IDR_DEMO_STAGE1_SRC);
+            std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
             std::vector<Byte>        bandsPayload;
             std::vector<Byte>        loresPayload;
@@ -185,11 +190,11 @@ public:
             Assert::IsFalse (stage2Source.empty(),
                 L"casso-rocks-stage2.a65 must not be empty");
 
-            hgrPayload = ReadFileBytes (hgrPath);
-            bandsPayload = ReadFileBytes (bandsPath);
-            loresPayload = ReadFileBytes (loresPath);
-            dhgrAuxPayload = ReadFileBytes (dhgrAuxPath);
-            dhgrMainPayload = ReadFileBytes (dhgrMainPath);
+            hgrPayload      = DemoAssets::Copy (IDR_DEMO_HGR);
+            bandsPayload    = DemoAssets::Copy (IDR_DEMO_BANDS);
+            loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
+            dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
+            dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
@@ -244,8 +249,8 @@ public:
             //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
-            //   - Track 3 logical sector 0: stage 2 code (lands at $1000).
-            //     Track 3 logical sectors 1..4: 1 KB LoRes test pattern
+            //   - Track 3 physical sector 0: stage 2 code (lands at $1000).
+            //     Track 3 physical sectors 1..4: 1 KB LoRes test pattern
             //     (lands at $1100-$14FF, copied into text page 1 in
             //     mode_lores).
             //   - Tracks 4+5: 8 KB DHGR main pattern (loaded by stage 2
@@ -263,10 +268,13 @@ public:
             //   disk reads instead of waiting for all 9. HGR1+HGR2 load
             //   in the background after first frame is up.
             //
-            //   The HGR payloads use the DOS 3.3 logical-to-physical
-            //   interleave so that when our RWTS reads logical sector S
-            //   of track T it gets exactly payload[((T-startTrack)*16+S)*256..].
-            static constexpr int  kDsk_LtoP[16] =
+            //   The payloads go through the DOS 3.3 physical-to-file
+            //   interleave so that page S of a payload sits under address
+            //   mark S: the demo's RWTS reads sectors in whatever order they
+            //   arrive and files each by its address-mark number, so the
+            //   sector the drive presents as S must hold
+            //   payload[((T-startTrack)*16+S)*256..].
+            static constexpr int  kDsk_PhysicalToFile[16] =
             {
                 0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
             };
@@ -278,16 +286,15 @@ public:
                 raw[1 + i] = asmResult.bytes[i];
             }
 
-            // Track 3 logical sector 0 -> stage 2 code at $1000.
-            // Track 3 logical sectors 1-4 -> LoRes pattern at $1100-$14FF.
-            // Use the LtoP mapping so the on-disk physical layout the
-            // nibblizer produces matches what stage 1's RWTS expects to
-            // read out by logical address.
-            auto StampTrack3Sector = [&] (int logicalSector,
+            // Track 3 physical sector 0 -> stage 2 code at $1000.
+            // Track 3 physical sectors 1-4 -> LoRes pattern at $1100-$14FF.
+            // Route through the interleave so each payload page sits under
+            // the address mark stage 1's RWTS will file it by.
+            auto StampTrack3Sector = [&] (int physicalSector,
                                           const Byte * data, size_t len)
             {
                 size_t  fileOffset = static_cast<size_t> (
-                    3 * kSectorsPerTrack + kDsk_LtoP[logicalSector])
+                    3 * kSectorsPerTrack + kDsk_PhysicalToFile[physicalSector])
                     * kSectorByteSize;
                 for (size_t i = 0; i < len; i++)
                 {
@@ -315,7 +322,7 @@ public:
                     for (int sector = 0; sector < kSectorsPerTrack; sector++)
                     {
                         size_t  fileOffset =
-                            static_cast<size_t> (track * kSectorsPerTrack + kDsk_LtoP[sector])
+                            static_cast<size_t> (track * kSectorsPerTrack + kDsk_PhysicalToFile[sector])
                             * kSectorByteSize;
                         size_t  payloadOffset =
                             static_cast<size_t> (trackOffset * kSectorsPerTrack + sector)
@@ -347,6 +354,17 @@ public:
             img = core.diskStore->GetImage (6, 0);
             Assert::IsNotNull (img);
             core.diskController->SetExternalDisk (0, img);
+
+            // The cheap questions, asked of the container the drive is
+            // actually holding and before a processor is involved. The demo's
+            // RWTS reads nine tracks by address field and there is no
+            // operating system underneath it to report a bad read, so a
+            // stitched image the drive does not present verbatim is not a
+            // wrong picture -- it is a processor loaded with data.
+            GuestSession::AssertTheDrivePresentsWhatWasMounted (
+                *img, raw, L"the assembled demo disk");
+            GuestSession::AssertTheDriveCanReadTheBootSector (
+                *img, L"the assembled demo disk");
 
             core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
 
@@ -506,16 +524,28 @@ public:
                 L"After cycling past last mode, demo must JMP into ROM "
                 L"($D000+, typically the Applesoft cold start at $E000)");
 
-            // Side effect: emit the .dsk alongside the source so the demo can
-            // also be booted in the GUI without re-running the test. Best-
-            // effort -- silent failure on read-only checkouts (CI).
-            fs::path  dskOut = src.parent_path() / "casso-rocks.dsk";
-            std::ofstream  out (dskOut, std::ios::binary);
-            if (out)
-            {
-                out.write (reinterpret_cast<const char *> (raw.data()),
-                           static_cast<std::streamsize> (raw.size()));
-            }
+            //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
+            //
+            //  This used to WRITE Apple2/Demos/casso-rocks.dsk with the image
+            //  it had just built, on every run, called out as a deliberate
+            //  side effect. It normally wrote the same bytes back, so git
+            //  stayed clean and the only trace was a moved mtime -- until a
+            //  run that built a different image and left a corrupted binary
+            //  asset in the tree.
+            //
+            //  Replacing the write with a READ of the same file was still
+            //  wrong. A test that fails because a checked-in artifact is stale
+            //  is a test reporting on the state of the machine it is running
+            //  on, and this one would fail on a tree that is perfectly
+            //  correct except that somebody has not re-run a script.
+            //
+            //  WHETHER THE COMMITTED DISK IS UP TO DATE IS A BUILD QUESTION,
+            //  and it is asked where the disk is built:
+            //  `scripts/BuildDemoDisk.ps1 -Verify` rebuilds it and compares
+            //  without writing. What this test is for is upstream of that --
+            //  the demo assembles, boots, and paints what it should -- and it
+            //  has already asserted all of it above, from an image held in
+            //  memory and never written down.
         }
     }
 

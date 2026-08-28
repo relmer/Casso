@@ -11,7 +11,7 @@
       Win32 control names per user instruction; those references appear under
       "Key Entities", "Glossary", and a small number of FRs as architectural
       anchors, not as implementation prescriptions. The FRs' behavioral content
-      is technology-agnostic — the same contract could be implemented against
+      is technology-agnostic; the same contract could be implemented against
       WPF, Avalonia, or a future cross-platform UI layer.)*
 - [X] Focused on user value and business needs
 - [X] Written for non-technical stakeholders (with the caveat above)
@@ -21,7 +21,7 @@
 
 - [X] No [NEEDS CLARIFICATION] markers remain blocking completion
       *(One marker remains in Assumption A-001 regarding the time-column
-      clock origin — see "Open clarifications" below. The spec ships a
+      clock origin; see "Open clarifications" below. The spec ships a
       reasonable default (relative-to-startup) and the marker invites the
       user to confirm or override; no implementation work is blocked.)*
 - [X] Requirements are testable and unambiguous
@@ -46,7 +46,7 @@ The user invited clarifying questions only for genuine new ambiguities not
 already resolved in the design discussion. After full passes over the spec
 and plan, exactly the following remain:
 
-### Q1: Time-column origins — RESOLVED
+### Q1: Time-column origins: RESOLVED
 
 **Context**: FR-004 originally specified a single `Time` column with an
 ambiguous origin.
@@ -78,7 +78,7 @@ have a strong preference.
 suggested "(with an accelerator like Ctrl+Shift+D)"; the spec promoted
 the suggestion to a hard requirement.
 
-**Disposition**: No ambiguity — the spec adopts Ctrl+Shift+D verbatim
+**Disposition**: No ambiguity, the spec adopts Ctrl+Shift+D verbatim
 from the user's brief.
 
 ## Notes

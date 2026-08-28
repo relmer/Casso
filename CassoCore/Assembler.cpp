@@ -357,6 +357,71 @@ std::vector<std::string> Assembler::FormatListingRows (const AssemblyLine & line
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatListing
+//
+//  Every listing line, wrapped and paginated, under the source's own title.
+//
+//  THE PAGE COUNT IS IN ROWS. A line that wrapped to three rows fills three
+//  lines of paper, and counting it as one would overrun the page by whatever
+//  wrapping added -- which is the whole reason the two features have to be
+//  composed here rather than applied by separate callers.
+//
+//  A SOURCE CAN ASK FOR A BREAK ITSELF, and that is recognized from the text of
+//  the line rather than from a parsed directive, because the listing reproduces
+//  the input line and this one is reproduced at the top of the new page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatListing (const AssemblyResult & result,
+                                      int  pageHeight,
+                                      bool showCycleCounts,
+                                      int  columnWidth)
+{
+    std::string  output;
+    std::string  header;
+    int          onPage   = 0;
+    bool         paginate = pageHeight > 0;
+
+
+
+    if (!result.listingTitle.empty())
+    {
+        header = result.listingTitle + "\n\n";
+    }
+
+    output += header;
+
+    for (const AssemblyLine & line : result.listing)
+    {
+        std::vector<std::string>  rows   = FormatListingRows (line, showCycleCounts, columnWidth);
+        bool                      asked  = line.sourceText.find (".page") != std::string::npos ||
+                                           line.sourceText.find (".PAGE") != std::string::npos ||
+                                           line.sourceText.find ("page")  == 0;
+        bool                      filled = paginate && onPage >= pageHeight;
+
+        if (asked || filled)
+        {
+            output += "\f";
+            output += header;
+            onPage  = 0;
+        }
+
+        for (const std::string & row : rows)
+        {
+            output += row + "\n";
+            onPage++;
+        }
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatSymbolTable
 //
 ////////////////////////////////////////////////////////////////////////////////
