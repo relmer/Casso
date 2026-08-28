@@ -717,12 +717,22 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 # sloped face, standing two tenths proud, in the same plastic as everything
 # else back here. The bell interpenetrates it; both are one color, and
 # interpenetrating solids in one scene cost nothing.
-APRON_LEN = PKT_Z0 - STRIP_TOP + 1.0
+# HOW FAR UP THE APRON RUNS, and the trap in computing it: PKT_Z0 is a
+# coordinate in the POCKET CUTTER'S frame, and that frame is tilted by
+# VENT_TILT about a line buried VENT_IN_BOT below the slope's surface --
+# so the pocket's bottom rim lands on the slope VENT_IN_BOT*tan(VENT_TILT)
+# HIGHER than the raw coordinate says. An apron run to the coordinate
+# stopped four millimeters short, and the bare band of slope between its
+# top edge and the rim was the beige strap cutting across the dark, twice
+# survived because it was measured in the wrong frame both times.
+APRON_LEN = (PKT_Z0 - STRIP_TOP) + VENT_IN_BOT * math.tan (math.radians (VENT_TILT)) + 2.0
 
+# ...and a hair WIDER than the pocket, not narrower: flush edges left a
+# half-millimeter thread of slope beside each side rim.
 m.add ("rear_apron",
        tilt_rear (cq.Workplane ("XY")
-                    .box (PANEL_W - 1.0, 1.4, APRON_LEN, centered=(False, False, False))
-                    .translate ((PANEL_X0 + 0.5, D - 1.2, STRIP_TOP))),
+                    .box (COL_HW * 2.0 + 2.0, 1.4, APRON_LEN, centered=(False, False, False))
+                    .translate ((BELL_CX - COL_HW - 1.0, D - 1.2, STRIP_TOP))),
        PANEL_GRAY, angular=CORNER_ANG)
 
 # The wheel itself, in the power button's warmer gray -- it is the same
