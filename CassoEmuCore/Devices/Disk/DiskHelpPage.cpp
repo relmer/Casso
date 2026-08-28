@@ -158,8 +158,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lsector <n>            Sector to start at, 0 to 15\n"
         "  %Lcount <n>             Count of sectors to read. Defaults to 1. Continues to subsequent tracks and sectors as needed\n"
         "  %Lout <file>            File to store the read sectors in. Defaults to stdout if not specified\n",
-        "Allows reading data directly from track and sector locations without relying on filesystem structure. The numbering is always stated:"
-        " the same sixteen sectors answer to two orders, and there is no default to guess with.",
+        "Allows reading data directly from track and sector locations without relying on filesystem structure. Sector numbers can be specified"
+        " in %Llogical or %Lphysical sectors.",
         "CassoCli disk sectorread boot.dsk %Llogical %Ltrack 0 %Lsector 0 %Lout boot.bin"
     },
 
@@ -172,8 +172,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lphysical              Sector numbers are physical: the address-field order a boot loader reads off the drive\n"
         "  %Ltrack <n>             Track to write to, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15. Continues to subsequent tracks and sectors if file is larger than one sector\n",
-        "Allows writing data directly to track and sector locations without relying on filesystem structure. The numbering is always stated:"
-        " the same sixteen sectors answer to two orders, and there is no default to guess with. If the data doesn't fill"
+        "Allows writing data directly to track and sector locations without relying on filesystem structure. Sector numbers can be specified"
+        " in %Llogical or %Lphysical sectors. If the data doesn't fill"
         " an entire sector, the remaining bytes from the original sector are preserved.",
         "CassoCli disk sectorwrite boot.dsk loader.bin %Lphysical %Ltrack 0 %Lsector 0"
     },
@@ -186,8 +186,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lblock <n>             Block to start at, 0 to 279\n"
         "  %Lcount <n>             Count of blocks to read. Defaults to 1\n"
         "  %Lout <file>            File to store the read blocks in. Defaults to stdout if not specified\n",
-        "Allows reading data directly by ProDOS block number without relying on filesystem structure. Blocks have only one numbering, so"
-        " there is nothing to state. Works on any container, not only .po images.",
+        "Allows reading data directly by ProDOS block number without relying on filesystem structure. The disk doesn't need ProDOS on it, and"
+        " any container works, not only .po images.",
         "CassoCli disk blockread users.po %Lblock 2 %Lcount 4 %Lout directory.bin"
     },
 

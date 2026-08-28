@@ -8,30 +8,26 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.20.1]: The one with logical or physical sector addresses
+
+### Fixed
+- **`disk sectorread` and `sectorwrite` wrote to physical sector rather than logical.**
+  Both routed the sector number through an incorrectly named physical-to-logical map
+  so they actually treated sectors as physical rather than logical as stated in help.
+  Sector numbers are now correctly mapped and can be specified in either physical or
+  logical numbers.
+
 ### Changed
 - **`disk sectorread` and `disk sectorwrite` require `--logical` or
-  `--physical`, with no default.** The same sixteen sectors answer to two
-  orders -- logical, what catalogs, DOS tools and reference books speak, the
-  identity into the image's record order; and physical, the address-field
-  order a boot loader reads off the drive -- and 1.20.0 shipped the pair
-  silently applying the physical interleave while their help said logical:
-  `--sector 1` landed on logical sector 7, invisibly, because both commands
-  applied the same map and read each other back perfectly. The numbering is
-  now declared on every invocation, and a command line that omits it is
-  refused with the flag to add rather than acted on by a guess. Under
-  `--physical` a multi-sector payload lands page N under address mark N,
-  which is what a boot loader that files sectors by address mark wants:
-  `scripts/BuildDemoDisk.ps1` now says exactly that, and `casso-rocks.dsk`
-  is unchanged byte for byte.
+  `--physical`.** Sector numbers can be specified two ways, logical (what
+  catalogs, DOS tools and reference books use), and physical (the
+  address-field order a boot loader reads off the drive). You now say
+  which you mean.
 
 ### Added
-- **`disk blockread` and `disk blockwrite`: the 512-byte ProDOS view.**
-  Addressed by block number, 0 to 279 on a 5.25-inch image; a block is two
-  sector records spread across its track by the ProDOS interleave, answered
-  through the same single block map the ProDOS reader and writer use. Blocks
-  have only one numbering, so there is nothing to declare. Works on any
-  container, not only `.po` -- a ProDOS volume shipped inside a `.dsk` reads
-  by block number naturally.
+- **`disk blockread` and `disk blockwrite` read and write 512-byte ProDOS
+  blocks.** Block numbers run 0 to 279 on a 5.25-inch image. The disk
+  doesn't need ProDOS on it and any container works, not just `.po`.
 
 ## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 
