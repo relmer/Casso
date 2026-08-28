@@ -427,21 +427,28 @@ case = case.cut (tilt_rear (
 # surface's own tilt, then ride the slope like everything else back here.
 VENT_IN_TOP = 1.5 * 25.4
 VENT_IN_BOT = 1.0 * 25.4
-# THE POCKET ENDS AT THE TOP OF THE BELL. Run down to the hinge it did two
-# wrong things at once: its dark tub walls crossed the shoulder where the
-# slope meets the flanks and stood outside the shell's own contour, and the
-# recess read as running under the bell to the very base of the slope. The
-# bell emerges from plain shell below this line; only above it is the back
-# actually notched.
+# THE POCKET ENDS AT THE TOP OF THE BELL -- its side walls included. The
+# bell's top edge crosses the slope 94 up from the hinge, and the rim aims
+# a millimeter and a half below that: enough overlap that the bell hides
+# the rim inside its own width, small enough that BESIDE the bell the
+# walls read as ending at the bell's top line. The fourteen-millimeter
+# tuck this replaces hid the rim behind the bell and hung the walls ten
+# visible millimeters below its top on either side.
 #
-# Where that line is comes from the geometry, not from a guess: the bell's
-# top edge crosses the slope 94 units up the pre-tilt cutter frame -- and
-# the pocket's rim stops FOURTEEN SHORT of that, tucked behind the bell.
-# Set exactly at the crossing, the rim and the bell shared an edge with
-# zero overlap, and what a shared edge shows is both cut faces: a light rim
-# above the bell and a beige case strip across the column, each a sliver
-# wide and each visible from every angle that mattered.
-PKT_Z0      = STRIP_TOP + 80.0
+# The aim is in SLOPE units, and PKT_Z0 is a CUTTER-frame coordinate --
+# the frame is tilted about a line VENT_IN_BOT below the surface, so the
+# rim lands VENT_IN_BOT * tan(VENT_TILT) higher than the coordinate says,
+# and VENT_TILT itself depends on PKT_Z0. Two terms of fixed-point
+# iteration settle it to a hundredth; the strap that haunted this rim came
+# from doing this conversion by eye.
+_RIM_AIM = 94.0 - 1.5
+
+_pkt = _RIM_AIM
+for _ in range (4):
+    _pkt = _RIM_AIM - VENT_IN_BOT * ((1.5 * 25.4 - VENT_IN_BOT) /
+                                     ((SLOPE_LEN - REAR_RIM) - _pkt))
+
+PKT_Z0      = STRIP_TOP + _pkt
 PKT_Z1      = STRIP_TOP + SLOPE_LEN - REAR_RIM
 VENT_TILT   = math.degrees (math.atan2 (VENT_IN_TOP - VENT_IN_BOT, PKT_Z1 - PKT_Z0))
 

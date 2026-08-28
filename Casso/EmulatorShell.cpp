@@ -8386,16 +8386,22 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     if (((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 ||
          (GetKeyState (VK_SHIFT) & 0x8000) != 0) && !pinch)
     {
+        // BOTH SIGNS ARE DERIVED FROM THE PAN, not measured one gesture at
+        // a time. The pan is the one slide mapping the user has validated:
+        // panX -= notch reads as content-follows-fingers, which pins what
+        // this hardware reports -- a rightward or upward slide arrives
+        // NEGATIVE. The drag's bargain then fixes the orbit: drag right is
+        // yaw negative and drag up is pitch negative, so a slide, carrying
+        // a negative notch for the same motion, multiplies by POSITIVE
+        // rates on both axes. The first flip fixed the vertical axis alone
+        // and left horizontal inverted, which read as "backwards" the
+        // moment the scene was spun side to side.
         if (horizontal)
         {
-            OrbitSceneBy (-notch * s_kOrbitRadPerNotch, 0.0f);
+            OrbitSceneBy (notch * s_kOrbitRadPerNotch, 0.0f);
         }
         else
         {
-            // POSITIVE notch, measured on the hardware: with the negative
-            // that mirrored the pan's convention, sliding up turned the
-            // machine DOWN -- the opposite of the compass's up arrow, which
-            // is the reference the gesture is judged against.
             OrbitSceneBy (0.0f, notch * s_kOrbitRadPerNotch);
         }
 
