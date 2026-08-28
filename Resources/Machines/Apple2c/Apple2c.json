@@ -3,20 +3,14 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 3,
+    "$cassoMachineVersion": 4,
 
-    // The //c shipped with the green-phosphor Monitor //c, so green is what
-    // this machine looks like out of the box. Stated here rather than left to
-    // the shared UI defaults because it is a fact about THIS machine; the
-    // shared table's "color" is the right answer for a ][ or an //e with a
-    // color monitor and the wrong one here.
-    //
-    // A user override still wins: the per-machine store keeps only what
-    // differs from this baseline, so choosing white on a //c saves "white"
-    // and choosing green saves nothing at all.
-    "$cassoUiPrefs": {
-        "colorMode": "green"
-    },
+    // The monitor this machine ships with. The phosphor is a fact about the
+    // TUBE, so it lives with the monitor in MonitorCatalog rather than being
+    // restated as a color preference here -- naming the Monitor //c is what
+    // makes this machine come up green, and moving it to another monitor
+    // would move its color with it.
+    "monitor": "MonitorIIc",
 
     "name": "Apple //c",
     "releaseYear": 1984,

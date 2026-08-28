@@ -6,6 +6,7 @@
 #include "../AssetBootstrap.h"
 #include "../DiskSettings.h"
 #include "../resource.h"
+#include "../Config/MonitorCatalog.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
 #include "Core/CpuFactory.h"
@@ -1525,16 +1526,15 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 const JsonValue *  uiPrefs   = nullptr;
                 std::string        colorMode;
 
-                // THE DEFAULT, not zero: a machine with no saved color mode
-                // must still be told what to show. Leaving it unset applied
-                // nothing at all, and what the screen kept was the mode of
-                // the machine being switched AWAY from -- which is how the
-                // //c came up green after an //e and white after an Enhanced
-                // //e, with nothing about the //c deciding either. The same
-                // "only if the key exists" test is correct on the BOOT path,
-                // where the live value starts at Color rather than at some
-                // other machine's.
-                WORD               colorCmd  = IDM_VIEW_COLOR;
+                // THE MONITOR'S OWN PHOSPHOR, not zero and not a fixed
+                // default: a machine with no saved color mode must still be
+                // told what to show. Leaving it unset applied nothing at all,
+                // and what the screen kept was the mode of the machine being
+                // switched AWAY from -- which is how the //c came up green
+                // after an //e and white after an Enhanced //e, with nothing
+                // about the //c deciding either.
+                WORD               colorCmd  = MonitorCatalog::PhosphorCommand (
+                                                   MonitorCatalog::ForMachineJson (mergedJson));
 
                 if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
                     uiPrefs != nullptr &&

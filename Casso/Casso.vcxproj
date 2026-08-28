@@ -327,6 +327,7 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />

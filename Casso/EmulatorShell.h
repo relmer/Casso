@@ -61,6 +61,7 @@
 class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
+struct MonitorSpec;
 
 
 
@@ -366,6 +367,12 @@ private:
     // recovered to defaults, never fatal. Each Apply* helper loads its own
     // copy and seeds one subsystem (chrome vs audio).
     void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+
+    // The monitor this machine ships with, from its config rather than from
+    // its name. Both the desk scene's mesh and the screen's default color
+    // come from the one answer, so they cannot disagree about what is
+    // standing on the desk.
+    const MonitorSpec &  ResolveMonitorForCurrentMachine();
     void    ApplyPersistedChromePrefs     ();
     void    ApplyPersistedAudioPrefs      ();
 

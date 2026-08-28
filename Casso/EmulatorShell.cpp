@@ -2,6 +2,7 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+#include "Config/MonitorCatalog.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Devices/Printer/PrinterCard.h"
@@ -1312,22 +1313,52 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
+{
+    JsonValue          doc;
+    const JsonValue *  uiPrefs = nullptr;
+
+
+
+    // The merged document, not the shipped one: a machine's monitor is
+    // configuration like everything else in there, so a user copy that names a
+    // different monitor is answered the same way the machine's own does.
+    LoadMachineUiPrefs (doc, uiPrefs);
+
+    return MonitorCatalog::ForMachineJson (doc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadDeskSceneModelsForMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 {
-    HRESULT      hr         = S_OK;
-    bool         isC        = IsApple2c();
-    std::string  monitorObj = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_OBJ : IDR_MODEL_MONITOR2_OBJ);
-    std::string  monitorMtl = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_MONITOR2C_MTL : IDR_MODEL_MONITOR2_MTL);
-    std::string  driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ    : IDR_MODEL_DISKII_OBJ);
-    std::string  driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL    : IDR_MODEL_DISKII_MTL);
-    bool         haveText   = false;
+    // WHICH MONITOR IS A PROPERTY OF THE MACHINE'S CONFIG, not a question
+    // asked about its name. The drives still follow the machine, because a
+    // //c's drives are part of the machine rather than of what it is plugged
+    // into.
+    HRESULT              hr         = S_OK;
+    bool                 isC        = IsApple2c();
+    const MonitorSpec &  monitor    = ResolveMonitorForCurrentMachine();
+    std::string          monitorObj = PrinterPanel::LoadTextResource (monitor.objResourceId);
+    std::string          monitorMtl = PrinterPanel::LoadTextResource (monitor.mtlResourceId);
+    std::string          driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ : IDR_MODEL_DISKII_OBJ);
+    std::string          driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL : IDR_MODEL_DISKII_MTL);
+    bool                 haveText   = false;
 
 
 
     haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
     CBRA (haveText);
 
-    hr = m_deskScene.LoadModels (isC ? DeskDeviceKind::Monitor2c : DeskDeviceKind::Monitor2,
+    hr = m_deskScene.LoadModels (monitor.sceneKind,
                                  monitorObj, monitorMtl, driveObj, driveMtl);
     CHRA (hr);
 
@@ -2475,20 +2506,25 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // untouched. We probe with hrOpt and apply only on success, so a
     // missing key keeps the built-in default -- a genuine corrupt-file
     // error already propagated out of LoadMachineUiPrefs above.
-    hrOpt = uiPrefs->GetString ("colorMode", colorMode);
-    if (SUCCEEDED (hrOpt))
+    // NO SAVED COLOR MEANS THE MONITOR'S OWN. The machine names the monitor
+    // it ships with and the monitor owns its phosphor, so an untouched //c
+    // comes up green because a Monitor //c is green -- not because anything
+    // wrote "green" into a preference file for it.
     {
-        int  modeIdx = -1;
+        int  modeIdx = MonitorCatalog::PhosphorSettingsIndex (
+                           MonitorCatalog::ForMachineJson (doc));
 
-        if      (colorMode == "color") { modeIdx = 0; }
-        else if (colorMode == "green") { modeIdx = 1; }
-        else if (colorMode == "amber") { modeIdx = 2; }
-        else if (colorMode == "white") { modeIdx = 3; }
+        hrOpt = uiPrefs->GetString ("colorMode", colorMode);
 
-        if (modeIdx >= 0)
+        if (SUCCEEDED (hrOpt))
         {
-            SetColorModeLive (modeIdx);
+            if      (colorMode == "color") { modeIdx = 0; }
+            else if (colorMode == "green") { modeIdx = 1; }
+            else if (colorMode == "amber") { modeIdx = 2; }
+            else if (colorMode == "white") { modeIdx = 3; }
         }
+
+        SetColorModeLive (modeIdx);
     }
 
     // Speed mode (authentic / double / maximum) lives in the same UI prefs and,
