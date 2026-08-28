@@ -1943,7 +1943,14 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // qualifies, because it lies BEHIND the stamp.
     if (!m_pictureDepthVerts.empty())
     {
-        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+        // ON THE TUBE'S TRANSFORM, not the case's. The stamp is the picture's
+        // own footprint, so it has to travel with the tube -- left on the
+        // untilted placement it opens the mouth where the raster used to be
+        // and masks it where the raster now is.
+        float  tiltWorld[16] = {};
+
+        BuildTiltedMonitorWorld (m_comp, tiltWorld);
+        SceneCamera::Mul44 (tiltWorld, m_comp.viewProj, mvp);
 
         hr = m_renderer.DrawStatic (m_pictureDepthMesh, m_pictureDepthVerts.data(),
                                     m_pictureDepthVerts.size(), m_geometryRev,
@@ -2176,7 +2183,14 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
 
     if (!m_pictureVerts.empty() && displaySrv != nullptr)
     {
-        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+        // The raster is ON the tube. Its mesh is built from the glass surface
+        // in model space, so tilting it is the same one transform the tube
+        // and the bezel already ride -- without this the picture hangs in the
+        // air where the screen used to be while the screen swings away.
+        float  tiltWorld[16] = {};
+
+        BuildTiltedMonitorWorld (m_comp, tiltWorld);
+        SceneCamera::Mul44 (tiltWorld, m_comp.viewProj, mvp);
 
         m_renderer.SetContentSrv (displaySrv);
 

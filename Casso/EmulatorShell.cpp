@@ -8163,6 +8163,23 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         SetCursor (nullptr);
         result = DxuiMessageResult::Handled;
     }
+    else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
+             && m_deskScene.MaxBezelTiltRad() > 0.0f
+             && GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt))
+    {
+        // A HAND OVER THE TILT MARKS, because they are the one thing on the
+        // monitor you can take hold of. Resolved through the same hit test
+        // the press uses, so the cursor changes exactly where the drag would
+        // actually start -- a hand offered anywhere else would be a promise
+        // the press does not keep.
+        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+
+        if (hit.target == SceneHitResult::Target::BezelTilt || m_bezelTilting)
+        {
+            SetCursor (LoadCursorW (nullptr, IDC_HAND));
+            result = DxuiMessageResult::Handled;
+        }
+    }
 
     return result;
 }
