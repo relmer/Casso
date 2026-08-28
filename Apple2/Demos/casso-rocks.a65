@@ -10,9 +10,9 @@
 ;       with the RWTS scratch buffer in pages $02-$03; stage 2 will copy
 ;       to aux later via the copy_block routine).
 ;    2. Steps to track 3 and reads all 16 sectors with DBASE=$10 into
-;       $1000-$1FFF. Track 3 holds 16 identical copies of the stage 2
-;       code at sector 0 (lands at $1000) plus the LoRes test pattern
-;       at sectors 1-4 (lands at $1100-$14FF).
+;       $1000-$1FFF. Track 3 holds the stage 2 code at sectors 0-1
+;       (lands at $1000-$11FF) plus the LoRes test pattern at sectors
+;       2-5 (lands at $1200-$15FF).
 ;    3. JMPs to stage 2 at $1000.
 ;
 ;  Stage 2 (assembled and shipped as a separate sector — see
@@ -23,9 +23,12 @@
 ;       flips the //e DHGR soft switches so the cassowary appears as
 ;       fast as possible (mode 0 of the cycle).
 ;    5. With DHGR on screen, lazily loads the remaining demo content
-;       in the background: tracks 6+7 -> $A000-$BFFF (HGR1 cassowary
-;       loaded directly to its stash location), tracks 8+9 -> $4000
-;       (HGR2 bands at their final destination).
+;       in the background: tracks 6+7 and 8+9 -> $6000 and $8000, the
+;       staging areas step 4 has just emptied, which is where the
+;       MONOCHROME cassowary's two halves go; tracks 10+11 -> $A000
+;       (HGR1 cassowary loaded directly to its stash location);
+;       tracks 12+13 -> $4000 (HGR2 bands at their final
+;       destination).
 ;    6. Polls the keyboard for cycle / exit keystrokes.
 ;
 ;  Disk layout reorder (tracks 1-9 instead of "cassowary first") puts

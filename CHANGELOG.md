@@ -8,6 +8,21 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **The casso-rocks demo now carries a second cassowary, drawn for monochrome
+  monitors.** A DHGR framebuffer is read two ways depending on the monitor:
+  140 color cells, or 560 individual dots. The demo's image was encoded for
+  the first, which puts hue in every cell and leaves brightness nowhere, so a
+  green, amber, or white monitor showed a field of dither with a bird
+  somewhere inside it. Nothing downstream can recover that -- the luminance is
+  gone at encode time -- so the disk ships a second image instead: the same
+  photo dithered to one bit across all 560 dots, which is the highest
+  resolution the machine has. It is the mode after the color one, and the
+  three modes that follow have each moved one place later in the cycle.
+  Both images are captioned with the monitor they were drawn for, in text
+  built from whole color cells so it survives either decode -- legible, that
+  is, on exactly the monitor where the picture around it is not.
+
 ### Changed
 - **`run` no longer assembles a source under an assembler nobody named.**
   `CassoCli run prog.a65` picked as65, which is the same guess the bare

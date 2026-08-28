@@ -68,11 +68,21 @@ public:
     static constexpr size_t    kLoresPayloadSize = 1024;
     static constexpr size_t    kSectorByteSize   = 256;
     static constexpr int       kSectorsPerTrack  = 16;
+    static constexpr int       kStage2Sectors    = 2;      // stage 2 outgrew one sector
     static constexpr Word      kHgrBase          = 0x2000;
     static constexpr Word      kBootEntry        = 0xC600;
     static constexpr Word      kDemoEntry        = 0x0801;
     static constexpr Word      kStage2Entry      = 0x1000;
-    static constexpr uint64_t  kDemoCycleBudget  = 10'000'000ULL;   // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
+    //  A track read is 18 sector slots -- see read_track's comment on why it
+    //  over-reads -- which is 1.125 revolutions, about 750k cycles once head
+    //  stepping and resync are counted. Thirteen tracks is therefore ~9.8M,
+    //  and the 10M this used to be was not the 5x headroom its comment
+    //  claimed: at nine tracks it was already only ~1.4x, and the thirteenth
+    //  track ran off the end of it. The symptom was subtle enough to be worth
+    //  naming -- the demo's RWTS stores the 6-bit values first and merges the
+    //  2-bit auxiliaries in a second pass, so a read cut short mid-sector
+    //  leaves bytes that look like the right data shifted right by two.
+    static constexpr uint64_t  kDemoCycleBudget  = 20'000'000ULL;   // 20M cycles ≈ 19.6 sec emulated, ~2x what 13 tracks need
 
 
     // Walks up from the test's working directory (x64\Debug) looking for a
@@ -150,11 +160,11 @@ public:
     //
     //  NOTHING IN HERE OPENS A FILE.
     //
-    //  The demo's two sources and its five payloads are compiled into the test
+    //  The demo's two sources and its seven payloads are compiled into the test
     //  assembly by DemoAssets.rc, so the resource compiler reads them at build
     //  time and this test reads a pointer into its own module image.
     //
-    //  It used to read all seven off the repo and write the built image back
+    //  It used to read all nine off the repo and write the built image back
     //  over Apple2/Demos/casso-rocks.dsk. The write normally put the same
     //  bytes there, so the only trace was a changed timestamp, until a run
     //  that built a different image and left a corrupted asset in the tree.
@@ -177,6 +187,8 @@ public:
             std::vector<Byte>        loresPayload;
             std::vector<Byte>        dhgrAuxPayload;
             std::vector<Byte>        dhgrMainPayload;
+            std::vector<Byte>        monoAuxPayload;
+            std::vector<Byte>        monoMainPayload;
             Cpu                      cpu;
             HeadlessHost             host;
             EmulatorCore             core;
@@ -195,6 +207,8 @@ public:
             loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
             dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
             dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
+            monoAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_AUX);
+            monoMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_MAIN);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
@@ -205,6 +219,10 @@ public:
                 L"dhgr-cassowary-aux.bin must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size(),
                 L"dhgr-cassowary-main.bin must be exactly 8192 bytes");
+            Assert::AreEqual (kHgrPayloadSize, monoAuxPayload.size(),
+                L"dhgr-cassowary-mono-aux.bin must be exactly 8192 bytes");
+            Assert::AreEqual (kHgrPayloadSize, monoMainPayload.size(),
+                L"dhgr-cassowary-mono-main.bin must be exactly 8192 bytes");
 
             Assembler       assembler (cpu.GetInstructionSet());
 
@@ -240,8 +258,9 @@ public:
             Assert::AreEqual (Word (kStage2Entry), stage2Result.startAddress,
                 L"Stage 2 must be assembled with .org $0A00");
             Assert::IsTrue (stage2Result.bytes.size() > 0 &&
-                            stage2Result.bytes.size() <= kSectorByteSize,
-                L"Stage 2 code must fit in a single 256-byte sector");
+                            stage2Result.bytes.size() <=
+                                kStage2Sectors * kSectorByteSize,
+                L"Stage 2 code must fit in the two sectors reserved for it");
 
             // Build a 143360-byte raw .dsk image:
             //   - File offset 1..N (track 0 sector 0 minus the first byte):
@@ -249,24 +268,30 @@ public:
             //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
-            //   - Track 3 physical sector 0: stage 2 code (lands at $1000).
-            //     Track 3 physical sectors 1..4: 1 KB LoRes test pattern
-            //     (lands at $1100-$14FF, copied into text page 1 in
-            //     mode_lores).
-            //   - Tracks 4+5: 8 KB DHGR main pattern (loaded by stage 2
+            //   - Track 3 physical sectors 0..1: stage 2 code (lands at
+            //     $1000-$11FF). Track 3 physical sectors 2..5: 1 KB LoRes
+            //     test pattern (lands at $1200-$15FF, copied into text
+            //     page 1 in mode_lores).
+            //   - Tracks 4+5: 8 KB DHGR color main half (loaded by stage 2
             //     init into main $8000-$9FFF, then copied to main $2000
             //     by enter_dhgr).
-            //   - Tracks 6+7: 8 KB HGR1 cassowary (loaded by stage 2
+            //   - Tracks 6+7 and 8+9: the MONOCHROME cassowary's aux and
+            //     main halves, loaded by the background phase back into
+            //     main $6000 and main $8000 -- the same staging the color
+            //     halves were copied out of, which is why mode 1 is just
+            //     a second enter_dhgr call over the same addresses.
+            //   - Tracks 10+11: 8 KB HGR1 cassowary (loaded by stage 2
             //     background phase directly into its stash location at
             //     main $A000-$BFFF; mode_hgr1 memcpys to $2000 on demand).
-            //   - Tracks 8+9: 8 KB HGR2 bands (loaded by stage 2
+            //   - Tracks 12+13: 8 KB HGR2 bands (loaded by stage 2
             //     background phase to main $4000-$5FFF, the final HGR2
             //     framebuffer destination).
             //
             //   Disk layout reorder vs prior versions: DHGR data lives on
             //   the FIRST tracks so the demo can show DHGR after only ~5
-            //   disk reads instead of waiting for all 9. HGR1+HGR2 load
-            //   in the background after first frame is up.
+            //   disk reads instead of waiting for all 13. Everything else
+            //   loads in the background after first frame is up, in the
+            //   order the modes will ask for it.
             //
             //   The payloads go through the DOS 3.3 physical-to-file
             //   interleave so that page S of a payload sits under address
@@ -286,8 +311,8 @@ public:
                 raw[1 + i] = asmResult.bytes[i];
             }
 
-            // Track 3 physical sector 0 -> stage 2 code at $1000.
-            // Track 3 physical sectors 1-4 -> LoRes pattern at $1100-$14FF.
+            // Track 3 physical sectors 0-1 -> stage 2 code at $1000-$11FF.
+            // Track 3 physical sectors 2-5 -> LoRes pattern at $1200-$15FF.
             // Route through the interleave so each payload page sits under
             // the address mark stage 1's RWTS will file it by.
             auto StampTrack3Sector = [&] (int physicalSector,
@@ -302,11 +327,30 @@ public:
                 }
             };
 
-            StampTrack3Sector (0, stage2Result.bytes.data(),
-                                  stage2Result.bytes.size());
+            // Stage 2 spans two sectors now, and the interleave puts them
+            // nowhere near each other in the file, so each is stamped at
+            // its own address mark rather than written as one run.
+            for (int sector = 0; sector < kStage2Sectors; sector++)
+            {
+                size_t  offset    = static_cast<size_t> (sector) * kSectorByteSize;
+                size_t  remaining = 0;
+
+                if (offset >= stage2Result.bytes.size())
+                {
+                    break;
+                }
+
+                remaining = stage2Result.bytes.size() - offset;
+
+                StampTrack3Sector (sector,
+                                   stage2Result.bytes.data() + offset,
+                                   remaining < kSectorByteSize ? remaining
+                                                               : kSectorByteSize);
+            }
+
             for (int sector = 0; sector < 4; sector++)
             {
-                StampTrack3Sector (1 + sector,
+                StampTrack3Sector (kStage2Sectors + sector,
                                    loresPayload.data() + sector * kSectorByteSize,
                                    kSectorByteSize);
             }
@@ -336,10 +380,12 @@ public:
                 }
             };
 
-            StitchPayload (1, dhgrAuxPayload);        // tracks 1+2 -> DHGR aux @ main $6000
-            StitchPayload (4, dhgrMainPayload);       // tracks 4+5 -> DHGR main @ main $8000
-            StitchPayload (6, hgrPayload);            // tracks 6+7 -> HGR1 cassowary @ main $A000
-            StitchPayload (8, bandsPayload);          // tracks 8+9 -> HGR2 bands @ main $4000
+            StitchPayload (1,  dhgrAuxPayload);       // tracks 1+2   -> DHGR color aux @ main $6000
+            StitchPayload (4,  dhgrMainPayload);      // tracks 4+5   -> DHGR color main @ main $8000
+            StitchPayload (6,  monoAuxPayload);       // tracks 6+7   -> DHGR mono aux @ main $6000
+            StitchPayload (8,  monoMainPayload);      // tracks 8+9   -> DHGR mono main @ main $8000
+            StitchPayload (10, hgrPayload);           // tracks 10+11 -> HGR1 cassowary @ main $A000
+            StitchPayload (12, bandsPayload);         // tracks 12+13 -> HGR2 bands @ main $4000
 
 
             hr = host.BuildApple2eWithDisk2 (core);
@@ -357,7 +403,7 @@ public:
 
             // The cheap questions, asked of the container the drive is
             // actually holding and before a processor is involved. The demo's
-            // RWTS reads nine tracks by address field and there is no
+            // RWTS reads thirteen tracks by address field and there is no
             // operating system underneath it to report a bad read, so a
             // stitched image the drive does not present verbatim is not a
             // wrong picture -- it is a processor loaded with data.
@@ -385,15 +431,21 @@ public:
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Mode 0 (DHGR) must enable HIRES");
 
-            // Verify framebuffer contents at boot landing
-            // Stage 2 init reads HGR2 bands -> $4000, DHGR aux scratch
-            // -> $6000, DHGR main scratch -> $8000, then memcpys
-            // cassowary $2000 -> $A000 (stash), then enters DHGR mode
-            // (which copies $8000 -> $2000 main and $6000 -> $2000 aux).
-            // So at boot landing: $2000=DHGR main half, $4000=bands,
-            // $6000=DHGR aux scratch (still resident), $8000=DHGR main
-            // scratch (still resident), $A000=stashed cassowary, and
-            // aux $2000 = DHGR aux half.
+            // Verify framebuffer contents at boot landing.
+            //
+            // Stage 1 stages the color aux half at $6000; stage 2 loads
+            // the color main half to $8000 and enter_dhgr copies both
+            // into the framebuffer. The background phase then loads the
+            // MONO halves back over that staging, and HGR1 and the bands
+            // to their own homes. So at boot landing:
+            //
+            //   main $2000 = color main half   aux $2000 = color aux half
+            //   main $4000 = HGR2 bands        main $6000 = MONO aux half
+            //   main $8000 = MONO main half    main $A000 = HGR1 cassowary
+            //
+            // The staging holding the mono halves rather than the color
+            // ones is the whole mechanism behind mode 1 costing no memory,
+            // so it is asserted rather than assumed.
             auto VerifyMemRange = [&] (Word baseAddr,
                                        const std::vector<Byte> & expected,
                                        const wchar_t * label)
@@ -442,10 +494,10 @@ public:
                 L"DHGR main half at boot landing (main $2000)");
             VerifyMemRange (0x4000, bandsPayload,
                 L"HGR2 bands (main $4000)");
-            VerifyMemRange (0x6000, dhgrAuxPayload,
-                L"DHGR aux scratch (main $6000)");
-            VerifyMemRange (0x8000, dhgrMainPayload,
-                L"DHGR main scratch (main $8000)");
+            VerifyMemRange (0x6000, monoAuxPayload,
+                L"DHGR mono aux half over the staging (main $6000)");
+            VerifyMemRange (0x8000, monoMainPayload,
+                L"DHGR mono main half over the staging (main $8000)");
             VerifyMemRange (0xA000, hgrPayload,
                 L"Stashed HGR1 cassowary (main $A000)");
 
@@ -460,41 +512,70 @@ public:
                 }
 
                 Assert::AreEqual (size_t (0), m,
-                    L"DHGR aux half at boot landing must match payload");
+                    L"DHGR color aux half at boot landing must match payload");
             }
 
-            // Cycle through the 4 display modes with keystrokes
+            // Cycle through the 5 display modes with keystrokes
             Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
 
-            // Keystroke 1 -> mode 1 (HGR1 cassowary). Restores cassowary
+            // Keystroke 1 -> mode 1 (DHGR monochrome cassowary). A second
+            // enter_dhgr over the same staging, which now holds the mono
+            // halves: main $8000 -> main $2000, main $6000 -> aux $2000.
+            // Both halves are checked, because the failure this guards
+            // against -- the background load landing in the wrong place,
+            // or not having finished -- shows up as one half of the
+            // picture being the other image.
+            // Twice the budget the single-copy modes get: enter_dhgr moves
+            // 16 KB, not 8, and copy_block's (zp),y inner loop costs about
+            // 16 cycles a byte.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (600'000ULL);
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Mode 1 (DHGR mono) must keep HIRES on");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Mode 1 (DHGR mono) must select PAGE1");
+            VerifyMemRange (0x2000, monoMainPayload,
+                L"DHGR mono main half at main $2000 in mode 1");
+            {
+                size_t  m = 0;
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
+                }
+
+                Assert::AreEqual (size_t (0), m,
+                    L"DHGR mono aux half must reach aux $2000 in mode 1");
+            }
+
+            // Keystroke 2 -> mode 2 (HGR1 cassowary). Restores cassowary
             // from main $A000 stash to main $2000, disables DHGR-specific
             // soft switches, returns to vanilla HGR.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 1 (HGR1) must keep HIRES on");
+                L"Mode 2 (HGR1) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 1 (HGR1) must select PAGE1");
+                L"Mode 2 (HGR1) must select PAGE1");
             VerifyMemRange (0x2000, hgrPayload,
-                L"HGR1 cassowary restored to main $2000 in mode 1");
+                L"HGR1 cassowary restored to main $2000 in mode 2");
 
-            // Keystroke 2 -> mode 2 (HGR2 bands).
+            // Keystroke 3 -> mode 3 (HGR2 bands).
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsTrue (ss->IsPage2(),
-                L"Mode 2 (HGR2) must enable PAGE2");
+                L"Mode 3 (HGR2) must enable PAGE2");
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 2 (HGR2) must keep HIRES on");
+                L"Mode 3 (HGR2) must keep HIRES on");
 
-            // Keystroke 3 -> mode 3 (LoRes).
+            // Keystroke 4 -> mode 4 (LoRes).
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsFalse (ss->IsHiresMode(),
-                L"Mode 3 (LoRes) must clear HIRES");
+                L"Mode 4 (LoRes) must clear HIRES");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Mode 3 (LoRes) must keep TEXT off");
+                L"Mode 4 (LoRes) must keep TEXT off");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 3 (LoRes) must clear PAGE2");
+                L"Mode 4 (LoRes) must clear PAGE2");
 
             // Spot-check the LoRes pattern landed in text page 1.
             for (size_t i = 0; i < kLoresPayloadSize; i++)
@@ -516,7 +597,7 @@ public:
                 }
             }
 
-            // Keystroke 4 -> past last mode -> JMP ($FFFC) -> //e RESET.MGR
+            // Keystroke 5 -> past last mode -> JMP ($FFFC) -> //e RESET.MGR
             // -> Applesoft. Just assert we're executing in ROM.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (50'000ULL);

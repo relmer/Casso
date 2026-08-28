@@ -2,10 +2,11 @@
 ;  casso-rocks-stage2.a65 ? second-stage loader for the casso-rocks demo
 ;
 ;  Loaded by stage 1 (casso-rocks.a65) into $1000-$1FFF: stage 1 reads
-;  track 3 (with DBASE=$10) which lands sector S at page $10+S. Sector 0
-;  of track 3 contains this stage 2 code (entered at $1000); sectors 1-4
-;  contain the 1 KB precomputed LoRes test pattern (lands at $1100-$14FF
-;  and gets memcpy'd into text page 1 when the user cycles to LoRes mode).
+;  track 3 (with DBASE=$10) which lands sector S at page $10+S. Sectors
+;  0-1 of track 3 contain this stage 2 code (entered at $1000); sectors
+;  2-5 contain the 1 KB precomputed LoRes test pattern (lands at
+;  $1200-$15FF and gets memcpy'd into text page 1 when the user cycles
+;  to LoRes mode).
 ;
 ;  At entry, the disk head is at track 3, HGR page 1 ($2000-$3FFF) holds
 ;  the cassowary framebuffer, and X = $60 (slot 6 << 4) for indexed
@@ -23,25 +24,45 @@
 ;         time from boot is roughly 5 disk tracks (~1.25s).
 ;
 ;    Background load (continues after first frame):
-;      3. Loads tracks 6+7 into main $A000-$BFFF (HGR1 cassowary,
-;         loaded directly to its stash location ? mode_hgr1 just
+;      3. Loads tracks 6+7 and 8+9 back into the two staging areas the
+;         init phase has just finished with, main $6000-$7FFF and main
+;         $8000-$9FFF. They now hold the MONOCHROME cassowary's aux and
+;         main halves, so mode 1 is a second enter_dhgr call over the
+;         same addresses and costs no memory of its own.
+;      4. Loads tracks 10+11 into main $A000-$BFFF (HGR1 cassowary,
+;         loaded directly to its stash location -- mode_hgr1 just
 ;         memcpys $A000 -> $2000 on demand).
-;      4. Loads tracks 8+9 into main $4000-$5FFF (HGR2 bands, at
+;      5. Loads tracks 12+13 into main $4000-$5FFF (HGR2 bands, at
 ;         their final destination).
+;
+;      Because the staging areas are reused, mode 0 is the one mode
+;      that cannot be re-entered: by the time the user can press a
+;      key, the color halves have been overwritten. Cycling is one
+;      way, as it always was.
 ;
 ;    Polling loop:
 ;      Each keystroke advances the mode by 1. ESC ($9B) exits to
 ;      BASIC at any time. Past the last mode (LoRes), next keystroke
-;      also exits. The user can't get a keystroke in fast enough to
-;      beat the background loads ? by the time they react to seeing
-;      DHGR, all 9 disk reads have completed.
+;      also exits. The background loads run in mode order, so each
+;      mode's data lands well before a user cycling one key at a time
+;      can reach it: mode 1 about a second after first frame, the
+;      last mode about two.
 ;
 ;      Modes:
 ;        0 = DHGR: 16-color cassowary on aux+main $2000-$3FFF
 ;            (entered automatically at boot).
-;        1 = HGR1: 6-color cassowary, restored from main $A000.
-;        2 = HGR2: 6-color test bands on main page 2 ($4000-$5FFF).
-;        3 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF).
+;        1 = DHGR: the same photo authored for a monochrome monitor --
+;            a 560x192 one-bit dither of its luminance instead of 140
+;            color cells. Which of the two reads as a photograph
+;            depends entirely on the monitor, and nothing on this disk
+;            can tell which is attached, so each image carries a
+;            caption naming the monitor it was drawn for. Both
+;            captions are drawn on the color-cell grid, which is what
+;            keeps them legible through either decode. See
+;            scripts/DhgrCassowaryGen.py.
+;        2 = HGR1: 6-color cassowary, restored from main $A000.
+;        3 = HGR2: 6-color test bands on main page 2 ($4000-$5FFF).
+;        4 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF).
 ;
 ;    Exit:
 ;      JMP ($FFFC) hands off to the //e RESET.MGR which does the
@@ -114,21 +135,36 @@ START
     ; into the disk controller. Restore it before resuming disk I/O.
     LDX #$60
 
+    ; --- Background: load the monochrome cassowary over the staging ------
+    ; enter_dhgr has already copied both color halves out of $6000 and
+    ; $8000 into the framebuffer, so those 16 KB are free. The mono
+    ; halves go straight back into them, which makes mode 1 nothing but
+    ; a second enter_dhgr call. Loading in mode order also means the
+    ; data for the next mode is always the next thing to arrive.
+    LDA #$60
+    JSR S1_LOAD_B          ; tracks 5 -> 6
+    LDA #$70
+    JSR S1_LOAD_A          ; tracks 6 -> 7
+    LDA #$80
+    JSR S1_LOAD_B          ; tracks 7 -> 8
+    LDA #$90
+    JSR S1_LOAD_A          ; tracks 8 -> 9
+
     ; --- Background: load HGR1 cassowary directly to its stash location ---
-    ; Mode 1 (HGR1) restores cassowary by copying $A000 -> $2000, so we
+    ; Mode 2 (HGR1) restores cassowary by copying $A000 -> $2000, so we
     ; can land the disk read straight there and skip a memcpy. This
     ; happens AFTER first frame so the user sees the DHGR cassowary
     ; while we keep loading.
     LDA #$A0
-    JSR S1_LOAD_B          ; tracks 5 -> 6
+    JSR S1_LOAD_B          ; tracks 9 -> 10
     LDA #$B0
-    JSR S1_LOAD_A          ; tracks 6 -> 7
+    JSR S1_LOAD_A          ; tracks 10 -> 11
 
     ; --- Background: load HGR2 bands at their final destination $4000 -----
     LDA #$40
-    JSR S1_LOAD_B          ; tracks 7 -> 8
+    JSR S1_LOAD_B          ; tracks 11 -> 12
     LDA #$50
-    JSR S1_LOAD_A          ; tracks 8 -> 9
+    JSR S1_LOAD_A          ; tracks 12 -> 13
 
 POLL
     LDA KBD
@@ -140,12 +176,14 @@ POLL
     INC MODE
     LDA MODE
     CMP #1
-    BEQ MODE_HGR1
+    BEQ MODE_DHGR_MONO
     CMP #2
-    BEQ MODE_HGR2
+    BEQ MODE_HGR1
     CMP #3
+    BEQ MODE_HGR2
+    CMP #4
     BEQ MODE_LORES
-    ; fall through (past mode 3) -> exit
+    ; fall through (past mode 4) -> exit
 
 
 DO_EXIT
@@ -195,6 +233,29 @@ CLEAR_TEXT_LOOP
 
 
 ; ----------------------------------------------------------------------------
+; mode_dhgr_mono -- show the monochrome cassowary. The background load
+;                  has replaced the color halves in the staging areas
+;                  with the mono ones, so this is enter_dhgr over the
+;                  exact same addresses. The display switches are
+;                  already set from mode 0; re-issuing them is harmless.
+;
+;                  80STORE MUST GO OFF FIRST. enter_dhgr's second copy
+;                  reaches aux $2000 by turning RAMWRT on, and that only
+;                  works while 80STORE is off -- with 80STORE on and
+;                  HIRES on, the //e routes $2000-$3FFF by PAGE2 and
+;                  ignores RAMWRT entirely. The boot call gets away
+;                  without this because it runs before enter_dhgr has
+;                  ever set 80STORE; the second call does not, and lands
+;                  the aux half in main $2000 on top of the main half.
+;                  enter_dhgr turns 80STORE back on at the end.
+; ----------------------------------------------------------------------------
+MODE_DHGR_MONO
+    STA STORE80OFF
+    JSR ENTER_DHGR
+    JMP POLL
+
+
+; ----------------------------------------------------------------------------
 ; mode_hgr1 ? restore the HGR1 cassowary. Copies the stashed cassowary
 ;             from main $A000 back to main $2000 (DHGR may have clobbered
 ;             it), turns off DHGR, and selects HGR PAGE1.
@@ -225,7 +286,7 @@ MODE_HGR2
 
 
 MODE_LORES
-    ; Copy 1 KB LoRes pattern from $1100-$14FF to $0400-$07FF, then
+    ; Copy 1 KB LoRes pattern from $1200-$15FF to $0400-$07FF, then
     ; switch to LoRes display (TEXT off, HIRES off, MIXED off,
     ; PAGE2 off). All four 256-byte copies done in a single loop
     ; with X as the offset (low byte of each address).
@@ -233,13 +294,13 @@ MODE_LORES
     BIT HIRESOFF
     LDX #0
 COPY_LO
-    LDA $1100,X
-    STA $0400,X
     LDA $1200,X
-    STA $0500,X
+    STA $0400,X
     LDA $1300,X
-    STA $0600,X
+    STA $0500,X
     LDA $1400,X
+    STA $0600,X
+    LDA $1500,X
     STA $0700,X
     INX
     BNE COPY_LO

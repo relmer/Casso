@@ -4,7 +4,7 @@
 //  The casso-rocks demo's sources and payloads, as resources in the test
 //  assembly rather than as files on the machine running the test.
 //
-//  WHY THEY ARE NOT FILES ANY MORE. This test read all seven off the repo at
+//  WHY THEY ARE NOT FILES ANY MORE. This test read all nine off the repo at
 //  run time, and for a long while wrote the built disk image back over
 //  Apple2/Demos/casso-rocks.dsk as well. The write normally put the same bytes
 //  there, so nothing showed but a changed timestamp, until a run that built a
@@ -36,6 +36,15 @@
 
 #define IDR_BASIC_CORPUS_SRC  4008
 #define IDR_BASIC_CORPUS_TOK  4009
+
+//
+//  The monochrome cassowary: the same photo as IDR_DEMO_DHGR_*, encoded
+//  for the other decode a DHGR framebuffer has. See
+//  scripts/DhgrCassowaryGen.py.
+//
+
+#define IDR_DEMO_DHGR_MONO_AUX   4010
+#define IDR_DEMO_DHGR_MONO_MAIN  4011
 
 #ifndef RC_INVOKED
 
