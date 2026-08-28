@@ -453,11 +453,18 @@ def vent_face(wp):
                                  (1.0, D - VENT_IN_BOT, PKT_Z0), VENT_TILT))
 
 
+# The cutter's BOTTOM corners are square. Rounded, each one leaves a wedge
+# of case standing at the pocket's lower rim beside the bell -- a beige tab
+# cutting across the dark just above it, the exact width of the corner
+# radius. The top corners keep their rounds, which is where they read.
 case = case.cut (vent_face (
     cq.Workplane ("XY")
       .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
             centered=(False, False, False))
       .edges ("|Y").fillet (6.0)
+      .union (cq.Workplane ("XY")
+                .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, 20.0,
+                      centered=(False, False, False)))
       .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0))))
 
 # The notch is dark ALL THE WAY IN: not a dark floor with beige walls, but
@@ -841,8 +848,11 @@ m.add ("rear_label",
        vent_face (cq.Workplane ("XY")
                     .box (94.0, 1.4, 30.0, centered=(False, False, False))
                     .edges ("|Y").fillet (2.0)
+                    # Centered on the vent band: the slots run 62 to 24
+                    # below the slope's top, so a 30-tall plate shares their
+                    # center at 58.
                     .translate ((BELL_CX - 47.0, D - VENT_IN_BOT + 1.2,
-                                 STRIP_TOP + SLOPE_LEN - 65.0))),
+                                 STRIP_TOP + SLOPE_LEN - 58.0))),
        LABEL_GRAY, angular=CORNER_ANG)
 
 # ------------------------------------------------- the embossed control row

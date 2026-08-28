@@ -62,11 +62,21 @@ public:
                                      int                                displayH,
                                      bool                               includeGlass = true,
                                      const std::vector<DeskTiltGrip> *  tiltGrips    = nullptr,
-                                     const float *                      monitorWorld = nullptr);
+                                     const float *                      monitorWorld = nullptr,
+                                     const float *                      monitorBoundsMin = nullptr,
+                                     const float *                      monitorBoundsMax = nullptr,
+                                     const float *                      driveBoundsMin   = nullptr,
+                                     const float *                      driveBoundsMax   = nullptr);
 
 private:
     // Slab test; reports the entry distance so drives can compete on
     // nearest-hit.
+    // How much nearer another body must begin before it counts as standing
+    // in the way. The devices touch -- the monitor sits ON the drives -- so
+    // an exact comparison would let the neighbor's abutting face steal
+    // clicks that land squarely on a door.
+    static constexpr float  kOcclusionSlackMm = 2.0f;
+
     static bool  RayHitsBox (const float   origin[3],
                              const float   dir[3],
                              const float   boxMin[3],

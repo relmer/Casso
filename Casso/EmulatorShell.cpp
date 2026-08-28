@@ -1582,9 +1582,17 @@ Error:
 
 SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 {
-    float  tiltWorld[16] = {};
+    float  tiltWorld[16]  = {};
+    float  monLo[3]       = {};
+    float  monHi[3]       = {};
+    float  drvLo[3]       = {};
+    float  drvHi[3]       = {};
 
     m_deskScene.BuildTiltedMonitorWorld (m_deskScene.Composition(), tiltWorld);
+    m_deskScene.MonitorModel().BoundsMin (monLo);
+    m_deskScene.MonitorModel().BoundsMax (monHi);
+    m_deskScene.DriveModel().BoundsMin (drvLo);
+    m_deskScene.DriveModel().BoundsMax (drvHi);
 
     return DeskSceneHitTester::Classify (m_deskScene.Composition(),
                                          m_deskScene.MonitorModel().Surface(),
@@ -1595,7 +1603,8 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          kFramebufferHeight,
                                          CrtMonitorActive(),
                                          &m_deskScene.MonitorModel().TiltGrips(),
-                                         tiltWorld);
+                                         tiltWorld,
+                                         monLo, monHi, drvLo, drvHi);
 }
 
 
@@ -1610,6 +1619,12 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 
 SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 {
+    float  drvLo[3] = {};
+    float  drvHi[3] = {};
+
+    m_deskScene.DriveModel().BoundsMin (drvLo);
+    m_deskScene.DriveModel().BoundsMax (drvHi);
+
     return DeskSceneHitTester::Classify (m_stripComp,
                                          m_deskScene.MonitorModel().Surface(),
                                          m_deskScene.DriveModel().RegionBoxes(),
@@ -1617,7 +1632,9 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
                                          (float) yPx,
                                          kFramebufferWidth,
                                          kFramebufferHeight,
-                                         false);
+                                         false,
+                                         nullptr, nullptr, nullptr, nullptr,
+                                         drvLo, drvHi);
 }
 
 
@@ -9135,12 +9152,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                                   PtInRect (&m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
 
-        if (sceneHit.target == SceneHitResult::Target::Drive)
+        // ONLY THE DOOR ACTS. The body region stays for hover -- the
+        // tooltip that names the disk -- but a click there does nothing:
+        // opening a drive is done by its door, and a whole case that
+        // browses on any touch turned every stray click into a dialog.
+        if (sceneHit.target == SceneHitResult::Target::Drive &&
+            sceneHit.region == DriveWidgetRegion::Eject)
         {
-            if (sceneHit.region == DriveWidgetRegion::Eject)
-            {
-                Eject (6, sceneHit.driveIndex);
-            }
+            Eject (6, sceneHit.driveIndex);
 
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).

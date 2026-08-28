@@ -75,7 +75,11 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              int                                displayH,
                                              bool                               includeGlass,
                                              const std::vector<DeskTiltGrip> *  tiltGrips,
-                                             const float *                      monitorWorld)
+                                             const float *                      monitorWorld,
+                                             const float *                      monitorBoundsMin,
+                                             const float *                      monitorBoundsMax,
+                                             const float *                      driveBoundsMin,
+                                             const float *                      driveBoundsMax)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -91,19 +95,94 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
 
 
 
-    if (includeGlass &&
-        CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, monWorld, comp.viewProj,
-                                                      comp.viewportPx, screenX, screenY,
-                                                      displayW, displayH, result.emulatedPixel))
-    {
-        result.target = SceneHitResult::Target::Glass;
-        return result;
-    }
-
     if (!SceneCamera::Inverse44 (comp.viewProj, invViewProj) ||
         !SceneCamera::ScreenRayFromPx (invViewProj, comp.viewportPx, screenX, screenY, origin, dir))
     {
         return result;
+    }
+
+    // OCCLUSION, before anything may claim. A click is a ray, and a ray that
+    // reaches a drive's door THROUGH the monitor's case -- or through the
+    // drive's own lid from behind -- is not a click on the door, however
+    // squarely it lands on the region box. Each device's whole body is
+    // ray-tested here, and the entry distances decide who stands in front:
+    // a surface may only claim the click if no OTHER device's body begins
+    // nearer along the ray.
+    //
+    // Bodies as bounds boxes rather than triangle meshes, deliberately: the
+    // question is which DEVICE is in front, not which of its 250k triangles,
+    // and the boxes are tight around cases that are themselves box-shaped.
+    float  tMonitorBody   = FLT_MAX;
+    float  tDriveBody[2]  = { FLT_MAX, FLT_MAX };
+    bool   monitorFrontal = false;
+
+    if (includeGlass && monitorBoundsMin != nullptr && monitorBoundsMax != nullptr)
+    {
+        float  invWorld[16]   = {};
+        float  modelOrigin[3] = {};
+        float  modelDir[3]    = {};
+        float  tNear          = 0.0f;
+
+        if (SceneCamera::Inverse44 (monWorld, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+        {
+            SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+            if (RayHitsBox (modelOrigin, modelDir, monitorBoundsMin, monitorBoundsMax, tNear))
+            {
+                tMonitorBody = tNear;
+
+                // Model +Y is INTO the case from its face: a ray whose Y runs
+                // positive approaches from the front. From behind, nothing on
+                // the monitor -- least of all the picture -- is clickable.
+                monitorFrontal = modelDir[1] > 0.0f;
+            }
+        }
+    }
+
+    if (driveBoundsMin != nullptr && driveBoundsMax != nullptr)
+    {
+        for (int drive = 0; drive < comp.driveCount; drive++)
+        {
+            float  invWorld[16]   = {};
+            float  modelOrigin[3] = {};
+            float  modelDir[3]    = {};
+            float  tNear          = 0.0f;
+
+            if (SceneCamera::Inverse44 (comp.driveWorld[drive], invWorld) &&
+                SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+            {
+                SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+                if (RayHitsBox (modelOrigin, modelDir, driveBoundsMin, driveBoundsMax, tNear))
+                {
+                    tDriveBody[drive] = tNear;
+                }
+            }
+        }
+    }
+
+    if (includeGlass && monitorFrontal &&
+        CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, monWorld, comp.viewProj,
+                                                      comp.viewportPx, screenX, screenY,
+                                                      displayW, displayH, result.emulatedPixel))
+    {
+        // The picture is the monitor's; a drive standing nearer along the
+        // ray means the ray is not looking at the picture at all.
+        bool  occluded = false;
+
+        for (int drive = 0; drive < comp.driveCount; drive++)
+        {
+            occluded = occluded || (tDriveBody[drive] < tMonitorBody - kOcclusionSlackMm);
+        }
+
+        if (!occluded)
+        {
+            result.target = SceneHitResult::Target::Glass;
+            return result;
+        }
+
+        result.emulatedPixel = POINT {};
     }
 
     // The bezel's tilt marks. They are on the monitor rather than on a drive,
@@ -155,6 +234,14 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
 
         SceneCamera::TransformVector (invWorld, dir, modelDir);
 
+        // From behind, a drive has no clickable face: its regions are front
+        // furniture, and the box that describes one extends through air the
+        // real part does not occupy.
+        if (modelDir[1] <= 0.0f)
+        {
+            continue;
+        }
+
         for (const DeskRegionBox & box : driveRegions)
         {
             float   tNear = 0.0f;
@@ -162,6 +249,25 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
             if (!RayHitsBox (modelOrigin, modelDir, box.boxMin, box.boxMax, tNear))
             {
                 continue;
+            }
+
+            // Anything else standing nearer along the ray owns it: the
+            // monitor's case, or the other drive's body. The device's OWN
+            // body is exempt -- a door region rightly begins in front of the
+            // case it is mounted on.
+            {
+                bool  occluded = tMonitorBody < tNear - kOcclusionSlackMm;
+
+                for (int other = 0; other < comp.driveCount; other++)
+                {
+                    occluded = occluded ||
+                               (other != drive && tDriveBody[other] < tNear - kOcclusionSlackMm);
+                }
+
+                if (occluded)
+                {
+                    continue;
+                }
             }
 
             if (tNear < bestT)
