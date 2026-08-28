@@ -550,24 +550,24 @@ private:
     void     ComputeTiltTravel     ();
     void     ComputeGroundFootprint ();
 
-    DeskDeviceKind                       m_kind            = DeskDeviceKind::Monitor2c;
+    DeskDeviceKind                       m_kind        = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>  m_opaque;
     std::vector<Dxui3DRenderer::Vertex>  m_glass;
     std::vector<Dxui3DRenderer::Vertex>  m_lamp;
     std::vector<Dxui3DRenderer::Vertex>  m_door;
     std::vector<Dxui3DRenderer::Vertex>  m_tiltable;
     std::vector<DeskTiltGrip>            m_tiltGrips;
-    float                                m_tiltPivotY = 0.0f;
-    float                                m_tiltPivotZ = 0.0f;
-    float                                m_maxTiltRad = 0.0f;
+    float                                m_tiltPivotY  = 0.0f;
+    float                                m_tiltPivotZ  = 0.0f;
+    float                                m_maxTiltRad  = 0.0f;
     std::vector<Dxui3DRenderer::Vertex>  m_padlock;
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
     CurvedDisplaySurface                 m_surface;
-    float                                m_doorPivotY      = 0.0f;
-    float                                m_doorPivotZ      = 0.0f;
-    float                                m_doorOpenRad     = 0.0f;
-    DeskDoorMotion                       m_doorMotion      = DeskDoorMotion::Cantilever;
+    float                                m_doorPivotY  = 0.0f;
+    float                                m_doorPivotZ  = 0.0f;
+    float                                m_doorOpenRad = 0.0f;
+    DeskDoorMotion                       m_doorMotion  = DeskDoorMotion::Cantilever;
 
     // Where the write-protect badge actually landed, so its hit box is taken
     // from the badge rather than written out a second time beside it.

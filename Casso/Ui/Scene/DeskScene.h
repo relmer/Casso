@@ -580,11 +580,11 @@ private:
     ComPtr<ID3D11Texture2D>           m_frontPlateTex;
     ComPtr<ID3D11RenderTargetView>    m_frontPlateRtv;
     ComPtr<ID3D11ShaderResourceView>  m_frontPlateSrv;
-    int                               m_plateW     = 0;
-    int                               m_plateH     = 0;
-    bool                              m_plateValid = false;
-    float                             m_bezelTiltRad = 0.0f;
-    PlateKey                          m_plateKey   = {};
+    int                               m_plateW        = 0;
+    int                               m_plateH        = 0;
+    bool                              m_plateValid    = false;
+    float                             m_bezelTiltRad  = 0.0f;
+    PlateKey                          m_plateKey      = {};
 
     HRESULT  EnsurePlateTarget (int width, int height);
     HRESULT  RenderPlate       (const D3D11_VIEWPORT & viewport, int width, int height);
