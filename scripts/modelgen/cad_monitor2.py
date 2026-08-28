@@ -405,14 +405,31 @@ case = case.cut (vent_face (
       .edges ("|Y").fillet (6.0)
       .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0))))
 
-# The surface itself is the darker rear molding, so it is a LINER PART lying
-# on the pocket floor rather than bare case: the slots cut through the liner
-# and on into the case behind it.
+# The notch is dark ALL THE WAY IN: not a dark floor with beige walls, but
+# a TUB -- floor, both side walls, and the top wall, one part in the rear
+# molding's gray. The walls are built over-tall and shaved flush with the
+# slope afterward, because their true height varies along the pocket and a
+# trim against the case's own surface is exact where arithmetic would be
+# eleven guesses.
+_tubY0 = D - VENT_IN_BOT
+_tubY1 = D + 45.0
+
 rear_liner = (cq.Workplane ("XY")
               .box (COL_HW * 2.0 - 1.0, 1.2, PKT_Z1 - PKT_Z0 - 1.0,
                     centered=(False, False, False))
-              .edges ("|Y").fillet (5.5)
-              .translate ((BELL_CX - COL_HW + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5)))
+              .translate ((BELL_CX - COL_HW + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5))
+              .union (cq.Workplane ("XY")
+                        .box (2.5, _tubY1 - _tubY0, PKT_Z1 - PKT_Z0 - 1.0,
+                              centered=(False, False, False))
+                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z0 + 0.5)))
+              .union (cq.Workplane ("XY")
+                        .box (2.5, _tubY1 - _tubY0, PKT_Z1 - PKT_Z0 - 1.0,
+                              centered=(False, False, False))
+                        .translate ((BELL_CX + COL_HW - 3.0, _tubY0, PKT_Z0 + 0.5)))
+              .union (cq.Workplane ("XY")
+                        .box (COL_HW * 2.0 - 1.0, _tubY1 - _tubY0, 2.5,
+                              centered=(False, False, False))
+                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z1 - 3.0))))
 
 # THE VENTS: one row of SIMPLE VERTICAL HOLES straight through the plastic,
 # thirteen a side of the spec plate, ending just above where the bell
@@ -440,7 +457,15 @@ for _side in (-1.0, 1.0):
 case       = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
 rear_liner = rear_liner.cut (cq.Workplane (obj=cq.Compound.makeCompound (_slots)))
 
-m.add ("rear_liner", vent_face (rear_liner), PANEL_GRAY, angular=CORNER_ANG)
+# Into place, then SHAVED FLUSH with the sloped face: everything of the
+# tub's walls that would stand proud of the case is cut away against the
+# slope's own plane.
+m.add ("rear_liner",
+       vent_face (rear_liner)
+         .cut (tilt_rear (cq.Workplane ("XY")
+                            .box (W + 40.0, 300.0, H + 300.0, centered=(False, False, False))
+                            .translate ((-20.0, D, -50.0)))),
+       PANEL_GRAY, angular=CORNER_ANG)
 
 # ------------------------------------------------------- circumference line
 #
@@ -583,8 +608,13 @@ BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
 # the real housing is an angular molding, not a pillow -- and the sides
 # nearly PARALLEL: a few degrees of draw, not a funnel. The top keeps its
 # strong slope; that is the bell's whole silhouette.
+# The crown stops at 180: the vents are NEVER touched or hidden by the
+# bell, and what hides them from a straight-on view is not where the bell
+# meets the surface but the highest point of its whole silhouette -- the
+# buried front section's top edge, which projects over the band however
+# far back the actual emergence sits.
 bell = cq.Solid.makeLoft ([
-    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 195.0, 5.0),
+    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 180.0, 5.0),
     round_rect_wire (BELL_REAR_Y, BELL_CX - 98.0, BELL_CX + 98.0, 95.0, 150.0, 4.0),
 ])
 
@@ -679,8 +709,13 @@ REAR_RIDGE = 0.6
 
 PANEL_FACE_Y = D - PANEL_SET          # the plate's face the relief stands on
 
+# The plate runs PAST the hinge, up under the bell's overhang: the strip
+# below the hinge is case-backed and pocketed for it, and above the hinge
+# the notch is already open, so the extra height simply stands in front of
+# the tub's cavern and closes the beige seam that showed between the bell
+# and the panel's old top edge.
 panel = (cq.Workplane ("XY")
-         .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 - 1.0,
+         .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 + 11.0,
                centered=(False, False, False))
          .edges ("|Y").fillet (3.6)
          .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
