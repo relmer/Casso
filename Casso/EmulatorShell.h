@@ -29,6 +29,7 @@
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -928,6 +929,12 @@ private:
     // rather than by flinching.
     static constexpr float  kBezelTiltRadPerPx = 0.0022f;
 
+    // A compass arrow click's fixed turn. Yaw takes more than pitch for the
+    // same reason the free orbit allows more of it: the interesting sides
+    // of the machines are around them, not above.
+    static constexpr float  kCompassStepYawRad   = 0.2618f;   // 15 degrees
+    static constexpr float  kCompassStepPitchRad = 0.1745f;   // 10 degrees
+
     void  ApplySavedBezelTilt ();
     void  PersistBezelTilt    ();
     bool       m_startMaximized        = false;
@@ -1113,6 +1120,14 @@ private:
     // cursor gone and no way out shown is how a user ends up killing the
     // process. This rides above the picture in both presentations.
     DxuiHudNotice              m_captureBanner;
+
+    // The scene compass: the visible way to turn the scene, for everyone
+    // who will never guess that dragging does it. Laid out into the scene
+    // viewport's corner by SyncSceneDriveChrome, which already runs at
+    // every moment the viewport moves.
+    DxuiOrbitControl           m_sceneCompass;
+
+    void  LayoutSceneCompass ();
 
     // The fullscreen toolbar reveal, the drive strip's bargain mirrored
     // along the top edge: shown while the pointer is up there, hidden once

@@ -2068,6 +2068,48 @@ void EmulatorShell::TickFullscreenToolbar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::LayoutSceneCompass
+//
+//  The compass sits in the scene viewport's BOTTOM-RIGHT corner, inset far
+//  enough that it reads as furniture of the window rather than part of the
+//  machines. Hidden wherever the scene is not the thing on screen --
+//  fullscreen shows the picture, the 2D paths have no scene to turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutSceneCompass()
+{
+    RECT   vp       = m_deskScene.Composition().viewportPx;
+    LONG   sidePx   = m_scaler.Px (72);
+    LONG   marginPx = m_scaler.Px (10);
+    bool   show     = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+                      (vp.right - vp.left) > sidePx * 3;
+    RECT   rc       = {};
+
+
+
+    if (!show)
+    {
+        m_sceneCompass.SetVisible (false);
+        return;
+    }
+
+    rc.right  = vp.right  - marginPx;
+    rc.bottom = vp.bottom - marginPx;
+    rc.left   = rc.right  - sidePx;
+    rc.top    = rc.bottom - sidePx;
+
+    m_sceneCompass.SetDpi     (m_scaler.Dpi());
+    m_sceneCompass.SetRect    (rc);
+    m_sceneCompass.SetVisible (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::SyncSceneDriveChrome
 //
 //  The scene owns the drives: the 2D widgets hide (still syncing state for
@@ -2085,6 +2127,7 @@ void EmulatorShell::SyncSceneDriveChrome()
 
 
     SyncSceneDriveLabels();
+    LayoutSceneCompass();
 
     // INVISIBLE, not merely collapsed. Hide() only empties the bounds, and a
     // visible panel with empty bounds is one stray Layout away from painting:
@@ -3255,6 +3298,46 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_sceneDriveLabel[0]);
     m_host->Root().Adopt (m_sceneDriveLabel[1]);
     m_host->Root().Adopt (m_captureBanner);
+    m_host->Root().Adopt (m_sceneCompass);
+
+    // The compass reports gestures; the shell owns what they mean. The signs
+    // follow the drag's bargain -- the CONTENT goes where the arrow points --
+    // so the right arrow and a rightward drag turn the scene the same way.
+    m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
+    {
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Up:     OrbitSceneBy (0.0f, -kCompassStepPitchRad); break;
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  kCompassStepPitchRad); break;
+            default: break;
+        }
+    });
+
+    m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
+    {
+        float  rate = OrbitRadPerPx();
+
+        // Axis-locked to the arrow the drag started on: the arrow names an
+        // axis, and a free two-axis tumble from a single arrow would make
+        // the four of them meaningless.
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-dxPx * rate, 0.0f); break;
+            case DxuiOrbitControl::Part::Up:
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  dyPx * rate); break;
+            default: break;
+        }
+    });
+
+    m_sceneCompass.SetOnHome ([this] ()
+    {
+        m_sceneView.orbitYawRad   = 0.0f;
+        m_sceneView.orbitPitchRad = 0.0f;
+        InvalidateSceneComposition();
+    });
     m_host->Root().Adopt (m_toolbar);
     m_host->Root().Adopt (m_joystickButton);
     m_host->Root().Adopt (m_switchBar);
@@ -7696,6 +7779,15 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // The compass sees every move: armed, it owns the gesture; idle, the
+    // call is what keeps its hover highlight honest. Ahead of the drags
+    // below because a press the compass took must never feed the orbit's
+    // own anchor math as well.
+    if (!m_paddleCaptured && m_sceneCompass.OnPointerMove (x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     // A pan in flight owns the move outright. Measured from the ANCHOR the
     // press recorded rather than accumulated frame to frame, so the scene
     // tracks the cursor exactly however far or slowly it travels and a long
@@ -8789,9 +8881,18 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // Grabbing a tilt mark starts the bezel drag. Before the pan, which is
+    // The compass outranks everything on the scene: it is drawn on top,
+    // so a press where it sits belongs to it.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
+        m_sceneCompass.OnPointerDown (x, y))
+    {
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
     // the only other thing a press on the scene begins, and which would
-    // otherwise swallow the gesture whenever the view happened to be zoomed.
+    // otherwise swallow the gesture.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
         && !GuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
@@ -8808,17 +8909,22 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    if (DeskSceneActive() && m_sceneView.zoom > 1.0f && !m_mainMenu.IsOpen()
-        && !GuestMouseLive())
+    // A PLAIN DRAG ON THE SCENE TURNS IT. It used to pan, and only when
+    // zoomed -- so at rest the most natural gesture in the window did
+    // nothing at all, and what it did when zoomed was not what anyone
+    // guessed. Turning is what people expect of a 3D thing under the
+    // mouse; the pan still lives on the touchpad's two-finger slide,
+    // beside the zoom on its pinch. Guarded on a scene TARGET miss so a
+    // click on the glass, a drive, or a tilt mark keeps meaning what it
+    // meant.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !GuestMouseLive())
     {
         SceneHitResult  hit = DeskSceneHit (x, y);
 
         if (hit.target == SceneHitResult::Target::None)
         {
-            m_scenePanning    = true;
-            m_scenePanStartPx = POINT { x, y };
-            m_scenePanStartX  = m_sceneView.panX;
-            m_scenePanStartY  = m_sceneView.panY;
+            BeginSceneOrbit (x, y);
+            m_sceneOrbitLeftBtn = true;
         }
     }
 
@@ -8895,6 +9001,15 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_scenePanning)
     {
         m_scenePanning = false;
+        ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    // The compass's release fires its click or ends its drag, and either
+    // way the press never reached a widget, so the click chain stays out
+    // of it.
+    if (m_sceneCompass.OnPointerUp (x, y))
+    {
         ReleaseCapture();
         return DxuiMessageResult::Handled;
     }
