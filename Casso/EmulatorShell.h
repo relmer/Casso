@@ -758,7 +758,10 @@ private:
     // are the subject -- and the near end is 1, the fitted composition, since
     // zooming out past a view that already contains everything only shrinks
     // it into the middle of an empty viewport.
-    static constexpr float  s_kSceneZoomMin  = 1.0f;
+    // Below 1 the fitted composition shrinks into the window with margin
+    // around it -- the step-back look. Pan slack stays zero down there (see
+    // ClampSceneView), so zooming back in cannot strand the scene off-center.
+    static constexpr float  s_kSceneZoomMin  = 0.5f;
     static constexpr float  s_kSceneZoomMax  = 8.0f;
 
     // One wheel notch. Geometric, so the same flick covers the same visual

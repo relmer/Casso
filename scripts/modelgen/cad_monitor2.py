@@ -261,10 +261,11 @@ CAVITY    = (0.105, 0.098, 0.086)
 LABEL_GRAY = (0.600, 0.585, 0.555)    # the blank spec plate
 
 # The rear is A DIFFERENT PLASTIC from the case: the vent surface, the
-# control panel, its embossed marks, and the bell are all one darker molding
-# family, a full step down from the beige -- and the bell a step below that.
+# control panel, its embossed marks, and the bell are ONE molding in ONE
+# color. The bell used to sit a step darker, and the step read as two parts
+# where the reference shows one.
 PANEL_GRAY = (0.560, 0.545, 0.520)
-BELL_GRAY  = (0.500, 0.480, 0.455)
+BELL_GRAY  = PANEL_GRAY
 DARK_PART  = (0.085, 0.085, 0.090)    # wheels, inlet, RCA barrel and bore
 RCA_RING   = (0.920, 0.910, 0.890)
 
@@ -481,7 +482,11 @@ rear_liner = (cq.Workplane ("XY")
               .union (cq.Workplane ("XY")
                         .box (COL_HW * 2.0 - 1.0, _tubY1 - _tubY0, 2.5,
                               centered=(False, False, False))
-                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z1 - 3.0))))
+                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z1 - 3.0)))
+              .union (cq.Workplane ("XY")
+                        .box (COL_HW * 2.0 - 1.0, _tubY1 - _tubY0, 2.5,
+                              centered=(False, False, False))
+                        .translate ((BELL_CX - COL_HW + 0.5, _tubY0, PKT_Z0 + 0.5))))
 
 # THE VENTS: one row of SIMPLE VERTICAL HOLES straight through the plastic,
 # thirteen a side of the spec plate, ending just above where the bell
@@ -695,6 +700,21 @@ case = case.cut (cq.Workplane ("XY")
 # so the stock setting spent about three segments on a quarter turn and the
 # corners read as facets meeting at an angle rather than as rounds.
 m.add("case", case, BEIGE, angular=CORNER_ANG)
+
+# THE APRON: the dark molding does not stop at the hinge. From the control
+# panel's top edge it continues up the SLOPE -- through the bell, which
+# emerges out of it -- until it meets the recess, so the dark column reads
+# as one piece from the vents to the receptacle. A thin plate lying on the
+# sloped face, standing two tenths proud, in the same plastic as everything
+# else back here. The bell interpenetrates it; both are one color, and
+# interpenetrating solids in one scene cost nothing.
+APRON_LEN = PKT_Z0 - STRIP_TOP + 1.0
+
+m.add ("rear_apron",
+       tilt_rear (cq.Workplane ("XY")
+                    .box (PANEL_W - 1.0, 1.4, APRON_LEN, centered=(False, False, False))
+                    .translate ((PANEL_X0 + 0.5, D - 1.2, STRIP_TOP))),
+       PANEL_GRAY, angular=CORNER_ANG)
 
 # The wheel itself, in the power button's warmer gray -- it is the same
 # molding family as the button, not the case's beige...

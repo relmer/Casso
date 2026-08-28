@@ -8360,7 +8360,14 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // matching Shift+drag on the buttons. Content follows the fingers, and
     // Windows reports a downward slide negative and a rightward one positive
     // (see PanSceneByNotch), so both axes take the negative.
-    if ((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 && !pinch)
+    //
+    // THE KEYBOARD IS ASKED DIRECTLY, not the message. Shift+slide is the
+    // gesture Windows itself repurposes into horizontal scrolling, and the
+    // precision-touchpad path synthesizes those wheel messages WITHOUT
+    // MK_SHIFT in their keystate -- so the one gesture this branch exists
+    // for arrived flagless, fell through, and panned.
+    if (((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 ||
+         (GetKeyState (VK_SHIFT) & 0x8000) != 0) && !pinch)
     {
         if (horizontal)
         {
