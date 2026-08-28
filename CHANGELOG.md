@@ -21,8 +21,8 @@ Entries before versioning was introduced use dates only.
 - **`disk sectorread` and `disk sectorwrite` require `--logical` or
   `--physical`.** Sector numbers can be specified two ways, logical (what
   catalogs, DOS tools and reference books use), and physical (the
-  address-field order a boot loader reads off the drive). You now say
-  which you mean.
+  address-field order a boot loader reads off the drive). The commands
+  now specify which to use.
 
 ### Added
 - **`disk blockread` and `disk blockwrite` read and write 512-byte ProDOS
