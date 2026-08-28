@@ -504,6 +504,7 @@ private:
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh[2];     // by activity
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
     Dxui3DRenderer::StaticMesh            m_labelMesh[2];
+    Dxui3DRenderer::StaticMesh            m_monitorTiltMesh;
     Dxui3DRenderer::StaticMesh            m_monitorShadowMesh;
     Dxui3DRenderer::StaticMesh            m_driveShadowMesh;
     Dxui3DRenderer::StaticMesh            m_monitorGlowMesh;
@@ -522,6 +523,34 @@ private:
     // not also re-upload two megabytes of case that did not move.
     void  TouchGeometry  () { m_geometryRev++; m_plateValid = false; }
     void  InvalidatePlate() { m_plateValid = false; }
+
+    // THE BEZEL'S TILT, in radians, positive tipping the top back.
+    //
+    // Carried as a transform rather than baked into the vertices, which is
+    // what lets one number steer the mesh, its shadows and the hit test
+    // against the glass without three copies of the geometry drifting apart.
+    // Clamped to the assembly's measured travel: past it the leading edge
+    // would pass through the frame it is set into.
+    float  BezelTiltRad    () const { return m_bezelTiltRad; }
+    float  MaxBezelTiltRad () const { return m_monitor.MaxTiltRad(); }
+
+    void   SetBezelTilt (float radians)
+    {
+        float  limit   = m_monitor.MaxTiltRad();
+        float  clamped = std::clamp (radians, -limit, limit);
+
+        if (clamped != m_bezelTiltRad)
+        {
+            m_bezelTiltRad = clamped;
+            m_plateValid   = false;
+        }
+    }
+
+    // The monitor's placement with the tilt folded in: what the assembly,
+    // the tube, and anything hit-testing the glass must all use.
+    void  BuildTiltedMonitorWorld (const DeskSceneComposition & comp, float out[16]) const;
+
+    static void  BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16]);
 
     // The plate: every layer but the picture, drawn once into a texture and
     // laid back down each frame. See RenderPlate.
@@ -553,6 +582,7 @@ private:
     int                               m_plateW     = 0;
     int                               m_plateH     = 0;
     bool                              m_plateValid = false;
+    float                             m_bezelTiltRad = 0.0f;
     PlateKey                          m_plateKey   = {};
 
     HRESULT  EnsurePlateTarget (int width, int height);

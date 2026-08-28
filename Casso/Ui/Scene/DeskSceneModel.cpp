@@ -534,6 +534,22 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         {
             AppendFlatTri (m_glass, tri);
         }
+        else if (IsMonitorKind (kind) &&
+                 (part == s_kpszBezel || part == s_kpszTiltUp || part == s_kpszTiltDown))
+        {
+            // The assembly, and the two marks that move it. The marks stay
+            // part of it -- they are molded into the bezel and travel with
+            // it, so a grip measured here is where the glyph actually is at
+            // any tilt, once the same transform is applied to both.
+            size_t  first = m_tiltable.size();
+
+            AppendLitTri (m_tiltable, tri);
+
+            if (part != s_kpszBezel)
+            {
+                GrowTiltGrip ((part == s_kpszTiltUp) ? 1 : -1, first);
+            }
+        }
         else if (part == s_kpszLamp || part == s_kpszLed)
         {
             AppendFlatTri (m_lamp, tri);
@@ -808,6 +824,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     }
 
     AddRegionBoxes();
+    ComputeTiltTravel();
     ComputeBounds();
 
 Error:
@@ -2227,6 +2244,121 @@ void DeskSceneModel::AddRegionBoxes()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneModel::GrowTiltGrip
+//
+//  Grows the grip for one tilt mark to cover the triangles just appended.
+//
+//  The mark's own extent IS the grip. An invisible pad sized by hand would
+//  drift the moment the glyph moved on the bezel, and the whole point of a
+//  grabbable mark is that what you aim at is what you grab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::GrowTiltGrip (int direction, size_t firstVert)
+{
+    DeskTiltGrip *  grip = nullptr;
+
+
+
+    for (DeskTiltGrip & candidate : m_tiltGrips)
+    {
+        if (candidate.direction == direction)
+        {
+            grip = &candidate;
+            break;
+        }
+    }
+
+    if (grip == nullptr)
+    {
+        DeskTiltGrip  fresh;
+
+        fresh.direction = direction;
+        fresh.boxMin[0] = fresh.boxMin[1] = fresh.boxMin[2] =  FLT_MAX;
+        fresh.boxMax[0] = fresh.boxMax[1] = fresh.boxMax[2] = -FLT_MAX;
+
+        m_tiltGrips.push_back (fresh);
+        grip = &m_tiltGrips.back();
+    }
+
+    for (size_t i = firstVert; i < m_tiltable.size(); i++)
+    {
+        const Dxui3DRenderer::Vertex &  v = m_tiltable[i];
+
+        grip->boxMin[0] = std::min (grip->boxMin[0], v.x);  grip->boxMax[0] = std::max (grip->boxMax[0], v.x);
+        grip->boxMin[1] = std::min (grip->boxMin[1], v.y);  grip->boxMax[1] = std::max (grip->boxMax[1], v.y);
+        grip->boxMin[2] = std::min (grip->boxMin[2], v.z);  grip->boxMax[2] = std::max (grip->boxMax[2], v.z);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::ComputeTiltTravel
+//
+//  Where the assembly pivots, and how far it may go.
+//
+//  THE LIMIT IS FLUSH, and it is measured rather than chosen: the bezel
+//  stands proud of the frame around it, and the tilt stops at the angle where
+//  the leading edge has swung back level with that frame. Past there the two
+//  would interpenetrate, which is exactly what a real bezel's travel is
+//  bounded by.
+//
+//  Rotation is about the assembly's own center, so the edge going back and
+//  the edge coming forward move by the same amount and one number bounds
+//  both directions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::ComputeTiltTravel()
+{
+    float   lo[3]  = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float   hi[3]  = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float   half   = 0.0f;
+    float   proud  = 0.0f;
+
+
+
+    m_maxTiltRad = 0.0f;
+
+    if (m_tiltable.empty())
+    {
+        return;
+    }
+
+    for (const Dxui3DRenderer::Vertex & v : m_tiltable)
+    {
+        lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+        lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+        lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
+    }
+
+    m_tiltPivotY = (lo[1] + hi[1]) * 0.5f;
+    m_tiltPivotZ = (lo[2] + hi[2]) * 0.5f;
+
+    // How far the leading edge has to travel to come level with the frame,
+    // and how much leverage the assembly's half-height gives it. -Y is toward
+    // the viewer, so the bezel's front is the SMALLER y.
+    half  = (hi[2] - lo[2]) * 0.5f;
+    proud = m_frontPlaneY - lo[1];
+
+    if (half <= 0.0f || proud <= 0.0f)
+    {
+        return;
+    }
+
+    m_maxTiltRad = std::asin (std::min (proud / half, 1.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneModel::ComputeBounds
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2238,7 +2370,7 @@ void DeskSceneModel::ComputeBounds()
 
 
 
-    for (const std::vector<Dxui3DRenderer::Vertex> * batch : { &m_opaque, &m_glass, &m_lamp, &m_door })
+    for (const std::vector<Dxui3DRenderer::Vertex> * batch : { &m_opaque, &m_glass, &m_lamp, &m_door, &m_tiltable })
     {
         for (const Dxui3DRenderer::Vertex & v : *batch)
         {

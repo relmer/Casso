@@ -1254,6 +1254,73 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::BuildTiltMatrix
+//
+//  A rigid rotation about the X-axis line at (pivotY, pivotZ), in the row-
+//  vector convention the rest of the scene's matrices use.
+//
+//  The signs match RotateDoorVerts, which is the other place in this scene
+//  that turns something about a horizontal hinge: a point above the pivot
+//  goes BACK as the angle grows, so a positive tilt tips the bezel's top away
+//  from the viewer and brings its chin forward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16])
+{
+    float  c = std::cos (angleRad);
+    float  s = std::sin (angleRad);
+
+
+
+    out[0]  = 1.0f;  out[1]  = 0.0f;  out[2]  = 0.0f;  out[3]  = 0.0f;
+    out[4]  = 0.0f;  out[5]  = c;     out[6]  = -s;    out[7]  = 0.0f;
+    out[8]  = 0.0f;  out[9]  = s;     out[10] = c;     out[11] = 0.0f;
+
+    // The pivot, carried through the rotation and put back: p' = (p - v)R + v.
+    out[12] = 0.0f;
+    out[13] = pivotY - (pivotY * c + pivotZ * s);
+    out[14] = pivotZ - (pivotY * -s + pivotZ * c);
+    out[15] = 1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::BuildTiltedMonitorWorld
+//
+//  The monitor's placement with the bezel's tilt folded in front of it. Every
+//  consumer of the tilting assembly goes through here, so the mesh, its
+//  shadow and the glass hit test cannot end up disagreeing about where the
+//  tube is pointing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::BuildTiltedMonitorWorld (const DeskSceneComposition & comp, float out[16]) const
+{
+    float  tilt[16] = {};
+
+
+
+    if (m_bezelTiltRad == 0.0f)
+    {
+        memcpy (out, comp.monitorWorld, 16 * sizeof (float));
+        return;
+    }
+
+    BuildTiltMatrix (m_bezelTiltRad, m_monitor.TiltPivotY(), m_monitor.TiltPivotZ(), tilt);
+    SceneCamera::Mul44 (tilt, comp.monitorWorld, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::BuildLampGlow
 //
 //  Concentric bands from kGlowProfile, fanned in the lens plane: the inner
@@ -1805,10 +1872,31 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = DrawDrives (m_comp, viewport);
     CHRA (hr);
 
-    // The tube (dark, untextured), then the picture band floating on it,
-    // sampling the CRT output.
-    SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+    // THE TILTING ASSEMBLY, on its own transform. Lit through that same
+    // transform too: the shader takes its lights in model space, so handing
+    // it the untilted placement would leave the bezel lit as though it had
+    // never moved.
+    {
+        float  tiltWorld[16] = {};
 
+        BuildTiltedMonitorWorld (m_comp, tiltWorld);
+        SceneCamera::Mul44 (tiltWorld, m_comp.viewProj, mvp);
+
+        SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
+
+        if (!m_monitor.TiltableVerts().empty())
+        {
+            hr = m_renderer.DrawStatic (m_monitorTiltMesh,
+                                        m_monitor.TiltableVerts().data(),
+                                        m_monitor.TiltableVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+    }
+
+    // The tube (dark, untextured), then the picture band floating on it,
+    // sampling the CRT output. It rides the bezel, so it takes the same
+    // matrix the assembly just used.
     if (!m_glassVerts.empty())
     {
         hr = m_renderer.DrawStatic (m_glassMesh, m_glassVerts.data(), m_glassVerts.size(), m_geometryRev,

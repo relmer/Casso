@@ -135,6 +135,18 @@ struct DeskRegionBox
 };
 
 
+// One grabbable mark on the bezel: the box a ray has to hit, and which way
+// dragging it takes the assembly. The marks are modeled as relief on the
+// bezel's bands, so the box is simply that part's own extent -- grabbing the
+// glyph you can see, rather than an invisible pad placed near it.
+struct DeskTiltGrip
+{
+    float  boxMin[3]  = {};
+    float  boxMax[3]  = {};
+    int    direction  = 0;      // +1 the up mark, -1 the down mark
+};
+
+
 class DeskSceneModel
 {
 public:
@@ -156,6 +168,21 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
     const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
     const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
+
+    // THE TILTING ASSEMBLY: the bezel, its two tilt marks, and the tube
+    // behind them. Its own batch because it moves as a body against a case
+    // that does not, which is the same reason a drive's door has one.
+    const std::vector<Dxui3DRenderer::Vertex> &   TiltableVerts () const { return m_tiltable; }
+    const std::vector<DeskTiltGrip> &             TiltGrips     () const { return m_tiltGrips; }
+    bool                                          CanTilt       () const { return !m_tiltable.empty() && m_maxTiltRad > 0.0f; }
+    float                                         TiltPivotY    () const { return m_tiltPivotY; }
+    float                                         TiltPivotZ    () const { return m_tiltPivotZ; }
+
+    // HOW FAR IT GOES, and why it stops there: at the limit the leading edge
+    // of the assembly has come back level with the frame around it. Derived
+    // from the model rather than chosen, so a bezel that protrudes further or
+    // stands taller carries its own travel.
+    float                                         MaxTiltRad    () const { return m_maxTiltRad; }
 
     // The Disk II faceplate's size, which is the case's outside less the
     // sheet that wraps it -- 6.125 x 3.625 in measured off a real drive.
@@ -427,6 +454,10 @@ public:
     // coplanar with.
     static constexpr float  kGlassLiftMm      = 2.0f;
 
+    static constexpr const char *  s_kpszBezel    = "bezel";
+    static constexpr const char *  s_kpszTiltUp   = "tilt_up";
+    static constexpr const char *  s_kpszTiltDown = "tilt_down";
+
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
     void         AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
@@ -512,6 +543,11 @@ private:
     void     BuildWordmarkStamp ();
     void     AddRegionBoxes     ();
     void     ComputeBounds         ();
+
+    // The tilting assembly's grips and its travel, both measured off the
+    // loaded mesh rather than declared.
+    void     GrowTiltGrip          (int direction, size_t firstVert);
+    void     ComputeTiltTravel     ();
     void     ComputeGroundFootprint ();
 
     DeskDeviceKind                       m_kind            = DeskDeviceKind::Monitor2c;
@@ -519,6 +555,11 @@ private:
     std::vector<Dxui3DRenderer::Vertex>  m_glass;
     std::vector<Dxui3DRenderer::Vertex>  m_lamp;
     std::vector<Dxui3DRenderer::Vertex>  m_door;
+    std::vector<Dxui3DRenderer::Vertex>  m_tiltable;
+    std::vector<DeskTiltGrip>            m_tiltGrips;
+    float                                m_tiltPivotY = 0.0f;
+    float                                m_tiltPivotZ = 0.0f;
+    float                                m_maxTiltRad = 0.0f;
     std::vector<Dxui3DRenderer::Vertex>  m_padlock;
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
