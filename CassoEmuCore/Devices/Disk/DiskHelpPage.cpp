@@ -150,26 +150,56 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     {
         CommandLineOptions::DiskOptions::Command::SectorRead,
         "sectorread",
-        "Read logical sectors directly from the disk",
-        "CassoCli disk sectorread <image> %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
+        "Read sectors directly from the disk",
+        "CassoCli disk sectorread <image> %Llogical|%Lphysical %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
+        "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
+        "  %Lphysical              Sector numbers are physical: the address-field order a boot loader reads off the drive\n"
         "  %Ltrack <n>             Track to read from, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15\n"
         "  %Lcount <n>             Count of sectors to read. Defaults to 1. Continues to subsequent tracks and sectors as needed\n"
         "  %Lout <file>            File to store the read sectors in. Defaults to stdout if not specified\n",
-        "Allows reading data directly from logical track and sector locations without relying on filesystem structure.",
-        "CassoCli disk sectorread boot.dsk %Ltrack 0 %Lsector 0 %Lout boot.bin"
+        "Allows reading data directly from track and sector locations without relying on filesystem structure. Sector numbers can be specified"
+        " in %Llogical or %Lphysical sectors.",
+        "CassoCli disk sectorread boot.dsk %Llogical %Ltrack 0 %Lsector 0 %Lout boot.bin"
     },
 
     {
         CommandLineOptions::DiskOptions::Command::SectorWrite,
         "sectorwrite",
-        "Write logical sectors directly to the disk",
-        "CassoCli disk sectorwrite <image> <file> %Ltrack <n> %Lsector <n>",
+        "Write sectors directly to the disk",
+        "CassoCli disk sectorwrite <image> <file> %Llogical|%Lphysical %Ltrack <n> %Lsector <n>",
+        "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
+        "  %Lphysical              Sector numbers are physical: the address-field order a boot loader reads off the drive\n"
         "  %Ltrack <n>             Track to write to, 0 to 34\n"
         "  %Lsector <n>            Sector to start at, 0 to 15. Continues to subsequent tracks and sectors if file is larger than one sector\n",
-        "Allows writing data directly to logical track and sector locations without relying on filesystem structure. If the data doesn't fill"
+        "Allows writing data directly to track and sector locations without relying on filesystem structure. Sector numbers can be specified"
+        " in %Llogical or %Lphysical sectors. If the data doesn't fill"
         " an entire sector, the remaining bytes from the original sector are preserved.",
-        "CassoCli disk sectorwrite boot.dsk loader.bin %Ltrack 0 %Lsector 0"
+        "CassoCli disk sectorwrite boot.dsk loader.bin %Lphysical %Ltrack 0 %Lsector 0"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::BlockRead,
+        "blockread",
+        "Read 512-byte ProDOS blocks directly from the disk",
+        "CassoCli disk blockread <image> %Lblock <n> [%Lcount <n>] [%Lout <file>]",
+        "  %Lblock <n>             Block to start at, 0 to 279\n"
+        "  %Lcount <n>             Count of blocks to read. Defaults to 1\n"
+        "  %Lout <file>            File to store the read blocks in. Defaults to stdout if not specified\n",
+        "Allows reading data directly by ProDOS block number without relying on filesystem structure. The disk doesn't need ProDOS on it, and"
+        " any container works, not only .po images.",
+        "CassoCli disk blockread users.po %Lblock 2 %Lcount 4 %Lout directory.bin"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::BlockWrite,
+        "blockwrite",
+        "Write 512-byte ProDOS blocks directly to the disk",
+        "CassoCli disk blockwrite <image> <file> %Lblock <n>",
+        "  %Lblock <n>             Block to start at, 0 to 279. Continues to subsequent blocks if file is larger than one block\n",
+        "Allows writing data directly by ProDOS block number without relying on filesystem structure. If the data doesn't fill an entire"
+        " block, the remaining bytes from the original block are preserved.",
+        "CassoCli disk blockwrite boot.po boot.bin %Lblock 0"
     },
 };
 

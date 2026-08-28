@@ -11,6 +11,7 @@
 #include "StockBootDisks.h"
 #include "DirectBootBuilder.h"
 #include "NibblizationLayer.h"
+#include "ProDosSkeleton.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
 
@@ -101,7 +102,8 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
 
     std::vector<std::string>  missing;
     Command                   command   = options.disk.command;
-    bool                      wantsFile = command == Command::Put || command == Command::SectorWrite;
+    bool                      wantsFile = command == Command::Put || command == Command::SectorWrite
+                                       || command == Command::BlockWrite;
     bool                      wantsName = command == Command::Get || command == Command::Delete
                                        || command == Command::Boot;
 
@@ -1477,6 +1479,14 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             RunBoot (options, result);
             break;
 
+        case CommandLineOptions::DiskOptions::Command::BlockRead:
+            RunBlockRead (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::BlockWrite:
+            RunBlockWrite (options, result);
+            break;
+
         case CommandLineOptions::DiskOptions::Command::SectorRead:
             RunSectorRead (options, result);
             break;
@@ -2212,14 +2222,30 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     HRESULT                        hr           = S_OK;
     size_t                         first        = 0;
     size_t                         total        = 0;
+    bool                           stated       = false;
     bool                           onDisk       = false;
     bool                           isARead      = false;
     bool                           fits         = false;
+    const char                   * how          = "";
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     char                           summary[192] = {};
 
 
+
+    //  WHICH NUMBERING, OR NOTHING. The same sixteen sectors answer to two
+    //  orders, and a command line that does not say which is how bytes once
+    //  landed on the wrong sector -- so there is no default to fall back to.
+    stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
+
+    CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
+            "Error: say --logical or --physical\n"
+            "       --logical speaks the numbering catalogs, DOS tools and reference\n"
+            "       books use; --physical speaks the address-field order a boot loader\n"
+            "       asking the drive sees\n"));
+
+    how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
+              ? "physical" : "logical";
 
     onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
           && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
@@ -2236,14 +2262,14 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
 
     CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
 
-    isARead = options.disk.sectorCount >= 1;
+    isARead = options.disk.count >= 1;
 
     if (!isARead)
     {
         snprintf (summary, sizeof (summary),
                   "Error: %d is not a number of sectors to read\n"
                   "       a read is at least one sector\n",
-                  options.disk.sectorCount);
+                  options.disk.count);
     }
 
     CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2251,14 +2277,14 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
                     + options.disk.sector);
     total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
-    fits  = first + (size_t) options.disk.sectorCount <= total;
+    fits  = first + (size_t) options.disk.count <= total;
 
     if (!fits)
     {
         snprintf (summary, sizeof (summary),
                   "Error: %d sectors will not fit from track %d sector %d\n"
                   "       the disk has %zu left there\n",
-                  options.disk.sectorCount, options.disk.track, options.disk.sector,
+                  options.disk.count, options.disk.track, options.disk.sector,
                   total - first);
     }
 
@@ -2269,15 +2295,14 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
     CHR (hr);
 
-    //  The LOGICAL sector, which in the DOS-ordered buffer this session hands
-    //  back is the identity: logical sector S of track T is the record at
-    //  (T * 16 + S). No interleave belongs here -- the skew is how sectors
-    //  are laid onto a TRACK, and it is applied when the image is nibblized,
-    //  not when its records are addressed.
-    for (int index = 0; index < options.disk.sectorCount; index++)
+    //  Each position maps through the STATED numbering, one at a time. Under
+    //  --logical that is the identity into the DOS-ordered buffer; under
+    //  --physical it is the interleave, so consecutive positions deliver the
+    //  sectors in the order the drive presents them under consecutive
+    //  address marks.
+    for (int index = 0; index < options.disk.count; index++)
     {
-        size_t  running = first + (size_t) index;
-        size_t  at      = running * (size_t) NibblizationLayer::kSectorByteSize;
+        size_t  at = SectorRecordOffset (options.disk.numbering, first + (size_t) index);
 
         if (at + (size_t) NibblizationLayer::kSectorByteSize > opened.sectors.size())
         {
@@ -2295,9 +2320,9 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
         CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
 
         snprintf (summary, sizeof (summary),
-                  "%s: %zu bytes from track %d sector %d, %d sector(s)\n",
+                  "%s: %zu bytes from track %d %s sector %d, %d sector(s)\n",
                   options.disk.hostFile.c_str(), payload.size(),
-                  options.disk.track, options.disk.sector, options.disk.sectorCount);
+                  options.disk.track, how, options.disk.sector, options.disk.count);
 
         result.output += summary;
     }
@@ -2335,31 +2360,30 @@ Error:
 //
 //  DiskCommandRunner::RunSectorWrite
 //
-//  A file from the host laid into an image at a track and a DOS logical
-//  sector.
+//  A file from the host laid into an image at a track and a sector, in
+//  whichever numbering the command line declared.
 //
 //  NO FILESYSTEM IS INVOLVED, WHICH IS THE POINT. A demo that boots its own
 //  loader and reads fixed tracks has no catalog to make an entry in and no
 //  allocator to ask for space, so `put` cannot express it at all. This writes
 //  the bytes given, where it is told, and nothing else.
 //
-//  THE SECTOR IS LOGICAL, AND THAT MEANS NO TRANSLATION. Logical numbering
-//  is what a catalog, an RWTS caller and every DOS-era sector editor speak,
-//  and a DOS-ordered image already keeps logical sector S of track T at
-//  record (T * 16 + S) -- the identity. The interleave is how those records
-//  are laid onto a TRACK, applied by the nibblizer when a drive is involved;
-//  it has no business between a sector number and a file offset.
-//
-//  IT USED TO BE APPLIED HERE ANYWAY, by owner decision now reversed: the
-//  command believed the image was in physical order and routed the number
-//  through the skew, so `--sector 1` landed on logical sector 7 -- silently,
-//  because sectorread applied the same wrong map and read it back perfectly.
-//  The skew case in DirectBootTests is what settled the orientation against
+//  THE NUMBERING IS DECLARED, NEVER DEFAULTED. The same sixteen sectors
+//  answer to two orders: --logical is what catalogs, RWTS callers and every
+//  DOS-era sector editor speak, the identity into a DOS-ordered image; and
+//  --physical is the address-field order a boot loader asking the drive ROM
+//  sees, the interleave. This command once applied the interleave silently
+//  under the belief the image was physical-ordered -- `--sector 1` landed on
+//  logical sector 7, and sectorread's matching belief read it back perfectly
+//  -- which is why an unstated numbering is refused rather than guessed. The
+//  skew case in DirectBootTests is what settled the orientation against
 //  DOS's own table at $084D.
 //
 //  It runs on past the end of a track into the next one, because a payload
 //  longer than 4 KB is ordinary and splitting the call per track would put the
-//  wrap arithmetic back in the caller's hands.
+//  wrap arithmetic back in the caller's hands. Under --physical the run-on
+//  advances by address mark, so page N of the payload sits under mark N --
+//  exactly what a loader that files sectors by address mark wants.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2370,8 +2394,10 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     size_t                         needed       = 0;
     size_t                         written      = 0;
     bool                           named        = !options.disk.hostFile.empty();
+    bool                           stated       = false;
     bool                           onDisk       = false;
     bool                           fits         = false;
+    const char                   * how          = "";
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     vector<Byte>                   edited;
@@ -2380,6 +2406,17 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
 
     CBRF (named, ReportMissingParameter ("<file>", result));
+
+    stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
+
+    CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
+            "Error: say --logical or --physical\n"
+            "       --logical speaks the numbering catalogs, DOS tools and reference\n"
+            "       books use; --physical speaks the address-field order a boot loader\n"
+            "       asking the drive sees\n"));
+
+    how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
+              ? "physical" : "logical";
 
     onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
           && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
@@ -2433,11 +2470,10 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
         for (size_t index = 0; index < needed; index++)
         {
-            size_t  running = first + index;
-            size_t  at      = running * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t  from    = index * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t  count   = std::min ((size_t) NibblizationLayer::kSectorByteSize,
-                                        payload.size() - from);
+            size_t  at    = SectorRecordOffset (options.disk.numbering, first + index);
+            size_t  from  = index * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t  count = std::min ((size_t) NibblizationLayer::kSectorByteSize,
+                                      payload.size() - from);
 
             if (at + count > edited.size())
             {
@@ -2456,9 +2492,307 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     CHR (hr);
 
     snprintf (summary, sizeof (summary),
-              "%s: %zu bytes at track %d sector %d, %zu sector(s)\n",
+              "%s: %zu bytes at track %d %s sector %d, %zu sector(s)\n",
               options.disk.imagePath.c_str(), written,
-              options.disk.track, options.disk.sector, needed);
+              options.disk.track, how, options.disk.sector, needed);
+
+    result.output     += summary;
+    result.exitStatus  = DiskCommandResult::kClean;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::SectorRecordOffset
+//
+//  Positions advance linearly -- sector, then track -- and each one maps
+//  through the stated numbering on its own. Under --logical that is the
+//  identity into the DOS-ordered buffer; under --physical it is the
+//  interleave, answered by the layer that owns the skew rather than by a
+//  second copy of the sixteen numbers here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DiskCommandRunner::SectorRecordOffset (
+    CommandLineOptions::DiskOptions::Numbering  numbering,
+    size_t                                      running)
+{
+    size_t  track    = running / (size_t) NibblizationLayer::kSectorsPerTrack;
+    size_t  position = running % (size_t) NibblizationLayer::kSectorsPerTrack;
+    bool    physical = numbering == CommandLineOptions::DiskOptions::Numbering::Physical;
+    size_t  record   = running;
+
+
+
+    if (physical)
+    {
+        record = track * (size_t) NibblizationLayer::kSectorsPerTrack
+               + (size_t) NibblizationLayer::DosFileIndexForPhysicalSector ((int) position);
+    }
+
+    return record * (size_t) NibblizationLayer::kSectorByteSize;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunBlockRead
+//
+//  The 512-byte view: a ProDOS block is two sector records spread across its
+//  track by the ProDOS interleave, and the map is ProDosSkeleton's -- the
+//  same single copy the ProDOS reader, writer and builder address blocks
+//  through.
+//
+//  A BLOCK NUMBER NEEDS NO --logical OR --physical, because blocks have only
+//  one order: the block map is defined over the volume, so the question the
+//  sector commands must ask has one answer here.
+//
+//  And it works over any container, not only .po. The session normalizes
+//  every image into the same DOS-ordered buffer, so a block is a lens over
+//  that buffer -- which is how a ProDOS volume shipped inside a .dsk reads
+//  naturally.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
+                                      DiskCommandResult        & result)
+{
+    constexpr size_t  kHalfBytes = (size_t) NibblizationLayer::kSectorByteSize;
+
+
+
+    HRESULT                        hr           = S_OK;
+    bool                           onDisk       = false;
+    bool                           isARead      = false;
+    bool                           fits         = false;
+    DiskImageSession::OpenedImage  opened;
+    vector<Byte>                   payload;
+    char                           summary[192] = {};
+
+
+
+    onDisk = options.disk.block >= 0 && options.disk.block < ProDosSkeleton::kTotalBlocks;
+
+    if (!onDisk)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: block %d is not on this disk\n"
+                  "       blocks run 0 to %d\n",
+                  options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
+    }
+
+    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    isARead = options.disk.count >= 1;
+
+    if (!isARead)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: %d is not a number of blocks to read\n"
+                  "       a read is at least one block\n",
+                  options.disk.count);
+    }
+
+    CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    fits = options.disk.block + options.disk.count <= ProDosSkeleton::kTotalBlocks;
+
+    if (!fits)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: %d blocks will not fit from block %d\n"
+                  "       the disk has %d left there\n",
+                  options.disk.count, options.disk.block,
+                  ProDosSkeleton::kTotalBlocks - options.disk.block);
+    }
+
+    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    //  No filesystem needed, and none looked for: a block is geometry, not
+    //  a volume, and blocks 0-1 of a disk with no filesystem are still worth
+    //  looking at.
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
+    CHR (hr);
+
+    for (int index = 0; index < options.disk.count; index++)
+    {
+        int  block = options.disk.block + index;
+
+        for (int half = 0; half < 2; half++)
+        {
+            size_t  at = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+
+            if (at + kHalfBytes > opened.sectors.size())
+            {
+                break;
+            }
+
+            payload.insert (payload.end(),
+                            opened.sectors.begin() + (ptrdiff_t) at,
+                            opened.sectors.begin() + (ptrdiff_t) (at + kHalfBytes));
+        }
+    }
+
+    if (!options.disk.hostFile.empty())
+    {
+        hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload);
+        CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
+
+        snprintf (summary, sizeof (summary),
+                  "%s: %zu bytes from block %d, %d block(s)\n",
+                  options.disk.hostFile.c_str(), payload.size(),
+                  options.disk.block, options.disk.count);
+
+        result.output += summary;
+    }
+    else
+    {
+        result.payload    = payload;
+        result.hasPayload = true;
+    }
+
+    result.exitStatus = DiskCommandResult::kClean;
+
+    //  DAMAGE IS REPORTED RATHER THAN HIDDEN, exactly as the sector read
+    //  reports it: a block delivered as zeros looks like a block that holds
+    //  zeros, and nothing behind these bytes records the difference.
+    if (opened.report.HasDataLoss())
+    {
+        snprintf (summary, sizeof (summary),
+                  "%d sector(s) could not be decoded. Any of them in this range "
+                  "were delivered as zeros",
+                  opened.report.GetUnrecoveredCount());
+
+        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.exitStatus   = DiskCommandResult::kWithComplaints;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunBlockWrite
+//
+//  The write half of the 512-byte view, through the same single block map.
+//
+//  Whole blocks, the way the sector write works in whole sectors: a payload
+//  that does not fill its last block leaves the rest of that block as it
+//  was, rather than padded with a value this command invented. It runs on
+//  into later blocks for the same reason the sector write runs on into
+//  later tracks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
+                                       DiskCommandResult        & result)
+{
+    constexpr size_t  kHalfBytes  = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kBlockBytes = (size_t) ProDosSkeleton::kBlockByteSize;
+
+
+
+    HRESULT                        hr           = S_OK;
+    size_t                         needed       = 0;
+    size_t                         written      = 0;
+    bool                           named        = !options.disk.hostFile.empty();
+    bool                           onDisk       = false;
+    bool                           fits         = false;
+    DiskImageSession::OpenedImage  opened;
+    vector<Byte>                   payload;
+    vector<Byte>                   edited;
+    char                           summary[160] = {};
+
+
+
+    CBRF (named, ReportMissingParameter ("<file>", result));
+
+    onDisk = options.disk.block >= 0 && options.disk.block < ProDosSkeleton::kTotalBlocks;
+
+    if (!onDisk)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: block %d is not on this disk\n"
+                  "       blocks run 0 to %d\n",
+                  options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
+    }
+
+    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
+    CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
+    CHR (hr);
+
+    edited = opened.sectors;
+
+    needed = (payload.size() + kBlockBytes - 1) / kBlockBytes;
+
+    fits = (size_t) options.disk.block + needed <= (size_t) ProDosSkeleton::kTotalBlocks;
+
+    if (!fits)
+    {
+        snprintf (summary, sizeof (summary),
+                  "Error: %zu bytes will not fit from block %d\n"
+                  "       that is %zu blocks and the disk has %d left there\n",
+                  payload.size(), options.disk.block,
+                  needed, ProDosSkeleton::kTotalBlocks - options.disk.block);
+    }
+
+    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+
+    for (size_t index = 0; index < needed; index++)
+    {
+        int  block = options.disk.block + (int) index;
+
+        for (int half = 0; half < 2; half++)
+        {
+            size_t  from  = index * kBlockBytes + (size_t) half * kHalfBytes;
+            size_t  at    = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  count = 0;
+
+            if (from >= payload.size())
+            {
+                break;
+            }
+
+            count = std::min (kHalfBytes, payload.size() - from);
+
+            if (at + count > edited.size())
+            {
+                break;
+            }
+
+            std::copy (payload.begin() + (ptrdiff_t) from,
+                       payload.begin() + (ptrdiff_t) (from + count),
+                       edited.begin()  + (ptrdiff_t) at);
+
+            written += count;
+        }
+    }
+
+    hr = m_session.SaveAndCommit (opened, edited, result);
+    CHR (hr);
+
+    snprintf (summary, sizeof (summary),
+              "%s: %zu bytes at block %d, %zu block(s)\n",
+              options.disk.imagePath.c_str(), written,
+              options.disk.block, needed);
 
     result.output     += summary;
     result.exitStatus  = DiskCommandResult::kClean;

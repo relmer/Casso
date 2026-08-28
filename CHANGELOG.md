@@ -19,17 +19,27 @@ Entries before versioning was introduced use dates only.
   literature-fitted lines (AH1's F1 code lands on 731 Hz; the textbook value
   for "father" is 730). Comparison data and stats:
   `specs/024-mockingboard-speech/rom-extraction/decoded-data.md`.
+
+## [1.20.1]: The one with logical or physical sector addresses
+
 ### Fixed
-- **`disk sectorread` and `disk sectorwrite` now address the DOS logical
-  sectors their help always promised.** The commands routed the sector
-  number through the physical interleave, so `--sector 1` landed on logical
-  sector 7 -- silently, because both commands applied the same wrong map and
-  read each other back perfectly. Logical sector S of track T is now the
-  image record at (T x 16 + S), the identity, matching what catalogs, RWTS
-  callers and DOS-era sector editors mean by a sector number. Disks written
-  through the old mapping hold their bytes on the sectors the interleave
-  picked; `scripts/BuildDemoDisk.ps1` reorders the demo's regions itself
-  now, and `casso-rocks.dsk` is unchanged byte for byte.
+- **`disk sectorread` and `sectorwrite` wrote to physical sector rather than logical.**
+  Both routed the sector number through an incorrectly named physical-to-logical map
+  so they actually treated sectors as physical rather than logical as stated in help.
+  Sector numbers are now correctly mapped and can be specified in either physical or
+  logical numbers.
+
+### Changed
+- **`disk sectorread` and `disk sectorwrite` require `--logical` or
+  `--physical`.** Sector numbers can be specified two ways, logical (what
+  catalogs, DOS tools and reference books use), and physical (the
+  address-field order a boot loader reads off the drive). The commands
+  now specify which to use.
+
+### Added
+- **`disk blockread` and `disk blockwrite` read and write 512-byte ProDOS
+  blocks.** Block numbers run 0 to 279 on a 5.25-inch image. The disk
+  doesn't need ProDOS on it and any container works, not just `.po`.
 
 ## [1.20.0]: disk file access, and AS65 command line fidelity improvements
 

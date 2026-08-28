@@ -111,7 +111,7 @@ struct CommandLineOptions
         //  the table is swept to check every command is described in the help,
         //  and the help request is not one of the things being described.
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
-                                  SectorRead, SectorWrite, Help };
+                                  SectorRead, SectorWrite, BlockRead, BlockWrite, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -171,22 +171,37 @@ struct CommandLineOptions
         Word         entryAddress    = 0;
         bool         hasEntryAddress = false;
 
+        //  WHICH NUMBERING a sector command's track and sector speak, and
+        //  there is deliberately no default. The same sixteen sectors answer
+        //  to two orders -- DOS logical, which catalogs and reference books
+        //  speak, and physical, the address-field order a boot loader asking
+        //  the drive ROM sees -- and a command line that does not say which
+        //  is exactly how bytes once landed on the wrong sector. Unstated is
+        //  refused by the runner, not defaulted.
+        enum class Numbering  { Unstated, Logical, Physical };
+
+        Numbering    numbering       = Numbering::Unstated;
+
         //
         //  Where `sectorwrite` lays its bytes down and `sectorread` picks
-        //  them up: a track and a DOS LOGICAL
-        //  sector, which is the numbering a source listing and a boot loader
-        //  both speak. The physical position on the disk differs from it by
-        //  the interleave, and translating between the two is the engine's
-        //  job rather than the caller's.
+        //  them up: a track and a sector, read through `numbering` above.
+        //
         int          track           = 0;
         int          sector          = 0;
 
-        //  HOW MANY SECTORS TO READ, which only `sectorread` needs. A write
-        //  takes its length from the file it is given; a read has nothing to
-        //  take one from, and a disk with no filesystem has no record of where
-        //  anything ends. One sector is the useful default: a boot sector is
-        //  one, and it is the thing most often looked at.
-        int          sectorCount     = 1;
+        //  Where `blockread` and `blockwrite` start: a ProDOS block number,
+        //  0 to 279 on a 5.25-inch image. A block is 512 bytes -- two sector
+        //  records spread across its track by the ProDOS interleave -- and
+        //  the block map is the engine's, not restated here.
+        int          block           = 0;
+
+        //  HOW MANY UNITS TO READ -- sectors under `sectorread`, blocks
+        //  under `blockread`. A write takes its length from the file it is
+        //  given; a read has nothing to take one from, and a disk with no
+        //  filesystem has no record of where anything ends. One is the
+        //  useful default: a boot sector or a boot block is the thing most
+        //  often looked at.
+        int          count           = 1;
     };
 
     //  Raw -- the assembled bytes and nothing else -- is the default, because

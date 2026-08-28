@@ -349,11 +349,25 @@ namespace CliSwitchCoverageTests
 
             { "disk", "sector", { "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", "--sector", "5" },
               [] (const CommandLineOptions & o) { return o.disk.sector == 5; },
-              "--sector says which logical sector to start at" },
+              "--sector says which sector to start at" },
 
             { "disk", "count", { "CassoCli", "disk", "sectorread", "d.dsk", "--count", "4" },
-              [] (const CommandLineOptions & o) { return o.disk.sectorCount == 4; },
+              [] (const CommandLineOptions & o) { return o.disk.count == 4; },
               "--count is how many sectors a read takes, having no file to take a length from" },
+
+            { "disk", "logical", { "CassoCli", "disk", "sectorread", "d.dsk", "--logical" },
+              [] (const CommandLineOptions & o)
+              { return o.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Logical; },
+              "--logical says the sector numbers are DOS logical" },
+
+            { "disk", "physical", { "CassoCli", "disk", "sectorread", "d.dsk", "--physical" },
+              [] (const CommandLineOptions & o)
+              { return o.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical; },
+              "--physical says the sector numbers are the address-field order" },
+
+            { "disk", "block", { "CassoCli", "disk", "blockread", "d.po", "--block", "6" },
+              [] (const CommandLineOptions & o) { return o.disk.block == 6; },
+              "--block says which ProDOS block to start at" },
         };
     }
 

@@ -2974,11 +2974,13 @@ namespace CommandLineTests
                 { "del",     CommandLineOptions::DiskOptions::Command::Delete },
                 { "boot",    CommandLineOptions::DiskOptions::Command::Boot   },
 
-                //  Both halves of the sector pair, which is the case worth
-                //  sweeping: they share a prefix, and a table matched by
+                //  Both halves of the raw pairs, which are the cases worth
+                //  sweeping: each pair shares a prefix, and a table matched by
                 //  anything less than the whole word would fold them together.
                 { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
                 { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
+                { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
+                { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
             };
 
             for (const auto & form : kSpellings)
@@ -2994,8 +2996,25 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (19), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (21), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
+        }
+
+        //  --logical AND --physical ARE ONE CHOICE. A command line carrying
+        //  both was assembled from two beliefs about the same sixteen
+        //  sectors, and letting the last flag win would act on whichever
+        //  belief happened to be typed second.
+        TEST_METHOD (Disk_LogicalAndPhysicalTogether_AreRefusedAtParse)
+        {
+            ArgVector           args = { "CassoCli", "disk", "sectorread", "d.dsk",
+                                         "--logical", "--physical", "--track", "0", "--sector", "0" };
+            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                L"naming both numberings is a contradiction, not a preference");
+
+            Assert::IsTrue (opts.refusalMessage.find ("one choice") != std::string::npos,
+                L"and the refusal says so rather than reporting an unknown flag");
         }
 
         //  AN ADDRESS TAKES BOTH NOTATIONS. `$6000` is the 6502 world's and

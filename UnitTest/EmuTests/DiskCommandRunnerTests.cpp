@@ -7,6 +7,7 @@
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/Dos33Volume.h"
+#include "Devices/Disk/ProDosSkeleton.h"
 #include "Devices/Disk/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -374,17 +375,34 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static CommandLineOptions MakeSectorWrite (const char * image, const char * file, int track, int sector)
+    //  Short names for the numbering a maker is called with, so a call site
+    //  reads as the command line would.
+    static constexpr CommandLineOptions::DiskOptions::Numbering  kLogical =
+        CommandLineOptions::DiskOptions::Numbering::Logical;
+
+    static constexpr CommandLineOptions::DiskOptions::Numbering  kPhysical =
+        CommandLineOptions::DiskOptions::Numbering::Physical;
+
+    //  The numbering is a parameter with no default, mirroring the command
+    //  line: a sector command that has not stated its numbering is a refusal,
+    //  and a test that could quietly inherit one would not be testing the
+    //  choice.
+    static CommandLineOptions MakeSectorWrite (const char                                 * image,
+                                               const char                                 * file,
+                                               int                                          track,
+                                               int                                          sector,
+                                               CommandLineOptions::DiskOptions::Numbering   numbering)
     {
         CommandLineOptions  options;
 
-        options.subcommand     = CommandLineOptions::Subcommand::Disk;
+        options.subcommand        = CommandLineOptions::Subcommand::Disk;
         options.disk.command      = CommandLineOptions::DiskOptions::Command::SectorWrite;
         options.disk.commandWord  = "sectorwrite";
-        options.disk.imagePath = image;
-        options.disk.hostFile  = file;
-        options.disk.track     = track;
-        options.disk.sector    = sector;
+        options.disk.imagePath    = image;
+        options.disk.hostFile     = file;
+        options.disk.track        = track;
+        options.disk.sector       = sector;
+        options.disk.numbering    = numbering;
 
         return options;
     }
@@ -427,7 +445,7 @@ public:
         io.files["one.bin"] = payload;
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1, kLogical)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -461,7 +479,7 @@ public:
         io.files["big.bin"] = payload;
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 1, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 1, 0, kLogical)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -490,7 +508,7 @@ public:
         io.files["short.bin"] = vector<Byte> (4, (Byte) 0xFF);
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0, kLogical)).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
@@ -511,10 +529,10 @@ public:
         io.files["one.bin"] = vector<Byte> (16, (Byte) 0xA5);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 35, 0)).exitStatus,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 35, 0, kLogical)).exitStatus,
                           L"track 35 is one past the last");
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 0, 16)).exitStatus,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 0, 16, kLogical)).exitStatus,
                           L"and sector 16 is one past the last");
     }
 
@@ -533,7 +551,7 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", before));
 
-        result = runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 33, 0));
+        result = runner.Run (MakeSectorWrite ("raw.dsk", "big.bin", 33, 0, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
@@ -554,7 +572,11 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static CommandLineOptions MakeSectorRead (const char * image, int track, int sector, int count)
+    static CommandLineOptions MakeSectorRead (const char                                 * image,
+                                              int                                          track,
+                                              int                                          sector,
+                                              int                                          count,
+                                              CommandLineOptions::DiskOptions::Numbering   numbering)
     {
         CommandLineOptions  options;
 
@@ -564,7 +586,36 @@ public:
         options.disk.imagePath    = image;
         options.disk.track        = track;
         options.disk.sector       = sector;
-        options.disk.sectorCount  = count;
+        options.disk.count        = count;
+        options.disk.numbering    = numbering;
+
+        return options;
+    }
+
+    static CommandLineOptions MakeBlockRead (const char * image, int block, int count)
+    {
+        CommandLineOptions  options;
+
+        options.subcommand        = CommandLineOptions::Subcommand::Disk;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::BlockRead;
+        options.disk.commandWord  = "blockread";
+        options.disk.imagePath    = image;
+        options.disk.block        = block;
+        options.disk.count        = count;
+
+        return options;
+    }
+
+    static CommandLineOptions MakeBlockWrite (const char * image, const char * file, int block)
+    {
+        CommandLineOptions  options;
+
+        options.subcommand        = CommandLineOptions::Subcommand::Disk;
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::BlockWrite;
+        options.disk.commandWord  = "blockwrite";
+        options.disk.imagePath    = image;
+        options.disk.hostFile     = file;
+        options.disk.block        = block;
 
         return options;
     }
@@ -583,9 +634,9 @@ public:
         io.files["one.bin"] = payload;
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1, kLogical)).exitStatus);
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.hasPayload, L"with no --out the bytes are the payload");
@@ -607,9 +658,9 @@ public:
 
         //  Sector 14 of track 1, so the third sector lands on track 2.
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "three.bin", 1, 14)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "three.bin", 1, 14, kLogical)).exitStatus);
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 1, 14, 3));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 1, 14, 3, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.payload == payload,
@@ -630,9 +681,9 @@ public:
         io.files["short.bin"] = payload;
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "short.bin", 0, 0, kLogical)).exitStatus);
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1, kLogical));
 
         Assert::AreEqual ((size_t) NibblizationLayer::kSectorByteSize, result.payload.size(),
                           L"a whole sector, not the ten bytes that were written");
@@ -649,14 +700,14 @@ public:
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
         vector<Byte>        payload (NibblizationLayer::kSectorByteSize, (Byte) 0x2D);
-        CommandLineOptions  options = MakeSectorRead ("raw.dsk", 5, 0, 1);
+        CommandLineOptions  options = MakeSectorRead ("raw.dsk", 5, 0, 1, kLogical);
         DiskCommandResult   result;
 
         SeedBlankImage (io, "raw.dsk");
         io.files["one.bin"] = payload;
 
         Assert::AreEqual (DiskCommandResult::kClean,
-                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 5, 0)).exitStatus);
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 5, 0, kLogical)).exitStatus);
 
         options.disk.hostFile = "back.bin";
         result                = runner.Run (options);
@@ -676,7 +727,7 @@ public:
 
         SeedBlankImage (io, "raw.dsk");
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
                           L"an unformatted disk is the ordinary case here, not a refusal");
@@ -690,11 +741,11 @@ public:
         SeedBlankImage (io, "raw.dsk");
 
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorRead ("raw.dsk", 35, 0, 1)).exitStatus,
+                          runner.Run (MakeSectorRead ("raw.dsk", 35, 0, 1, kLogical)).exitStatus,
                           L"there is no track 35");
 
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorRead ("raw.dsk", 0, 16, 1)).exitStatus,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 16, 1, kLogical)).exitStatus,
                           L"and no sector 16");
     }
 
@@ -708,11 +759,11 @@ public:
         SeedBlankImage (io, "raw.dsk");
 
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 0)).exitStatus,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 0, kLogical)).exitStatus,
                           L"zero sectors");
 
         Assert::AreEqual (DiskCommandResult::kNoOutput,
-                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, -1)).exitStatus,
+                          runner.Run (MakeSectorRead ("raw.dsk", 0, 0, -1, kLogical)).exitStatus,
                           L"and fewer than that");
     }
 
@@ -724,11 +775,273 @@ public:
 
         SeedBlankImage (io, "raw.dsk");
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 34, 14, 5));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 34, 14, 5, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine);
         Assert::IsFalse (result.hasPayload, L"and no partial read is handed back");
+    }
+
+    //  THE NUMBERING HAS NO DEFAULT, and this is the refusal that enforces
+    //  it. A sector command that guessed is exactly how bytes once landed on
+    //  the wrong sector -- silently, because both commands guessed the same
+    //  way -- so an unstated numbering is an instructive refusal, not a
+    //  fallback.
+    TEST_METHOD (Sector_WithoutSayingWhichNumbering_IsRefusedInstructively)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  read  = MakeSectorRead  ("raw.dsk", 0, 0, 1, kLogical);
+        CommandLineOptions  write = MakeSectorWrite ("raw.dsk", "one.bin", 0, 0, kLogical);
+        DiskCommandResult   result;
+        vector<Byte>        before;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = MakePayload (256);
+
+        before          = io.files["raw.dsk"];
+        read.disk.numbering  = CommandLineOptions::DiskOptions::Numbering::Unstated;
+        write.disk.numbering = CommandLineOptions::DiskOptions::Numbering::Unstated;
+
+        result = runner.Run (read);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
+            L"a read with no numbering is refused");
+        Assert::IsTrue (result.diagnostics.find ("--logical or --physical") != std::string::npos,
+            L"and the refusal says what to type, not merely that something is missing");
+
+        result = runner.Run (write);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
+            L"a write with no numbering is refused");
+        Assert::IsTrue (result.diagnostics.find ("--logical or --physical") != std::string::npos);
+
+        Assert::IsTrue (io.files["raw.dsk"] == before,
+            L"and the image is byte for byte what it was");
+    }
+
+    //  THE PHYSICAL LENS, against the same offsets the logical test pins the
+    //  other way around: physical sector 1 is the address mark the drive
+    //  presents second, and a DOS-ordered image keeps the sector under it at
+    //  the offset the interleave picks -- logical 7.
+    TEST_METHOD (SectorWrite_Physical_PlacesBytesUnderTheAddressMark)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xC3);
+        vector<Byte>       written;
+        size_t             mappedAt  = 0;
+        size_t             literalAt = (size_t) (3 * 16 + 1) * 256;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandResult::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1, kPhysical)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
+
+        mappedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+                            + NibblizationLayer::DosFileIndexForPhysicalSector (1))
+                           * NibblizationLayer::kSectorByteSize);
+
+        Assert::AreNotEqual (literalAt, mappedAt,
+                             L"the two offsets must differ for this sector, or nothing below "
+                             L"discriminates the lenses");
+
+        Assert::AreEqual ((Byte) 0xC3, written[mappedAt],
+                          L"physical sector 1 lands where the interleave puts it");
+
+        Assert::AreEqual ((Byte) 0x00, written[literalAt],
+                          L"and not at the logical offset of the same number");
+    }
+
+    //  THE LENSES ARE ONE MAPPING, READ FROM BOTH SIDES: what a physical
+    //  write lays down, a physical read returns from the same numbers, and a
+    //  logical read finds at the interleave's logical sector.
+    TEST_METHOD (SectorRead_Physical_AgreesWithTheLogicalLensAboutTheSameBytes)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload = MakePayload (256);
+        DiskCommandResult  asPhysical;
+        DiskCommandResult  asLogical;
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["one.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandResult::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "one.bin", 3, 1, kPhysical)).exitStatus);
+
+        asPhysical = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1, kPhysical));
+        asLogical  = runner.Run (MakeSectorRead ("raw.dsk", 3,
+                                                 NibblizationLayer::DosFileIndexForPhysicalSector (1),
+                                                 1, kLogical));
+
+        Assert::AreEqual (DiskCommandResult::kClean, asPhysical.exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, asLogical.exitStatus);
+
+        Assert::IsTrue (asPhysical.payload == payload,
+            L"the physical read returns what the physical write put at the same numbers");
+
+        Assert::IsTrue (asLogical.payload == payload,
+            L"and the logical read finds the same bytes at the interleave's logical sector");
+    }
+
+    //  A MULTI-SECTOR PHYSICAL WRITE ADVANCES BY ADDRESS MARK, so page N of
+    //  the payload sits under mark N -- what a boot loader that files
+    //  sectors by address mark reads back in order. This is the layout the
+    //  demo disk needs, expressed as the command rather than as a
+    //  hand-permuted payload.
+    TEST_METHOD (SectorWrite_Physical_LaysARunUnderConsecutiveAddressMarks)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload (NibblizationLayer::kSectorByteSize * 16, 0);
+        vector<Byte>       written;
+        size_t             page = 0;
+
+        //  Every byte of a page carries the page number, so a page in the
+        //  wrong place is visible wherever it is looked at.
+        for (page = 0; page < 16; page++)
+        {
+            std::fill_n (payload.begin() + (ptrdiff_t) (page * 256), 256, (Byte) page);
+        }
+
+        SeedBlankImage (io, "raw.dsk");
+        io.files["track.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandResult::kClean,
+                          runner.Run (MakeSectorWrite ("raw.dsk", "track.bin", 3, 0, kPhysical)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
+
+        for (page = 0; page < 16; page++)
+        {
+            size_t  at = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+                                  + NibblizationLayer::DosFileIndexForPhysicalSector ((int) page))
+                                 * NibblizationLayer::kSectorByteSize);
+
+            Assert::AreEqual ((int) page, (int) written[at],
+                L"page N sits under address mark N, wherever the interleave keeps that");
+        }
+    }
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  blockread / blockwrite: the 512-byte ProDOS view, through the same
+    //  single block map the ProDOS reader and writer use.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BlockWrite_PlacesBothHalvesWhereTheProDosMapPutsThem)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>  payload  = MakePayload (512);
+        vector<Byte>  written;
+        size_t        firstAt  = ProDosSkeleton::BlockByteOffset (3, 0);
+        size_t        secondAt = ProDosSkeleton::BlockByteOffset (3, 256);
+        size_t        naiveAt  = (size_t) 3 * 512;
+        size_t        i        = 0;
+
+        SeedBlankImage (io, "raw.po.dsk");
+        io.files["block.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandResult::kClean,
+                          runner.Run (MakeBlockWrite ("raw.po.dsk", "block.bin", 3)).exitStatus);
+
+        AssertSucceeded (io.ReadAllBytes ("raw.po.dsk", written));
+
+        for (i = 0; i < 256; i++)
+        {
+            Assert::AreEqual ((int) payload[i],       (int) written[firstAt + i],
+                L"the block's first half sits where the ProDOS map puts it");
+            Assert::AreEqual ((int) payload[256 + i], (int) written[secondAt + i],
+                L"and the second half where the map puts that");
+        }
+
+        Assert::AreNotEqual (naiveAt, firstAt,
+            L"which for this block is not 512 * N into the buffer, or the assertions "
+            L"above discriminate nothing");
+    }
+
+    TEST_METHOD (BlockRead_ReturnsWhatBlockWritePutThere)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        vector<Byte>       payload = MakePayload (1024);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.po.dsk");
+        io.files["blocks.bin"] = payload;
+
+        Assert::AreEqual (DiskCommandResult::kClean,
+                          runner.Run (MakeBlockWrite ("raw.po.dsk", "blocks.bin", 7)).exitStatus);
+
+        result = runner.Run (MakeBlockRead ("raw.po.dsk", 7, 2));
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.hasPayload);
+        Assert::IsTrue (result.payload == payload,
+            L"two blocks in, the same two blocks out, through the one block map");
+    }
+
+    //  THE LENS WORKS ON ANY CONTAINER. A ProDOS volume shipped inside a
+    //  .dsk reads by block number exactly as a .po would, because the
+    //  session normalizes every image into the same buffer -- and the proof
+    //  is vendor material: the Merlin disk's volume directory key block
+    //  carries its own volume name.
+    TEST_METHOD (BlockRead_FindsTheVolumeDirectory_OnAProDosVolumeInADskContainer)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        std::string        text;
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", kImage);
+
+        result = runner.Run (MakeBlockRead (kImage, 2, 1));
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.hasPayload);
+        Assert::AreEqual (size_t (512), result.payload.size(), L"one whole block");
+
+        text.assign (result.payload.begin(), result.payload.end());
+
+        Assert::IsTrue (text.find ("MERLIN") != std::string::npos,
+            L"the volume directory key block names the volume, which only a correct "
+            L"block map could have assembled from its two sector records");
+    }
+
+    TEST_METHOD (Block_OffTheDisk_IsRefusedWithTheRange)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+
+        SeedBlankImage (io, "raw.po.dsk");
+        io.files["block.bin"] = MakePayload (512);
+
+        result = runner.Run (MakeBlockRead ("raw.po.dsk", 280, 1));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
+            L"there is no block 280");
+        Assert::IsTrue (result.diagnostics.find ("0 to 279") != std::string::npos,
+            L"and the refusal states the range");
+
+        result = runner.Run (MakeBlockWrite ("raw.po.dsk", "block.bin", 279));
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
+            L"while the last block on the disk is a legal place for one block");
+
+        result = runner.Run (MakeBlockRead ("raw.po.dsk", 279, 2));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
+            L"and a read that runs off the end is refused rather than shortened");
     }
 
 
@@ -3130,7 +3443,7 @@ public:
 
         SeedBlankImage (io, "raw.dsk");
 
-        result = runner.Run (MakeSectorRead ("raw.dsk", 99, 0, 1));
+        result = runner.Run (MakeSectorRead ("raw.dsk", 99, 0, 1, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"a value out of range is a bad command line");

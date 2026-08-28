@@ -61,6 +61,8 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "format",      CommandLineOptions::DiskOptions::Command::Init        },
     { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
     { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
+    { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
+    { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
 };
 
 
@@ -233,6 +235,9 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "track",
     "sector",
     "count",
+    "logical",
+    "physical",
+    "block",
 };
 
 
@@ -860,6 +865,7 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Comman
         case CommandLineOptions::DiskOptions::Command::Create:
         case CommandLineOptions::DiskOptions::Command::Init:
         case CommandLineOptions::DiskOptions::Command::SectorRead:
+        case CommandLineOptions::DiskOptions::Command::BlockRead:
             count = 1;
             break;
 
@@ -868,6 +874,7 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Comman
         case CommandLineOptions::DiskOptions::Command::Delete:
         case CommandLineOptions::DiskOptions::Command::Boot:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
+        case CommandLineOptions::DiskOptions::Command::BlockWrite:
             count = 2;
             break;
 
@@ -1202,10 +1209,40 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        //  A track and a sector are plain decimals rather than addresses, so
-        //  they are read here rather than through ParseAddress, and a word
-        //  that is not a number is refused rather than reading as zero.
-        if ((arg == "--track" || arg == "--sector" || arg == "--count") && hasValue)
+        //  WHICH NUMBERING the sector commands' track and sector speak. Two
+        //  bare words rather than one flag with a value, because either reads
+        //  naturally on a command line and neither is a default: naming both
+        //  is a contradiction and is refused rather than letting the last
+        //  one win, since a line carrying both was assembled from two beliefs.
+        if (arg == "--logical" || arg == "--physical")
+        {
+            bool  asLogical   = arg == "--logical";
+            bool  contradicts =
+                (asLogical  && options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical)
+             || (!asLogical && options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Logical);
+
+            if (contradicts)
+            {
+                Refusal (options) << "Error: --logical and --physical are one choice, not two flags\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.numbering = asLogical
+                                             ? CommandLineOptions::DiskOptions::Numbering::Logical
+                                             : CommandLineOptions::DiskOptions::Numbering::Physical;
+            }
+
+            continue;
+        }
+
+        //  A track, a sector and a block are plain decimals rather than
+        //  addresses, so they are read here rather than through ParseAddress,
+        //  and a word that is not a number is refused rather than reading as
+        //  zero.
+        if ((arg == "--track" || arg == "--sector" || arg == "--count" || arg == "--block")
+         && hasValue)
         {
             std::string  text  = argv[i + 1];
             int          value = 0;
@@ -1218,15 +1255,18 @@ void CommandLineParser::ParseDiskOptions (
 
             if (ok)
             {
-                if      (arg == "--track")  { options.disk.track       = value; }
-                else if (arg == "--sector") { options.disk.sector      = value; }
-                else                        { options.disk.sectorCount = value; }
+                if      (arg == "--track")  { options.disk.track  = value; }
+                else if (arg == "--sector") { options.disk.sector = value; }
+                else if (arg == "--block")  { options.disk.block  = value; }
+                else                        { options.disk.count  = value; }
             }
             else
             {
-                std::string  what = (arg == "--count")
-                                        ? std::string ("number of sectors")
-                                        : arg.substr (2) + " number";
+                bool         blocks = options.disk.command == CommandLineOptions::DiskOptions::Command::BlockRead
+                                   || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite;
+                std::string  what   = (arg == "--count")
+                                          ? std::string (blocks ? "number of blocks" : "number of sectors")
+                                          : arg.substr (2) + " number";
 
                 Refusal (options) << "Error: " << argv[i + 1] << " is not a " << what << "\n";
 
@@ -1388,13 +1428,14 @@ void CommandLineParser::ParseDiskOptions (
         }
         else if (positional == 1)
         {
-            // `put` and `sectorwrite` take a HOST file here; every other command
-            // takes a path on the disk. --as may override the on-disk name
-            // afterwards. sectorwrite has no on-disk name at all: it writes to
-            // a track and a sector, and the disk it writes to may have no
-            // filesystem to hold a name in.
+            // `put` and the raw writes take a HOST file here; every other
+            // command takes a path on the disk. --as may override the on-disk
+            // name afterwards. The raw writes have no on-disk name at all:
+            // they write to a track and a sector, or to a block, and the disk
+            // they write to may have no filesystem to hold a name in.
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite)
             {
                 options.disk.hostFile = arg;
             }
