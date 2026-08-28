@@ -419,9 +419,19 @@ case = case.cut (tilt_rear (
 # surface's own tilt, then ride the slope like everything else back here.
 VENT_IN_TOP = 1.5 * 25.4
 VENT_IN_BOT = 1.0 * 25.4
-PKT_Z0      = STRIP_TOP               # to the hinge: the dark is CONTIGUOUS
-                                      # from the top vents down through the
-                                      # bell to the control panel
+# THE POCKET ENDS AT THE TOP OF THE BELL. Run down to the hinge it did two
+# wrong things at once: its dark tub walls crossed the shoulder where the
+# slope meets the flanks and stood outside the shell's own contour, and the
+# recess read as running under the bell to the very base of the slope. The
+# bell emerges from plain shell below this line; only above it is the back
+# actually notched.
+#
+# Where that line is comes from the geometry, not from a guess: the bell's
+# top edge runs from (D - 80, 180) to (D + 55, 150) in y-z, the slope's
+# surface leaves the hinge at SLOPE_ANG, and this is their intersection
+# expressed as a height along the pre-tilt cutter, the frame every rear
+# cutter is built in.
+PKT_Z0      = STRIP_TOP + 94.0
 PKT_Z1      = STRIP_TOP + SLOPE_LEN - REAR_RIM
 VENT_TILT   = math.degrees (math.atan2 (VENT_IN_TOP - VENT_IN_BOT, PKT_Z1 - PKT_Z0))
 
@@ -822,13 +832,12 @@ REAR_RIDGE = 0.6
 
 PANEL_FACE_Y = D - PANEL_SET          # the plate's face the relief stands on
 
-# The plate runs PAST the hinge, up under the bell's overhang: the strip
-# below the hinge is case-backed and pocketed for it, and above the hinge
-# the notch is already open, so the extra height simply stands in front of
-# the tub's cavern and closes the beige seam that showed between the bell
-# and the panel's old top edge.
+# The plate ends AT the hinge. It used to run 11 mm past it to bridge a
+# beige seam, back when the pocket above was an open cavern -- but the
+# pocket ends at the bell's top now, so the case above the hinge is solid
+# slope, and a plate standing past the corner would stand proud of it.
 panel = (cq.Workplane ("XY")
-         .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 + 11.0,
+         .box (PANEL_W - 1.0, PANEL_IN - PANEL_SET, PANEL_Z1 - PANEL_Z0 - 1.0,
                centered=(False, False, False))
          .edges ("|Y").fillet (3.6)
          .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z0 + 0.5)))
@@ -841,7 +850,7 @@ panel = (cq.Workplane ("XY")
 # The top of the plate comes out to the case face, so the edge has nothing
 # left to catch.
 panel = panel.union (cq.Workplane ("XY")
-                       .box (PANEL_W - 1.0, PANEL_IN, 20.0,
+                       .box (PANEL_W - 1.0, PANEL_IN, 8.0,
                              centered=(False, False, False))
                        .translate ((PANEL_X0 + 0.5, D - PANEL_IN, PANEL_Z1 - 8.0)))
 
