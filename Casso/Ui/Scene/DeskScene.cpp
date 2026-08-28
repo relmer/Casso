@@ -1941,57 +1941,91 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // the front. Behind and beside, the case wins and covers the raster at
     // composite time; head on, the mouth stays open. The cavity never
     // qualifies, because it lies BEHIND the stamp.
-    if (!m_pictureDepthVerts.empty())
+    // TWO MATRICES FROM HERE DOWN, and every draw names the one it means.
+    // The case's placement and the tube's (case plus tilt) both flow through
+    // this stretch, and the first version of the tilt reused one `mvp` local
+    // for both: the stamp wrote the tilted matrix into it, and the whole-case
+    // re-draw, the mask, the sheen and the power lamp all inherited it -- the
+    // entire monitor drawn a SECOND time, tilted, over the untilted one.
+    // Panels sheared, the bell doubled, the rear ripped. What rides the tube
+    // takes tubeMvp; what is part of the case takes caseMvp; nothing takes
+    // "whatever mvp holds right now".
     {
-        // ON THE TUBE'S TRANSFORM, not the case's. The stamp is the picture's
-        // own footprint, so it has to travel with the tube -- left on the
-        // untilted placement it opens the mouth where the raster used to be
-        // and masks it where the raster now is.
         float  tiltWorld[16] = {};
+        float  caseMvp[16]   = {};
+        float  tubeMvp[16]   = {};
 
         BuildTiltedMonitorWorld (m_comp, tiltWorld);
-        SceneCamera::Mul44 (tiltWorld, m_comp.viewProj, mvp);
+        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, caseMvp);
+        SceneCamera::Mul44 (tiltWorld,           m_comp.viewProj, tubeMvp);
 
-        hr = m_renderer.DrawStatic (m_pictureDepthMesh, m_pictureDepthVerts.data(),
-                                    m_pictureDepthVerts.size(), m_geometryRev,
-                                    mvp, false, viewport, true);
-        CHRA (hr);
+        if (!m_pictureDepthVerts.empty())
+        {
+            // The stamp is the picture's own footprint, so it travels with
+            // the tube -- left on the case's placement it opens the mouth
+            // where the raster used to be and masks it where the raster is.
+            hr = m_renderer.DrawStatic (m_pictureDepthMesh, m_pictureDepthVerts.data(),
+                                        m_pictureDepthVerts.size(), m_geometryRev,
+                                        tubeMvp, false, viewport, true);
+            CHRA (hr);
 
-        SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+            SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
-        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[1],
-                                    m_monitor.OpaqueVerts().data(),
-                                    m_monitor.OpaqueVerts().size(),
-                                    m_geometryRev, mvp, false, viewport, true, false);
-        CHRA (hr);
+            hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[1],
+                                        m_monitor.OpaqueVerts().data(),
+                                        m_monitor.OpaqueVerts().size(),
+                                        m_geometryRev, caseMvp, false, viewport, true, false);
+            CHRA (hr);
 
-        hr = DrawDrives (m_comp, viewport);
-        CHRA (hr);
-    }
+            // THE BEZEL TOO. This re-draw is what puts the case back IN
+            // FRONT of the raster, and when the bezel moved out of the
+            // opaque batch it silently left this pass -- so the picture
+            // composited straight over it, and from any angle where the two
+            // overlap on screen the CRT showed through the bezel's side.
+            // Seen from in front nothing looked wrong, which is how it
+            // survived a first report of exactly this.
+            if (!m_monitor.TiltableVerts().empty())
+            {
+                SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
 
-    if (!m_maskVerts.empty())
-    {
-        hr = m_renderer.DrawStatic (m_maskMesh, m_maskVerts.data(), m_maskVerts.size(), m_geometryRev,
-                                       mvp, false, viewport, true);
-        CHRA (hr);
-    }
+                hr = m_renderer.DrawStatic (m_monitorTiltMesh,
+                                            m_monitor.TiltableVerts().data(),
+                                            m_monitor.TiltableVerts().size(),
+                                            m_geometryRev, tubeMvp, false, viewport, true, false);
+                CHRA (hr);
+            }
 
-    // The reflection goes on last of the tube's layers and over the mask,
-    // because a real faceplate reflects the room across its whole face, dark
-    // border included. Depth tested but not written: it is light, and the
-    // bezel in front of it must still win.
-    if (!m_sheenVerts.empty())
-    {
-        hr = m_renderer.DrawStatic (m_sheenMesh, m_sheenVerts.data(), m_sheenVerts.size(), m_geometryRev,
-                                       mvp, false, viewport, true, false);
-        CHRA (hr);
-    }
+            hr = DrawDrives (m_comp, viewport);
+            CHRA (hr);
+        }
 
-    if (!m_monitorLampVerts.empty())
-    {
-        hr = m_renderer.DrawStatic (m_monitorLampMesh, m_monitorLampVerts.data(), m_monitorLampVerts.size(), m_geometryRev,
-                                       mvp, false, viewport, true);
-        CHRA (hr);
+        // The mask and the sheen are the faceplate's own layers, so they ride
+        // the tube.
+        if (!m_maskVerts.empty())
+        {
+            hr = m_renderer.DrawStatic (m_maskMesh, m_maskVerts.data(), m_maskVerts.size(), m_geometryRev,
+                                           tubeMvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        // The reflection goes on last of the tube's layers and over the mask,
+        // because a real faceplate reflects the room across its whole face,
+        // dark border included. Depth tested but not written: it is light,
+        // and the bezel in front of it must still win.
+        if (!m_sheenVerts.empty())
+        {
+            hr = m_renderer.DrawStatic (m_sheenMesh, m_sheenVerts.data(), m_sheenVerts.size(), m_geometryRev,
+                                           tubeMvp, false, viewport, true, false);
+            CHRA (hr);
+        }
+
+        // The power lamp sits in the case's notch, not on the tube.
+        if (!m_monitorLampVerts.empty())
+        {
+            hr = m_renderer.DrawStatic (m_monitorLampMesh, m_monitorLampVerts.data(), m_monitorLampVerts.size(), m_geometryRev,
+                                           caseMvp, false, viewport, true);
+            CHRA (hr);
+        }
     }
 
     hr = DrawLampGlows (m_comp, viewport, true);
