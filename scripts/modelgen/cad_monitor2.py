@@ -352,8 +352,16 @@ STRIP_TOP  = 84.0                     # the vertical rear strip below the slope
 REAR_RUN   = 68.0                     # how far forward the slope's top lands
 SLOPE_LEN  = math.hypot (REAR_RUN, H - STRIP_TOP)
 SLOPE_ANG  = math.degrees (math.atan2 (REAR_RUN, H - STRIP_TOP))
-REAR_RIM   = 15.0                     # case border around the recess
-REAR_DEEP  = 9.0                      # the recess, into the slope
+REAR_RIM   = 15.0                     # case border above the dark column
+
+# THE DARK COLUMN. Everything dark on the rear -- the vents, the bell, the
+# control panel -- lives in ONE CRT-centered column just wider than the
+# bell, and the case's beige runs up to its edges. The case is wider than
+# its screen by the front's right-hand reveal, so the column rides the
+# screen's axis and the beige stands one full reveal wider on the rear's
+# left than on its right.
+BELL_CX = DX * 0.5
+COL_HW  = 108.0
 
 
 def tilt_rear(wp):
@@ -376,7 +384,9 @@ case = case.cut (tilt_rear (
 # surface's own tilt, then ride the slope like everything else back here.
 VENT_IN_TOP = 1.5 * 25.4
 VENT_IN_BOT = 1.0 * 25.4
-PKT_Z0      = STRIP_TOP + REAR_RIM
+PKT_Z0      = STRIP_TOP               # to the hinge: the dark is CONTIGUOUS
+                                      # from the top vents down through the
+                                      # bell to the control panel
 PKT_Z1      = STRIP_TOP + SLOPE_LEN - REAR_RIM
 VENT_TILT   = math.degrees (math.atan2 (VENT_IN_TOP - VENT_IN_BOT, PKT_Z1 - PKT_Z0))
 
@@ -390,41 +400,42 @@ def vent_face(wp):
 
 case = case.cut (vent_face (
     cq.Workplane ("XY")
-      .box (W - REAR_RIM * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
+      .box (COL_HW * 2.0, VENT_IN_BOT + 80.0, PKT_Z1 - PKT_Z0,
             centered=(False, False, False))
       .edges ("|Y").fillet (6.0)
-      .translate ((REAR_RIM, D - VENT_IN_BOT, PKT_Z0))))
+      .translate ((BELL_CX - COL_HW, D - VENT_IN_BOT, PKT_Z0))))
 
 # The surface itself is the darker rear molding, so it is a LINER PART lying
 # on the pocket floor rather than bare case: the slots cut through the liner
 # and on into the case behind it.
 rear_liner = (cq.Workplane ("XY")
-              .box (W - REAR_RIM * 2.0 - 1.0, 1.2, PKT_Z1 - PKT_Z0 - 1.0,
+              .box (COL_HW * 2.0 - 1.0, 1.2, PKT_Z1 - PKT_Z0 - 1.0,
                     centered=(False, False, False))
               .edges ("|Y").fillet (5.5)
-              .translate ((REAR_RIM + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5)))
+              .translate ((BELL_CX - COL_HW + 0.5, D - VENT_IN_BOT, PKT_Z0 + 0.5)))
 
-# Vent slots across the recess's upper band: two rows of narrow vertical
-# slots, cut as ONE compound rather than eighty booleans.
-VENT_SLOT_W  = 2.5
-VENT_PITCH   = 6.5
-VENT_ROW_H   = 20.0
-VENT_X0      = 60.0
-VENT_X1      = W - 60.0
-VENT_ROWS_Z  = (STRIP_TOP + SLOPE_LEN - 67.0, STRIP_TOP + SLOPE_LEN - 43.0)
+# THE VENTS: one row of SIMPLE VERTICAL HOLES straight through the plastic,
+# thirteen a side of the spec plate, ending just above where the bell
+# starts -- the bell covers none of them.
+VENT_SLOT_W = 2.0
+VENT_SLOT_H = 24.0
+VENT_N      = 13
+VENT_BAND_Z = STRIP_TOP + SLOPE_LEN - 62.0
+VENT_IN_X0  = 50.0                    # bank inner edge, off the column axis
+VENT_IN_X1  = 100.0                   # ...and outer
+VENT_PITCH  = (VENT_IN_X1 - VENT_IN_X0 - VENT_SLOT_W) / (VENT_N - 1)
 
 _slots = []
 
-for _rz in VENT_ROWS_Z:
-    _x = VENT_X0
+for _side in (-1.0, 1.0):
+    for _k in range (VENT_N):
+        _x = BELL_CX + _side * (VENT_IN_X0 + _k * VENT_PITCH) - VENT_SLOT_W * 0.5
 
-    while _x + VENT_SLOT_W <= VENT_X1:
         _slots.append (cq.Workplane ("XY")
-                         .box (VENT_SLOT_W, 12.0, VENT_ROW_H,
+                         .box (VENT_SLOT_W, 30.0, VENT_SLOT_H,
                                centered=(False, False, False))
-                         .translate ((_x, D - VENT_IN_BOT - 6.0, _rz))
+                         .translate ((_x, D - VENT_IN_BOT - 15.0, VENT_BAND_Z))
                          .val())
-        _x += VENT_PITCH
 
 case       = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
 rear_liner = rear_liner.cut (cq.Workplane (obj=cq.Compound.makeCompound (_slots)))
@@ -458,10 +469,10 @@ case = case.cut (
 # plate -- the real panel is its own molding, a shade off the case around it.
 # The pocket is cut here; the plate itself is a separate part below, and the
 # icons engrave into the plate rather than the case.
-PANEL_W   = 300.0
-PANEL_X0  = (W - PANEL_W) * 0.5
+PANEL_W   = COL_HW * 2.0 - 1.0        # the dark column, nothing past it
+PANEL_X0  = BELL_CX - PANEL_W * 0.5
 PANEL_Z0  = 16.0
-PANEL_Z1  = STRIP_TOP - 16.0
+PANEL_Z1  = STRIP_TOP                 # to the hinge, meeting the liner
 PANEL_IN  = 2.0                       # the pocket
 PANEL_SET = 0.3                       # the plate's face behind the case face
 
@@ -476,9 +487,9 @@ case = case.cut (
 # rightmost. A reader standing behind the monitor sees model +x on their
 # LEFT, so the inlet takes the positive offset -- laid out the other way the
 # whole row came out mirrored against the photographs.
-AC_CX    = W * 0.5 + 118.0
-CTRL_CXS = (W * 0.5 + 45.0, W * 0.5 - 5.0, W * 0.5 - 55.0)
-RCA_CX   = W * 0.5 - 105.0
+AC_CX    = BELL_CX + 70.0
+CTRL_CXS = (BELL_CX + 32.0, BELL_CX, BELL_CX - 32.0)
+RCA_CX   = BELL_CX - 70.0
 CTRL_CZ  = PANEL_Z0 + 20.0            # the controls' row
 ICON_CZ  = PANEL_Z1 - 17.0            # the icons' row
 
@@ -568,16 +579,13 @@ BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
                                       # control strip by a third of the
                                       # case's own depth
 
-# ON THE TUBE'S AXIS, NOT THE CASE'S. The case is wider than its screen by
-# the right-hand reveal, so a bell centered on the case sits off the tube it
-# houses -- it centers on the screen opening and lands a half-reveal left.
-# And its edges are barely broken: the real housing is an angular sheet-
-# steel-looking molding, not a pillow.
-BELL_CX = DX * 0.5
-
+# On the tube's axis (BELL_CX, set with the column), edges barely broken --
+# the real housing is an angular molding, not a pillow -- and the sides
+# nearly PARALLEL: a few degrees of draw, not a funnel. The top keeps its
+# strong slope; that is the bell's whole silhouette.
 bell = cq.Solid.makeLoft ([
-    round_rect_wire (D - 80.0, BELL_CX - 128.0, BELL_CX + 128.0, 90.0, 195.0, 5.0),
-    round_rect_wire (BELL_REAR_Y, BELL_CX - 96.0, BELL_CX + 96.0, 95.0, 150.0, 4.0),
+    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 195.0, 5.0),
+    round_rect_wire (BELL_REAR_Y, BELL_CX - 98.0, BELL_CX + 98.0, 95.0, 150.0, 4.0),
 ])
 
 m.add ("bell", cq.Workplane (obj=bell), BELL_GRAY, angular=CORNER_ANG)
@@ -649,10 +657,10 @@ for _stripe, _solids in sorted (_by_stripe.items()):
 # scene's branding is the cassowary, not a wall of small print.
 m.add ("rear_label",
        vent_face (cq.Workplane ("XY")
-                    .box (94.0, 1.4, 38.0, centered=(False, False, False))
+                    .box (94.0, 1.4, 30.0, centered=(False, False, False))
                     .edges ("|Y").fillet (2.0)
                     .translate ((BELL_CX - 47.0, D - VENT_IN_BOT + 1.2,
-                                 STRIP_TOP + SLOPE_LEN - 54.0))),
+                                 STRIP_TOP + SLOPE_LEN - 65.0))),
        LABEL_GRAY, angular=CORNER_ANG)
 
 # ------------------------------------------------- the embossed control row
