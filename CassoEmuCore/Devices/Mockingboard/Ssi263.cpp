@@ -8,79 +8,80 @@
 // photographs of the SSI 263P. Each phoneme stores six 4-bit fields (F1, F2,
 // F3 filter codes, vocal and fricative amplitudes, nasal coupling) plus
 // voiced/fricative/closure flags; the raw extraction lives in the repo under
-// specs. Filter codes become Hz through affine fits anchored to the
-// acoustic-phonetics literature (F1 = 264 + 27.9c, F2 = 820 + 97.4c,
-// F3 = 1360 + 94.4c) -- rank order is the silicon's, the Hz scale is the
-// fit's until the capacitor weights are traced. Levels are max(VA, FA)/15;
-// the two closure-hold phonemes keep level 0 because the closure ramp the
-// hardware applies is not modeled here. Still replaceable wholesale via
+// specs. Filter codes become Hz through the SC-01A's measured capacitor
+// network (the 2007 decap, as modeled by MAME): the two chips demonstrably
+// share one code scale -- 22 of 46 name-matched phonemes carry identical
+// formant codes -- so the predecessor's silicon-true DAC curves replace the
+// earlier literature-fitted lines. Levels are max(VA, FA)/15; the two
+// closure-hold phonemes keep level 0 because the closure ramp the hardware
+// applies is not modeled here. Still replaceable wholesale via
 // SetFormantTable when better-calibrated data arrives.
 static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 {
     {    0,    0,    0, false, false, 0.00f },   // 00 PA   (pause)
-    {  319, 2184, 2682, true,  false, 0.80f },   // 01 E    meet
-    {  403, 2184, 2588, true,  false, 0.67f },   // 02 E1   bent
-    {  291, 2086, 2682, true,  false, 0.73f },   // 03 Y    before
-    {  319, 1989, 2399, true,  false, 0.40f },   // 04 YI   year
-    {  347, 2184, 2682, true,  false, 0.80f },   // 05 AY   please
-    {  291, 2281, 2776, true,  false, 0.60f },   // 06 IE   any
-    {  403, 1794, 2493, true,  false, 0.53f },   // 07 I    six
-    {  431, 1892, 2399, true,  false, 0.53f },   // 08 A    made
-    {  431, 1697, 2304, true,  false, 0.53f },   // 09 AI   care
-    {  515, 1600, 2399, true,  false, 0.53f },   // 0A EH   nest
-    {  542, 1697, 2399, true,  false, 0.53f },   // 0B EH1  belt
-    {  626, 1697, 2399, true,  false, 0.40f },   // 0C AE   dad
-    {  682, 1502, 2399, true,  false, 0.40f },   // 0D AE1  after
-    {  682, 1112, 2399, true,  false, 0.40f },   // 0E AH   got
-    {  682, 1210, 2399, true,  false, 0.47f },   // 0F AH1  father
-    {  626, 1015, 2304, true,  false, 0.40f },   // 10 AW   office
-    {  459,  918, 2399, true,  false, 0.53f },   // 11 O    store
-    {  403,  918, 2399, true,  false, 0.60f },   // 12 OU   boat
-    {  487, 1015, 2304, true,  false, 0.53f },   // 13 OO   look
-    {  347, 1405, 2304, true,  false, 0.67f },   // 14 IU   you
-    {  375, 1210, 2304, true,  false, 0.60f },   // 15 IU1  could
-    {  347,  918, 2116, true,  false, 0.67f },   // 16 U    tune
-    {  291,  820, 2021, true,  false, 0.67f },   // 17 U1   cartoon
-    {  487, 1210, 2399, true,  false, 0.67f },   // 18 UH   wonder
-    {  542, 1112, 2399, true,  false, 0.53f },   // 19 UH1  love
-    {  598, 1112, 2399, true,  false, 0.40f },   // 1A UH2  what
-    {  598, 1307, 2399, true,  false, 0.47f },   // 1B UH3  nut
-    {  431, 1210, 1644, true,  false, 0.53f },   // 1C ER   bird
-    {  347,  918, 1455, true,  false, 0.53f },   // 1D R    roof
-    {  319, 1112, 1738, true,  false, 0.53f },   // 1E R1   rug
-    {  459, 1405, 2210, true,  false, 0.40f },   // 1F R2   mutter
-    {  347, 1112, 2682, true,  false, 0.47f },   // 20 L    lift
-    {  291, 1307, 2776, true,  false, 0.53f },   // 21 L1   play
-    {  403,  918, 2682, true,  false, 0.60f },   // 22 LF   fall
-    {  347,  820, 2210, true,  false, 0.53f },   // 23 W    water
-    {  291, 1112, 2493, true,  false, 0.53f },   // 24 B    bag
-    {  291, 1697, 2682, true,  false, 0.53f },   // 25 D    paid
-    {  347, 1794, 2116, true,  false, 0.67f },   // 26 KV   tag
-    {  375, 1015, 2116, false, true,  1.00f },   // 27 P    pen
-    {  375, 1697, 2682, false, true,  1.00f },   // 28 T    tart
-    {  347, 1794, 2116, false, true,  0.27f },   // 29 K    kit
-    {  459, 1697, 2493, true,  false, 0.40f },   // 2A HV   (hold vocal)
-    {  459, 1697, 2493, true,  false, 0.00f },   // 2B HVC  (hold vocal closure)
-    {  459, 1697, 2493, false, true,  0.53f },   // 2C HF   heart
-    {  459, 1697, 2493, false, true,  0.00f },   // 2D HFC  (hold fricative closure)
-    {  459, 1697, 2493, true,  false, 0.27f },   // 2E HN   (hold nasal)
-    {  347, 1015, 2588, true,  true,  0.67f },   // 2F Z    zero
-    {  264, 1502, 2493, false, true,  1.00f },   // 30 S    same
-    {  319, 1892, 2682, true,  true,  0.67f },   // 31 J    measure
-    {  319, 1892, 2682, false, true,  0.40f },   // 32 SCH  ship
-    {  319, 1112, 2210, true,  true,  0.27f },   // 33 V    very
-    {  319, 1112, 2210, false, true,  0.27f },   // 34 F    four
-    {  347, 1502, 2682, true,  true,  0.13f },   // 35 THV  there
-    {  403, 1600, 2304, false, true,  0.13f },   // 36 TH   with
-    {  264, 1112, 2210, true,  false, 0.67f },   // 37 M    more
-    {  264, 1600, 2588, true,  false, 0.53f },   // 38 N    nine
-    {  319, 1989, 2682, true,  false, 0.27f },   // 39 NG   rang
-    {  459, 1697, 2304, true,  false, 0.53f },   // 3A :A   maerchen
-    {  319, 1600, 2210, true,  false, 0.40f },   // 3B :OH  loewe
-    {  291, 1502, 2210, true,  false, 0.67f },   // 3C :U   fuenf
-    {  264, 1697, 2304, true,  false, 0.67f },   // 3D :UH  menu
-    {  431, 1502, 2304, true,  false, 0.47f },   // 3E E2   bitte
-    {  291,  918, 2682, true,  false, 0.53f },   // 3F LB   lube
+    {  314, 2330, 2756, true,  false, 0.80f },   // 01 E    meet
+    {  446, 2330, 2677, true,  false, 0.67f },   // 02 E1   bent
+    {  256, 2257, 2756, true,  false, 0.73f },   // 03 Y    before
+    {  314, 2174, 2511, true,  false, 0.40f },   // 04 YI   year
+    {  365, 2330, 2756, true,  false, 0.80f },   // 05 AY   please
+    {  256, 2408, 2832, true,  false, 0.60f },   // 06 IE   any
+    {  446, 2007, 2598, true,  false, 0.53f },   // 07 I    six
+    {  482, 2096, 2511, true,  false, 0.53f },   // 08 A    made
+    {  482, 1922, 2425, true,  false, 0.53f },   // 09 AI   care
+    {  577, 1823, 2511, true,  false, 0.53f },   // 0A EH   nest
+    {  605, 1922, 2511, true,  false, 0.53f },   // 0B EH1  belt
+    {  683, 1922, 2511, true,  false, 0.40f },   // 0C AE   dad
+    {  731, 1730, 2511, true,  false, 0.40f },   // 0D AE1  after
+    {  731, 1261, 2511, true,  false, 0.40f },   // 0E AH   got
+    {  731, 1387, 2511, true,  false, 0.47f },   // 0F AH1  father
+    {  683, 1106, 2425, true,  false, 0.40f },   // 10 AW   office
+    {  516,  943, 2511, true,  false, 0.53f },   // 11 O    store
+    {  446,  943, 2511, true,  false, 0.60f },   // 12 OU   boat
+    {  546, 1106, 2425, true,  false, 0.53f },   // 13 OO   look
+    {  365, 1620, 2425, true,  false, 0.67f },   // 14 IU   you
+    {  406, 1387, 2425, true,  false, 0.60f },   // 15 IU1  could
+    {  365,  943, 2244, true,  false, 0.67f },   // 16 U    tune
+    {  256,  722, 2142, true,  false, 0.67f },   // 17 U1   cartoon
+    {  546, 1387, 2511, true,  false, 0.67f },   // 18 UH   wonder
+    {  605, 1261, 2511, true,  false, 0.53f },   // 19 UH1  love
+    {  657, 1261, 2511, true,  false, 0.40f },   // 1A UH2  what
+    {  657, 1514, 2511, true,  false, 0.47f },   // 1B UH3  nut
+    {  482, 1387, 1696, true,  false, 0.53f },   // 1C ER   bird
+    {  365,  943, 1424, true,  false, 0.53f },   // 1D R    roof
+    {  314, 1261, 1822, true,  false, 0.53f },   // 1E R1   rug
+    {  516, 1620, 2336, true,  false, 0.40f },   // 1F R2   mutter
+    {  365, 1261, 2756, true,  false, 0.47f },   // 20 L    lift
+    {  256, 1514, 2832, true,  false, 0.53f },   // 21 L1   play
+    {  446,  943, 2756, true,  false, 0.60f },   // 22 LF   fall
+    {  365,  722, 2336, true,  false, 0.53f },   // 23 W    water
+    {  256, 1261, 2598, true,  false, 0.53f },   // 24 B    bag
+    {  256, 1922, 2756, true,  false, 0.53f },   // 25 D    paid
+    {  365, 2007, 2244, true,  false, 0.67f },   // 26 KV   tag
+    {  406, 1106, 2244, false, true,  1.00f },   // 27 P    pen
+    {  406, 1922, 2756, false, true,  1.00f },   // 28 T    tart
+    {  365, 2007, 2244, false, true,  0.27f },   // 29 K    kit
+    {  516, 1922, 2598, true,  false, 0.40f },   // 2A HV   (hold vocal)
+    {  516, 1922, 2598, true,  false, 0.00f },   // 2B HVC  (hold vocal closure)
+    {  516, 1922, 2598, false, true,  0.53f },   // 2C HF   heart
+    {  516, 1922, 2598, false, true,  0.00f },   // 2D HFC  (hold fric closure)
+    {  516, 1922, 2598, true,  false, 0.27f },   // 2E HN   (hold nasal)
+    {  365, 1106, 2677, true,  true,  0.67f },   // 2F Z    zero
+    {  176, 1730, 2598, false, true,  1.00f },   // 30 S    same
+    {  314, 2096, 2756, true,  true,  0.67f },   // 31 J    measure
+    {  314, 2096, 2756, false, true,  0.40f },   // 32 SCH  ship
+    {  314, 1261, 2336, true,  true,  0.27f },   // 33 V    very
+    {  314, 1261, 2336, false, true,  0.27f },   // 34 F    four
+    {  365, 1730, 2756, true,  true,  0.13f },   // 35 THV  there
+    {  446, 1823, 2425, false, true,  0.13f },   // 36 TH   with
+    {  176, 1261, 2336, true,  false, 0.67f },   // 37 M    more
+    {  176, 1823, 2677, true,  false, 0.53f },   // 38 N    nine
+    {  314, 2174, 2756, true,  false, 0.27f },   // 39 NG   rang
+    {  516, 1922, 2425, true,  false, 0.53f },   // 3A :A   maerchen
+    {  314, 1823, 2336, true,  false, 0.40f },   // 3B :OH  loewe
+    {  256, 1730, 2336, true,  false, 0.67f },   // 3C :U   fuenf
+    {  176, 1922, 2425, true,  false, 0.67f },   // 3D :UH  menu
+    {  482, 1730, 2425, true,  false, 0.47f },   // 3E E2   bitte
+    {  256,  943, 2756, true,  false, 0.53f },   // 3F LB   lube
 };
 
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
@@ -734,7 +735,7 @@ float Ssi263::Excitation()
         // vowels (OU, :OH) audible next to open ones (AH, AE) while leaving
         // the natural open-vowels-are-louder tendency in place. Glided F1 is
         // used so the correction moves smoothly through transitions.
-        src *= static_cast<float> (682.0 / std::max (m_fCur[0], 250.0));
+        src *= static_cast<float> (731.0 / std::max (m_fCur[0], 170.0));
     }
 
     return src;

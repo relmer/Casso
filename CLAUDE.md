@@ -15,18 +15,16 @@ Enhanced (deployed via the embedded-config version bump — editing
 Resources/*.json alone ships NOTHING), the VIA CA1/CB1 seam, the speech demo
 disk, and Hardware-tab product naming. First light achieved audibly.
 
-Still open on the spec: T040/T060 (title regression + acceptance sets — need
-acquired period software, local gates). Phase 8 accuracy: **the phoneme ROM
-has been read off the visual6502 die shot** — matrix, method, and identified
-semantics (mirrored column map, voiced/fricative/closure flags, duration
-cluster) in `specs/024-mockingboard-speech/rom-extraction/`; open work is the
-formant/amplitude field decode (patent route next; full-res master request
-drafted at `specs/024-mockingboard-speech/visual6502-request-draft.md`,
-unsent, now for confirmation). The voice still uses the phonetics-literature
-formant table until the fields decode; the table is a swappable input.
-Related: GH #125 (audio pops are DEVICE-PATH starvation, not synthesis —
-proven with the `CASSO_AUDIO_DUMP` tap vs loopback capture; fix is a
-dedicated render pump).
+**024 SHIPPED in 1.19.0** (merged to master; GH #123 and #125 closed). The
+phoneme ROM was read off the visual6502 die shot and **fully decoded**: six
+significance-interleaved 4-bit fields (F1/F2/F3 filter codes, VA, FA, nasal)
+plus closure/class/fricative/voiced flags, cross-validated against the
+SC-01A decap (22/46 identical formant-code triplets, closure 46/46), whose
+measured capacitor network now supplies the code-to-Hz mapping. Data,
+method, plate, and comparison: `specs/024-mockingboard-speech/rom-extraction/`.
+Audio clicks were fixed by the dedicated event-driven WASAPI render pump
+(#125). Still open on the spec: T040/T060 (title regression + acceptance
+sets — need acquired period software, local gates).
 
 **Also active: `specs/020-disk-file-access`** (IMPLEMENTED, unmerged) --
 disk file access for the
