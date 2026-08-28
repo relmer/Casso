@@ -152,6 +152,35 @@ Decimal-mode `ADC`/`SBC` flag behavior is the classic hiding place.
 For the load/store/transfer/branch bulk, 200 and 10,000 are both
 comprehensively sufficient.
 
+### When the full set is required
+
+**Run the full 10,000-vector set for any change to CPU behavior or the
+instruction set.** That means new or changed opcodes, addressing modes, flag
+handling, decimal mode, cycle counts, interrupt timing, or anything in
+`Cpu`, `CpuOperations`, `Cpu65C02` and the tables they read. The reduced set
+samples 2% of each opcode's vectors; the bugs that matter here are usually
+one flag wrong in one corner, and that is exactly what a sample misses.
+
+Everything else runs fine against the checked-in reduced set. Disk, video,
+audio, UI and assembler work does not touch the CPU, so paying eight extra
+minutes per run buys nothing.
+
+**The full set can be switched off by renaming its directory**, which is
+worth doing while working on anything else, because it takes the Debug suite
+from about nine minutes to under four:
+
+```powershell
+#  Off: the runner falls back to the checked-in 200-vector set
+Rename-Item "$env:LOCALAPPDATA\Casso\HarteTests" "HarteTests.off"
+
+#  Back on, before touching the CPU
+Rename-Item "$env:LOCALAPPDATA\Casso\HarteTests.off" "HarteTests"
+```
+
+Renaming rather than deleting keeps the 1.7 GB download from having to be
+paid again. The runner prints which depth it used on every run, so a full
+run cannot be mistaken for a reduced one.
+
 ### Getting the full set
 
 ```powershell

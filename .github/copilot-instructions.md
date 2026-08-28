@@ -625,6 +625,12 @@ the pre-merge gate.
 - These suites validate end-to-end correctness beyond the unit test suite
 - "Significant" includes: refactors, new instructions, addressing mode changes,
   assembler directive changes, expression evaluation changes, and binary output changes
+- **CPU or instruction-set changes must run Harte at FULL depth**, 10,000
+  vectors per opcode, not the 200-vector set checked into the repo. The full
+  set lives in `%LOCALAPPDATA%\Casso\HarteTests` and is often renamed to
+  `HarteTests.off` to keep the ordinary suite fast, so rename it back before
+  starting CPU work. The runner prints which depth it ran. See
+  [docs/testing.md](../docs/testing.md)
 
 ## Commit Messages
 
