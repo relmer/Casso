@@ -405,19 +405,21 @@ REAR_RIM   = 15.0                     # case border above the dark column
 # left than on its right.
 BELL_CX = DX * 0.5
 
-# THE RECESS FITS INSIDE THE BELL'S FLAT TOP, which is what lets its side
-# walls run down and MERGE INTO that top instead of past it. Wider, and
-# beside the bell there is a strip of pocket floor with nothing to stop it:
-# it drops to the pocket's own bottom, and the step between that floor and
-# the bell surface is the line that kept crossing the bell.
+# ONE WIDTH FOR EVERY DARK THING BACK HERE, and the bell is one of them.
+# The rear molding, the vent recess, the control panel and the bell all
+# take their width from this half-width, so the dark column never changes
+# width between the vents and the receptacle. The bell had been a separate
+# 210 against a 200 column and bulged five millimeters past it on each
+# side -- the last remaining step, and the one that made every width fix
+# above look like it had not worked.
 #
-# The number is solved, not chosen. The bell's top edge crosses the slope
-# at z 169.8 / y 208.6; the loft is 102.6 half-wide there and its corner
-# radius is 4.7, so its FLAT top spans only 98 -- the rounding is why the
-# bell's usable width is eleven less than the 105 its front wire suggests,
-# and why matching the wire alone still left a step. A hair inside that
-# lands the walls on the flat.
-COL_HW  = 97.0
+# The recess OPENING is COL_HW; the molding runs DARK_BLEED wider so the
+# opening's walls are dark too; and BELL_HW equals COL_HW + DARK_BLEED, so
+# the bell's flank and the molding's edge are the same line. The bell's
+# flat top -- its half-width less its corner radius -- still has to cover
+# the recess opening, which is what keeps the recess walls landing on the
+# bell instead of past it.
+COL_HW  = 94.0
 
 
 def tilt_rear(wp):
@@ -505,9 +507,14 @@ DARK_BLEED = 3.0
 # there is no single height that does both, because the bell's top is a
 # slanted line and a pocket floor is a plane. Cutting with the part removes
 # the choice.
+BELL_HW = COL_HW + DARK_BLEED         # the molding's own edge, exactly
+BELL_R  = 2.0                         # barely broken: an angular molding
+
 _bell_solid = cq.Solid.makeLoft ([
-    round_rect_wire (D - 80.0, BELL_CX - 105.0, BELL_CX + 105.0, 90.0, 180.0, 5.0),
-    round_rect_wire (D + BELL_BACK, BELL_CX - 98.0, BELL_CX + 98.0, 95.0, 150.0, 4.0),
+    round_rect_wire (D - 80.0, BELL_CX - BELL_HW, BELL_CX + BELL_HW,
+                     90.0, 180.0, BELL_R),
+    round_rect_wire (D + BELL_BACK, BELL_CX - (BELL_HW - 2.0), BELL_CX + (BELL_HW - 2.0),
+                     95.0, 150.0, BELL_R),
 ])
 
 
