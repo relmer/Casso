@@ -90,7 +90,14 @@ BAND         = 0.50 * 25.4        # the flat front band's width
 RAKE_DEG     = 60.0               # 90 would be straight back into the case
 TUBE_DROP    = PROTRUDE           # so the tube's rim lands on the case face
 BEZEL_FILLET = 3.0                # the bezel's outer corners
-OPEN_FILLET  = BEZEL_FILLET + GAP  # and the case opening's, one gap outside
+
+# THE SAME RADIUS, deliberately -- not radius-plus-gap. Offsetting the
+# opening's corner by the gap keeps the clearance constant around the bend,
+# which is the machinist's answer; but molded plastic is drawn with one
+# corner radius shared between a part and the opening that receives it, and
+# radius-plus-gap read as the frame's corners being visibly rounder than the
+# bezel sitting in them.
+OPEN_FILLET  = BEZEL_FILLET
 MOUTH_R      = 14.0               # the opening's corner radius: a tube face
                                   # is a rounded rectangle, and the funnel
                                   # follows it around
