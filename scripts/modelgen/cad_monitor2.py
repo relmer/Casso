@@ -266,9 +266,21 @@ m = Model()
 # --------------------------------------------------------------------- case
 
 # A solid box, edges softened, then hollowed from the front and cut through.
+#
+# BOTH SETS OF EDGES, and both here at the top rather than after the cuts.
+# The four long corners running front to back take the big radius; the front
+# face's whole perimeter -- where it meets the top, the sides and the
+# underside -- takes a smaller one. Rounded now, while the case is still a
+# plain box, they cost one fillet each and cannot fail; left until after the
+# cavity, the notch, the groove and the slope have all been taken out of it,
+# the same edges have no selector that names them and a blanket fillet across
+# what is left refuses outright.
+CASE_FRONT_R = 1.5
+
 case = (cq.Workplane("XY")
         .box(W, D, H, centered=(False, False, False))
-        .edges("|Y").fillet(3.0))
+        .edges("|Y").fillet(3.0)
+        .edges("<Y").fillet(CASE_FRONT_R))
 
 # The screen cavity: a pocket back from the front face. Cutting it is what
 # makes the opening a hole -- the failure mode of the hand-built version was
@@ -302,6 +314,23 @@ case = case.cut(
 case = case.cut(
     cq.Workplane("XY").box(NOTCH_W, NOTCH_D, NOTCH_H + 2.0, centered=(False, False, False))
       .translate((NX0, -NOTCH_OVERCUT, NZ0)))
+
+# The notch's MOUTH is broken over, not left as a knife edge. Selected by a
+# thin slab across the front face around the opening rather than by a face
+# selector, because after this many cuts the case has no edge set that names
+# this opening on its own. A refusal is survivable -- the notch is merely
+# sharp then -- but it says so, the way the front relief does.
+NOTCH_EDGE_R = 0.7
+
+try:
+    case = (case.edges(cq.selectors.BoxSelector(
+                (NX0 - 2.0, -NOTCH_OVERCUT - 1.0, NZ0 - 2.0),
+                (NX0 + NOTCH_W + 2.0, 1.5, H + 2.0)))
+                .fillet(NOTCH_EDGE_R))
+except Exception as exc:
+    print(f"WARNING: power notch mouth: round-over FAILED "
+          f"({type(exc).__name__}: {exc}) -- shipping it SHARP",
+          file=sys.stderr)
 
 # The brand recess, down the strip below the icons: a shallow rounded-corner
 # pocket exactly RIDGE_H deep. The scene stands the cassowary in it at the
@@ -498,6 +527,16 @@ case = case.cut (
                     max (0.5, 3.0 - RING_D))),
                 cq.Vector (0.0, RING_W + 2.0, 0.0)))))
 
+# ...and the reveal's divider does not stop at the top of the front face. It
+# turns the corner and runs back across the roof until it meets the ring,
+# which is what closes the reveal as a shape: a strip drawn off the front and
+# over the top, rather than a line that dies at an edge. Same half-round
+# channel, same radius, same axis in x -- only the direction it runs changes.
+case = case.cut (
+    cq.Workplane ("XY")
+      .cylinder (RING_Y + 1.0, GROOVE_R, direct=(0, 1, 0), centered=(True, True, False))
+      .translate ((DX + GROOVE_R, -1.0, H)))
+
 # ------------------------------------------------------------ control panel
 #
 # The vertical strip under the slope carries the controls on a LIGHTER inset
@@ -621,17 +660,11 @@ WHEEL_CX     = W - WHEEL_R + WHEEL_PROUD
 # does when a hole lands on its parting line.
 WHEEL_CY     = 23.0
 
-# KNURLED, and not only because the real control is. A smooth cylinder this
-# size hands the eye one broad specular band, and the shader's specular is
-# additive white: the sliver washed out to a neutral near-white that read as
-# the wrong material entirely, even though its Kd matched the power button's
-# byte for byte. The ribs break that one band into many small ones, and the
-# tint survives. Compounded with the barrel rather than unioned onto it --
-# interpenetrating solids in one part tessellate fine and cost nothing, the
-# rear knobs' lesson.
-WHEEL_RIBS   = 32
-WHEEL_RIB_W  = 1.0
-WHEEL_RIB_D  = 0.7
+# SMOOTH. It was knurled for a while, to break up a broad white specular
+# band -- and that was a fix for the wrong fault: the wash was a stale .mtl
+# leaving the mesh naming a material that did not exist, which falls back to
+# white. With the material actually shipped, the barrel carries its tint on
+# its own, and the ribs were left reading as coarse steps at this size.
 
 # The opening is CONCENTRIC WITH THE WHEEL and a millimeter clear all round,
 # the //c's lesson: the gap reads dark, the case shadows the rim across it,
@@ -648,20 +681,11 @@ m.add("case", case, BEIGE, angular=CORNER_ANG)
 
 # The wheel itself, in the power button's warmer gray -- it is the same
 # molding family as the button, not the case's beige...
-_wribs = [cq.Workplane ("XY")
-            .cylinder (WHEEL_T, WHEEL_R, direct=(0, 1, 0))
-            .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ))
-            .val()]
-
-for _k in range (WHEEL_RIBS):
-    _wribs.append (cq.Workplane ("XY")
-                     .box (WHEEL_RIB_W, WHEEL_T - 1.0, WHEEL_RIB_D)
-                     .translate ((0.0, 0.0, WHEEL_R))
-                     .rotate ((0, 0, 0), (0, 1, 0), _k * (360.0 / WHEEL_RIBS))
-                     .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ))
-                     .val())
-
-m.add ("contrast_wheel", cq.Compound.makeCompound (_wribs), BEZEL_DK, angular=0.05)
+m.add ("contrast_wheel",
+       cq.Workplane ("XY")
+         .cylinder (WHEEL_T, WHEEL_R, direct=(0, 1, 0))
+         .translate ((WHEEL_CX, WHEEL_CY, CONTRAST_CZ)),
+       BEZEL_DK, angular=0.05)
 
 # ...and the opening wears a dark sleeve, so the clearance around the wheel
 # reads as a deep cut on every side rather than as beige seen edge-on. It is
@@ -1193,10 +1217,13 @@ m.add("cavity", lining, CAVITY)
 BAND_X0, BAND_X1 = BX0 + BAND, BX1 - BAND
 BAND_Z0, BAND_Z1 = BZ0 + BAND, BZ1 - BAND
 
+BEZEL_FRONT_R = 1.2
+
 bezel = (cq.Workplane("XY")
          .box(BX1 - BX0, PROTRUDE + CAVITY_D * 0.5, BZ1 - BZ0, centered=(False, False, False))
          .translate((BX0, -PROTRUDE, BZ0))
-         .edges("|Y").fillet(BEZEL_FILLET))
+         .edges("|Y").fillet(BEZEL_FILLET)
+         .edges("<Y").fillet(BEZEL_FRONT_R))
 
 # Rounded loft sections, so the funnel's own corners -- the ones running
 # front-to-back from the band down to the tube -- come out radiused without
@@ -1267,14 +1294,17 @@ m.add_triangles("glass",
 # The button, locked down: it fills the lower part of the notch and stands
 # proud of the notch floor, not of the case.
 #
-# Only the TOP corners are rounded. The bottom of the button travels down
-# into the frame when it is pushed, so that end is a sliding fit inside the
-# notch and never presents a molded edge to round -- rounding it read as a
-# free-standing tab rather than something that disappears into the case.
+# The WHOLE TOP RIM is rounded -- front and rear edges as well as the two
+# sides. The bottom of the button travels down into the frame when it is
+# pushed, so that end is a sliding fit inside the notch and never presents a
+# molded edge to round; rounding it read as a free-standing tab rather than
+# something that disappears into the case. Everything above the frame line,
+# though, is molded surface, and a molded outside corner in plastic is the
+# exception rather than the rule.
 button = (cq.Workplane("XY")
           .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
           .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 + 1.0))
-          .edges("|Y and >Z").fillet(1.5))
+          .edges(">Z").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)
 
