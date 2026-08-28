@@ -1524,28 +1524,33 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
             {
                 const JsonValue *  uiPrefs   = nullptr;
                 std::string        colorMode;
-                WORD               colorCmd  = 0;
+
+                // THE DEFAULT, not zero: a machine with no saved color mode
+                // must still be told what to show. Leaving it unset applied
+                // nothing at all, and what the screen kept was the mode of
+                // the machine being switched AWAY from -- which is how the
+                // //c came up green after an //e and white after an Enhanced
+                // //e, with nothing about the //c deciding either. The same
+                // "only if the key exists" test is correct on the BOOT path,
+                // where the live value starts at Color rather than at some
+                // other machine's.
+                WORD               colorCmd  = IDM_VIEW_COLOR;
 
                 if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
                     uiPrefs != nullptr &&
                     uiPrefs->HasString ("colorMode", colorMode))
                 {
-                    if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
-                    else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
+                    if      (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
                     else if (colorMode == "amber")  { colorCmd = IDM_VIEW_AMBER; }
                     else if (colorMode == "white")  { colorCmd = IDM_VIEW_WHITE; }
-
-                    if (colorCmd != 0)
-                    {
-                        // SwitchMachine runs on the CPU thread: route through
-                        // the message loop, not HandleCommand directly -- the
-                        // command dispatcher is a UI-thread surface (today the
-                        // color handler is an atomic store, but anything added
-                        // to it would inherit this thread; see the
-                        // ApplyDefaultPointerForMachine assert).
-                        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
-                    }
                 }
+
+                // SwitchMachine runs on the CPU thread: route through the
+                // message loop, not HandleCommand directly -- the command
+                // dispatcher is a UI-thread surface (today the color handler
+                // is an atomic store, but anything added to it would inherit
+                // this thread; see the ApplyDefaultPointerForMachine assert).
+                PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
 
                 // //c external drive: adopt the switched-to machine's persisted
                 // connected state so the second drive-mount widget matches the
@@ -1840,6 +1845,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+
+    // Same rule as the color mode: a machine with no saved speed gets the
+    // default, never the outgoing machine's.
+    if (speedCmd == 0)
+    {
+        speedCmd = IDM_MACHINE_SPEED_1X;
+    }
 
     if (speedCmd != 0)
     {
