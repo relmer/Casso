@@ -215,7 +215,13 @@ RELIEF_ROUND = min (0.35, RIDGE_W * 0.45, RIDGE_H * 0.4)
 # the setback stays put instead of the face sinking into the pocket.
 BTN_SETBACK = 1.0
 BTN_BACKGAP = 2.0
-BTN_D       = NOTCH_D - BTN_SETBACK - BTN_BACKGAP
+
+# The button's BACK FACE is the fixed end -- it rides against the rear of the
+# notch and always has -- so halving its depth takes the front forward, not
+# the back backward. Anchoring the front instead would have slid the whole
+# button out of the pocket it sits in.
+BTN_REAR_Y  = NOTCH_D - BTN_BACKGAP
+BTN_D       = (NOTCH_D - BTN_SETBACK - BTN_BACKGAP) * 0.5
 
 # Equal margins beside the notch: groove's inner edge to the notch's left
 # equals the notch's right to the frame's right edge, the edge roll counted
@@ -1267,7 +1273,7 @@ m.add_triangles("glass",
 # free-standing tab rather than something that disappears into the case.
 button = (cq.Workplane("XY")
           .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
-          .translate((NX0 + 1.5, BTN_SETBACK, NZ0 + 1.0))
+          .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 + 1.0))
           .edges("|Y and >Z").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)
@@ -1281,10 +1287,14 @@ m.add("button", button, BEZEL_DK)
 # face, which left it floating 21.9 mm clear of the wall it is supposed to
 # be attached to -- a lamp hanging in the mouth of the pocket rather than
 # fixed at the back of it.
+#
+# Trimmed once more, and by half: at 14.4 it spanned most of the notch's
+# width and read as a light bar rather than an indicator.
 LED_T = 1.4
+LED_W = 7.2
 led = (cq.Workplane("XY")
-       .box(14.4, LED_T, 3.5, centered=(False, False, False))
-       .translate((NX0 + (NOTCH_W - 14.4) * 0.5, NOTCH_REAR_Y - LED_T,
+       .box(LED_W, LED_T, 3.5, centered=(False, False, False))
+       .translate((NX0 + (NOTCH_W - LED_W) * 0.5, NOTCH_REAR_Y - LED_T,
                    NZ0 + NOTCH_H - 5.7)))
 
 m.add("led", led, KD["monitor_lamp"])
