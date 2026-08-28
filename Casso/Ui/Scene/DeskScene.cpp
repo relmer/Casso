@@ -484,6 +484,7 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         for (int i = 0; i < 3; i++)
         {
             lighting.lampColor[i] = lampRgb[i] * kLampLightGain;
+            lighting.lampCap[i]   = lampRgb[i];
         }
 
         // Which lamp map: the monitor's and the drive's are different lamps in

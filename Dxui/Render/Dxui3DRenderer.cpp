@@ -75,6 +75,31 @@ static const char s_kPixelShaderSrc[] =
     "    row_major float4x4 lampShadow;\n"
     "    float4 lampShadowParm;   // x texel (0 disables), y bias\n"
     "    float4 parm3;            // x pebble pitch (mm), y pebble amount\n"
+    // THE SPILL'S CEILING, per channel: the lens's own color, and only as
+    // much of it as the surface has ROOM for.
+    //
+    // A LAMP MAY ONLY FILL THE HEADROOM THAT IS LEFT, tinted by its own
+    // color. The light term is scaled by the receiving surface's own base
+    // color, which is what lets one gain read as a lamp on black plastic and
+    // as a flashlight on cream -- so a cream wall a few millimeters from an
+    // indicator takes several times full white and blows out to a flat
+    // supernova while the lens itself sits at its own quiet green. The
+    // Monitor II's power notch is that case exactly: the first lamp in the
+    // scene mounted INSIDE a pocket, with the pocket's walls squarely facing
+    // it at point-blank range.
+    //
+    // Capping against the remaining headroom rather than against a flat value
+    // is what leaves every lamp that was tuned on DARK plastic exactly where
+    // it was: black has nearly all its range still to climb, so its spill
+    // never reaches the ceiling and never notices it. Only the pathological
+    // bright-surface case is clipped, which is the only case that was wrong.
+    //
+    // HALF the headroom, not all of it. A lamp whose color runs to 1.0 in a
+    // channel -- and an indicator green does -- would otherwise drive that
+    // channel to exactly full on any surface it reaches, which is a clipped
+    // plateau wearing a tint rather than a light. Half leaves every channel
+    // room to still be graded by distance and angle.
+    "    float4 lampCap;          // xyz spill ceiling; the lens's own color\n"
     "};\n"
     "Texture2D              shadowTex0 : register(t1);\n"
     "Texture2D              shadowTex1 : register(t2);\n"
@@ -305,8 +330,11 @@ static const char s_kPixelShaderSrc[] =
     "                        }\n"
     "                    }\n"
     "                }\n"
-    "                lit += base.rgb * lampCol.rgb * emit * recv * fade * lvis *\n"
-    "                       (lampPos.w * lampPos.w) / (rr * rr);\n"
+    "                float3 spill = base.rgb * lampCol.rgb * emit * recv\n"
+    "                             * fade * lvis\n"
+    "                             * (lampPos.w * lampPos.w) / (rr * rr);\n"
+    "                float3 head = saturate (1.0f - lit);\n"
+    "                lit += min (spill, head * lampCap.rgb * 0.5f);\n"
     "            }\n"
     "        }\n"
     "    }\n"
@@ -745,7 +773,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         // every device in its own model space, so the light positions change
         // with each device rather than once per frame -- and so do the two
         // shadow matrices, which carry that device's placement.
-        cb.ByteWidth = 25 * 4 * sizeof (float);
+        cb.ByteWidth = 26 * 4 * sizeof (float);
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
@@ -1609,7 +1637,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     {
-        float  lightCb[100] =
+        float  lightCb[104] =
         {
             m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
@@ -1650,6 +1678,11 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[97] = m_lighting.pebbleAmount;
         lightCb[98] = m_lighting.pebbleCavity;
         lightCb[99] = m_lighting.pebbleShadow;
+
+        lightCb[100] = m_lighting.lampCap[0];
+        lightCb[101] = m_lighting.lampCap[1];
+        lightCb[102] = m_lighting.lampCap[2];
+        lightCb[103] = 0.0f;
 
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);

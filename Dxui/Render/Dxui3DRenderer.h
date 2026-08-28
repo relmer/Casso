@@ -113,6 +113,11 @@ public:
         // different direction.
         float  lampWrap     = 0.0f;
 
+        // The spill's ceiling, per channel: nothing the lamp lights may come
+        // out brighter than the lamp itself. Effectively off by default, so
+        // a caller that never sets it gets the light it always got.
+        float  lampCap[3]   = { 1.0e9f, 1.0e9f, 1.0e9f };
+
         // Shadow lookup, one matrix per room light. Each takes THIS draw's
         // vertex positions straight to that light's clip space (row-vector:
         // clip = v * M), so geometry submitted in its own model space needs
