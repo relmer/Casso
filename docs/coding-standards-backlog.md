@@ -834,9 +834,22 @@ Three sub-cases wanted different treatment, so classify before renaming:
 | named constructor | `CassoTheme::Skeuomorphic` | `MakeSkeuomorphic` |
 
 The third row is the one worth arguing about. `Skeuomorphic()` is the standard
-C++ named-constructor idiom and `GetSkeuomorphic()` would be worse; `Make` was
-already the tree's word for it (`MakeCrtParams`, `MakeRect`, `MakePixel`), so
-the idiom keeps its shape and the rule still gets a verb.
+C++ named-constructor idiom and `GetSkeuomorphic()` would be worse, so the idiom
+keeps its shape and the rule still gets a verb. The verb is `Make` rather than
+`Create` on the tree's own evidence:
+
+| | Returns | Examples |
+|---|---|---|
+| `Make...` | a plain value, by value, and cannot fail | `RECT MakeRect` (six of them), `CrtParams MakeCrtParams`, `Disk2Event MakeStampedEvent`, `wstring MakeExeRelativePath` |
+| `Create...` | an owned resource: an `HRESULT`, a `unique_ptr`, a raw owning handle, or owned state mutated in place | `CreateEmulatorWindow`, `CreateCpu`, `CreateShaders`, `CreateFactory`, `CreateFromFile`, `CreateSpeech`, `CreateChild`, `CreateDcFromDevNames` |
+
+Every `Create` in the tree has a failure path, hands back something the caller
+must release, or mutates owned state. Every `Make` hands back a value. The one
+wobble is `CreateInstructionSetProvider`, which returns by value. `CassoTheme`
+is a palette struct returned by value with no failure path, and its call sites
+are plain initializers (`CassoTheme m_chromeTheme = CassoTheme::MakeSkeuomorphic();`),
+so it sits on the `Make` side. The distinction was never written down; it is
+now, because the next person to add a factory has to pick one.
 
 **A leading-word verb allowlist is not enough to find the set, and that is the
 main lesson here.** The first survey classified a name by its first CamelCase
