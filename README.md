@@ -182,7 +182,8 @@ NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family).
 Cycle-accurate IRQ/NMI infrastructure. Validated against
 [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)
 (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests),
-whose vectors are recorded from real hardware and so are an independent oracle
+which check both what every instruction computes and what it costs in cycles.
+The vectors are authored elsewhere, which makes them an independent oracle
 rather than a restatement of our own assumptions.
 
 ### Display
@@ -355,8 +356,9 @@ scenario suite boots a real 6502 over images the command line just wrote and
 checks what the guest makes of them, because that is the only oracle for "the disk
 is right" that our own reader cannot satisfy by agreeing with itself.
 
-Harte vectors run at 200 per opcode on every build; the full 10,000 per opcode are
-an opt-in download and are what you run when touching the CPU core. See
+Harte vectors run at 200 per opcode on every build, checking each instruction's
+final state and its cycle count; the full 10,000 per opcode are an opt-in
+download and are what you run when touching the CPU core. See
 [docs/testing.md](docs/testing.md).
 
 ## Requirements
@@ -494,7 +496,7 @@ I thus present to you our regal namesake, revel in his splendor!
 Casso's correctness is validated against two exceptional open-source test suites:
 
 - **[Klaus Dormann's 6502 Functional Test Suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)**: [@Klaus2m5](https://github.com/Klaus2m5)'s exhaustive functional test exercises every documented 6502 behavior: all instructions, addressing modes, flag interactions, BCD arithmetic, and edge cases. Casso passes the full suite.
-- **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)**: [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors run every legal 6502 opcode from a recorded initial state and compare the registers, flags and touched memory against the recorded final state. Casso passes all 151 legal-opcode test sets. Note what this does **not** cover: the upstream vectors carry a per-cycle bus trace, and Casso's packed fixture format keeps only the two end states, so instruction TIMING is verified by unit tests rather than here.
+- **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)**: [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors run every legal 6502 opcode from a recorded initial state and compare the registers, flags, touched memory and **cycle count** against what the instruction really did. Every conditional cycle is covered, since each vector records what its own operands actually cost: page crossings, taken branches, and the 65C02's decimal `ADC`/`SBC` penalty. Casso passes all 151 legal-opcode test sets and every byte of the Rockwell 65C02 opcode map. What this still does not cover is *which* cycle a bus access lands on; the fixtures keep the length of the upstream per-cycle trace, not its contents.
 
 Thank you to both authors for making these invaluable resources freely available. They are the gold standard for 6502 emulator validation.
 

@@ -2678,5 +2678,54 @@ namespace CpuOperationTests
                 Assert::AreEqual ((Byte) 7, crossing.GetLastInstructionCycles());
             }
         }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABranchTakenToTheFollowingInstructionStillPaysTheTakenCycle
+        //
+        //  A displacement of zero is a taken branch whose target IS the next
+        //  instruction, so PC ends up exactly where a not-taken branch would
+        //  leave it. The core used to read "PC did not move" as "not taken" and
+        //  bill two cycles; the branch costs three.
+        //
+        //  Both outcomes of the same opcode are asserted, and so is the page
+        //  crossing. Two is the correct answer for the not-taken case, so an
+        //  assertion on the taken case alone is equally satisfied by a core that
+        //  never charges the taken cycle at all.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABranchTakenToTheFollowingInstructionStillPaysTheTakenCycle)
+        {
+            TestCpu  taken;
+            TestCpu  notTaken;
+            TestCpu  crossing;
+
+            taken.InitForTest();
+            taken.Status().flags.negative = 0;                  // BPL is taken
+            taken.WriteBytes (0x8000, { 0x10, 0x00 });          // target $8002, the next instruction
+            taken.StepOne();
+
+            notTaken.InitForTest();
+            notTaken.Status().flags.negative = 1;               // BPL is not taken
+            notTaken.WriteBytes (0x8000, { 0x10, 0x00 });
+            notTaken.StepOne();
+
+            crossing.InitForTest (0x80F0);
+            crossing.Status().flags.negative = 0;
+            crossing.WriteBytes (0x80F0, { 0x10, 0x20 });       // $80F2 + $20 = $8112, over the page
+            crossing.StepOne();
+
+            Assert::AreEqual ((Byte) 3,      taken.GetLastInstructionCycles());
+            Assert::AreEqual ((Byte) 2,      notTaken.GetLastInstructionCycles());
+            Assert::AreEqual ((Byte) 4,      crossing.GetLastInstructionCycles());
+
+            Assert::AreEqual ((Word) 0x8002, taken.RegPC());
+            Assert::AreEqual ((Word) 0x8002, notTaken.RegPC());
+            Assert::AreEqual ((Word) 0x8112, crossing.RegPC());
+        }
     };
 }
