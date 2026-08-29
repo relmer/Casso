@@ -10,6 +10,44 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- **The monitor tilts, by the marks molded into its bezel.** The Monitor
+  II's up and down icons are handles: press one and drag, and the bezel and
+  the tube behind it pivot together on their horizontal axis, stopping where
+  the leading edge comes level with the frame it is set into -- the travel a
+  real bezel has, measured off the assembly rather than picked. The pointer
+  becomes a hand over the marks, so the one thing you can take hold of says
+  so. The room's reflection moves across the face as the face turns, rather
+  than sitting on it like a decal. Where you leave it is remembered per
+  MONITOR, not per machine: put the same tube in front of another computer
+  and it is still angled the way you left it.
+- **The scene turns under the mouse.** Drag anywhere on the desk -- the
+  backdrop, the case, the picture, a drive's face -- and the machines rotate
+  to follow. A press means what it always meant and the release decides
+  which: travel past a few pixels is a turn, and a release without travel is
+  the click it was. Shift+drag does the same from a touchpad, where a
+  right-drag is awkward, and a two-finger slide pans while a pinch zooms.
+- **A compass in the corner says the scene turns at all**, for anyone who
+  would never have thought to try dragging it. Four arrows around a central
+  orb: an arrow steps the scene on the way down and keeps stepping while
+  held, drag from one to turn freely along its axis, and the orb squares
+  everything back up. Ctrl+0 does the same from the keyboard, putting the
+  zoom back to where the scene was framed for.
+- **THE MONITOR DECIDES THE PHOSPHOR.** Green, amber and white were a
+  display setting with one answer for every machine, so an Apple //c came up
+  in color -- which no //c ever did, because the Monitor //c it shipped with
+  was a green tube. The phosphor is now a property of the monitor standing
+  on the desk, so the //c arrives green and the //e arrives in color. It is
+  still yours to change, and the change sticks per machine: set a //c to
+  color, go elsewhere, come back, and it is still color.
+- **The window comes back where you left it**, including maximized, instead
+  of opening somewhere the previous session never was.
+- Settings > Theme chooses the scene's antialiasing (off / 2x / 4x), and the
+  theme preview shows the actual desk scene rather than a flat mock.
+- Drive 2 is offered on every machine that has a Disk ][ interface, and the
+  number of drives now comes from the card's declared PORTS rather than from
+  the card itself -- a controller has two connectors whether or not both are
+  used, and an empty one detaches a drive without changing the card.
+
 - **The desk wears what the machine wore, at real size and in a real
   arrangement.** The //e and ][+ get a beige Apple Monitor II standing on
   Disk II drives; the //c gets its platinum Monitor //c over the matching
@@ -77,7 +115,62 @@ Entries before versioning was introduced use dates only.
   button also take their colors from a photograph of a well lit A2M2010
   rather than from judgment by eye.
 
+### Changed
+
+- **The Monitor II wears its real back.** The rear is one piece of dark
+  plastic from the vent recess down over the control panel, with the bell
+  emerging through it -- one width the whole way, so nothing steps where the
+  parts meet -- and the vents look into an unlit interior instead of onto
+  beige. It gains its contrast wheel on the right flank, a smooth power
+  notch, rounded edges throughout, and a reveal groove that turns the corner
+  rather than stopping at it. The Monitor //c's rear panel is modeled
+  control for control, its tube runs through the bezel opening rather than
+  stopping short of it, and the //c's drive is a Disk IIc rather than a Disk
+  II wearing the wrong badges.
+- Fullscreen no longer resizes the window on the way in and out, and its
+  toolbar can be summoned rather than being gone for the duration.
+- internal: builds and checks run below the foreground by default.
+  `Build.ps1`, `RunTests.ps1` and `CheckStyle.ps1` drop themselves to
+  BelowNormal so a full build stops making the machine unusable for the two
+  minutes it runs; `-NormalPriority` opts out for CI. MSBuild's node reuse
+  is disabled while lowering, because reused workers outlive the build that
+  made them and never inherit the priority -- with reuse on, the entire
+  compile ran at Normal regardless.
+
 ### Fixed
+
+- **Clicks land on what you can see.** A click passed through the monitor's
+  case to reach a drive behind it, and reached a drive's far side from
+  behind the desk, because each surface was tested without asking whether
+  anything stood in front of it. Every device's body is now ray-tested and
+  the nearest one owns the click; nothing on a machine's back face is
+  clickable at all.
+- **The drive door is a target you can hit.** Opening a drive means clicking
+  its door, and the door was small -- the //c's slot band is about seven
+  millimeters tall -- and worse once open, because the region a click was
+  measured against was fixed to the case while the door travelled. The //c's
+  latch rises clear of the lid when it opens, which put the very part being
+  reached for outside every box the drive owned. The door now carries its
+  own target, posed to wherever the door currently is, and the rest of the
+  case means browse rather than eject.
+- **Switching machines no longer leaves the last monitor's parts behind.**
+  Going from a //e to a //c left the Monitor II's tilting bezel hanging
+  around the //c's housing, still answering the pointer with a hand and
+  still tipping a tube that was never part of it.
+- **The command toolbar stopped swallowing its own clicks.** The gesture
+  that turns the scene armed on any press the scene did not claim, which is
+  true of every pixel of the toolbar as well, so the release that should
+  have fired Settings or Reset ended a turn instead. Menus were unaffected,
+  which is why only the buttons looked dead.
+- **Casso stopped rendering sixty frames a second at a picture that was not
+  changing.** Idle GPU on a still screen went from about half the device to
+  none of it. Two things kept it awake: the drive vote fired for as long as
+  a motor was energized, and a Disk II motor stays energized until the guest
+  turns it off, which plenty of software never does once it has loaded -- a
+  lit LED is not an animation. And the text flash phase, which flips about
+  four times a second whether or not anything on screen is flashing, kept
+  republishing a frame identical to the last one, which in turn kept the
+  phosphor-decay timer from ever expiring.
 
 - Losing the audio endpoint (undocking, switching the default output
   device) no longer trips an assertion — audio quietly reopens the new
