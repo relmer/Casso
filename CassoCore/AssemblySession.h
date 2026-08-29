@@ -302,6 +302,15 @@ private:
     HRESULT BuildListingEntry    (const LineInfo & info, Word emitPCStart, Word emitPC, bool lineHasAddress);
     HRESULT ExtractImage         ();
 
+    //  Records that a line placed bytes in the span being accumulated, so the
+    //  span learns the address of its first one.
+    void    NoteSpanEmission     (const LineInfo & info, Word emitPCStart, Word emitPC);
+
+    //  Ends the span being accumulated and appends it as an output. Does
+    //  nothing when the span placed no bytes, so a source that saves twice in a
+    //  row does not produce an empty file between them.
+    void    CloseSpan            ();
+
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
 
@@ -750,6 +759,28 @@ private:
     std::vector<Byte>                                  m_image;
     Word                                               m_lowestAddr         = 0xFFFF;
     Word                                               m_highestAddr        = 0x0000;
+
+    // Where in the output the span being accumulated began, and what address
+    // its first byte assembles to.
+    //
+    // TWO CURSORS BECAUSE A RELOCATING ORIGIN SEPARATES THEM. The bytes are cut
+    // from the output, and the address recorded is the program counter, which
+    // is the one a later load uses. Taking both from the same cursor files a
+    // span at the position it happens to occupy rather than where its source
+    // put it.
+    //
+    // The address is captured from the FIRST line of the span that emits,
+    // rather than when the span opens: a span may open on a directive and only
+    // reach an origin afterwards, and it is where the bytes land that counts.
+    //
+    // The end is tracked rather than read from m_outputPos, which pass 2 does
+    // not advance: pass 2 replays the position pass 1 recorded per line, so the
+    // member still holds where pass 1 finished and would close every span at
+    // the end of the whole assembly.
+    Word                                               m_spanOutputStart    = 0;
+    Word                                               m_spanOutputEnd      = 0;
+    Word                                               m_spanLoadAddress    = 0;
+    bool                                               m_spanHasBytes       = false;
     std::unordered_map<std::string, int>               m_referencedLabels;
     std::unordered_map<std::string, int32_t>           m_fullSymbols;
     ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };

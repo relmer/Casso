@@ -6826,9 +6826,16 @@ HRESULT AssemblySession::RunPass2()
             lineHasAddress = true;
         }
 
+        NoteSpanEmission (info, emitPCStart, emitPC);
+
         hr = BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress);
         CHR (hr);
     }
+
+    // Whatever is still accumulating becomes the last output. A source that
+    // never cut a span reaches here with all of its bytes in one, which is why
+    // an ordinary assembly needs no separate path.
+    CloseSpan();
 
     hr = ExtractImage();
     CHR (hr);
@@ -7974,6 +7981,90 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::NoteSpanEmission
+//
+//  Tells the span being accumulated that a line placed bytes in it.
+//
+//  THE ADDRESS IS TAKEN FROM THE FIRST LINE THAT EMITS, not from wherever the
+//  span opened. A span may open on a save and then meet an origin before any
+//  byte lands, and it is where the bytes go that a later load cares about.
+//
+//  It is the program counter that is recorded rather than the output cursor.
+//  The two agree until a relocating origin separates them, after which the
+//  bytes sit at the cursor and belong at the counter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::NoteSpanEmission (const LineInfo & info, Word emitPCStart, Word emitPC)
+{
+    bool  placedBytes = emitPC > emitPCStart;
+
+
+
+    if (placedBytes)
+    {
+        if (!m_spanHasBytes)
+        {
+            m_spanOutputStart = emitPCStart;
+            m_spanLoadAddress = info.pc;
+            m_spanHasBytes    = true;
+        }
+
+        m_spanOutputEnd = emitPC;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::CloseSpan
+//
+//  Ends the span being accumulated and appends it as one output.
+//
+//  A span that placed no bytes yields nothing rather than an empty output. Two
+//  saves in a row, or a save with nothing between it and the one above, would
+//  otherwise each produce a zero-length file that no source asked for.
+//
+//  The bytes are cut from the OUTPUT and the address comes from the program
+//  counter, which are the same number until a relocating origin separates them.
+//  After one, a span sits at the output cursor and loads where its origin said,
+//  and it is the latter that a loader needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::CloseSpan()
+{
+    SavePoint  span;
+    size_t     first = m_spanOutputStart;
+    size_t     last  = m_spanOutputEnd;
+
+
+
+    if (m_spanHasBytes && last > first)
+    {
+        span.bytes.assign (m_image.begin() + first, m_image.begin() + last);
+        span.loadAddress    = m_spanLoadAddress;
+        span.hasLoadAddress = true;
+
+        m_result.savePoints.push_back (span);
+    }
+
+    m_spanHasBytes = false;
+
+    return;
 }
 
 
