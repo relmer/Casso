@@ -456,7 +456,15 @@ VENT_IN_BOT = 1.0 * 25.4
 # and VENT_TILT itself depends on PKT_Z0. Two terms of fixed-point
 # iteration settle it to a hundredth; the strap that haunted this rim came
 # from doing this conversion by eye.
-_RIM_AIM = 94.0 - 1.5
+# WELL BELOW THE BELL'S TOP, because the recess has no floor of its own --
+# THE BELL'S TOP IS ITS FLOOR. Aimed just under the bell's top edge, the
+# pocket stopped a millimeter or two short of it and the case left in that
+# gap read as a pale band across the bottom of the recess, with the bell
+# starting below it. Dropped well under, the pocket's own bottom and the
+# stub of wall beneath it are both inside the bell -- which is wider than
+# the recess -- so what closes the recess is the bell's surface and nothing
+# else.
+_RIM_AIM = 94.0 - 26.0
 
 _pkt = _RIM_AIM
 for _ in range (4):
@@ -819,10 +827,16 @@ _mold_w  = DARK_W + DARK_BLEED * 2.0
 
 _molding_region = (
     # the vent recess, with the bleed around its walls
+    # ROUNDED LIKE THE POCKET IT SURROUNDS. A square-cornered region against
+    # a six-millimeter-radius recess overhangs at each corner by the radius,
+    # and that overhang surfaces as a grey wedge sitting past the round on
+    # the case. The region carries the same radius plus its own bleed, so
+    # its corner follows the recess's instead of cutting the corner off.
     vent_face (
         cq.Workplane ("XY")
           .box (_mold_w, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + DARK_BLEED * 2.0,
                 centered=(False, False, False))
+          .edges ("|Y").fillet (6.0 + DARK_BLEED)
           .translate ((_mold_x0, D - VENT_IN_BOT - 3.0, PKT_Z0 - DARK_BLEED)))
       # the slope between the recess and the hinge
       .union (tilt_rear (
