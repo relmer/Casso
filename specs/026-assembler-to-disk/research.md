@@ -178,7 +178,17 @@ and the spec says so rather than implying otherwise.
 ## 4b. Why the debug file's address index cannot span several outputs
 
 **Decision**: Scope symbol and debug output per output (FR-029), by source
-position (FR-030), in one file per flag (FR-031).
+position (FR-030), written as a separate set of files per output and named from
+each output's name (FR-031, FR-032).
+
+**One combined file per flag was the first answer here and it was wrong.** The
+argument for it was that `-g` names one file, so several would hit FR-026's
+refusal. That confuses two things: FR-026 refuses a name the USER supplied for
+several outputs, and these names are DERIVED, one per output, so there is
+nothing to collide. `-g` already derives `<source>.dbg` from a flag that takes
+no filename at all, so derivation is the established pattern and only the stem
+changes. And a combined file makes a reader looking for one program's code walk
+past the others, which is the whole complaint.
 
 **Rationale**: `Assembler::FormatDebugInfo` builds both indexes from a single
 flat `std::unordered_map<std::string, Word>` covering the whole assembly, and

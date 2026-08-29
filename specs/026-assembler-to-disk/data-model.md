@@ -80,9 +80,11 @@ scoping cannot disagree with the bytes.
 overlap, which is the case this exists to handle. Source position always has one
 answer.
 
-**Global symbols are not repeated into each output.** A typical source's equates
-header dwarfs its code; copying it into every section would multiply the file
-for no information a reader lacks.
+**Global symbols ARE repeated into each output's artifacts.** A combined file
+could have factored them into one shared section, but the artifacts are split
+into a file per output, and a file that omits them does not stand alone: a
+debugger holding only `MAIN.dbg` still needs `$C000` to resolve. The duplication
+is the price of each file being self-contained, and it is the right trade.
 
 `symbols` keeps its present shape and meaning, so every existing consumer is
 unaffected. What is added is the scope beside it.

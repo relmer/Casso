@@ -216,9 +216,13 @@ special-casing one, because the list is the same list.
 assembly can produce several outputs, `Assembler::FormatDebugInfo`'s flat
 by-address index stops being able to answer the question its own comment says it
 exists for — "what is at $0310" — because independent outputs may occupy
-overlapping addresses and are never loaded together. Debug and symbol output
-become scoped per output (FR-029, FR-030), still one file per flag (FR-031), and
-the listing gains output boundary markings (FR-028). This is not disk work and
+overlapping addresses and are never loaded together. The listing, symbol and
+debug artifacts split into a set per output, named from each output's own name
+(FR-028, FR-031, FR-032), with the shared equates repeated into each so every
+file stands alone (FR-035, FR-036). Single-output assemblies keep their present
+names and destinations exactly (FR-033), which is what makes this
+regression-free: multi-output cannot happen today, since `SAV` is refused. This
+is not disk work and
 does not depend on Phase B; it depends on Phase A's save points, and it is
 required for the same reason `SAV` is.
 

@@ -251,19 +251,21 @@ startup program.
 - **FR-004**: Only the object MUST be written into the image. The listing, symbol
   table and debug info MUST continue to be written as host files when their own
   flags request them.
-- **FR-028**: An assembly produces one listing however many outputs it produces,
-  and that listing MUST mark where each output begins and ends. A listing is
-  ordered by source line rather than by address, so it has no lookup to be
-  ambiguous, and the shared equates and macro definitions above the first output
-  belong to all of them. Without the boundary markings a reader cannot tell
-  which lines became which file.
+- **FR-028**: An assembly producing several outputs MUST produce a listing per
+  output, each covering the source lines that became that output. A single
+  listing spanning all of them makes a reader searching for one program's code
+  hunt through the others, which is the same objection that applies to the
+  symbol and debug artifacts.
 
   **The listing file is this tool's own, not the period assembler's.** Merlin
   sent its listing to a screen or a printer and had no way to write one to
   disk, so there is no period behavior to be faithful to here and SC-003 does
-  not reach it. The only relevant evidence Merlin offers is that its listing
-  stream ran continuously across a save, with no interaction between the two,
-  which is the shape this requirement takes.
+  not reach it. Merlin's listing stream did run continuously across a save, but
+  a stream watched as it scrolls and a file opened later to find something are
+  not the same artifact, and only the second is being specified here.
+- **FR-036**: The source lines above the first output — the equates and macro
+  definitions every output shares — MUST appear in each per-output listing.
+  Same reason as FR-035: each file has to stand alone.
 - **FR-029**: Symbol and debug output MUST be scoped per output. Independent
   outputs may occupy overlapping addresses and are never in memory together, so
   an index spanning all of them cannot answer "what is at this address" — it
@@ -284,10 +286,32 @@ startup program.
   addresses and the like — belong to no output, MUST be reported once, and MUST
   NOT be repeated into each. Scoping by address instead would be ambiguous
   exactly where outputs overlap, which is the case this requirement exists for.
-- **FR-031**: The scoped symbol and debug output MUST remain ONE file per flag.
-  `-g` and the symbol-file flag each name one file, so several files would hit
-  the same refusal FR-026 imposes on object names and would make those flags
-  unusable with a multi-output source. The scoping is structure INSIDE the file.
+- **FR-031**: Where an assembly produces several outputs, its listing, symbol
+  and debug artifacts MUST be written as separate files, one set per output,
+  rather than as one file holding several sections. Each output already has a
+  name, so each set has a filename stem without anything having to be invented,
+  and a reader looking for one program's code opens that program's file instead
+  of finding its section inside a larger one.
+- **FR-032**: Those filenames MUST derive from the OUTPUT's name, not the
+  source's. This is the existing behavior of the debug flag generalized: it
+  takes no filename today and derives one, so derivation is the established
+  pattern and only its stem changes.
+- **FR-033**: A single-output assembly MUST keep its present artifact names and
+  destinations exactly. Deriving from the output name instead would change
+  shipped behavior for the common case and buy nothing, since with one output
+  there is nothing to disambiguate.
+- **FR-034**: A listing flag naming an explicit file MUST be honored for a
+  single-output assembly and refused for a multi-output one, naming the count.
+  This is FR-026's rule applied to the same kind of flag: one name cannot serve
+  several files. The flag MUST NOT be withdrawn, because it is the only way to
+  name a listing for the single-output case, it is already shipped for both
+  dialects, and removing it from one of them would leave two dialects
+  disagreeing about what the same flag takes.
+- **FR-035**: Symbols belonging to no output — the equates above the first —
+  MUST be repeated into every per-output artifact. Each file has to stand alone
+  for a reader or a debugger holding only that one program, and a hardware
+  address it cannot resolve is exactly what such a reader came for. This
+  reverses the economy that a single combined file would have allowed.
 - **FR-005**: The assembler MUST record the object's load address on the volume,
   derived from the origin the source declared, without the developer restating
   it.

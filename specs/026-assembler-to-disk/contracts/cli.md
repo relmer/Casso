@@ -74,17 +74,68 @@ status 2.
 
 ## What is per-output, and what is per-assembly
 
-**Every flag here names ONE file, and that does not change** (FR-031). Several
-files per flag would hit the same refusal FR-026 imposes on object names, and
-would make `-g` and `-t` unusable with a multi-output source. Where an artifact
-needs to distinguish outputs, it does so as structure INSIDE its file.
+**Every artifact splits per output, and each set is named from its output**
+(FR-031, FR-032). One file holding several sections would make a reader hunting
+for one program's code walk past the others, and there is no need for it: each
+output already carries a name, so each set of artifacts has a stem without
+anything being invented.
 
-| Artifact | Files | Per-output content? | Why |
-|---|---|---|---|
-| Object | one **per save point** | — | It is what a save point *is*. |
-| Listing (`-l`) | one | **boundaries marked** | Ordered by source line, not address, so it has no ambiguous lookup. Splitting it would orphan the shared equates and macros above the first output. |
-| Symbol table (`-t`) | one | **scoped per output** | Organized by address, so it inherits the ambiguity below. |
-| Debug info (`-g`) | one | **scoped per output** | Same, and it is the one a debugger reads. |
+**This is the debug flag's existing behavior generalized.** `-g` takes no
+filename today and derives `<source>.dbg`. Only the stem changes.
+
+| Artifact | One output | Several outputs |
+|---|---|---|
+| Object | as today | one per save point, named by `SAV` / `DSK` |
+| Listing (`-l`) | as today | `<output>.lst` each |
+| Symbol file | as today | `<output>` each |
+| Debug info (`-g`) | `<source>.dbg` | `<output>.dbg` each |
+
+### Nothing here can regress, and that is structural
+
+Multi-output assembly **cannot happen today** — `SAV` is refused by the boundary
+table and `DSK` keeps only its last name. So every rule in the right-hand column
+describes behavior that does not yet exist, and the left-hand column is
+unchanged (FR-033). There is no compatibility surface to break.
+
+That is also why the single-output case keeps deriving from the **source** name
+rather than the output name: changing it would be a real regression for the
+common case, and with one output there is nothing to disambiguate.
+
+**as65 is untouched entirely.** It has no `DSK`, `SAV` or `TYP` spelling, so an
+as65 assembly always produces exactly one output and never reaches the
+right-hand column. All of this is Merlin's.
+
+### `-l<file>` stays, and is refused only where it cannot work
+
+`-l` is **already shipped for both dialects** — `-l` alone writes to stdout,
+`-l<file>` writes to that file, and Merlin has had this since the dialect
+landed. It is not being added and it is not being withdrawn.
+
+| Form | One output | Several outputs |
+|---|---|---|
+| `-l` | stdout, as today | `<output>.lst` per output |
+| `-l<file>` | `<file>`, as today | **refused**, naming the count |
+
+`-l<file>` is refused for the same reason `--as` and `-o` are (FR-026): one name
+cannot serve several files, and applying it to each in turn would leave only the
+last, reported as success.
+
+**Withdrawing `<file>` instead was considered and rejected.** It is the only way
+to name a listing in the single-output case, which is nearly every Merlin
+assembly — the vendor corpus is nine sources with at most one executing `SAV`
+between them. And as65 must keep it for as65 compatibility, so dropping it from
+Merlin alone would leave two dialects disagreeing about what one flag takes,
+which is the fault `--load` / `--exec` were consolidated to fix.
+
+### Shared symbols and shared source lines are repeated, not factored out
+
+The equates above the first output belong to no output, and they go into
+**every** per-output artifact (FR-035, FR-036).
+
+This reverses what a single combined file allowed. Factoring them into one
+shared section saves space only while the sections live together; once the files
+are split, a file missing them does not stand alone, and a debugger holding only
+`MAIN.dbg` cannot resolve the hardware address it was opened to look up.
 
 ### None of this is period behavior, and that is fine
 
@@ -119,9 +170,10 @@ object (FR-030). Scoping by address would be ambiguous exactly where the outputs
 overlap, which is the case that motivated the requirement in the first place.
 
 Symbols defined above the first output — the equates naming hardware addresses,
-zero-page locations and the like — belong to no output. They are reported once,
-in their own section, and are not repeated into each output. Repeating them
-would triple a typical file for no information.
+zero-page locations and the like — belong to no output, and so are repeated into
+every one of them (FR-035). See "Shared symbols and shared source lines" above
+for why the duplication is the right trade once the artifacts are separate
+files.
 
 ## Refusals
 
