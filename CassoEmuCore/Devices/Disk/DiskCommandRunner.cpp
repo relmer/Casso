@@ -1568,6 +1568,152 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::AdvertisedContainers
+//
+//  The container table, for anyone who has to agree with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DiskCommandRunner::ContainerName * DiskCommandRunner::AdvertisedContainers (size_t & outCount)
+{
+    outCount = _countof (s_kContainers);
+
+    return s_kContainers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ContainerWordList
+//
+//  The advertised words as a list in a sentence: `dsk, do, po and woz`.
+//
+//  READ OFF THE TABLE RATHER THAN TYPED OUT, because a sentence that names
+//  the containers is a promise about what the tool accepts. Written by hand it
+//  is a promise nothing keeps: `do` sat in the table, in both of these
+//  sentences and in the extension reader, and the builder refused it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::ContainerWordList (const char * prefix, const char * conjunction)
+{
+    std::string  list;
+    size_t       count = _countof (s_kContainers);
+    size_t       i     = 0;
+
+
+
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0)
+        {
+            list += (i + 1 == count) ? std::string (" ") + conjunction + " " : ", ";
+        }
+
+        list += prefix;
+        list += s_kContainers[i].name;
+    }
+
+    return list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ContainerWord
+//
+//  The word one container is named by, so a refusal can quote it back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::ContainerWord (DiskFormat format)
+{
+    std::string  word = "image";
+
+
+
+    for (const ContainerName & entry : s_kContainers)
+    {
+        if (entry.format == format)
+        {
+            word = entry.name;
+            break;
+        }
+    }
+
+    return word;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::DescribeSpecRefusal
+//
+//  Why a settled spec cannot be written, in words -- or empty when it can be.
+//
+//  THE BUILDER'S RULES ARE ASKED, NOT RESTATED. CheckSpec holds the pairing
+//  matrix and answers in verdicts precisely so this layer can say which rule
+//  was broken; a second copy of the matrix here would be a second thing to get
+//  wrong, and the two would disagree the first time one of them changed.
+//
+//  Naming the one broken rule matters more than it looks. The message this
+//  replaced recited all three at once, so somebody who mistyped a ProDOS
+//  volume name was handed a paragraph about sector order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
+{
+    std::string       text;
+    BlankDiskVerdict  verdict = BlankDiskBuilder::CheckSpec (spec);
+    std::string       carries;
+
+
+
+    switch (verdict)
+    {
+        case BlankDiskVerdict::ContentsNotInContainer:
+            carries = (spec.contents == BlankDiskContents::ProDos) ? "ProDOS" : "DOS 3.3";
+            text    = "Error: a " + carries + " disk cannot be written as a ."
+                    + ContainerWord (spec.format) + "\n"
+                      "       dsk and do carry DOS 3.3, po carries ProDOS, and woz "
+                      "carries either\n";
+            break;
+
+        case BlankDiskVerdict::BootableNeedsFilesystem:
+            text = "Error: an unformatted disk cannot be made bootable\n"
+                   "       there is no filesystem on it for an operating system to be "
+                   "copied into\n";
+            break;
+
+        case BlankDiskVerdict::ProDosNameUnusable:
+            text = "Error: " + spec.volumeName + " is not a name ProDOS can put on a volume\n"
+                   "       one to fifteen characters, starting with a letter and\n"
+                   "       otherwise letters, digits and periods\n";
+            break;
+
+        default:
+            break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ResolveContainer
 //
 //  Which container a new image is written as.
@@ -1583,9 +1729,11 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
                                              DiskFormat               & outFormat,
                                              DiskCommandResult        & result)
 {
-    HRESULT      hr    = S_OK;
-    bool         found = false;
-    std::string  asked = options.disk.containerType;
+    HRESULT      hr         = S_OK;
+    bool         found      = false;
+    std::string  asked      = options.disk.containerType;
+    std::string  words      = ContainerWordList ("", "and");
+    std::string  extensions = ContainerWordList (".", "or");
 
 
 
@@ -1596,8 +1744,8 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, outFormat);
         CHRF (hr, (result.diagnostics    += "Error: cannot tell what kind of image "
                                           + options.disk.imagePath + " should be\n"
-                                          + WithPrefix ("       give it a .dsk, .do, .po or .woz"
-                                                        " extension, or say which with %Ltype\n"),
+                                          + "       give it a " + extensions + " extension, "
+                                          + WithPrefix ("or say which with %Ltype\n"),
                    result.exitStatus      = DiskCommandResult::kNoOutput,
                    result.badCommandLine  = true));
     }
@@ -1621,7 +1769,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         CBRFEx (found, E_INVALIDARG,
                 (result.diagnostics    += "Error: unknown image type: "
                                         + options.disk.containerType + "\n"
-                                          "       this tool writes dsk, do, po and woz\n",
+                                          "       this tool writes " + words + "\n",
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
     }
@@ -1922,11 +2070,13 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
                                        bool                       overExisting,
                                        DiskCommandResult        & result)
 {
-    HRESULT                        hr         = S_OK;
+    HRESULT                        hr           = S_OK;
     BlankDiskSpec                  spec;
     BootPayload                    payload;
     vector<Byte>                   imageBytes;
     DiskImageSession::OpenedImage  target;
+    std::string                    refusal;
+    bool                           pairingHolds = false;
 
 
 
@@ -1941,16 +2091,19 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     hr = ResolveBoot (options, spec, payload, result);
     CHR (hr);
 
-    //  The pairing rules are the builder's: a DOS 3.3 catalog cannot go in
-    //  a .po, a ProDOS directory cannot go in a .dsk, and a bootable spec
-    //  needs the master its own format calls for.
-    hr = BlankDiskBuilder::ValidateSpec (spec);
-    CHRF (hr, (result.diagnostics    += "Error: that combination cannot be written\n"
-                                        "       dsk and do carry DOS 3.3, po carries ProDOS, and woz "
-                                        "carries either; a bootable disk needs the master for its "
-                                        "own format\n",
-               result.exitStatus      = DiskCommandResult::kNoOutput,
-               result.badCommandLine  = true));
+    //  THE PAIRING RULES ARE THE BUILDER'S, AND ITS VERDICT IS ASKED FOR
+    //  RATHER THAN ITS HRESULT. ValidateSpec answers in E_INVALIDARG, which
+    //  asserts, and that was right while the create dialog was the only
+    //  caller: its dropdowns cannot express an illegal combination. This
+    //  command line can, in one word, so every rule the builder holds is
+    //  now reachable by typing and none of them is a caller's bug.
+    refusal      = DescribeSpecRefusal (spec);
+    pairingHolds = refusal.empty();
+
+    CBRF (pairingHolds,
+          (result.diagnostics    += refusal,
+           result.exitStatus      = DiskCommandResult::kNoOutput,
+           result.badCommandLine  = true));
 
     hr = BlankDiskBuilder::Build (spec, payload, imageBytes);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
