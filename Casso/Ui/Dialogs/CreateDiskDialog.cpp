@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Devices/Disk/MountDiagnosis.h"
+
 #include "CreateDiskDialog.h"
 
 #include "Window/DxuiButtonRow.h"
@@ -219,15 +221,13 @@ void CreateDiskDialog::RefreshFromModel()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
+std::wstring CreateDiskDialog::FormatExtension (DiskFormat format)
 {
-    switch (format)
-    {
-        case DiskFormat::Dsk: return L".dsk";
-        case DiskFormat::Do:  return L".do";
-        case DiskFormat::Po:  return L".po";
-        default:              return L".woz";
-    }
+    std::string  narrow = MountDiagnosis::GetPrimaryExtension (format);
+
+
+
+    return std::wstring (narrow.begin(), narrow.end());
 }
 
 
@@ -240,15 +240,26 @@ const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
+std::wstring CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
 {
-    switch (imageType)
+    std::wstring  caption = FormatExtension (imageType);
+
+
+
+    //  The extension without its dot, in capitals: ".dsk" reads as "DSK" in a
+    //  dropdown. Derived rather than listed, so the caption cannot name a
+    //  container something other than what the file will be called.
+    if (!caption.empty() && caption[0] == L'.')
     {
-        case DiskFormat::Dsk: return L"DSK";
-        case DiskFormat::Do:  return L"DO";
-        case DiskFormat::Po:  return L"PO";
-        default:              return L"WOZ";
+        caption.erase (0, 1);
     }
+
+    for (wchar_t & letter : caption)
+    {
+        letter = (wchar_t) towupper (letter);
+    }
+
+    return caption;
 }
 
 
@@ -352,11 +363,12 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 void CreateDiskDialog::ApplyImageTypeExtension()
 {
-    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_imageType)));
+    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(),
+                                          FormatExtension (m_imageType).c_str()));
 
     if (m_model != nullptr)
     {
-        m_model->SetExtensionFilter (FormatExtension (m_imageType));
+        m_model->SetExtensionFilter (FormatExtension (m_imageType).c_str());
         RefreshListing();
     }
 }
@@ -619,7 +631,8 @@ void CreateDiskDialog::OnCreateClicked()
 
     // The file's extension always matches the chosen format.
     {
-        const wchar_t * ext     = FormatExtension (m_imageType);
+        std::wstring    extText = FormatExtension (m_imageType);
+        const wchar_t * ext     = extText.c_str();
         size_t          extLen  = wcslen (ext);
         bool            matches = name.size() >= extLen;
         size_t          i       = 0;

@@ -2,6 +2,7 @@
 #include "Ui/Dialogs/CreateDiskDialog.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/MountDiagnosis.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -113,6 +114,37 @@ public:
 
                 Assert::IsTrue (BlankDiskVerdict::Ok == BlankDiskBuilder::CheckSpec (spec),
                     L"the dialog offers a pairing the builder will refuse");
+            }
+        }
+    }
+
+    //  Every container the dialog offers has an extension of its own, checked
+    //  on CORE's list because that is now the only list there is. The dialog
+    //  used to switch on the format itself, with a default arm answering the
+    //  WOZ name, so a container added without an arm was presented as a WOZ
+    //  rather than refused -- and living in the executable, which the test
+    //  assembly does not link, nothing here could reach it to find out. The
+    //  duplication is gone rather than pinned, so this checks the survivor.
+    TEST_METHOD (EveryOfferedContainerHasAnExtensionOfItsOwn)
+    {
+        std::vector<DiskFormat>  offered = Writable();
+        size_t                   i       = 0;
+        size_t                   j       = 0;
+
+        Assert::IsTrue (offered.size() > 1, L"the sweep must have something to compare");
+
+        for (i = 0; i < offered.size(); i++)
+        {
+            std::string  ext = MountDiagnosis::GetPrimaryExtension (offered[i]);
+
+            Assert::AreNotEqual ("disk", ext.c_str(),
+                L"a writable container fell through to the fallback name");
+
+            for (j = i + 1; j < offered.size(); j++)
+            {
+                Assert::AreNotEqual (ext.c_str(),
+                                     MountDiagnosis::GetPrimaryExtension (offered[j]),
+                    L"two writable containers share one extension");
             }
         }
     }

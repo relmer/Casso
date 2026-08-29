@@ -85,10 +85,18 @@ private:
 
     static std::wstring    FormatSize       (const FileBrowseEntry & entry);
     static std::wstring    FormatModified   (int64_t modifiedUnix);
-    static const wchar_t * FormatExtension  (DiskFormat imageType);
-    static const wchar_t * ImageTypeCaption (DiskFormat imageType);
     static std::wstring    FormatCaption    (BlankDiskContents contents);
     static std::wstring    ReplaceExtension (const std::wstring & name, const wchar_t * ext);
+
+    //  How a container is named here. NEITHER HOLDS A LIST: both come from
+    //  core's one answer, so the dialog cannot name a container something
+    //  other than what the rest of Casso calls it. They used to switch on the
+    //  format with a default arm returning the WOZ name, which meant a
+    //  container added without an arm was not refused but silently presented
+    //  as a WOZ -- and being in the executable, no test could reach them to
+    //  notice.
+    static std::wstring    FormatExtension  (DiskFormat imageType);
+    static std::wstring    ImageTypeCaption (DiskFormat imageType);
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
     const IDxuiTheme    * m_theme = nullptr;   // non-owning
