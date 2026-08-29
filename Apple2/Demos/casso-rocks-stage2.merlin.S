@@ -51,20 +51,18 @@
 ;
 ;    Answer:
 ;      6. Waits for C or M -- folded to upper case, so either case
-;         works -- and starts the cycle on the pair that answer picks:
-;         M at mode 0, C at mode 2. Everything is already resident by
+;         works. THE ANSWER SELECTS THE PAIR, it does not merely pick a
+;         starting point: a monochrome answer shows the monochrome
+;         images and nothing else. Everything is already resident by
 ;         now, so the picture appears immediately. A key pressed during
 ;         the loads is still latched in the keyboard when we get here,
 ;         so an impatient answer is not lost. ESC quits from the
 ;         question as well as from the cycle.
 ;
 ;    Polling loop:
-;      Each keystroke advances the mode by 1, and past the last mode
-;      the cycle WRAPS to mode 1 rather than exiting -- the question
-;      chooses where the cycle starts, so a color user would otherwise
-;      never reach the monochrome images at all. Mode 0 is the one it
-;      cannot rejoin, for the reason above. ESC ($9B) exits to BASIC at
-;      any time, and is now the only way out.
+;      Three steps, and which images they are depends on the answer.
+;      Each keystroke advances one step; past the last the cycle wraps.
+;      ESC ($9B) exits to BASIC and is the only way out.
 ;
 ;      THE SAME PHOTO FOUR WAYS, the monochrome pair first and then the
 ;      color pair. Every one of these framebuffers is decoded two
@@ -78,17 +76,27 @@
 ;      and either answer can end up looking at the other pair. See
 ;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
 ;
-;      Modes:
-;        0 = DHGR monochrome: 560x192 one-bit, on aux+main $2000-$3FFF
-;            (entered automatically at boot). The highest resolution
-;            the machine has.
-;        1 = HGR monochrome: 280x192 one-bit, on HGR page 2
-;            ($4000-$5FFF). Half the horizontal resolution of mode 0,
-;            because an HGR pixel paints two half-dots rather than one.
-;        2 = DHGR color: 140 sixteen-color cells, restored from the
-;            staging at main $6000 and main $8000.
-;        3 = HGR color: 6-color NTSC artifact, restored from main $A000.
-;        4 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF).
+;      Steps, monochrome answer:
+;        0 = DHGR: 560x192 one-bit, on aux+main $2000-$3FFF. The
+;            highest resolution the machine has.
+;        1 = HGR: 280x192 one-bit, on HGR page 2 ($4000-$5FFF). Half
+;            the horizontal resolution of step 0, because an HGR pixel
+;            paints two half-dots rather than one.
+;        2 = LoRes (GR): the 16-color bars on text page 1, which a
+;            monochrome monitor shows as sixteen levels of one color.
+;
+;      Steps, color answer:
+;        0 = DHGR: 140 sixteen-color cells, staged from main $6000 and
+;            main $8000.
+;        1 = HGR: 6-color NTSC artifact, restored from main $A000.
+;        2 = LoRes (GR): the same bars, in their sixteen colors.
+;
+;      BOTH WRAPS ARE RE-ENTERABLE, which the earlier cycle could not
+;      manage. On the monochrome answer nothing ever overwrites aux+main
+;      $2000, so step 0 comes back with the display switches alone; on
+;      the color answer the staging at $6000/$8000 still holds the color
+;      halves, so step 0 re-stages from it. The images the answer did
+;      not pick stay loaded and simply never appear.
 ;
 ;      The HGR color test bands used to be a mode here. They were a
 ;      by-eye check that the renderer had not swapped blue/orange or
@@ -139,7 +147,8 @@ S1_LOAD_A     EQU $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B     EQU $0828       ; sta DBASE / step head b / jmp read_track
 
 ; -- Zero page ---------------------------------------------------
-MODE       EQU $46            ; current display mode (0..4)
+STEP       EQU $46            ; step within the chosen pair's cycle (0..2)
+PAIR       EQU $47            ; 0 = the monochrome images, 1 = the color ones
 SRC_PTR    EQU $48            ; ($48),y indirect-indexed source pointer
 DST_PTR    EQU $4A            ; ($4A),y indirect-indexed dest pointer
 
@@ -212,28 +221,29 @@ WAIT_ANSWER
     BIT STROBE
     AND #$DF               ; fold lower case onto upper; ESC ($9B) has
                            ; bit 5 clear already and passes through
-    CMP #$C3               ; "C" -> start on the color pair
+    CMP #$C3               ; "C" -> the color images
     BEQ ANSWER_COLOR
-    CMP #$CD               ; "M" -> start on the monochrome pair
+    CMP #$CD               ; "M" -> the monochrome images
     BEQ ANSWER_MONO
     CMP #$9B               ; ESC -> quit without showing anything
     BEQ DO_EXIT
     JMP WAIT_ANSWER
 
 ANSWER_MONO
-    ; Mode 0. stage_dhgr has already put the monochrome halves in the
-    ; framebuffer, so all that is left is the display switches.
+    ; stage_dhgr has already put the monochrome halves in the
+    ; framebuffer, so step 0 is the display switches alone.
     LDA #0
-    STA MODE
+    STA PAIR
+    STA STEP
     JSR SHOW_DHGR
     JMP POLL
 
 ANSWER_COLOR
-    ; Mode 2. The staging holds the color halves now, and re-staging
-    ; from it is exactly what mode_dhgr_color does.
-    LDA #2
-    STA MODE
-    JMP MODE_DHGR_COLOR
+    LDA #1
+    STA PAIR
+    LDA #0
+    STA STEP
+    JMP MODE_DHGR          ; takes the color branch and stages it
 
 
 POLL
@@ -243,26 +253,18 @@ POLL
     BEQ DO_EXIT
     BIT STROBE
 
-    INC MODE
-    LDA MODE
+    ; Three steps: the chosen pair's DHGR, then its HGR, then the
+    ; LoRes bars. Past the last one the cycle wraps; ESC is the way out.
+    INC STEP
+    LDA STEP
     CMP #1
-    BEQ MODE_HGR_MONO
+    BEQ MODE_HGR
     CMP #2
-    BEQ MODE_DHGR_COLOR
-    CMP #3
-    BEQ MODE_HGR_COLOR
-    CMP #4
     BEQ MODE_LORES
 
-    ; Past the last mode, wrap to mode 1 rather than exiting. The
-    ; question chooses where the cycle STARTS, so a color user who
-    ; began at mode 2 would otherwise never reach the monochrome
-    ; images. Mode 0 is the one the cycle cannot rejoin -- the staging
-    ; it was built from holds the color halves now -- so it rejoins at
-    ; mode 1. ESC is the way out.
-    LDA #1
-    STA MODE
-    JMP MODE_HGR_MONO
+    LDA #0
+    STA STEP
+    JMP MODE_DHGR
 
 
 DO_EXIT
@@ -312,63 +314,53 @@ CLEAR_TEXT_LOOP
 
 
 ; ----------------------------------------------------------------------------
-; mode_hgr_mono -- show the monochrome HGR cassowary. It was loaded
-;                 straight onto HGR page 2 and nothing has touched it
-;                 since, so there is no copy to do: leave DHGR, select
-;                 HGR, and flip to PAGE2.
+; mode_dhgr -- step 0: the chosen pair's DHGR cassowary.
 ;
-;                 The DHGR switches have to come off explicitly. 80STORE
-;                 in particular reroutes $2000-$3FFF by PAGE2, and while
-;                 that is exactly what this mode wants PAGE2 to mean, it
-;                 is not what it means for the NEXT mode's copies.
+;             The monochrome one is already in the framebuffer. The boot
+;             path staged it there before the color halves landed on the
+;             staging, and no step of the monochrome cycle writes
+;             $2000-$3FFF, so coming back to it is the display switches
+;             alone.
+;
+;             The color one is re-staged out of main $6000/$8000 every
+;             time, and 80STORE MUST GO OFF FIRST. stage_dhgr's second
+;             copy reaches aux $2000 by turning RAMWRT on, and that only
+;             works while 80STORE is off -- with 80STORE on and HIRES
+;             on, the //e routes $2000-$3FFF by PAGE2 and ignores RAMWRT
+;             entirely, landing the aux half in main $2000 on top of the
+;             main half. enter_dhgr turns 80STORE back on at the end.
 ; ----------------------------------------------------------------------------
-MODE_HGR_MONO
-    STA STORE80OFF
-    STA COL80OFF
-    BIT DHIRESOFF
+MODE_DHGR
+    LDA PAIR
+    BEQ MODE_DHGR_MONO
 
-    BIT TXTOFF
-    BIT HIRESON
-    BIT MIXOFF
-    BIT PG2ON
+    STA STORE80OFF
+    JSR ENTER_DHGR         ; stage_dhgr + show_dhgr
+    JMP POLL
+
+MODE_DHGR_MONO
+    JSR SHOW_DHGR
     JMP POLL
 
 
 ; ----------------------------------------------------------------------------
-; mode_dhgr_color -- show the color DHGR cassowary. The background load
-;                  has replaced the monochrome halves in the staging
-;                  areas with the color ones, so this is enter_dhgr over
-;                  the exact same addresses.
+; mode_hgr -- step 1: the chosen pair's HGR cassowary. Either way the
+;            DHGR switches come off first, so the renderer doesn't
+;            briefly try to draw HGR-as-DHGR.
 ;
-;                  80STORE MUST GO OFF FIRST. enter_dhgr's second copy
-;                  reaches aux $2000 by turning RAMWRT on, and that only
-;                  works while 80STORE is off -- with 80STORE on and
-;                  HIRES on, the //e routes $2000-$3FFF by PAGE2 and
-;                  ignores RAMWRT entirely. The boot call gets away
-;                  without this because it runs before enter_dhgr has
-;                  ever set 80STORE; a later call does not, and lands
-;                  the aux half in main $2000 on top of the main half.
-;                  enter_dhgr turns 80STORE back on at the end.
+;            The monochrome one lives on HGR page 2, where the loader
+;            put it and nothing has touched it since, so it needs no
+;            copy at all -- selecting PAGE2 puts it on screen. The
+;            color one is stashed at main $A000 and has to be copied
+;            back to page 1, because DHGR has clobbered page 1.
 ; ----------------------------------------------------------------------------
-MODE_DHGR_COLOR
-    STA STORE80OFF
-    JSR ENTER_DHGR
-    JMP POLL
-
-
-; ----------------------------------------------------------------------------
-; mode_hgr_color -- restore the color HGR cassowary. Copies the stashed
-;                  image from main $A000 back to main $2000 (DHGR has
-;                  clobbered it), turns off DHGR, and selects HGR PAGE1.
-;                  PAGE1 matters as much as the copy: mode 1 left PAGE2
-;                  selected, and page 2 is the monochrome image.
-; ----------------------------------------------------------------------------
-MODE_HGR_COLOR
-    ; Disable DHGR-specific switches before restoring the framebuffer
-    ; so the renderer doesn't briefly try to draw HGR-as-DHGR.
+MODE_HGR
     STA STORE80OFF
     STA COL80OFF
     BIT DHIRESOFF
+
+    LDA PAIR
+    BEQ MODE_HGR_MONO
 
     LDX #$A0
     LDY #$20
@@ -378,6 +370,13 @@ MODE_HGR_COLOR
     BIT HIRESON
     BIT MIXOFF
     BIT PG2OFF
+    JMP POLL
+
+MODE_HGR_MONO
+    BIT TXTOFF
+    BIT HIRESON
+    BIT MIXOFF
+    BIT PG2ON
     JMP POLL
 
 

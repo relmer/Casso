@@ -557,74 +557,36 @@ public:
                     L"DHGR mono aux half at boot landing must match payload");
             }
 
-            // Cycle through the 5 display modes with keystrokes
-            // Keystroke 1 -> mode 1 (HGR monochrome). No copy: the image
-            // was loaded onto HGR page 2 and the mode is a PAGE2 flip out
-            // of DHGR, so what is asserted is the switch state and that
-            // page 2 still holds the image.
+            //  THE ANSWER SELECTS THE PAIR. A monochrome answer shows the
+            //  monochrome images and nothing else -- three steps, then
+            //  round again. The color images stay loaded the whole time
+            //  and simply never appear, which is what the mode 2 / mode 3
+            //  assertions below the re-boot are for.
+
+            // Step 1 -> HGR monochrome. No copy: the image was loaded onto
+            // HGR page 2 and the step is a PAGE2 flip out of DHGR, so what
+            // is asserted is the switch state and that page 2 still holds
+            // the image.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 1 (HGR mono) must keep HIRES on");
+                L"Step 1 (HGR mono) must keep HIRES on");
             Assert::IsTrue (ss->IsPage2(),
-                L"Mode 1 (HGR mono) must select PAGE2, where the image is");
+                L"Step 1 (HGR mono) must select PAGE2, where the image is");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Mode 1 (HGR mono) must keep TEXT off");
+                L"Step 1 (HGR mono) must keep TEXT off");
             VerifyMemRange (0x4000, hgrMonoPayload,
-                L"HGR mono cassowary still on page 2 in mode 1");
+                L"HGR mono cassowary still on page 2 at step 1");
 
-            // Keystroke 2 -> mode 2 (DHGR color). A second enter_dhgr over
-            // the same staging, which now holds the color halves: main
-            // $8000 -> main $2000, main $6000 -> aux $2000. Both halves
-            // are checked, because the failure this guards against -- the
-            // background load landing in the wrong place, or the aux copy
-            // going to main because 80STORE was left on -- shows up as one
-            // half of the picture being the other image.
-            //
-            // Twice the budget the single-copy modes get: enter_dhgr moves
-            // 16 KB, not 8, and copy_block's (zp),y inner loop costs about
-            // 16 cycles a byte.
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (600'000ULL);
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 2 (DHGR color) must keep HIRES on");
-            Assert::IsFalse (ss->IsPage2(),
-                L"Mode 2 (DHGR color) must select PAGE1");
-            VerifyMemRange (0x2000, dhgrMainPayload,
-                L"DHGR color main half at main $2000 in mode 2");
-            {
-                size_t  m = 0;
-                for (size_t i = 0; i < kHgrPayloadSize; i++)
-                {
-                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
-                }
-
-                Assert::AreEqual (size_t (0), m,
-                    L"DHGR color aux half must reach aux $2000 in mode 2");
-            }
-
-            // Keystroke 3 -> mode 3 (HGR color). Restores the cassowary
-            // from the main $A000 stash to main $2000, disables the
-            // DHGR-specific soft switches, and selects PAGE1 -- which
-            // matters, because mode 1 left PAGE2 selected.
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (300'000ULL);
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 3 (HGR color) must keep HIRES on");
-            Assert::IsFalse (ss->IsPage2(),
-                L"Mode 3 (HGR color) must select PAGE1");
-            VerifyMemRange (0x2000, hgrPayload,
-                L"HGR color cassowary restored to main $2000 in mode 3");
-
-            // Keystroke 4 -> mode 4 (LoRes).
+            // Step 2 -> the LoRes bars, which both answers share.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsFalse (ss->IsHiresMode(),
-                L"Mode 4 (LoRes) must clear HIRES");
+                L"Step 2 (LoRes) must clear HIRES");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Mode 4 (LoRes) must keep TEXT off");
+                L"Step 2 (LoRes) must keep TEXT off");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 4 (LoRes) must clear PAGE2");
+                L"Step 2 (LoRes) must clear PAGE2");
 
             // Spot-check the LoRes pattern landed in text page 1.
             for (size_t i = 0; i < kLoresPayloadSize; i++)
@@ -646,22 +608,34 @@ public:
                 }
             }
 
-            // Keystroke 5 -> past the last mode -> WRAP to mode 1 rather
-            // than exit. The question chooses where the cycle starts, so a
-            // color user beginning at mode 2 would otherwise never reach
-            // the monochrome images; wrapping is what makes every image
-            // reachable from either answer. Mode 0 is the exception and
-            // cannot be rejoined, which is why the wrap lands on 1.
+            // Past the last step the cycle WRAPS rather than exiting, and
+            // on the monochrome answer the wrap is free: nothing in the
+            // cycle writes $2000-$3FFF, so the framebuffer the boot path
+            // staged is still sitting there and coming back to step 0 is
+            // the display switches alone. Both halves are re-checked,
+            // because "still there" is the whole claim.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
-            Assert::IsTrue (ss->IsPage2(),
-                L"Cycling past the last mode must wrap to mode 1 (PAGE2)");
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"The wrapped-to mode 1 must have HIRES on");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"The wrapped-to mode 1 must have TEXT off");
+                L"The wrapped-to step 0 must have TEXT off");
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"The wrapped-to step 0 must have HIRES on");
+            Assert::IsFalse (ss->IsPage2(),
+                L"The wrapped-to step 0 (DHGR) must select PAGE1");
+            VerifyMemRange (0x2000, monoMainPayload,
+                L"DHGR mono main half still at main $2000 after the wrap");
+            {
+                size_t  m = 0;
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
+                }
 
-            // ESC is now the only way out.
+                Assert::AreEqual (size_t (0), m,
+                    L"DHGR mono aux half still at aux $2000 after the wrap");
+            }
+
+            // ESC is the only way out.
             core.keyboard->KeyPressRaw (0x1B);
             core.RunCycles (200'000ULL);
             Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
@@ -669,10 +643,11 @@ public:
                 L"cold start at $E000)");
 
             //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
-            //  C instead: the cycle has to start on the color pair, which
-            //  means re-staging the framebuffer out of the staging areas
-            //  the load phase left holding the color halves. This is the
-            //  half of the feature the M path never exercises.
+            //  C instead: a different pair of images, reached by re-staging
+            //  the framebuffer out of the staging areas the load phase left
+            //  holding the color halves. This is the half of the feature the
+            //  M path never exercises -- and the half where the wrap has to
+            //  do real work rather than just re-issuing switches.
             //  A power cycle drops what the drive was holding and hands
             //  out fresh MMU buffers, so the disk has to be re-bound and
             //  every cached pointer re-fetched before the second boot.
@@ -711,6 +686,53 @@ public:
 
                 Assert::AreEqual (size_t (0), m,
                     L"DHGR color aux half must reach aux $2000 after answering C");
+            }
+
+            // Step 1 on the color answer is the HGR color cassowary,
+            // restored from the main $A000 stash to page 1.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (300'000ULL);
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Step 1 (HGR color) must keep HIRES on");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Step 1 (HGR color) must select PAGE1");
+            VerifyMemRange (0x2000, hgrPayload,
+                L"HGR color cassowary restored to main $2000 at step 1");
+
+            //  AND THE MONOCHROME IMAGES ARE NOT IN THIS CYCLE. Page 2
+            //  still holds the monochrome HGR image, resident and never
+            //  selected -- which is the difference between the answer
+            //  filtering the cycle and merely choosing where it starts.
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"the monochrome HGR image stays loaded but unvisited");
+
+            // Step 2 -> the shared LoRes bars.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (200'000ULL);
+            Assert::IsFalse (ss->IsHiresMode(),
+                L"Step 2 (LoRes) must clear HIRES on the color answer too");
+
+            // And the color wrap, which is the one that has to WORK for
+            // something: step 0 re-stages out of main $6000/$8000, and it
+            // only reaches aux if 80STORE goes off first. Getting that
+            // wrong puts the aux half in main on top of the main half.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (600'000ULL);
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"The wrapped-to step 0 (DHGR color) must have HIRES on");
+            Assert::IsFalse (ss->IsPage2(),
+                L"The wrapped-to step 0 (DHGR color) must select PAGE1");
+            VerifyMemRange (0x2000, dhgrMainPayload,
+                L"DHGR color main half re-staged to main $2000 after the wrap");
+            {
+                size_t  m = 0;
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
+                }
+
+                Assert::AreEqual (size_t (0), m,
+                    L"DHGR color aux half re-staged to aux $2000 after the wrap");
             }
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.

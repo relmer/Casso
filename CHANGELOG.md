@@ -20,14 +20,12 @@ Entries before versioning was introduced use dates only.
   a monochrome counterpart to each: DHGR dithered to one bit across all 560
   dots, which is the highest resolution the machine has, and HGR across 280,
   which is half of it because an HGR pixel paints two half-dots rather than
-  one. The cycle runs monochrome DHGR, monochrome HGR, color DHGR, color HGR,
-  then the LoRes bars, so the disk boots into the monochrome image.
+  one.
 
   Only the title is drawn on the images; it is built from whole color cells so
-  it survives either reading, which matters because the cycle wraps and either
-  answer can end up looking at the other pair.
+  it survives either reading.
 
-- **The demo asks which monitor you have, and starts on the right pair.**
+- **The demo asks which monitor you have, and shows only those images.**
   Nothing can detect this: no Apple II can. Every video connector the machine
   has is output only, with no sense line and no way to read the signal back.
   So the demo asks, the way period software carrying two sets of art did. Text
@@ -36,8 +34,12 @@ Entries before versioning was introduced use dates only.
   thirteen tracks load behind it -- so asking costs no wall-clock time at all,
   and a key pressed while the drive is still working is still latched when the
   loader looks. `C` or `M`, either case; `ESC` quits from the question as well
-  as from the cycle. Past the last mode the cycle now wraps rather than
-  exiting, so both answers can still reach every image.
+  as from the cycle.
+
+  The answer selects the pair rather than picking a starting point: three
+  steps, the chosen DHGR image, its HGR counterpart and the LoRes bars, then
+  round again. The two images the answer did not pick stay loaded and simply
+  never appear.
 
 ### Removed
 - **The HGR color test bands are no longer a mode on the demo disk.** They
