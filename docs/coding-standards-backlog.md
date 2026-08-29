@@ -912,6 +912,14 @@ link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
   are elsewhere but whose callers are not: `ProDosSkeleton::BlockByteOffset`,
   `Dos33Skeleton::SectorOffset`, `StockBootDisks::PathFor` / `FileNameFor`, and
   `DiskCommandResult::Failure`.
+* **Master added five more while this branch was open**, all reachable only
+  through those same held files: `BlankDiskBuilder::WritableContainers` and
+  `ContainersFor`, `DiskCommandRunner::AdvertisedContainers` and
+  `ContainerWordList`, and `CountedNoun::Of`, whose 39 call sites include 20 in
+  `DiskCommandRunner.cpp`. `ContainersFor` is worth noting: 027's own plan
+  already names it as unacceptable, so 027 fixes it either way. `CountedNoun::Of`
+  is the only one with a real question attached -- `CountedNoun::Of (5, "sector")`
+  is a deliberate fluent reading, and `Format` is the verb if the rule wins.
 * **`NibblizationLayer`'s two index mappers**, `PoFileIndexForDosLogicalSector`
   and `DosFileIndexForPhysicalSector`, are in that set. Whoever renames them:
   the comment blocks above them record which direction each maps and why a
