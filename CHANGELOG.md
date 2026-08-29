@@ -10,126 +10,62 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
-- Bezel tilt: drag the Monitor II's up/down marks to pivot the bezel and
-  tube. Travel is clamped to flush with the frame; the glare tracks the
-  angle. Persisted per monitor.
-- Drag anywhere on the scene to rotate it. Past a few pixels it is a turn,
-  otherwise the click stands. Shift+drag for touchpads; two-finger slide
-  pans, pinch zooms.
-- Corner compass: arrows step on press and repeat while held, drag to turn
-  freely, orb resets. Ctrl+0 resets pose and zoom.
-- Phosphor is a property of the monitor, not a global display setting. The
-  //c gets the green Monitor //c; still overridable, and the override sticks
-  per machine.
-- Window placement is restored on launch, maximized included.
-- Settings > Theme: scene antialiasing (off / 2x / 4x); the preview shows
-  the real scene.
-- Drive 2 is offered on any machine with a Disk ][ interface. Drive count
-  comes from the card's declared ports.
-- **The desk wears what the machine wore, at real size and in a real
-  arrangement.** The //e and ][+ get a beige Apple Monitor II standing on
-  Disk II drives; the //c gets its platinum Monitor //c over the matching
-  5.25 drives — switching machines swaps the whole stack. Devices are
-  modeled at true dimensions and the camera is a seated person's eye 30
-  inches from the screen, so the perspective is the placement rather than
-  a set of tuned constants.
-- Device models are now built with a CAD kernel and exported to the same
-  OBJ/MTL the loader already read, so openings are boolean cuts and edges
-  are real fillets.
-- **The input-mode selector lives on the command toolbar.** One "Input"
-  label groups LED + device-glyph segments for joystick, paddle, and mouse
-  (per-segment tooltips carry the details), replacing the row that lost
-  its home when the monitor came to rest on the drives. To make room, the
-  volume slider left the bar: hovering Volume opens a small flyout with a
-  vertical slider and the percentage readout.
-- **A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.**
-  A period Apple Monitor //c and two Disk II drives render as true 3D
-  models, and the emulator picture maps onto the monitor's spherical-sag
-  glass so it curves exactly like a period tube — with a rounded faceplate
-  mask, a dark tube border around the raster, and mouse/touch input
-  inverse-projected through the curvature so a click lands on the exact
-  emulated pixel. Everything the 2D band did carries over: drive activity
-  lights, the 350 ms door animation on mount/eject (a true 3D flip-up
-  door), the write-protect padlock and its tooltips, slot click =
-  eject + browse, body click = browse, drag-and-drop onto a drive, the
-  monitor power lamp, and the cassowary brand. One shared camera per
-  composition places every device, so a drive right of center is seen
-  slightly from its left and the row below slightly from above — the
-  perspective IS the placement.
-- **Fullscreen becomes glass-only.** Alt+Enter now fills the monitor with
-  the curved picture alone — every chrome band hidden — and the drives
-  live in a slide-up overlay strip at the bottom edge: revealed by a
-  pointer dwell (host pointer only), or by Ctrl+D, which releases a guest
-  mouse/paddle capture for the interaction and restores it exactly once
-  when the strip hides. Tooltips and a browse opened from the strip pin
-  it; while hidden, drive activity shows as a corner glimmer.
-- Compact themes (DarkModern, RetroTerminal) keep their existing 2D
-  widgets untouched, and theme switches land the scene — or leave it —
-  with the picture, disks, activity, and write-protect state correct on
-  arrival, emulation uninterrupted.
-- **The CRT monitor is optional; the 3D drives are not.** A Settings >
-  Theme checkbox (on by default) drops the monitor and puts the picture
-  back on a flat rect at classic sizes, live and in place — the 3D drive
-  row still composes into the band below it, seen from the angle the old
-  2D drive widgets were drawn at, now as real geometry.
-
-- **The lamps read as lit, and the devices sit on something.** The
-  monitor's power indicator is a round lens in a dark recess instead of a
-  flat green mark, and both it and the drive activity LED throw a glow
-  that blows out toward white at the core and spills onto the housing
-  around them. Every device also casts a contact shadow on the ground
-  plane, so the scene reads as objects standing on a desk rather than
-  artwork pasted on the backdrop.
-- **The scene is lit per pixel, and the Monitor II wears its tilt
-  controls.** Shading was a single value baked into each vertex, which let
-  a flat face and the shallow relief molded into it come out the same
-  brightness; it is now evaluated per fragment from two lights, a sky and
-  ground ambient, and a specular highlight, with the monitor's power lamp
-  acting as a real light in that same pass instead of a glow the CPU
-  ray-traced onto nearby triangles. Relief catches light the way relief
-  should, so the inner bezel now carries the embossed up and down tilt
-  icons — the ones you press to pivot the bezel and tube on their
-  horizontal axis — alongside the power icon. The frame, bezel, and power
-  button also take their colors from a photograph of a well lit A2M2010
-  rather than from judgment by eye.
+- Tilt the Monitor II by the marks on its bezel. Remembered per monitor.
+- Drag the scene to rotate it.
+- Corner compass: arrows rotate (hold to repeat), drag to turn, orb resets.
+  Shift+two-finger drag on touchpad. Ctrl-0 to reset.
+- The //c comes up green, from the Monitor //c it shipped with. Still
+  overridable per machine.
+- Restore window placement on launch, maximized included.
+- Settings > Theme: scene antialiasing (off / 2x / 4x). Preview shows the
+  real scene.
+- Drive 2 on any machine with a Disk ][ interface; drive count comes from
+  the card's ports.
+- A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.
+  The picture maps onto spherical-sag glass, and input is inverse-projected
+  through the curvature so a click lands on the right emulated pixel.
+- Each machine gets the hardware it shipped with, at true dimensions: a
+  Monitor II over Disk IIs for the //e and ][+, a Monitor //c over 5.25
+  drives for the //c. Switching machines swaps the stack.
+- Everything the 2D drive band did carries over: activity lights, the door
+  animation on mount/eject, write-protect padlock and tooltips, drag-and-
+  drop, slot click ejects and browses, body click browses.
+- Device models are CAD-built and exported to OBJ/MTL, so openings are
+  boolean cuts and edges are real fillets.
+- Alt+Enter fills the monitor with the picture alone; the drives live in a
+  slide-up strip revealed by pointer dwell or Ctrl+D.
+- Settings > Theme can drop the CRT monitor and put the picture back on a
+  flat rect. The 3D drives stay either way.
+- Compact themes (DarkModern, RetroTerminal) keep their 2D widgets.
+- Lamps are lit lenses in a recess rather than painted marks, and every
+  device casts a contact shadow.
+- The scene is lit per pixel from two lights plus a specular highlight, with
+  the power lamp as a real light in the same pass.
 
 ### Changed
 
-- Monitor II rear rebuilt: one dark molding at a single width from the vent
-  recess to the control panel, bell emerging through it, vents backed dark.
-  Adds the right-flank contrast wheel, smooth power notch, rounded edges.
-- Monitor //c rear panel modeled control for control; tube now runs through
-  the bezel opening. The //c ships a Disk IIc rather than a rebadged Disk II.
-- Fullscreen no longer resizes the window, and its toolbar can be summoned.
-- internal: `Build.ps1`, `RunTests.ps1` and `CheckStyle.ps1` run at
-  BelowNormal by default (`-NormalPriority` opts out). MSBuild node reuse is
-  disabled while lowering -- reused workers predate the build and never
-  inherit priority.
+- Monitor II rear rebuilt as one dark molding, plus contrast wheel, power
+  notch and rounded edges.
+- Monitor //c rear panel modeled control for control; tube runs through the
+  bezel opening.
+- The //c ships a Disk IIc, not a rebadged Disk II.
+- Fullscreen no longer resizes the window; its toolbar can be summoned.
+- internal: builds and checks run at BelowNormal (`-NormalPriority` opts
+  out), with MSBuild node reuse off so the priority reaches the compiler.
 
 ### Fixed
 
-- Hit testing is occluded: a click no longer passes through the monitor to
-  a drive behind it, and back faces are not clickable.
-- The drive door's click target follows the door, including the //c latch's
-  travel above the lid. Only the door ejects; the rest of the case browses.
-- Switching machines no longer leaves the previous monitor's tilting bezel
-  in the scene, live to the cursor.
-- Command toolbar clicks are no longer swallowed by the scene's turn
-  gesture.
-- Idle GPU on a static screen: ~47% -> 0%. The drive vote fired while a
-  motor was merely energized, and the text flash phase republished
-  byte-identical frames ~4/s, holding the persistence timer open.
+- Clicks no longer pass through the monitor to a drive behind it; back faces
+  are not clickable.
+- The drive door's click target follows the door.
+- Switching machines no longer leaves the previous monitor's bezel behind.
+- Command toolbar clicks are no longer swallowed by the scene.
+- Reduce GPU use when idle.
 - Losing the audio endpoint (undocking, switching the default output
-  device) no longer trips an assertion — audio quietly reopens the new
-  default device within a second.
-- **Ejecting or mounting a disk while the machine is paused now takes
-  effect immediately.** The drive door swung open the moment eject was
-  clicked, but the eject itself was parked until the machine resumed, so
-  the drive kept reporting the old disk — its name still under the drive,
-  its write-protect padlock still lit, its tooltip still naming it. The
-  CPU thread now services the command queue while paused (without
-  stepping the emulation), which also unsticks paused mounts, drive-audio
-  settings, and write-protect toggles.
+  device) no longer trips an assertion; audio reopens the new default.
+- Eject and mount take effect while the machine is paused. The CPU thread
+  now services the command queue without stepping the emulation.
+
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
