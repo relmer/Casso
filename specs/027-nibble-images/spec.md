@@ -255,51 +255,60 @@ and modified, with the self-sync limitation stated for nibble images.
 - **FR-005**: Mounting a nibble image MUST NOT assert or report a coding error for
   any content the file may contain. A malformed image is user input and gets a
   verdict.
+- **FR-006**: A mounted nibble image MUST attribute write protection to the host
+  file's state or the user's setting only. The format carries no write-protect flag,
+  so the interface MUST NOT report one as the cause.
 
 #### Writing back
 
-- **FR-006**: The system MUST write a mounted nibble image back to its own format
+- **FR-007**: The system MUST write a mounted nibble image back to its own format
   when it is flushed, deriving the nibble bytes from the live bit stream as a drive
   would read them.
-- **FR-007**: A flush MUST leave every track the guest did not write byte-identical
+- **FR-008**: A flush MUST leave every track the guest did not write byte-identical
   to what the file held.
-- **FR-008**: A mounted nibble image the guest has not written to MUST NOT be
+- **FR-009**: A mounted nibble image the guest has not written to MUST NOT be
   rewritten at all.
-- **FR-009**: The write-back MUST NOT require a track to decode as standard
-  sectors, and MUST NOT be refused because a track does not.
-- **FR-010**: When a rewritten track's derived bytes do not fill the fixed-size
+- **FR-010**: The write-back on the emulator's flush path MUST NOT require a track
+  to decode as standard sectors, and MUST NOT be refused because a track does not.
+  This is the flush path only; FR-018 governs the console's file-level commands,
+  which do need sectors and do refuse.
+- **FR-011**: When a rewritten track's derived bytes do not fill the fixed-size
   block, the system MUST pad the remainder with `$FF` self-sync bytes. Every byte
   the file carries therefore has its high bit set, so the padding reads back as an
   ordinary gap rather than as a stretch the drive cannot assemble a nibble from.
-- **FR-011**: The write-back MUST place its padding where it interrupts no address
+- **FR-012**: The write-back MUST place its padding where it interrupts no address
   field and no data field, choosing the point at which it begins deriving the track
   accordingly rather than starting at a fixed offset.
-- **FR-012**: A flush that could not persist the guest's writes MUST report the
+- **FR-013**: A flush that could not persist the guest's writes MUST report the
   loss to the user, naming the image and what became of the writes.
-- **FR-013**: Repeated write, eject and remount cycles MUST NOT progressively
+- **FR-014**: Repeated write, eject and remount cycles MUST NOT progressively
   degrade an image: a volume written and reopened many times MUST stay readable.
 
 #### Console commands
 
-- **FR-014**: All nine `disk` commands MUST accept nibble images. `list`, `get`,
+- **FR-015**: All nine `disk` commands MUST accept nibble images. `list`, `get`,
   `put`, `delete`, `boot`, `sectorread` and `sectorwrite` MUST behave as they do on
   the equivalent sector image; `create` MUST write a new nibble image; and `init`
   MUST reformat an existing one in place, leaving its container unchanged.
-- **FR-015**: `create` MUST accept the nibble container by name in its type option
+- **FR-016**: `create` MUST accept the nibble container by name in its type option
   alongside the existing types, and MUST continue to refuse an unrecognized type
   naming the ones that exist.
-- **FR-016**: A `disk` command that needs standard sectors and meets a nibble image
+- **FR-017**: Every surface that offers a container when making a new disk MUST
+  offer the same set, and that set MUST be decided in one place. The console's type
+  option and the interface's create dialog currently decide it separately, which is
+  the same arrangement that let the file filter and the loader disagree over `.nib`.
+- **FR-018**: A `disk` command that needs standard sectors and meets a nibble image
   whose tracks do not supply them MUST refuse, name the surface as the reason, and
   write nothing.
 
 #### Consistency and documentation
 
-- **FR-017**: Adding nibble support MUST NOT change behavior for the four formats
+- **FR-019**: Adding nibble support MUST NOT change behavior for the four formats
   supported today, verified against the existing test corpus.
-- **FR-018**: The documentation MUST state, for nibble images, what can be read,
+- **FR-020**: The documentation MUST state, for nibble images, what can be read,
   written and modified, and MUST state that self-sync information is not carried by
   the format so protection depending on it does not survive.
-- **FR-019**: The documentation MUST point a user archiving a disk at WOZ rather
+- **FR-021**: The documentation MUST point a user archiving a disk at WOZ rather
   than at a nibble image.
 
 ### Key Entities

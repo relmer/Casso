@@ -4,6 +4,11 @@ Findings gathered before this spec was written, so the work does not start by
 rediscovering them. Everything here was verified against the tree or a cited
 source on 2026-08-28/29.
 
+> **Two claims below were later found to be wrong**, and the corrections are in the
+> Phase 0 section at the end of this file rather than edited in above: the track
+> size question is settled, and the `Denibblize` defect is already fixed. Read that
+> section before acting on anything here.
+
 ## Where `.nib` stands today
 
 **Nothing in Casso reads it.** `DiskImageStore::DetectFormatByExtension`
@@ -199,7 +204,7 @@ happens to sit at bit zero.
 
 **D4 -- Untouched tracks are copied, not re-derived.** The writer starts from the
 loaded file's own bytes and replaces only the tracks marked dirty. This is what
-makes FR-007 and FR-008 true by construction rather than by the derivation
+makes FR-008 and FR-009 true by construction rather than by the derivation
 happening to be exact. It also covers a case derivation cannot: a nibble image
 holding bytes with the high bit clear -- which real ones do, in gaps -- does not
 re-derive byte-identically, because such a byte is absorbed into the next byte's

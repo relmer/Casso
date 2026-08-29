@@ -16,17 +16,24 @@ scripts\Build.ps1 -Configuration Debug
 
 ## Making a test image
 
-There is no `.nib` in the tree and none should be downloaded. Generate one by
-GCR-encoding a disk that is already here:
+There is no `.nib` in the tree and none should be downloaded. Two different images
+are wanted, and they are not made the same way.
+
+**A converted copy of a real disk**, for the boot and catalog comparisons. This is
+`Apple2/Demos/casso-rocks.dsk` GCR-encoded into a nibble image -- the same work the
+mount path already does, serialized out. Until the codec exists there is no command
+for it, so produce it from the codec directly (the fixture builder in T003 is the
+same conversion, and the round-trip assertions live beside it).
+
+**A blank formatted disk**, for the `create` and `init` scenarios:
 
 ```powershell
-CassoCli disk create casso-rocks.nib --type nib
+CassoCli disk create work.nib --type nib --bootable
 ```
 
-Once `create` works, that is the shortest path. Before it does, the image can be
-produced by mounting `Apple2/Demos/casso-rocks.dsk` and serializing the result
-through the new codec from a unit test, which is where the first round-trip
-assertions live anyway.
+Do not confuse the two. `disk create` writes an image with a fresh catalog and
+nothing in it; it will not boot into `casso-rocks`, because that program was never
+put on it.
 
 Expect 232,960 bytes. Verify before trusting it:
 
@@ -44,7 +51,8 @@ length-decides rule exists for.
 x64\Debug\Casso.exe --machine Apple2e --disk1 casso-rocks.nib
 ```
 
-Expected: boots and behaves as the `.dsk` does. Capture the framebuffer to compare
+Expected: the converted image boots and behaves as `casso-rocks.dsk` does. Use the
+converted copy here, not the blank one from `disk create`. Capture the framebuffer to compare
 against the same disk in another format rather than judging by eye.
 
 Repeat with the file renamed `.nb2`, and with the 6,384-per-track image named
@@ -62,7 +70,7 @@ Mount, let it boot, eject, quit. Then:
 (Get-FileHash casso-rocks.nib).Hash -eq $before
 ```
 
-Expected: `True`. A mount that writes anything at all has failed FR-008.
+Expected: `True`. A mount that writes anything at all has failed FR-009.
 
 ## Scenario 3 -- guest writes survive
 

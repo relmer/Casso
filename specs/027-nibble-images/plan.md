@@ -72,7 +72,7 @@ roughly a dozen files, two new refusal reasons.
 | **III. UX Consistency** | The refusals follow `MountDiagnosis::Describe`, which produces a predicate clause the console and the GUI each wrap in their own subject, so one wording serves both. `create`'s type list is extended in the one table that already drives both the acceptance and the error text. |
 | **IV. Performance** | One linear pass per track at mount and at flush. No hot path is touched. |
 | **V. Simplicity** | One new class pair. The alternative -- bolting nibble byte handling onto `NibblizationLayer` -- would put two unrelated conversions behind one name, which is what the spec's "different seam" observation is about. |
-| **VI. Thin Exe, Testable Core** | Everything lands in `CassoEmuCore`. The executables gain nothing: the drive widget's filter already forwards to the store, and the console's command runner already lives in core. |
+| **VI. Thin Exe, Testable Core** | Every decision lands in `CassoEmuCore`. The drive widget's filter already forwards to the store and the console's command runner already lives in core. The one executable file this feature touches, `CreateDiskDialog.cpp`, comes out holding *less* logic than it does today -- see below. |
 
 **Degraded Operation Must Be Observable** (the doctrine in
 `.github/copilot-instructions.md`, which this feature is unusually exposed to):
@@ -89,6 +89,24 @@ roughly a dozen files, two new refusal reasons.
   is what would have caught it.
 - Round-trip tests must assert a non-zero track and byte count before asserting over
   the contents, or a codec that produced nothing would pass.
+
+**The create dialog's container list is extracted rather than extended.** Offering
+the new container in the interface's Create Disk dialog looked at first like adding
+an arm to a switch inside `Casso.exe`, which Principle VI forbids for new code and
+which the plan's own Constitution Check row would have contradicted.
+
+Looking at why the arm was needed gives a better answer. `CreateDiskDialog.cpp`
+decides which containers can hold which contents -- DOS 3.3 in `.dsk` or `.woz`,
+ProDOS in `.po` or `.woz` -- and `BlankDiskBuilder::ValidateSpec` decides the same
+thing again in core. **That is two lists of the same rule, which is precisely the
+arrangement that let the file filter and the loader disagree over `.nib` in the
+first place**, and it is why `ValidateSpec`'s missing `DiskFormat::Do` arm could go
+unnoticed while the dialog worked fine.
+
+So the pairing moves into core as `BlankDiskBuilder::ContainersFor`, `ValidateSpec`
+answers from it, and the dialog renders what it returns. The executable loses a
+decision instead of gaining one, the duplication goes away, and the new container
+appears in both surfaces because there is only one place left to add it.
 
 ## Project Structure
 
@@ -130,8 +148,14 @@ UnitTest/EmuTests/
 ├── DiskImageStoreTests.cpp       # routing, filter agreement, refusals
 ├── DiskFailureModeTests.cpp      # the malformed-image verdicts
 ├── DiskCommandRunnerTests.cpp    # all nine commands
-└── BlankDiskBuilderTests.cpp     # create/init for the new container
+├── BlankDiskBuilderTests.cpp     # create/init, and the container pairing sweep
+├── DiskWritePathTests.cpp        # flush behavior and the unpersisted-write report
+└── BootDiskTests.cpp             # a created nibble image boots
 
+UnitTest/UiTests/
+└── DriveWidgetStateTests.cpp     # filter agrees with the router
+
+Casso/Ui/Dialogs/CreateDiskDialog.cpp  # renders core's container list, decides nothing
 Casso/Ui/DriveWidgetState.h       # NOT CHANGED -- already asks the store
 README.md, docs/                  # format table, drag-and-drop claim
 CHANGELOG.md                      # user-visible feature entry
@@ -225,9 +249,11 @@ The project's own guidance says not to flip it from a feature branch while anoth
 session owns it, and there are concurrent worktrees. It still names spec 024. Flip
 it when this branch merges, not before.
 
-**`.specify/feature.json` is per-checkout state and is not committed.** It points at
-`specs/027-nibble-images` in this worktree so the speckit workflows resolve, and it
-must stay out of the merge to master. Beware `git add -A`.
+**`.specify/feature.json` is per-checkout state that must stay out of the merge.**
+It points at `specs/027-nibble-images` in this worktree so the speckit workflows
+resolve. Note it is a **tracked** file, not an untracked one, so the hazard is wider
+than it first appears: no `git add -A` is needed, and a plain `git commit -a` carries
+it in. T062 checks the branch diff for it.
 
 **`CLAUDE.md` is stale in two other ways worth correcting at merge time**, neither
 of them this feature's doing: it describes spec 020 as implemented-but-unmerged when
