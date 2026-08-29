@@ -1596,6 +1596,8 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
 
 
+    m_lastSourceLine = current.sourceLineNumber;
+
     // Before anything can fail: a diagnostic raised while processing this line
     // must name the file the line came from, and this is the last point at
     // which that is known.
@@ -4771,6 +4773,45 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandlePass1SaveObject
+//
+//  The save directive, in the pass that only sizes lines.
+//
+//  It places no bytes and cuts nothing here; both of those happen in pass 2,
+//  where the byte stream exists. What pass 1 owes it is the check that it names
+//  something, so a source missing the name is told at the line that is missing
+//  it rather than at whatever the assembly did afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1SaveObject (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr     = S_OK;
+    std::string  name   = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg = !name.empty();
+
+
+
+    //  A NAME IS REQUIRED, and is not taken from anywhere else when it is
+    //  missing. This directive exists to write a named output, and falling back
+    //  to whatever name happened to be in effect is what would let several
+    //  saves in one source resolve to one file, each writing over the last
+    //  while the assembly reported success. The output-file directive beside it
+    //  is already an error with no operand, for the same reason.
+    if (!hasArg)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::HandlePass1FileType
 //
 //  The source stating the filesystem type its output should take.
@@ -4778,16 +4819,10 @@ Error:
 //  REPORTED RATHER THAN ACTED ON, like the output name beside it. Nothing here
 //  knows what a filesystem is; this records the byte the source asked for and
 //  leaves deciding whether the target has such a type to whoever writes the
-//  file. That is what keeps the type meaningful on a volume and harmless
-//  without one.
+//  file.
 //
-//  The operand is an expression, because Merlin writes its numbers that way and
-//  a source is free to name the type through an equate. A value that will not
-//  fit in a byte is refused rather than truncated: the low byte of a wrong
-//  answer is still a wrong answer, and it would file the object under a type
-//  nobody asked for.
-//
-//  A later directive replaces an earlier one, the way the output name does.
+//  A value that will not fit in a byte is refused rather than truncated: the
+//  low byte of a wrong answer is still a wrong answer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5182,7 +5217,10 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::MacroDef,        nullptr,                                  nullptr                                  },
     { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
     { Directive::CpuSelect,       &AssemblySession::HandlePass1CpuSelect,   nullptr                                  },
-    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  nullptr                                  },
+    //  Both columns, and the pass-2 one is where the outputs are actually cut.
+    //  A second occurrence closes the file the first opened, which can only be
+    //  done where the byte stream is.
+    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  &AssemblySession::EmitObjectFile         },
 
     //  KBD acts entirely in the prelude, before a label can bind, so both rows
     //  are null for the same reason ORG's are rather than because it is
@@ -5210,7 +5248,7 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
     { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
     { Directive::FileType,        &AssemblySession::HandlePass1FileType,    nullptr                                  },
-    { Directive::SaveObject,      nullptr,                                  nullptr                                  },
+    { Directive::SaveObject,      &AssemblySession::HandlePass1SaveObject,  &AssemblySession::EmitSaveObject         },
     };
 
 
@@ -6917,7 +6955,7 @@ HRESULT AssemblySession::RunPass2()
     // Whatever is still accumulating becomes the last output. A source that
     // never cut a span reaches here with all of its bytes in one, which is why
     // an ordinary assembly needs no separate path.
-    CloseSpan();
+    CloseSpan (std::string());
 
     hr = ExtractImage();
     CHR (hr);
@@ -8127,20 +8165,35 @@ void AssemblySession::NoteSpanEmission (const LineInfo & info, Word emitPCStart,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssemblySession::CloseSpan()
+void AssemblySession::CloseSpan (const std::string & name)
 {
-    SavePoint  span;
-    size_t     first = m_spanOutputStart;
-    size_t     last  = m_spanOutputEnd;
+    SavePoint    span;
+    size_t       first     = m_spanOutputStart;
+    size_t       last      = m_spanOutputEnd;
+    bool         hasBytes  = m_spanHasBytes && (last > first);
+    bool         isFirst   = m_result.savePoints.empty();
+    std::string  effective = name.empty() ? m_objectFileInEffect : name;
+    bool         named     = !effective.empty();
 
 
 
-    if (m_spanHasBytes && last > first)
+    //  An unnamed span AFTER something else was already saved is dropped, and
+    //  said so. That is the period assembler's behavior, measured: it assembles
+    //  such bytes and counts them and writes no file for them. Dropping them
+    //  silently is the part that would be wrong, so the warning carries what the
+    //  missing file would have.
+    if (hasBytes && !named && !isFirst)
+    {
+        RecordWarning (m_lastSourceLine,
+                       "bytes were assembled after the last save and no output names them, so they were not written");
+    }
+
+    if (hasBytes && (named || isFirst))
     {
         span.bytes.assign (m_image.begin() + first, m_image.begin() + last);
         span.loadAddress    = m_spanLoadAddress;
         span.hasLoadAddress = true;
-        span.name           = m_result.outputFileName;
+        span.name           = effective;
         span.fileType       = m_fileType;
         span.hasFileType    = m_hasFileType;
 
@@ -8150,6 +8203,79 @@ void AssemblySession::CloseSpan()
     m_spanHasBytes = false;
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitObjectFile
+//
+//  The output-file directive, in the pass that places bytes.
+//
+//  A SECOND ONE CLOSES THE FIRST OUTPUT AND BEGINS ANOTHER. The directive
+//  assembles the code that FOLLOWS it into the file it names, so meeting a
+//  second one ends the file the first opened -- a source carrying two of them
+//  produces two files with no save directive anywhere. Treating a later one as
+//  merely renaming the single output is indistinguishable from this for one
+//  occurrence and wrong for two.
+//
+//  It emits no bytes. The pass-2 column is used here the way the assembly-time
+//  assertion uses it: to act at the point in the byte stream where the line
+//  sits, which is the whole reason this cannot be done in pass 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitObjectFile (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr   = S_OK;
+    std::string  name = StripCommentAndTrim (info.parsed.directiveArg);
+
+
+
+    (void) emitPC;
+
+    CloseSpan (std::string());
+
+    m_objectFileInEffect = name;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitSaveObject
+//
+//  The save directive, which writes what has accumulated and carries on.
+//
+//  THE ACCUMULATION IS EMPTIED, so the next output holds only what follows.
+//  That is the period assembler's own behavior rather than a choice here: its
+//  manual says the object area is empty after a save, and a two-save source
+//  measured against it produces two files the size of their own halves.
+//
+//  The name it gives applies to the span it ends and to no other. An
+//  output-file directive still in effect governs the next one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitSaveObject (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr   = S_OK;
+    std::string  name = StripCommentAndTrim (info.parsed.directiveArg);
+
+
+
+    (void) emitPC;
+
+    CloseSpan (name);
+
+    return hr;
 }
 
 

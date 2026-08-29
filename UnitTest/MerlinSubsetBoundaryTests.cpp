@@ -237,8 +237,14 @@ namespace MerlinSubsetBoundaryTests
         {
             const Directive  kRefusedByName[] = { Directive::Relocatable,
                                                   Directive::EntrySymbol,
-                                                  Directive::ExternalSymbol,
-                                                  Directive::SaveObject };
+                                                  Directive::ExternalSymbol };
+
+            //  The two directives that left. Each is recognized and HANDLED
+            //  now, so a row for either would refuse something the assembler
+            //  implements -- which is why this asserts their ABSENCE rather
+            //  than simply not mentioning them.
+            const Directive  kImplemented[] = { Directive::FileType,
+                                                Directive::SaveObject };
 
             for (Directive token : kRefusedByName)
             {
@@ -246,10 +252,11 @@ namespace MerlinSubsetBoundaryTests
                                 L"a construct recognized only so it can be refused, with nothing to refuse it");
             }
 
-            //  The file type is recognized and HANDLED now, so a row for it
-            //  would refuse a directive the assembler implements.
-            Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), Directive::FileType) == nullptr,
-                            L"the file-type directive is inside the subset and must not be refused");
+            for (Directive token : kImplemented)
+            {
+                Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) == nullptr,
+                                L"an implemented directive must not also be refused");
+            }
         }
 
 
@@ -338,7 +345,7 @@ namespace MerlinSubsetBoundaryTests
         //  run turns that into as many runs as there are constructs.
         TEST_METHOD (EveryOffenderInTheSourceIsReported)
         {
-            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n EXT\n SAV\n");
+            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n EXT\n EXT\n");
             std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
             Assert::AreEqual ((size_t) 5, refusals.size(), L"one refusal per offending line");
@@ -540,16 +547,16 @@ namespace MerlinSubsetBoundaryTests
 
 
 
-        TEST_METHOD (TheSaveObjectDirectiveIsRefusedAsAnUndecidedQuestionRatherThanAWait)
+        //  The save-object directive left the boundary once multi-output
+        //  assembly was decided. It writes an output and carries on now.
+        TEST_METHOD (TheSaveObjectDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" SAV OUT\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV OUT\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the save-object directive");
-
-            Assert::IsTrue (refusals[0].message.find ("several outputs") != std::string::npos,
-                            L"the refusal has to say what makes this its own question");
-            Assert::IsTrue (refusals[0].message.find ("disk file access will not settle") != std::string::npos,
-                            L"and deny the reading that it is merely waiting on file access");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the save-object directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
+            Assert::AreEqual ((size_t) 1, result.savePoints.size(), L"producing the output it named");
         }
     };
 
@@ -752,15 +759,16 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::IsTrue (help.find ("needs a linker")                     != std::string::npos, L"linker");
             Assert::IsTrue (help.find ("needs a CPU Casso does not emulate") != std::string::npos, L"cpu");
-            Assert::IsTrue (help.find ("undecided")                          != std::string::npos, L"undecided");
-
-            //  The owned-by-another-feature class left with the file-type row,
-            //  which was the only construct wearing it. Asserting its ABSENCE
-            //  rather than dropping the line: a reason class the help still
-            //  named with no row behind it would be a boundary the tool
-            //  describes and no longer has.
+            //  Two reason classes left with the two rows that wore them: the
+            //  file type was the only construct owned by another part of Casso,
+            //  and the save was the only undecided one. Their ABSENCE is
+            //  asserted rather than the lines simply dropped, because a reason
+            //  the help still named with no row behind it would be a boundary
+            //  the tool describes and no longer has.
             Assert::IsTrue (help.find ("owned by another part of Casso")     == std::string::npos,
                             L"no row claims that reason any more");
+            Assert::IsTrue (help.find ("undecided")                          == std::string::npos,
+                            L"nor that one");
         }
     };
 

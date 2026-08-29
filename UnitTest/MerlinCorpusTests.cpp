@@ -1924,14 +1924,10 @@ namespace MerlinCorpusTests
             DiagnosticKind::SubsetBoundary, 1, 6,
             "EXT", "Invalid mnemonic",
         },
-        {
-            //  The one refusal that must DENY a dependency rather than omit it:
-            //  disk file access arriving will not settle what this should do.
-            "save-object directive",
-            "        SAV OBJECT\n",
-            DiagnosticKind::SubsetBoundary, 1, 9,
-            "disk file access will not settle", "Invalid mnemonic",
-        },
+        //  The save-object directive was here and is not any more. What it was
+        //  waiting on was a decision about multi-output assembly rather than a
+        //  capability, and that decision was made: it writes the span
+        //  accumulated since the previous save and carries on.
         //  The output file-type directive was here and is not any more. It set
         //  a filesystem type with no filesystem to set it on; the assembler can
         //  write onto a volume now, so the type has somewhere to land and the
@@ -1999,9 +1995,14 @@ namespace MerlinCorpusTests
         //  The absent-corpus guard, in the direction a loop cannot check itself.
         //  A sweep over an empty table reports success having compared nothing,
         //  and is indistinguishable in the output from a full one.
+        //  The floor moved from eight to seven, and the two it lost were not
+        //  coverage being dropped: the file-type and save-object directives
+        //  stopped being refused, so an entry expecting a refusal from either
+        //  would now be asserting the opposite of what the assembler does.
+        //  Their behavior is covered where it moved to, as accepted directives.
         TEST_METHOD (TheNegativeCorpusIsNotEmpty)
         {
-            Assert::IsTrue (std::size (s_kNegativeCorpus) >= 8,
+            Assert::IsTrue (std::size (s_kNegativeCorpus) >= 7,
                             L"the negative corpus must cover the refused constructs and the diagnostic expectations");
         }
 

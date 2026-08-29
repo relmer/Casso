@@ -216,6 +216,9 @@ private:
     HRESULT HandlePass1CpuSelect       (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1FileType        (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1SaveObject      (const PendingLine & current, LineInfo & info);
+    HRESULT EmitObjectFile             (const LineInfo & info, Word & emitPC);
+    HRESULT EmitSaveObject             (const LineInfo & info, Word & emitPC);
 
     // The directive that assigns the positional parameters with no macro call.
     // Both passes bind, through one helper, because a reference resolves against
@@ -310,7 +313,10 @@ private:
     //  Ends the span being accumulated and appends it as an output. Does
     //  nothing when the span placed no bytes, so a source that saves twice in a
     //  row does not produce an empty file between them.
-    void    CloseSpan            ();
+    //
+    //  An empty name falls back to the output-file directive in effect, which
+    //  is what makes a span that directive opened belong to it.
+    void    CloseSpan            (const std::string & name);
 
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
@@ -789,6 +795,15 @@ private:
     // the value.
     Byte                                               m_fileType           = 0;
     bool                                               m_hasFileType        = false;
+
+    // The output-file directive in effect, which stays in effect until another
+    // replaces it. A save names the span it ends and only that one, so a later
+    // span still belongs to this.
+    std::string                                        m_objectFileInEffect;
+
+    // The last source line pass 1 read, so a diagnostic raised once the walk
+    // has finished still points somewhere in the file rather than at line zero.
+    int                                                m_lastSourceLine     = 0;
     std::unordered_map<std::string, int>               m_referencedLabels;
     std::unordered_map<std::string, int32_t>           m_fullSymbols;
     ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };
