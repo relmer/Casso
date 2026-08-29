@@ -8,6 +8,19 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **Nibble disk images (`.nib`, `.nb2`) mount, boot and write back.** Drag one
+  onto a drive, pick it from the dialog, or name it on the command line; all
+  nine `disk` commands take them, and `create` writes them. They are for the
+  collections that predate WOZ, not for preservation: the format records whole
+  bytes only, so the self-sync patterns copy protection inspects are not in the
+  file. Ordinary disks work; a protected one works as far as the format
+  preserved it. Archive into WOZ instead.
+
+  Which track size a file holds is decided by its length, not its extension,
+  since either size circulates under either name. A new image gets the size its
+  name asks for, and reformatting one keeps the size it already had.
+
 ### Changed
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving

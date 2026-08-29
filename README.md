@@ -40,7 +40,8 @@ a monochrome one, and an image authored for either reads as noise on the other:
 
 - **Assembler** — from-scratch, AS65-compatible, and assembles Merlin; ca65 next
 - **Disk management** — create, initialize, catalog, read and write files,
-  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do` and `.po`
+  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do`,
+  `.po` and nibble images
 - **Headless execution** — assemble and run 6502 code with no GUI
 - **Launches the emulator** — with a machine and disks already selected
 
@@ -255,10 +256,19 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do` and `.po` images all mount. Casso can **create
-blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK
-and PO, optionally bootable from the stock masters — and a created disk is
+`.woz`, `.dsk`, `.do`, `.po` and nibble images all mount — drag one onto a drive,
+pick it from the dialog, or name it on the command line. Casso can **create
+blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK,
+PO and nibble, optionally bootable from the stock masters — and a created disk is
 usable immediately, with no `INIT` step.
+
+**Nibble images** (`.nib`, `.nb2`) are the raw byte stream a drive reads, and they
+are here for the collections that predate WOZ rather than for preservation. The
+format records whole bytes only, so the self-sync information copy protection
+inspects is not in the file: ordinary disks work, and a protected one works only
+as far as the format preserved it. **Archive a disk into WOZ, not into a nibble
+image.** Which of the two track sizes a file holds is read from its length rather
+than its name, because either size circulates under either extension.
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
 
