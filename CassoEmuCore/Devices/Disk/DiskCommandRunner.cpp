@@ -1634,6 +1634,36 @@ std::string DiskCommandRunner::ContainerWordList (const char * prefix, const cha
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::CountOf
+//
+//  A count with its unit: "1 block", "5 blocks".
+//
+//  The unit belongs with the number because a bare one leaves the reader
+//  asking what was counted, and the plural has to follow the value or the
+//  sentence reads as a typo the moment the answer is one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::CountOf (int count, const char * unit)
+{
+    std::string  text = std::to_string (count) + " " + unit;
+
+
+
+    if (count != 1)
+    {
+        text += "s";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeSpecRefusal
 //
 //  Why a settled spec cannot be written, in words -- or empty when it can be.
@@ -2412,14 +2442,16 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
 
     if (!fits)
     {
-        size_t  spare = total - first;
+        size_t       spare  = total - first;
+        std::string  wanted = CountOf (options.disk.count, "sector");
+        std::string  left   = CountOf ((int) spare, "sector");
 
         snprintf (summary, sizeof (summary),
-                  "Error: sector range exceeds the disk\n"
-                  "       %d sectors requested from track %d sector %d.\n"
-                  "       Only %zu sector%s available.\n",
-                  options.disk.count, options.disk.track, options.disk.sector,
-                  spare, (spare == 1) ? "" : "s");
+                  "Error: not enough sectors available\n"
+                  "       Requested %s starting at track %d sector %d,\n"
+                  "       but only %s %s on the disk.\n",
+                  wanted.c_str(), options.disk.track, options.disk.sector,
+                  left.c_str(), (spare == 1) ? "remains" : "remain");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2593,14 +2625,17 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
         if (!fits)
         {
-            size_t  spare = total - first;
+            size_t       spare  = total - first;
+            std::string  wanted = CountOf ((int) needed, "sector");
+            std::string  left   = CountOf ((int) spare, "sector");
 
             snprintf (summary, sizeof (summary),
-                      "Error: sector range exceeds the disk\n"
-                      "       %zu bytes from track %d sector %d requires %zu sectors.\n"
-                      "       Only %zu sector%s available.\n",
+                      "Error: not enough sectors available\n"
+                      "       Writing %zu bytes starting at track %d sector %d requires\n"
+                      "       %s, but only %s %s on the disk.\n",
                       payload.size(), options.disk.track, options.disk.sector,
-                      needed, spare, (spare == 1) ? "" : "s");
+                      wanted.c_str(), left.c_str(),
+                      (spare == 1) ? "remains" : "remain");
         }
 
         CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2745,14 +2780,16 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
     if (!fits)
     {
-        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        int          spare  = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        std::string  wanted = CountOf (options.disk.count, "block");
+        std::string  left   = CountOf (spare, "block");
 
         snprintf (summary, sizeof (summary),
-                  "Error: block range exceeds the disk\n"
-                  "       %d blocks requested from block %d.\n"
-                  "       Only %d block%s available.\n",
-                  options.disk.count, options.disk.block,
-                  spare, (spare == 1) ? "" : "s");
+                  "Error: not enough blocks available\n"
+                  "       Requested %s starting at block %d,\n"
+                  "       but only %s %s on the disk.\n",
+                  wanted.c_str(), options.disk.block,
+                  left.c_str(), (spare == 1) ? "remains" : "remain");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2887,14 +2924,17 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
 
     if (!fits)
     {
-        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        int          spare  = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        std::string  wanted = CountOf ((int) needed, "block");
+        std::string  left   = CountOf (spare, "block");
 
         snprintf (summary, sizeof (summary),
-                  "Error: block range exceeds the disk\n"
-                  "       %zu bytes from block %d requires %zu blocks.\n"
-                  "       Only %d block%s available.\n",
+                  "Error: not enough blocks available\n"
+                  "       Writing %zu bytes starting at block %d requires\n"
+                  "       %s, but only %s %s on the disk.\n",
                   payload.size(), options.disk.block,
-                  needed, spare, (spare == 1) ? "" : "s");
+                  wanted.c_str(), left.c_str(),
+                  (spare == 1) ? "remains" : "remain");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));

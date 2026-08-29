@@ -154,6 +154,9 @@ public:
     //  by `conjunction` before the last.
     static std::string  ContainerWordList (const char * prefix, const char * conjunction);
 
+    //  A count with its unit, agreeing in number: "1 block", "5 blocks".
+    static std::string  CountOf (int count, const char * unit);
+
     //  Why a settled spec cannot be written, in words, or empty if it can.
     static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
 
