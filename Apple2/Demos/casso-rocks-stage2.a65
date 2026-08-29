@@ -308,23 +308,40 @@ do_exit
                            ; reset because the //e RESET.MGR never
                            ; touches $C0E8.
 
-    ; HAND OFF TO BASIC DIRECTLY, not through the reset vector. Going
-    ; through ($FFFC) asks the //e RESET.MGR what should happen next,
-    ; and on a machine that powered on normally it re-runs the video
-    ; firmware init and turns 80COL back ON -- undoing the switch
-    ; cleanup above and dropping into Applesoft in 80 columns with
-    ; half-width glyphs. (A headless harness that never ran the ROM's
-    ; power-on does NOT reproduce this: it has no firmware hooks for
-    ; the handler to re-init, so it exits in 40 columns and looks fine.
-    ; This was found on the real thing, twice.)
+    ; PUT THE FIRMWARE HOOKS BACK, THEN LET THE RESET VECTOR DO THE
+    ; HAND-OFF. Both halves of that are load-bearing, and each was
+    ; arrived at by breaking the other:
     ;
-    ; These are the monitor's published entry points, unchanged across
-    ; the ][, ][+, //e and //c, so depending on them is both smaller and
-    ; more predictable than depending on what the reset handler decides.
+    ;   - Without SETKBD/SETVID, the //e RESET.MGR restores the
+    ;     80-column firmware hook on its way past and turns 80COL back
+    ;     on, so the demo dropped into Applesoft in 80 columns with
+    ;     half-width glyphs and typing that misbehaved. Resetting the
+    ;     hooks first leaves it nothing to restore.
+    ;
+    ;   - Without the reset vector -- jumping to $E000 directly instead
+    ;     -- the color cycle re-booted the disk rather than exiting,
+    ;     while the monochrome cycle exited cleanly. $E000 is
+    ;     JMP $F128, Applesoft's cold start with its RAM-sizing scan;
+    ;     what about the color path upsets it was not established.
+    ;     $E003, the warm start, is worse still: it lands in the
+    ;     monitor dumping registers, because Applesoft's work area has
+    ;     never been set up on a machine that booted straight to this
+    ;     disk. Going through the handler gets a properly initialized
+    ;     Applesoft on both cycles.
+    ;
+    ; The three entry points are the monitor's published ones,
+    ; unchanged across the ][, ][+, //e and //c.
+    ;
+    ; NOTE FOR ANYONE CHANGING THIS: the headless harness is not an
+    ; oracle here. It jumps straight into the boot PROM at $C600 and so
+    ; never runs the //e power-on, which means it has no firmware hooks
+    ; for the reset handler to restore and does not reproduce either
+    ; failure. Both were found, and both fixes confirmed, by exiting in
+    ; the emulator and typing at the prompt.
     jsr $FB2F              ; INIT   - text mode, full window
     jsr $FE89              ; SETKBD - KSW back to KEYIN
     jsr $FE93              ; SETVID - CSW back to COUT1
-    jmp $E000              ; Applesoft cold start
+    jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
 
 
 ; ----------------------------------------------------------------------------

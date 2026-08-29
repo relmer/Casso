@@ -622,20 +622,19 @@ public:
 
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (500'000ULL);
-            //  WHAT THIS CAN AND CANNOT ASSERT. That the demo let go is
-            //  checkable here: the PC has to leave stage 2's own pages.
-            //  Whether the machine it hands back to is healthy is not --
-            //  this harness jumps straight into the boot PROM at $C600 and
-            //  so never runs the //e power-on that sets up the firmware
-            //  work area, and Applesoft's cold start does not survive long
-            //  in a machine that never had one. It is verified in the
-            //  emulator instead, by exiting and typing at the prompt.
-            {
-                Word  pc = core.cpu->GetPC();
-
-                Assert::IsTrue (pc < 0x1000 || pc > 0x11FF,
-                    L"the demo must hand control away from its own code");
-            }
+            //  WHERE IT ENDS UP IS NOT CHECKABLE HERE. do_exit hands off
+            //  through the reset vector, and this harness jumps straight
+            //  into the boot PROM at $C600 rather than running the //e
+            //  power-on -- so the power-up byte at $3F4 is never made
+            //  valid, the handler takes its COLD path, and a cold start on
+            //  this machine re-boots slot 6. The demo comes back rather
+            //  than exiting, and no assertion about the PC can tell that
+            //  apart from a genuine failure. On a machine that powered on
+            //  normally the same code reaches Applesoft; that is verified
+            //  in the emulator, by exiting and typing at the prompt.
+            //
+            //  What IS worth asserting is the mode do_exit leaves behind,
+            //  below. It runs before the hand-off either way.
 
             //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
@@ -774,20 +773,19 @@ public:
             //  whichever step it was called from.
             core.keyboard->KeyPressRaw (0x1B);
             core.RunCycles (200'000ULL);
-            //  WHAT THIS CAN AND CANNOT ASSERT. That the demo let go is
-            //  checkable here: the PC has to leave stage 2's own pages.
-            //  Whether the machine it hands back to is healthy is not --
-            //  this harness jumps straight into the boot PROM at $C600 and
-            //  so never runs the //e power-on that sets up the firmware
-            //  work area, and Applesoft's cold start does not survive long
-            //  in a machine that never had one. It is verified in the
-            //  emulator instead, by exiting and typing at the prompt.
-            {
-                Word  pc = core.cpu->GetPC();
-
-                Assert::IsTrue (pc < 0x1000 || pc > 0x11FF,
-                    L"the demo must hand control away from its own code");
-            }
+            //  WHERE IT ENDS UP IS NOT CHECKABLE HERE. do_exit hands off
+            //  through the reset vector, and this harness jumps straight
+            //  into the boot PROM at $C600 rather than running the //e
+            //  power-on -- so the power-up byte at $3F4 is never made
+            //  valid, the handler takes its COLD path, and a cold start on
+            //  this machine re-boots slot 6. The demo comes back rather
+            //  than exiting, and no assertion about the PC can tell that
+            //  apart from a genuine failure. On a machine that powered on
+            //  normally the same code reaches Applesoft; that is verified
+            //  in the emulator, by exiting and typing at the prompt.
+            //
+            //  What IS worth asserting is the mode do_exit leaves behind,
+            //  below. It runs before the hand-off either way.
 
             //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
