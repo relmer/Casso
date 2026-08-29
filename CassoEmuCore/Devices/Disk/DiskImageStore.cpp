@@ -207,6 +207,59 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatMountFailureMessage
+//
+//  User-facing message for a mount that did not happen. Mount fails for
+//  three reasons and reports all of them as one generic HRESULT, so the
+//  reason is re-derived here from the one input that still carries it: an
+//  extension the routing does not recognize could never have been loaded by
+//  any of the loaders, and everything else is a file that could not be read
+//  or whose contents the loader refused.
+//
+//  Deliberately says nothing about what happened to the drive. A rejected
+//  file leaves the bay empty, while a file that could not be read at all
+//  leaves the previous disk in place, and a message that guessed wrong about
+//  that is worse than one that stays quiet on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatMountFailureMessage (const string & path)
+{
+    wstring     widePath = fs::path (path).wstring();
+    DiskFormat  fmt      = DiskFormat::Dsk;
+    HRESULT     hrDetect = S_OK;
+    wstring     message;
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    hrDetect = DetectFormatByExtension (path, fmt);
+
+    if (FAILED (hrDetect))
+    {
+        message = L"Casso could not open this file as a disk image:\n\n" + widePath +
+                  L"\n\nCasso reads .dsk, .do, .po and .woz disk images.";
+    }
+    else
+    {
+        message = L"Casso could not open this disk image:\n\n" + widePath +
+                  L"\n\nThe file could not be read, or its contents are not a "
+                  L"disk image this loader accepts.";
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatDamagedImageMessage
 //
 //  User-facing message for a disk this tool will not write back, because
