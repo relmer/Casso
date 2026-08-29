@@ -36,15 +36,15 @@ public:
     //  Records a step. False means STOP -- either the unit was already seen or
     //  the walk has run past what the volume could hold. The reason is
     //  available afterwards.
-    bool  TryVisit    (uint32_t unit);
+    bool  TryVisit (uint32_t unit);
 
     //  True when the walk stopped because it hit a bound rather than because it
     //  reached the end of the chain. Callers report this as an unfollowable
     //  chain instead of pretending the walk completed.
-    bool  HasHitBound () const { return m_hitBound; }
+    bool  HitBound () const { return m_hitBound; }
 
-    bool  HasSeenCycle      () const { return m_sawCycle; }
-    bool  HasExceededLength () const { return m_exceededLength; }
+    bool  SawCycle       () const { return m_sawCycle; }
+    bool  ExceededLength () const { return m_exceededLength; }
 
     uint32_t  GetVisitedCount () const { return m_visited; }
 

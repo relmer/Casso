@@ -69,8 +69,8 @@ public:
         steps = WalkChain (next, 7, guard);
 
         Assert::AreEqual (1, steps, L"a self-reference must be visited once and then stop");
-        Assert::IsTrue (guard.HasHitBound(), L"stopping on a cycle is a bound, not a clean finish");
-        Assert::IsTrue (guard.HasSeenCycle(), L"the cycle must be reported as such");
+        Assert::IsTrue (guard.HitBound(), L"stopping on a cycle is a bound, not a clean finish");
+        Assert::IsTrue (guard.SawCycle(), L"the cycle must be reported as such");
     }
 
     TEST_METHOD (ChainWalkGuard_LongCycle_Terminates)
@@ -93,7 +93,7 @@ public:
         steps = WalkChain (next, 0, guard);
 
         Assert::AreEqual ((int) kUnits, steps, L"every distinct unit is visited exactly once");
-        Assert::IsTrue (guard.HasHitBound(), L"closing the loop must stop the walk");
+        Assert::IsTrue (guard.HitBound(), L"closing the loop must stop the walk");
     }
 
     TEST_METHOD (ChainWalkGuard_PointerOutsideTheVolume_Terminates)
@@ -109,8 +109,8 @@ public:
         steps = WalkChain (next, 3, guard);
 
         Assert::AreEqual (1, steps, L"the impossible pointer must not be followed");
-        Assert::IsTrue (guard.HasHitBound(), L"leaving the volume is a bound");
-        Assert::IsTrue (guard.HasExceededLength(), L"an out-of-range unit is reported as over-run");
+        Assert::IsTrue (guard.HitBound(), L"leaving the volume is a bound");
+        Assert::IsTrue (guard.ExceededLength(), L"an out-of-range unit is reported as over-run");
     }
 
     TEST_METHOD (ChainWalkGuard_HonestChain_CompletesWithoutHittingBound)
@@ -132,7 +132,7 @@ public:
         steps = WalkChain (next, 0, guard);
 
         Assert::AreEqual (10, steps, L"a ten-unit chain must take ten steps");
-        Assert::IsFalse (guard.HasSeenCycle(), L"an honest chain has no cycle");
+        Assert::IsFalse (guard.SawCycle(), L"an honest chain has no cycle");
     }
 
     TEST_METHOD (IntegrityReport_UniqueOwnership_IsWhatDeleteMayFree)

@@ -448,7 +448,7 @@ public:
         MemoryBus            bus;
         RamDevice            ramLo (0x0000, 0xBFFF);
         RamDevice            ramHi (0xC000, 0xFFFF);
-        PeekForTraceProbe       cpu (bus);
+        PeekForTraceProbe    cpu (bus);
         std::vector<Byte>    altBank (0x100, 0x00);
 
 

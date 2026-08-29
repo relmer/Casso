@@ -770,6 +770,20 @@ converted.
 A function may return `bool` only when its name makes `true`/`false` obvious:
 `IsXxx`, `HasXxx`, `TryXxx`, `CanXxx`, and similar.
 
+**A past-tense verb with the subject elided counts as "and similar."**
+`SawCycle()`, `HitBound()`, `ExceededLength()` on `ChainWalkGuard` each read as
+a question with a true/false answer -- did the walk see a cycle, hit a bound,
+run past the length -- so they satisfy this rule as they stand. They were
+briefly renamed to `HasSeenCycle` / `HasHitBound` / `HasExceededLength` during
+item 6 and put back. The prefix list is examples, not an allowlist; what the
+rule asks is that the name pose a yes/no question, and a past-tense verb does.
+
+That is narrower than it sounds. Of the 38 bool queries item 6 renamed, those
+three were the only verb-first names. The rest are noun-first (`CapReached`,
+`SpanMoved`, `SegmentSelected`, `ResetQueued`, `RxIrqEnabled`) or a bare
+adjective (`Idle`, `Moving`, `Running`, `Empty`), and none of those poses a
+question on its own.
+
 Survey of bool-returning declarations in headers:
 
 | Prefix | Count |
@@ -790,31 +804,33 @@ versus artifacts of a crude regex (operators, `operator bool`, lambdas).
 items 1-4 must be named accordingly.
 
 **The `Has`/`Is`/`Did` half of this is done**, folded into item 6 rather than
-renamed twice: a past-participle name like `SawCycle` is both a bool-return
-violation and a VerbNoun violation, and they have one fix.
+renamed twice: a name like `CapReached` is both a bool-return violation and a
+VerbNoun violation, and they have one fix. 38 renames, listed there.
 
 ### 6. Function names are VerbNoun, mostly done
 
 A function name says what it *does*. `GetPrimaryExtension`, not `ExtensionFor`;
-`HasSeenCycle`, not `SawCycle`. A noun-first or past-participle-first name reads
-as a value rather than an action. `OnXxx` handlers are the standing exception.
+`HasReachedCap`, not `CapReached`. A noun-first name reads as a value rather
+than an action. `OnXxx` handlers are the standing exception. A *verb*-first name
+is fine whatever its tense: `SawCycle` is already VerbNoun, and item 5 accepts
+it as a bool query too.
 
 Approved prefixes, from what the tree already uses: `Get` / `Set` for lookups
 and accessors, `Is` / `Has` / `Are` / `Can` / `Should` / `Does` / `Did` for bool
 queries (item 5's rule, same fix), `Try` for fallible attempts, and any plain
 imperative verb otherwise.
 
-**282 renames landed** across `CassoEmuCore`, `CassoCore`, `Casso` and
-`CassoCli` (271 distinct names; 11 of them declared by sibling classes and
-renamed together). 263 files, 2,096 lines. By target prefix: 226 `Get`, 23
-`Is`, 10 `Has`, 5 `Are`, 4 `Make`, and 14 other verbs.
+**279 renames landed** across `CassoEmuCore`, `CassoCore`, `Casso` and
+`CassoCli` (268 distinct names; 11 of them declared by sibling classes and
+renamed together). 261 files, 2,092 lines. By target prefix: 226 `Get`, 23
+`Is`, 7 `Has`, 5 `Are`, 4 `Make`, and 14 other verbs.
 
 Three sub-cases wanted different treatment, so classify before renaming:
 
 | Shape | Example | Becomes |
 |---|---|---|
 | lookup or accessor | `ExtensionFor`, `TrackOf`, `CellAt` | `Get...` |
-| past participle hiding a bool query | `SawCycle`, `HitBound`, `ExceededLength` | `HasSeenCycle`, `HasHitBound`, `HasExceededLength` |
+| noun-first bool query | `CapReached`, `EverTouched`, `SpanMoved` | `HasReachedCap`, `HasBeenTouched`, `HasSpanMoved` |
 | named constructor | `CassoTheme::Skeuomorphic` | `MakeSkeuomorphic` |
 
 The third row is the one worth arguing about. `Skeuomorphic()` is the standard
@@ -854,6 +870,12 @@ Neither figure is the answer on its own; both need reading.
 | matrix helpers mirroring DirectXMath | `Mul44`, `PerspectiveFovRH`, `IdentityMvp`, `LookAtRH` |
 | EHM framework hooks | `EhmBreakpoint`, `EhmNotifyUser` |
 
+**A rename can reach further than the function.** `Cpu::TracePeek` became
+`PeekForTrace`, and `using Cpu::TracePeek;` in a test probe has no parentheses,
+so a call-shaped pass skips it and the probe silently loses access to a
+protected member. The build catches that one. Its probe class and test method
+were named for the function and moved with it.
+
 **Two renames the compiler chose for us.** `PrinterByteRing::FreeSpace` could
 not become `GetFreeSpace`: that is a Win16 leftover still declared by
 `winbase.h`, and the collision is a syntax error at the declaration, not a
@@ -884,7 +906,7 @@ link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
   exist. Move the prose intact; do not summarize it.
 
 **Proof that a rename sweep changed nothing else.** Line counts are identical in
-all 263 files, and every changed line was checked token by token: 2,058 tokens
+all 261 files, and every changed line was checked token by token: 2,059 tokens
 differ and every one of them is a pair in the rename table. Anything else --
 a reordered argument, a dropped `const`, a mangled format string -- fails that
 check. Worth doing, because three classes of damage do compile:
@@ -898,8 +920,8 @@ check. Worth doing, because three classes of damage do compile:
   value. All three were hit by a first cut and caught by reading the diff.
 
 The fix for the first two is to leave comments and string literals out of the
-mechanical pass and revisit them deliberately. 229 of the 2,092 changed lines
-are comments: 143 are function banners (CS0014 names the function, so a rename
+mechanical pass and revisit them deliberately. 231 of the 2,092 changed lines
+are comments: 145 are function banners (CS0014 names the function, so a rename
 that skips the banner leaves the gate lying) and the other 86 are qualified
 references like `PrinterEngine::Job()` and plain prose, each one read before it
 was changed. The prose is where the judgment is. "the monitor's SceneScale"
