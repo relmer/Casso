@@ -48,6 +48,19 @@ public:
                                    Byte              & outType,
                                    std::string       & outError);
 
+    //  The type a SOURCE asked for, which it states as a ProDOS type byte.
+    //
+    //  A TYPE WITH NO COUNTERPART IS REFUSED BY NAME rather than approximated.
+    //  A ProDOS system file has no DOS 3.3 equivalent at all: the ProDOS kernel
+    //  boots by finding a system-typed entry in the volume directory, and
+    //  DOS 3.3 has no system-program concept to stand in for it. Mapping it to
+    //  the nearest thing would file a program under a type that cannot start
+    //  it, and nothing would say so until somebody tried to boot the disk.
+    static HRESULT  ResolveSourceType (VolumeKind    kind,
+                                       Byte          proDosType,
+                                       Byte        & outType,
+                                       std::string & outError);
+
     //  One output as a payload, with its type resolved and its address taken
     //  from the span.
     static HRESULT  BuildPayload  (const SavePoint   & span,

@@ -349,4 +349,161 @@ namespace AssemblerToDiskTests
             Assert::IsTrue (found, L"the object is on the ProDOS volume");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SourceStatedTypeTests
+    //
+    //  The file-type directive, which states a ProDOS type byte and now has
+    //  somewhere for it to land.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SourceStatedTypeTests)
+    {
+    public:
+
+        //  Which type byte the volume ended up recording, for a source that
+        //  stated one.
+        static Byte TypeAfterWriting (const char * source, bool proDos, HRESULT & outResult,
+                                      std::string & outDiagnostics, const char * flagType = "")
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (source);
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG", flagType);
+            FileEntry           entry;
+            Byte                type    = 0;
+
+            Fixture::SeedImage (io, proDos ? Fixture::MakeProDosImage() : Fixture::MakeDos33Image());
+
+            ImageArtifactSink  sink (io);
+
+            outResult      = sink.WriteBinary (result, options);
+            outDiagnostics = sink.GetDiagnostics();
+
+            if (SUCCEEDED (outResult))
+            {
+                if (proDos)
+                {
+                    ProDosVolume   volume (io.files[kImagePath]);
+                    VolumeListing  listing;
+
+                    AssertSucceeded (volume.Enumerate (listing));
+
+                    for (const FileEntry & found : listing.entries)
+                    {
+                        if (found.name == "PROG")
+                        {
+                            type = found.type;
+                        }
+                    }
+                }
+                else if (Fixture::FindEntry (io.files[kImagePath], "PROG", entry))
+                {
+                    type = entry.type;
+                }
+            }
+
+            return type;
+        }
+
+
+
+        TEST_METHOD (BinaryTypeMapsToBothFilesystems)
+        {
+            HRESULT      hr    = S_OK;
+            std::string  diag;
+            Byte         dos   = TypeAfterWriting (" ORG $300\n TYP $06\n LDA #$11\n RTS\n", false, hr, diag);
+            Byte         pro   = TypeAfterWriting (" ORG $300\n TYP $06\n LDA #$11\n RTS\n", true,  hr, diag);
+
+            Assert::AreEqual ((int) Dos33Volume::kTypeBinary,  (int) dos, L"DOS 3.3 binary");
+            Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) pro, L"ProDOS binary");
+        }
+
+
+
+        TEST_METHOD (TextTypeMapsToBothFilesystems)
+        {
+            HRESULT      hr  = S_OK;
+            std::string  diag;
+            Byte         dos = TypeAfterWriting (" ORG $300\n TYP $04\n LDA #$11\n RTS\n", false, hr, diag);
+            Byte         pro = TypeAfterWriting (" ORG $300\n TYP $04\n LDA #$11\n RTS\n", true,  hr, diag);
+
+            Assert::AreEqual ((int) Dos33Volume::kTypeText,  (int) dos, L"DOS 3.3 text");
+            Assert::AreEqual ((int) ProDosVolume::kTypeText, (int) pro, L"ProDOS text");
+        }
+
+
+
+        TEST_METHOD (ApplesoftTypeMapsToBothFilesystems)
+        {
+            HRESULT      hr  = S_OK;
+            std::string  diag;
+            Byte         dos = TypeAfterWriting (" ORG $300\n TYP $FC\n LDA #$11\n RTS\n", false, hr, diag);
+            Byte         pro = TypeAfterWriting (" ORG $300\n TYP $FC\n LDA #$11\n RTS\n", true,  hr, diag);
+
+            Assert::AreEqual ((int) Dos33Volume::kTypeApplesoft, (int) dos, L"DOS 3.3 Applesoft");
+            Assert::AreEqual ((int) ProDosVolume::kTypeBasic,    (int) pro, L"ProDOS Applesoft");
+        }
+
+
+
+        //  The refusal that must not become an approximation. Nothing in
+        //  DOS 3.3 means what a system file means, so any answer is a guess.
+        TEST_METHOD (SystemTypeIsRefusedOnDos33NamingTypeAndFilesystem)
+        {
+            HRESULT      hr = S_OK;
+            std::string  diag;
+
+            TypeAfterWriting (" ORG $300\n TYP $FF\n LDA #$11\n RTS\n", false, hr, diag);
+
+            Assert::IsTrue (FAILED (hr), L"a system file has no DOS 3.3 equivalent");
+            Assert::IsTrue (diag.find ("$FF") != std::string::npos, L"the refusal names the type");
+            Assert::IsTrue (diag.find ("DOS 3.3") != std::string::npos, L"and the filesystem");
+        }
+
+
+
+        TEST_METHOD (SystemTypeIsAcceptedOnProDos)
+        {
+            HRESULT      hr  = S_OK;
+            std::string  diag;
+            Byte         pro = TypeAfterWriting (" ORG $300\n TYP $FF\n LDA #$11\n RTS\n", true, hr, diag);
+
+            Assert::IsTrue (SUCCEEDED (hr), L"ProDOS has system files");
+            Assert::AreEqual ((int) ProDosVolume::kTypeSystem, (int) pro, L"filed as a system program");
+        }
+
+
+
+        TEST_METHOD (UnrecognizedTypeByteIsRefusedNamingTheByte)
+        {
+            HRESULT      hr = S_OK;
+            std::string  diag;
+
+            TypeAfterWriting (" ORG $300\n TYP $99\n LDA #$11\n RTS\n", true, hr, diag);
+
+            Assert::IsTrue (FAILED (hr), L"a type outside the recognized set is refused");
+            Assert::IsTrue (diag.find ("$99") != std::string::npos, L"and the refusal names the value");
+        }
+
+
+
+        //  The precedence the tool already applies to the object's name,
+        //  settled by the layer that sees both.
+        TEST_METHOD (CommandLineTypeBeatsTheSourceDirective)
+        {
+            HRESULT      hr  = S_OK;
+            std::string  diag;
+            Byte         dos = TypeAfterWriting (" ORG $300\n TYP $04\n LDA #$11\n RTS\n", false, hr, diag, "B");
+
+            Assert::IsTrue (SUCCEEDED (hr), L"the flag is honored");
+            Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) dos,
+                              L"the command line wins over the source's text type");
+        }
+    };
 }

@@ -105,6 +105,84 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssembledFilePlacement::ResolveSourceType
+//
+//  The type the source stated, as the target filesystem numbers it.
+//
+//  ProDOS types are what a source states, because the directive that states
+//  them is a ProDOS-era one and names a ProDOS type. Reaching a DOS 3.3 volume
+//  therefore means translating, and three of the four translate cleanly.
+//
+//  The fourth does not, and is refused rather than approximated. Nothing in
+//  DOS 3.3 means what a system file means, so any answer would be a guess filed
+//  under a type the source did not ask for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssembledFilePlacement::ResolveSourceType (VolumeKind    kind,
+                                                   Byte          proDosType,
+                                                   Byte        & outType,
+                                                   std::string & outError)
+{
+    HRESULT  hr    = S_OK;
+    bool     isDos = kind == VolumeKind::Dos33;
+    bool     known = true;
+    bool     maps  = true;
+
+
+
+    outType = proDosType;
+
+    if (proDosType == ProDosVolume::kTypeText)
+    {
+        outType = isDos ? Dos33Volume::kTypeText : ProDosVolume::kTypeText;
+    }
+    else if (proDosType == ProDosVolume::kTypeBinary)
+    {
+        outType = isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary;
+    }
+    else if (proDosType == ProDosVolume::kTypeBasic)
+    {
+        outType = isDos ? Dos33Volume::kTypeApplesoft : ProDosVolume::kTypeBasic;
+    }
+    else if (proDosType == ProDosVolume::kTypeSystem)
+    {
+        outType = ProDosVolume::kTypeSystem;
+        maps    = !isDos;
+    }
+    else
+    {
+        known = false;
+    }
+
+    if (!known)
+    {
+        outError = std::format ("file type ${:02X} is not one this tool recognizes: "
+                                "it takes $04 text, $06 binary, $FC Applesoft or $FF system",
+                                proDosType);
+    }
+
+    CBR (known);
+
+    if (!maps)
+    {
+        outError = std::format ("file type ${:02X} is a ProDOS system file and DOS 3.3 has no equivalent: "
+                                "DOS 3.3 has no system-program concept at all",
+                                proDosType);
+    }
+
+    CBR (maps);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssembledFilePlacement::BuildPayload
 //
 //  One output as a file the volume layer can place.
@@ -123,12 +201,18 @@ HRESULT AssembledFilePlacement::BuildPayload (const SavePoint   & span,
                                               FilePayload       & outPayload,
                                               std::string       & outError)
 {
-    HRESULT  hr   = S_OK;
-    Byte     type = 0;
+    HRESULT  hr         = S_OK;
+    bool     flagNamed  = !typeName.empty();
+    bool     fromSource = span.hasFileType && !flagNamed;
+    Byte     type       = 0;
 
 
 
-    hr = ResolveType (kind, typeName, type, outError);
+    //  The command line beats the source, which is the precedence the tool
+    //  already applies to the output's name. It is settled here rather than in
+    //  the parser for the same reason: this is the layer that sees both.
+    hr = fromSource ? ResolveSourceType (kind, span.fileType, type, outError)
+                    : ResolveType (kind, typeName, type, outError);
     CHR (hr);
 
     outPayload.bytes          = span.bytes;

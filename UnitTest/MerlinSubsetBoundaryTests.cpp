@@ -238,7 +238,6 @@ namespace MerlinSubsetBoundaryTests
             const Directive  kRefusedByName[] = { Directive::Relocatable,
                                                   Directive::EntrySymbol,
                                                   Directive::ExternalSymbol,
-                                                  Directive::FileType,
                                                   Directive::SaveObject };
 
             for (Directive token : kRefusedByName)
@@ -246,6 +245,11 @@ namespace MerlinSubsetBoundaryTests
                 Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) != nullptr,
                                 L"a construct recognized only so it can be refused, with nothing to refuse it");
             }
+
+            //  The file type is recognized and HANDLED now, so a row for it
+            //  would refuse a directive the assembler implements.
+            Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), Directive::FileType) == nullptr,
+                            L"the file-type directive is inside the subset and must not be refused");
         }
 
 
@@ -334,7 +338,7 @@ namespace MerlinSubsetBoundaryTests
         //  run turns that into as many runs as there are constructs.
         TEST_METHOD (EveryOffenderInTheSourceIsReported)
         {
-            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n TYP\n SAV\n");
+            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n EXT\n SAV\n");
             std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
             Assert::AreEqual ((size_t) 5, refusals.size(), L"one refusal per offending line");
@@ -523,16 +527,15 @@ namespace MerlinSubsetBoundaryTests
     {
     public:
 
-        TEST_METHOD (TheFileTypeDirectiveIsRefusedAsBelongingToDiskFileAccess)
+        //  The file-type directive left the boundary when the assembler gained
+        //  somewhere for a type to land. It is assembled now, not refused.
+        TEST_METHOD (TheFileTypeDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" TYP $06\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n TYP $06\n LDA #$11\n RTS\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the file-type directive");
-
-            Assert::IsTrue (refusals[0].message.find ("filesystem file type") != std::string::npos,
-                            L"the refusal has to say what the directive sets");
-            Assert::IsTrue (refusals[0].message.find ("disk file-access") != std::string::npos,
-                            L"and where the capability it needs is being built");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the file-type directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
         }
 
 
@@ -749,8 +752,15 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::IsTrue (help.find ("needs a linker")                     != std::string::npos, L"linker");
             Assert::IsTrue (help.find ("needs a CPU Casso does not emulate") != std::string::npos, L"cpu");
-            Assert::IsTrue (help.find ("owned by another part of Casso")     != std::string::npos, L"another feature");
             Assert::IsTrue (help.find ("undecided")                          != std::string::npos, L"undecided");
+
+            //  The owned-by-another-feature class left with the file-type row,
+            //  which was the only construct wearing it. Asserting its ABSENCE
+            //  rather than dropping the line: a reason class the help still
+            //  named with no row behind it would be a boundary the tool
+            //  describes and no longer has.
+            Assert::IsTrue (help.find ("owned by another part of Casso")     == std::string::npos,
+                            L"no row claims that reason any more");
         }
     };
 

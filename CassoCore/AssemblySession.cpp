@@ -4771,6 +4771,80 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandlePass1FileType
+//
+//  The source stating the filesystem type its output should take.
+//
+//  REPORTED RATHER THAN ACTED ON, like the output name beside it. Nothing here
+//  knows what a filesystem is; this records the byte the source asked for and
+//  leaves deciding whether the target has such a type to whoever writes the
+//  file. That is what keeps the type meaningful on a volume and harmless
+//  without one.
+//
+//  The operand is an expression, because Merlin writes its numbers that way and
+//  a source is free to name the type through an equate. A value that will not
+//  fit in a byte is refused rather than truncated: the low byte of a wrong
+//  answer is still a wrong answer, and it would file the object under a type
+//  nobody asked for.
+//
+//  A later directive replaces an earlier one, the way the output name does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1FileType (const PendingLine & current, LineInfo & info)
+{
+    HRESULT     hr        = S_OK;
+    std::string arg       = StripCommentAndTrim (info.parsed.directiveArg);
+    bool        hasArg    = !arg.empty();
+    bool        inRange   = false;
+    ExprResult  er;
+
+
+
+    if (!hasArg)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no file type");
+    }
+
+    BAIL_OUT_IF (!hasArg, S_OK);
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    er                   = ExpressionEvaluator::Evaluate (arg, m_pass1Ctx);
+
+    if (!er.success)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
+    }
+
+    BAIL_OUT_IF (!er.success, S_OK);
+
+    //  A file type is one byte. A larger value is a source that means something
+    //  this directive cannot express, and taking the low byte of it would file
+    //  the object under a type nobody asked for.
+    inRange = (er.value >= 0) && (er.value <= 0xFF);
+
+    if (!inRange)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " takes a one-byte file type");
+    }
+
+    BAIL_OUT_IF (!inRange, S_OK);
+
+    m_fileType    = (Byte) er.value;
+    m_hasFileType = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::HandlePass1ObjectFile
 //
 //  The source naming its own output.
@@ -5124,10 +5198,18 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 
     //  Refused by name rather than handled. The refusal is a table of its own,
     //  consulted before dispatch, so these rows stay null by design.
+    //
+    //  THE FILE-TYPE ROW IS NO LONGER ONE OF THEM. Its boundary row is gone, so
+    //  it reaches dispatch like any other directive and needs a handler here --
+    //  without one it would become a word the dialect defines and the assembler
+    //  cannot size, which fails the assembly rather than setting a type. Its
+    //  POSITION is what matters as much as its presence: this table is indexed
+    //  by the directive token, so a row in the wrong place hands one directive's
+    //  line to another's handler.
     { Directive::Relocatable,     nullptr,                                  nullptr                                  },
     { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
     { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
-    { Directive::FileType,        nullptr,                                  nullptr                                  },
+    { Directive::FileType,        &AssemblySession::HandlePass1FileType,    nullptr                                  },
     { Directive::SaveObject,      nullptr,                                  nullptr                                  },
     };
 
@@ -8058,6 +8140,9 @@ void AssemblySession::CloseSpan()
         span.bytes.assign (m_image.begin() + first, m_image.begin() + last);
         span.loadAddress    = m_spanLoadAddress;
         span.hasLoadAddress = true;
+        span.name           = m_result.outputFileName;
+        span.fileType       = m_fileType;
+        span.hasFileType    = m_hasFileType;
 
         m_result.savePoints.push_back (span);
     }

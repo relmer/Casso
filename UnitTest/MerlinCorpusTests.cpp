@@ -1932,12 +1932,10 @@ namespace MerlinCorpusTests
             DiagnosticKind::SubsetBoundary, 1, 9,
             "disk file access will not settle", "Invalid mnemonic",
         },
-        {
-            "output file-type directive",
-            "                  TYP $06\n",
-            DiagnosticKind::SubsetBoundary, 1, 19,
-            "TYP", "Invalid mnemonic",
-        },
+        //  The output file-type directive was here and is not any more. It set
+        //  a filesystem type with no filesystem to set it on; the assembler can
+        //  write onto a volume now, so the type has somewhere to land and the
+        //  directive is assembled rather than refused.
         {
             //  A LABEL written where another assembler would put it. Merlin's
             //  line model reads it as the opcode, so without this the developer

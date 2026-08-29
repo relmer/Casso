@@ -214,6 +214,7 @@ private:
     HRESULT HandlePass1DummySection    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1DummySectionEnd (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1CpuSelect       (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1FileType        (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
 
     // The directive that assigns the positional parameters with no macro call.
@@ -781,6 +782,13 @@ private:
     Word                                               m_spanOutputEnd      = 0;
     Word                                               m_spanLoadAddress    = 0;
     bool                                               m_spanHasBytes       = false;
+
+    // The filesystem type the source asked its output to take, and whether it
+    // asked at all. Absent rather than zero, because zero is a real type on
+    // one of the two filesystems and a caller cannot tell the two apart from
+    // the value.
+    Byte                                               m_fileType           = 0;
+    bool                                               m_hasFileType        = false;
     std::unordered_map<std::string, int>               m_referencedLabels;
     std::unordered_map<std::string, int32_t>           m_fullSymbols;
     ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };

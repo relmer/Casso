@@ -70,8 +70,9 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
                                            DiskImageSession::OpenedImage & opened,
                                            std::vector<Byte>             & outSectors)
 {
-    HRESULT      hr      = S_OK;
-    std::string  onDisk  = options.onDiskName.empty() ? options.outputFile : options.onDiskName;
+    HRESULT      hr     = S_OK;
+    bool         named  = !options.onDiskName.empty();
+    std::string  onDisk;
     std::string  typeErr;
     FilePayload  payload;
     FilePath     path;
@@ -83,6 +84,14 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
     for (const SavePoint & span : result.savePoints)
     {
         std::vector<Byte>  edited;
+
+        //  The command line beats the source, and the source beats the default,
+        //  which is the precedence the tool already applies to the object's
+        //  name. Each output carries its own, so a source that produces several
+        //  names them individually.
+        onDisk = named          ? options.onDiskName
+               : span.name.empty() ? options.outputFile
+                                   : span.name;
 
         hr = AssembledFilePlacement::BuildPayload (span, opened.kind, options.imageTypeName, payload, typeErr);
         CHRF (hr, m_diagnostics += typeErr + "\n");

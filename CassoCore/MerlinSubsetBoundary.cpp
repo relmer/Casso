@@ -98,19 +98,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         nullptr,
     },
 
-    {
-        Directive::FileType,
-        "TYP",
-        "the output file-type directive",
-        SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::OwnedByAnotherFeature,
-        "it sets the filesystem file type of the output, which means nothing without a filesystem that has types",
-        "Casso's disk file-access support, which is where filesystem file types belong",
-        false,
-        nullptr,
-        nullptr,
-    },
-
     //  NOT waiting on disk file access, and the widening text says so out loud.
     //  It saves the object accumulated so far and carries on, so one assembly
     //  can produce several outputs -- a question about what an assembly IS, which
