@@ -137,7 +137,7 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "n",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::AssembledCode, "",
-            "Disable optimizations, even where the source says OPT" },
+            "Disable optimizations, even where the source contains OPT" },
 
     { "o",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOrSeparate,
             nullptr,
@@ -561,7 +561,7 @@ std::string CommandLineParser::BuildAssembleExitCodes (unsigned installedGigabyt
 
     if (withAs65sOutOfMemory)
     {
-        text += "    4  Out of memory, says AS65, assembling your 64K binary. On your "
+        text += "    4  Out of memory, according to AS65, assembling your 64K binary. On your "
               + machine + ". Sure. If you run out of memory doing 6502 assembly, "
                 "definitely open an issue, because something has gone *very* wrong :)\n";
     }

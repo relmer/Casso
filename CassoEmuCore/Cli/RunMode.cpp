@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RunMode.h"
+#include "CountedNoun.h"
 #include "AssemblerMode.h"
 #include "HostFile.h"
 #include "SourceAssembler.h"
@@ -148,7 +149,8 @@ HRESULT RunMode::RunCpu (Cpu & cpu,
         cycles++;
     }
 
-    status.push_back (std::format ("Execution complete: {} cycle(s)", cycles));
+    status.push_back (std::format ("Execution complete: {}",
+                                   CountedNoun::Of ((long long) cycles, "cycle")));
     status.push_back (std::format ("  A=${:02X} X=${:02X} Y=${:02X} SP=${:02X} PC=${:04X}",
         cpu.GetA(), cpu.GetX(), cpu.GetY(), cpu.GetSP(), cpu.GetPC()));
 

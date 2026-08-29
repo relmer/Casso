@@ -55,6 +55,18 @@ own session:
 - `specs/026-assembler-to-disk` — the assembler writes its object into a disk
   image rather than only to host files. Drafted on branch
   `026-assembler-to-disk`; next step is `/speckit-clarify`.
+- `specs/027-nibble-images` — mount and write back `.nib` images, split out of
+  022 the way 023 was split out of 019. Research notes are committed on branch
+  `027-nibble-images`; the spec itself is not written yet. **Writing is the hard
+  part, not reading**: the mount path is a write-back path
+  (`FlushEntry` -> `DiskImage::Serialize` on eject, power cycle and reset), so
+  load-only is impossible, and `NibblizationLayer` converts sectors rather than
+  nibble bytes, so the loader is a new seam and not an adapter. Nothing in Casso
+  reads `.nib` today; the extension filter now answers from the loader's own
+  routing table, so adding the format there makes every surface offer it without
+  a second list. Do not oversell it: `.nib` records whole bytes and loses
+  self-sync information, which is what copy protection inspects, so the reason
+  to do this is compatibility with existing `.nib` collections, not fidelity.
 
 **Why 026 exists, since the analysis is not obvious from the code.** Merlin's
 `DSK`, `TYP` and `SAV` all assume the assembler writes onto a ProDOS volume.

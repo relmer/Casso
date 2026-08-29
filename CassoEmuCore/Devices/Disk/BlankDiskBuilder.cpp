@@ -12,28 +12,118 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ValidateSpec
+//  WritableContainers
+//
+//  In the order a chooser should offer them: WOZ first, being the one that
+//  carries any filesystem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
+{
+    static constexpr DiskFormat  kContainers[] =
+    {
+        DiskFormat::Woz,
+        DiskFormat::Dsk,
+        DiskFormat::Do,
+        DiskFormat::Po,
+    };
+
+
+
+    outCount = _countof (kContainers);
+
+    return kContainers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainersFor
+//
+//  Which containers can carry a filling.
+//
+//  IN CORE RATHER THAN IN THE DIALOG THAT ASKS. The create dialog used to
+//  hold this as a switch restating the pairing matrix by hand, where no test
+//  could reach it -- and it went stale the moment the builder learned a
+//  fourth container: `.do` could be written from the command line and was
+//  missing from the dropdown. Derived from CheckSpec, it cannot drift.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents contents)
+{
+    std::vector<DiskFormat>   usable;
+    const DiskFormat        * containers = nullptr;
+    size_t                    count      = 0;
+    size_t                    i          = 0;
+    BlankDiskSpec             spec;
+
+
+
+    containers    = WritableContainers (count);
+    spec.contents = contents;
+
+    for (i = 0; i < count; i++)
+    {
+        spec.format = containers[i];
+
+        if (CheckSpec (spec) == BlankDiskVerdict::Ok)
+        {
+            usable.push_back (containers[i]);
+        }
+    }
+
+    return usable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CheckSpec
+//
+//  Why a spec cannot be written, or Ok.
 //
 //  The pairing matrix:
 //
 //      Woz  pairs with anything (order-agnostic bit stream)
 //      Dsk  pairs with DOS 3.3 or unformatted (DOS sector order)
+//      Do   pairs with DOS 3.3 or unformatted, the same as Dsk -- the two
+//           extensions name one container, and Build has always treated them
+//           as one
 //      Po   pairs with ProDOS or unformatted (ProDOS sector order)
-//      Do   is not offered for creation (mountable, never created)
 //
 //  Bootable requires formatted contents -- there is no OS to install on raw
 //  media. A ProDOS spec also needs a legal volume name (1-15 chars, leading
 //  letter, letters / digits / periods) since it lands in the directory
 //  header verbatim.
 //
+//  ANSWERS IN VERDICTS RATHER THAN HRESULTS so that the command line can put
+//  the broken rule into a sentence without going through E_INVALIDARG, which
+//  asserts because it means a caller has a bug. Every rule here is one a
+//  reader can break by typing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
+BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
 {
-    HRESULT  hr        = S_OK;
-    bool     formatOk  = false;
-    bool     nameOk    = true;
-    size_t   i         = 0;
+    constexpr size_t  kMaxProDosNameLength = 15;
+
+
+
+    HRESULT           hr                   = S_OK;   // vestigial, for the bails
+    BlankDiskVerdict  verdict              = BlankDiskVerdict::Ok;
+    bool              formatOk             = false;
+    bool              bootableOk           = false;
+    bool              nameOk               = true;
+    bool              isProDos             = spec.contents == BlankDiskContents::ProDos;
+    size_t            i                    = 0;
 
 
 
@@ -44,6 +134,7 @@ HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
             break;
 
         case DiskFormat::Dsk:
+        case DiskFormat::Do:
             formatOk = (spec.contents == BlankDiskContents::Dos33 ||
                         spec.contents == BlankDiskContents::Unformatted);
             break;
@@ -58,29 +149,57 @@ HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
             break;
     }
 
-    // Asserting variants on purpose: the dialog gates every illegal pairing
-    // before the builder is ever called, so an invalid spec arriving here is
-    // a caller bug, not a user outcome.
-    CBRAEx (formatOk, E_INVALIDARG);
-    CBRAEx (!spec.bootable || spec.contents != BlankDiskContents::Unformatted, E_INVALIDARG);
+    CBRF (formatOk, verdict = BlankDiskVerdict::ContentsNotInContainer);
 
-    if (spec.contents == BlankDiskContents::ProDos)
+    bootableOk = !spec.bootable || spec.contents != BlankDiskContents::Unformatted;
+    CBRF (bootableOk, verdict = BlankDiskVerdict::BootableNeedsFilesystem);
+
+    //  The rest is the ProDOS volume name, so a disk that has none is done.
+    BAIL_OUT_IF (!isProDos, S_OK);
+
+    nameOk = !spec.volumeName.empty()
+          && spec.volumeName.size() <= kMaxProDosNameLength
+          && isalpha ((unsigned char) spec.volumeName[0]) != 0;
+
+    for (i = 1; nameOk && i < spec.volumeName.size(); i++)
     {
-        constexpr size_t  kMaxProDosNameLength = 15;
+        unsigned char  c = (unsigned char) spec.volumeName[i];
 
-        nameOk = !spec.volumeName.empty()
-              && spec.volumeName.size() <= kMaxProDosNameLength
-              && isalpha ((unsigned char) spec.volumeName[0]) != 0;
-
-        for (i = 1; nameOk && i < spec.volumeName.size(); i++)
-        {
-            unsigned char  c = (unsigned char) spec.volumeName[i];
-
-            nameOk = isalnum (c) != 0 || c == '.';
-        }
-
-        CBRAEx (nameOk, E_INVALIDARG);
+        nameOk = isalnum (c) != 0 || c == '.';
     }
+
+    CBRF (nameOk, verdict = BlankDiskVerdict::ProDosNameUnusable);
+
+Error:
+    return verdict;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ValidateSpec
+//
+//  CheckSpec's rules as Build's own precondition.
+//
+//  ASSERTING ON PURPOSE, and the assert is the whole difference between the
+//  two functions. A caller that takes a spec from a person settles the
+//  combination before it gets here -- the create dialog by construction, the
+//  `disk` subcommand through CheckSpec -- so an illegal one arriving is a
+//  caller that skipped its own gate, not a reader who typed something.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
+{
+    HRESULT           hr      = S_OK;
+    BlankDiskVerdict  verdict = CheckSpec (spec);
+
+
+
+    CBRAEx (verdict == BlankDiskVerdict::Ok, E_INVALIDARG);
 
 Error:
     return hr;
