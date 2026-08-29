@@ -308,6 +308,74 @@ namespace Cpu65C02TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  BitBranchesAreTimedLikeBranches
+        //
+        //  BBRn/BBSn were billed a flat five however they resolved. They are
+        //  branches: five when the bit test fails, six when the branch is taken,
+        //  seven when it is taken to a different page. Sources are cited at
+        //  CpuOperations::BitBranchReset.
+        //
+        //  All three outcomes are asserted, because five is the right answer for
+        //  the not-taken case and six for a taken branch inside the page -- a
+        //  test that checked only one of them would be satisfied by a core that
+        //  charges the same amount for everything, which is the bug.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (BitBranchesAreTimedLikeBranches)
+        {
+            Harness    notTaken;
+            Harness    takenInPage;
+            Harness    takenAcrossPage;
+
+            notTaken.Poke (0x0030, 0x01);                   // bit 0 set: BBR0 does not branch
+            notTaken.Load ({ 0x0F, 0x30, 0x10 });
+            notTaken.Step();
+
+            takenInPage.Poke (0x0030, 0xFE);                // bit 0 clear: BBR0 branches
+            takenInPage.Load ({ 0x0F, 0x30, 0x10 });        // $0203 + $10 = $0213
+            takenInPage.Step();
+
+            takenAcrossPage.Poke (0x0030, 0xFE);
+            takenAcrossPage.Load ({ 0x0F, 0x30, 0x80 });    // $0203 - $80 = $0183, over the page
+            takenAcrossPage.Step();
+
+            Assert::AreEqual<Byte> (5, notTaken.Cycles());
+            Assert::AreEqual<Byte> (6, takenInPage.Cycles());
+            Assert::AreEqual<Byte> (7, takenAcrossPage.Cycles());
+
+            Assert::AreEqual<Word> (0x0203, notTaken.PC());
+            Assert::AreEqual<Word> (0x0213, takenInPage.PC());
+            Assert::AreEqual<Word> (0x0183, takenAcrossPage.PC());
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  BranchAlwaysToTheFollowingInstructionStillCostsThree
+        //
+        //  BRA with a displacement of zero targets the instruction after it, so
+        //  PC lands where it would have landed anyway. It is still a taken
+        //  branch and still costs three; the core used to answer two, having
+        //  decided takenness by watching PC.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (BranchAlwaysToTheFollowingInstructionStillCostsThree)
+        {
+            Harness    h;
+
+            h.Load ({ 0x80, 0x00 });   // BRA to $0202, the next instruction
+
+            h.Step();
+
+            Assert::AreEqual<Byte> (3,      h.Cycles());
+            Assert::AreEqual<Word> (0x0202, h.PC());
+        }
+
+
         TEST_METHOD (RockwellBitOpsExecute)
         {
             // Casso models the Rockwell R65C02: RMB/SMB/BBR/BBS are real

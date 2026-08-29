@@ -86,10 +86,39 @@ Entries before versioning was introduced use dates only.
   budgets, timing loops, and software that paces itself off them -- runs
   fractionally differently than it did. Four opcodes are affected ($1E, $3E,
   $5E, $7E) and only on the CMOS core; `INC` and `DEC` in `abs,X` are seven on
-  both parts and are untouched, as is every NMOS timing. The Harte vectors could
-  not have caught this: Casso's packed fixtures keep each vector's start and end
-  state and discard the upstream per-cycle bus trace, so they check what an
-  instruction computes and never what it costs.
+  both parts and are untouched, as is every NMOS timing. Nothing in the tree
+  could have caught this when it was found: the packed Harte fixtures kept only
+  each vector's start and end state and discarded the upstream per-cycle bus
+  trace, so they checked what an instruction computes and never what it costs.
+  They carry the cost now -- see the next entry -- and would catch it.
+- **The Harte vectors now check what an instruction costs, and that found two
+  more timing bugs.** The packed fixtures carry the upstream trace's LENGTH --
+  the instruction's cycle count for that vector's own operands, conditional
+  cycles included -- and the runner compares it against the count the emulator
+  bills. One byte per vector, 2% more fixture, and the suite is a timing
+  oracle at both depths. The entries below are what it turned up on its first
+  run; every one of them was invisible before, at any vector count. The fixture
+  format carries a version now, so a set generated before this fails loudly
+  instead of being read one byte out of step.
+- **A branch taken to the very next instruction was billed a cycle short.** A
+  taken branch costs an extra cycle, and the core decided whether one had been
+  taken by asking whether `PC` had moved. That is right for every displacement
+  but zero: a branch with a displacement of zero IS taken, to the instruction
+  immediately after it, and lands `PC` exactly where a not-taken branch leaves
+  it -- so it was billed two cycles instead of three. **This changes emulated
+  instruction timing on both cores**, for every conditional branch and for
+  `BRA`. The question is now answered by the branch operations, which read the
+  flag rather than inferring it from where `PC` ended up.
+- **`BBRn` and `BBSn` did not pay for branching.** The Rockwell bit-test
+  branches were billed a flat five cycles however they resolved. They are
+  branches and cost like branches: five when the bit test fails, six when the
+  branch is taken, and seven when it is taken to a different page. **This
+  changes emulated instruction timing on the 65C02** for all sixteen opcodes
+  ($0F-$7F and $8F-$FF in the `$xF` column), which the //c ROM 4 and Enhanced
+  //e firmware use. Sourced from Bruce Clark's "65C02 Opcodes" at 6502.org,
+  which gives one extra cycle for a taken branch within the page and two across
+  one, and from the oxyron.de 65C02 matrix, which lists them as `zpr 5` under
+  the same conditional-branch rule.
 - **A disk image that fails to mount now says so.** The mount runs on the
   emulation thread and its result was thrown away there, so a file Casso could
   not open produced no dialog, no message and no log line: the machine came up
