@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-29
 
-**Status**: Draft
+**Status**: Clarified
 
 **Input**: Let the assembler write its object directly into a disk image instead of only to host files, closing the Merlin `TYP`/`DSK`/`SAV` gap and collapsing the assemble-then-place build loop into one step.
 
@@ -34,10 +34,44 @@ set its filesystem type, and `SAV` to write one and carry on. Casso refuses
 `TYP` and `SAV` by name, and honors `DSK` only by redirecting it to a host file.
 A Windows file has no ProDOS file type, so `TYP` cannot mean anything today.
 
-Six constructs sit outside Casso's Merlin subset. This feature closes three of
-them. The other three are `REL`/`ENT`/`EXT`, which need the relocating linker
+Six constructs are recognized and refused by name: `REL`, `ENT`, `EXT`, `XC`,
+`TYP` and `SAV`. This feature closes two of them, `TYP` and `SAV`, leaving four.
+The four that remain are `REL`/`ENT`/`EXT`, which need the relocating linker
 (GitHub #112), and a second `XC`, which needs a 65816 core and is out of scope
 while Casso declares itself a 6502 / 65C02 assembler.
+
+`DSK` is a third gap this feature closes, and a different kind. It is already
+accepted and already honored, so it never appeared on the refusal list at all —
+what it lacks is its real meaning. Naming a file that lands on a volume is what
+Merlin's `DSK` does; naming a host file is the nearest thing Casso could offer
+without one.
+
+## Clarifications
+
+### Session 2026-08-29
+
+- Q: Must the target disk image already exist, or should the assembler be able
+  to create one? → A: It must already exist. A missing image is refused, naming
+  the command that creates one. Creation implies choosing container type,
+  filesystem, volume name and bootability, and the existing disk-creation
+  command already owns all four; a second route to them would be two ways to
+  make a disk with different rules.
+- Q: When no image target is given, does `SAV` stay refused, or gain a meaning
+  against host files? → A: It gains one. `SAV` writes several host files from
+  one assembly when no image is targeted, so the construct leaves the refused
+  list outright instead of trading a boundary refusal for a conditional one,
+  and so a directive does not behave differently depending on the target.
+- Q: Should assembling to an image be able to set the volume's startup program?
+  → A: Yes, behind a flag. One command then produces a disk that boots what was
+  just assembled. The rules deciding whether a file is runnable as a startup
+  program are the ones the existing boot command already applies, shared rather
+  than restated, so the two routes cannot disagree about what they accept.
+- Q: What happens when a file of that name already exists on the volume? → A:
+  It is replaced. A build loop reassembles constantly, so refusing would fail
+  every build after the first, and this is what the existing file-placement
+  command already does.
+
+---
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -105,15 +139,16 @@ confirm the volume shows exactly the name and type the source asked for.
 ### User Story 3 - One source, several output files (Priority: P3)
 
 A developer keeps a loader and a main program in one source file, sharing its
-equates and macros, and produces both as separate files on the volume in a
-single assembly.
+equates and macros, and produces both as separate outputs in a single assembly —
+onto the volume when an image is targeted, and as host files when one is not.
 
 **Why this priority**: It is the least common workflow and the one with the most
 design surface. The feature is valuable without it.
 
 **Independent Test**: Assemble a source containing two origin-and-save sequences
 against an image and confirm both files exist with their own names, types and
-load addresses.
+load addresses; assemble the same source with no image target and confirm two
+host files appear instead.
 
 **Acceptance Scenarios**:
 
@@ -123,21 +158,59 @@ load addresses.
 2. **Given** the same source, **When** the assembly fails after the first save
    would have been written, **Then** the image contains neither file and is
    byte-for-byte unchanged.
+3. **Given** the same source, **When** assembled with no image target, **Then**
+   two host files are written, one per save, and the directive is not refused.
+4. **Given** the same source, **When** the assembly fails after the first save
+   would have been written and no image target was given, **Then** no host
+   file from this assembly is left behind.
+
+---
+
+### User Story 4 - A disk that boots what was just assembled (Priority: P3)
+
+A developer assembling to an image asks, on the same command line, that the
+object become the program the volume runs when it boots. One command turns
+source into a disk that starts it.
+
+**Why this priority**: It completes the build loop the feature exists to
+shorten, but it is an addition to the target rather than part of it, and every
+other story stands without it.
+
+**Independent Test**: Assemble to a bootable image with the startup flag given,
+then read the volume back and confirm it names the assembled file as its
+startup program.
+
+**Acceptance Scenarios**:
+
+1. **Given** a bootable image and a source that assembles cleanly, **When** the
+   developer assembles to that image asking for the object to be the startup
+   program, **Then** the volume records it as the program it runs at boot.
+2. **Given** the same invocation against a target filesystem that would not
+   actually run a file of that type at boot, **When** assembled, **Then** the
+   request is refused on the same terms the tool's existing boot command uses,
+   and the image is unchanged.
+3. **Given** the flag with no image target, **When** assembled, **Then** the
+   command line is refused, because there is no volume whose startup program
+   could be set.
 
 ---
 
 ### Edge Cases
 
-- The named image does not exist.
+- The named image does not exist. **Refused**, naming the command that creates
+  one; the assembler does not create disks.
 - The image exists but holds no filesystem, or one that is not recognized.
 - The volume has no room for the object, or no free directory entry.
-- A file of that name already exists on the volume.
+- A file of that name already exists on the volume. **Replaced**, as the
+  existing file-placement command does.
 - The name is legal on the host but not on the target filesystem — too long, or
   using characters the filesystem forbids.
 - The source declares no origin at all, so there is no load address to record.
 - The assembly produces zero bytes.
 - The image is open in a running emulator, or held by another program.
-- A save is requested when no image target was given.
+- A save is requested when no image target was given. **Writes a host file**;
+  the directive is not refused for want of a disk.
+- The startup-program flag is given with no image target.
 - The same file is named twice in one assembly.
 
 ## Requirements *(mandatory)*
@@ -152,6 +225,9 @@ load addresses.
   volume.
 - **FR-003**: The capability MUST behave identically across dialects. A dialect
   MUST NOT be required to have directives for a developer to reach it.
+- **FR-018**: The image MUST already exist. A named image that is not there MUST
+  be refused, naming the command that creates one, and the assembler MUST NOT
+  create, format or name a disk itself.
 
 **What goes where**
 
@@ -164,6 +240,9 @@ load addresses.
 - **FR-006**: The assembler MUST assign the object a filesystem type, defaulting
   to the target filesystem's binary type when the source and command line say
   nothing.
+- **FR-019**: A file already on the volume under the name the object takes MUST
+  be replaced, and the replacement MUST be subject to FR-014, so a failure
+  cannot leave the volume holding neither the old file nor the new one.
 
 **Precedence**
 
@@ -184,13 +263,29 @@ load addresses.
   DOS 3.3 has no system-program concept.
 - **FR-011**: A type value outside the set the tool recognizes MUST be refused,
   naming the value.
-- **FR-012**: `SAV` MUST write the object accumulated so far to the volume and
-  allow assembly to continue, so one source can produce several complete files.
+- **FR-012**: `SAV` MUST write the object accumulated so far to the current
+  target and allow assembly to continue, so one source can produce several
+  complete files.
+- **FR-020**: `SAV` MUST NOT depend on an image target. With one, it writes to
+  the volume; without one, it writes a host file, so one assembly produces
+  several host files. It MUST NOT be refused for want of a disk.
 - **FR-013**: The published Merlin subset boundary MUST be updated so the
   constructs this feature implements are no longer listed as unsupported. The
   boundary table is the single authority every refusal and published list is
   composed from, so this MUST be a change to that table and not a special case
   elsewhere.
+
+**Booting what was assembled**
+
+- **FR-021**: The assembler MUST be able to set the target volume's startup
+  program to the object it just wrote, requested on the command line. This MUST
+  be off unless asked for.
+- **FR-022**: That request MUST be judged by the same rules the tool's existing
+  boot command applies, shared rather than restated, so the two routes cannot
+  accept different things. A volume whose operating system would not actually
+  run the file MUST be refused on those terms.
+- **FR-023**: The request MUST be refused when no image target was given, since
+  there is no volume whose startup program could be set.
 
 **Integrity**
 
@@ -214,15 +309,21 @@ load addresses.
 - **Object placement**: What the volume records about the file — its name, its
   filesystem type, its load address, and its contents.
 - **Save point**: One complete output produced during an assembly. An assembly
-  produces one by default and may produce several.
+  produces one by default and may produce several. A save point is written to
+  whichever target the invocation named — the volume, or the host — so the
+  concept does not belong to the image.
+- **Startup request**: The optional ask that the object just written become the
+  program the volume runs at boot. It is a property of the invocation, not of
+  the assembly, and it is meaningless without an image target.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: A developer can go from source to a file on a bootable disk in one
-  fewer command than before, and the documented build loop shrinks from three
-  steps to two.
+- **SC-001**: A developer can go from source to a file on a disk in one fewer
+  command than before, and the documented build loop shrinks from three steps to
+  two. Reaching a disk that BOOTS the assembled program shrinks from four steps
+  to the same two, because setting the startup program stops being a step.
 - **SC-002**: The load address recorded on the volume matches the source's origin
   in 100% of assemblies, with no opportunity for a developer to state a
   conflicting one.
@@ -230,12 +331,17 @@ load addresses.
   subset, assembles unmodified and produces the same files a period assembler
   would have produced.
 - **SC-004**: The count of constructs listed as outside the Merlin subset falls
-  from six to three, and every remaining one is attributable to the linker or to
-  a processor the emulator does not model.
+  from six to four, and every remaining one — `REL`, `ENT`, `EXT` and a second
+  `XC` — is attributable to the linker or to a processor the emulator does not
+  model. No construct is merely reworded into a different refusal: `TYP` and
+  `SAV` leave the list outright.
 - **SC-005**: No failure path leaves a modified image. Every refusal and every
   failed assembly leaves the target byte-for-byte as it was.
 - **SC-006**: Assembling without an image target produces byte-for-byte the same
-  host files as before this feature.
+  host files as before this feature, for every source that assembled before this
+  feature.
+- **SC-007**: A single assembly can produce a disk that boots straight into the
+  program it just assembled, with no further command.
 
 ## Assumptions
 
@@ -253,21 +359,16 @@ load addresses.
 - The relocating linker (GitHub #112) is out of scope. `SAV` produces several
   complete, independent outputs, which is the opposite of what a linker does, so
   it does not depend on one.
-
-## Open Questions
-
-These affect scope and are best settled before planning.
-
-- **Q1**: Must the image already exist, or should the assembler be able to create
-  one? Creating implies deciding format, filesystem and volume name, which the
-  existing disk-creation command already handles.
-- **Q2**: When no image target is given, does `SAV` stay refused, or does it gain
-  a meaning against host files — several host files from one assembly?
-- **Q3**: Should assembling to an image be able to set the volume's startup
-  program, so a single command can produce a bootable disk?
+- Creating a disk stays with the existing disk-creation command, so the two
+  steps that remain in the build loop are "make a disk" and "assemble onto it".
+  Setting the startup program is folded into the second rather than being a
+  third, and the existing command that sets it separately remains, for a disk
+  whose startup program is not something this assembly produced.
 
 ## Dependencies
 
 - Existing disk read/write support for the sector and bit-stream formats.
 - The existing filesystem-type mapping between ProDOS and DOS 3.3.
 - The Merlin subset boundary table, which must be updated rather than bypassed.
+- The existing startup-program mechanism and the rules deciding what a booting
+  volume will actually run, which FR-022 shares rather than reimplements.
