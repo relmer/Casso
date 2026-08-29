@@ -498,7 +498,15 @@ def vent_face(wp):
 # bleed above and below, so it moves the column's edge without bending it.
 DARK_X0   = BELL_CX - COL_HW
 DARK_W    = COL_HW * 2.0
-DARK_BLEED = 3.0
+# JUST ENOUGH TO OWN THE WALLS, and no more. The molding is the material
+# around the recess, so it has to reach a little past the opening or the
+# walls themselves would render in the case's beige. But every millimeter
+# of that reach also surfaces on the case's OUTER face as a dark border
+# around the recess -- plastic seen edge-on, which the real molding does
+# not show there because it is all inside. Three millimeters drew a band
+# you could measure; three tenths is under a pixel at any zoom the scene
+# reaches, so the walls are dark and the outer face stays case-colored.
+DARK_BLEED = 0.3
 
 # THE BELL, needed here rather than where it is added: the pocket's bottom
 # is CUT BY THE BELL ITSELF, so the recess ends exactly on the bell's
@@ -508,7 +516,12 @@ DARK_BLEED = 3.0
 # slanted line and a pocket floor is a plane. Cutting with the part removes
 # the choice.
 BELL_HW = COL_HW + DARK_BLEED         # the molding's own edge, exactly
-BELL_R  = 2.0                         # barely broken: an angular molding
+
+# The corner radius eats into the bell's FLAT top, and that flat is what
+# the recess's side walls have to land on -- so with the molding's bleed
+# down to a third of a millimeter, the radius has to come down with it or
+# the walls overhang the bell again.
+BELL_R  = 0.4
 
 _bell_solid = cq.Solid.makeLoft ([
     round_rect_wire (D - 80.0, BELL_CX - BELL_HW, BELL_CX + BELL_HW,
@@ -545,8 +558,12 @@ VENT_SLOT_W = 2.0
 VENT_SLOT_H = 38.0
 VENT_N      = 13
 VENT_BAND_Z = STRIP_TOP + SLOPE_LEN - 62.0
-VENT_IN_X0  = 50.0                    # bank inner edge, off the column axis
-VENT_IN_X1  = 100.0                   # ...and outer
+# INSIDE THE RECESS, with room to spare. The bank's outer edge was 100 --
+# fine when the recess wall stood at 108, a slit cut half into the wall
+# once the wall came in to 94. Measured off the wall now, not left as an
+# absolute that a later width change could silently invalidate.
+VENT_IN_X0  = 42.0                    # bank inner edge, off the column axis
+VENT_IN_X1  = COL_HW - 9.0            # ...and outer, clear of the wall
 VENT_PITCH  = (VENT_IN_X1 - VENT_IN_X0 - VENT_SLOT_W) / (VENT_N - 1)
 
 _slots = []
