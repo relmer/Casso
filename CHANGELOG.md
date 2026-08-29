@@ -8,21 +8,15 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-### Added
-- **The casso-rocks demo carries the cassowary four ways: DHGR and HGR, each
-  drawn for a color monitor and for a monochrome one.** An image authored for
-  one reads as noise on the other, because the same framebuffer means
-  different things to each.
-
-- **The demo asks which monitor you have and shows only the matching pair.**
-  Nothing can detect it -- no Apple II can -- so it asks, loads the disk
-  behind the question, and exits to BASIC after its three steps.
-
 ### Changed
-- **The demo's last step is the hi-res color-mask sweep instead of the LoRes
-  bars** -- `HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 :
-  NEXT` in 6502, running until a key. Unlike the bars it is worth watching on
-  either monitor.
+- **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
+  dithered specifically for mono and for color displays, radically improving
+  clarity on mono. It asks which display you have and shows the matching set.
+  Replaced the color bars with a spiffy, Beagle Bros.-flavored HGR
+  kaleidoscopesque pattern.\*
+
+  \* *Avoid staring at the kaleidoscope for extended periods. Not responsible
+  for self-hypnosis.*
 
 - **`run` no longer assembles a source under an assembler nobody named.**
   `CassoCli run prog.a65` picked as65, which is the same guess the bare
@@ -37,10 +31,8 @@ Entries before versioning was introduced use dates only.
   `run prog.bin` is unchanged.
 
 ### Removed
-- **The HGR color test bands are no longer a mode on the demo disk.**
-  VideoModeTests asserts per pixel what they showed by eye, and their 8 KB
-  became HGR page 2 for the monochrome HGR image;
-  `scripts/HgrPreprocess.py --pattern bands` still generates them.
+- **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
+  disk, and `scripts/HgrPreprocess.py` still generates either on demand.
 
 ### Fixed
 - **`run` diagnostics quoted flags back in the wrong convention.** The grammar
