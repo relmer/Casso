@@ -6720,6 +6720,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     didPresent                = false;
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
+    uint32_t driveSig                  = 0;
 
 
 
@@ -6786,10 +6787,17 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
+        bool  motorOn    = st.motorOn.load    (memory_order_relaxed);
+        bool  diskActive = st.diskActive.load (memory_order_relaxed);
 
-        anyDriveLive = anyDriveLive                              ||
-                       st.motorOn.load    (memory_order_relaxed) ||
-                       st.diskActive.load (memory_order_relaxed);
+        anyDriveLive = anyDriveLive || motorOn || diskActive;
+
+        // Everything about a drive that is VISIBLE, folded into one word so
+        // the present vote below can ask whether it moved rather than whether
+        // it is busy.
+        driveSig = (driveSig << 3) | (motorOn ? 1u : 0u)
+                                   | (diskActive ? 2u : 0u)
+                                   | (doorMoving ? 4u : 0u);
 
         if (doorMoving)
         {
@@ -6967,16 +6975,25 @@ bool EmulatorShell::TryPresentUiFrame()
         m_stripRectPx             = {};
     }
 
-    // Keep presenting while any drive is live, plus the one frame after it goes
-    // idle, so the spinning / activity LED both animates through a disk load and
-    // clears afterward even when the emulator framebuffer is static (the content
-    // gate would otherwise idle before it clears).
-    if (anyDriveLive || m_anyDriveLivePrev)
+    // Keep presenting while the drives' visible state is CHANGING, plus the
+    // one frame after it settles so the last change actually reaches the
+    // screen. Doors mid-swing vote separately above; this covers the activity
+    // lamps.
+    //
+    // CHANGING, not merely LIVE. The vote used to fire for as long as a motor
+    // was energized, and a Disk II motor stays energized until the guest
+    // writes $C0E8 -- which plenty of software simply never does once it has
+    // loaded. A demo that leaves the drive spinning is faithful hardware
+    // behavior, and it pinned Casso at a full 60 fps of nine-pass CRT
+    // post-processing forever, over a picture that had not changed in
+    // minutes. An LED that is steadily lit is not an animation.
+    if (driveSig != m_lastDriveSig || m_driveSigSettling)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
-    m_anyDriveLivePrev = anyDriveLive;
+    m_driveSigSettling = (driveSig != m_lastDriveSig);
+    m_lastDriveSig     = driveSig;
 
     // //c switch strip: refresh the disk-use LED (drive activity) and the
     // Ctrl-armed reset cue every UI frame so they track live state.
@@ -7043,6 +7060,7 @@ bool EmulatorShell::TryPresentUiFrame()
     UpdatePrinterPreview();
 
     didPresent = m_d3dRenderer.NeedsPresent (framebufferDirtyThisFrame);
+
 
     if (didPresent)
     {
@@ -7598,14 +7616,34 @@ void EmulatorShell::PublishFramebuffer()
 
 
 
-    // The render-skip gate in RunCpuThreadFrame already decided the frame
-    // changed, so this always publishes -- no per-frame hash. Copy under the
-    // mutex, then wake the UI thread.
+    // THE UPSTREAM GATE ANSWERS A DIFFERENT QUESTION. RunCpuThreadFrame asks
+    // whether the picture COULD have changed -- a write landed in a display
+    // page, the mode moved, the flash phase flipped -- and it is deliberately
+    // conservative, because guessing wrong the other way drops a frame the
+    // user was waiting on.
+    //
+    // The flash phase is the one that matters here. It flips about four times
+    // a second whatever is on screen, so a full-screen hi-res picture with no
+    // text on it at all re-rasterized and republished at 3.7 Hz forever --
+    // byte for byte the same image every time. Downstream that was enough to
+    // keep resetting the persistence settle counter, and Casso ran the
+    // nine-pass CRT chain at a full 60 fps over a still image indefinitely.
+    //
+    // So the handoff is gated on the RESULT rather than the prediction: a
+    // frame identical to the one already published is not published again.
+    // The compare is one pass over ~840 KB, and it only runs when the cheap
+    // gate upstream already thought something moved.
     {
         lock_guard<mutex>  lock (m_framebufferMutex);
 
-        m_uiFramebuffer = m_cpuFramebuffer;
-        m_framebufferReady       = true;
+        bool  same = m_uiFramebuffer.size() == m_cpuFramebuffer.size()
+                     && memcmp (m_uiFramebuffer.data(), m_cpuFramebuffer.data(),
+                                m_cpuFramebuffer.size() * sizeof (uint32_t)) == 0;
+
+        BAIL_OUT_IF (same, S_OK);
+
+        m_uiFramebuffer    = m_cpuFramebuffer;
+        m_framebufferReady = true;
     }
 
     if (m_frameReadyEvent != nullptr)

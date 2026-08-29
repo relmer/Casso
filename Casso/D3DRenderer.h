@@ -130,6 +130,7 @@ public:
     // can't tell on its own; pass true whenever the emulator produced a
     // new frame.
     bool NeedsPresent     (bool framebufferDirty) const;
+
     void MarkRedrawNeeded ()                            { m_redrawForced = true; }
 
     bool IsFullscreen() const { return m_fullscreen; }

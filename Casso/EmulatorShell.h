@@ -1522,7 +1522,12 @@ private:
 
     // Previous UI frame's "any drive live" state, so the loop can force one
     // final present on the live->idle edge and clear the activity LED.
-    bool                          m_anyDriveLivePrev = false;
+    // The drives' visible state as of the last UI frame, and whether it moved
+    // between the two before that -- the present vote asks whether the lamps
+    // and doors CHANGED, not whether a motor happens to be energized. See
+    // TryPresentUiFrame.
+    uint32_t                      m_lastDriveSig     = 0;
+    bool                          m_driveSigSettling = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
