@@ -97,6 +97,59 @@ nothing — and it would defeat FR-014 outright, since a directive that writes a
 it goes cannot promise a failed assembly leaves the image untouched. What is
 adopted is where the file boundaries fall.
 
+## How a save point gets its name
+
+`DSK` and `SAV` name in **opposite directions**, and both manual quotes say so
+plainly:
+
+| Directive | Manual | Names |
+|---|---|---|
+| `DSK` | "assemble the **following** code directly to disk" | the span that **starts** here |
+| `SAV` | "save the **current** object code under the specified name" | the span that **ends** here |
+
+So a span's name may be fixed before its first byte exists or after its last
+one. Both are ordinary; neither is an error.
+
+**Where both name the same span**, `SAV` wins. It is the later statement and the
+one made with the bytes in hand, and it is the directive whose whole purpose is
+to write this output — `DSK` merely said where the following code was headed.
+
+**A span nothing named** takes the command-line name, then the default
+(`<source>.bin`). This is the ordinary single-output assembly: no directive
+names anything and the object is `<source>.bin`.
+
+**Bytes emitted after the last save** are a span like any other and are written
+under the rule above, rather than discarded. Real Merlin leaves such bytes
+unsaved in the object area, but silently dropping assembled bytes is the failure
+mode this tree has been bitten by five times, and a trailing span is
+indistinguishable from a whole ordinary assembly when nothing above it saved.
+
+## Naming collisions
+
+Two rules, and they are not the same rule.
+
+**A command-line name plus several outputs is refused** (FR-026). `--as` and
+`-o` supply one name. Applying it to each output in turn means each replaces the
+last, and the tool reports success having written one file where the source
+asked for three. Refuse, naming the flag and the count.
+
+This can only be known once the assembly has run, since nothing before pass 2
+knows how many outputs there are. That is fine: it is a post-assembly refusal,
+the image is untouched, and the status is the same 2 every other failure to
+produce output earns.
+
+**A command-line TYPE is not limited this way.** One type applies to every
+output without ambiguity, so `--type` with several saves is ordinary.
+
+**Two outputs of one assembly under one name is refused** (FR-027), naming the
+file. This is deliberately NOT the same as FR-019, which replaces a file left by
+an earlier run:
+
+| | |
+|---|---|
+| Name already on the volume from an **earlier run** | **Replace.** A build loop reassembles constantly; refusing would fail every build after the first. |
+| Two save points in **one assembly** under one name | **Refuse.** The source just asked for two files and one of them would be thrown away. |
+
 ## The boundary table
 
 `CassoCore/MerlinSubsetBoundary.cpp` is the single authority every refusal and

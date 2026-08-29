@@ -16,7 +16,7 @@ one by default and may produce several.
 | `bytes` | `std::vector<Byte>` | The object for this save point alone. Per research finding 1, this is the span since the previous save, never a cumulative object. |
 | `loadAddress` | `Word` | The address this span's first byte assembles to. FR-024. |
 | `hasLoadAddress` | `bool` | False when the span has no origin to report. `$0000` is a legal address, so the value alone cannot say. |
-| `name` | `std::string` | What the output is called: from `SAV`, from `DSK`, or from the command line, with the command line winning. Empty when nothing named it. |
+| `name` | `std::string` | What the output is called. May be set at the span's START (`DSK` names the following code) or at its END (`SAV` names the current object), so this field is written from both directions; `SAV` wins where both name one span. Empty when nothing named it, which is the ordinary single-output case. |
 | `fileType` | `Byte` | The ProDOS type in effect, from `TYP` or the command line. |
 | `hasFileType` | `bool` | False when nothing stated one, so the sink applies the default rather than filing under type `$00`, which is a real DOS 3.3 type. |
 
@@ -36,7 +36,28 @@ plausible lie."
 - Save points are in source order.
 - No byte appears in two save points. This is the testable form of "the object
   area is empty after a save".
+- Every emitted byte appears in **some** save point, including bytes emitted
+  after the last `SAV`. Dropping a trailing span would discard assembled bytes
+  while reporting success.
+- No two save points resolve to the same name (FR-027). Checked before anything
+  is written, so the refusal is not discovered halfway through a compose.
 - A failed assembly's save points are not written anywhere, whatever they hold.
+
+### The name is not per-save-point on the command line
+
+`--as` and `-o` are single-valued, so they are a property of the **invocation**,
+not of a save point. Resolution therefore runs in two steps, and the order
+matters:
+
+1. Each save point takes its name from its own directives (`SAV`, else `DSK`).
+2. If a command-line name was given: with exactly one save point it overrides
+   that name; with more than one the assembly is refused (FR-026), because one
+   name cannot serve several files and applying it repeatedly would silently
+   keep only the last.
+
+Doing this the other way round — override first, then notice the collision —
+reaches the same refusal by way of a state where several save points share a
+name, which is the state FR-027 exists to forbid. Resolve, then check.
 
 ## AssemblyResult (existing, extended)
 

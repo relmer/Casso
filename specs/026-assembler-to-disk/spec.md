@@ -221,7 +221,14 @@ startup program.
 - A save is requested when no image target was given. **Writes a host file**;
   the directive is not refused for want of a disk.
 - The startup-program flag is given with no image target.
-- The same file is named twice in one assembly.
+- The same file is named twice in one assembly. **Refused**, naming the file —
+  unlike a name left by an earlier run, which is replaced.
+- A command-line name is given and the source produces several outputs.
+  **Refused**, naming the flag; one name cannot serve several files.
+- The source names an output before the bytes exist (`DSK`) and again after they
+  do (`SAV`), for the same span.
+- Bytes are emitted after the last save, so a span ends with nothing having
+  named it.
 
 ## Requirements *(mandatory)*
 
@@ -244,6 +251,11 @@ startup program.
 - **FR-004**: Only the object MUST be written into the image. The listing, symbol
   table and debug info MUST continue to be written as host files when their own
   flags request them.
+- **FR-028**: An assembly produces one listing, one symbol table and one set of
+  debug info however many outputs it produces. These describe the assembly, not
+  any one output: a listing renders the whole source, including the lines after
+  a save, and symbols and debug addresses are global to the assembly. Only the
+  object is per-output.
 - **FR-005**: The assembler MUST record the object's load address on the volume,
   derived from the origin the source declared, without the developer restating
   it.
@@ -260,6 +272,18 @@ startup program.
   name or a type, the command-line value MUST win and the directive MUST supply
   the default. This follows the precedence the tool already applies to the object
   file name, which is settled by the assembler because only it sees both.
+- **FR-026**: A command-line name supplies ONE name, so an assembly that
+  produces more than one output while a command-line name is in force MUST be
+  refused, naming the flag and how many outputs the source asked for. It MUST
+  NOT apply that name to each output in turn: every output but the last would be
+  replaced by the next, and the tool would report success having written one
+  file where the source asked for several. A command-line TYPE has no such
+  limit, because one type applies to every output without ambiguity.
+- **FR-027**: Two outputs of a single assembly MUST NOT be written under the
+  same name. This MUST be refused, naming the file. It is a different case from
+  FR-019, which replaces a file left by an EARLIER run: replacing across runs is
+  what a build loop needs, and replacing within one run discards an output the
+  source just asked for.
 
 **Merlin directives**
 

@@ -61,6 +61,33 @@ A directive that lost is not an error and earns no warning. A build script
 pointing one source at several outputs without editing it is the reason the rule
 exists.
 
+**The name rule does not scale past one output, and the type rule does.**
+`--as` and `-o` supply a single name; an assembly producing several outputs
+while one is in force is refused, naming the flag and the count (FR-026).
+Applying it to each output in turn would have each replace the last, reporting
+success having written one file where the source asked for three. `--type` has
+no such limit: one type applies to every output unambiguously.
+
+This refusal is only knowable after the assembly, since nothing before pass 2
+knows how many outputs there are. It is still a refusal: image untouched,
+status 2.
+
+## What is per-output, and what is per-assembly
+
+Only the object is per-output (FR-028).
+
+| Artifact | How many | Why |
+|---|---|---|
+| Object | one per save point | It is what a save point *is*. |
+| Listing (`-l`) | one per assembly | It renders the whole source, including the lines after a save. |
+| Symbol table (`-t`) | one per assembly | Symbols are global to the assembly. |
+| Debug info (`-g`) | one per assembly | Addresses by name, likewise global. |
+
+The flags settle this on their own: `-l<file>` and `-g` each name one file, and
+there is no spelling for "one listing per save". Splitting them would also break
+FR-004's reason for keeping them on the host — a debugger reads one listing for
+the assembly it is stepping through.
+
 ## Refusals
 
 Every one leaves the image byte-for-byte unchanged (FR-014, FR-015) and names
