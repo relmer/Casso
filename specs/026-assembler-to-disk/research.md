@@ -318,7 +318,7 @@ to three. It takes it from six to **four**.
 `DSK` is not among them and never was. It is accepted today and honored by
 redirection to a host file, so it appears in `docs/merlin-subset.md`'s
 *supported* directive table, not its refused list. Closing `TYP` and `SAV`
-removes two rows and leaves four: the three linker spellings, and the second
+removes two rows and leaves four: the three linker rows, and the second
 `XC`.
 
 `DSK` is still a gap this feature closes, but of a different kind: not a refusal

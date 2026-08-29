@@ -109,7 +109,7 @@ that "mean nothing to any other subcommand", and these mean something to two.
 |---|---|---|
 | `imagePath` | `std::string` | The image to write into. Empty means no image target, and every image-only behavior is off. |
 | `onDiskName` | `std::string` | What the object is called on the volume. Overrides `DSK` and `SAV`. |
-| `typeName` | `std::string` | The type, as typed. Overrides `TYP`. Same accepted spellings as `disk put --type`. |
+| `typeName` | `std::string` | The type, as typed. Overrides `TYP`. Same accepted forms as `disk put --type`. |
 | `setStartup` | `bool` | FR-021. Refused when `imagePath` is empty (FR-023). |
 
 **`imagePath` empty is the whole switch.** Whether an assembly targets a disk is

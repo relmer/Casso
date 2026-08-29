@@ -300,13 +300,21 @@ startup program.
   destinations exactly. Deriving from the output name instead would change
   shipped behavior for the common case and buy nothing, since with one output
   there is nothing to disambiguate.
-- **FR-034**: A listing flag naming an explicit file MUST be honored for a
-  single-output assembly and refused for a multi-output one, naming the count.
-  This is FR-026's rule applied to the same kind of flag: one name cannot serve
-  several files. The flag MUST NOT be withdrawn, because it is the only way to
-  name a listing for the single-output case, it is already shipped for both
-  dialects, and removing it from one of them would leave two dialects
-  disagreeing about what the same flag takes.
+- **FR-034**: Under Merlin, the listing flag MUST take no filename. Listings are
+  named after the output they describe, so a filename can name at most the
+  single-output case and cannot express the general one. Withdrawing the value
+  removes the possibility of the mismatch rather than adding a refusal for it.
+  A filename supplied anyway MUST earn a diagnostic saying listings are named
+  after each output, NOT a generic unknown-flag message.
+- **FR-037**: Under Merlin, the listing flag MUST write files rather than
+  standard output. A listing is read later to find something, which is what a
+  file is for; the console stream that Merlin itself produced was a thing to
+  watch scroll past, and it cannot be split per output in any case.
+- **FR-038**: The as65 grammar's listing flag MUST NOT change. It keeps its
+  filename and its standard-output default, because that is an as65
+  compatibility obligation rather than a choice, and because an as65 assembly
+  always produces exactly one output — the dialect has no directive that could
+  produce a second — so none of the multi-output reasoning reaches it.
 - **FR-035**: Symbols belonging to no output — the equates above the first —
   MUST be repeated into every per-output artifact. Each file has to stand alone
   for a reader or a debugger holding only that one program, and a hardware

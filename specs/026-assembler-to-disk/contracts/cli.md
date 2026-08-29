@@ -3,7 +3,7 @@
 **Feature**: `026-assembler-to-disk` | **Date**: 2026-08-29
 
 What the assembler grammars gain, how it is expressed, and what every refusal
-says. The spellings below are the contract; the wording of a diagnostic is the
+says. The forms below are the contract; the wording of a diagnostic is the
 implementation's, but *which* condition earns one is fixed here.
 
 ## Where these flags live
@@ -28,7 +28,7 @@ the object's shape inside the file is still `--flat` / `--dos-bin`'s business.
 |---|---|---|---|
 | `--disk <image>` | filename, attached or separate | Write the object into this disk image instead of a host file. Its absence is what turns every behavior below off. | FR-001 |
 | `--as <name>` | string | What the object is called on the volume. Overrides `DSK` and `SAV`. | FR-002, FR-007 |
-| `--type <t>` | string | The filesystem type. Overrides `TYP`. Same accepted spellings as `disk put --type`. | FR-006, FR-007 |
+| `--type <t>` | string | The filesystem type. Overrides `TYP`. Same accepted forms as `disk put --type`. | FR-006, FR-007 |
 | `--startup` | none | Make the object the volume's startup program. | FR-021 |
 
 `--as` and `--type` are deliberately the same words `disk put` uses for the same
@@ -86,9 +86,12 @@ filename today and derives `<source>.dbg`. Only the stem changes.
 | Artifact | One output | Several outputs |
 |---|---|---|
 | Object | as today | one per save point, named by `SAV` / `DSK` |
-| Listing (`-l`) | as today | `<output>.lst` each |
+| Listing (`-l`) | see the dialect table below | `<output>.lst` each |
 | Symbol file | as today | `<output>` each |
 | Debug info (`-g`) | `<source>.dbg` | `<output>.dbg` each |
+
+The listing is the one row that also depends on which dialect is assembling,
+because as65's `-l` carries a compatibility obligation Merlin's does not.
 
 ### Nothing here can regress, and that is structural
 
@@ -101,31 +104,50 @@ That is also why the single-output case keeps deriving from the **source** name
 rather than the output name: changing it would be a real regression for the
 common case, and with one output there is nothing to disambiguate.
 
-**as65 is untouched entirely.** It has no `DSK`, `SAV` or `TYP` spelling, so an
-as65 assembly always produces exactly one output and never reaches the
-right-hand column. All of this is Merlin's.
+**as65 is untouched entirely.** It has no `DSK`, `SAV` or `TYP` directive at
+all, so an as65 assembly always produces exactly one output and never reaches
+the right-hand column. All of this is Merlin's.
 
-### `-l<file>` stays, and is refused only where it cannot work
+### `-l` diverges by dialect, deliberately
 
-`-l` is **already shipped for both dialects** — `-l` alone writes to stdout,
-`-l<file>` writes to that file, and Merlin has had this since the dialect
-landed. It is not being added and it is not being withdrawn.
+`-l` is already shipped for both dialects, taking an optional filename and
+defaulting to standard output. That stays for as65 and changes for Merlin.
 
-| Form | One output | Several outputs |
+| Dialect | `-l` | `-l<file>` |
 |---|---|---|
-| `-l` | stdout, as today | `<output>.lst` per output |
-| `-l<file>` | `<file>`, as today | **refused**, naming the count |
+| as65 | stdout, as today | `<file>`, as today |
+| Merlin | `<output>.lst`, one per output | **not accepted** (FR-034) |
 
-`-l<file>` is refused for the same reason `--as` and `-o` are (FR-026): one name
-cannot serve several files, and applying it to each in turn would leave only the
-last, reported as success.
+**Why Merlin drops the filename.** A listing is named after the output it
+describes, so a filename can express the single-output case and nothing else. A
+flag that works only when the source happens to have one output is worse than a
+flag that does not take a value: withdrawing it removes the mismatch instead of
+adding a refusal for it. A filename given anyway earns a diagnostic saying
+listings are named after each output — not a generic unknown-flag message,
+which would leave the reader guessing.
 
-**Withdrawing `<file>` instead was considered and rejected.** It is the only way
-to name a listing in the single-output case, which is nearly every Merlin
-assembly — the vendor corpus is nine sources with at most one executing `SAV`
-between them. And as65 must keep it for as65 compatibility, so dropping it from
-Merlin alone would leave two dialects disagreeing about what one flag takes,
-which is the fault `--load` / `--exec` were consolidated to fix.
+**Why Merlin drops standard output.** A listing is read later to find something,
+which is what a file is for. It also cannot be split per output, so it would
+reintroduce the one-stream-holding-everything shape the split exists to remove.
+
+**Why as65 keeps both.** Its `-l` is an as65 compatibility obligation rather
+than a choice. And an as65 assembly always produces exactly one output — the
+dialect has no directive that could produce a second — so none of the
+multi-output reasoning reaches it (FR-038).
+
+**The divergence is the intended shape, not a fault.** The two dialects hold
+separate flag tables and answer separate help pages by design;
+`AssemblerMode.h` states that a dialect's "flags, its examples and where its
+supported subset ends are all its own, and the dialect that answers `merlin
+--help` is not the one that answers `as65 --help`". as65's `-l` is owed to
+as65; Merlin's is Casso's own invention, since Merlin wrote no listing file at
+all.
+
+**This is the one breaking change in the feature.** Merlin's `-l` shipped in
+1.18.0, "The one that speaks Merlin", taking a filename and defaulting to
+standard output, and both of those go away. It is a single flag on one dialect,
+the replacement is strictly more useful, and the diagnostic names the change —
+but it earns a CHANGELOG entry rather than passing as an addition.
 
 ### Shared symbols and shared source lines are repeated, not factored out
 
