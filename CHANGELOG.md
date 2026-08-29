@@ -19,10 +19,6 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 - **`run` echoed flags back with a dash even on a `/`-style command line.**
-- **Dropping a `.nib` on a drive did nothing, silently, and still recorded the
-  file in the recent-disks list.** The filter now answers from the loader's own
-  routing table, so the two cannot disagree. Casso mounts `.dsk`, `.do`, `.po`
-  and `.woz`.
 - **`-c` listings omitted the cycle count for 59 65C02 opcodes, and printed the
   NMOS value for `JMP (abs)`.** Counts now come off the instruction itself, the
   same value the emulator bills. NMOS counts are unchanged.
