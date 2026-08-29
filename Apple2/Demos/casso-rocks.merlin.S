@@ -49,10 +49,16 @@
 ;  via the labels exported below, so the two assemblies must move
 ;  together if either is edited.
 ;
-;  Self-contained: doesn't rely on any //e firmware ROM entry points
-;  beyond the disk2.rom boot firmware. The only piece of disk2.rom we
+;  Self-contained while it is RUNNING: loading, decoding and displaying
+;  use no firmware entry points at all. The only piece of disk2.rom we
 ;  re-use is the inverse 6-and-2 nibble decode table the boot PROM
 ;  builds at $02D6 (= $0356 - $80) during cold boot.
+;
+;  Handing control BACK is the exception. Quitting calls INIT, SETKBD
+;  and SETVID and then Applesoft's cold start, because going through
+;  the reset vector lets the //e RESET.MGR re-run the video firmware
+;  init and turn 80COL back on, which drops the user into Applesoft in
+;  80 columns. See do_exit in casso-rocks-stage2.a65.
 ;
 ;  Tested by BootDiskTests::CassoRocks_DemoDisk_DisplaysHgrCassowary.
 ; ============================================================================

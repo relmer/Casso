@@ -43,10 +43,10 @@ Entries before versioning was introduced use dates only.
   monochrome monitor is sixteen levels of one color. The images the answer
   did not pick stay loaded and simply never appear.
 
-  The exit puts the video mode back itself rather than leaving it to the reset
-  handler, which does not clear 80COL. Leaving the cycle from a DHGR step
-  otherwise dropped into Applesoft with the 80-column hardware still on and
-  the 80-column firmware not hooked up to match: half-width glyphs, and typing
+  The exit puts the video mode back itself and hands control to Applesoft
+  directly, rather than going through the reset vector. The //e's reset
+  handler re-runs the video firmware init and turns 80COL back on, so the demo
+  used to drop into Applesoft in 80 columns -- half-width glyphs, and typing
   that misbehaved.
 
 ### Removed

@@ -310,7 +310,23 @@ DO_EXIT
                            ; reset because the //e RESET.MGR never
                            ; touches $C0E8.
 
-    JMP ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
+    ; HAND OFF TO BASIC DIRECTLY, not through the reset vector. Going
+    ; through ($FFFC) asks the //e RESET.MGR what should happen next,
+    ; and on a machine that powered on normally it re-runs the video
+    ; firmware init and turns 80COL back ON -- undoing the switch
+    ; cleanup above and dropping into Applesoft in 80 columns with
+    ; half-width glyphs. (A headless harness that never ran the ROM's
+    ; power-on does NOT reproduce this: it has no firmware hooks for
+    ; the handler to re-init, so it exits in 40 columns and looks fine.
+    ; This was found on the real thing, twice.)
+    ;
+    ; These are the monitor's published entry points, unchanged across
+    ; the ][, ][+, //e and //c, so depending on them is both smaller and
+    ; more predictable than depending on what the reset handler decides.
+    JSR $FB2F              ; INIT   - text mode, full window
+    JSR $FE89              ; SETKBD - KSW back to KEYIN
+    JSR $FE93              ; SETVID - CSW back to COUT1
+    JMP $E000              ; Applesoft cold start
 
 
 ; ----------------------------------------------------------------------------
