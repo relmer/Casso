@@ -7,6 +7,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
 
@@ -360,6 +361,146 @@ public:
             string (reinterpret_cast<const char *> (woz.data() + 12), 4),
             L"precondition: INFO is the first chunk, so its flag byte is at a known offset");
     }
+
+
+    //  A nibble image of a real, varied disk: sectors encoded to GCR and
+    //  rendered out as a nibble file, which is what the emulator will be
+    //  handed. Built rather than read, so no test needs a .nib on disk.
+    static vector<Byte>  BuildNibbleImage()
+    {
+        DiskImage     img;
+        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  file;
+        size_t        i  = 0;
+        HRESULT       hr = S_OK;
+
+        for (i = 0; i < sectors.size(); i++)
+        {
+            sectors[i] = static_cast<Byte> ((i * 13 + (i / 256)) & 0xFF);
+        }
+
+        hr = NibblizationLayer::NibblizeDsk (sectors, img);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = NibbleImageCodec::Serialize (img, vector<Byte>(), file);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        return file;
+    }
+
+
+
+    TEST_METHOD (NibbleFlush_WritesOnlyTheTrackTheGuestTouched)
+    {
+        DiskImageStore  store;
+        DiskImage     * img     = nullptr;
+        vector<Byte>    file    = BuildNibbleImage();
+        vector<Byte>    before  = file;
+        int             track   = 0;
+        int             differs = 0;
+
+        store.SetFlushSink ([&file] (const string &, const vector<Byte> & bytes)
+        {
+            file = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.nib", DiskFormat::Nib, before));
+
+        img = store.GetImage (6, 0);
+        Assert::IsNotNull (img);
+
+        //  FLIP the bit rather than writing a value it may already hold. The
+        //  derivation is an exact inverse of the load for a track of legal
+        //  nibbles, so re-deriving after a no-op write reproduces the original
+        //  bytes and nothing differs -- the first version of this test wrote a
+        //  1 over a 1 and found zero changed tracks, which looked like a
+        //  broken flush and was the codec being right.
+        img->WriteBit (7, 40, img->ReadBit (7, 40) ^ 1);
+        store.Eject (6, 0);
+
+        Assert::AreEqual (before.size(), file.size(), L"the container keeps its length");
+
+        for (track = 0; track < NibbleImageCodec::kTrackCount; track++)
+        {
+            size_t  offset = static_cast<size_t> (track) * NibbleImageCodec::kNibTrackSize;
+
+            if (memcmp (&before[offset], &file[offset], NibbleImageCodec::kNibTrackSize) != 0)
+            {
+                differs++;
+            }
+        }
+
+        Assert::AreEqual (1, differs,
+            L"exactly the written track may change; every other is copied verbatim");
+    }
+
+
+
+    TEST_METHOD (NibbleFlush_WritesNothingWhenTheGuestWroteNothing)
+    {
+        DiskImageStore  store;
+        vector<Byte>    file   = BuildNibbleImage();
+        int             writes = 0;
+
+        store.SetFlushSink ([&writes] (const string &, const vector<Byte> &)
+        {
+            writes++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "t.nib", DiskFormat::Nib, file));
+
+        store.Eject (6, 0);
+
+        Assert::AreEqual (0, writes,
+            L"a mount nothing wrote to must not rewrite the user's file at all");
+    }
+
+
+
+    TEST_METHOD (NibbleFlush_SurvivesRepeatedWriteAndReloadCycles)
+    {
+        DiskImageStore        store;
+        DiskImage           * img       = nullptr;
+        DiskImage             reloaded;
+        vector<Byte>          file      = BuildNibbleImage();
+        vector<Byte>          recovered;
+        SectorDecodeReport    report;
+        int                   cycle     = 0;
+        int                   cycles    = 0;
+
+        store.SetFlushSink ([&file] (const string &, const vector<Byte> & bytes)
+        {
+            file = bytes;
+            return S_OK;
+        });
+
+        //  Each pass re-reads what the last one wrote. A padding rule that ate
+        //  a little more of the track every time would show as a track that
+        //  stops decoding after a few rounds -- which a single round cannot see.
+        for (cycle = 0; cycle < 5; cycle++)
+        {
+            AssertSucceeded (store.MountFromBytes (6, 0, "t.nib", DiskFormat::Nib, file));
+
+            img = store.GetImage (6, 0);
+            Assert::IsNotNull (img);
+
+            img->WriteBit (9, 24 + cycle, 1);
+            store.Eject (6, 0);
+
+            Assert::AreEqual (NibbleImageCodec::kNibImageSize, file.size(),
+                L"the container must not grow or shrink across cycles");
+
+            AssertSucceeded (NibbleImageCodec::Load (file, reloaded));
+            AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk,
+                                                           recovered, report));
+            cycles++;
+        }
+
+        Assert::AreEqual (5, cycles, L"the loop must actually have run");
+    }
+
 
 
     TEST_METHOD (WozWpFlag_RoundTripsThroughTheFileItPatches)

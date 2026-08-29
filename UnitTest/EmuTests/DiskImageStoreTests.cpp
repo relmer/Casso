@@ -3,6 +3,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
 #include "Devices/Disk2Controller.h"
@@ -397,6 +398,35 @@ public:
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
         Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
+            L"the notification must name the image that failed to save");
+    }
+
+    TEST_METHOD (FlushError_nibbleImage_reportsWritesItCouldNotPersist)
+    {
+        //  The same loss report as the sector formats, asserted for this
+        //  container. The mechanism is shared and format-agnostic, which is
+        //  precisely why it is worth pinning per container: nothing about a
+        //  passing .dsk test says the nibble flush reaches the notifier.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        DiskImage                 built;
+        vector<Byte>              sectors (NibblizationLayer::kImageByteSize, 0x3C);
+        vector<Byte>              file;
+        HRESULT                   hr = S_OK;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.nib", DiskFormat::Nib, file));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
+
+        hr = store.Flush (kSlot, kDrive);
+
+        AssertFailed (hr);
+        Assert::AreEqual (1, s_flushNotifyCount, L"a failed nibble flush must be surfaced");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"boom.nib") != wstring::npos,
             L"the notification must name the image that failed to save");
     }
 
