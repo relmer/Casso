@@ -515,18 +515,28 @@ DARK_BLEED = 0.3
 # there is no single height that does both, because the bell's top is a
 # slanted line and a pocket floor is a plane. Cutting with the part removes
 # the choice.
-BELL_HW = COL_HW + DARK_BLEED         # the molding's own edge, exactly
-
-# The corner radius eats into the bell's FLAT top, and that flat is what
-# the recess's side walls have to land on -- so with the molding's bleed
-# down to a third of a millimeter, the radius has to come down with it or
-# the walls overhang the bell again.
-BELL_R  = 0.4
+# THE BELL IS COLUMN-WIDE WHERE IT EMERGES, not where its front wire is.
+# The wire sits 46 mm inside the case; by the time the bell reaches the
+# surface the taper has already narrowed it, so a wire cut to the column's
+# width put the visible bell UNDER width -- and left a sliver of recess
+# floor either side of it, which is the line that kept crossing the bell.
+# The front wire is therefore the column plus the taper already spent
+# (0.34 of it) at the emergence point solved from the slope and the bell's
+# own top edge.
+#
+# The corner radius has to be smaller than the bleed, too: the radius eats
+# the flat top the recess walls land on, and the bleed is all the margin
+# there is.
+BELL_TAPER   = 3.0
+BELL_EMERGE  = 0.3404                 # solved: slope x bell-top crossing
+BELL_HW      = COL_HW + DARK_BLEED + BELL_EMERGE * BELL_TAPER
+BELL_R       = 0.2
 
 _bell_solid = cq.Solid.makeLoft ([
     round_rect_wire (D - 80.0, BELL_CX - BELL_HW, BELL_CX + BELL_HW,
                      90.0, 180.0, BELL_R),
-    round_rect_wire (D + BELL_BACK, BELL_CX - (BELL_HW - 2.0), BELL_CX + (BELL_HW - 2.0),
+    round_rect_wire (D + BELL_BACK,
+                     BELL_CX - (BELL_HW - BELL_TAPER), BELL_CX + (BELL_HW - BELL_TAPER),
                      95.0, 150.0, BELL_R),
 ])
 
@@ -556,13 +566,16 @@ VENT_SLOT_W = 2.0
 # margin, and it now stands off the notch's top wall by the same margin
 # instead of leaving a third of the recess blank.
 VENT_SLOT_H = 38.0
-VENT_N      = 13
+# Eleven a side, not thirteen: the bank has to fit between the spec plate
+# and the wall, and once both of those moved inward thirteen slots could
+# only fit by running under the plate.
+VENT_N      = 11
 VENT_BAND_Z = STRIP_TOP + SLOPE_LEN - 62.0
 # INSIDE THE RECESS, with room to spare. The bank's outer edge was 100 --
 # fine when the recess wall stood at 108, a slit cut half into the wall
 # once the wall came in to 94. Measured off the wall now, not left as an
 # absolute that a later width change could silently invalidate.
-VENT_IN_X0  = 42.0                    # bank inner edge, off the column axis
+VENT_IN_X0  = 53.0                    # bank inner edge, clear of the plate
 VENT_IN_X1  = COL_HW - 9.0            # ...and outer, clear of the wall
 VENT_PITCH  = (VENT_IN_X1 - VENT_IN_X0 - VENT_SLOT_W) / (VENT_N - 1)
 
@@ -779,9 +792,9 @@ _molding_region = (
     # the vent recess, with the bleed around its walls
     vent_face (
         cq.Workplane ("XY")
-          .box (_mold_w, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + 6.0,
+          .box (_mold_w, VENT_IN_BOT + 83.0, PKT_Z1 - PKT_Z0 + DARK_BLEED * 2.0,
                 centered=(False, False, False))
-          .translate ((_mold_x0, D - VENT_IN_BOT - 3.0, PKT_Z0 - 3.0)))
+          .translate ((_mold_x0, D - VENT_IN_BOT - 3.0, PKT_Z0 - DARK_BLEED)))
       # the slope between the recess and the hinge
       .union (tilt_rear (
           cq.Workplane ("XY")
@@ -796,7 +809,15 @@ _molding_region = (
                   centered=(False, False, False))
             .translate ((_mold_x0, D - 30.0, PANEL_Z0 - 3.0))))
 
-m.add ("rear_molding", case.intersect (_molding_region), PANEL_GRAY, angular=CORNER_ANG)
+# THE BELL IS UNIONED IN, not added beside. It is the same molding and the
+# same color, but as a SEPARATE SOLID its surface met the recess floor at a
+# boundary, and a boundary between two solids renders as a hairline however
+# exactly they are aligned -- the line that kept crossing the bell, still
+# there after the widths were made to agree, because agreement is not the
+# same as being one piece. Unioned, there is no interior face left to draw.
+m.add ("rear_molding",
+       case.intersect (_molding_region).union (cq.Workplane (obj=_bell_solid)),
+       PANEL_GRAY, angular=CORNER_ANG)
 
 case = case.cut (_molding_region)
 
@@ -858,7 +879,7 @@ BELL_REAR_Y = D + BELL_BACK           # WELL PAST the case: the reference
 # far back the actual emergence sits.
 bell = _bell_solid
 
-m.add ("bell", cq.Workplane (obj=bell), BELL_GRAY, angular=CORNER_ANG)
+# (the bell is part of "rear_molding" above -- one solid, no seam)
 
 # The cassowary on the bell's rear face, where the real unit wears its
 # maker's sticker: read out of CassoBranding.cpp exactly as the Disk IIc's
