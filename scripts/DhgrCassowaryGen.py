@@ -33,25 +33,24 @@ cell grid (see CellCaption) so the caption stays legible through EITHER
 decode -- the whole point being that the caption is readable precisely
 when the image around it is not.
 
-Layout: a title band across the top and a caption band across the
-bottom, both cleared to black, with the photo letterboxed into the rows
-between. Both images use the same bands and the same photo box, so
-switching between them moves nothing but the picture.
+The same argument, at half the horizontal resolution, produces the HGR
+pair; see HgrCassowaryGen. Page geometry for all four is in
+DemoImageLayout, so switching between any two moves nothing but the
+picture.
 """
 
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageEnhance, ImageFilter
+    from PIL import Image
 except ImportError:
     sys.stderr.write("PIL/Pillow required: pip install Pillow\n")
     sys.exit(1)
 
 # Reach the sibling pipeline modules.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import CellCaption
-import HgrPreprocess
+import DemoImageLayout as Layout
 
 
 # Apple //e 16-color LoRes/DHGR palette (RGB), index = 4-bit color value.
@@ -75,89 +74,18 @@ DHGR_PALETTE_RGB = [
     (255, 255, 255),   # 15 White
 ]
 
-DHGR_COLOR_W = 140     # color cells across
-DHGR_DOT_W   = 560     # dots across (4 per cell)
-DHGR_ROWS    = 192
-
-CELL_BLACK   = 0
-CELL_WHITE   = 15
-
-# Chrome. The title is the same font at 2x, which is why its band is
-# roughly twice as tall as the caption's.
-TITLE_TEXT     = "CASSO"
-TITLE_SCALE    = 2
-TITLE_TOP      = 3
-TITLE_BAND_H   = TITLE_TOP + CellCaption.GLYPH_H * TITLE_SCALE + 2
-CAPTION_TOP    = 2                                    # within the caption band
-CAPTION_BAND_H = CAPTION_TOP + CellCaption.GLYPH_H + 3
-
-CAPTION_COLOR  = "(FOR COLOR MONITORS)"
-CAPTION_MONO   = "(FOR MONOCHROME MONITORS)"
-
-# The photo box: everything the two bands leave. Fitting the picture
-# into it rather than letting the bands sit on top costs some size but
-# keeps the casque and the wattles -- the two things that make the bird
-# recognizable -- out from under the text.
-PHOTO_TOP      = TITLE_BAND_H
-PHOTO_H        = DHGR_ROWS - CAPTION_BAND_H - PHOTO_TOP
+CELL_BLACK = 0
+CELL_WHITE = 15
 
 # Monochrome tone curve. The 1-bit dither has no midtones of its own --
 # every gray is a dot ratio -- so the photo needs more contrast and more
 # local detail going in than a continuous-tone display would want.
-MONO_GAMMA     = 1.40
-MONO_CONTRAST  = 1.35
-MONO_SHARPEN   = 1.20
+MONO_GAMMA    = 1.40
+MONO_CONTRAST = 1.35
+MONO_SHARPEN  = 1.20
 
 
-def hgr_row_offset(row: int) -> int:
-    return 1024 * (row & 7) + 128 * ((row >> 3) & 7) + 40 * (row >> 6)
-
-
-def band_rows():
-    """The scanlines the title and caption bands own."""
-    return (list(range(0, TITLE_BAND_H))
-          + list(range(DHGR_ROWS - CAPTION_BAND_H, DHGR_ROWS)))
-
-
-def chrome_cells(caption: str) -> set:
-    """Every cell the title and caption light, for either image."""
-    title = CellCaption.stamp(TITLE_TEXT, TITLE_TOP, DHGR_COLOR_W,
-                              scale=TITLE_SCALE)
-    lower = CellCaption.stamp(caption,
-                              DHGR_ROWS - CAPTION_BAND_H + CAPTION_TOP,
-                              DHGR_COLOR_W)
-    return title | lower
-
-
-def load_photo(mode: str) -> Image.Image:
-    repo = Path(__file__).resolve().parent.parent
-    src  = repo / "Assets" / "3a Mrs Cassowary closeup 8167.jpg"
-    if not src.exists():
-        raise FileNotFoundError(f"source image not found: {src}")
-    return Image.open(src).convert(mode).crop(HgrPreprocess.DEFAULT_CROP)
-
-
-def fit_photo(photo: Image.Image, canvas_w: int) -> tuple:
-    """Scale the photo to fill PHOTO_H scanlines at the display's aspect,
-    and return it with the top-left corner to paste it at.
-
-    `canvas_w` is the horizontal resolution being drawn at -- 140 cells
-    for the color image, 560 dots for the monochrome one. Both span the
-    same physical screen width as HGR's 280 pixels, so the scale factor
-    from display pixels to canvas units is canvas_w / 280."""
-    src_w, src_h = photo.size
-    new_h = PHOTO_H
-    new_w = max(1, round(new_h * (src_w / src_h) * (canvas_w / 280.0)))
-
-    if new_w > canvas_w:
-        new_w = canvas_w
-        new_h = max(1, round(new_w * (src_h / src_w) * (280.0 / canvas_w)))
-
-    scaled = photo.resize((new_w, new_h), Image.LANCZOS)
-    return scaled, ((canvas_w - new_w) // 2, PHOTO_TOP + (PHOTO_H - new_h) // 2)
-
-
-def build_palette_image() -> Image.Image:
+def build_palette_image():
     """Create a reference image using the //e palette so PIL can
     quantize against it."""
     pal = []
@@ -169,91 +97,52 @@ def build_palette_image() -> Image.Image:
     return p_img
 
 
-def build_color_cells() -> Image.Image:
+def build_color_cells():
     """The 16-color image as a 140x192 P-mode canvas of palette indices."""
-    canvas = Image.new("RGB", (DHGR_COLOR_W, DHGR_ROWS), (0, 0, 0))
-    photo, at = fit_photo(load_photo("RGB"), DHGR_COLOR_W)
+    canvas = Image.new("RGB", (Layout.CELLS, Layout.ROWS), (0, 0, 0))
+    photo, at = Layout.fit_photo(
+        Layout.load_photo("RGB", Layout.CROP_PORTRAIT), Layout.CELLS)
     canvas.paste(photo, at)
 
     quantized = canvas.quantize(palette=build_palette_image(),
                                 dither=Image.FLOYDSTEINBERG)
     pixels = quantized.load()
 
-    for row in band_rows():
-        for cell in range(DHGR_COLOR_W):
+    for row in Layout.band_rows():
+        for cell in range(Layout.CELLS):
             pixels[cell, row] = CELL_BLACK
-    for cell, row in chrome_cells(CAPTION_COLOR):
+    for cell, row in Layout.chrome_cells(Layout.CAPTION_COLOR):
         pixels[cell, row] = CELL_WHITE
 
     return quantized
 
 
-def dither_1bit(gray: Image.Image) -> Image.Image:
-    """Serpentine Floyd-Steinberg to pure black and white.
-
-    Serpentine (alternating scan direction) rather than left-to-right
-    because the dot grid is strongly anisotropic -- 560 dots across but
-    only 192 scanlines down -- and a single scan direction pushes its
-    error the same way on every line, which shows up as horizontal
-    streaking in flat areas like the background foliage."""
-    width, height = gray.size
-    rows = [list(map(float, gray.crop((0, y, width, y + 1)).get_flattened_data()))
-            for y in range(height)]
-
-    out    = Image.new("L", (width, height), 0)
-    pixels = out.load()
-
-    for y in range(height):
-        forward = (y % 2) == 0
-        step    = 1 if forward else -1
-        order   = range(width) if forward else range(width - 1, -1, -1)
-
-        for x in order:
-            old = rows[y][x]
-            new = 255.0 if old >= 128.0 else 0.0
-            pixels[x, y] = int(new)
-
-            err = old - new
-            for nx, ny, share in ((x + step, y,     7.0 / 16.0),
-                                  (x - step, y + 1, 3.0 / 16.0),
-                                  (x,        y + 1, 5.0 / 16.0),
-                                  (x + step, y + 1, 1.0 / 16.0)):
-                if 0 <= nx < width and 0 <= ny < height:
-                    rows[ny][nx] += err * share
-
-    return out
-
-
-def build_mono_dots() -> Image.Image:
+def build_mono_dots():
     """The monochrome image as a 560x192 L-mode canvas of 0 / 255 dots."""
-    canvas = Image.new("L", (DHGR_DOT_W, DHGR_ROWS), 0)
-    photo, at = fit_photo(load_photo("L"), DHGR_DOT_W)
+    canvas = Image.new("L", (Layout.DOTS, Layout.ROWS), 0)
+    photo, at = Layout.fit_photo(
+        Layout.load_photo("L", Layout.CROP_PORTRAIT), Layout.DOTS)
     canvas.paste(photo, at)
+    canvas = Layout.apply_tone(canvas, MONO_GAMMA, MONO_CONTRAST, MONO_SHARPEN)
 
-    canvas = canvas.filter(ImageFilter.UnsharpMask(
-        radius=2, percent=int(MONO_SHARPEN * 100), threshold=2))
-    canvas = ImageEnhance.Contrast(canvas).enhance(MONO_CONTRAST)
-    canvas = canvas.point([min(255, int(255 * ((i / 255.0) ** (1.0 / MONO_GAMMA))))
-                           for i in range(256)])
-
-    dots   = dither_1bit(canvas)
+    dots   = Layout.dither_1bit(canvas)
     pixels = dots.load()
 
-    for row in band_rows():
-        for x in range(DHGR_DOT_W):
+    for row in Layout.band_rows():
+        for x in range(Layout.DOTS):
             pixels[x, row] = 0
 
     # The chrome is placed on the CELL grid even here, so that the
     # caption survives the color decode too -- a color monitor showing
     # this image needs to be able to read why it looks wrong.
-    for cell, row in chrome_cells(CAPTION_MONO):
+    for cell, row in Layout.chrome_cells(Layout.CAPTION_MONO):
         for dot in range(4):
             pixels[cell * 4 + dot, row] = 255
 
     return dots
 
 
-def encode_dhgr(get_dot) -> tuple:
+def encode_dhgr(get_dot):
     """Pack a 560x192 dot predicate into 8 KB aux + 8 KB main.
 
     80 bytes per scanline: aux[0] main[0] aux[1] main[1] ... aux[39]
@@ -261,9 +150,9 @@ def encode_dhgr(get_dot) -> tuple:
     aux_buf  = bytearray(8192)
     main_buf = bytearray(8192)
 
-    for row in range(DHGR_ROWS):
-        base = hgr_row_offset(row)
-        for dot in range(DHGR_DOT_W):
+    for row in range(Layout.ROWS):
+        base = Layout.hgr_row_offset(row)
+        for dot in range(Layout.DOTS):
             if not get_dot(dot, row):
                 continue
             byte_idx = dot // 7
@@ -298,9 +187,9 @@ def main():
 
     # Previews at the on-screen aspect (560x384), each showing what its
     # own monitor would show.
-    color.convert("RGB").resize((DHGR_DOT_W, DHGR_ROWS * 2), Image.NEAREST) \
+    color.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
          .save(out_dir / "dhgr-cassowary-preview.png")
-    mono.convert("RGB").resize((DHGR_DOT_W, DHGR_ROWS * 2), Image.NEAREST) \
+    mono.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
         .save(out_dir / "dhgr-cassowary-mono-preview.png")
     print("wrote dhgr-cassowary-preview.png, dhgr-cassowary-mono-preview.png")
 

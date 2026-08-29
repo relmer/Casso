@@ -13,20 +13,28 @@
       3. Lays out the standard 143360-byte DOS-order .dsk image:
 
            Track 0, sector 0  ($0000-$00FF) : stage 1 (boot sector)
-           Tracks 1-2         ($1000-$2FFF) : DHGR color aux half
+           Tracks 1-2         ($1000-$2FFF) : DHGR mono aux half
            Track 3, sectors 0-1 ($3000-$31FF) : stage 2
            Track 3, sectors 2-5 ($3200-$35FF) : LoRes test pattern
-           Tracks 4-5         ($4000-$5FFF) : DHGR color main half
-           Tracks 6-7         ($6000-$7FFF) : DHGR mono aux half
-           Tracks 8-9         ($8000-$9FFF) : DHGR mono main half
-           Tracks 10-11       ($A000-$BFFF) : HGR1 cassowary
-           Tracks 12-13       ($C000-$DFFF) : HGR2 test bands
+           Tracks 4-5         ($4000-$5FFF) : DHGR mono main half
+           Tracks 6-7         ($6000-$7FFF) : HGR mono cassowary
+           Tracks 8-9         ($8000-$9FFF) : DHGR color aux half
+           Tracks 10-11       ($A000-$BFFF) : DHGR color main half
+           Tracks 12-13       ($C000-$DFFF) : HGR color cassowary
            Everything else                  : $FF fill
 
-       The two DHGR images are the same photo encoded for the two
-       decodes a DHGR framebuffer has -- 140 color cells and 560
-       monochrome dots -- because nothing on the disk can tell which
-       monitor is attached. See scripts/DhgrCassowaryGen.py.
+       The four cassowaries are one photo encoded four ways. Both DHGR
+       and HGR framebuffers are decoded differently depending on the
+       monitor -- color cells versus dots -- and the two decodes want
+       opposite things from the encoder, so each image is authored for
+       one monitor and reads as noise on the other. Nothing on the disk
+       can tell which is attached, so all four ship, monochrome pair
+       first. See scripts/DhgrCassowaryGen.py and
+       scripts/HgrCassowaryGen.py.
+
+       The tracks are in the order the demo reads them, which is the
+       order the modes are cycled in, so whatever the user reaches next
+       is whatever finished loading last.
 
       4. Writes the assembled image to Apple2/Demos/casso-rocks.dsk
 
@@ -211,9 +219,9 @@ $dhgrAux  = Read-AssetFile 'dhgr-cassowary-aux.bin'       $kImageLength
 $dhgrMain = Read-AssetFile 'dhgr-cassowary-main.bin'      $kImageLength
 $monoAux  = Read-AssetFile 'dhgr-cassowary-mono-aux.bin'  $kImageLength
 $monoMain = Read-AssetFile 'dhgr-cassowary-mono-main.bin' $kImageLength
-$hgr      = Read-AssetFile 'cassowary.hgr'           $kImageLength
-$bands    = Read-AssetFile 'test-bands.hgr'          $kImageLength
-$lores    = Read-AssetFile 'lores-bars.lores'        ($kBytesPerSector * 4)
+$hgr      = Read-AssetFile 'cassowary.hgr'                $kImageLength
+$hgrMono  = Read-AssetFile 'cassowary-mono.hgr'           $kImageLength
+$lores    = Read-AssetFile 'lores-bars.lores'             ($kBytesPerSector * 4)
 
 function Build-LayoutInPowerShell {
     #  The original method: allocate the image, place every region at a
@@ -230,13 +238,13 @@ function Build-LayoutInPowerShell {
     # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
     Write-Bytes-At $image (Get-PhysicalSectorOffset 0 0) $stage1
 
-    # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
+    # Tracks 1-2: DHGR mono aux half, stitched in logical-sector order
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
             $fileOff    = Get-PhysicalSectorOffset (1 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
+            [Array]::Copy($monoAux, $payloadOff, $slice, 0, $kBytesPerSector)
             Write-Bytes-At $image $fileOff $slice
         }
     }
@@ -257,25 +265,25 @@ function Build-LayoutInPowerShell {
         Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (2 + $sector)) $slice
     }
 
-    # Tracks 4-5: DHGR main pattern
+    # Tracks 4-5: DHGR mono main half
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
             $fileOff    = Get-PhysicalSectorOffset (4 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
+            [Array]::Copy($monoMain, $payloadOff, $slice, 0, $kBytesPerSector)
             Write-Bytes-At $image $fileOff $slice
         }
     }
 
-    # Tracks 6-7: DHGR mono aux half, 8-9: DHGR mono main half,
-    # 10-11: HGR1 cassowary, 12-13: HGR2 test bands. Same two-track
-    # stitch each time, so the payloads drive the loop.
+    # Tracks 6-7: HGR mono cassowary, 8-9: DHGR color aux half,
+    # 10-11: DHGR color main half, 12-13: HGR color cassowary. Same
+    # two-track stitch each time, so the payloads drive the loop.
     $twoTrackRegions = @(
-        @{ StartTrack =  6; Payload = $monoAux  },
-        @{ StartTrack =  8; Payload = $monoMain },
-        @{ StartTrack = 10; Payload = $hgr      },
-        @{ StartTrack = 12; Payload = $bands    }
+        @{ StartTrack =  6; Payload = $hgrMono  },
+        @{ StartTrack =  8; Payload = $dhgrAux  },
+        @{ StartTrack = 10; Payload = $dhgrMain },
+        @{ StartTrack = 12; Payload = $hgr      }
     )
 
     foreach ($region in $twoTrackRegions) {
@@ -329,14 +337,14 @@ function Build-LayoutWithCassoCli {
     #  documents, in the order its boot loader reads it.
     $plan = @(
         @{ Track = 0; Sector = 0; Path = $tmp1 },
-        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-aux.bin") },
         @{ Track = 3; Sector = 0; Path = $tmp2 },
         @{ Track = 3; Sector = 2; Path = (Join-Path $demoDir "lores-bars.lores") },
-        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
-        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-aux.bin") },
-        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-main.bin") },
-        @{ Track = 10; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") },
-        @{ Track = 12; Sector = 0; Path = (Join-Path $demoDir "test-bands.hgr") }
+        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-main.bin") },
+        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary-mono.hgr") },
+        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 10; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
+        @{ Track = 12; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") }
     )
 
     foreach ($step in $plan) {

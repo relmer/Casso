@@ -9,19 +9,31 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **The casso-rocks demo now carries a second cassowary, drawn for monochrome
-  monitors.** A DHGR framebuffer is read two ways depending on the monitor:
-  140 color cells, or 560 individual dots. The demo's image was encoded for
-  the first, which puts hue in every cell and leaves brightness nowhere, so a
-  green, amber, or white monitor showed a field of dither with a bird
-  somewhere inside it. Nothing downstream can recover that -- the luminance is
-  gone at encode time -- so the disk ships a second image instead: the same
-  photo dithered to one bit across all 560 dots, which is the highest
-  resolution the machine has. It is the mode after the color one, and the
-  three modes that follow have each moved one place later in the cycle.
-  Both images are captioned with the monitor they were drawn for, in text
-  built from whole color cells so it survives either decode -- legible, that
-  is, on exactly the monitor where the picture around it is not.
+- **The casso-rocks demo now shows the same cassowary four ways, monochrome
+  first.** Both DHGR and HGR framebuffers are read two different ways
+  depending on the monitor -- as color cells, or as individual dots -- and the
+  two readings want opposite things from the encoder. Every image on the disk
+  had been drawn for the color reading, which puts hue in every cell and
+  leaves brightness nowhere, so a green, amber, or white monitor showed a
+  field of dither with a bird somewhere inside it. Nothing downstream can
+  recover that; the luminance is gone at encode time. So the disk now carries
+  a monochrome counterpart to each: DHGR dithered to one bit across all 560
+  dots, which is the highest resolution the machine has, and HGR across 280,
+  which is half of it because an HGR pixel paints two half-dots rather than
+  one. The cycle runs monochrome DHGR, monochrome HGR, color DHGR, color HGR,
+  then the LoRes bars, so the disk boots into the monochrome image.
+
+  All four are captioned with the monitor they were drawn for, in text built
+  from whole color cells so it survives either reading -- legible, that is, on
+  exactly the monitor where the picture around it is not.
+
+### Removed
+- **The HGR color test bands are no longer a mode on the demo disk.** They
+  were a by-eye check that the renderer had not swapped blue for orange or
+  violet for green, and VideoModeTests now asserts that per pixel rather than
+  per band, so the 8 KB they occupied became HGR page 2 for the monochrome HGR
+  cassowary. `scripts/HgrPreprocess.py --pattern bands` still generates them
+  for anyone who wants to look at them.
 
 ### Changed
 - **`run` no longer assembles a source under an assembler nobody named.**

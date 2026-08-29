@@ -23,7 +23,7 @@
 #define IDR_DEMO_STAGE1_SRC   4001
 #define IDR_DEMO_STAGE2_SRC   4002
 #define IDR_DEMO_HGR          4003
-#define IDR_DEMO_BANDS        4004
+#define IDR_DEMO_HGR_MONO     4004
 #define IDR_DEMO_LORES        4005
 #define IDR_DEMO_DHGR_AUX     4006
 #define IDR_DEMO_DHGR_MAIN    4007
@@ -38,9 +38,9 @@
 #define IDR_BASIC_CORPUS_TOK  4009
 
 //
-//  The monochrome cassowary: the same photo as IDR_DEMO_DHGR_*, encoded
-//  for the other decode a DHGR framebuffer has. See
-//  scripts/DhgrCassowaryGen.py.
+//  The monochrome cassowaries: the same photo as IDR_DEMO_DHGR_* and
+//  IDR_DEMO_HGR, encoded for the other decode each framebuffer has.
+//  See scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
 //
 
 #define IDR_DEMO_DHGR_MONO_AUX   4010

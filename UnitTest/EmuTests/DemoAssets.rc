@@ -19,7 +19,7 @@
 IDR_DEMO_STAGE1_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks.a65"
 IDR_DEMO_STAGE2_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks-stage2.a65"
 IDR_DEMO_HGR          RCDATA "..\\..\\Apple2\\Demos\\cassowary.hgr"
-IDR_DEMO_BANDS        RCDATA "..\\..\\Apple2\\Demos\\test-bands.hgr"
+IDR_DEMO_HGR_MONO     RCDATA "..\\..\\Apple2\\Demos\\cassowary-mono.hgr"
 IDR_DEMO_LORES        RCDATA "..\\..\\Apple2\\Demos\\lores-bars.lores"
 IDR_DEMO_DHGR_AUX     RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-aux.bin"
 IDR_DEMO_DHGR_MAIN    RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-main.bin"

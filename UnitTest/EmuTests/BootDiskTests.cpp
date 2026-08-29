@@ -183,7 +183,7 @@ public:
             std::string              source          = DemoAssets::Text (IDR_DEMO_STAGE1_SRC);
             std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
-            std::vector<Byte>        bandsPayload;
+            std::vector<Byte>        hgrMonoPayload;
             std::vector<Byte>        loresPayload;
             std::vector<Byte>        dhgrAuxPayload;
             std::vector<Byte>        dhgrMainPayload;
@@ -203,7 +203,7 @@ public:
                 L"casso-rocks-stage2.a65 must not be empty");
 
             hgrPayload      = DemoAssets::Copy (IDR_DEMO_HGR);
-            bandsPayload    = DemoAssets::Copy (IDR_DEMO_BANDS);
+            hgrMonoPayload  = DemoAssets::Copy (IDR_DEMO_HGR_MONO);
             loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
             dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
             dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
@@ -211,8 +211,8 @@ public:
             monoMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_MAIN);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
-            Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
-                L"test-bands.hgr must be exactly 8192 bytes");
+            Assert::AreEqual (kHgrPayloadSize, hgrMonoPayload.size(),
+                L"cassowary-mono.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kLoresPayloadSize, loresPayload.size(),
                 L"lores-bars.lores must be exactly 1024 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size(),
@@ -265,33 +265,33 @@ public:
             // Build a 143360-byte raw .dsk image:
             //   - File offset 1..N (track 0 sector 0 minus the first byte):
             //     stage 1 boot code.
-            //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
+            //   - Tracks 1+2: 8 KB DHGR MONO aux half (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
             //   - Track 3 physical sectors 0..1: stage 2 code (lands at
             //     $1000-$11FF). Track 3 physical sectors 2..5: 1 KB LoRes
             //     test pattern (lands at $1200-$15FF, copied into text
             //     page 1 in mode_lores).
-            //   - Tracks 4+5: 8 KB DHGR color main half (loaded by stage 2
+            //   - Tracks 4+5: 8 KB DHGR MONO main half (loaded by stage 2
             //     init into main $8000-$9FFF, then copied to main $2000
             //     by enter_dhgr).
-            //   - Tracks 6+7 and 8+9: the MONOCHROME cassowary's aux and
+            //   - Tracks 6+7: 8 KB HGR MONO cassowary, loaded by the
+            //     background phase to main $4000-$5FFF, which IS HGR page
+            //     2 -- so mode 1 is a PAGE2 flip with no copy.
+            //   - Tracks 8+9 and 10+11: the COLOR DHGR cassowary's aux and
             //     main halves, loaded by the background phase back into
-            //     main $6000 and main $8000 -- the same staging the color
-            //     halves were copied out of, which is why mode 1 is just
-            //     a second enter_dhgr call over the same addresses.
-            //   - Tracks 10+11: 8 KB HGR1 cassowary (loaded by stage 2
+            //     main $6000 and main $8000 -- the same staging the
+            //     monochrome halves were copied out of, which is why mode
+            //     2 is just a second enter_dhgr call over the same
+            //     addresses.
+            //   - Tracks 12+13: 8 KB HGR COLOR cassowary (loaded by stage 2
             //     background phase directly into its stash location at
-            //     main $A000-$BFFF; mode_hgr1 memcpys to $2000 on demand).
-            //   - Tracks 12+13: 8 KB HGR2 bands (loaded by stage 2
-            //     background phase to main $4000-$5FFF, the final HGR2
-            //     framebuffer destination).
+            //     main $A000-$BFFF; mode_hgr_color memcpys to $2000).
             //
-            //   Disk layout reorder vs prior versions: DHGR data lives on
-            //   the FIRST tracks so the demo can show DHGR after only ~5
-            //   disk reads instead of waiting for all 13. Everything else
-            //   loads in the background after first frame is up, in the
-            //   order the modes will ask for it.
+            //   Track order is cycle order: the first mode's data is
+            //   physically earliest so first frame lands after ~5 disk
+            //   reads rather than all 13, and each later mode's data is
+            //   the next thing to arrive.
             //
             //   The payloads go through the DOS 3.3 physical-to-file
             //   interleave so that page S of a payload sits under address
@@ -380,12 +380,12 @@ public:
                 }
             };
 
-            StitchPayload (1,  dhgrAuxPayload);       // tracks 1+2   -> DHGR color aux @ main $6000
-            StitchPayload (4,  dhgrMainPayload);      // tracks 4+5   -> DHGR color main @ main $8000
-            StitchPayload (6,  monoAuxPayload);       // tracks 6+7   -> DHGR mono aux @ main $6000
-            StitchPayload (8,  monoMainPayload);      // tracks 8+9   -> DHGR mono main @ main $8000
-            StitchPayload (10, hgrPayload);           // tracks 10+11 -> HGR1 cassowary @ main $A000
-            StitchPayload (12, bandsPayload);         // tracks 12+13 -> HGR2 bands @ main $4000
+            StitchPayload (1,  monoAuxPayload);       // tracks 1+2   -> DHGR mono aux @ main $6000
+            StitchPayload (4,  monoMainPayload);      // tracks 4+5   -> DHGR mono main @ main $8000
+            StitchPayload (6,  hgrMonoPayload);       // tracks 6+7   -> HGR mono @ main $4000 (HGR page 2)
+            StitchPayload (8,  dhgrAuxPayload);       // tracks 8+9   -> DHGR color aux @ main $6000
+            StitchPayload (10, dhgrMainPayload);      // tracks 10+11 -> DHGR color main @ main $8000
+            StitchPayload (12, hgrPayload);           // tracks 12+13 -> HGR color @ main $A000
 
 
             hr = host.BuildApple2eWithDisk2 (core);
@@ -427,25 +427,25 @@ public:
             Assert::IsFalse (ss->IsMixedMode(),
                 L"Demo must leave MIXED off (full-screen graphics)");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 0 (DHGR) must select PAGE1 before any keystroke");
+                L"Mode 0 (DHGR mono) must select PAGE1 before any keystroke");
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 0 (DHGR) must enable HIRES");
+                L"Mode 0 (DHGR mono) must enable HIRES");
 
             // Verify framebuffer contents at boot landing.
             //
-            // Stage 1 stages the color aux half at $6000; stage 2 loads
-            // the color main half to $8000 and enter_dhgr copies both
-            // into the framebuffer. The background phase then loads the
-            // MONO halves back over that staging, and HGR1 and the bands
-            // to their own homes. So at boot landing:
+            // Stage 1 stages the monochrome aux half at $6000; stage 2
+            // loads the monochrome main half to $8000 and enter_dhgr
+            // copies both into the framebuffer. The background phase then
+            // loads the HGR monochrome image onto page 2 and the COLOR
+            // halves back over that staging. So at boot landing:
             //
-            //   main $2000 = color main half   aux $2000 = color aux half
-            //   main $4000 = HGR2 bands        main $6000 = MONO aux half
-            //   main $8000 = MONO main half    main $A000 = HGR1 cassowary
+            //   main $2000 = mono DHGR main    aux $2000 = mono DHGR aux
+            //   main $4000 = mono HGR          main $6000 = color DHGR aux
+            //   main $8000 = color DHGR main   main $A000 = color HGR
             //
-            // The staging holding the mono halves rather than the color
-            // ones is the whole mechanism behind mode 1 costing no memory,
-            // so it is asserted rather than assumed.
+            // The staging holding the color halves rather than the
+            // monochrome ones is the whole mechanism behind mode 2 costing
+            // no memory, so it is asserted rather than assumed.
             auto VerifyMemRange = [&] (Word baseAddr,
                                        const std::vector<Byte> & expected,
                                        const wchar_t * label)
@@ -490,16 +490,16 @@ public:
                 }
             };
 
-            VerifyMemRange (0x2000, dhgrMainPayload,
-                L"DHGR main half at boot landing (main $2000)");
-            VerifyMemRange (0x4000, bandsPayload,
-                L"HGR2 bands (main $4000)");
-            VerifyMemRange (0x6000, monoAuxPayload,
-                L"DHGR mono aux half over the staging (main $6000)");
-            VerifyMemRange (0x8000, monoMainPayload,
-                L"DHGR mono main half over the staging (main $8000)");
+            VerifyMemRange (0x2000, monoMainPayload,
+                L"DHGR mono main half at boot landing (main $2000)");
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"HGR mono cassowary on HGR page 2 (main $4000)");
+            VerifyMemRange (0x6000, dhgrAuxPayload,
+                L"DHGR color aux half over the staging (main $6000)");
+            VerifyMemRange (0x8000, dhgrMainPayload,
+                L"DHGR color main half over the staging (main $8000)");
             VerifyMemRange (0xA000, hgrPayload,
-                L"Stashed HGR1 cassowary (main $A000)");
+                L"Stashed HGR color cassowary (main $A000)");
 
             // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
             auxBuf = core.mmu->GetAuxBuffer();
@@ -508,64 +508,73 @@ public:
                 size_t  m = 0;
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
+                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
                 }
 
                 Assert::AreEqual (size_t (0), m,
-                    L"DHGR color aux half at boot landing must match payload");
+                    L"DHGR mono aux half at boot landing must match payload");
             }
 
             // Cycle through the 5 display modes with keystrokes
             Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
 
-            // Keystroke 1 -> mode 1 (DHGR monochrome cassowary). A second
-            // enter_dhgr over the same staging, which now holds the mono
-            // halves: main $8000 -> main $2000, main $6000 -> aux $2000.
-            // Both halves are checked, because the failure this guards
-            // against -- the background load landing in the wrong place,
-            // or not having finished -- shows up as one half of the
-            // picture being the other image.
+            // Keystroke 1 -> mode 1 (HGR monochrome). No copy: the image
+            // was loaded onto HGR page 2 and the mode is a PAGE2 flip out
+            // of DHGR, so what is asserted is the switch state and that
+            // page 2 still holds the image.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (200'000ULL);
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Mode 1 (HGR mono) must keep HIRES on");
+            Assert::IsTrue (ss->IsPage2(),
+                L"Mode 1 (HGR mono) must select PAGE2, where the image is");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Mode 1 (HGR mono) must keep TEXT off");
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"HGR mono cassowary still on page 2 in mode 1");
+
+            // Keystroke 2 -> mode 2 (DHGR color). A second enter_dhgr over
+            // the same staging, which now holds the color halves: main
+            // $8000 -> main $2000, main $6000 -> aux $2000. Both halves
+            // are checked, because the failure this guards against -- the
+            // background load landing in the wrong place, or the aux copy
+            // going to main because 80STORE was left on -- shows up as one
+            // half of the picture being the other image.
+            //
             // Twice the budget the single-copy modes get: enter_dhgr moves
             // 16 KB, not 8, and copy_block's (zp),y inner loop costs about
             // 16 cycles a byte.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (600'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 1 (DHGR mono) must keep HIRES on");
+                L"Mode 2 (DHGR color) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 1 (DHGR mono) must select PAGE1");
-            VerifyMemRange (0x2000, monoMainPayload,
-                L"DHGR mono main half at main $2000 in mode 1");
+                L"Mode 2 (DHGR color) must select PAGE1");
+            VerifyMemRange (0x2000, dhgrMainPayload,
+                L"DHGR color main half at main $2000 in mode 2");
             {
                 size_t  m = 0;
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
+                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
                 }
 
                 Assert::AreEqual (size_t (0), m,
-                    L"DHGR mono aux half must reach aux $2000 in mode 1");
+                    L"DHGR color aux half must reach aux $2000 in mode 2");
             }
 
-            // Keystroke 2 -> mode 2 (HGR1 cassowary). Restores cassowary
-            // from main $A000 stash to main $2000, disables DHGR-specific
-            // soft switches, returns to vanilla HGR.
+            // Keystroke 3 -> mode 3 (HGR color). Restores the cassowary
+            // from the main $A000 stash to main $2000, disables the
+            // DHGR-specific soft switches, and selects PAGE1 -- which
+            // matters, because mode 1 left PAGE2 selected.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 2 (HGR1) must keep HIRES on");
+                L"Mode 3 (HGR color) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 2 (HGR1) must select PAGE1");
+                L"Mode 3 (HGR color) must select PAGE1");
             VerifyMemRange (0x2000, hgrPayload,
-                L"HGR1 cassowary restored to main $2000 in mode 2");
-
-            // Keystroke 3 -> mode 3 (HGR2 bands).
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
-            Assert::IsTrue (ss->IsPage2(),
-                L"Mode 3 (HGR2) must enable PAGE2");
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 3 (HGR2) must keep HIRES on");
+                L"HGR color cassowary restored to main $2000 in mode 3");
 
             // Keystroke 4 -> mode 4 (LoRes).
             core.keyboard->KeyPressRaw (' ');

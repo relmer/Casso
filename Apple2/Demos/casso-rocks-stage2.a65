@@ -24,21 +24,23 @@
 ;         time from boot is roughly 5 disk tracks (~1.25s).
 ;
 ;    Background load (continues after first frame):
-;      3. Loads tracks 6+7 and 8+9 back into the two staging areas the
-;         init phase has just finished with, main $6000-$7FFF and main
-;         $8000-$9FFF. They now hold the MONOCHROME cassowary's aux and
-;         main halves, so mode 1 is a second enter_dhgr call over the
-;         same addresses and costs no memory of its own.
-;      4. Loads tracks 10+11 into main $A000-$BFFF (HGR1 cassowary,
-;         loaded directly to its stash location — mode_hgr1 just
-;         memcpys $A000 -> $2000 on demand).
-;      5. Loads tracks 12+13 into main $4000-$5FFF (HGR2 bands, at
-;         their final destination).
+;      3. Loads tracks 6+7 into main $4000-$5FFF, which IS HGR page 2.
+;         That is the monochrome HGR cassowary, and because it lands on
+;         a real display page it needs no stash and no copy: mode 1 is
+;         one soft-switch write.
+;      4. Loads tracks 8+9 and 10+11 back into the two staging areas
+;         the init phase has just finished with, main $6000-$7FFF and
+;         main $8000-$9FFF. They now hold the COLOR DHGR cassowary's
+;         aux and main halves, so mode 2 is a second enter_dhgr call
+;         over the same addresses and costs no memory of its own.
+;      5. Loads tracks 12+13 into main $A000-$BFFF (the color HGR
+;         cassowary, loaded directly to its stash location —
+;         mode_hgr_color just memcpys $A000 -> $2000 on demand).
 ;
 ;      Because the staging areas are reused, mode 0 is the one mode
 ;      that cannot be re-entered: by the time the user can press a
-;      key, the color halves have been overwritten. Cycling is one
-;      way, as it always was.
+;      key, the monochrome halves have been overwritten. Cycling is
+;      one way, as it always was.
 ;
 ;    Polling loop:
 ;      Each keystroke advances the mode by 1. ESC ($9B) exits to
@@ -48,21 +50,35 @@
 ;      can reach it: mode 1 about a second after first frame, the
 ;      last mode about two.
 ;
+;      THE SAME PHOTO FOUR WAYS, the monochrome pair first and then the
+;      color pair. Every one of these framebuffers is decoded two
+;      different ways depending on the monitor, and the two decodes want
+;      opposite things from the encoder, so each image is authored for
+;      one of them and reads as noise on the other. Nothing on this disk
+;      can tell which monitor is attached, so all four ship and the user
+;      picks. Each carries a caption naming the monitor it was drawn
+;      for, and those captions are drawn on the color-cell grid, which
+;      is what keeps them legible through EITHER decode — readable,
+;      that is, exactly when the picture around them is not. See
+;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
+;
 ;      Modes:
-;        0 = DHGR: 16-color cassowary on aux+main $2000-$3FFF
-;            (entered automatically at boot).
-;        1 = DHGR: the same photo authored for a monochrome monitor —
-;            a 560x192 one-bit dither of its luminance instead of 140
-;            color cells. Which of the two reads as a photograph
-;            depends entirely on the monitor, and nothing on this disk
-;            can tell which is attached, so each image carries a
-;            caption naming the monitor it was drawn for. Both
-;            captions are drawn on the color-cell grid, which is what
-;            keeps them legible through either decode. See
-;            scripts/DhgrCassowaryGen.py.
-;        2 = HGR1: 6-color cassowary, restored from main $A000.
-;        3 = HGR2: 6-color test bands on main page 2 ($4000-$5FFF).
+;        0 = DHGR monochrome: 560x192 one-bit, on aux+main $2000-$3FFF
+;            (entered automatically at boot). The highest resolution
+;            the machine has.
+;        1 = HGR monochrome: 280x192 one-bit, on HGR page 2
+;            ($4000-$5FFF). Half the horizontal resolution of mode 0,
+;            because an HGR pixel paints two half-dots rather than one.
+;        2 = DHGR color: 140 sixteen-color cells, restored from the
+;            staging at main $6000 and main $8000.
+;        3 = HGR color: 6-color NTSC artifact, restored from main $A000.
 ;        4 = LoRes (GR): 16-color bars on text page 1 ($0400-$07FF).
+;
+;      The HGR color test bands used to be a mode here. They were a
+;      by-eye check that the renderer had not swapped blue/orange or
+;      violet/green, and that question is now asked directly by
+;      VideoModeTests, so the 8 KB they held became HGR page 2 for the
+;      monochrome HGR image instead.
 ;
 ;    Exit:
 ;      JMP ($FFFC) hands off to the //e RESET.MGR which does the
@@ -135,35 +151,35 @@ start
     ; into the disk controller. Restore it before resuming disk I/O.
     ldx #$60
 
-    ; --- Background: load the monochrome cassowary over the staging ------
-    ; enter_dhgr has already copied both color halves out of $6000 and
-    ; $8000 into the framebuffer, so those 16 KB are free. The mono
-    ; halves go straight back into them, which makes mode 1 nothing but
-    ; a second enter_dhgr call. Loading in mode order also means the
-    ; data for the next mode is always the next thing to arrive.
-    lda #$60
+    ; --- Background: load the monochrome HGR cassowary onto HGR page 2 ---
+    ; $4000-$5FFF is a real display page, so this one needs no stash and
+    ; no copy: mode 1 just flips PAGE2. Loading in mode order also means
+    ; the data for the next mode is always the next thing to arrive.
+    lda #$40
     jsr S1_LOAD_B          ; tracks 5 -> 6
-    lda #$70
+    lda #$50
     jsr S1_LOAD_A          ; tracks 6 -> 7
-    lda #$80
-    jsr S1_LOAD_B          ; tracks 7 -> 8
-    lda #$90
-    jsr S1_LOAD_A          ; tracks 8 -> 9
 
-    ; --- Background: load HGR1 cassowary directly to its stash location ---
-    ; Mode 2 (HGR1) restores cassowary by copying $A000 -> $2000, so we
-    ; can land the disk read straight there and skip a memcpy. This
-    ; happens AFTER first frame so the user sees the DHGR cassowary
-    ; while we keep loading.
-    lda #$A0
+    ; --- Background: load the color DHGR halves over the staging ---------
+    ; enter_dhgr has already copied both monochrome halves out of $6000
+    ; and $8000 into the framebuffer, so those 16 KB are free. The color
+    ; halves go straight back into them, which makes mode 2 nothing but
+    ; a second enter_dhgr call.
+    lda #$60
+    jsr S1_LOAD_B          ; tracks 7 -> 8
+    lda #$70
+    jsr S1_LOAD_A          ; tracks 8 -> 9
+    lda #$80
     jsr S1_LOAD_B          ; tracks 9 -> 10
-    lda #$B0
+    lda #$90
     jsr S1_LOAD_A          ; tracks 10 -> 11
 
-    ; --- Background: load HGR2 bands at their final destination $4000 -----
-    lda #$40
+    ; --- Background: load the color HGR cassowary to its stash location --
+    ; Mode 3 restores it by copying $A000 -> $2000, so we can land the
+    ; disk read straight there and skip a memcpy.
+    lda #$A0
     jsr S1_LOAD_B          ; tracks 11 -> 12
-    lda #$50
+    lda #$B0
     jsr S1_LOAD_A          ; tracks 12 -> 13
 
 poll
@@ -176,11 +192,11 @@ poll
     inc MODE
     lda MODE
     cmp #1
-    beq mode_dhgr_mono
+    beq mode_hgr_mono
     cmp #2
-    beq mode_hgr1
+    beq mode_dhgr_color
     cmp #3
-    beq mode_hgr2
+    beq mode_hgr_color
     cmp #4
     beq mode_lores
     ; fall through (past mode 4) -> exit
@@ -233,11 +249,33 @@ clear_text_loop
 
 
 ; ----------------------------------------------------------------------------
-; mode_dhgr_mono — show the monochrome cassowary. The background load
-;                  has replaced the color halves in the staging areas
-;                  with the mono ones, so this is enter_dhgr over the
-;                  exact same addresses. The display switches are
-;                  already set from mode 0; re-issuing them is harmless.
+; mode_hgr_mono — show the monochrome HGR cassowary. It was loaded
+;                 straight onto HGR page 2 and nothing has touched it
+;                 since, so there is no copy to do: leave DHGR, select
+;                 HGR, and flip to PAGE2.
+;
+;                 The DHGR switches have to come off explicitly. 80STORE
+;                 in particular reroutes $2000-$3FFF by PAGE2, and while
+;                 that is exactly what this mode wants PAGE2 to mean, it
+;                 is not what it means for the NEXT mode's copies.
+; ----------------------------------------------------------------------------
+mode_hgr_mono
+    sta STORE80OFF
+    sta COL80OFF
+    bit DHIRESOFF
+
+    bit TXTOFF
+    bit HIRESON
+    bit MIXOFF
+    bit PG2ON
+    jmp poll
+
+
+; ----------------------------------------------------------------------------
+; mode_dhgr_color — show the color DHGR cassowary. The background load
+;                  has replaced the monochrome halves in the staging
+;                  areas with the color ones, so this is enter_dhgr over
+;                  the exact same addresses.
 ;
 ;                  80STORE MUST GO OFF FIRST. enter_dhgr's second copy
 ;                  reaches aux $2000 by turning RAMWRT on, and that only
@@ -245,22 +283,24 @@ clear_text_loop
 ;                  HIRES on, the //e routes $2000-$3FFF by PAGE2 and
 ;                  ignores RAMWRT entirely. The boot call gets away
 ;                  without this because it runs before enter_dhgr has
-;                  ever set 80STORE; the second call does not, and lands
+;                  ever set 80STORE; a later call does not, and lands
 ;                  the aux half in main $2000 on top of the main half.
 ;                  enter_dhgr turns 80STORE back on at the end.
 ; ----------------------------------------------------------------------------
-mode_dhgr_mono
+mode_dhgr_color
     sta STORE80OFF
     jsr enter_dhgr
     jmp poll
 
 
 ; ----------------------------------------------------------------------------
-; mode_hgr1 — restore the HGR1 cassowary. Copies the stashed cassowary
-;             from main $A000 back to main $2000 (DHGR may have clobbered
-;             it), turns off DHGR, and selects HGR PAGE1.
+; mode_hgr_color — restore the color HGR cassowary. Copies the stashed
+;                  image from main $A000 back to main $2000 (DHGR has
+;                  clobbered it), turns off DHGR, and selects HGR PAGE1.
+;                  PAGE1 matters as much as the copy: mode 1 left PAGE2
+;                  selected, and page 2 is the monochrome image.
 ; ----------------------------------------------------------------------------
-mode_hgr1
+mode_hgr_color
     ; Disable DHGR-specific switches before restoring the framebuffer
     ; so the renderer doesn't briefly try to draw HGR-as-DHGR.
     sta STORE80OFF
@@ -275,13 +315,6 @@ mode_hgr1
     bit HIRESON
     bit MIXOFF
     bit PG2OFF
-    jmp poll
-
-
-mode_hgr2
-    ; HGR + page 2 visible. HIRES is already on from mode 1; just
-    ; flip PAGE2.
-    bit PG2ON
     jmp poll
 
 

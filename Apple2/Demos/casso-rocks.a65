@@ -6,9 +6,9 @@
 ;  and JMPs to $0801. Stage 1 (this file) takes over from there:
 ;
 ;    1. Steps the head to track 1 + 2 and reads them into main $6000-$7FFF
-;       (DHGR aux pattern, staged in main RAM because RAMWRT-on conflicts
-;       with the RWTS scratch buffer in pages $02-$03; stage 2 will copy
-;       to aux later via the copy_block routine).
+;       (the MONOCHROME DHGR aux half, staged in main RAM because RAMWRT-on
+;       conflicts with the RWTS scratch buffer in pages $02-$03; stage 2
+;       will copy to aux later via the copy_block routine).
 ;    2. Steps to track 3 and reads all 16 sectors with DBASE=$10 into
 ;       $1000-$1FFF. Track 3 holds the stage 2 code at sectors 0-1
 ;       (lands at $1000-$11FF) plus the LoRes test pattern at sectors
@@ -18,23 +18,24 @@
 ;  Stage 2 (assembled and shipped as a separate sector — see
 ;  casso-rocks-stage2.a65 alongside this file) then:
 ;
-;    4. Loads tracks 4+5 -> main $8000-$9FFF (DHGR main pattern), copies
-;       both halves into the aux+main framebuffer at $2000-$3FFF, and
-;       flips the //e DHGR soft switches so the cassowary appears as
-;       fast as possible (mode 0 of the cycle).
+;    4. Loads tracks 4+5 -> main $8000-$9FFF (the monochrome DHGR main
+;       half), copies both halves into the aux+main framebuffer at
+;       $2000-$3FFF, and flips the //e DHGR soft switches so the
+;       cassowary appears as fast as possible (mode 0 of the cycle).
 ;    5. With DHGR on screen, lazily loads the remaining demo content
-;       in the background: tracks 6+7 and 8+9 -> $6000 and $8000, the
-;       staging areas step 4 has just emptied, which is where the
-;       MONOCHROME cassowary's two halves go; tracks 10+11 -> $A000
-;       (HGR1 cassowary loaded directly to its stash location);
-;       tracks 12+13 -> $4000 (HGR2 bands at their final
-;       destination).
+;       in the background, in the order the modes will ask for it:
+;       tracks 6+7 -> $4000, which IS HGR page 2, so the monochrome HGR
+;       cassowary needs no stash and no copy; tracks 8+9 and 10+11 ->
+;       $6000 and $8000, the staging areas step 4 has just emptied,
+;       which is where the COLOR DHGR halves go; tracks 12+13 -> $A000
+;       (the color HGR cassowary, loaded directly to its stash
+;       location).
 ;    6. Polls the keyboard for cycle / exit keystrokes.
 ;
-;  Disk layout reorder (tracks 1-9 instead of "cassowary first") puts
-;  the DHGR data physically earliest on disk so it loads first; cuts
-;  first-frame latency from ~9 tracks (~2.25s) down to ~5 tracks
-;  (~1.25s) by deferring HGR1+HGR2 loads until after DHGR is on screen.
+;  Disk layout order matches cycle order: whatever the user reaches
+;  next is whatever finished loading last, and the first mode's data is
+;  physically earliest on disk. That puts first frame at ~5 tracks
+;  (~1.25s) rather than waiting for all thirteen.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines
 ;  (load_a, load_b, read_track, read_sector, chk, wait_d5_aa). The
