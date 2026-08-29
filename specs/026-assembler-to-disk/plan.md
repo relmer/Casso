@@ -220,8 +220,10 @@ overlapping addresses and are never loaded together. The listing, symbol and
 debug artifacts split into a set per output, named from each output's own name
 (FR-028, FR-031, FR-032), with the shared equates repeated into each so every
 file stands alone (FR-035, FR-036). Single-output assemblies keep their present
-names and destinations exactly (FR-033), which is what makes this
-regression-free: multi-output cannot happen today, since `SAV` is refused. This
+names and destinations (FR-033), and multi-output cannot happen today since
+`SAV` is refused, so the only change anyone can currently observe is Merlin's
+listing flag dropping its filename and its standard-output default (FR-034,
+FR-037). This
 is not disk work and
 does not depend on Phase B; it depends on Phase A's save points, and it is
 required for the same reason `SAV` is.

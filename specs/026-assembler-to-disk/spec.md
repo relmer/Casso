@@ -297,9 +297,10 @@ startup program.
   takes no filename today and derives one, so derivation is the established
   pattern and only its stem changes.
 - **FR-033**: A single-output assembly MUST keep its present artifact names and
-  destinations exactly. Deriving from the output name instead would change
-  shipped behavior for the common case and buy nothing, since with one output
-  there is nothing to disambiguate.
+  destinations, with the one exception FR-037 states for Merlin's listing flag.
+  Deriving from the output name elsewhere would change shipped behavior for the
+  common case and buy nothing, since with one output there is nothing to
+  disambiguate.
 - **FR-034**: Under Merlin, the listing flag MUST take no filename. Listings are
   named after the output they describe, so a filename can name at most the
   single-output case and cannot express the general one. Withdrawing the value

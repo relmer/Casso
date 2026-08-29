@@ -98,7 +98,7 @@ because as65's `-l` carries a compatibility obligation Merlin's does not.
 Multi-output assembly **cannot happen today** — `SAV` is refused by the boundary
 table and `DSK` keeps only its last name. So every rule in the right-hand column
 describes behavior that does not yet exist, and the left-hand column is
-unchanged (FR-033). There is no compatibility surface to break.
+unchanged (FR-033), apart from Merlin's listing flag below.
 
 That is also why the single-output case keeps deriving from the **source** name
 rather than the output name: changing it would be a real regression for the
@@ -143,11 +143,8 @@ supported subset ends are all its own, and the dialect that answers `merlin
 as65; Merlin's is Casso's own invention, since Merlin wrote no listing file at
 all.
 
-**This is the one breaking change in the feature.** Merlin's `-l` shipped in
-1.18.0, "The one that speaks Merlin", taking a filename and defaulting to
-standard output, and both of those go away. It is a single flag on one dialect,
-the replacement is strictly more useful, and the diagnostic names the change —
-but it earns a CHANGELOG entry rather than passing as an addition.
+Merlin's `-l` took a filename and defaulted to standard output from 1.18.0;
+both go away. CHANGELOG entry, same as any other user-visible change.
 
 ### Shared symbols and shared source lines are repeated, not factored out
 
