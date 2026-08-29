@@ -363,6 +363,75 @@ public:
             L"in the words a person would use");
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  The console shares the emulator's reasons
+    //
+    //  Both arrive at a refusal through the same loaders, so a reason only one
+    //  of them could give would be a reason the other went looking for and did
+    //  not find. These assert on the shared clause, which is what makes the
+    //  sharing real rather than coincidental.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (TruncatedImage_IsRefusedWithItsLength)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       truncated (4096, 0);
+
+        io.files[kImage]  = truncated;
+        io.stamps[kImage] = FileStamp { truncated.size(), 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("4,096 bytes") != std::string::npos,
+            L"the refusal says how big the file is");
+        Assert::IsTrue (result.diagnostics.find ("143,360 bytes") != std::string::npos,
+            L"and how big a .dsk has to be, which is what identifies a bad download");
+    }
+
+
+    TEST_METHOD (RenamedWozImage_IsRefusedAsNotAWoz)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       renamed (600, 0x41);
+        const char *       wozPath = "C:\\disks\\notreally.woz";
+
+        io.files[wozPath]  = renamed;
+        io.stamps[wozPath] = FileStamp { renamed.size(), 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
+                                          wozPath));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("WOZ file header") != std::string::npos,
+            L"a .woz with no WOZ header is told exactly that, not 'not a disk image'");
+    }
+
+
+    TEST_METHOD (EmptyImageFile_IsRefusedAsEmpty)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       nothing;
+
+        io.files[kImage]  = nothing;
+        io.stamps[kImage] = FileStamp { 0, 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("is empty") != std::string::npos,
+            L"a zero-byte file is empty, and saying so beats an arithmetic complaint");
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  sectorwrite: bytes at a track and a sector, no filesystem involved.

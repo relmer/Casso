@@ -2635,5 +2635,97 @@ namespace CpuOperationTests
             // RMW exclusion keeps it from accruing a page-cross penalty.
             Assert::AreEqual ((Byte) 6, cpu.GetLastInstructionCycles());
         }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IndexedShiftsCostSevenWhetherOrNotThePageCrosses
+        //
+        //  The NMOS half of a divergence the 65C02 introduced: there, these four
+        //  drop to six and pay a seventh cycle only on a real crossing. Here they
+        //  are seven either way, because the part cannot know it has crossed
+        //  until it has read and it must write regardless.
+        //
+        //  Asserted from BOTH sides of the page boundary. The CMOS retiming is a
+        //  per-instruction flag that this core never sets, and a flag that leaked
+        //  across would show up only on the crossing case -- which is exactly the
+        //  case a single non-crossing assertion would miss.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (IndexedShiftsCostSevenWhetherOrNotThePageCrosses)
+        {
+            static constexpr Byte    kIndexedShifts[4] = { 0x1E, 0x3E, 0x5E, 0x7E };   // ASL, ROL, LSR, ROR
+
+            for (Byte opcode : kIndexedShifts)
+            {
+                TestCpu  sameP;
+                TestCpu  crossing;
+
+                sameP.InitForTest();
+                sameP.RegX() = 0x10;
+                sameP.WriteBytes (0x8000, { opcode, 0x80, 0x12 });   // $1280 + $10 = $1290
+                sameP.StepOne();
+
+                crossing.InitForTest();
+                crossing.RegX() = 0x10;
+                crossing.WriteBytes (0x8000, { opcode, 0xF8, 0x12 }); // $12F8 + $10 = $1308
+                crossing.StepOne();
+
+                Assert::AreEqual ((Byte) 7, sameP.GetLastInstructionCycles());
+                Assert::AreEqual ((Byte) 7, crossing.GetLastInstructionCycles());
+            }
+        }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABranchTakenToTheFollowingInstructionStillPaysTheTakenCycle
+        //
+        //  A displacement of zero is a taken branch whose target IS the next
+        //  instruction, so PC ends up exactly where a not-taken branch would
+        //  leave it. The core used to read "PC did not move" as "not taken" and
+        //  bill two cycles; the branch costs three.
+        //
+        //  Both outcomes of the same opcode are asserted, and so is the page
+        //  crossing. Two is the correct answer for the not-taken case, so an
+        //  assertion on the taken case alone is equally satisfied by a core that
+        //  never charges the taken cycle at all.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABranchTakenToTheFollowingInstructionStillPaysTheTakenCycle)
+        {
+            TestCpu  taken;
+            TestCpu  notTaken;
+            TestCpu  crossing;
+
+            taken.InitForTest();
+            taken.Status().flags.negative = 0;                  // BPL is taken
+            taken.WriteBytes (0x8000, { 0x10, 0x00 });          // target $8002, the next instruction
+            taken.StepOne();
+
+            notTaken.InitForTest();
+            notTaken.Status().flags.negative = 1;               // BPL is not taken
+            notTaken.WriteBytes (0x8000, { 0x10, 0x00 });
+            notTaken.StepOne();
+
+            crossing.InitForTest (0x80F0);
+            crossing.Status().flags.negative = 0;
+            crossing.WriteBytes (0x80F0, { 0x10, 0x20 });       // $80F2 + $20 = $8112, over the page
+            crossing.StepOne();
+
+            Assert::AreEqual ((Byte) 3,      taken.GetLastInstructionCycles());
+            Assert::AreEqual ((Byte) 2,      notTaken.GetLastInstructionCycles());
+            Assert::AreEqual ((Byte) 4,      crossing.GetLastInstructionCycles());
+
+            Assert::AreEqual ((Word) 0x8002, taken.RegPC());
+            Assert::AreEqual ((Word) 0x8002, notTaken.RegPC());
+            Assert::AreEqual ((Word) 0x8112, crossing.RegPC());
+        }
     };
 }

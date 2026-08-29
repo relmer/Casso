@@ -65,6 +65,10 @@ public:
     void    Step  () { StepOne(); }
     Byte    Cycles() { return GetLastInstructionCycles(); }
 
+    // Step plus its cost in one call, so the Harte harness drives both cores
+    // through the same name (mirrors TestCpu).
+    Byte    StepAndCountCycles() { StepOne(); return GetLastInstructionCycles(); }
+
     // The 65C02 instruction table, for building a 65C02-aware Assembler.
     const Microcode * GetInstructionSet() const { return instructionSet.data(); }
 

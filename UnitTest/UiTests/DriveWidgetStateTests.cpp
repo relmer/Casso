@@ -139,11 +139,10 @@ public:
         Assert::IsFalse (st.motorOn.load (std::memory_order_relaxed));
     }
 
-    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsAllFiveCanonical)
+    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsTheFourMountableTypes)
     {
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.dsk"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.do"));
-        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nib"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.woz"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.po"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\path\\to\\BOOT.DSK"),
@@ -159,6 +158,56 @@ public:
         Assert::IsFalse (IsSupportedDiskImageExtension (L"image.txt"));
         Assert::IsFalse (IsSupportedDiskImageExtension (L"image.dmg"));
         Assert::IsFalse (IsSupportedDiskImageExtension (L"foo.bar.exe"));
+    }
+
+    TEST_METHOD (IsSupportedDiskImageExtension_RejectsNibbleImages)
+    {
+        // The filter used to accept these. Nothing loads them, so the drop
+        // was taken and the mount then failed with no message -- the disk
+        // just never appeared. Rejecting at the filter is what puts the
+        // reject cursor back on the drag.
+        Assert::IsFalse (IsSupportedDiskImageExtension (L"a.nib"),
+                         L"no loader handles .nib, so the filter must not offer it");
+        Assert::IsFalse (IsSupportedDiskImageExtension (L"C:\\Disks\\LODE.NIB"),
+                         L"the .nib refusal must be case-insensitive too");
+    }
+
+    TEST_METHOD (IsSupportedDiskImageExtension_AnswersExactlyWhatTheLoaderRoutes)
+    {
+        // The regression this locks down is a SECOND LIST. The filter and the
+        // mount router disagreed over .nib for as long as both existed, and
+        // the only durable fix is that there is now one answer. Sweeping a
+        // corpus that contains both accepted and rejected types would pass
+        // against a reintroduced private list only if that list were exactly
+        // right -- which is the property worth asserting.
+        static const wchar_t * const  kCandidates[] =
+        {
+            L"disk.dsk", L"disk.do",  L"disk.po",  L"disk.woz",
+            L"disk.nib", L"disk.2mg", L"disk.img", L"disk.txt",
+            L"disk.DSK", L"disk.WoZ", L"disk",     L"disk.",
+        };
+
+        DiskFormat  fmt        = DiskFormat::Dsk;
+        size_t      candidates = ARRAYSIZE (kCandidates);
+        bool        routed     = false;
+        bool        offered    = false;
+
+        // A sweep over an empty corpus passes while checking nothing, and
+        // reads identically to a full one.
+        Assert::IsTrue (candidates > 0, L"the corpus must not be empty");
+
+        for (const wchar_t * candidate : kCandidates)
+        {
+            std::wstring  wide   = candidate;
+            std::string   narrow = std::filesystem::path (wide).string();
+            HRESULT       hr     = DiskImageStore::DetectFormatByExtension (narrow, fmt);
+
+            routed  = SUCCEEDED (hr);
+            offered = IsSupportedDiskImageExtension (wide);
+
+            Assert::IsTrue (routed == offered,
+                            (L"filter and loader must agree about " + wide).c_str());
+        }
     }
 
     TEST_METHOD (DoubleInsert_SamePathLeavesDoorClosedWithoutGlitching)

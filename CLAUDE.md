@@ -52,6 +52,47 @@ own session:
   the wider Broderbund/Gebelli catalog). Tracked by GH #94. Work continues on
   branch `025-game-compat-patcher`; next step is `/speckit-clarify` or
   `/speckit-plan`.
+- `specs/026-assembler-to-disk` — the assembler writes its object into a disk
+  image rather than only to host files. Drafted on branch
+  `026-assembler-to-disk`; next step is `/speckit-clarify`.
+- `specs/027-nibble-images` — mount and write back `.nib` images, split out of
+  022 the way 023 was split out of 019. Research notes are committed on branch
+  `027-nibble-images`; the spec itself is not written yet. **Writing is the hard
+  part, not reading**: the mount path is a write-back path
+  (`FlushEntry` -> `DiskImage::Serialize` on eject, power cycle and reset), so
+  load-only is impossible, and `NibblizationLayer` converts sectors rather than
+  nibble bytes, so the loader is a new seam and not an adapter. Nothing in Casso
+  reads `.nib` today; the extension filter now answers from the loader's own
+  routing table, so adding the format there makes every surface offer it without
+  a second list. Do not oversell it: `.nib` records whole bytes and loses
+  self-sync information, which is what copy protection inspects, so the reason
+  to do this is compatibility with existing `.nib` collections, not fidelity.
+
+**Why 026 exists, since the analysis is not obvious from the code.** Merlin's
+`DSK`, `TYP` and `SAV` all assume the assembler writes onto a ProDOS volume.
+Casso's `ArtifactWriter` writes host files only and no assembler path touches a
+disk image, so `TYP` — which sets a ProDOS file type — has nowhere to land, and
+`DSK` is redirected to a host file instead. 1.20's disk file access looked like
+it unblocked `TYP`, and did not: it shipped as a separate `disk` command, not as
+an assembler output target. Two decisions in the spec are ones a naive
+implementation gets wrong. **Only the object goes into the image** — listing,
+symbols and debug info stay on the host, because that is where host tools and
+any future in-emulator debugger read them while the program under test runs from
+the image. And **a file type with no counterpart is refused by name, not
+approximated**: ProDOS `SYS` has no DOS 3.3 equivalent, because the ProDOS
+kernel boots by scanning the volume directory for a `SYS`-typed entry and
+DOS 3.3 has no system-program concept at all. The load address also stops being
+retyped — the assembler knows the origin, so it writes the aux type itself,
+where `disk put --load` today lets the two disagree silently.
+
+**026 closes three of the six Merlin refusals** (`TYP`, `SAV`, and `DSK`'s real
+meaning), leaving `REL`/`ENT`/`EXT` on the linker (GH #112) and the second `XC`
+on a 65816 core. `SAV` is NOT a linker problem and does not wait on #112: a
+linker combines several partial objects into one output, where `SAV` writes
+several complete independent ones. Three open questions are recorded in the
+spec rather than assumed away — whether the image must already exist, what
+`SAV` means with no image target, and whether the volume's startup program can
+be set.
 
 One more is not yet written: **per-slot card configuration**
 (GH #124) — a Hardware-tab dropdown selecting any supported card for any slot,

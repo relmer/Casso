@@ -223,6 +223,7 @@
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
+    <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />
     <ClCompile Include="As65ExitStatusTests.cpp" />
     <ClCompile Include="AssemblerTests.cpp" />
@@ -238,6 +239,7 @@
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
+    <ClCompile Include="JumpOptimizationTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="DialectReportingTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />

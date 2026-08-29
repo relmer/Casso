@@ -111,6 +111,21 @@ public:
         ExecuteInstruction (microcode, operandInfo);
     }
 
+    // Execute one instruction through the production StepOne dispatch and
+    // report what it cost.
+    //
+    // Step() above is the lean path the bulk of the suite uses and computes no
+    // cost at all. The cycle count only exists on StepOne, and the whole value
+    // of checking it against the Harte vectors is that it is the number the
+    // emulator really bills -- a count recomputed here would restate the test's
+    // own assumptions and prove nothing. Mirrors TestCpu65C02.
+    Byte StepAndCountCycles ()
+    {
+        StepOne ();
+
+        return GetLastInstructionCycles ();
+    }
+
     // Execute N instructions
     void StepN (int n)
     {

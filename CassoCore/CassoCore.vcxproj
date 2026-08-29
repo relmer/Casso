@@ -181,6 +181,7 @@
     <ClCompile Include="CommandLineParser.cpp" />
     <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
+    <ClCompile Include="CycleReference.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
     <ClCompile Include="Ehm.cpp" />
@@ -236,6 +237,7 @@
     <ClInclude Include="GroupCmos.h" />
     <ClInclude Include="GroupMisc.h" />
     <ClInclude Include="Instruction.h" />
+    <ClInclude Include="CycleReference.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="OpcodeTable.h" />
     <ClInclude Include="AppleTextCodec.h" />

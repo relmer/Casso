@@ -1,13 +1,14 @@
 {
   "cpu": "6502",
+  "formatVersion": 2,
   "vectorsPerOpcode": 200,
   "actualDepths": [
     200
   ],
-  "opcodeCount": 153,
+  "opcodeCount": 230,
   "source": "https://github.com/SingleStepTests/65x02",
   "upstreamRef": "main",
   "reducedFrom": "full-depth set produced by scripts/GenerateHarteTests.py",
-  "generated": "2026-08-16",
+  "generated": "2026-08-28",
   "note": "Reduced set, checked in so every clone and CI run has real opcode coverage without a 1.7 GB download. See docs/testing.md for when the full-depth set is warranted."
 }

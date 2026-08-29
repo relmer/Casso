@@ -121,12 +121,39 @@ shipped, and their opcode slots behave as NOPs.
 | Flag | Meaning |
 |---|---|
 | `-l [<file>]` | Generate a listing. `-l` alone goes to stdout; `-l file` writes to a file. |
-| `-c` | Include cycle counts in the listing. |
+| `-c` | Include cycle counts in the listing, in brackets between the bytes and the source text. |
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Print the symbol table to stdout: each symbol with its address in hex and decimal, and a `*` on a redefinable one. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions: what is at an address, and where a name went, and each order answers one. Casso's own format; no standard is being followed. |
+
+#### What `-c` counts
+
+The number is the **base** cost of the instruction: what every execution pays,
+with nothing added for a condition the assembler cannot see. Three costs are
+therefore excluded, because they depend on run-time state rather than on the
+line:
+
+- the extra cycle an indexed read pays when the address crosses a page — and,
+  under `-x`, the same cycle for the `abs,X` shifts and rotates,
+- the extra cycle a conditional branch pays when it is taken, and another when
+  the branch crosses a page, and
+- under `-x`, the extra cycle `ADC` and `SBC` pay while the decimal flag is set.
+
+`BRA` is the one exception, listed at three rather than two: it has no
+not-taken case, so the taken cycle is part of its base rather than a penalty.
+
+Counts follow the CPU the source is assembled for, and they are the same numbers
+the emulator bills when it executes the byte. `-x` selects the 65C02 set, where
+two things cost differently from the NMOS part:
+
+- `JMP (abs)` is six cycles rather than five. The page-wrap bug is fixed, at the
+  price of a cycle.
+- `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` are six rather than seven. The NMOS
+  part always spends the seventh; the 65C02 spends it only when the address
+  crosses a page, so six is the base and the crossing is a penalty like any
+  other. `INC` and `DEC` in `abs,X` are seven on both parts and are unaffected.
 
 ### Symbols and diagnostics
 
@@ -141,6 +168,42 @@ shipped, and their opcode slots behave as NOPs.
 
 > The three warning flags are accepted but are not yet listed in `--help`.
 
+### Optimization
+
+| Flag | Meaning |
+|---|---|
+| `-n` | Disable optimizations. Permanent: an `OPT` later in the source cannot turn them back on. |
+
+Optimization is **on by default**, as it is in AS65, and there is one of them:
+under `-x`, a `JMP` to an address the assembler has already seen is emitted as
+a two-byte `BRA` when the target is within a branch's reach. The target must
+already be defined — a forward reference stays a three-byte `JMP` — and the
+displacement must fit in a signed byte, so `JMP` is still what you get across a
+long file. Without `-x` there is no `BRA` to emit and nothing changes.
+
+`NOOPT` turns the substitution off from that line on, `OPT` turns it back on,
+and `-n` outranks both.
+
+With `-c`, a substituted line reports the branch's timing rather than the
+jump's: `BRA` is three cycles, and four when the branch crosses a page
+boundary. `JMP` absolute is always three.
+
+**`NOOPT` does not mean "assemble exactly as written."** It turns off the
+jump substitution and nothing else. Zero-page selection is not affected: an
+operand that resolves to `$00`–`$FF` still assembles to the two-byte zero-page
+form, so `lda $0030` emits `A5 30` whether or not `NOOPT` is in force. AS65
+behaves the same way — its manual lists zero-page substitution as an
+optimization, but its `NOOPT` does not disable it either. Neither assembler
+offers a way to force the absolute form.
+
+**One deliberate divergence from AS65.** Under `NOOPT`, a forward reference to
+a zero-page value makes AS65 emit a corrupt object: it sizes the instructions
+as absolute in pass 1, emits the zero-page forms in pass 2, and writes the
+original 7-byte span, leaving two stale bytes on the end. Its own listing shows
+five bytes of code while it reports "Total size 7 bytes". Casso keeps the
+absolute form, which is self-consistent and runs. This is the only case where
+matching AS65 byte-for-byte would mean reproducing a defect.
+
 ### Accepted but not yet implemented
 
 Both are parsed and then read by no code, so passing them changes nothing.
@@ -150,11 +213,7 @@ They exist so an AS65 invocation is not refused outright. Tracked by
 | Flag | AS65 behavior | Casso today |
 |---|---|---|
 | `-i` | Ignore case in **opcodes**, so `adc` and `ADC` are the same instruction. Labels stay case-sensitive. | Accepted, ignored: and it has nothing left to switch on, because opcodes are matched case-insensitively either way. That is now a deliberate rule rather than a coincidence; see [Case](#case). |
-| `-n` | Disable optimizations, overriding the `OPT` pseudo-instruction. | Accepted, ignored. |
 | `-h <lines>` | Listing page height; `0` disables pagination. | Accepted, ignored. The listing is not paginated at all. |
-
-`OPT` and `NOOPT` are likewise accepted and ignored as directives, so there is
-currently nothing for `-n` to switch off.
 
 ---
 
@@ -247,7 +306,7 @@ would benefit from a concrete case to be designed against.
 | Numbers | `$FF` hex, `%10101010` binary, `255` decimal |
 | Expressions | `+ - * / % & \| ^ ~ << >>`, `<label` low byte, `>label` high byte, `*` current PC |
 | Listing control | `.page` is accepted and acts at listing time |
-| Optimization control | `OPT` and `NOOPT` are accepted and **ignored**. AS65 optimizes by default, and Casso matches it everywhere except one transform: under `-x`, AS65 rewrites `JMP` as `BRA` when the target is **already defined** at that point and the displacement fits a signed byte. A forward jump stays `JMP` in both assemblers, as does a backward one out of range. Zero-page selection already agrees — both narrow a resolved `$00`–`$FF` operand, and both keep absolute for a forward reference. Tracked by [#118](https://github.com/relmer/Casso/issues/118) |
+| Optimization control | `OPT` and `NOOPT` switch the `JMP`-to-`BRA` substitution on and off; see [Optimization](#optimization) |
 | Case | Mnemonics, directives and instruction aliases are matched case-insensitively in **both** dialects; **labels are case-sensitive**. The asymmetry is deliberate: period sources write instructions in either case, but folding label case would silently merge `foo` and `FOO` into one symbol. A label written `lda` stays legal, and is warned about rather than refused. |
 
 ---

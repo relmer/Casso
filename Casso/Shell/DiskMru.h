@@ -47,6 +47,16 @@ public:
     void                 RecordMount  (const std::filesystem::path & path, std::int64_t lastLoadedUnix = 0);
     std::vector<Entry>   Snapshot     () const;
 
+    // Records a mount only if it actually happened. The list feeds the disk
+    // picker, so an image the loader has just refused must never reach it --
+    // offering it back sends the user straight into the same failure, and
+    // makes a file that never loaded look like one that did. Callers pass the
+    // mount's own HRESULT rather than deciding for themselves, so the rule
+    // lives here and cannot be forgotten at a call site.
+    void  RecordMountResult (HRESULT                       mountResult,
+                             const std::filesystem::path & path,
+                             std::int64_t                  lastLoadedUnix = 0);
+
     // Removes entries the predicate returns false for, preserving the
     // surviving order. Returns the post-prune snapshot. Returns
     // unchanged copy when the predicate is null.
