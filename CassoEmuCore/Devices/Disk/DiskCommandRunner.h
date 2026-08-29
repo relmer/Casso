@@ -154,9 +154,6 @@ public:
     //  by `conjunction` before the last.
     static std::string  ContainerWordList (const char * prefix, const char * conjunction);
 
-    //  The word one container is named by, for a refusal that quotes it back.
-    static std::string  ContainerWord (DiskFormat format);
-
     //  Why a settled spec cannot be written, in words, or empty if it can.
     static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
 

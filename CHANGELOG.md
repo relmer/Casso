@@ -65,7 +65,7 @@ Entries before versioning was introduced use dates only.
   bootable disk needs a filesystem, and the ProDOS volume-name rule all
   reported one invalid-argument failure, which asserted in Debug and printed
   all three rules whichever one had been broken. Each is now an ordinary
-  refusal naming the rule that was actually broken.
+  refusal that reports only the rule that was broken.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

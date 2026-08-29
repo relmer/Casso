@@ -1626,36 +1626,6 @@ std::string DiskCommandRunner::ContainerWordList (const char * prefix, const cha
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::ContainerWord
-//
-//  The word one container is named by, so a refusal can quote it back.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DiskCommandRunner::ContainerWord (DiskFormat format)
-{
-    std::string  word = "image";
-
-
-
-    for (const ContainerName & entry : s_kContainers)
-    {
-        if (entry.format == format)
-        {
-            word = entry.name;
-            break;
-        }
-    }
-
-    return word;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskCommandRunner::DescribeSpecRefusal
 //
 //  Why a settled spec cannot be written, in words -- or empty when it can be.
@@ -1665,9 +1635,9 @@ std::string DiskCommandRunner::ContainerWord (DiskFormat format)
 //  was broken; a second copy of the matrix here would be a second thing to get
 //  wrong, and the two would disagree the first time one of them changed.
 //
-//  Naming the one broken rule matters more than it looks. The message this
-//  replaced recited all three at once, so somebody who mistyped a ProDOS
-//  volume name was handed a paragraph about sector order.
+//  Reporting only the broken rule matters more than it looks. The message
+//  this replaced recited all three at once, so somebody who mistyped a
+//  ProDOS volume name was handed a paragraph about sector order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1675,30 +1645,27 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
 {
     std::string       text;
     BlankDiskVerdict  verdict = BlankDiskBuilder::CheckSpec (spec);
-    std::string       carries;
 
 
 
     switch (verdict)
     {
         case BlankDiskVerdict::ContentsNotInContainer:
-            carries = (spec.contents == BlankDiskContents::ProDos) ? "ProDOS" : "DOS 3.3";
-            text    = "Error: a " + carries + " disk cannot be written as a ."
-                    + ContainerWord (spec.format) + "\n"
-                      "       dsk and do carry DOS 3.3, po carries ProDOS, and woz "
-                      "carries either\n";
+            text = "Error: illegal container and filesystem combination\n"
+                   "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz holds\n"
+                   "       either.\n";
             break;
 
         case BlankDiskVerdict::BootableNeedsFilesystem:
-            text = "Error: an unformatted disk cannot be made bootable\n"
-                   "       there is no filesystem on it for an operating system to be "
-                   "copied into\n";
+            text = "Error: cannot make an unformatted disk bootable\n"
+                   "       There is no filesystem to copy an operating system into.\n"
+                   "       Format the disk as dos33 or prodos.\n";
             break;
 
         case BlankDiskVerdict::ProDosNameUnusable:
-            text = "Error: " + spec.volumeName + " is not a name ProDOS can put on a volume\n"
-                   "       one to fifteen characters, starting with a letter and\n"
-                   "       otherwise letters, digits and periods\n";
+            text = "Error: illegal volume name\n"
+                   "       ProDOS volume names are 1-15 characters, starting with a\n"
+                   "       letter, and can include letters, digits, and periods.\n";
             break;
 
         default:

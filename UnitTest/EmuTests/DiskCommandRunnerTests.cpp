@@ -1471,10 +1471,10 @@ public:
         }
     }
 
-    //  THE REFUSAL NAMES THE RULE THAT WAS BROKEN. The message this replaced
-    //  recited the whole pairing matrix and the boot rule together, so it read
-    //  the same whichever of them somebody had actually tripped.
-    TEST_METHOD (Create_RefusalNamesTheOneRuleThatWasBroken)
+    //  THE REFUSAL REPORTS THE RULE THAT WAS BROKEN, AND ONLY THAT ONE. The
+    //  message this replaced recited the whole pairing matrix and the boot
+    //  rule together, so it read the same whichever one had been tripped.
+    TEST_METHOD (Create_RefusalReportsOnlyTheRuleThatWasBroken)
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
@@ -1486,8 +1486,10 @@ public:
         pairing                 = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, pairing.exitStatus);
-        Assert::IsTrue (pairing.diagnostics.find ("cannot be written as a .po") != std::string::npos,
-                        L"the container they asked for is quoted back");
+        Assert::IsTrue (pairing.diagnostics.find ("illegal container and filesystem") != std::string::npos,
+                        L"the broken rule is the one reported");
+        Assert::IsTrue (pairing.diagnostics.find (".po holds ProDOS") != std::string::npos,
+                        L"and the rule is spelled out");
         Assert::IsFalse (io.Exists ("wrong.po"), L"and nothing was written");
 
         options                 = MakeCreate ("badname.po");
@@ -1496,10 +1498,10 @@ public:
         badName                 = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, badName.exitStatus);
-        Assert::IsTrue (badName.diagnostics.find ("1LEADINGDIGIT") != std::string::npos,
-                        L"the name they typed is quoted back");
-        Assert::IsTrue (badName.diagnostics.find ("sector") == std::string::npos,
-                        L"and the sector-order rule, which they did not break, stays out of it");
+        Assert::IsTrue (badName.diagnostics.find ("illegal volume name") != std::string::npos,
+                        L"the volume-name rule is the one reported");
+        Assert::IsTrue (badName.diagnostics.find ("holds DOS 3.3") == std::string::npos,
+                        L"and the pairing rule, which they did not break, stays out of it");
 
         //  A REFUSAL IS READ IN THE SAME TERMINAL A LISTING IS. A line that
         //  wraps loses the indent that marks it as the explanation.

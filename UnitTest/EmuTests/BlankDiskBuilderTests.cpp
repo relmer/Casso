@@ -87,7 +87,7 @@ public:
 
     //  .do IS .dsk UNDER THE OTHER NAME, and Build has always treated the two
     //  as one container. Only the validator disagreed, so `disk create foo.do`
-    //  -- a word the command line offers by name -- asserted on the way in.
+    //  -- a word the command line offers -- asserted on the way in.
     TEST_METHOD (ValidateSpec_DoPairsWithDosOrRaw_TheSameAsDsk)
     {
         UnitTestHelpers::ExpectedEhmAssert  expect;
@@ -139,10 +139,10 @@ public:
         }
     }
 
-    //  THE VERDICT NAMES THE RULE, which is the whole reason it is not an
+    //  THE VERDICT REPORTS WHICH RULE, which is the whole reason it is not an
     //  HRESULT: `disk create` puts the broken rule into a sentence, and one
     //  failure code for all three made it recite all three.
-    TEST_METHOD (CheckSpec_NamesTheRuleThatWasBroken)
+    TEST_METHOD (CheckSpec_ReportsTheRuleThatWasBroken)
     {
         BlankDiskSpec  badPairing  = MakeSpec (DiskFormat::Po,  BlankDiskContents::Dos33);
         BlankDiskSpec  badBootable = MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted, true);
