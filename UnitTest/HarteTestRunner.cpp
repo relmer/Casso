@@ -1063,10 +1063,17 @@ namespace HarteTests
         //  One TEST_METHOD per illegal NMOS opcode Casso implements in
         //  CassoCore Cpu::InitializeUndocumented(). RunOpcodeTest skips
         //  silently when the matching .bin is absent, so these stay green
-        //  under a --legal-only generation. When InitializeUndocumented()
-        //  gains an opcode, add it here AND to the
-        //  IMPLEMENTED_ILLEGAL_6502_OPCODES list in
-        //  scripts/GenerateHarteTests.py.
+        //  under a --legal-only generation.
+        //
+        //  When InitializeUndocumented() gains an opcode, add it here.
+        //  Nothing else needs updating: scripts/GenerateHarteTests.py reads
+        //  that table out of Cpu.cpp rather than keeping its own copy.
+        //
+        //  Nothing in this list is exempted from any comparison. The
+        //  unstable opcodes -- ANE, LXA, SHA, SHX, SHY, TAS -- whose results
+        //  on real silicon depend on the part and the bus, are not
+        //  implemented at all, so the question of whose model to believe
+        //  never arises here.
         //
         ////////////////////////////////////////////////////////////////////////////////
 

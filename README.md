@@ -357,9 +357,9 @@ checks what the guest makes of them, because that is the only oracle for "the di
 is right" that our own reader cannot satisfy by agreeing with itself.
 
 Harte vectors run at 200 per opcode on every build, checking each instruction's
-final state and its cycle count; the full 10,000 per opcode are an opt-in
-download and are what you run when touching the CPU core. See
-[docs/testing.md](docs/testing.md).
+final state and its cycle count, undocumented opcodes included; the full 10,000
+per opcode are an opt-in download and are what you run when touching the CPU
+core. See [docs/testing.md](docs/testing.md).
 
 ## Requirements
 

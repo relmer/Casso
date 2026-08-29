@@ -23,6 +23,11 @@ Entries before versioning was introduced use dates only.
   vectors could catch a timing error. They carry the cycle count now, at one
   byte per vector, and the format is versioned so older sets are refused. It
   found three timing bugs on its first run.
+- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
+  illegal NMOS opcodes Casso implements had no vectors at all, so their tests
+  loaded nothing and passed. All 79 now run at the same depth as the
+  documented set, checking results and cycle counts. Emulated behavior is
+  unchanged: the tier came out clean at 10,000 vectors per opcode.
 
 ### Fixed
 - **`run` echoed flags back with a dash even on a `/`-style command line.**

@@ -19,10 +19,16 @@ namespace CpuOperationTests
     //
     //  UndocumentedSemanticsTests
     //
-    //  Representative per-operation checks. The Tom Harte SingleStepTests
-    //  (HarteTestRunner) exhaustively validate every vector, but those vectors
-    //  are generated on demand and not committed; these committed tests document
-    //  intent and guard the result + flag behavior of each combined opcode.
+    //  Representative per-operation checks that document intent and guard the
+    //  result + flag behavior of each combined opcode.
+    //
+    //  The Tom Harte vectors (HarteTestRunner) now cover this tier too, and
+    //  cover it far more thoroughly. These stay because they say what the
+    //  behavior is meant to be and why, which a randomized corpus cannot; a
+    //  failure here names the operation, where a Harte failure names a byte.
+    //  What they cannot do is find a misunderstanding, since they were written
+    //  from the same understanding as the implementation. That is the corpus's
+    //  job.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
