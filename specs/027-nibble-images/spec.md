@@ -74,11 +74,16 @@ fixed.
   What fills the remainder? → A: Pad with `$FF` self-sync bytes.
 - Q: Should `disk create --type nib` and `disk init` on a nibble image exist? → A:
   Yes, full parity with the other container types.
-- Q: `DetectFormatByExtension` maps an extension to one format, but track size comes
-  from the file's length -- so what decides the size of an image being *created*,
-  where there is no file to measure? → A: The name. Length decides for a file that
-  exists; the name decides for one being created. `--type nb2` and a `.nb2` filename
-  each produce a genuine 223,440-byte image.
+- Q: The extension-to-format router maps an extension to one format, but track size
+  comes from the file's length -- so what decides the size of an image being
+  *created*, where there is no file to measure? → A: The name. Length decides for a
+  file that exists; the name decides for one being created. `--type nb2` and a
+  `.nb2` filename each produce a genuine 223,440-byte image.
+- Q: Should that router keep the name `DetectFormatByExtension`? → A: No. It answers
+  for files that already exist, and "Detect Format" reads as though it settles what
+  a file is -- true for the four formats where the extension fixed the geometry too,
+  and false for nibble images, where it leaves the track size open. Renamed
+  `GetSourceFormatByExtension`, with the family-only limit stated in its comment.
 
 ## User Scenarios & Testing *(mandatory)*
 

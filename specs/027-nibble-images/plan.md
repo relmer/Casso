@@ -134,7 +134,7 @@ CassoEmuCore/Devices/Disk/
 ├── NibbleImageCodec.cpp      # NEW
 ├── IDiskImage.h              # DiskFormat gains Nib
 ├── DiskImage.cpp             # LoadFromBytes / Serialize gain the Nib arm
-├── DiskImageStore.cpp        # DetectFormatByExtension, ClassifyLoadFailure
+├── DiskImageStore.cpp        # extension routing renamed + retargeted, ClassifyLoadFailure
 ├── MountDiagnosis.h/.cpp     # two new failure reasons + the extension lookup renamed to VerbNoun
 ├── VolumeImage.cpp           # Load / Save gain the nibble container
 ├── NibblizationLayer.h/.cpp  # ReadNibbleAt promoted to a shared entry point
@@ -193,7 +193,8 @@ a nibble is.
 
 ### Phase B -- Routing and refusals
 
-`DiskFormat::Nib`; `DetectFormatByExtension` maps both extensions;
+`DiskFormat::Nib`; the extension router is renamed `GetSourceFormatByExtension` and
+maps both extensions;
 `MountDiagnosis` gains the two reasons a nibble image is refused for, worded as
 clauses that name the length found and the lengths accepted;
 `ClassifyLoadFailure` distinguishes them. `DiskImage::LoadFromBytes` and

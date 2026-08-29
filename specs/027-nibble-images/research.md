@@ -215,6 +215,18 @@ high bit set, byte-concatenation and MSB-rule derivation are exact inverses: eig
 shifts assemble byte 0 and set the MSB on the eighth. This gives the round-trip
 test a strong invariant to assert, independently of D4.
 
+**D7 -- `DetectFormatByExtension` is renamed `GetSourceFormatByExtension`.** The
+notes above use the old name, which was current when they were written. Two things
+are wrong with it. It answers only for files that already exist -- seven of its
+eight callers are read paths, and the eighth is the `create` branch this feature
+removes -- so nothing in the name stops a future caller reaching for it to decide
+what a NEW file may be written as, which is the `s_kContainers` list instead. And
+"Detect Format" reads as settling what a file is, which held while the extension
+fixed the geometry too, and stops holding here: it returns `Nib` for both nibble
+extensions and says nothing about the track size. `Source` matches
+`IDiskImage::GetSourceFormat` and means exactly "the format of the file this came
+from". The family-only limit goes in the comment, since no name carries it.
+
 **D6 -- A new codec class, not an extension of `NibblizationLayer`.**
 `NibblizationLayer` converts sectors to and from bit streams. This converts nibble
 bytes to and from bit streams. Different seam, and the project's rule that a class
