@@ -443,6 +443,12 @@ startup program.
   source put them. With no intervening origin this continues from the previous
   save's last address plus one, which is the rule Merlin's manual states; where
   the source does state a new origin, that origin governs.
+
+  **Both halves are measured, not inferred.** Merlin Pro 2.23 running under
+  Casso, given two `ORG`/`SAV` pairs at `$300` and `$6000`, wrote two files of
+  three bytes each, the second at `$6000` rather than at `$0303`. The manual is
+  silent on an origin between saves, so this rule was recorded as a synthesis
+  until it was run. See [research.md](research.md) finding 2a.
 - **FR-020**: `SAV` MUST NOT depend on an image target. With one, it writes to
   the volume; without one, it writes a host file, so one assembly produces
   several host files. It MUST NOT be refused for want of a disk.

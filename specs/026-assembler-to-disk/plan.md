@@ -299,6 +299,14 @@ depth; full depth is for CPU work.
   (`DO`/`ELSE`/`FIN`), so the corpus cannot cover Phase D. An authored fixture
   is a weaker authority than a vendor source, and the plan should say so out
   loud rather than let a hand-written file look like period evidence.
+
+  **This is now partly mitigated.** Real Merlin Pro 2.23 can be driven under
+  Casso and its answers read back off the disk, so an authored fixture can be
+  checked against the period assembler instead of standing on its own. The
+  delta-save rule and the origin rule were settled this way; the procedure and
+  its traps are in [research.md](research.md) finding 2a. What remains is to run
+  the same loop for the `DSK` span rules and the trailing-span rule, whose
+  sources are already written.
 - **`TYP`'s exact operand syntax is documented only indirectly.** The Merlin
   Pro manual's OCR is truncated at the entry. Research finding 4 reasons from
   the ProDOS type set and from what Casso already publishes, which is solid for

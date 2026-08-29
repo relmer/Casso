@@ -56,21 +56,100 @@ where the source states a new origin, that origin governs.
 > the address of the second+1,... When BLOADed later, they will go to the
 > correct location(s)."
 
-**THIS IS THE ONE PLACE THE MANUAL DOES NOT SETTLE THE QUESTION.** It describes
-the run-on case and does not say what an `ORG` between two saves does. The rule
-above is a synthesis: "the address of this span's first byte" reduces to the
-manual's stated rule exactly when nothing moves the program counter, and gives
-the only sensible answer when something does. The alternative, addresses that
-keep running consecutively even after the source has stated a new origin, would
-file a program at an address its own source contradicts, and the manual's
-closing sentence says the point of the rule is that a later `BLOAD` puts the
-file in the right place.
+The manual describes only the run-on case and does not say what an `ORG` between
+two saves does. **That gap was closed by measurement rather than reasoning** —
+see finding 2a. Merlin puts the second file at the stated origin.
 
 `AssemblySession` already computes the value this needs.
 `AssemblyResult::startAddress` is set from the first `ORG` and later overwritten
 with the lowest address actually used (`AssemblySession.cpp:3109`, `:8011`),
 which is this derivation applied to a whole assembly. A save point needs it
 applied to a span.
+
+## 2a. Measured against Merlin Pro 2.23: delta saves, and the origin governs
+
+**Both open questions above were settled by running real Merlin under Casso**,
+rather than by reading the manual or reasoning from it. Source assembled:
+
+```
+* ORG BETWEEN TWO SAVES
+ ORG $300
+ LDA #$11
+ RTS
+ SAV SPAN1A
+ ORG $6000
+ LDA #$22
+ RTS
+ SAV SPAN1B
+```
+
+Merlin's own listing reported `Object saved as SPAN1B,A$6000,L$0003` and
+`--End assembly, 6 bytes, Errors: 0`. Reading the two objects back off the disk
+and decoding their DOS 3.3 binary headers:
+
+| File | Load | Length | Bytes |
+|---|---|---|---|
+| `SPAN1A` | `$0300` | `$0003` | `A9 11 60` |
+| `SPAN1B` | `$6000` | `$0003` | `A9 22 60` |
+
+**`SAV` is delta, confirmed.** Each file holds three bytes — only its own span.
+A cumulative implementation would have made `SPAN1B` six bytes containing
+`SPAN1A`'s as well, and the whole assembly reported six bytes across two files
+rather than six in the second.
+
+**A stated origin governs the saved address, confirmed.** `SPAN1B` loads at
+`$6000`, the `ORG` in effect. Had the addresses kept running consecutively from
+the previous save, as the manual's own example implies for the run-on case, it
+would have been `$0303`. FR-024's rule was recorded as a synthesis because the
+manual is silent here; it is now measured behavior.
+
+**What is still assumption rather than measurement**: two `DSK` directives
+cutting spans with no `SAV` (FR-025, FR-043), a `DSK` name persisting past a
+`SAV` (FR-044), bytes emitted after the last save (the contract's trailing-span
+rule), a bare `SAV` with no operand (FR-042), and two saves naming one file
+(FR-027). Sources for the first two are written and on the work disk
+(`T.SPAN2`, `T.SPAN3`); they were not run. The procedure below makes them
+cheap to finish.
+
+### The procedure, since 019 asked for exactly this
+
+019's research stopped at "it needs someone who can drive Merlin interactively
+and report the exact working sequence", blocked on leaving the editor's **Add
+mode**. That blocker is gone, and not by solving it: with `disk put` the source
+never goes through the editor at all.
+
+1. Copy the vendor disk. Never assemble against `UnitTest/Fixtures/Disks/`.
+2. `CassoCli disk put work.dsk src.txt --as T.NAME --type T --text`. This
+   produces exactly the on-disk form Merlin's own sources use — verified byte
+   for byte against `T.PI.MACS`: high-ASCII throughout, `$8D` terminators,
+   `$A0`-padded 30-byte catalog name, type `$00`.
+3. Launch Casso on the work copy and wait for the `%` prompt. **Do not send
+   keys during boot**; they are silently lost.
+4. `R` for Read text file, then the name **without** its `T.` prefix — Merlin
+   prepends it. `SPAN1` reaches `T.SPAN1`.
+5. `ASM`, then `N` to "Update source (Y/N)?".
+6. Close Casso to flush, then read the objects with `disk get` and decode the
+   DOS 3.3 four-byte header for the load address.
+
+Three traps cost most of the time spent finding this, all of them in the
+driving rather than in Casso:
+
+- **`SendCassoKeys.ps1` needs `-DelayMs 250`.** Its own documentation warns that
+  the emulated keyboard has a single-byte latch, and the 60 ms default silently
+  drops characters: `T.PI.MACS` arrived as `T.P.MAC`. Every `FILE NOT FOUND` in
+  this session was a mangled name, not a missing file.
+- **The filename prompt is pre-filled with the previous name**, and typing
+  overwrites from the cursor rather than replacing. A shorter name leaves the
+  old tail behind. `Ctrl-X` (`$18`) cancels the line, exactly as Apple's GETLN
+  does.
+- **"Read text file" appends to the editor buffer rather than replacing it.**
+  Reading a second source without clearing splices the two. Rebooting between
+  captures is the cheap way to guarantee an empty buffer.
+
+`disk put` was suspected twice during this and exonerated twice: the guest's own
+`CATALOG` lists the written files with a matching free-sector count, the raw
+catalog bytes match vendor entries exactly, and DOS's own
+`PRINT CHR$(4)"VERIFY T.SPAN1"` returns no error.
 
 ## 3. `DSK` is a streaming multi-output directive, and the tree implements it as a name
 
