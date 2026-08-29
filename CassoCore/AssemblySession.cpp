@@ -6957,6 +6957,8 @@ HRESULT AssemblySession::RunPass2()
     // an ordinary assembly needs no separate path.
     CloseSpan (std::string());
 
+    ReportDuplicateOutputNames();
+
     hr = ExtractImage();
     CHR (hr);
 
@@ -8201,6 +8203,62 @@ void AssemblySession::CloseSpan (const std::string & name)
     }
 
     m_spanHasBytes = false;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ReportDuplicateOutputNames
+//
+//  Two outputs of one assembly under one name, which is refused.
+//
+//  DELIBERATELY NOT THE SAME CASE as a name already on the target from an
+//  earlier run. Replacing across runs is what a build loop needs and happens
+//  every time after the first; replacing within one run throws away an output
+//  the source just asked for, and the assembly would report success having
+//  written one file where the source named two.
+//
+//  Checked once the outputs are known rather than as each is cut, so the
+//  diagnostic can name the file rather than the position, and so nothing has
+//  been written by the time it is raised.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReportDuplicateOutputNames()
+{
+    size_t  outer = 0;
+    size_t  inner = 0;
+
+
+
+    //  A direct scan rather than a set. An assembly produces a handful of
+    //  outputs at most, so the cost is nothing and the alternative would widen
+    //  the precompiled header for one comparison.
+    for (outer = 0; outer < m_result.savePoints.size(); outer++)
+    {
+        const std::string &  name = m_result.savePoints[outer].name;
+
+        if (name.empty())
+        {
+            continue;
+        }
+
+        for (inner = 0; inner < outer; inner++)
+        {
+            if (m_result.savePoints[inner].name == name)
+            {
+                RecordError (m_lastSourceLine,
+                             "two outputs of this assembly are both called " + name +
+                             ", so one would be written over the other");
+                break;
+            }
+        }
+    }
 
     return;
 }

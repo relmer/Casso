@@ -114,6 +114,85 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
         outSectors = edited;
     }
 
+    hr = ApplyStartupProgram (options, opened, onDisk, outSectors);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ImageArtifactSink::ApplyStartupProgram
+//
+//  Makes the object the program the volume runs when it boots.
+//
+//  INSIDE THE COMPOSITION, before the single commit, so a disk that cannot
+//  actually run the file is refused with the image still untouched rather than
+//  written and then complained about.
+//
+//  WHETHER DOS 3.3 WOULD RUN IT IS THE VOLUME LAYER'S RULE, not a second copy
+//  of it here. The command that sets a startup program separately applies the
+//  same one, and two routes to one idea with a rule each is how they come to
+//  accept different things.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions            & options,
+                                                const DiskImageSession::OpenedImage & opened,
+                                                const std::string                   & onDisk,
+                                                std::vector<Byte>                   & inOutSectors)
+{
+    HRESULT            hr       = S_OK;
+    HRESULT            listHr   = S_OK;
+    bool               wanted   = options.setStartupProgram;
+    bool               runnable = true;
+    FilePath           path;
+    VolumeListing      listing;
+    std::vector<Byte>  edited;
+
+
+
+    BAIL_OUT_IF (!wanted, S_OK);
+
+    path = FilePath::Parse (onDisk);
+
+    {
+        Dos33Volume   dos (inOutSectors);
+        ProDosVolume  pro (inOutSectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
+                             ? static_cast<IVolume &> (dos)
+                             : static_cast<IVolume &> (pro);
+
+        hr = volume.SetStartupProgram (path, edited);
+
+        if (SUCCEEDED (hr) && opened.kind == VolumeKind::Dos33)
+        {
+            listHr = volume.Enumerate (listing);
+            IGNORE_RETURN_VALUE (listHr, S_OK);
+
+            runnable = Dos33Volume::IsRunnableAsGreeting (listing, onDisk);
+        }
+    }
+
+    CHRF (hr, m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+                                   "cannot be made the startup program") + "\n");
+
+    if (!runnable)
+    {
+        m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+                             "would not run at boot: a booting DOS 3.3 RUNs its greeting, "
+                             "so a binary named as one leaves the disk booting and the program never running") + "\n";
+    }
+
+    CBR (runnable);
+
+    inOutSectors = edited;
+
 Error:
     return hr;
 }

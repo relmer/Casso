@@ -1374,37 +1374,19 @@ Error:
 //
 //  DiskCommandRunner::IsRunnableAsDos33Greeting
 //
-//  Whether a booting DOS 3.3 would actually run this file.
+//  The volume layer's rule, reached through this name because the callers here
+//  already read this way.
 //
-//  Measured against the stock master rather than reasoned about: with a binary
-//  named as the greeting the machine boots and the program never runs, because
-//  the command DOS issues at boot is RUN. Anything RUN does not understand is a
-//  greeting in name only.
-//
-//  A name that is not on the volume answers true, because the refusal for that
-//  belongs to the layer that looked it up and one refusal per problem is the
-//  rule.
+//  THE RULE ITSELF MOVED so the assembler can apply the same one. Two routes
+//  can set a startup program now, and a copy of this in each is how they would
+//  come to accept different things.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                                    const std::string    & name)
 {
-    bool  runnable = true;
-
-
-
-    for (const FileEntry & entry : listing.entries)
-    {
-        if (_stricmp (entry.name.c_str(), name.c_str()) == 0)
-        {
-            runnable = entry.type == Dos33Volume::kTypeApplesoft
-                    || entry.type == Dos33Volume::kTypeInteger;
-            break;
-        }
-    }
-
-    return runnable;
+    return Dos33Volume::IsRunnableAsGreeting (listing, name);
 }
 
 

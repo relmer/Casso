@@ -186,6 +186,23 @@ namespace MerlinSaveObjectTests
 
 
 
+        //  Two outputs under one name would write one over the other, and the
+        //  assembly would report success having produced one file where the
+        //  source named two. Deliberately NOT the same case as a name already
+        //  on the target from an earlier run, which is replaced.
+        TEST_METHOD (TwoOutputsUnderOneNameIsRefusedNamingTheFile)
+        {
+            AssemblyResult  result = Fixture::Assemble (" ORG $300\n LDA #$11\n SAV SAME\n"
+                                                        " LDA #$22\n SAV SAME\n");
+
+            Assert::IsFalse (result.success, L"one output would be written over the other");
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one error");
+            Assert::IsTrue (result.errors[0].message.find ("SAME") != std::string::npos,
+                            L"and it names the file that collided");
+        }
+
+
+
         //  Three saves, to show the cutting is not a two-case special.
         TEST_METHOD (ThreeSavesProduceThreeOutputsEachHoldingItsOwnSpan)
         {

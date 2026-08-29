@@ -1750,3 +1750,37 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::IsRunnableAsGreeting
+//
+//  Whether a booting DOS 3.3 would actually run this file.
+//
+//  Shared by the two routes that can set a startup program, so neither can come
+//  to accept what the other refuses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Dos33Volume::IsRunnableAsGreeting (const VolumeListing & listing, const std::string & name)
+{
+    bool  runnable = true;
+
+
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        if (_stricmp (entry.name.c_str(), name.c_str()) == 0)
+        {
+            runnable = entry.type == Dos33Volume::kTypeApplesoft
+                    || entry.type == Dos33Volume::kTypeInteger;
+            break;
+        }
+    }
+
+    return runnable;
+}

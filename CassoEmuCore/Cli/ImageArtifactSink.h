@@ -68,6 +68,13 @@ private:
                              DiskImageSession::OpenedImage & opened,
                              std::vector<Byte>         & outSectors);
 
+    //  Makes the object the volume's startup program, inside the composition so
+    //  a disk that would not run it is refused before anything is written.
+    HRESULT  ApplyStartupProgram (const CommandLineOptions            & options,
+                                  const DiskImageSession::OpenedImage & opened,
+                                  const std::string                   & onDisk,
+                                  std::vector<Byte>                   & inOutSectors);
+
     DiskImageSession  m_session;
     FileArtifactSink  m_hostArtifacts;
     std::string       m_diagnostics;

@@ -116,7 +116,38 @@ Error:
 HRESULT FileArtifactSink::WriteBinary (const AssemblyResult & result,
                                        const CommandLineOptions & options)
 {
-    return ArtifactWriter::WriteBinary (result, options);
+    HRESULT  hr       = S_OK;
+    bool     isSingle = result.savePoints.size() <= 1;
+
+
+
+    //  ONE OUTPUT TAKES THE PATH IT ALWAYS TOOK, unchanged, which is nearly
+    //  every assembly. The name, the format and the padding are all the
+    //  caller's, and routing it through the loop below would only re-derive
+    //  what the options already say.
+    BAIL_OUT_IF (isSingle, ArtifactWriter::WriteBinary (result, options));
+
+    //  Several outputs, each under the name its own directive gave it. The
+    //  source asked for these files individually, so the caller's single output
+    //  name cannot serve them and each span carries its own.
+    for (const SavePoint & span : result.savePoints)
+    {
+        AssemblyResult      one;
+        CommandLineOptions  spanOptions = options;
+
+        one.success      = result.success;
+        one.bytes        = span.bytes;
+        one.startAddress = span.loadAddress;
+        one.endAddress   = (Word) (span.loadAddress + span.bytes.size());
+
+        spanOptions.outputFile = span.name.empty() ? options.outputFile : span.name;
+
+        hr = ArtifactWriter::WriteBinary (one, spanOptions);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 

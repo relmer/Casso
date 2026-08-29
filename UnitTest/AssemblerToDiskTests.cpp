@@ -495,6 +495,89 @@ namespace AssemblerToDiskTests
 
         //  The precedence the tool already applies to the object's name,
         //  settled by the layer that sees both.
+        //  A binary named as a DOS 3.3 greeting leaves the disk booting and the
+        //  program never running, because the command DOS issues at boot is RUN.
+        //  The same rule the boot command applies, not a second copy of it.
+        TEST_METHOD (StartupProgramIsRefusedWhenDos33WouldNotRunIt)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG");
+            vector<Byte>        before  = Fixture::MakeDos33Image();
+            HRESULT             written = S_OK;
+
+            options.setStartupProgram = true;
+
+            Fixture::SeedImage (io, before);
+
+            ImageArtifactSink  sink (io);
+
+            written = sink.WriteBinary (result, options);
+
+            Assert::IsTrue (FAILED (written), L"a volume that cannot run the file is refused");
+            Assert::IsTrue (sink.GetDiagnostics().size() > 0, L"and says so");
+            Assert::IsTrue (before == io.files[kImagePath],
+                            L"refused before anything was written, so the image is untouched");
+        }
+
+
+
+        //  The rule itself, asserted where it lives. This is the one both
+        //  routes to a startup program call, so a test on the rule covers both
+        //  and a change to it cannot make them disagree.
+        TEST_METHOD (TheGreetingRuleAcceptsRunnableTypesAndRefusesABinary)
+        {
+            VolumeListing  listing;
+            FileEntry      binary;
+            FileEntry      applesoft;
+            FileEntry      integer;
+
+            binary.name    = "PROG";
+            binary.type    = Dos33Volume::kTypeBinary;
+            applesoft.name = "HELLO";
+            applesoft.type = Dos33Volume::kTypeApplesoft;
+            integer.name   = "INTHELLO";
+            integer.type   = Dos33Volume::kTypeInteger;
+
+            listing.entries = { binary, applesoft, integer };
+
+            Assert::IsFalse (Dos33Volume::IsRunnableAsGreeting (listing, "PROG"),
+                             L"a booting DOS 3.3 RUNs its greeting, and RUN cannot start a binary");
+            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "HELLO"),
+                            L"Applesoft is what RUN understands");
+            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "INTHELLO"),
+                            L"and Integer BASIC likewise");
+
+            //  A name not on the volume answers true, because the refusal for
+            //  that belongs to whichever layer looked it up.
+            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "ABSENT"),
+                            L"one refusal per problem");
+        }
+
+
+
+        //  ProDOS boots by finding a system-typed entry, so a system file named
+        //  as the startup program is exactly what it wants.
+        TEST_METHOD (StartupProgramIsSetOnProDos)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (" ORG $2000\n LDA #$11\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG.SYSTEM", "SYS");
+            vector<Byte>        before  = Fixture::MakeProDosImage();
+
+            options.setStartupProgram = true;
+
+            Fixture::SeedImage (io, before);
+
+            ImageArtifactSink  sink (io);
+
+            AssertSucceeded (sink.WriteBinary (result, options));
+
+            Assert::IsFalse (before == io.files[kImagePath], L"the volume was written");
+        }
+
+
+
         TEST_METHOD (CommandLineTypeBeatsTheSourceDirective)
         {
             HRESULT      hr  = S_OK;

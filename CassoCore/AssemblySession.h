@@ -318,6 +318,9 @@ private:
     //  is what makes a span that directive opened belong to it.
     void    CloseSpan            (const std::string & name);
 
+    //  Two outputs under one name, which would write one over the other.
+    void    ReportDuplicateOutputNames ();
+
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
 
