@@ -112,9 +112,12 @@ specs/026-assembler-to-disk/
 
 ```text
 CassoCore/                        # Dialect-neutral assembler. Knows nothing of disks.
-├── AssemblerTypes.h              # + SavePoint, AssemblyResult::savePoints, ::fileType
+├── AssemblerTypes.h              # + SavePoint, AssemblyResult::savePoints, ::fileType,
+│                                 #   + per-symbol output scope
 ├── AssemblySession.h/.cpp        # + HandlePass1FileType, HandlePass2SaveObject,
-│                                 #   span tracking, DSK closing the current save point
+│                                 #   span tracking, DSK closing the current save point,
+│                                 #   recording each symbol's scope as it is defined
+├── Assembler.cpp                 # FormatDebugInfo: indexes per output, not one flat pair
 ├── MerlinSubsetBoundary.cpp      # - the TYP and SAV rows (six rows become four)
 ├── CommandLineOptions.h          # + the image-target fields on the assembler options
 └── CommandLineParser.cpp         # + the flags, in the existing table-driven grammar
@@ -208,6 +211,16 @@ another (FR-025).
 `SAV` with no image target writes host files (FR-020), which is why
 `FileArtifactSink` must also iterate save points. Doing both is *cheaper* than
 special-casing one, because the list is the same list.
+
+**The host-side artifacts change here too, and this is easy to miss.** Once an
+assembly can produce several outputs, `Assembler::FormatDebugInfo`'s flat
+by-address index stops being able to answer the question its own comment says it
+exists for — "what is at $0310" — because independent outputs may occupy
+overlapping addresses and are never loaded together. Debug and symbol output
+become scoped per output (FR-029, FR-030), still one file per flag (FR-031), and
+the listing gains output boundary markings (FR-028). This is not disk work and
+does not depend on Phase B; it depends on Phase A's save points, and it is
+required for the same reason `SAV` is.
 
 **This phase carries the feature's hardest test**: an assembly that fails after
 a save has already been composed must leave the image untouched. It is

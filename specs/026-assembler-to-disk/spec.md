@@ -251,11 +251,28 @@ startup program.
 - **FR-004**: Only the object MUST be written into the image. The listing, symbol
   table and debug info MUST continue to be written as host files when their own
   flags request them.
-- **FR-028**: An assembly produces one listing, one symbol table and one set of
-  debug info however many outputs it produces. These describe the assembly, not
-  any one output: a listing renders the whole source, including the lines after
-  a save, and symbols and debug addresses are global to the assembly. Only the
-  object is per-output.
+- **FR-028**: An assembly produces one listing however many outputs it produces,
+  and that listing MUST mark where each output begins and ends. A listing is
+  ordered by source line rather than by address, so it has no lookup to be
+  ambiguous, and the shared equates and macro definitions above the first output
+  belong to all of them. Without the boundary markings a reader cannot tell
+  which lines became which file.
+- **FR-029**: Symbol and debug output MUST be scoped per output. Independent
+  outputs may occupy overlapping addresses and are never in memory together, so
+  an index spanning all of them cannot answer "what is at this address" — it
+  reports symbols from programs that are not loaded. This applies to the debug
+  file's address index, to its by-name index, and to the symbol table, all of
+  which are organized by address today.
+- **FR-030**: Symbols MUST be scoped by where they are DEFINED in the source,
+  using the same cuts that divide the object, so scoping cannot disagree with
+  the bytes. Symbols defined above the first output — equates naming hardware
+  addresses and the like — belong to no output, MUST be reported once, and MUST
+  NOT be repeated into each. Scoping by address instead would be ambiguous
+  exactly where outputs overlap, which is the case this requirement exists for.
+- **FR-031**: The scoped symbol and debug output MUST remain ONE file per flag.
+  `-g` and the symbol-file flag each name one file, so several files would hit
+  the same refusal FR-026 imposes on object names and would make those flags
+  unusable with a multi-output source. The scoping is structure INSIDE the file.
 - **FR-005**: The assembler MUST record the object's load address on the volume,
   derived from the origin the source declared, without the developer restating
   it.

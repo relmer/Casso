@@ -59,6 +59,34 @@ Doing this the other way round — override first, then notice the collision —
 reaches the same refusal by way of a state where several save points share a
 name, which is the state FR-027 exists to forbid. Resolve, then check.
 
+## Symbol scoping (new)
+
+`AssemblyResult::symbols` is a flat `std::unordered_map<std::string, Word>` over
+the whole assembly, and `Assembler::FormatDebugInfo` builds both of its indexes
+from it. That is correct for one output and wrong for several: the by-address
+index cannot answer "what is at $0310" once two outputs may both have something
+there, and at most one of them is ever loaded.
+
+So each symbol needs to say which output it belongs to. The **source position**
+where it is defined decides, using the same cuts that divide the object, so the
+scoping cannot disagree with the bytes.
+
+| Scope | Which symbols | Reported |
+|---|---|---|
+| Output *N* | defined within output *N*'s span | in output *N*'s section |
+| Global | defined above the first output — equates, hardware addresses, zero page | once, in its own section |
+
+**Not by address.** An address-range test is ambiguous exactly where two outputs
+overlap, which is the case this exists to handle. Source position always has one
+answer.
+
+**Global symbols are not repeated into each output.** A typical source's equates
+header dwarfs its code; copying it into every section would multiply the file
+for no information a reader lacks.
+
+`symbols` keeps its present shape and meaning, so every existing consumer is
+unaffected. What is added is the scope beside it.
+
 ## AssemblyResult (existing, extended)
 
 Gains `savePoints` (`std::vector<SavePoint>`), following the pattern

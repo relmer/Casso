@@ -74,19 +74,41 @@ status 2.
 
 ## What is per-output, and what is per-assembly
 
-Only the object is per-output (FR-028).
+**Every flag here names ONE file, and that does not change** (FR-031). Several
+files per flag would hit the same refusal FR-026 imposes on object names, and
+would make `-g` and `-t` unusable with a multi-output source. Where an artifact
+needs to distinguish outputs, it does so as structure INSIDE its file.
 
-| Artifact | How many | Why |
-|---|---|---|
-| Object | one per save point | It is what a save point *is*. |
-| Listing (`-l`) | one per assembly | It renders the whole source, including the lines after a save. |
-| Symbol table (`-t`) | one per assembly | Symbols are global to the assembly. |
-| Debug info (`-g`) | one per assembly | Addresses by name, likewise global. |
+| Artifact | Files | Per-output content? | Why |
+|---|---|---|---|
+| Object | one **per save point** | — | It is what a save point *is*. |
+| Listing (`-l`) | one | **boundaries marked** | Ordered by source line, not address, so it has no ambiguous lookup. Splitting it would orphan the shared equates and macros above the first output. |
+| Symbol table (`-t`) | one | **scoped per output** | Organized by address, so it inherits the ambiguity below. |
+| Debug info (`-g`) | one | **scoped per output** | Same, and it is the one a debugger reads. |
 
-The flags settle this on their own: `-l<file>` and `-g` each name one file, and
-there is no spelling for "one listing per save". Splitting them would also break
-FR-004's reason for keeping them on the host — a debugger reads one listing for
-the assembly it is stepping through.
+### Why symbols and debug info have to be scoped
+
+Independent outputs may occupy **overlapping addresses** and are never in memory
+at the same time. A flat index across all of them cannot answer the question
+`FormatDebugInfo`'s own comment says a debug file exists to answer — "what is at
+$0310" — because two programs may both have something there, and at most one of
+them is loaded. Answering with both is worse than not answering: it hands a
+debugger a symbol from a program that is not running.
+
+This is not hypothetical for this feature. Two outputs from one source is the
+*ordinary* multi-save shape, and a loader at `$0300` followed by a main program
+that also starts low is the textbook case.
+
+### How a symbol is assigned to an output
+
+By **where it is defined in the source**, using the same cuts that divide the
+object (FR-030). Scoping by address would be ambiguous exactly where the outputs
+overlap, which is the case that motivated the requirement in the first place.
+
+Symbols defined above the first output — the equates naming hardware addresses,
+zero-page locations and the like — belong to no output. They are reported once,
+in their own section, and are not repeated into each output. Repeating them
+would triple a typical file for no information.
 
 ## Refusals
 
