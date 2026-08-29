@@ -153,6 +153,34 @@ public:
         AssertFailed (DiskImageStore::DetectFormatByExtension ("noext",  fmt));
     }
 
+    TEST_METHOD (IsMountableImageExtension_MatchesTheRoutedTypes)
+    {
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (string ("foo.dsk")));
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (string ("foo.DO")));
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (string ("foo.po")));
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (string ("foo.WOZ")));
+
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("foo.bin")));
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("noext")));
+    }
+
+    TEST_METHOD (IsMountableImageExtension_RejectsNibbleImages)
+    {
+        // Mount has never routed a nibble image, so nothing may offer one.
+        // The drag-and-drop filter did, and a dropped .nib then failed to
+        // mount without saying so.
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("foo.nib")));
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (wstring (L"foo.NIB")));
+    }
+
+    TEST_METHOD (IsMountableImageExtension_WideAgreesWithNarrow)
+    {
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (wstring (L"C:\\Disks\\BOOT.DSK")));
+        Assert::IsTrue  (DiskImageStore::IsMountableImageExtension (wstring (L"C:\\Disks\\demo.woz")));
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (wstring (L"C:\\Disks\\notes.txt")));
+        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (wstring (L"")));
+    }
+
     TEST_METHOD (MountFromBytes_DskRunsNibblization)
     {
         DiskImageStore    store;

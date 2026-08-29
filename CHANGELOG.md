@@ -21,6 +21,11 @@ Entries before versioning was introduced use dates only.
   is unaffected -- it needs no assembler, so there is nothing to name, and
   `run prog.bin` is unchanged.
 
+- **One list decides which disk images Casso offers.** The filter no longer
+  keeps its own array of extensions -- it asks the mount router directly
+  (`DiskImageStore::IsMountableImageExtension`), so an interface that offers a
+  file and a loader that refuses it can no longer disagree.
+
 - **`as65 -x` now emits `BRA` where AS65 does, so some sources assemble to
   different bytes than before.** AS65 rewrites `JMP addr` as a two-byte `BRA`
   when the 65SC02 set is active, the target is already defined, and the
@@ -46,6 +51,16 @@ Entries before versioning was introduced use dates only.
   Windows convention was answered in the Unix one, including by the
   diagnostics that tell them what to type instead. The prefix is now taken from
   the argument as typed.
+- **Dropping a `.nib` onto a drive did nothing, silently.** The drag-and-drop
+  filter and the disk picker's folder scan accepted five extensions; the mount
+  router has only ever handled four. A nibble image therefore passed the
+  filter, was accepted as a drop, and then failed to load with no message at
+  all -- the mount runs on the CPU thread and its result is dropped, so the
+  drive simply stayed empty. On the drop path it was worse than silent: the
+  file was recorded in the recent-disks list as though it had mounted. `.nib`
+  is now refused at the filter, so the drag shows the reject cursor and the
+  picker no longer lists nibble images. Casso mounts `.dsk`, `.do`, `.po` and
+  `.woz`; nibble-image support is a separate, planned piece of work.
 - **`-c` reported no cycle count for `BRA`.** The listing scored instructions
   from an NMOS table in which `BRA`'s opcode slot is illegal, so the line came
   out with the count omitted entirely. An always-taken branch is now scored at

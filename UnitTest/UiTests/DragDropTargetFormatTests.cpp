@@ -339,7 +339,7 @@ public:
         DxuiDragDropTarget  t;
         POINTL              pt     = {};
         DWORD               effect = 0;
-        MockHDropDataObject  obj (L"C:\\Disks\\demo.nib");
+        MockHDropDataObject  obj (L"C:\\Disks\\demo.woz");
         pt = { 100, 100 };
         effect = DROPEFFECT_COPY;
 
@@ -383,10 +383,14 @@ public:
         Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
     }
 
-    TEST_METHOD (Extensions_AllFiveFormats_AreAccepted)
+    TEST_METHOD (Extensions_EveryMountableFormat_IsAccepted)
     {
+        // The filter has to be installed for this to mean anything. Without
+        // one the target accepts every file it is handed, so the version of
+        // this test that omitted SetFilter passed for `.nib` -- and would
+        // have passed just as happily for `.exe`.
         const wchar_t *  exts[] = {
-            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
+            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.Woz", L"C:\\a.po"
         };
 
         for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
@@ -398,10 +402,31 @@ public:
             pt = { 0, 0 };
             effect = DROPEFFECT_COPY;
 
+            t.SetFilter (IsSupportedDiskImageExtension);
             (void) t.DragEnter (&obj, 0, pt, &effect);
             Assert::IsTrue (t.IsDragAcceptedType(),
-                L"All five supported extensions must accept regardless of case");
+                L"Every mountable extension must accept regardless of case");
         }
+    }
+
+    TEST_METHOD (DragEnter_NibbleImage_IsNotAccepted)
+    {
+        DxuiDragDropTarget  t;
+        POINTL              pt     = {};
+        DWORD               effect = 0;
+        MockHDropDataObject  obj (L"C:\\Disks\\protected.nib");
+        pt = { 100, 100 };
+        effect = DROPEFFECT_COPY;
+
+        t.SetFilter (IsSupportedDiskImageExtension);
+        (void) t.DragEnter (&obj, 0, pt, &effect);
+
+        // Accepting the drop was the bug: nothing loads a nibble image, so
+        // the mount failed afterwards on the CPU thread where its result is
+        // dropped, and the user saw no disk and no message.
+        Assert::IsFalse (t.IsDragAcceptedType(),
+            L"A nibble image must be refused at the filter, not after the drop");
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
     }
 };
 
