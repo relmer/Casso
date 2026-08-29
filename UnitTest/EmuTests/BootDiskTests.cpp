@@ -578,37 +578,11 @@ public:
             VerifyMemRange (0x4000, hgrMonoPayload,
                 L"HGR mono cassowary still on page 2 at step 1");
 
-            // Step 2 -> the LoRes bars, which both answers share.
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
-            Assert::IsFalse (ss->IsHiresMode(),
-                L"Step 2 (LoRes) must clear HIRES");
-            Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Step 2 (LoRes) must keep TEXT off");
-            Assert::IsFalse (ss->IsPage2(),
-                L"Step 2 (LoRes) must clear PAGE2");
-
-            // Spot-check the LoRes pattern landed in text page 1.
-            for (size_t i = 0; i < kLoresPayloadSize; i++)
-            {
-                Byte  e = 0;
-
-                Byte  actual = core.bus->ReadByte (
-                    static_cast<Word> (0x0400 + i));
-                e = loresPayload[i];
-                if (actual != e)
-                {
-                    wchar_t  msg[256] = {};
-                    swprintf_s (msg, L"LoRes pattern copy mismatch at $%04X: "
-                                     L"expected $%02X, got $%02X.",
-                                static_cast<unsigned> (0x0400 + i),
-                                static_cast<unsigned> (e),
-                                static_cast<unsigned> (actual));
-                    Assert::Fail (msg);
-                }
-            }
-
-            // One more keystroke is past the last step, and that exits.
+            //  THE MONOCHROME CYCLE HAS NO THIRD STEP. The LoRes bars are
+            //  a palette demo, and a palette on a monochrome monitor is
+            //  sixteen levels of one color, so the next keystroke exits
+            //  rather than showing them. The color path below still gets
+            //  them, which is what keeps the LoRes payload covered.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
@@ -697,11 +671,35 @@ public:
             VerifyMemRange (0x4000, hgrMonoPayload,
                 L"the monochrome HGR image stays loaded but unvisited");
 
-            // Step 2 -> the shared LoRes bars.
+            // Step 2 -> the LoRes bars, which only this answer reaches.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsFalse (ss->IsHiresMode(),
-                L"Step 2 (LoRes) must clear HIRES on the color answer too");
+                L"Step 2 (LoRes) must clear HIRES");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Step 2 (LoRes) must keep TEXT off");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Step 2 (LoRes) must clear PAGE2");
+
+            // Spot-check the LoRes pattern landed in text page 1.
+            for (size_t i = 0; i < kLoresPayloadSize; i++)
+            {
+                Byte  e = 0;
+
+                Byte  actual = core.bus->ReadByte (
+                    static_cast<Word> (0x0400 + i));
+                e = loresPayload[i];
+                if (actual != e)
+                {
+                    wchar_t  msg[256] = {};
+                    swprintf_s (msg, L"LoRes pattern copy mismatch at $%04X: "
+                                     L"expected $%02X, got $%02X.",
+                                static_cast<unsigned> (0x0400 + i),
+                                static_cast<unsigned> (e),
+                                static_cast<unsigned> (actual));
+                    Assert::Fail (msg);
+                }
+            }
 
             //  ESC, the other way out, and from a different mode than the
             //  monochrome path used. Both routes run the same do_exit, and

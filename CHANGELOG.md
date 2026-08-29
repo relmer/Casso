@@ -36,10 +36,12 @@ Entries before versioning was introduced use dates only.
   loader looks. `C` or `M`, either case; `ESC` quits from the question as well
   as from the cycle.
 
-  The answer selects the pair rather than picking a starting point: three
-  steps -- the chosen DHGR image, its HGR counterpart, and the LoRes bars --
-  and then the demo exits to BASIC. The two images the answer did not pick
-  stay loaded and simply never appear.
+  The answer selects the pair rather than picking a starting point, and then
+  the demo exits to BASIC. A color answer gets three steps: the DHGR image,
+  its HGR counterpart, and the LoRes bars. A monochrome answer gets the two
+  photographs and stops -- the bars are a palette demo, and a palette on a
+  monochrome monitor is sixteen levels of one color. The images the answer
+  did not pick stay loaded and simply never appear.
 
   The exit puts the video mode back itself rather than leaving it to the reset
   handler, which does not clear 80COL. Leaving the cycle from a DHGR step

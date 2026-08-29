@@ -77,20 +77,21 @@
 ;      and either answer can end up looking at the other pair. See
 ;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
 ;
-;      Steps, monochrome answer:
+;      Steps, monochrome answer (two, then out):
 ;        0 = DHGR: 560x192 one-bit, on aux+main $2000-$3FFF. The
 ;            highest resolution the machine has.
 ;        1 = HGR: 280x192 one-bit, on HGR page 2 ($4000-$5FFF). Half
 ;            the horizontal resolution of step 0, because an HGR pixel
 ;            paints two half-dots rather than one.
-;        2 = LoRes (GR): the 16-color bars on text page 1, which a
-;            monochrome monitor shows as sixteen levels of one color.
 ;
-;      Steps, color answer:
+;      Steps, color answer (three):
 ;        0 = DHGR: 140 sixteen-color cells, staged from main $6000 and
 ;            main $8000.
 ;        1 = HGR: 6-color NTSC artifact, restored from main $A000.
-;        2 = LoRes (GR): the same bars, in their sixteen colors.
+;        2 = LoRes (GR): the 16-color bars on text page 1. The
+;            monochrome cycle skips these -- they are a palette demo,
+;            and on a monochrome monitor a palette is sixteen levels
+;            of one color.
 ;
 ;      The two images the answer did not pick stay loaded and simply
 ;      never appear.
@@ -260,6 +261,13 @@ POLL
 POLL_CHK2                  ; dispatch and the handlers, and it has grown
     CMP #2                 ; past a relative branch's reach
     BNE DO_EXIT
+
+    ; Step 2 is the LoRes bars, and only the color answer gets them: on
+    ; a monochrome monitor they are sixteen levels of one color, which
+    ; demonstrates nothing the two photographs have not already shown.
+    ; So the monochrome cycle is two steps and the color cycle is three.
+    LDA PAIR
+    BEQ DO_EXIT
     JMP MODE_LORES
 
 
