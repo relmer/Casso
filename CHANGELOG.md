@@ -38,14 +38,14 @@ Entries before versioning was introduced use dates only.
     conditional branch and `BRA`.
   - `BBRn` and `BBSn` were billed a flat five however they resolved. They cost
     five, six when taken, and seven when taken across a page. 65C02 only.
-- **A disk image that fails to mount now says so**, rather than leaving the
-  machine at a bare text screen with no message.
+- **Casso now reports a disk image it could not mount**, rather than leaving
+  the machine at a bare text screen with no message.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-- **A rejected disk image now says what was wrong with it.** A wrong-sized
-  sector image reports its own size and the size it needed; a `.woz` with no
-  WOZ header is told it was probably renamed from something else; a `.woz` with
-  one is told it is damaged. Previously all three got a single sentence that
-  fit none of them. The `disk` subcommand reports the same reasons.
+- **Casso now says why it rejected a disk image.** For a wrong-sized sector
+  image it gives the file's size and the size it needed; for a `.woz` with no
+  WOZ header, that the file was probably renamed from something else; for a
+  `.woz` with one, that the image is damaged. All three previously got a single
+  sentence that fit none of them. The `disk` subcommand gives the same reasons.
 - **A malformed `.dsk` raised an assertion dialog in a Debug build.**
 
 ## [1.20.1]: The one with logical or physical sector addresses
