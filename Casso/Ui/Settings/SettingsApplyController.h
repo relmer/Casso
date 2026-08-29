@@ -64,7 +64,7 @@ public:
     // FR-131: true iff a machine switch is staged that differs from the
     // running machine (so OK would restart into a different machine).
     bool  WillMachineChange   () const;
-    const std::string & PendingMachine () const { return m_pendingMachine; }
+    const std::string & GetPendingMachine () const { return m_pendingMachine; }
 
     bool  IsResetRequired     () const;
     void  CommitApply         ();

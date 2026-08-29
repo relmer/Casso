@@ -15,7 +15,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TracePeekProbe
+//  PeekForTraceProbe
 //
 //  Exposes the CPU's trace-time byte read. It is protected on Cpu because
 //  nothing outside the trace has any business calling it; a derived probe is
@@ -23,12 +23,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class TracePeekProbe : public MemoryBusCpu
+class PeekForTraceProbe : public MemoryBusCpu
 {
 public:
-    explicit TracePeekProbe (MemoryBus & bus) : MemoryBusCpu (bus) {}
+    explicit PeekForTraceProbe (MemoryBus & bus) : MemoryBusCpu (bus) {}
 
-    using Cpu::TracePeek;
+    using Cpu::PeekForTrace;
 
     void PokeBackingStore (Word address, Byte value) { memory[address] = value; }
 };
@@ -427,7 +427,7 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  TracePeekFollowsTheBankThatExecutes
+    //  PeekForTraceFollowsTheBankThatExecutes
     //
     //  The execution trace records each instruction's operand bytes, and it
     //  must read them through the same page table the fetch used. The flat
@@ -443,12 +443,12 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (TracePeekFollowsTheBankThatExecutes)
+    TEST_METHOD (PeekForTraceFollowsTheBankThatExecutes)
     {
         MemoryBus            bus;
         RamDevice            ramLo (0x0000, 0xBFFF);
         RamDevice            ramHi (0xC000, 0xFFFF);
-        TracePeekProbe       cpu (bus);
+        PeekForTraceProbe       cpu (bus);
         std::vector<Byte>    altBank (0x100, 0x00);
 
 
@@ -464,22 +464,22 @@ public:
 
         bus.SetReadPage (0x01, altBank.data());
 
-        Assert::AreEqual (static_cast<int> (0xFB), static_cast<int> (cpu.TracePeek (0x01F9)),
-            L"TracePeek must read the bank the page table selects, not memory[]");
+        Assert::AreEqual (static_cast<int> (0xFB), static_cast<int> (cpu.PeekForTrace (0x01F9)),
+            L"PeekForTrace must read the bank the page table selects, not memory[]");
 
         // Re-point the page at the flat store and the answer must follow.
         bus.SetReadPage (0x01, nullptr);
 
-        Assert::AreEqual (static_cast<int> (0x16), static_cast<int> (cpu.TracePeek (0x01F9)),
-            L"With no page bound, TracePeek falls back to the backing store");
+        Assert::AreEqual (static_cast<int> (0x16), static_cast<int> (cpu.PeekForTrace (0x01F9)),
+            L"With no page bound, PeekForTrace falls back to the backing store");
 
         // $C000-$CFFF is I/O. Those must NOT go through the bus, because a
         // read of $C0xx toggles soft switches -- recording the machine must
         // never change it.
         cpu.PokeBackingStore (0xC030, 0x5A);
 
-        Assert::AreEqual (static_cast<int> (0x5A), static_cast<int> (cpu.TracePeek (0xC030)),
-            L"TracePeek must not route I/O reads through the bus");
+        Assert::AreEqual (static_cast<int> (0x5A), static_cast<int> (cpu.PeekForTrace (0xC030)),
+            L"PeekForTrace must not route I/O reads through the bus");
     }
 };
 

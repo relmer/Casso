@@ -54,12 +54,12 @@ public:
     HRESULT  NavigateUp   ();
     HRESULT  Refresh      ();
 
-    const std::vector<FileBrowseEntry> &  Entries       () const { return m_entries; }
-    const std::wstring &                  CurrentFolder () const { return m_folder; }
+    const std::vector<FileBrowseEntry> &  GetEntries       () const { return m_entries; }
+    const std::wstring &                  GetCurrentFolder () const { return m_folder; }
 
     void  SetExtensionFilter (const std::wstring & ext);
 
-    std::wstring  UniqueDefaultName (const std::wstring & baseName) const;
+    std::wstring  GetUniqueDefaultName (const std::wstring & baseName) const;
 
     void  SetMountedPaths (std::vector<std::wstring> paths, std::vector<int> drives);
 

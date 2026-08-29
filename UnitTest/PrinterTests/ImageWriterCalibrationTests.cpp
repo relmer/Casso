@@ -26,7 +26,7 @@ namespace ImageWriterCalibrationTests
 
         interp.Reset();
         interp.Consume (stream.data(), stream.size(), raster, events);
-        return raster.CellAt (0, row);
+        return raster.GetCell (0, row);
     }
 
 
@@ -105,7 +105,7 @@ namespace ImageWriterCalibrationTests
                 Assert::IsTrue (e.type != PrinterEventType::UnknownCommand, L"preamble must not be unknown");
             }
 
-            Assert::AreEqual ((int) InkPrimary::Yellow, (int) raster.CellAt (0, 0));
+            Assert::AreEqual ((int) InkPrimary::Yellow, (int) raster.GetCell (0, 0));
         }
     };
 }

@@ -323,7 +323,7 @@ void Disk2DebugPanel::Destroy()
 HRESULT Disk2DebugPanel::RenderFrame()
 {
     HRESULT  hr  = S_OK;
-    int64_t  now = NowMs();
+    int64_t  now = GetNowMs();
 
 
 
@@ -592,7 +592,7 @@ bool Disk2DebugPanel::OnMouseMove (const DxuiMouseEvent & ev)
     else if (m_columnMenu.IsVisible())
     {
         m_columnMenu.OnMouse (ev);
-        m_tooltip.RequestHide (NowMs());
+        m_tooltip.RequestHide (GetNowMs());
     }
     else
     {
@@ -1011,8 +1011,8 @@ void Disk2DebugPanel::UpdateDynamicLabels()
     }
 
     m_trackFilterLabel->SetText   (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.RejectedSpans()).c_str());
-    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.GetRejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.GetRejectedSpans()).c_str());
 }
 
 
@@ -1414,8 +1414,8 @@ void Disk2DebugPanel::RebuildFilteredIndices()
                 break;
             case 4:
             {
-                std::wstring_view  la = DebugDialogProjection::EventLabel (ea.category, ea.type);
-                std::wstring_view  lb = DebugDialogProjection::EventLabel (eb.category, eb.type);
+                std::wstring_view  la = DebugDialogProjection::GetEventLabel (ea.category, ea.type);
+                std::wstring_view  lb = DebugDialogProjection::GetEventLabel (eb.category, eb.type);
                 c = la.compare (lb);
                 break;
             }
@@ -1481,7 +1481,7 @@ void Disk2DebugPanel::FillRow (int row, std::vector<DxuiListView::Cell> & out) c
             out.push_back ({ std::wstring (driveBuf), false });
         }
 
-        out.push_back ({ std::wstring (DebugDialogProjection::EventLabel (e.category, e.type)), false });
+        out.push_back ({ std::wstring (DebugDialogProjection::GetEventLabel (e.category, e.type)), false });
         out.push_back ({ e.detail, false });
     }
 }
@@ -1587,7 +1587,7 @@ void Disk2DebugPanel::OnTrackEditChanged()
     m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit->Text(),
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
-    m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
+    m_trackEditValid = m_filter.trackFilter.GetRejectedSpans().empty();
     UpdateDynamicLabels();
 }
 
@@ -1605,7 +1605,7 @@ void Disk2DebugPanel::OnSectorEditChanged()
 {
     m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->Text(),
                                                          TrackSectorPredicate::Mode::Sector);
-    m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
+    m_sectorEditValid = m_filter.sectorFilter.GetRejectedSpans().empty();
     UpdateDynamicLabels();
 }
 
@@ -2063,7 +2063,7 @@ void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NowMs
+//  GetNowMs
 //
 //  Wall-clock-ish millisecond stamp for tooltip dwell timing. Uses
 //  steady_clock so a system clock adjustment can't make a tooltip
@@ -2071,7 +2071,7 @@ void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t Disk2DebugPanel::NowMs() const
+int64_t Disk2DebugPanel::GetNowMs() const
 {
     auto  delta = std::chrono::steady_clock::now() - m_uptimeAnchor;
 
@@ -2097,7 +2097,7 @@ int64_t Disk2DebugPanel::NowMs() const
 
 void Disk2DebugPanel::UpdateTooltip (int x, int y)
 {
-    int64_t  now      = NowMs();
+    int64_t  now      = GetNowMs();
     size_t   i        = 0;
     int      driveHit = 0;
     bool     shown    = false;

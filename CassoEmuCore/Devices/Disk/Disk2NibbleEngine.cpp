@@ -124,7 +124,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // error. Cap to the new track's bit length so we don't end
         // up past the wrap.
         m_currentTrack = clamped;
-        newBits        = CurrentTrackBits();
+        newBits        = GetCurrentTrackBits();
 
         if (newBits > 0)
         {
@@ -143,7 +143,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CurrentTrackBits
+//  GetCurrentTrackBits
 //
 //  Bit length of the stream under the head. A resolved slot reports its
 //  real length; an unformatted position (slot -1) reports the nominal
@@ -152,7 +152,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t Disk2NibbleEngine::CurrentTrackBits() const
+size_t Disk2NibbleEngine::GetCurrentTrackBits() const
 {
     int      slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
     size_t   bits = 0;

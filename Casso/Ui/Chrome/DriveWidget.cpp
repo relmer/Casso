@@ -228,7 +228,7 @@ DriveWidget::DriveWidget()
 //  IDxuiControl override. Uses boundsDip.left / boundsDip.top as the
 //  anchor; ignores boundsDip.right / bottom because the widget has an
 //  intrinsic size derived from the scale constants. Calls SetBounds
-//  with the computed OuterRect so panel hit-testing sees the actual
+//  with the computed GetOuterRect so panel hit-testing sees the actual
 //  occupied region.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,7 +301,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         m_led.PositionAt (m_bodyRect.right - pad - Scale (10, dpi),
                           m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
                           dpi);
-        SetBounds (OuterRect());
+        SetBounds (GetOuterRect());
         return;
     }
 
@@ -335,7 +335,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     m_led.PositionAt (m_faceRect.left + Scale (kLabelPadPx + kInUseWidthPx + kInUseGapPx, dpi),
                       m_faceRect.top + Scale (kLedCenterYPx, dpi) - Scale (3, dpi),
                       dpi);
-    SetBounds (OuterRect());
+    SetBounds (GetOuterRect());
 }
 
 
@@ -458,7 +458,7 @@ void DriveWidget::Paint (
         if (m_focused)
         {
             int   ring = Scale (2, dpi);
-            RECT  o    = OuterRect();
+            RECT  o    = GetOuterRect();
 
             painter.OutlineRect ((float) (o.left  - ring),
                                  (float) (o.top   - ring),

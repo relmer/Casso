@@ -52,7 +52,7 @@ public:
 
     // Seconds a FORM feed of `rows` takes: the sound grain its fraction of a page
     // selects, so the feed rate (rows / duration) stops the paper with the sound.
-    static double   FormFeedDurationSec (int rows);
+    static double   GetFormFeedDurationSec (int rows);
 
     // Park the head at `parkRow` with an empty timeline -- a fresh sheet (row 0)
     // or the bottom of a restored strip, so printing resumes below existing paper
@@ -76,36 +76,36 @@ public:
     // Seconds of print time still queued: the remainder of the in-progress motion
     // plus every pending event, each at its own speed. The worker gates the drain
     // on this so the ring backs up and the guest throttles to the print rate.
-    double    PendingSeconds () const;
+    double    GetPendingSeconds () const;
 
     // Published state (mirrors the PrinterWorker's atomics)
 
     // True while nothing is moving and nothing is queued (head parked).
-    bool      Idle        () const { return m_phase == Phase::Idle && m_pending.empty (); }
+    bool      IsIdle         () const { return m_phase == Phase::Idle && m_pending.empty (); }
 
     // True while the carriage is mid-pass, the paper is feeding, or motion is
     // still queued -- the panel keeps requesting animation frames while it holds.
-    bool      Moving      () const { return m_phase != Phase::Idle || !m_pending.empty (); }
+    bool      IsMoving       () const { return m_phase != Phase::Idle || !m_pending.empty (); }
 
     // The platen: the paper row under the head. It slews through a feed.
-    int       PlatenRow   () const { return (int) m_headRow; }
+    int       GetPlatenRow   () const { return (int) m_headRow; }
 
     // The reveal mask's swept column while printing (0 between passes, so nothing
     // below the frontier shows during a feed).
-    int       MaskCol     () const { return (m_phase == Phase::Sweeping) ? (int) m_headCol : 0; }
+    int       GetMaskCol     () const { return (m_phase == Phase::Sweeping) ? (int) m_headCol : 0; }
 
     // The reveal frontier's top row: the pass being laid while printing, held at
     // the last finished pass through a feed so freshly fed paper reads blank.
-    int       RevealTop   () const { return (m_phase == Phase::Sweeping) ? (int) m_sweepMaskTop : (int) m_frontier; }
+    int       GetRevealTop   () const { return (m_phase == Phase::Sweeping) ? (int) m_sweepMaskTop : (int) m_frontier; }
 
     // The carriage sweep direction of the live line (bidirectional print).
-    bool      SweepLtr    () const { return (m_phase == Phase::Sweeping) ? m_sweepLtr : true; }
+    bool      IsSweepLtr     () const { return (m_phase == Phase::Sweeping) ? m_sweepLtr : true; }
 
     // The physical carriage column in dots (0 = left margin) for the head glyph.
     // Unlike the reveal mask -- which closes to 0 during a feed -- this HOLDS at
     // the last sweep's end so the carriage parks where it finished instead of
     // snapping to the left edge.
-    int       CarriageCol () const { return m_carriageCol; }
+    int       GetCarriageCol () const { return m_carriageCol; }
 
 private:
     enum class Phase { Idle, Sweeping, Feeding };

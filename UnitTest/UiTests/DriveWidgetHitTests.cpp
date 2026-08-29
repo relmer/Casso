@@ -45,8 +45,8 @@ public:
         scaler.SetDpi (96);
         drive.Initialize (6, 0, nullptr);
         drive.Layout (anchor, scaler);
-        body  = drive.BodyRect();
-        eject = drive.EjectRect();
+        body  = drive.GetBodyRect();
+        eject = drive.GetEjectRect();
 
         Assert::IsTrue (drive.HitTest ((body.left + body.right) / 2,
                                        body.top + 5) == DriveWidgetRegion::Body);
@@ -76,7 +76,7 @@ public:
 
         drive.SyncFromState (state);
 
-        Assert::IsTrue (drive.Led() == LedState::Active);
+        Assert::IsTrue (drive.GetLed() == LedState::Active);
     }
 
 
@@ -98,6 +98,6 @@ public:
 
         drive.SyncFromState (state);
 
-        Assert::IsTrue (drive.Led() == LedState::Active);
+        Assert::IsTrue (drive.GetLed() == LedState::Active);
     }
 };

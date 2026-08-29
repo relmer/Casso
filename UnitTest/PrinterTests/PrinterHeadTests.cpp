@@ -84,11 +84,11 @@ namespace PrinterHeadTests
 
             head.Reset (500);
 
-            Assert::AreEqual (500, head.PlatenRow(),   L"platen parks at the reset row");
-            Assert::AreEqual (500, head.RevealTop(),   L"frontier starts at the park row");
-            Assert::AreEqual (0,   head.CarriageCol(), L"carriage parks at the left margin");
-            Assert::IsTrue   (head.Idle(),  L"a freshly reset head is idle");
-            Assert::IsFalse  (head.Moving(), L"a freshly reset head is not moving");
+            Assert::AreEqual (500, head.GetPlatenRow(),   L"platen parks at the reset row");
+            Assert::AreEqual (500, head.GetRevealTop(),   L"frontier starts at the park row");
+            Assert::AreEqual (0,   head.GetCarriageCol(), L"carriage parks at the left margin");
+            Assert::IsTrue   (head.IsIdle(),  L"a freshly reset head is idle");
+            Assert::IsFalse  (head.IsMoving(), L"a freshly reset head is not moving");
         }
 
 
@@ -101,9 +101,9 @@ namespace PrinterHeadTests
             head.Reset (0);
             RunToIdle (head, built, presented);   // nothing queued
 
-            Assert::IsTrue   (head.Idle(),  L"stays idle with an empty timeline");
-            Assert::AreEqual (0, head.PlatenRow(), L"platen does not drift");
-            Assert::AreEqual (0, presented.RowsUsed(), L"nothing painted");
+            Assert::IsTrue   (head.IsIdle(),  L"stays idle with an empty timeline");
+            Assert::AreEqual (0, head.GetPlatenRow(), L"platen does not drift");
+            Assert::AreEqual (0, presented.GetRowsUsed(), L"nothing painted");
         }
 
 
@@ -120,12 +120,12 @@ namespace PrinterHeadTests
 
             head.Advance (0.125, built, presented);   // 4000 * 0.125 = 500 dots
 
-            Assert::IsTrue   (head.SweepLtr(),        L"first pass sweeps left to right");
-            Assert::AreEqual (500, head.CarriageCol(), L"carriage tracks the sweep edge");
-            Assert::AreEqual (500, head.MaskCol(),     L"reveal mask tracks the sweep edge");
+            Assert::IsTrue   (head.IsSweepLtr(),        L"first pass sweeps left to right");
+            Assert::AreEqual (500, head.GetCarriageCol(), L"carriage tracks the sweep edge");
+            Assert::AreEqual (500, head.GetMaskCol(),     L"reveal mask tracks the sweep edge");
 
             RunToIdle (head, built, presented);        // finish the pass
-            Assert::AreEqual (600, head.CarriageCol(), L"carriage parks at the line's right edge");
+            Assert::AreEqual (600, head.GetCarriageCol(), L"carriage parks at the line's right edge");
         }
 
 
@@ -142,13 +142,13 @@ namespace PrinterHeadTests
             Queue1 (head, Burst (0, 639));        // width 640, now R->L
             head.Advance (0.125, built, presented);   // headCol = 500
 
-            Assert::IsFalse (head.SweepLtr(), L"second pass sweeps right to left");
+            Assert::IsFalse (head.IsSweepLtr(), L"second pass sweeps right to left");
 
             // Mirror around THIS line's width (640 - 500 = 140), not the full
             // platen (1280 - 500 = 780) -- the logic-seek fix that stopped the
             // carriage flying off to the right margin over blank paper.
-            Assert::AreEqual (140, head.CarriageCol(), L"R->L carriage mirrors around the line width");
-            Assert::IsTrue   (head.CarriageCol() < 700, L"carriage never mirrors around the platen");
+            Assert::AreEqual (140, head.GetCarriageCol(), L"R->L carriage mirrors around the line width");
+            Assert::IsTrue   (head.GetCarriageCol() < 700, L"carriage never mirrors around the platen");
         }
 
 
@@ -162,18 +162,18 @@ namespace PrinterHeadTests
             head.Reset (0);
 
             Queue1 (head, Burst (0, w - 1));      // L->R
-            for (int i = 0; i < 40 && !head.Idle(); i++)
+            for (int i = 0; i < 40 && !head.IsIdle(); i++)
             {
                 head.Advance (0.01, built, presented);   // ~40 dots per step
-                Assert::IsTrue (head.CarriageCol() >= 0 && head.CarriageCol() <= w,
+                Assert::IsTrue (head.GetCarriageCol() >= 0 && head.GetCarriageCol() <= w,
                                 L"L->R carriage stays within [0, width]");
             }
 
             Queue1 (head, Burst (0, w - 1));      // R->L
-            for (int i = 0; i < 40 && !head.Idle(); i++)
+            for (int i = 0; i < 40 && !head.IsIdle(); i++)
             {
                 head.Advance (0.01, built, presented);
-                Assert::IsTrue (head.CarriageCol() >= 0 && head.CarriageCol() <= w,
+                Assert::IsTrue (head.GetCarriageCol() >= 0 && head.GetCarriageCol() <= w,
                                 L"R->L carriage stays within [0, width]");
             }
         }
@@ -192,9 +192,9 @@ namespace PrinterHeadTests
             Queue1 (head, Line (48));             // a line feed
             head.Advance (0.03125, built, presented);   // mid-feed (480 * 0.03125 = 15 rows)
 
-            Assert::IsTrue   (head.Moving(),           L"paper is feeding");
-            Assert::AreEqual (0,   head.MaskCol(),     L"reveal mask closes during a feed");
-            Assert::AreEqual (600, head.CarriageCol(), L"carriage parks where the pass ended, not the left margin");
+            Assert::IsTrue   (head.IsMoving(),           L"paper is feeding");
+            Assert::AreEqual (0,   head.GetMaskCol(),     L"reveal mask closes during a feed");
+            Assert::AreEqual (600, head.GetCarriageCol(), L"carriage parks where the pass ended, not the left margin");
         }
 
 
@@ -208,17 +208,17 @@ namespace PrinterHeadTests
 
             Queue1 (head, Burst (0, 399));
             head.Advance (0.05, built, presented);
-            Assert::IsTrue  (head.SweepLtr(), L"pass 1 is L->R");
+            Assert::IsTrue  (head.IsSweepLtr(), L"pass 1 is L->R");
             RunToIdle (head, built, presented);
 
             Queue1 (head, Burst (0, 399));
             head.Advance (0.05, built, presented);
-            Assert::IsFalse (head.SweepLtr(), L"pass 2 is R->L");
+            Assert::IsFalse (head.IsSweepLtr(), L"pass 2 is R->L");
             RunToIdle (head, built, presented);
 
             Queue1 (head, Burst (0, 399));
             head.Advance (0.05, built, presented);
-            Assert::IsTrue  (head.SweepLtr(), L"pass 3 is L->R again");
+            Assert::IsTrue  (head.IsSweepLtr(), L"pass 3 is L->R again");
         }
 
 
@@ -238,7 +238,7 @@ namespace PrinterHeadTests
             Queue1 (head, Burst (48, 399));       // pass 2: must still be R->L
             head.Advance (0.05, built, presented);
 
-            Assert::IsFalse (head.SweepLtr(), L"a feed does not consume a direction flip");
+            Assert::IsFalse (head.IsSweepLtr(), L"a feed does not consume a direction flip");
         }
 
 
@@ -254,28 +254,28 @@ namespace PrinterHeadTests
             Queue1 (head, Line (48));
             head.Advance (0.0625, built, presented);   // 480 * 0.0625 = 30 rows
 
-            Assert::AreEqual (30, head.PlatenRow(), L"a line feed slews at 480 rows/s");
-            Assert::IsTrue   (head.Moving(), L"still feeding toward the target");
+            Assert::AreEqual (30, head.GetPlatenRow(), L"a line feed slews at 480 rows/s");
+            Assert::IsTrue   (head.IsMoving(), L"still feeding toward the target");
         }
 
 
         TEST_METHOD (FormFeed_FullPage_MatchesLongGrain)
         {
-            Assert::AreEqual (3.210, PrinterHead::FormFeedDurationSec (PrinterGrid::kPageRows), 0.0001,
+            Assert::AreEqual (3.210, PrinterHead::GetFormFeedDurationSec (PrinterGrid::kPageRows), 0.0001,
                               L"a full-page form feed uses the long sound grain");
         }
 
 
         TEST_METHOD (FormFeed_HalfPage_MatchesMediumGrain)
         {
-            Assert::AreEqual (1.250, PrinterHead::FormFeedDurationSec (PrinterGrid::kPageRows / 2), 0.0001,
+            Assert::AreEqual (1.250, PrinterHead::GetFormFeedDurationSec (PrinterGrid::kPageRows / 2), 0.0001,
                               L"a half-page form feed uses the medium sound grain");
         }
 
 
         TEST_METHOD (FormFeed_Short_MatchesShortGrain)
         {
-            Assert::AreEqual (0.680, PrinterHead::FormFeedDurationSec (100), 0.0001,
+            Assert::AreEqual (0.680, PrinterHead::GetFormFeedDurationSec (100), 0.0001,
                               L"a short form feed uses the short sound grain");
         }
 
@@ -283,10 +283,10 @@ namespace PrinterHeadTests
         TEST_METHOD (FormFeed_GrainThresholds)
         {
             // Boundaries at 1/3 and 2/3 of a page (528 and 1056 rows).
-            Assert::AreEqual (0.680, PrinterHead::FormFeedDurationSec (527),  0.0001, L"just below 1/3 -> short");
-            Assert::AreEqual (1.250, PrinterHead::FormFeedDurationSec (528),  0.0001, L"at 1/3 -> medium");
-            Assert::AreEqual (1.250, PrinterHead::FormFeedDurationSec (1055), 0.0001, L"just below 2/3 -> medium");
-            Assert::AreEqual (3.210, PrinterHead::FormFeedDurationSec (1056), 0.0001, L"at 2/3 -> long");
+            Assert::AreEqual (0.680, PrinterHead::GetFormFeedDurationSec (527),  0.0001, L"just below 1/3 -> short");
+            Assert::AreEqual (1.250, PrinterHead::GetFormFeedDurationSec (528),  0.0001, L"at 1/3 -> medium");
+            Assert::AreEqual (1.250, PrinterHead::GetFormFeedDurationSec (1055), 0.0001, L"just below 2/3 -> medium");
+            Assert::AreEqual (3.210, PrinterHead::GetFormFeedDurationSec (1056), 0.0001, L"at 2/3 -> long");
         }
 
 
@@ -300,12 +300,12 @@ namespace PrinterHeadTests
             Queue1 (head, Form (100));            // grain 0.680 s -> ~147 rows/s
 
             head.Advance (0.340, built, presented);   // half the grain -> ~half the rows
-            Assert::IsTrue (head.PlatenRow() >= 49 && head.PlatenRow() <= 51,
+            Assert::IsTrue (head.GetPlatenRow() >= 49 && head.GetPlatenRow() <= 51,
                             L"form feed paces to the sound grain, not the line rate");
 
             head.Advance (0.340, built, presented);   // the rest of the grain
-            Assert::AreEqual (100, head.PlatenRow(), L"paper stops exactly when the sound ends");
-            Assert::IsTrue   (head.Idle(), L"the form feed completes at the grain duration");
+            Assert::AreEqual (100, head.GetPlatenRow(), L"paper stops exactly when the sound ends");
+            Assert::IsTrue   (head.IsIdle(), L"the form feed completes at the grain duration");
         }
 
 
@@ -320,7 +320,7 @@ namespace PrinterHeadTests
             head.Reset (0);
             Queue1 (head, Burst (0, 99));         // band 1 at row 0 -> frontier 16
             RunToIdle (head, built, presented);
-            Assert::AreEqual (PrinterGrid::kPinBandRows, head.RevealTop(),
+            Assert::AreEqual (PrinterGrid::kPinBandRows, head.GetRevealTop(),
                               L"frontier advances a full band past the pass row");
 
             Queue1 (head, Line (14));             // Print Shop feeds 14 into a 16-row band
@@ -332,7 +332,7 @@ namespace PrinterHeadTests
             // The mask holds at the previous frontier (16), NOT at the pass row
             // (14), so the two rows band 1 already printed don't blank as band 2
             // starts -- the monotonic-frontier fix for the overlap blink.
-            Assert::AreEqual (16, head.RevealTop(), L"mask never rises above the print frontier");
+            Assert::AreEqual (16, head.GetRevealTop(), L"mask never rises above the print frontier");
         }
 
 
@@ -356,12 +356,12 @@ namespace PrinterHeadTests
 
             Queue1 (head, Burst (0, 99, InkPrimary::Red));    // pass 1 lays red only
             RunToIdle (head, built, presented);
-            Assert::AreEqual ((int) InkPrimary::Red, (int) presented.CellAt (50, 0),
+            Assert::AreEqual ((int) InkPrimary::Red, (int) presented.GetCell (50, 0),
                               L"first pass presents red alone");
 
             Queue1 (head, Burst (0, 99, InkPrimary::Blue));   // pass 2 overprints blue
             RunToIdle (head, built, presented);
-            Assert::AreEqual ((int) InkPrimary::Red | (int) InkPrimary::Blue, (int) presented.CellAt (50, 0),
+            Assert::AreEqual ((int) InkPrimary::Red | (int) InkPrimary::Blue, (int) presented.GetCell (50, 0),
                               L"overprint accrues into a composite (purple)");
         }
 
@@ -381,8 +381,8 @@ namespace PrinterHeadTests
             Queue1 (head, Burst (0, PrinterGrid::kDotsPerRow - 1, InkPrimary::Black));   // full-width, L->R
             head.Advance (0.125, built, presented);   // head at col 500
 
-            Assert::AreNotEqual (0, (int) presented.CellAt (400, 0), L"painted behind the head");
-            Assert::AreEqual    (0, (int) presented.CellAt (600, 0), L"not yet painted ahead of the head");
+            Assert::AreNotEqual (0, (int) presented.GetCell (400, 0), L"painted behind the head");
+            Assert::AreEqual    (0, (int) presented.GetCell (600, 0), L"not yet painted ahead of the head");
         }
 
 
@@ -406,8 +406,8 @@ namespace PrinterHeadTests
             Queue1 (head, Burst (0, w - 1, InkPrimary::Black));   // R->L
             head.Advance (0.125, built, presentedB);   // headCol 500 -> physical [500, 1000]
 
-            Assert::AreNotEqual (0, (int) presentedB.CellAt (900, 0), L"R->L pass paints in from the right edge");
-            Assert::AreEqual    (0, (int) presentedB.CellAt (100, 0), L"the left of the line is not yet reached");
+            Assert::AreNotEqual (0, (int) presentedB.GetCell (900, 0), L"R->L pass paints in from the right edge");
+            Assert::AreEqual    (0, (int) presentedB.GetCell (100, 0), L"the left of the line is not yet reached");
         }
 
 
@@ -421,8 +421,8 @@ namespace PrinterHeadTests
             Queue1 (head, Form (200));
             RunToIdle (head, built, presented);
 
-            Assert::AreEqual (200, head.PlatenRow(), L"a blank form feed slews the platen");
-            Assert::AreEqual (0, presented.RowsUsed(), L"but lays no ink");
+            Assert::AreEqual (200, head.GetPlatenRow(), L"a blank form feed slews the platen");
+            Assert::AreEqual (0, presented.GetRowsUsed(), L"but lays no ink");
         }
 
 
@@ -436,7 +436,7 @@ namespace PrinterHeadTests
             Queue1 (head, Burst (0, PrinterGrid::kDotsPerRow - 1));   // 1280 / 4000 = 0.320 s
             Queue1 (head, Line (14));                                 //   14 /  480 = 0.0292 s
 
-            Assert::AreEqual (0.32 + 14.0 / 480.0, head.PendingSeconds(), 0.001,
+            Assert::AreEqual (0.32 + 14.0 / 480.0, head.GetPendingSeconds(), 0.001,
                               L"queued print time sums each event at its own speed");
         }
 
@@ -450,10 +450,10 @@ namespace PrinterHeadTests
             head.Reset (0);
             Queue1 (head, Burst (0, PrinterGrid::kDotsPerRow - 1));   // 0.320 s of sweep
 
-            Assert::AreEqual (0.320, head.PendingSeconds(), 0.001, L"full sweep queued");
+            Assert::AreEqual (0.320, head.GetPendingSeconds(), 0.001, L"full sweep queued");
 
             head.Advance (0.1, built, presented);   // 400 dots consumed
-            Assert::AreEqual (0.220, head.PendingSeconds(), 0.001, L"queued time drains as the head sweeps");
+            Assert::AreEqual (0.220, head.GetPendingSeconds(), 0.001, L"queued time drains as the head sweeps");
         }
 
 
@@ -475,8 +475,8 @@ namespace PrinterHeadTests
 
             head.Advance (100.0, built, presented);
 
-            Assert::IsTrue   (head.Idle(), L"the whole timeline is consumed in one tick");
-            Assert::AreEqual (5 * 16, head.PlatenRow(), L"the platen reaches the last feed, none skipped");
+            Assert::IsTrue   (head.IsIdle(), L"the whole timeline is consumed in one tick");
+            Assert::AreEqual (5 * 16, head.GetPlatenRow(), L"the platen reaches the last feed, none skipped");
         }
     };
 }

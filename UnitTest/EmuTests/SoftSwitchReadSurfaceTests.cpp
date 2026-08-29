@@ -122,7 +122,7 @@ public:
 
         // Latch a known key (bits 0-6 = 'X' & 0x7F = $58) so we can
         // verify the floating-bus low 7 bits and the strobe isolation.
-        f.keyboard.KeyPress ('X');
+        f.keyboard.PressKey ('X');
         Assert::IsFalse (f.keyboard.IsStrobeClear(), label);
 
         // Flag = false. (a) bit 7 = 0 expected, (b) bits 0-6 = 'X'.

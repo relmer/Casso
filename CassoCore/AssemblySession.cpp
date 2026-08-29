@@ -166,11 +166,11 @@ int AssemblySession::HexCharToNibble (char c)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HexByte
+//  ParseHexByte
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int AssemblySession::HexByte (const std::string & s, size_t offset)
+int AssemblySession::ParseHexByte (const std::string & s, size_t offset)
 {
     bool  hasPair = (offset + 1 < s.size());
     int   hi      = hasPair ? HexCharToNibble (s[offset])     : -1;
@@ -250,7 +250,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
             continue;
         }
 
-        byteCount = HexByte (line, 2);
+        byteCount = ParseHexByte (line, 2);
 
         if (byteCount < 0)
         {
@@ -270,7 +270,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
 
         for (int i = 0; i < dataBytes; i++)
         {
-            int b = HexByte (line, dataOffset + (size_t) i * 2);
+            int b = ParseHexByte (line, dataOffset + (size_t) i * 2);
 
             if (b >= 0)
             {
@@ -335,8 +335,8 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
             continue;
         }
 
-        byteCount = HexByte (line, 1);
-        recordType = HexByte (line, 7);
+        byteCount = ParseHexByte (line, 1);
+        recordType = ParseHexByte (line, 7);
 
         if (byteCount < 0 || recordType < 0)
         {
@@ -353,7 +353,7 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
 
         for (int i = 0; i < byteCount; i++)
         {
-            int b = HexByte (line, dataOffset + (size_t) i * 2);
+            int b = ParseHexByte (line, dataOffset + (size_t) i * 2);
 
             if (b >= 0)
             {
@@ -676,7 +676,7 @@ bool AssemblySession::CanReplaceJumpWithBranch (const LineInfo & info,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::EncodedMnemonic
+//  AssemblySession::GetEncodedMnemonic
 //
 //  The instruction a line is ENCODED as, which is what it was written as unless
 //  pass 1 replaced the jump with a branch.
@@ -688,7 +688,7 @@ bool AssemblySession::CanReplaceJumpWithBranch (const LineInfo & info,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string AssemblySession::EncodedMnemonic (const LineInfo & info)
+std::string AssemblySession::GetEncodedMnemonic (const LineInfo & info)
 {
     std::string  mnemonic = info.parsed.mnemonic;
 
@@ -1001,7 +1001,7 @@ void AssemblySession::RecordErrorAt (int lineNumber, int column, const std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::PrimaryColumn
+//  AssemblySession::GetPrimaryColumn
 //
 //  Which column stands for the line as a whole.
 //
@@ -1017,7 +1017,7 @@ void AssemblySession::RecordErrorAt (int lineNumber, int column, const std::stri
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int AssemblySession::PrimaryColumn (const ParsedLine & parsed)
+int AssemblySession::GetPrimaryColumn (const ParsedLine & parsed)
 {
     return (parsed.mnemonicColumn != 0) ? parsed.mnemonicColumn : parsed.labelColumn;
 }
@@ -1028,7 +1028,7 @@ int AssemblySession::PrimaryColumn (const ParsedLine & parsed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::OperandNamesAnOperation
+//  AssemblySession::NamesAnOperation
 //
 //  Whether the field after the opcode names something this assembler could
 //  execute.
@@ -1045,7 +1045,7 @@ int AssemblySession::PrimaryColumn (const ParsedLine & parsed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::OperandNamesAnOperation (const ParsedLine & parsed) const
+bool AssemblySession::NamesAnOperation (const ParsedLine & parsed) const
 {
     std::string  word;
     size_t       end   = parsed.operand.find_first_of (" \t");
@@ -1096,7 +1096,7 @@ bool AssemblySession::OperandNamesAnOperation (const ParsedLine & parsed) const
 std::string AssemblySession::DescribeUnknownOperation (const ParsedLine & parsed) const
 {
     std::string                          message = m_dialect.ExplainUnknownOperation (parsed,
-                                                                                      OperandNamesAnOperation (parsed));
+                                                                                      NamesAnOperation (parsed));
     DialectRegistry::ForeignConstruct    foreign = {};
 
 
@@ -1607,7 +1607,7 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     // And where on the line. Only knowable after the parse, since the profile is
     // what segmented the fields -- but set unconditionally, so a line whose
     // dialect records no columns leaves 0 rather than the previous line's answer.
-    m_diagnosticColumn     = PrimaryColumn (info.parsed);
+    m_diagnosticColumn     = GetPrimaryColumn (info.parsed);
 
     // Which instruction set sized this line. Recorded here so pass 2 replays it
     // rather than recomputing -- see LineInfo::usedExtendedSet for why
@@ -1722,7 +1722,7 @@ bool AssemblySession::IsConditionalDirective (Directive token)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::TokenForLine
+//  AssemblySession::GetTokenForLine
 //
 //  Which directive, if any, a parsed line names -- through the ACTIVE PROFILE
 //  and nothing else.
@@ -1746,7 +1746,7 @@ bool AssemblySession::IsConditionalDirective (Directive token)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Directive AssemblySession::TokenForLine (const ParsedLine & parsed) const
+Directive AssemblySession::GetTokenForLine (const ParsedLine & parsed) const
 {
     return parsed.isDirective
                ? parsed.directiveToken
@@ -1770,7 +1770,7 @@ Directive AssemblySession::TokenForLine (const ParsedLine & parsed) const
 
 bool AssemblySession::IsConditionalLine (const ParsedLine & parsed) const
 {
-    return IsConditionalDirective (TokenForLine (parsed));
+    return IsConditionalDirective (GetTokenForLine (parsed));
 }
 
 
@@ -2237,7 +2237,7 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
     // this function's. Comparing against fixed text let one dialect's source be
     // closed by another dialect's word, and it did so in both halves at once:
     // the opening word and the name of the thing it closes.
-    if (TokenForLine (info.parsed) == Directive::End)
+    if (GetTokenForLine (info.parsed) == Directive::End)
     {
         endsWhat = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
     }
@@ -2689,7 +2689,7 @@ void AssemblySession::OpenMacroDefinition (const PendingLine & current, const Li
 
     opened.lineNumber = current.sourceLineNumber;
     opened.sourceFile = current.sourceFile;
-    opened.openColumn = PrimaryColumn (info.parsed);
+    opened.openColumn = GetPrimaryColumn (info.parsed);
 
     // Parameter names follow the opening keyword in the operand, so this reads
     // the operand shape only. The token form declares no names at all -- its
@@ -2764,10 +2764,10 @@ HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current
 
 
 
-    // The token comes from the active profile either way -- see TokenForLine.
+    // The token comes from the active profile either way -- see GetTokenForLine.
     // Only the ARGUMENT differs, because the two spellings put it in different
     // fields.
-    token   = TokenForLine (info.parsed);
+    token   = GetTokenForLine (info.parsed);
     condArg = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
 
     BAIL_OUT_IF (!IsConditionalDirective (token), S_OK);
@@ -3236,7 +3236,7 @@ HRESULT AssemblySession::HandleSubsetBoundary (const PendingLine & current, Line
 
     offense.row        = row;
     offense.lineNumber = current.sourceLineNumber;
-    offense.column     = PrimaryColumn (info.parsed);
+    offense.column     = GetPrimaryColumn (info.parsed);
     offense.file       = current.sourceFile;
 
     m_boundaryOffenses.push_back (offense);
@@ -3980,7 +3980,7 @@ bool AssemblySession::TryEncodeStringOperand (const ParsedLine & parsed, std::ve
 
             StringEncoding::Encode (operand.substr (1, closing - 1),
                                     parsed.stringMode,
-                                    StringEncoding::HighBitFromDelimiter (delimiter),
+                                    StringEncoding::IsHighBitDelimiter (delimiter),
                                     outBytes);
 
             encoded = TryParseHexBytes (extra, outBytes);
@@ -4025,7 +4025,7 @@ bool AssemblySession::TryParseHexBytes (const std::string & text, std::vector<By
 
     while (parsed && (pos < text.size()))
     {
-        int  value = HexByte (text, pos);
+        int  value = ParseHexByte (text, pos);
 
         if (value < 0)
         {
@@ -5666,7 +5666,7 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     // -- so a call written in another assembler's punctuation arrives as ONE
     // argument however many were meant, and every parameter after the first is
     // unfilled. Claimed on the way out for the same reason the depth limit is.
-    highest = HighestParameterReferenced (m_macros[name], syntax.parameterSigil);
+    highest = GetHighestParameterReferenced (m_macros[name], syntax.parameterSigil);
     supplied = (int) args.size();
 
     CBRFEx (highest <= supplied, S_OK,
@@ -5706,7 +5706,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::HighestParameterReferenced
+//  AssemblySession::GetHighestParameterReferenced
 //
 //  How many arguments a body actually needs.
 //
@@ -5725,7 +5725,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int AssemblySession::HighestParameterReferenced (const MacroDefinition & macroDef, char sigil)
+int AssemblySession::GetHighestParameterReferenced (const MacroDefinition & macroDef, char sigil)
 {
     int  highest = 0;
 
@@ -5935,7 +5935,7 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
     for (const std::string & line : expandedLines)
     {
-        Directive  token = TokenForLine (m_dialect.ParseLine (line, 0));
+        Directive  token = GetTokenForLine (m_dialect.ParseLine (line, 0));
 
         if (token == Directive::If || token == Directive::Ifdef || token == Directive::Ifndef)
         {
@@ -6506,7 +6506,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
             mode                       = GlobalAddressingMode::Relative;
         }
 
-        encoded = EncodedMnemonic (info);
+        encoded = GetEncodedMnemonic (info);
 
 
         if (m_opcodeTable->TryLookup (encoded, mode, entry))
@@ -6778,7 +6778,7 @@ HRESULT AssemblySession::RunPass2()
         // raised while emitting would be attributed to the top-level input. The
         // column travels with it, for the same reason and from the same record.
         m_currentSourceFile = info.sourceFile;
-        m_diagnosticColumn  = PrimaryColumn (info.parsed);
+        m_diagnosticColumn  = GetPrimaryColumn (info.parsed);
 
         // Same reasoning for the instruction set: REPLAY what pass 1 recorded
         // for this line rather than re-deriving it. Emitting against a
@@ -7017,7 +7017,7 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
         }
 
         m_currentSourceFile = info.sourceFile;
-        m_diagnosticColumn  = PrimaryColumn (info.parsed);
+        m_diagnosticColumn  = GetPrimaryColumn (info.parsed);
 
         if (info.parsed.constantKind == SymbolKind::Equ &&
             m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end())
@@ -7868,7 +7868,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
     else
     {
         OpcodeEntry entry   = {};
-        std::string encoded = EncodedMnemonic (info);
+        std::string encoded = GetEncodedMnemonic (info);
 
         if (!m_opcodeTable->TryLookup (encoded, mode, entry))
         {
@@ -7953,7 +7953,7 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         if (info.isInstruction && !info.hasError && emitPC > emitPCStart)
         {
             OpcodeEntry cycleEntry = {};
-            std::string encoded    = EncodedMnemonic (info);
+            std::string encoded    = GetEncodedMnemonic (info);
 
             // The instruction the image CONTAINS, which is not the one the
             // source wrote when pass 1 replaced a jump with a branch. Reporting

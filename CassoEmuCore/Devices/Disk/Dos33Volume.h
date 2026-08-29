@@ -165,19 +165,19 @@ private:
     static constexpr size_t  kGreetingOffset = 0x75;
 
     static uint32_t  ToUnit    (int track, int sector);
-    static int       TrackOf   (uint32_t unit);
-    static int       SectorOf  (uint32_t unit);
+    static int       GetTrack  (uint32_t unit);
+    static int       GetSector (uint32_t unit);
 
     //  Order in which free sectors are handed out: outward from the catalog
     //  track first, then inward, which is the order DOS's own allocation hint
     //  describes. Never yields the catalog track.
-    static int       AllocationTrackAt (int index);
+    static int       GetAllocationTrack (int index);
 
     //  Credits the volume's own structures -- the tracks DOS occupies and the
     //  catalog track -- to the reserved volume owner. No catalog entry names
     //  them, and a report that left them unowned would call every healthy
     //  volume inconsistent.
-    static void  ClaimVolumeStructures (VolumeIntegrityReport & outReport);
+    static void  ClaimVolumeStructures  (VolumeIntegrityReport & outReport);
 
     static bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector);
     static void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree);

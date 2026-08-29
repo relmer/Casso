@@ -94,18 +94,18 @@ void Acia6551::Write (Word address, Byte value)
         break;
 
     case kRegStatus:
-        ProgrammedReset();
+        ApplyProgrammedReset();
         break;
 
     case kRegCommand:
         m_command = value;
 
-        if (TxIrqEnabled() && (m_status & kStatusTxEmpty))
+        if (IsTxIrqEnabled() && (m_status & kStatusTxEmpty))
         {
             RaiseIrq();
         }
 
-        if (RxIrqEnabled() && (m_status & kStatusRxFull))
+        if (IsRxIrqEnabled() && (m_status & kStatusRxFull))
         {
             RaiseIrq();
         }
@@ -222,7 +222,7 @@ void Acia6551::ReceiveByte (Byte value)
     m_rxData  = value;
     m_status |= kStatusRxFull;
 
-    if (RxIrqEnabled())
+    if (IsRxIrqEnabled())
     {
         RaiseIrq();
     }
@@ -287,11 +287,11 @@ void Acia6551::ResetState (bool hardware)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProgrammedReset
+//  ApplyProgrammedReset
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::ProgrammedReset()
+void Acia6551::ApplyProgrammedReset()
 {
     ResetState (false);
 }
@@ -359,7 +359,7 @@ void Acia6551::WriteData (Byte value)
 
     m_status |= kStatusTxEmpty;
 
-    if (TxIrqEnabled())
+    if (IsTxIrqEnabled())
     {
         RaiseIrq();
     }
@@ -411,13 +411,13 @@ void Acia6551::LowerIrq()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RxIrqEnabled
+//  IsRxIrqEnabled
 //
 //  Receiver interrupts require DTR set and the receiver-IRQ-disable bit clear.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Acia6551::RxIrqEnabled() const
+bool Acia6551::IsRxIrqEnabled() const
 {
     return (m_command & kCommandDtr) && !(m_command & kCommandRxIrqDisable);
 }
@@ -428,14 +428,14 @@ bool Acia6551::RxIrqEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TxIrqEnabled
+//  IsTxIrqEnabled
 //
 //  Transmitter interrupts require DTR set and the transmitter-control field set
 //  to the "IRQ enabled, RTS low" pattern (01).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Acia6551::TxIrqEnabled() const
+bool Acia6551::IsTxIrqEnabled() const
 {
     return (m_command & kCommandDtr) && ((m_command & kCommandTicMask) == kCommandTicTxIrqOn);
 }

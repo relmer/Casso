@@ -7,7 +7,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowBaseAddress
+//  GetRowBaseAddress
 //
 //  Row Y (0..23) decomposes into (group=Y/8, sub=Y%8). Base address is
 //  pageBase + sub*0x80 + group*0x28. This is the canonical Apple ][
@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word TextScreenScraper::RowBaseAddress (Word pageBase, int row)
+Word TextScreenScraper::GetRowBaseAddress (Word pageBase, int row)
 {
     constexpr int  kRowGroupSize      = 8;
     constexpr int  kRowsPerGroupBytes = 0x80;
@@ -91,7 +91,7 @@ std::vector<std::string> TextScreenScraper::Scrape40 (MemoryBus & bus, Word page
     for (row = 0; row < kRows; row++)
     {
         std::string   line;
-        Word          base = RowBaseAddress (pageBase, row);
+        Word          base = GetRowBaseAddress (pageBase, row);
 
         line.resize (kCols40);
 
@@ -138,7 +138,7 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
     for (row = 0; row < kRows; row++)
     {
         std::string   line;
-        Word          base = RowBaseAddress (pageBase, row);
+        Word          base = GetRowBaseAddress (pageBase, row);
 
         line.resize (kCols80);
 

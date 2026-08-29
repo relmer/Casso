@@ -232,14 +232,14 @@ void Ay8910::Reset()
 
     for (c = 0; c < s_kChannelCount; c++)
     {
-        m_toneCounter[c] = TonePeriod (c);
+        m_toneCounter[c] = GetTonePeriod (c);
         m_toneState[c]   = 0;
     }
 
-    m_noiseCounter = 2 * NoisePeriod();
+    m_noiseCounter = 2 * GetNoisePeriod();
     m_lfsr         = 1;
 
-    m_envCounter = 2 * EnvPeriod();
+    m_envCounter = 2 * GetEnvPeriod();
     m_envLevel   = 0;
     m_envDirUp   = false;
     m_envHolding = false;
@@ -296,7 +296,7 @@ float Ay8910::GenerateSample()
         AdvanceBaseTick();
     }
 
-    result = CurrentOutput();
+    result = GetCurrentOutput();
 
 Error:
     return result;
@@ -308,11 +308,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  VolumeForLevel
+//  GetVolumeForLevel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ay8910::VolumeForLevel (int level)
+float Ay8910::GetVolumeForLevel (int level)
 {
     if (level < 0)
     {
@@ -335,8 +335,8 @@ float Ay8910::VolumeForLevel (int level)
 //  AdvanceBaseTick
 //
 //  One clock/8 step of every generator. Tone channels toggle every
-//  TonePeriod ticks; noise steps its LFSR every 2*NoisePeriod ticks; the
-//  envelope advances one level every 2*EnvPeriod ticks.
+//  GetTonePeriod ticks; noise steps its LFSR every 2*GetNoisePeriod ticks; the
+//  envelope advances one level every 2*GetEnvPeriod ticks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -350,21 +350,21 @@ void Ay8910::AdvanceBaseTick()
     {
         if (--m_toneCounter[c] <= 0)
         {
-            m_toneCounter[c] = TonePeriod (c);
+            m_toneCounter[c] = GetTonePeriod (c);
             m_toneState[c]  ^= 1;
         }
     }
 
     if (--m_noiseCounter <= 0)
     {
-        m_noiseCounter = 2 * NoisePeriod();
+        m_noiseCounter = 2 * GetNoisePeriod();
         StepLfsr();
     }
 
     if (--m_envCounter <= 0)
     {
-        m_envCounter = 2 * EnvPeriod();
-        EnvelopeStep();
+        m_envCounter = 2 * GetEnvPeriod();
+        StepEnvelope();
     }
 }
 
@@ -396,14 +396,14 @@ void Ay8910::StepLfsr()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnvelopeStep
+//  StepEnvelope
 //
 //  Advances the 4-bit envelope level one step and applies the HOLD /
 //  ALTERNATE / ATTACK / CONTINUE rules at the end of each ramp.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ay8910::EnvelopeStep()
+void Ay8910::StepEnvelope()
 {
     if (m_envHolding)
     {
@@ -470,7 +470,7 @@ void Ay8910::RestartEnvelope (Byte shape)
     m_envHolding = false;
     m_envDirUp   = m_envAttack;
     m_envLevel   = m_envDirUp ? 0 : kMaxEnvLevel;
-    m_envCounter = 2 * EnvPeriod();
+    m_envCounter = 2 * GetEnvPeriod();
 }
 
 
@@ -479,7 +479,7 @@ void Ay8910::RestartEnvelope (Byte shape)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CurrentOutput
+//  GetCurrentOutput
 //
 //  Mixes the three channels. For each channel the tone and noise streams
 //  are gated by the mixer-enable bits (R7: a set bit disables that source),
@@ -487,7 +487,7 @@ void Ay8910::RestartEnvelope (Byte shape)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ay8910::CurrentOutput() const
+float Ay8910::GetCurrentOutput() const
 {
     Byte    mixer = m_regs[kRegMixer];
     float   out   = 0.0f;
@@ -507,7 +507,7 @@ float Ay8910::CurrentOutput() const
 
         if (active != 0)
         {
-            out += VolumeForLevel (level);
+            out += GetVolumeForLevel (level);
         }
     }
 
@@ -550,11 +550,11 @@ bool Ay8910::IsSilent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TonePeriod
+//  GetTonePeriod
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::TonePeriod (int channel) const
+int Ay8910::GetTonePeriod (int channel) const
 {
     Byte   fine   = m_regs[kRegToneAFine + channel * 2];
     Byte   coarse = m_regs[kRegToneACoarse + channel * 2];
@@ -571,11 +571,11 @@ int Ay8910::TonePeriod (int channel) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NoisePeriod
+//  GetNoisePeriod
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::NoisePeriod() const
+int Ay8910::GetNoisePeriod() const
 {
     int   period = m_regs[kRegNoisePeriod] & s_kNoisePeriodMask;
 
@@ -590,11 +590,11 @@ int Ay8910::NoisePeriod() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnvPeriod
+//  GetEnvPeriod
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::EnvPeriod() const
+int Ay8910::GetEnvPeriod() const
 {
     int   period = (m_regs[kRegEnvCoarse] << s_kByteShift) | m_regs[kRegEnvFine];
 

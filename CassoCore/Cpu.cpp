@@ -93,7 +93,7 @@ void Cpu::EnableTrace (size_t capacity)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TracePeek
+//  PeekForTrace
 //
 //  Read one byte for the trace: the byte the CPU would fetch, without
 //  disturbing anything.
@@ -114,7 +114,7 @@ void Cpu::EnableTrace (size_t capacity)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Cpu::TracePeek (Word address) const
+Byte Cpu::PeekForTrace (Word address) const
 {
     if (m_readPages != nullptr)
     {
@@ -148,7 +148,7 @@ Byte Cpu::TracePeek (Word address) const
 //  which only backs $00-$BF RAM and is stale for ROM/$Cxxx/$Dxxx-$FFFF
 //  -- doing so makes the disassembly lie in exactly the banked regions
 //  a fault trace most needs to be correct about. The operand bytes go
-//  through TracePeek for the same reason.
+//  through PeekForTrace for the same reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,8 +160,8 @@ void Cpu::TracePush (Byte opcode)
 
     e.pc     = PC;
     e.opcode = opcode;
-    e.op1    = TracePeek ((Word) (PC + 1));
-    e.op2    = TracePeek ((Word) (PC + 2));
+    e.op1    = PeekForTrace ((Word) (PC + 1));
+    e.op2    = PeekForTrace ((Word) (PC + 2));
     e.a      = A;
     e.x      = X;
     e.y      = Y;

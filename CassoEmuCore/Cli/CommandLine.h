@@ -102,7 +102,7 @@ public:
     //  at column zero, losing the indent on every continuation.
     static void                PrintUsageBlock (const std::string & block);
 
-    static std::FILE *         UsageStream();
+    static std::FILE *         GetUsageStream();
 
     //  The blank line that separates whatever the tool just said from the
     //  shell prompt.
@@ -161,7 +161,7 @@ public:
 
 private:
     //  How wide the reader's terminal is, or 80 when there is no terminal.
-    static size_t  UsageWidth          ();
+    static size_t  GetUsageWidth       ();
 
     //  One logical line of usage, folded to that width. EVERY line of help goes
     //  through here, so none of them is hand-wrapped to a width the reader may
@@ -190,5 +190,5 @@ private:
     //  mentions it. The library composes the sentence and cannot ask the OS
     //  itself, so the asking happens here, at the platform edge. Zero when
     //  the OS declines to say.
-    static unsigned  InstalledGigabytes  ();
+    static unsigned  GetInstalledGigabytes  ();
 };

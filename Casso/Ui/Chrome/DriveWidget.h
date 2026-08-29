@@ -85,7 +85,7 @@ public:
     //  eject / label rects from per-DPI metrics scaled off
     //  scaler.Dpi(). boundsDip.right / bottom are ignored (the widget
     //  has an intrinsic size; SetBounds is overwritten with the
-    //  computed OuterRect at the end).
+    //  computed GetOuterRect at the end).
     //
     void               Layout          (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
@@ -99,17 +99,17 @@ public:
     const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
     bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
 
-    RECT               BodyRect        () const { return m_bodyRect; }
-    RECT               OuterRect       () const
+    RECT               GetBodyRect  () const { return m_bodyRect; }
+    RECT               GetOuterRect () const
     {
         RECT  r = m_bodyRect;
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
         return r;
     }
 
-    RECT               EjectRect       () const { return m_ejectRect; }
-    LedState           Led             () const { return m_led.GetState(); }
-    int                Drive           () const { return m_drive; }
+    RECT               GetEjectRect () const { return m_ejectRect; }
+    LedState           GetLed       () const { return m_led.GetState(); }
+    int                GetDrive     () const { return m_drive; }
 
 private:
     // Widget geometry, palette, and the primitive-drawing helpers that

@@ -18,7 +18,7 @@ class PrintRaster;
 //  the page arithmetic is unit-tested; the shell's GDI sink renders each range.
 //
 //  A page breaks at the greater of two rules: the guest's own form-feed page
-//  boundaries (PrintRaster::PageBoundaryRows) are hard breaks, and no page runs
+//  boundaries (PrintRaster::GetPageBoundaryRows) are hard breaks, and no page runs
 //  longer than one physical page (PrinterGrid::kPageRows). Rows are inclusive
 //  absolute strip rows.
 //

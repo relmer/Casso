@@ -280,7 +280,7 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StatusText
+//  FormatStatusText
 //
 //  The right-hand cell of one asset row. Every state but Downloading is a
 //  fixed word; Downloading is the only one that has to be computed, so it
@@ -288,7 +288,7 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::uint64_t expected)
+std::wstring StartupDownloadDialog::FormatStatusText (const EntryRuntime & rt, std::uint64_t expected)
 {
     EntryStatus    s       = (EntryStatus) rt.status.load (std::memory_order_relaxed);
     std::uint64_t  done    = rt.bytesDone.load (std::memory_order_relaxed);
@@ -485,7 +485,7 @@ void StartupDownloadDialog::PaintBody (
         const StartupAssetEntry & entry  = set.entries[i];
         const EntryRuntime      & rt     = state.runtime[i];
         std::wstring              status = state.showStatus
-                                              ? StatusText (rt, entry.expectedBytes)
+                                              ? FormatStatusText (rt, entry.expectedBytes)
                                               : wstring();
 
         if (entry.groupLabel != curGroup)
@@ -600,7 +600,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
 
 
-    CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
+    CassoTheme                             theme        = CassoTheme::MakeByName (std::string (themeName));
     DialogState                            state;
     DownloadDialog                         dlg;
     std::unique_ptr<DownloadContentPanel>  content      = std::make_unique<DownloadContentPanel>();
@@ -617,7 +617,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     // Nothing missing: never put a dialog on screen just to say so. The
     // caller reads NothingToDo as "carry on booting".
-    if (set.Empty())
+    if (set.IsEmpty())
     {
         state.result = StartupDownloadResult::NothingToDo;
     }
@@ -724,12 +724,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 {
                     state.downloading = true;
                     state.showStatus  = true;
-                    dlg.DownloadButton()->SetLabel   (L"Downloading...");
-                    dlg.DownloadButton()->SetEnabled (false);
+                    dlg.GetDownloadButton()->SetLabel   (L"Downloading...");
+                    dlg.GetDownloadButton()->SetEnabled (false);
 
-                    if (dlg.SkipButton() != nullptr)
+                    if (dlg.GetSkipButton() != nullptr)
                     {
-                        dlg.SkipButton()->SetVisible (false);
+                        dlg.GetSkipButton()->SetVisible (false);
                     }
 
                     StartWorkers (state);
@@ -755,9 +755,9 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 }
             });
 
-            if (dlg.ExitButton() != nullptr)
+            if (dlg.GetExitButton() != nullptr)
             {
-                dlg.ExitButton()->SetOnClick ([&state, &dlg] ()
+                dlg.GetExitButton()->SetOnClick ([&state, &dlg] ()
                 {
                     state.result = StartupDownloadResult::Exit;
                     dlg.EndDialog (IDCANCEL);

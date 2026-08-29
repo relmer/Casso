@@ -614,7 +614,7 @@ public:
     //  The operands a grammar line shows as REQUIRED, in the order it shows
     //  them: a <token> outside any [optional] group, and not the value of an
     //  option that precedes it.
-    static std::vector<std::string> RequiredOperandsIn (const std::string & grammar)
+    static std::vector<std::string> GetRequiredOperands (const std::string & grammar)
     {
         std::vector<std::string>  required;
         std::istringstream        reader (grammar);
@@ -670,7 +670,7 @@ public:
         for (const auto & entry : DiskHelpPage::GetCommandHelp())
         {
             CommandLineOptions        options;
-            std::vector<std::string>  fromGrammar = RequiredOperandsIn (entry.grammar);
+            std::vector<std::string>  fromGrammar = GetRequiredOperands (entry.grammar);
             std::vector<std::string>  fromRunner;
 
             options.subcommand   = CommandLineOptions::Subcommand::Disk;

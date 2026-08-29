@@ -46,9 +46,9 @@ public:
     explicit PrinterStatusModel (const Config & cfg = Config ());
 
     // Sample the live signals at monotonic time nowMs and recompute the status.
-    void           Update (uint64_t activityCount, double nowMs, bool hasContent, bool hasError);
+    void           Update    (uint64_t activityCount, double nowMs, bool hasContent, bool hasError);
 
-    PrinterStatus  Status () const;
+    PrinterStatus  GetStatus () const;
 
     // Forget history (e.g. on machine switch): next Update re-primes the
     // activity baseline without reporting a spurious "Receiving".

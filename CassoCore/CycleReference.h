@@ -65,6 +65,6 @@ private:
     static std::string  DescribeCycles    (const Microcode & entry);
     static std::string  PadRight          (const std::string & text, int width);
 
-    static const char * ModeSyntax        (GlobalAddressingMode::AddressingMode mode);
+    static const char * GetModeSyntax     (GlobalAddressingMode::AddressingMode mode);
     static bool         IsAssemblable     (const Microcode & entry);
 };

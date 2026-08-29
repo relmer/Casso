@@ -197,7 +197,7 @@ public:
         GlobalUserPrefs     prefs;
         HRESULT             hr;
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
         AssertSucceeded (hr);
 
@@ -220,7 +220,7 @@ public:
             GlobalUserPrefs     p;
             std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
             AssertSucceeded (fs.WriteAllText (
-                GlobalUserPrefs::FilePath (L"C:\\Casso"), json));
+                GlobalUserPrefs::GetFilePath (L"C:\\Casso"), json));
             AssertSucceeded (p.Load (L"C:\\Casso", fs));
             return p;
         };
@@ -250,7 +250,7 @@ public:
         HRESULT             hr;
         std::string         text;
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
         AssertSucceeded (hr);
 
@@ -260,7 +260,7 @@ public:
         hr = prefs.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("futureKey")  != std::string::npos);
         Assert::IsTrue (text.find ("\"keep me\"") != std::string::npos);
     }
@@ -292,7 +292,7 @@ public:
               "}"
             "}";
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"), seed);
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"), seed);
         AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
@@ -304,7 +304,7 @@ public:
         hr = prefs.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("Apple2e")      != std::string::npos, L"Apple2e machine entry was wiped by Save");
         Assert::IsTrue (text.find ("disk1Path")    != std::string::npos, L"disk1Path was wiped by Save");
         Assert::IsTrue (text.find ("D:\\\\boot.dsk") != std::string::npos, L"disk1Path value was wiped by Save");

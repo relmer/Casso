@@ -55,7 +55,7 @@ struct Ssi263PhonemeSpec
 //  addresses 4..7 all alias to it -- five registers in eight slots.
 //
 //  The 12-bit inflection value is scattered non-contiguously across two
-//  registers and is reassembled by InflectionValue().
+//  registers and is reassembled by GetInflectionValue().
 //
 //  Timing follows the datasheet formulas, all relative to the external clock:
 //
@@ -143,22 +143,22 @@ public:
     bool    IsPoweredDown() const { return (m_reg[kRegCtlArtAmp] & kCtl) != 0; }
     bool    IsSilent     () const;
 
-    Byte    Phoneme     () const { return static_cast<Byte> (m_reg[kRegDurationPhoneme] & kPhonemeMask); }
-    Byte    DurationSel () const { return static_cast<Byte> (m_reg[kRegDurationPhoneme] >> kDurationShift); }
-    Byte    RateSel     () const { return static_cast<Byte> ((m_reg[kRegRateInflection] & kRateMask) >> kRateShift); }
-    Byte    Amplitude   () const { return static_cast<Byte> (m_reg[kRegCtlArtAmp] & kAmplitudeMask); }
-    Byte    Articulation() const { return static_cast<Byte> ((m_reg[kRegCtlArtAmp] & kArticMask) >> kArticShift); }
-    Byte    ActiveMode  () const { return m_mode; }
+    Byte    GetPhoneme     () const { return static_cast<Byte> (m_reg[kRegDurationPhoneme] & kPhonemeMask); }
+    Byte    GetDurationSel () const { return static_cast<Byte> (m_reg[kRegDurationPhoneme] >> kDurationShift); }
+    Byte    GetRateSel     () const { return static_cast<Byte> ((m_reg[kRegRateInflection] & kRateMask) >> kRateShift); }
+    Byte    GetAmplitude   () const { return static_cast<Byte> (m_reg[kRegCtlArtAmp] & kAmplitudeMask); }
+    Byte    GetArticulation() const { return static_cast<Byte> ((m_reg[kRegCtlArtAmp] & kArticMask) >> kArticShift); }
+    Byte    GetActiveMode  () const { return m_mode; }
 
     // Current center frequency of one resonator stage (0..2) -- the glided
     // tract position, exposed so tests can assert transitions directly.
-    double   FormantCenter (int stage) const { return m_fCur[stage]; }
+    double   GetFormantCenter (int stage) const { return m_fCur[stage]; }
 
-    uint16_t InflectionValue  () const;
-    double   FrameDurationSec () const;
-    double   PhonemeDurationSec () const;
-    double   FilterFrequencyHz () const;
-    double   InflectionFrequencyHz () const;
+    uint16_t GetInflectionValue  () const;
+    double   GetFrameDurationSec () const;
+    double   GetPhonemeDurationSec () const;
+    double   GetFilterFrequencyHz () const;
+    double   GetInflectionFrequencyHz () const;
 
     static Byte  SelectRegister (Byte address);
 
@@ -167,14 +167,14 @@ public:
     static constexpr double  kNominalFilterHz = 20000.0;
 
 private:
-    void    LatchMode     ();
-    void    BeginPhoneme  (Byte outgoing);
-    void    GlideFormants ();
-    float   Excitation    ();
-    float   NoiseSample   ();
-    float   Resonate      (int stage, float input, double centerHz);
+    void    LatchMode           ();
+    void    BeginPhoneme        (Byte outgoing);
+    void    GlideFormants       ();
+    float   GenerateExcitation  ();
+    float   GenerateNoiseSample ();
+    float   Resonate            (int stage, float input, double centerHz);
 
-    const Ssi263PhonemeSpec &  ActiveSpec () const;
+    const Ssi263PhonemeSpec &  GetActiveSpec () const;
 
     double     m_clockHz    = kDefaultClockHz;
     uint32_t   m_sampleRate = 0;

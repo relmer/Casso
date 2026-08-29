@@ -126,7 +126,7 @@ HRESULT JsonWriter::WriteValue (
 
         case JsonType::Array:
         {
-            size_t  count = v.ArraySize();
+            size_t  count = v.GetArraySize();
 
             if (count == 0)
             {
@@ -144,7 +144,7 @@ HRESULT JsonWriter::WriteValue (
                     WriteIndent (depth + 1, opts, out);
                 }
 
-                hr = WriteValue (v.ArrayAt (i), depth + 1, opts, out);
+                hr = WriteValue (v.GetArrayElement (i), depth + 1, opts, out);
                 CHR (hr);
 
                 if (i + 1 < count)

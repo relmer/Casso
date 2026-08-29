@@ -58,11 +58,11 @@ AppleLoResMode::AppleLoResMode (MemoryBus & bus)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowBaseAddress
+//  GetRowBaseAddress
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word AppleLoResMode::RowBaseAddress (int row, Word pageBase)
+Word AppleLoResMode::GetRowBaseAddress (int row, Word pageBase)
 {
     return static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
 }
@@ -129,7 +129,7 @@ void AppleLoResMode::Render (
 
     for (int textRow = 0; textRow < 24; textRow++)
     {
-        Word rowAddr = RowBaseAddress (textRow, pageBase);
+        Word rowAddr = GetRowBaseAddress (textRow, pageBase);
 
         for (int col = 0; col < 40; col++)
         {

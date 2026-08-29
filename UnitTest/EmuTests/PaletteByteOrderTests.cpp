@@ -211,7 +211,7 @@ public:
     {
         // R=255, G=0, B=0 -> 0.299 * 255 = 76.245 -> 76
         Assert::AreEqual (uint8_t (76),
-            Casso::Video::Luminance (Casso::Video::MakePixel (255, 0, 0)),
+            Casso::Video::ComputeLuminance (Casso::Video::MakePixel (255, 0, 0)),
             L"Pure red should yield Rec.601 luma 76");
     }
 
@@ -219,7 +219,7 @@ public:
     {
         // R=0, G=255, B=0 -> 0.587 * 255 = 149.685 -> 149
         Assert::AreEqual (uint8_t (149),
-            Casso::Video::Luminance (Casso::Video::MakePixel (0, 255, 0)),
+            Casso::Video::ComputeLuminance (Casso::Video::MakePixel (0, 255, 0)),
             L"Pure green should yield Rec.601 luma 149");
     }
 
@@ -227,7 +227,7 @@ public:
     {
         // R=0, G=0, B=255 -> 0.114 * 255 = 29.07 -> 29
         Assert::AreEqual (uint8_t (29),
-            Casso::Video::Luminance (Casso::Video::MakePixel (0, 0, 255)),
+            Casso::Video::ComputeLuminance (Casso::Video::MakePixel (0, 0, 255)),
             L"Pure blue should yield Rec.601 luma 29");
     }
 

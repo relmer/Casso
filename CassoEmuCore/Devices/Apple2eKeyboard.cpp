@@ -134,7 +134,7 @@ Byte Apple2eKeyboard::Read (Word address)
 
 void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 {
-    IInputEventSink * sink = InputSink();
+    IInputEventSink * sink = GetInputSink();
     int               idx  = static_cast<int> (address - kFirstButtonAddress);
 
 
@@ -195,7 +195,7 @@ void Apple2eKeyboard::SetClosedApple (bool pressed)
 
 void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 {
-    IInputEventSink * sink  = InputSink();
+    IInputEventSink * sink  = GetInputSink();
     int               value = pressed ? 1 : 0;
 
 
@@ -214,15 +214,15 @@ void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  KeyPressRaw
+//  PressKeyRaw
 //
 //  IIe keyboard supports lowercase — don't force uppercase.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::KeyPressRaw (Byte asciiChar)
+void Apple2eKeyboard::PressKeyRaw (Byte asciiChar)
 {
-    KeyPress (asciiChar);
+    PressKey (asciiChar);
 }
 
 

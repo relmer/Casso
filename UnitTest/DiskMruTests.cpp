@@ -21,7 +21,7 @@ namespace DiskMruTests
             DiskMru  m;
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            Assert::AreEqual ((size_t) 1, m.Size());
+            Assert::AreEqual ((size_t) 1, m.GetSize());
         }
 
 
@@ -33,7 +33,7 @@ namespace DiskMruTests
             m.RecordMount (L"C:\\Disks\\B.dsk");
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
@@ -54,11 +54,11 @@ namespace DiskMruTests
                 m.RecordMount (p);
             }
 
-            Assert::AreEqual (DiskMru::k_capacity, m.Size());
+            Assert::AreEqual (DiskMru::k_capacity, m.GetSize());
 
             // The most-recent (last inserted, index k_capacity) is at front;
             // the original index-0 entry should have been evicted.
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::IsTrue (snap[0].path.wstring().find (L"\\16.dsk") != std::wstring::npos);
             for (const auto & mruEntry : snap)
             {
@@ -122,7 +122,7 @@ namespace DiskMruTests
             m.RecordMount (L"C:\\Disks\\A.dsk");
             m.RecordMount (L"C:\\Disks\\B.dsk");
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
         }
@@ -133,7 +133,7 @@ namespace DiskMruTests
             DiskMru  m;
             m.RecordMount (std::filesystem::path {});
 
-            Assert::IsTrue (m.Empty());
+            Assert::IsTrue (m.IsEmpty());
         }
 
 
@@ -151,7 +151,7 @@ namespace DiskMruTests
             }
 
             m.ReplaceAll (many);
-            Assert::AreEqual (DiskMru::k_capacity, m.Size());
+            Assert::AreEqual (DiskMru::k_capacity, m.GetSize());
         }
 
 
@@ -164,7 +164,7 @@ namespace DiskMruTests
 
             std::vector<std::string>  in = { "C:\\Disks\\A.dsk", "", "C:\\Disks\\B.dsk" };
             mru = DiskMru::FromUtf8 (in);
-            snap = mru.Snapshot();
+            snap = mru.GetSnapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path ("C:\\Disks\\A.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path ("C:\\Disks\\B.dsk"));
@@ -214,7 +214,7 @@ namespace DiskMruTests
                 L"Serialized path must contain valid UTF-8 for U+00F8");
 
             reloaded = DiskMru::FromUtf8 (serialized);
-            snap = reloaded.Snapshot();
+            snap = reloaded.GetSnapshot();
 
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (kName),
@@ -230,7 +230,7 @@ namespace DiskMruTests
             DiskMru  m;
             m.RecordMount (L"C:\\Disks\\A.dsk", kWhen);
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::AreEqual (kWhen, snap[0].lastLoadedUnix);
         }
@@ -246,7 +246,7 @@ namespace DiskMruTests
             m.RecordMount (L"C:\\Disks\\A.dsk", kFirst);
             m.RecordMount (L"C:\\Disks\\A.dsk", kSecond);
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::AreEqual (kSecond, snap[0].lastLoadedUnix);
         }
@@ -272,7 +272,7 @@ namespace DiskMruTests
 
             m.RecordMountResult (S_OK, L"C:\\Disks\\Good.dsk", kWhen);
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((size_t) 1, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\Good.dsk"));
             Assert::AreEqual (kWhen, snap[0].lastLoadedUnix);
@@ -285,7 +285,7 @@ namespace DiskMruTests
 
             m.RecordMountResult (E_FAIL, L"C:\\Disks\\Unreadable.dsk", 1700000000);
 
-            Assert::IsTrue (m.Empty(),
+            Assert::IsTrue (m.IsEmpty(),
                 L"a disk that never mounted must not be offered as a recent one");
         }
 
@@ -305,7 +305,7 @@ namespace DiskMruTests
             // timestamp -- both would claim it was just read successfully.
             m.RecordMountResult (E_FAIL, L"C:\\Disks\\A.dsk", kSecond);
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
             Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
@@ -320,7 +320,7 @@ namespace DiskMruTests
             std::vector<DiskMru::Entry>  snap;
             m.RecordMount (L"C:\\Disks\\A.dsk");
 
-            snap = m.Snapshot();
+            snap = m.GetSnapshot();
             Assert::AreEqual ((std::int64_t) 0, snap[0].lastLoadedUnix);
         }
 
@@ -343,7 +343,7 @@ namespace DiskMruTests
             Assert::AreEqual ((size_t) 2, times.size());
 
             reloaded = DiskMru::FromUtf8 (paths, times);
-            snap = reloaded.Snapshot();
+            snap = reloaded.GetSnapshot();
 
             // Most-recent-first: B (kWhenB) then A (kWhenA).
             Assert::AreEqual (kWhenB, snap[0].lastLoadedUnix);
@@ -364,7 +364,7 @@ namespace DiskMruTests
             times = { 1700000000 }; // only the first entry has a time
 
             mru = DiskMru::FromUtf8 (paths, times);
-            snap = mru.Snapshot();
+            snap = mru.GetSnapshot();
 
             Assert::AreEqual ((size_t) 2, snap.size());
             Assert::AreEqual ((std::int64_t) 1700000000, snap[0].lastLoadedUnix);

@@ -57,7 +57,7 @@ public:
         StageTree (fs);
 
         FileBrowseModel  model = MakeModel (fs);
-        const auto &     rows  = model.Entries();
+        const auto &     rows  = model.GetEntries();
 
         // "..", Saves, alpha, zeta -- txt filtered out.
         Assert::AreEqual ((size_t) 4, rows.size());
@@ -81,8 +81,8 @@ public:
 
         model.SetExtensionFilter (L".txt");
 
-        Assert::AreEqual ((size_t) 3, model.Entries().size());   // .., Saves, notes.txt
-        Assert::AreEqual (std::wstring (L"notes.txt"), model.Entries()[2].name);
+        Assert::AreEqual ((size_t) 3, model.GetEntries().size());   // .., Saves, notes.txt
+        Assert::AreEqual (std::wstring (L"notes.txt"), model.GetEntries()[2].name);
     }
 
 
@@ -99,8 +99,8 @@ public:
         model.Bind (&fs);
         AssertSucceeded (model.SetFolder (L"C:\\"));
 
-        Assert::IsTrue (model.Entries().size() > 0);
-        Assert::AreNotEqual (std::wstring (L".."), model.Entries()[0].name);
+        Assert::IsTrue (model.GetEntries().size() > 0);
+        Assert::AreNotEqual (std::wstring (L".."), model.GetEntries()[0].name);
     }
 
 
@@ -117,12 +117,12 @@ public:
         // Row 1 is "Saves" (row 0 is the synthetic up row).
         AssertSucceeded (model.NavigateInto (1));
 
-        Assert::AreEqual (std::wstring (L"C:\\Disks\\Saves"), model.CurrentFolder());
-        Assert::AreEqual (std::wstring (L"game.woz"), model.Entries()[1].name);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Saves"), model.GetCurrentFolder());
+        Assert::AreEqual (std::wstring (L"game.woz"), model.GetEntries()[1].name);
 
         AssertSucceeded (model.NavigateUp());
 
-        Assert::AreEqual (std::wstring (L"C:\\Disks"), model.CurrentFolder());
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), model.GetCurrentFolder());
     }
 
 
@@ -138,8 +138,8 @@ public:
 
         AssertSucceeded (model.NavigateInto (0));   // ".."
 
-        Assert::AreEqual (std::wstring (L"C:\\"), model.CurrentFolder());
-        Assert::AreEqual (std::wstring (L"Disks"), model.Entries()[0].name);
+        Assert::AreEqual (std::wstring (L"C:\\"), model.GetCurrentFolder());
+        Assert::AreEqual (std::wstring (L"Disks"), model.GetEntries()[0].name);
     }
 
 
@@ -157,7 +157,7 @@ public:
         AssertSucceeded (model.SetFolder (L"C:\\"));
 
         AssertSucceeded (model.NavigateUp());
-        Assert::AreEqual (std::wstring (L"C:\\"), model.CurrentFolder());
+        Assert::AreEqual (std::wstring (L"C:\\"), model.GetCurrentFolder());
     }
 
 
@@ -192,7 +192,7 @@ public:
         FileBrowseModel  model = MakeModel (fs);
 
         Assert::AreEqual (std::wstring (L"Blank Disk (3).woz"),
-                          model.UniqueDefaultName (L"Blank Disk"));
+                          model.GetUniqueDefaultName (L"Blank Disk"));
     }
 
     TEST_METHOD (UniqueDefaultName_FirstNameWhenFolderClean)
@@ -206,7 +206,7 @@ public:
         FileBrowseModel  model = MakeModel (fs);
 
         Assert::AreEqual (std::wstring (L"Blank Disk.woz"),
-                          model.UniqueDefaultName (L"Blank Disk"));
+                          model.GetUniqueDefaultName (L"Blank Disk"));
     }
 
     TEST_METHOD (ComposeTargetPath_AppendsExtensionWhenMissing)

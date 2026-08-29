@@ -122,9 +122,9 @@ public:
 
     // IDriveAudioSource:
     void   GeneratePCM (float * outMono, uint32_t numSamples) override;
-    float  PanLeft  () const override { return m_panLeft.load  (std::memory_order_relaxed); }
-    float  PanRight () const override { return m_panRight.load (std::memory_order_relaxed); }
-    void   SetPan   (float panLeft, float panRight) override;
+    float  GetPanLeft  () const override { return m_panLeft.load  (std::memory_order_relaxed); }
+    float  GetPanRight () const override { return m_panRight.load (std::memory_order_relaxed); }
+    void   SetPan      (float panLeft, float panRight) override;
 
     // IDriveAudioSink -- the printer fires none of these disk events (it is a
     // non-drive source on a generic bus, FR-016); they are inert.
@@ -144,7 +144,7 @@ public:
     bool    IsPrinting     () const { return m_printHoldSamples > 0; }
     bool    IsFeedPlaying  () const { return m_lineFeedBuf != nullptr; }
     bool    IsActionPlaying () const { return m_actionBuf != nullptr; }
-    Quality CurrentQuality () const { return m_quality; }
+    Quality GetCurrentQuality () const { return m_quality; }
 
 private:
     void  MixCarriage (float * out, uint32_t n);

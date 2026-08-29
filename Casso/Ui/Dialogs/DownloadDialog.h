@@ -37,9 +37,9 @@ public:
     void  SetOnDownloadClick (std::function<void()> fn) { m_onDownloadClick = std::move (fn); }
     void  SetOnPoll          (std::function<void()> fn) { m_onPoll          = std::move (fn); }
 
-    DxuiButton *  DownloadButton() const { return m_downloadBtn; }
-    DxuiButton *  SkipButton() const { return m_skipBtn; }
-    DxuiButton *  ExitButton() const { return m_exitBtn; }
+    DxuiButton *  GetDownloadButton() const { return m_downloadBtn; }
+    DxuiButton *  GetSkipButton () const { return m_skipBtn; }
+    DxuiButton *  GetExitButton () const { return m_exitBtn; }
 
 protected:
     void  OnCreate() override;

@@ -259,9 +259,9 @@ private:
         // a valid machine (the //c has its drives on-board), not a parse error.
         if (SUCCEEDED (hrSlots))
         {
-            for (size_t idx = 0; !found && idx < pSlots->ArraySize(); idx++)
+            for (size_t idx = 0; !found && idx < pSlots->GetArraySize(); idx++)
             {
-                const JsonValue &  entry = pSlots->ArrayAt (idx);
+                const JsonValue &  entry = pSlots->GetArrayElement (idx);
                 HRESULT            hrDev = entry.GetString ("device", device);
 
                 found = (SUCCEEDED (hrDev) && device == "disk-ii");

@@ -492,7 +492,7 @@ namespace MockingboardCardTestNs
             Assert::AreEqual<Byte> (0x66, card.GetVia (0).GetOra(),
                                     L"The VIA mirror must still receive the write");
             Assert::AreEqual<uint16_t> (static_cast<uint16_t> (0x66 << 3),
-                                        card.GetSpeech()->InflectionValue(),
+                                        card.GetSpeech()->GetInflectionValue(),
                                         L"The chip must receive the same write");
         }
 
@@ -544,7 +544,7 @@ namespace MockingboardCardTestNs
             Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
                                     L"No request while the phoneme is sounding");
 
-            card.Tick (static_cast<uint32_t> (chip->PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
 
             Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
                                     L"The request must surface as D7 anywhere in the chip's range");
@@ -578,7 +578,7 @@ namespace MockingboardCardTestNs
 
             Assert::IsFalse (cpu.IrqAsserted(), L"No interrupt while sounding");
 
-            card.Tick (static_cast<uint32_t> (chip->PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
 
             Assert::IsTrue (cpu.IrqAsserted(),
                             L"Phoneme completion must reach the CPU through CA1");

@@ -163,7 +163,7 @@ void Apple80ColTextMode::Render (
             changed      |= (c != cacheRow[col]);
         }
 
-        dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+        dirty = full || changed || (flashFlip && HasFlashChar (rowBytes));
 
         if (dirty)
         {
@@ -190,13 +190,13 @@ void Apple80ColTextMode::Render (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowHasFlashChar
+//  HasFlashChar
 //
-//  As AppleTextMode::RowHasFlashChar, over the 80 interleaved char codes.
+//  As AppleTextMode::HasFlashChar, over the 80 interleaved char codes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple80ColTextMode::RowHasFlashChar (const Byte * rowBytes) const
+bool Apple80ColTextMode::HasFlashChar (const Byte * rowBytes) const
 {
     int   col      = 0;
     bool  hasFlash = false;

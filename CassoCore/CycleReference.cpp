@@ -462,7 +462,7 @@ std::string CycleReference::DescribeMode (const Microcode & entry)
 
     if (entry.isLegal)
     {
-        mode = ModeSyntax (entry.globalAddressingMode);
+        mode = GetModeSyntax (entry.globalAddressingMode);
     }
 
     return mode;
@@ -554,7 +554,7 @@ std::string CycleReference::PadRight (const std::string & text, int width)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ModeSyntax
+//  GetModeSyntax
 //
 //  The operand form an assembler accepts, rather than the prose name in
 //  GlobalAddressingMode. A cycle reference is read next to source, and
@@ -562,7 +562,7 @@ std::string CycleReference::PadRight (const std::string & text, int width)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * CycleReference::ModeSyntax (GlobalAddressingMode::AddressingMode mode)
+const char * CycleReference::GetModeSyntax (GlobalAddressingMode::AddressingMode mode)
 {
     const char * syntax = "impl";
 

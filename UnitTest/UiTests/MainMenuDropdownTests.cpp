@@ -41,7 +41,7 @@ public:
 
         menu.Open (MainMenuId::File, true);
         Assert::IsTrue (menu.IsOpen());
-        Assert::IsTrue (menu.OpenMenu() == MainMenuId::File);
+        Assert::IsTrue (menu.GetOpenMenu() == MainMenuId::File);
 
         menu.Close();
         Assert::IsFalse (menu.IsOpen());
@@ -56,7 +56,7 @@ public:
 
         Assert::IsTrue (menu.HandleAltKey (L'F'));
         Assert::IsTrue (menu.IsOpen());
-        Assert::IsTrue (menu.OpenMenu() == MainMenuId::File);
+        Assert::IsTrue (menu.GetOpenMenu() == MainMenuId::File);
         Assert::IsFalse (menu.HandleAltKey (L'?'));
     }
 

@@ -69,7 +69,7 @@ void CreateDiskDialog::OnCreate()
     m_list.SetAlwaysShowSelection (true);
     m_list.SetOnSelectionChanged ([this] (int row)
     {
-        const auto &  entries = m_model->Entries();
+        const auto &  entries = m_model->GetEntries();
 
         if (row >= 0 && row < (int) entries.size() && !entries[(size_t) row].isFolder)
         {
@@ -170,11 +170,11 @@ void CreateDiskDialog::RefreshListing()
         return;
     }
 
-    m_pathLabel.SetText (m_model->CurrentFolder());
+    m_pathLabel.SetText (m_model->GetCurrentFolder());
 
-    rows.reserve (m_model->Entries().size());
+    rows.reserve (m_model->GetEntries().size());
 
-    for (const FileBrowseEntry & entry : m_model->Entries())
+    for (const FileBrowseEntry & entry : m_model->GetEntries())
     {
         rows.push_back ({ { entry.name,                     false, {} },
                           { FormatSize (entry),             true,  {} },
@@ -204,7 +204,7 @@ void CreateDiskDialog::RefreshFromModel()
 
     RefreshListing();
 
-    m_nameInput.SetText (m_model->UniqueDefaultName (L"Blank Disk"));
+    m_nameInput.SetText (m_model->GetUniqueDefaultName (L"Blank Disk"));
 
     Invalidate();
 }
@@ -235,11 +235,11 @@ const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ImageTypeCaption
+//  GetImageTypeCaption
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
+const wchar_t * CreateDiskDialog::GetImageTypeCaption (DiskFormat imageType)
 {
     switch (imageType)
     {
@@ -330,7 +330,7 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
     for (i = 0; i < m_imageTypeChoices.size(); i++)
     {
-        captions.push_back (ImageTypeCaption (m_imageTypeChoices[i]));
+        captions.push_back (GetImageTypeCaption (m_imageTypeChoices[i]));
 
         if (m_imageTypeChoices[i] == m_imageType)
         {
@@ -545,12 +545,12 @@ void CreateDiskDialog::OnRowActivated (int row)
 
 
 
-    if (m_model == nullptr || row < 0 || row >= (int) m_model->Entries().size())
+    if (m_model == nullptr || row < 0 || row >= (int) m_model->GetEntries().size())
     {
         return;
     }
 
-    if (!m_model->Entries()[(size_t) row].isFolder)
+    if (!m_model->GetEntries()[(size_t) row].isFolder)
     {
         // Activating a file row is choosing it, save-dialog style: its name
         // is already in the field (selection copied it), so run Create --
@@ -559,11 +559,11 @@ void CreateDiskDialog::OnRowActivated (int row)
         return;
     }
 
-    up = (m_model->Entries()[(size_t) row].name == L"..");
+    up = (m_model->GetEntries()[(size_t) row].name == L"..");
 
     if (up)
     {
-        cameFrom = std::filesystem::path (m_model->CurrentFolder()).filename().wstring();
+        cameFrom = std::filesystem::path (m_model->GetCurrentFolder()).filename().wstring();
     }
 
     hr = m_model->NavigateInto ((size_t) row);
@@ -577,7 +577,7 @@ void CreateDiskDialog::OnRowActivated (int row)
 
     if (up)
     {
-        const auto &  entries = m_model->Entries();
+        const auto &  entries = m_model->GetEntries();
         size_t        i       = 0;
 
         for (i = 0; i < entries.size(); i++)

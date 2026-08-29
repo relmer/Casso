@@ -341,9 +341,9 @@ HRESULT MachineConfigLoader::LoadRam (
 
 
 
-    for (idx = 0; idx < ramArray.ArraySize(); idx++)
+    for (idx = 0; idx < ramArray.GetArraySize(); idx++)
     {
-        const JsonValue & entry = ramArray.ArrayAt (idx);
+        const JsonValue & entry = ramArray.GetArrayElement (idx);
         RamRegion         region;
 
 
@@ -559,9 +559,9 @@ HRESULT MachineConfigLoader::LoadInternalDevices (
 
 
 
-    for (idx = 0; idx < devArray.ArraySize(); idx++)
+    for (idx = 0; idx < devArray.GetArraySize(); idx++)
     {
-        const JsonValue  & entry   = devArray.ArrayAt (idx);
+        const JsonValue  & entry   = devArray.GetArrayElement (idx);
         InternalDevice     dev;
         string             flagStr;
         HRESULT            hrFlag  = S_OK;
@@ -649,9 +649,9 @@ HRESULT MachineConfigLoader::LoadSlots (
 
 
 
-    for (idx = 0; idx < slotsArray.ArraySize(); idx++)
+    for (idx = 0; idx < slotsArray.GetArraySize(); idx++)
     {
-        const JsonValue & entry = slotsArray.ArrayAt (idx);
+        const JsonValue & entry = slotsArray.GetArrayElement (idx);
         SlotConfig        slot;
         fs::path          slotRomRel;
 
@@ -809,9 +809,9 @@ HRESULT MachineConfigLoader::CollectRomFiles (
 
     if (SUCCEEDED (hrOpt))
     {
-        for (idx = 0; idx < pSlots->ArraySize(); idx++)
+        for (idx = 0; idx < pSlots->GetArraySize(); idx++)
         {
-            const JsonValue & entry  = pSlots->ArrayAt (idx);
+            const JsonValue & entry  = pSlots->GetArrayElement (idx);
             HRESULT           hrFile = entry.GetString ("rom", file);
 
             if (SUCCEEDED (hrFile) && !file.empty())
@@ -1079,11 +1079,11 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
     hr = video.GetArray ("modes", pModes);
     if (SUCCEEDED (hr))
     {
-        for (size_t i = 0; i < pModes->ArraySize(); i++)
+        for (size_t i = 0; i < pModes->GetArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).GetType() == JsonType::String)
+            if (pModes->GetArrayElement (i).GetType() == JsonType::String)
             {
-                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
+                outConfig.videoConfig.modes.push_back (pModes->GetArrayElement (i).GetString());
             }
         }
     }

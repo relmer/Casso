@@ -70,8 +70,8 @@ public:
 
     // IDriveAudioSource:
     void   GeneratePCM (float * outMono, uint32_t numSamples) override;
-    float  PanLeft() const override { return m_panLeft;  }
-    float  PanRight() const override { return m_panRight; }
+    float  GetPanLeft() const override { return m_panLeft;  }
+    float  GetPanRight() const override { return m_panRight; }
     void   SetPan (float panLeft, float panRight) override;
 
     // IDriveAudioSink:

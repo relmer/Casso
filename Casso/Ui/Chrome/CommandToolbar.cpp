@@ -112,11 +112,11 @@ void CommandToolbar::SetVolume (float volume01, bool muted)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::PointIn / HitTest
+//  CommandToolbar::IsPointInRect / HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandToolbar::PointIn (const RECT & rc, int x, int y)
+bool CommandToolbar::IsPointInRect (const RECT & rc, int x, int y)
 {
     return x >= rc.left && x < rc.right && y >= rc.top && y < rc.bottom;
 }
@@ -124,7 +124,7 @@ bool CommandToolbar::PointIn (const RECT & rc, int x, int y)
 
 bool CommandToolbar::HitTest (int x, int y) const
 {
-    return PointIn (m_barRect, x, y);
+    return IsPointInRect (m_barRect, x, y);
 }
 
 
@@ -133,14 +133,14 @@ bool CommandToolbar::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::StatusCore
+//  CommandToolbar::GetStatusCoreColor
 //
 //  PrinterStatus -> LED core color (same mapping the standalone indicator
 //  used, so the light keeps its meaning across the move into the toolbar).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t CommandToolbar::StatusCore (PrinterStatus status)
+uint32_t CommandToolbar::GetStatusCoreColor (PrinterStatus status)
 {
     // Event-only light: no LED at all while idle (no light = no problem), and
     // the lit states run bright -- dim colors disappear against the themed
@@ -439,7 +439,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::TooltipAt
+//  CommandToolbar::GetTooltipAt
 //
 //  Icon-only mode has no labels, so the hovered button's meaning surfaces as
 //  a tooltip (the shell owns the DxuiTooltip and its dwell timing). The mute
@@ -447,7 +447,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
+const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
 {
     const wchar_t *  tip = nullptr;
 
@@ -459,7 +459,7 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
     {
         for (const Button & btn : m_buttons)
         {
-            if (tip == nullptr && btn.enabled && PointIn (btn.rc, x, y))
+            if (tip == nullptr && btn.enabled && IsPointInRect (btn.rc, x, y))
             {
                 anchor = btn.rc;
                 tip    = btn.label;
@@ -467,7 +467,7 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
         }
 
         // The mute button's tip names the action it would take, not its state.
-        if (tip == nullptr && PointIn (m_muteButton.rc, x, y))
+        if (tip == nullptr && IsPointInRect (m_muteButton.rc, x, y))
         {
             anchor = m_muteButton.rc;
             tip    = m_muted ? L"Unmute" : L"Mute";
@@ -507,15 +507,15 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
 
     for (Button & btn : m_buttons)
     {
-        btn.hovered = btn.enabled && PointIn (btn.rc, x, y);
+        btn.hovered = btn.enabled && IsPointInRect (btn.rc, x, y);
         if (!btn.hovered) { btn.pressed = false; }
         over = over || btn.hovered;
     }
 
-    m_muteButton.hovered = PointIn (m_muteButton.rc, x, y);
+    m_muteButton.hovered = IsPointInRect (m_muteButton.rc, x, y);
     if (!m_muteButton.hovered) { m_muteButton.pressed = false; }
 
-    return over || m_muteButton.hovered || PointIn (m_barRect, x, y);
+    return over || m_muteButton.hovered || IsPointInRect (m_barRect, x, y);
 }
 
 
@@ -574,14 +574,14 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 
     for (Button & btn : m_buttons)
     {
-        if (!handled && btn.enabled && PointIn (btn.rc, x, y))
+        if (!handled && btn.enabled && IsPointInRect (btn.rc, x, y))
         {
             btn.pressed = true;
             handled     = true;
         }
     }
 
-    if (!handled && PointIn (m_muteButton.rc, x, y))
+    if (!handled && IsPointInRect (m_muteButton.rc, x, y))
     {
         m_muteButton.pressed = true;
         handled              = true;
@@ -589,7 +589,7 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 
     // Clicks on the bar's dead space are eaten so they do not fall through
     // to whatever is behind the toolbar.
-    return handled || PointIn (m_barRect, x, y);
+    return handled || IsPointInRect (m_barRect, x, y);
 }
 
 
@@ -632,7 +632,7 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
         wasPressed  = btn.pressed;
         btn.pressed = false;
 
-        if (!handled && wasPressed && btn.enabled && PointIn (btn.rc, x, y))
+        if (!handled && wasPressed && btn.enabled && IsPointInRect (btn.rc, x, y))
         {
             if (m_dispatch) { m_dispatch (btn.id); }
             handled = true;
@@ -644,7 +644,7 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 
     // Mute is handled locally rather than dispatched: it owns the state the
     // slider reads back.
-    if (!handled && wasPressed && PointIn (m_muteButton.rc, x, y))
+    if (!handled && wasPressed && IsPointInRect (m_muteButton.rc, x, y))
     {
         SetVolume (m_volume01, !m_muted);
 
@@ -653,7 +653,7 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
         handled = true;
     }
 
-    return handled || PointIn (m_barRect, x, y);
+    return handled || IsPointInRect (m_barRect, x, y);
 }
 
 
@@ -739,7 +739,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         {
             PaintStatusLed (painter, bl + bw * 0.5f + iconDip * 0.62f,
                             bt + (iconRegH - iconDip) * 0.5f + 2.0f, m_dpi,
-                            StatusCore (m_printerStatus));
+                            GetStatusCoreColor (m_printerStatus));
         }
 
         hr = text.DrawString (btn.label, bl, bt + iconRegH - 2.0f, bw, labelH,
@@ -766,10 +766,10 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         {
             PaintStatusLed (painter, iconX + iconDip + 1.0f,
                             bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
-                            StatusCore (m_printerStatus));
+                            GetStatusCoreColor (m_printerStatus));
         }
 
-        // Icon-only draws no label at all -- tooltips carry them (TooltipAt).
+        // Icon-only draws no label at all -- tooltips carry them (GetTooltipAt).
         if (m_mode != Mode::IconOnly)
         {
             textX = bl + (float) padX + iconW + (float) iconGap;

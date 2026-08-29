@@ -45,13 +45,13 @@ public:
     //  override below derives the same placement from the bounds rect
     //  origin.
     //
-    void               PositionAt   (int x, int y, UINT dpi);
-    void               SetState     (LedState state) { m_state = state; }
-    LedState           GetState     () const { return m_state; }
-    LedIndicatorLayout GetLayout    () const { return m_layout; }
-    uint32_t           CoreArgb     (const CassoTheme & theme) const;
-    uint32_t           HaloArgb     (const CassoTheme & theme) const;
-    void               Paint        (IDxuiPainter        & painter,
+    void               PositionAt  (int x, int y, UINT dpi);
+    void               SetState    (LedState state) { m_state = state; }
+    LedState           GetState    () const { return m_state; }
+    LedIndicatorLayout GetLayout   () const { return m_layout; }
+    uint32_t           GetCoreArgb (const CassoTheme & theme) const;
+    uint32_t           GetHaloArgb (const CassoTheme & theme) const;
+    void               Paint       (IDxuiPainter        & painter,
                                      IDxuiTextRenderer   & text,
                                      const IDxuiTheme    & theme) override;
     void               Paint        (IDxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const;

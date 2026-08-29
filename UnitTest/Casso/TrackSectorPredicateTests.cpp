@@ -32,7 +32,7 @@ namespace TrackSectorPredicateTests
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (17));
             Assert::IsTrue  (p.Matches (12345));
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -44,7 +44,7 @@ namespace TrackSectorPredicateTests
             Assert::IsTrue  (p.Matches (17));
             Assert::IsFalse (p.Matches (16));
             Assert::IsFalse (p.Matches (18));
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -56,7 +56,7 @@ namespace TrackSectorPredicateTests
             Assert::IsTrue  (p.MatchesQuarterTrack (70));
             Assert::IsFalse (p.MatchesQuarterTrack (69));
             Assert::IsFalse (p.MatchesQuarterTrack (71));
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -98,7 +98,7 @@ namespace TrackSectorPredicateTests
             Assert::IsFalse (p.Matches (3));
             Assert::IsFalse (p.Matches (16));
             Assert::IsFalse (p.Matches (35));
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -111,7 +111,7 @@ namespace TrackSectorPredicateTests
             // is still in range and accepted.
             Assert::IsTrue  (pRaw.MatchesQuarterTrack (68));
             Assert::IsFalse (pRaw.MatchesQuarterTrack (67));
-            Assert::AreEqual ((size_t) 0, pRaw.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, pRaw.GetRejectedSpans().size());
         }
 
 
@@ -144,7 +144,7 @@ namespace TrackSectorPredicateTests
             Assert::IsTrue  (p.Matches (17));
             Assert::IsFalse (p.Matches (3));
             Assert::IsFalse (p.Matches (16));
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -155,7 +155,7 @@ namespace TrackSectorPredicateTests
             // Spec-006 bug 3: kMaxWholeTrackExclusive == 40, so any
             // whole-track value >= 40 is now rejected and recorded
             // as a RejectedSpan so the dialog can squiggle it.
-            Assert::AreEqual ((size_t) 1, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, p.GetRejectedSpans().size());
             Assert::IsFalse  (p.IsMatchAll());
             Assert::IsFalse  (p.Matches (999));
         }
@@ -168,10 +168,10 @@ namespace TrackSectorPredicateTests
             TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39", TrackSectorPredicate::Mode::Track, false);
             TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40", TrackSectorPredicate::Mode::Track, false);
 
-            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, ok.GetRejectedSpans().size());
             Assert::IsTrue   (ok.Matches (39));
 
-            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, bad.GetRejectedSpans().size());
             Assert::IsFalse  (bad.Matches (40));
         }
 
@@ -183,10 +183,10 @@ namespace TrackSectorPredicateTests
             TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39.75", TrackSectorPredicate::Mode::Track, false);
             TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40.0",  TrackSectorPredicate::Mode::Track, false);
 
-            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, ok.GetRejectedSpans().size());
             Assert::IsTrue   (ok.MatchesQuarterTrack (159));
 
-            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, bad.GetRejectedSpans().size());
             Assert::IsFalse  (bad.MatchesQuarterTrack (160));
         }
 
@@ -196,10 +196,10 @@ namespace TrackSectorPredicateTests
             TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"15", TrackSectorPredicate::Mode::Sector);
             TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"16", TrackSectorPredicate::Mode::Sector);
 
-            Assert::AreEqual ((size_t) 0, ok.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, ok.GetRejectedSpans().size());
             Assert::IsTrue   (ok.Matches (15));
 
-            Assert::AreEqual ((size_t) 1, bad.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, bad.GetRejectedSpans().size());
             Assert::IsFalse  (bad.Matches (16));
         }
 
@@ -211,7 +211,7 @@ namespace TrackSectorPredicateTests
             // the explicit reject.
             TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-77", TrackSectorPredicate::Mode::Track, false);
 
-            Assert::AreEqual ((size_t) 1, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, p.GetRejectedSpans().size());
             Assert::IsTrue   (p.Matches (0));
             Assert::IsTrue   (p.Matches (20));
             Assert::IsTrue   (p.Matches (39));
@@ -227,9 +227,9 @@ namespace TrackSectorPredicateTests
             // "0-2, abc, 17"
             //  0123456789012
             //       abc is [5, 8).
-            Assert::AreEqual ((size_t) 1, p.RejectedSpans().size());
-            Assert::AreEqual (5, p.RejectedSpans()[0].beginUtf16);
-            Assert::AreEqual (8, p.RejectedSpans()[0].endUtf16);
+            Assert::AreEqual ((size_t) 1, p.GetRejectedSpans().size());
+            Assert::AreEqual (5, p.GetRejectedSpans()[0].beginUtf16);
+            Assert::AreEqual (8, p.GetRejectedSpans()[0].endUtf16);
         }
 
 
@@ -240,11 +240,11 @@ namespace TrackSectorPredicateTests
             // "xx, 5, yy"
             //  012345678
             // xx is [0, 2); yy is [7, 9).
-            Assert::AreEqual ((size_t) 2, p.RejectedSpans().size());
-            Assert::AreEqual (0, p.RejectedSpans()[0].beginUtf16);
-            Assert::AreEqual (2, p.RejectedSpans()[0].endUtf16);
-            Assert::AreEqual (7, p.RejectedSpans()[1].beginUtf16);
-            Assert::AreEqual (9, p.RejectedSpans()[1].endUtf16);
+            Assert::AreEqual ((size_t) 2, p.GetRejectedSpans().size());
+            Assert::AreEqual (0, p.GetRejectedSpans()[0].beginUtf16);
+            Assert::AreEqual (2, p.GetRejectedSpans()[0].endUtf16);
+            Assert::AreEqual (7, p.GetRejectedSpans()[1].beginUtf16);
+            Assert::AreEqual (9, p.GetRejectedSpans()[1].endUtf16);
             Assert::IsTrue   (p.Matches (5));
         }
 
@@ -253,7 +253,7 @@ namespace TrackSectorPredicateTests
         {
             TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, 17, 30-34", TrackSectorPredicate::Mode::Track, false);
 
-            Assert::AreEqual ((size_t) 0, p.RejectedSpans().size());
+            Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
 
 
@@ -264,11 +264,11 @@ namespace TrackSectorPredicateTests
             // "abc, def"
             //  01234567
             // abc is [0, 3); def is [5, 8).
-            Assert::AreEqual ((size_t) 2, p.RejectedSpans().size());
-            Assert::AreEqual (0, p.RejectedSpans()[0].beginUtf16);
-            Assert::AreEqual (3, p.RejectedSpans()[0].endUtf16);
-            Assert::AreEqual (5, p.RejectedSpans()[1].beginUtf16);
-            Assert::AreEqual (8, p.RejectedSpans()[1].endUtf16);
+            Assert::AreEqual ((size_t) 2, p.GetRejectedSpans().size());
+            Assert::AreEqual (0, p.GetRejectedSpans()[0].beginUtf16);
+            Assert::AreEqual (3, p.GetRejectedSpans()[0].endUtf16);
+            Assert::AreEqual (5, p.GetRejectedSpans()[1].beginUtf16);
+            Assert::AreEqual (8, p.GetRejectedSpans()[1].endUtf16);
 
             // Critical: rejected-only != empty input. Matches nothing.
             Assert::IsFalse (p.IsMatchAll());

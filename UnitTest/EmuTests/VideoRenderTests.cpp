@@ -55,7 +55,7 @@ static const uint32_t kExpectedLoRes[16] =
 //  TextAddr
 //
 //  Interleaved text-page address for (row, col) on page 1 -- mirrors
-//  AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+//  AppleTextMode::GetRowBaseAddress (private) for the dirty-row tests below.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

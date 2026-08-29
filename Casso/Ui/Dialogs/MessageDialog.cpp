@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MessageDialog::CommandIdFor
+//  MessageDialog::GetCommandId
 //
 //  The cancel button maps to IDCANCEL (so Escape / the close-box fire it);
 //  every other button gets a synthetic id offset past IDOK / IDCANCEL so
@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int MessageDialog::CommandIdFor (const Button & button, int index)
+int MessageDialog::GetCommandId (const Button & button, int index)
 {
     return button.isCancel ? IDCANCEL : (s_kCommandBase + index);
 }
@@ -49,7 +49,7 @@ void MessageDialog::Configure (std::unique_ptr<DxuiPanel>  content,
     {
         if (m_buttons[(size_t) i].isDefault)
         {
-            m_defaultCommandId = CommandIdFor (m_buttons[(size_t) i], i);
+            m_defaultCommandId = GetCommandId (m_buttons[(size_t) i], i);
         }
     }
 }
@@ -81,7 +81,7 @@ void MessageDialog::OnCreate()
 
     for (i = 0; i < (int) m_buttons.size(); ++i)
     {
-        AddDialogButton (m_buttons[(size_t) i].label, CommandIdFor (m_buttons[(size_t) i], i));
+        AddDialogButton (m_buttons[(size_t) i].label, GetCommandId (m_buttons[(size_t) i], i));
     }
 }
 

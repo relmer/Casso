@@ -158,7 +158,7 @@ private:
     void    OnListSelectionMoved ();
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    SortByColumn         (int absCol);
-    int64_t NowMs                () const;
+    int64_t GetNowMs             () const;
 
     // One per mouse event kind, so OnMouse itself is just the dispatch.
     bool    OnMouseMove          (const DxuiMouseEvent & ev);

@@ -89,7 +89,7 @@ void PrinterViewport::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterViewport::MinBottomRow
+//  PrinterViewport::GetMinBottomRow
 //
 //  The furthest back the bottom may scroll: a full viewport against the top of
 //  the paper PLUS topClearanceRows of blank feed, so the top of page 1 (row 0)
@@ -98,7 +98,7 @@ void PrinterViewport::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterViewport::MinBottomRow() const
+int PrinterViewport::GetMinBottomRow() const
 {
     int  furthestBack = (std::max) (0, m_cfg.viewportRows - 1 - m_cfg.topClearanceRows);
 

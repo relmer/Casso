@@ -473,7 +473,7 @@ public:
     {
         // Scanline 0: group=0, subRow=0, lineInGroup=0
         // = pageBase + 0 + 0 + 0
-        Word addr = AppleHiResMode::ScanlineAddress (0, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (0, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x2000), addr);
     }
 
@@ -481,7 +481,7 @@ public:
     {
         // Scanline 1: group=0, subRow=1, lineInGroup=0
         // = 0x2000 + 1*1024 + 0 + 0 = 0x2400
-        Word addr = AppleHiResMode::ScanlineAddress (1, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (1, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x2400), addr);
     }
 
@@ -489,7 +489,7 @@ public:
     {
         // Scanline 8: group=0, subRow=0, lineInGroup=1
         // = 0x2000 + 0 + 0 + 1*128 = 0x2080
-        Word addr = AppleHiResMode::ScanlineAddress (8, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (8, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x2080), addr);
     }
 
@@ -497,7 +497,7 @@ public:
     {
         // Scanline 64: group=1, subRow=0, lineInGroup=0
         // = 0x2000 + 0 + 1*40 + 0 = 0x2028
-        Word addr = AppleHiResMode::ScanlineAddress (64, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (64, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x2028), addr);
     }
 
@@ -505,7 +505,7 @@ public:
     {
         // Scanline 128: group=2, subRow=0, lineInGroup=0
         // = 0x2000 + 0 + 2*40 + 0 = 0x2050
-        Word addr = AppleHiResMode::ScanlineAddress (128, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (128, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x2050), addr);
     }
 
@@ -514,17 +514,17 @@ public:
         // Scanline 191: group=2, subRow=7, lineInGroup=7
         // = 0x2000 + 7*1024 + 2*40 + 7*128
         // = 0x2000 + 7168 + 80 + 896 = 0x2000 + 8144 = 0x3FD0
-        Word addr = AppleHiResMode::ScanlineAddress (191, 0x2000);
+        Word addr = AppleHiResMode::GetScanlineAddress (191, 0x2000);
         Assert::AreEqual (static_cast<Word> (0x3FD0), addr);
     }
 
     TEST_METHOD (ScanlineAddress_Page2Base)
     {
-        Word  addr   = AppleHiResMode::ScanlineAddress (0, 0x4000);
+        Word  addr   = AppleHiResMode::GetScanlineAddress (0, 0x4000);
         Word  addr64 = 0;
         Assert::AreEqual (static_cast<Word> (0x4000), addr);
 
-        addr64 = AppleHiResMode::ScanlineAddress (64, 0x4000);
+        addr64 = AppleHiResMode::GetScanlineAddress (64, 0x4000);
         Assert::AreEqual (static_cast<Word> (0x4028), addr64);
     }
 
@@ -788,7 +788,7 @@ public:
         // Row 0 byte 0: bit 0, palette bit CLEAR -> half-dots 0,1.
         // Row 1 byte 0: bit 0, palette bit SET   -> half-dots 1,2.
         bus.WriteByte (0x2000, 0x01);
-        bus.WriteByte (AppleHiResMode::ScanlineAddress (1, 0x2000), 0x81);
+        bus.WriteByte (AppleHiResMode::GetScanlineAddress (1, 0x2000), 0x81);
 
         AppleHiResMode hires (bus);
         hires.SetPage2      (false);
