@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/MountDiagnosis.h"
+
 
 class CpuManager;
 class Disk2AudioSource;
@@ -73,7 +75,13 @@ public:
     //  thread and this callback is the only way its outcome gets back to the
     //  shell that asked for it. Fires on failure too: a mount that could not
     //  happen is exactly what the user needs told about.
-    void     SetMountCompletedCallback (std::function<void (int, const std::string &, HRESULT)> cb)
+    //
+    //  The diagnosis rides with it for the same reason and one more: by the
+    //  time the shell has the outcome, the bytes and the loader that judged
+    //  them are gone, so a reason not carried here is a reason nothing can
+    //  reconstruct.
+    void     SetMountCompletedCallback (
+                 std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)> cb)
     {
         m_onMountCompleted = std::move (cb);
     }
@@ -113,7 +121,7 @@ public:
     // whether the change stuck or failed.
     HRESULT  ToggleImageWriteProtect (int drive);
 
-    std::function<void (int, const std::string &, HRESULT)>  m_onMountCompleted;
+    std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)>  m_onMountCompleted;
 
     // Probes whether the host file at `path` can be written back. Sets
     // outReadOnly when the file carries the read-only attribute and

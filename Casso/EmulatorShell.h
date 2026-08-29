@@ -795,16 +795,18 @@ private:
     // trip that mangles a non-ASCII filename.
     struct MountCompletion
     {
-        std::string  path;
-        HRESULT      result = S_OK;
-        int          drive  = 0;
+        std::string     path;
+        MountDiagnosis  diagnosis;
+        HRESULT         result = S_OK;
+        int             drive  = 0;
     };
 
     // The DiskManager mount-completion hook. Runs on whichever thread ran the
     // mount -- the CPU thread for anything the user started, the UI thread for
     // the command-line disks -- and does nothing but get the outcome onto the
     // UI thread, where the MRU and the dialogs live.
-    void    OnMountCompleted (int drive, const std::string & path, HRESULT mountResult);
+    void    OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
+                              const MountDiagnosis & diagnosis);
 
     // The UI-thread half: a successful mount enters the recent-disks list and
     // is checked for damage, a failed one is reported to the user. Posting to

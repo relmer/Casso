@@ -416,6 +416,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
     bool                 attempted  = false;
+    MountDiagnosis       diagnosis;
 
 
 
@@ -425,7 +426,10 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     // whichever way it goes.
     attempted = true;
 
-    hr = m_diskStore.Mount (6, drive, path);
+    // The diagnosis rides out with the outcome. Without it the shell would be
+    // left re-deriving a reason from the file name, which can only ever tell
+    // an unreadable extension from everything else.
+    hr = m_diskStore.Mount (6, drive, path, diagnosis);
     CHR (hr);
 
     external = m_diskStore.GetImage (6, drive);
@@ -483,7 +487,7 @@ Error:
     // mounted, or left as the failure left it.
     if (attempted && m_onMountCompleted)
     {
-        m_onMountCompleted (drive, path, hr);
+        m_onMountCompleted (drive, path, hr, diagnosis);
     }
 
     return hr;

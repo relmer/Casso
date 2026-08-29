@@ -108,32 +108,83 @@ HRESULT VolumeImage::Load (
     vector<Byte>         & outSectors,
     SectorDecodeReport   & outReport)
 {
-    HRESULT     hr     = S_OK;
-    DiskFormat  format = DiskFormat::Dsk;
-    size_t      size   = fileBytes.size();
-    bool        sized  = false;
+    MountDiagnosis  ignored;
+
+
+
+    return Load (fileBytes, path, outSectors, outReport, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::Load
+//
+//  The same load, saying why it refused.
+//
+//  Each guard names its own reason, which is the point: the console used to
+//  answer every one of them with "is not a disk image this tool can read", a
+//  sentence that covers a renamed file, a truncated download and a damaged WOZ
+//  alike and helps with none of them.
+//
+//  The Denibblize refusal is the one that stays generic, and honestly so. It
+//  means a track decoded partly and the gaps would be lost data, which is a
+//  statement about the surface rather than about the container; the survey the
+//  caller prints afterwards says far more about it than a one-line reason
+//  could.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::Load (
+    const vector<Byte>   & fileBytes,
+    const std::string    & path,
+    vector<Byte>         & outSectors,
+    SectorDecodeReport   & outReport,
+    MountDiagnosis       & outDiagnosis)
+{
+    HRESULT     hr      = S_OK;
+    DiskFormat  format  = DiskFormat::Dsk;
+    size_t      size    = fileBytes.size();
+    bool        sized   = false;
+    bool        hasData = size != 0;
     DiskImage   image;
 
 
 
     outReport.Reset (0);
 
+    outDiagnosis              = MountDiagnosis();
+    outDiagnosis.fileByteSize = size;
+
     hr = DiskImageStore::DetectFormatByExtension (path, format);
-    CHR (hr);
+    CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
+
+    outDiagnosis.format = format;
+
+    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+            outDiagnosis.failure = MountFailure::EmptyFile);
 
     if (format == DiskFormat::Woz)
     {
         hr = WozLoader::Load (fileBytes, image);
-        CHR (hr);
+        CHRF (hr, outDiagnosis.failure = WozLoader::ClassifyLoadFailure (fileBytes));
 
         hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
-        CHR (hr);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
         BAIL_OUT_IF (true, S_OK);
     }
 
     sized = size == (size_t) NibblizationLayer::kImageByteSize;
-    CBREx (sized, E_INVALIDARG);
+
+    // ERROR_BAD_LENGTH rather than E_INVALIDARG, which in this tree marks a
+    // coding error and asserts. A file the user named is not a coding error
+    // however wrong its size is.
+    CBRFEx (sized, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+            outDiagnosis.failure = MountFailure::WrongSizeForFormat);
 
     if (format == DiskFormat::Po)
     {

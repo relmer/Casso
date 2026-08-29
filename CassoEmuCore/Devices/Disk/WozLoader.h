@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountDiagnosis.h"
 
 
 
@@ -86,6 +87,13 @@ public:
     // per-track bit stream lives at block 3 or later.
     static constexpr uint16_t  kV2FirstDataBlock = 3;
     static HRESULT  Load (const vector<Byte> & raw, DiskImage & out);
+
+    //  Why a Load of these bytes was refused: not a WOZ at all, or a WOZ whose
+    //  chunks do not hold together. Only meaningful after Load has failed --
+    //  it re-reads the header rather than remembering anything, so asking it
+    //  about bytes that loaded fine gets an answer about a failure that never
+    //  happened.
+    static MountFailure  ClassifyLoadFailure (const vector<Byte> & raw);
 
     //  Reads INFO, TMAP and META without loading any track data.
     //

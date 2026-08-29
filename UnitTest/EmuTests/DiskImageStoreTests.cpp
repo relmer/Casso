@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/MountDiagnosis.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
 #include "Devices/Disk2Controller.h"
@@ -1258,18 +1259,206 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
+    //  Mount diagnosis
+    //
+    //  A mount that did not happen has to say WHICH way it did not happen.
+    //  Every reason below is one the load path can genuinely tell apart, and
+    //  each of them sends the user somewhere different: refetch the file,
+    //  find the real image, look for the program holding it open. The
+    //  message used to collapse all but one of them into a single sentence
+    //  that named none.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    //  A diagnosis of one reason, for the message tests, so each of them
+    //  says which reason it is wording rather than assembling a struct.
+    static MountDiagnosis  DiagnosisOf (MountFailure failure,
+                                        DiskFormat   format = DiskFormat::Dsk,
+                                        size_t       fileByteSize = 0)
+    {
+        MountDiagnosis  diagnosis;
+
+
+
+        diagnosis.failure      = failure;
+        diagnosis.format       = format;
+        diagnosis.fileByteSize = fileByteSize;
+
+        return diagnosis;
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_ShortSectorImage_NamesTheLength)
+    {
+        vector<Byte>    truncated (4096, 0);
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Dsk,
+                                                                         truncated);
+
+
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::WrongSizeForFormat,
+            L"a sector image of the wrong length is diagnosed by its length");
+        Assert::AreEqual ((size_t) 4096, diagnosis.fileByteSize,
+            L"the size the user's file actually was must survive to the message");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_EmptyFile_OutranksTheLengthTest)
+    {
+        vector<Byte>    nothing;
+        MountDiagnosis  asDsk = DiskImageStore::ClassifyLoadFailure (DiskFormat::Dsk, nothing);
+        MountDiagnosis  asWoz = DiskImageStore::ClassifyLoadFailure (DiskFormat::Woz, nothing);
+
+
+
+        // A zero-byte file is the wrong size for every container, and saying
+        // so by arithmetic against 143,360 buries the one useful fact.
+        Assert::IsTrue (asDsk.failure == MountFailure::EmptyFile,
+            L"an empty sector image is empty before it is the wrong size");
+        Assert::IsTrue (asWoz.failure == MountFailure::EmptyFile,
+            L"and an empty .woz is empty before it is a missing header");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_WozWithoutAHeader_IsNotAWozAtAll)
+    {
+        vector<Byte>    renamed (600, 0x41);
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Woz, renamed);
+
+
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::NotAWozFile,
+            L"bytes with no WOZ header are not a damaged WOZ, they are not one");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_WozWithAHeader_IsADamagedWoz)
+    {
+        vector<Byte>    woz     = MakeWoz();
+        size_t          keep    = WozLoader::kHeaderSize + 16;
+        vector<Byte>    chopped (woz.begin(), woz.begin() + (ptrdiff_t) keep);
+        MountDiagnosis  diagnosis;
+
+
+
+        // The header survives the truncation, so what is left IS a WOZ -- an
+        // incomplete one. Telling the user it is not a WOZ would send them
+        // looking for a file they already have.
+        diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Woz, chopped);
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::MalformedWoz,
+            L"a real WOZ header over broken chunks is a damaged image");
+    }
+
+
+    TEST_METHOD (MountFromBytes_ShortDsk_RefusesWithALengthReasonAndNoAssert)
+    {
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis;
+        vector<Byte>    truncated (4096, 0);
+        HRESULT         hr = S_OK;
+
+
+
+        // NO ExpectedEhmAssert HERE, AND THAT IS THE TEST. A malformed file
+        // dropped on a drive used to trip the nibblizer's E_INVALIDARG guard
+        // and raise an assertion dialog in Debug, before any of the reporting
+        // below could run. A user's bad file is not a coding error.
+        hr = store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Truncated.dsk",
+                                   DiskFormat::Dsk, truncated, diagnosis);
+
+        AssertFailed (hr);
+        Assert::IsFalse (store.IsMounted (kSlot, kDrive),
+            L"a refused image must leave the bay empty rather than half-mounted");
+        Assert::IsTrue (diagnosis.failure == MountFailure::WrongSizeForFormat,
+            L"and the refusal must carry the reason out with it");
+        Assert::AreEqual ((size_t) 4096, diagnosis.fileByteSize);
+    }
+
+
+    TEST_METHOD (MountFromBytes_Succeeding_LeavesNoStaleReason)
+    {
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis = DiagnosisOf (MountFailure::MalformedWoz);
+        HRESULT         hr        = S_OK;
+
+
+
+        // A caller reusing one diagnosis across mounts must not read the
+        // previous refusal off a mount that worked.
+        hr = store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Good.dsk",
+                                   DiskFormat::Dsk, MakeDsk (0), diagnosis);
+
+        AssertSucceeded (hr);
+        Assert::IsFalse (diagnosis.HasFailure(),
+            L"a mount that worked must report no reason at all");
+    }
+
+
+    TEST_METHOD (Mount_UnknownExtension_IsDiagnosedBeforeAnythingIsRead)
+    {
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis;
+        int             reads     = 0;
+        HRESULT         hr        = S_OK;
+
+
+
+        store.SetImageReader ([&reads] (const string &, vector<Byte> &) -> HRESULT
+                              {
+                                  reads++;
+                                  return E_FAIL;
+                              });
+
+        hr = store.Mount (kSlot, kDrive, "C:\\disks\\Notes.txt", diagnosis);
+
+        AssertFailed (hr);
+        Assert::IsTrue (diagnosis.failure == MountFailure::UnknownExtension,
+            L"a name no loader claims is settled by the name");
+        Assert::AreEqual (0, reads,
+            L"and settled without opening the file, which nothing would read");
+    }
+
+
+    TEST_METHOD (Mount_UnreadableFile_IsDiagnosedAsAReadFailure)
+    {
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr = S_OK;
+
+
+
+        // The extension is fine and the bytes never arrive: a moved file, or
+        // one another program is holding. That is not the same problem as a
+        // file whose contents the loader refused, and must not read like it.
+        store.SetImageReader ([] (const string &, vector<Byte> &) -> HRESULT
+                              {
+                                  return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+                              });
+
+        hr = store.Mount (kSlot, kDrive, "C:\\disks\\Gone.dsk", diagnosis);
+
+        AssertFailed (hr);
+        Assert::IsTrue (diagnosis.failure == MountFailure::FileUnreadable,
+            L"bytes that never arrived are a read failure, not a bad image");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
     //  FormatMountFailureMessage
     //
-    //  A mount that did not happen has to say so. Mount reports every reason
-    //  as one generic HRESULT, so the message re-derives the one distinction
-    //  that changes what the user should do: a name no loader claims versus
-    //  a file that could not be read or is not an image inside.
+    //  The wording each reason produces. Asserted on the sentence a person
+    //  reads, not on a paraphrase of it -- the message IS the feature here,
+    //  and a message that named nothing specific is what this replaced.
     //
     ////////////////////////////////////////////////////////////////////////
 
     TEST_METHOD (FormatMountFailureMessage_UnknownExtension_ListsWhatIsRead)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Notes.txt");
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Notes.txt",
+                               DiagnosisOf (MountFailure::UnknownExtension));
 
 
 
@@ -1282,7 +1471,10 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_KnownExtension_BlamesTheContents)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Broken.dsk");
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Broken.dsk",
+                               DiagnosisOf (MountFailure::WrongSizeForFormat,
+                                            DiskFormat::Dsk, 4096));
 
 
 
@@ -1296,14 +1488,177 @@ public:
     }
 
 
+    TEST_METHOD (FormatMountFailureMessage_WrongSize_GivesBothNumbers)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Truncated.dsk",
+                               DiagnosisOf (MountFailure::WrongSizeForFormat,
+                                            DiskFormat::Dsk, 4096));
+
+
+
+        // "Not a valid disk image" is barely better than saying nothing. The
+        // two numbers together are what tell somebody their download stopped
+        // early, which is the whole reason the size is carried this far.
+        Assert::IsTrue (message.find (L"4,096 bytes") != wstring::npos,
+            L"the message must say how big the file actually is");
+        Assert::IsTrue (message.find (L"143,360 bytes") != wstring::npos,
+            L"and how big it should have been");
+        Assert::IsTrue (message.find (L".dsk") != wstring::npos,
+            L"named as the container the file's own name promised");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_WrongSize_NamesTheFormatItWasGiven)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Half.po",
+                               DiagnosisOf (MountFailure::WrongSizeForFormat,
+                                            DiskFormat::Po, 71680));
+
+
+
+        Assert::IsTrue (message.find (L".po") != wstring::npos,
+            L"a .po must not be told what a .dsk should weigh");
+        Assert::IsTrue (message.find (L"71,680 bytes") != wstring::npos);
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_Unreadable_PointsAtTheFileNotTheContents)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Gone.dsk",
+                               DiagnosisOf (MountFailure::FileUnreadable, DiskFormat::Dsk));
+
+
+
+        Assert::IsTrue (message.find (L"cannot be read") != wstring::npos,
+            L"a file that never opened must be reported as a file, not as a bad image");
+        Assert::IsTrue (message.find (L"143,360") == wstring::npos,
+            L"and must not be lectured about a size nobody measured");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_EmptyFile_SaysSoPlainly)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Zero.dsk",
+                               DiagnosisOf (MountFailure::EmptyFile, DiskFormat::Dsk));
+
+
+
+        Assert::IsTrue (message.find (L"empty") != wstring::npos,
+            L"a zero-byte file is empty, which is more use than an arithmetic complaint");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_NotAWoz_SuggestsARename)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Renamed.woz",
+                               DiagnosisOf (MountFailure::NotAWozFile, DiskFormat::Woz));
+
+
+
+        Assert::IsTrue (message.find (L"WOZ file header") != wstring::npos,
+            L"the missing header is the fact, and naming it is what explains the refusal");
+        Assert::IsTrue (message.find (L"renamed") != wstring::npos,
+            L"a .woz that is not a WOZ is almost always a renamed file, so say so");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_MalformedWoz_SaysTheFileIsDamaged)
+    {
+        wstring  notAWoz = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Renamed.woz",
+                               DiagnosisOf (MountFailure::NotAWozFile, DiskFormat::Woz));
+        wstring  damaged = DiskImageStore::FormatMountFailureMessage (
+                               "C:\\disks\\Damaged.woz",
+                               DiagnosisOf (MountFailure::MalformedWoz, DiskFormat::Woz));
+
+
+
+        Assert::IsTrue (damaged.find (L"damaged or incomplete") != wstring::npos,
+            L"a real WOZ header over broken chunks is a damaged file, and reads as one");
+
+        // The two send the user in different directions: one to find the real
+        // image, the other to fetch this one again. Sharing wording would
+        // throw that away.
+        Assert::AreNotEqual (notAWoz, damaged,
+            L"a renamed file and a damaged one must not read alike");
+    }
+
+
     TEST_METHOD (FormatMountFailureMessage_EmptyPath_StillReadsAsASentence)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (string());
+        wstring  message = DiskImageStore::FormatMountFailureMessage (
+                               string(), DiagnosisOf (MountFailure::Unrecognized));
 
 
 
         Assert::IsTrue (message.find (L"(unknown path)") != wstring::npos,
             L"a missing path must be named as missing, not left as a blank gap");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_EveryReason_SaysSomethingOfItsOwn)
+    {
+        //  MountFailure is TOTAL over the wordings, so the sweep runs the
+        //  enum rather than a table of the ones somebody remembered. A table
+        //  sweep visits only rows that exist and structurally cannot find a
+        //  missing one.
+        const MountFailure  reasons[] =
+        {
+            MountFailure::None,
+            MountFailure::UnknownExtension,
+            MountFailure::FileUnreadable,
+            MountFailure::EmptyFile,
+            MountFailure::WrongSizeForFormat,
+            MountFailure::NotAWozFile,
+            MountFailure::MalformedWoz,
+            MountFailure::Unrecognized,
+        };
+
+        vector<wstring>  seen;
+        size_t           i    = 0;
+        size_t           j    = 0;
+
+
+
+        Assert::AreEqual ((size_t) 8, sizeof (reasons) / sizeof (reasons[0]),
+            L"an enumerator added without a wording must fail here, not ship silent");
+
+        for (i = 0; i < sizeof (reasons) / sizeof (reasons[0]); i++)
+        {
+            wstring  message = DiskImageStore::FormatMountFailureMessage (
+                                   "C:\\disks\\Image.dsk",
+                                   DiagnosisOf (reasons[i], DiskFormat::Dsk, 4096));
+
+            Assert::IsTrue (message.find (L"C:\\disks\\Image.dsk") != wstring::npos,
+                L"every reason names the file");
+
+            for (j = 0; j < seen.size(); j++)
+            {
+                Assert::AreNotEqual (seen[j], message,
+                    L"two reasons sharing one sentence is the failure being fixed");
+            }
+
+            seen.push_back (message);
+        }
+    }
+
+
+    TEST_METHOD (FormatByteCount_GroupsDigitsAndAgreesWithItself)
+    {
+        //  Grouped by hand rather than through a locale, so two users
+        //  comparing the same refusal see the same number.
+        Assert::AreEqual (string ("0 bytes"),       MountDiagnosis::FormatByteCount (0));
+        Assert::AreEqual (string ("1 byte"),        MountDiagnosis::FormatByteCount (1));
+        Assert::AreEqual (string ("999 bytes"),     MountDiagnosis::FormatByteCount (999));
+        Assert::AreEqual (string ("1,000 bytes"),   MountDiagnosis::FormatByteCount (1000));
+        Assert::AreEqual (string ("143,360 bytes"), MountDiagnosis::FormatByteCount (143360));
+        Assert::AreEqual (string ("1,048,576 bytes"),
+                          MountDiagnosis::FormatByteCount (1048576));
     }
 
 
