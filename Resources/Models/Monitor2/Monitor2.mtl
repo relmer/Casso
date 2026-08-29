@@ -1,3 +1,8 @@
+newmtl vent_back
+Ka 0 0 0 
+Kd 0.105 0.098 0.086
+d 1
+
 newmtl rear_molding
 Ka 0 0 0 
 Kd 0.56 0.545 0.52

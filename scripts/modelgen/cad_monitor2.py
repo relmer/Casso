@@ -508,13 +508,16 @@ DARK_W    = COL_HW * 2.0
 # reaches, so the walls are dark and the outer face stays case-colored.
 DARK_BLEED = 0.3
 
-# THE BELL, needed here rather than where it is added: the pocket's bottom
-# is CUT BY THE BELL ITSELF, so the recess ends exactly on the bell's
-# contour. Every hand-picked bottom height left either a sliver of rim
-# showing across the bell or a wall hanging below it beside the bell --
-# there is no single height that does both, because the bell's top is a
-# slanted line and a pocket floor is a plane. Cutting with the part removes
-# the choice.
+# THE BELL, built here so the molding can union it in below.
+#
+# The pocket is deliberately NOT cut by it. That was tried, to make the
+# recess end on the bell's contour, and it is what produced the line across
+# the bell: sparing the case where the bell sits leaves case material lying
+# exactly along the bell's own surface, and two coincident surfaces render
+# as a sliver of whichever wins the depth test -- visible in a diagnostic
+# render as the case's color cutting straight across the bell. Cutting the
+# pocket right through instead leaves that space empty for the bell to fill,
+# so the bell's surface is the only one there.
 # THE BELL IS COLUMN-WIDE WHERE IT EMERGES, not where its front wire is.
 # The wire sits 46 mm inside the case; by the time the bell reaches the
 # surface the taper has already narrowed it, so a wire cut to the column's
@@ -550,8 +553,7 @@ def _pocket_cutter(zshift):
           .union (cq.Workplane ("XY")
                     .box (DARK_W, VENT_IN_BOT + 80.0, 20.0,
                           centered=(False, False, False)))
-          .translate ((DARK_X0, D - VENT_IN_BOT, PKT_Z0 + zshift))
-          .cut (cq.Workplane (obj=_bell_solid)))
+          .translate ((DARK_X0, D - VENT_IN_BOT, PKT_Z0 + zshift)))
 
 
 case = case.cut (_pocket_cutter (0.0))
@@ -592,6 +594,19 @@ for _side in (-1.0, 1.0):
                          .val())
 
 case = case.cut (vent_face (cq.Workplane (obj=cq.Compound.makeCompound (_slots))))
+
+# WHAT THE SLOTS LOOK INTO. A vent cut through plastic shows whatever is
+# behind it, and behind it here is more case -- so the slits read as beige
+# scratches rather than as openings. A real louvre looks into an unlit
+# cabinet, so a near-black panel sits a few millimeters back of the recess
+# floor, wide enough to back both banks and nothing else.
+m.add ("vent_back",
+       vent_face (cq.Workplane ("XY")
+                    .box (DARK_W - 6.0, 1.5, VENT_SLOT_H + 14.0,
+                          centered=(False, False, False))
+                    .translate ((DARK_X0 + 3.0, D - VENT_IN_BOT - 7.0,
+                                 VENT_BAND_Z - 7.0))),
+       CAVITY, angular=CORNER_ANG)
 
 # ------------------------------------------------------- circumference line
 #
