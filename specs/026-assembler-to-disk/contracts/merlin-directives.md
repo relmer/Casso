@@ -43,16 +43,23 @@ of scope on the same boundary that refuses a second `XC`. See research finding
 
 ### With no image target
 
-Accepted, no effect, and a warning saying so (FR-041). A host file has no
-filesystem type, so unlike `DSK` and `SAV` there is no host meaning to degrade
-to. Refusing would stop period source carrying `TYP` from assembling to a host
-file at all, which is the opposite of what this feature is for; the warning is
-what keeps it from being a directive parsed and silently dropped.
+**Refused**, naming the flag that supplies one (FR-041), which is what the
+`--type` flag does in the same situation (FR-040).
 
-Note this is **not** what the `--type` flag does in the same situation — that
-is refused (FR-040). The asymmetry is deliberate: a flag was typed by whoever
-is running the command right now, and a directive lives in source they may not
-own.
+`DSK` and `SAV` degrade to host meanings because they have one — a name and a
+write. `TYP` has none: a host file has no filesystem type. So the reason the
+boundary table gave for refusing `TYP` in the first place, that it "means
+nothing without a filesystem that has types", still holds exactly when no image
+is targeted. Accepting it there would be accepting a directive precisely where
+its own stated precondition is absent.
+
+The remedy is a flag rather than a source edit, so this does not fail a
+developer for source they did not write, and it regresses nothing — `TYP` does
+not assemble today under any invocation.
+
+**What decides is whether the construct has anything to mean without a volume**,
+not whether it arrived as a flag or as a directive. That is why `DSK` and `SAV`
+go one way and `TYP` goes the other.
 
 ## `SAV` — write an output and carry on
 

@@ -238,11 +238,12 @@ already refuses a binary with no load address rather than defaulting one,
 indistinguishable from an answer" — which is precisely the silent disagreement
 this feature exists to remove.
 
-**Two of these are NOT refusals under Merlin's directives.** `TYP` with no image
-target is accepted with a warning (FR-041), unlike the `--type` flag; and `SAV`
-with no image target writes a host file (FR-020). Where a directive has a host
-meaning it degrades to it, and where it has none it says so rather than failing
-source the developer may not own.
+**Source directives without an image target do not all answer the same way.**
+`DSK` names a host file and `SAV` writes one (FR-020), because each has a host
+meaning to degrade to. `TYP` has none — a host file has no filesystem type — so
+it is refused (FR-041), exactly as the `--type` flag is. What decides is whether
+the construct has anything to mean without a volume, not whether it arrived as a
+flag or as a directive.
 
 ## Exit statuses
 
@@ -281,8 +282,9 @@ fourth command, `disk boot mydisk.dsk PROG`, into the assembly.
 
 ## What does not change
 
-- Assembling with no `--disk` produces byte-for-byte the same host files as
-  before (FR-016, SC-006).
+- The assembled bytes are byte-for-byte identical to before, with no exception
+  (FR-016, SC-006). Listing text is identical line for line; only the file
+  division and, under Merlin, the destination change.
 - `disk put` stays, and remains the right tool for placing files the assembler
   did not produce.
 - Listing, symbol table and debug info stay on the host, requested by their own

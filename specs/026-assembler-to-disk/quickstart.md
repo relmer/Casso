@@ -121,9 +121,9 @@ Then `TYP` with no disk at all:
 CassoCli merlin SYSPROG.S
 ```
 
-**Expected**: assembles to a host file, with a warning that `TYP` had no effect
-(FR-041). NOT refused — a host file has no filesystem type, but period source
-carrying `TYP` must still assemble.
+**Expected**: refused, naming `--disk` (FR-041) — the same answer `--type`
+without `--disk` gets. A host file has no filesystem type, so unlike `DSK` and
+`SAV` there is no host meaning for `TYP` to fall back to.
 
 ## Scenario 4 — Several files from one source (User Story 3, P3)
 
@@ -184,8 +184,26 @@ the *same rule*, shared and not copied.
 CassoCli as65 prog.a65 -oprog.bin
 ```
 
-**Expected**: byte-for-byte the same object as before this feature. Assembling
-without an image target is untouched.
+**Expected**: byte-for-byte the same object as before this feature, with no
+allowance. The bytes are the part of this that does not bend.
+
+Then the listing, which does get one narrow allowance:
+
+```bash
+CassoCli as65 prog.a65 -oprog.bin -lprog.lst
+```
+
+**Expected**: `prog.lst` identical line for line to before. as65's `-l` is
+untouched, so nothing about this invocation changes at all.
+
+```bash
+CassoCli merlin PROG.S
+```
+
+**Expected**: the listing text is the same lines as before, but under Merlin it
+now lands in a file rather than on standard output, and a multi-output source
+divides it across files. That division and destination is the whole allowance —
+no line of listing text differs.
 
 ## Pre-merge gates
 

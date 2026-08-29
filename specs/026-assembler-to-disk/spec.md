@@ -253,9 +253,13 @@ startup program.
 - **FR-040**: A name or a type given on the command line with no image target
   MUST be refused. Both describe a placement on a volume, so an invocation
   supplying either without naming an image is one whose author believed
-  something false about what was about to happen. This applies to the flags
-  only; what the equivalent SOURCE DIRECTIVES do without an image target is
-  each directive's own question, answered in the Merlin requirements below.
+  something false about what was about to happen.
+
+  The equivalent SOURCE DIRECTIVES are answered individually in the Merlin
+  requirements below, and they do not all answer the same way: `DSK` and `SAV`
+  have host meanings and degrade to them, while `TYP` has none and is refused
+  like the flag (FR-041). What decides is whether the construct has anything to
+  mean without a volume, not whether it arrived as a flag or as a directive.
 - **FR-003**: The capability MUST behave identically across dialects. A dialect
   MUST NOT be required to have directives for a developer to reach it.
 - **FR-018**: The image MUST already exist. A named image that is not there MUST
@@ -386,19 +390,20 @@ startup program.
   from Merlin for one occurrence and wrong for two.
 - **FR-009**: `TYP` MUST set the object's filesystem type when an image target is
   given.
-- **FR-041**: With no image target, `TYP` MUST be accepted, MUST have no effect,
-  and MUST warn that it had none. A host file has no filesystem type, so unlike
-  `DSK` and `SAV` there is no host meaning to degrade to — but refusing would
-  make period source carrying `TYP` fail to assemble to a host file, which is
-  the outcome this feature exists to remove rather than create. The warning is
-  what keeps this from being a parsed-then-ignored directive, and a build that
-  wants it fatal already has the flag for that.
+- **FR-041**: With no image target, `TYP` MUST be refused, naming the flag that
+  supplies one. Unlike `DSK` and `SAV` there is no host meaning to degrade to: a
+  host file has no filesystem type, so the reason the construct was refused in
+  the first place still holds. The boundary table's own words are that `TYP`
+  "means nothing without a filesystem that has types" — with no image target
+  there is no filesystem, so accepting it would be accepting a directive exactly
+  where its stated precondition is absent.
 
-  This is deliberately NOT symmetric with FR-040, which refuses the `--type`
-  FLAG in the same situation. A flag was typed by the person running the command
-  now, and refusing it corrects them immediately; a directive lives in source
-  they may not own, and refusing it punishes them for its contents. The two
-  differ because their authors differ.
+  The remedy is a flag, not a source edit, so this does not punish a developer
+  for source they did not write. And it regresses nothing: `TYP` does not
+  assemble at all today, under any invocation.
+
+  This matches FR-040 rather than diverging from it. A type with no volume to
+  apply it to is refused whether it arrived as a flag or as a directive.
 - **FR-010**: A type with no counterpart on the target filesystem MUST be refused
   by name, identifying both the type and the filesystem, rather than mapped to
   an approximation. A ProDOS system file has no DOS 3.3 equivalent, because
@@ -451,9 +456,12 @@ startup program.
 **Compatibility**
 
 - **FR-016**: Assembling to host files MUST be unchanged when no image target is
-  given, with the single exception FR-037 states for Merlin's listing flag. That
-  exception is deliberate and carries a CHANGELOG entry; nothing else about host
-  assembly changes.
+  given. The assembled bytes MUST be identical with no exception. Listing text
+  MUST be identical line for line; what may differ is only how many files it is
+  divided into and where they land, which is what FR-031 and FR-037 introduce on
+  purpose. Symbol and debug CONTENT is unchanged for a single-output assembly —
+  the per-output scoping of FR-029 has nothing to scope when there is one
+  output.
 - **FR-017**: The feature MUST be documented in the tool's own help output.
 
 ### Key Entities
@@ -492,10 +500,14 @@ startup program.
 - **SC-005**: No failure path leaves a modified target. Every refusal and every
   failed assembly leaves it byte-for-byte as it was, whether that target is an
   image or a set of host files.
-- **SC-006**: Assembling without an image target produces byte-for-byte the same
-  host files as before this feature, for every source that assembled before this
-  feature — with the single exception FR-037 states, where Merlin's listing flag
-  stops writing to standard output and writes files instead.
+- **SC-006**: The assembled bytes are byte-for-byte identical to what the tool
+  produced before this feature, for every source that assembled before it, with
+  no exception at all. That is the part of this criterion that does not bend.
+  Listing content and format are likewise unchanged, line for line; the only
+  allowance is for what this feature deliberately introduced — a multi-output
+  assembly divides its listing across files, and Merlin's listing flag writes
+  files rather than standard output. No line of listing TEXT differs, only how
+  many files it is divided into and where they land.
 - **SC-007**: A single assembly can produce a disk that boots straight into the
   program it just assembled, with no further command.
 

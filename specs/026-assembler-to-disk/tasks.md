@@ -89,7 +89,7 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 **Independent test**: Assemble Merlin source carrying `DSK PROG` and `TYP $06` against an image with no naming flags, and confirm the volume shows exactly that name and type.
 
 - [ ] T031 [US2] Delete the `TYP` row from `s_kMerlinBoundary` in `CassoCore/MerlinSubsetBoundary.cpp`
-- [ ] T032 [US2] Accept `TYP` with no image target, apply no type, and warn that it had no effect (FR-041) — NOT a refusal, unlike the `--type` flag, because a directive lives in source the developer may not own
+- [ ] T032 [US2] Refuse `TYP` with no image target, naming the flag that supplies one (FR-041), the same answer the `--type` flag gets. `DSK` and `SAV` degrade to host meanings because they have one; `TYP` has none, so the reason the boundary table gave for refusing it still holds when no image is targeted
 - [ ] T033 [US2] Add `HandlePass1FileType` to `CassoCore/AssemblySession.h`/`.cpp` and an entry in the directive dispatch table, so `TYP` sets the type when an image is targeted (FR-009). Removing the boundary row makes `TYP` fall through to that table, where an absent entry turns it into an unknown directive rather than a working one
 - [ ] T034 [P] [US2] Add the ProDOS type map to `CassoEmuCore/Devices/Disk/AssembledFilePlacement.cpp` per the table in [contracts/merlin-directives.md](contracts/merlin-directives.md): `$04`/`$06`/`$FC` map to both filesystems, `$FF` maps on ProDOS only
 - [ ] T035 [US2] Refuse `$FF` on DOS 3.3 naming both the type and the filesystem (FR-010), and refuse an unrecognized value naming the byte (FR-011). Never approximate — a guessed type surfaces much later as a program that will not load
@@ -173,7 +173,7 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [ ] T076 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
 - [ ] T077 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
 - [ ] T078 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
-- [ ] T079 Add a no-image-target regression test asserting that assembling with no `--disk` produces byte-for-byte the same host object as before the feature (FR-016, SC-006), using a checked-in expected artifact rather than a self-comparison. Everything else here tests new behavior; this is the only task that watches the old behavior
+- [ ] T079 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
 
 ---
 
