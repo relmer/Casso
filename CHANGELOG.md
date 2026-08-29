@@ -57,9 +57,6 @@ Entries before versioning was introduced use dates only.
 - **A disk that never mounted no longer appears in the recent-disks list.**
 - **`disk create` failed on `.do` images.** It now writes a DOS-ordered image,
   the same as `.dsk`.
-- **`disk create` asserted on illegal specs instead of refusing them.** The
-  container/filesystem, bootable, and ProDOS volume-name rules now produce
-  ordinary refusals.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
