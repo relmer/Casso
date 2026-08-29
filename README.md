@@ -494,7 +494,7 @@ I thus present to you our regal namesake, revel in his splendor!
 Casso's correctness is validated against two exceptional open-source test suites:
 
 - **[Klaus Dormann's 6502 Functional Test Suite](https://github.com/Klaus2m5/6502_65C02_functional_tests)**: [@Klaus2m5](https://github.com/Klaus2m5)'s exhaustive functional test exercises every documented 6502 behavior: all instructions, addressing modes, flag interactions, BCD arithmetic, and edge cases. Casso passes the full suite.
-- **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)**: [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors validate every legal 6502 opcode against cycle-accurate reference traces. Casso passes all 151 legal-opcode test sets.
+- **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)**: [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors run every legal 6502 opcode from a recorded initial state and compare the registers, flags and touched memory against the recorded final state. Casso passes all 151 legal-opcode test sets. Note what this does **not** cover: the upstream vectors carry a per-cycle bus trace, and Casso's packed fixture format keeps only the two end states, so instruction TIMING is verified by unit tests rather than here.
 
 Thank you to both authors for making these invaluable resources freely available. They are the gold standard for 6502 emulator validation.
 
