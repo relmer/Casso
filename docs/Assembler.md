@@ -188,6 +188,22 @@ With `-c`, a substituted line reports the branch's timing rather than the
 jump's: `BRA` is three cycles, and four when the branch crosses a page
 boundary. `JMP` absolute is always three.
 
+**`NOOPT` does not mean "assemble exactly as written."** It turns off the
+jump substitution and nothing else. Zero-page selection is not affected: an
+operand that resolves to `$00`–`$FF` still assembles to the two-byte zero-page
+form, so `lda $0030` emits `A5 30` whether or not `NOOPT` is in force. AS65
+behaves the same way — its manual lists zero-page substitution as an
+optimization, but its `NOOPT` does not disable it either. Neither assembler
+offers a way to force the absolute form.
+
+**One deliberate divergence from AS65.** Under `NOOPT`, a forward reference to
+a zero-page value makes AS65 emit a corrupt object: it sizes the instructions
+as absolute in pass 1, emits the zero-page forms in pass 2, and writes the
+original 7-byte span, leaving two stale bytes on the end. Its own listing shows
+five bytes of code while it reports "Total size 7 bytes". Casso keeps the
+absolute form, which is self-consistent and runs. This is the only case where
+matching AS65 byte-for-byte would mean reproducing a defect.
+
 ### Accepted but not yet implemented
 
 Both are parsed and then read by no code, so passing them changes nothing.

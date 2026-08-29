@@ -11,13 +11,11 @@ Entries before versioning was introduced use dates only.
 ### Changed
 - **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
   used to assume as65. Binaries are unaffected.
-- **`as65 -x` now emits `BRA` for a backward, in-range `JMP`, as AS65 does.**
-  Affected sources assemble one byte shorter and every label below moves; `-n`
-  or `NOOPT` keeps the old bytes.
-
-### Added
-- **`OPT`, `NOOPT` and `-n` control the `JMP`-to-`BRA` substitution.** On by
-  default, as in AS65; `-n` overrides an `OPT` in the source.
+- **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization, and `NOOPT` /
+  `-n` switch it off.** It was the one optimization Casso did not do, so a
+  backward, in-range `JMP` now assembles to two bytes instead of three and
+  every label below it moves. `OPT`, `NOOPT` and `-n` are now implemented
+  rather than ignored.
 
 ### Fixed
 - **`run` echoed flags back with a dash even on a `/`-style command line.**
