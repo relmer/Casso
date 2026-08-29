@@ -193,6 +193,13 @@ public:
     //  Reads a whole file into `bytes`. The read counterpart of the write
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
+
+    //  Why a mount failed, in the user's terms. A name the extension routing
+    //  does not recognize gets the list of formats that are read; anything
+    //  else could not be read or is not a disk image inside. Pure -- no
+    //  filesystem access -- and public because the wording is the observable
+    //  half of a failed mount, and the only half worth testing on its own.
+    static wstring  FormatMountFailureMessage (const string & path);
 private:
     struct Entry
     {

@@ -90,6 +90,19 @@ Entries before versioning was introduced use dates only.
   not have caught this: Casso's packed fixtures keep each vector's start and end
   state and discard the upstream per-cycle bus trace, so they check what an
   instruction computes and never what it costs.
+- **A disk image that fails to mount now says so.** The mount runs on the
+  emulation thread and its result was thrown away there, so a file Casso could
+  not open produced no dialog, no message and no log line: the machine came up
+  at a bare text screen and sat there. The result is now carried back to the UI
+  thread and reported, naming the file and saying whether the problem was an
+  extension Casso does not read or contents it could not load. A failure at
+  startup, from `--disk1` or `--disk2` or a remembered disk, is reported once
+  the window is running rather than as a dialog raised mid-launch.
+- **A disk that never mounted no longer appears in the recent-disks list.**
+  Mounting from the drive widgets, the menu, a drag and drop or the command
+  line recorded the path before the mount had happened, so a file the loader
+  went on to refuse was offered by the disk picker from then on. Recording now
+  waits for the mount's own result.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

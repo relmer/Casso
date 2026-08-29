@@ -1256,6 +1256,57 @@ public:
     }
 
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  FormatMountFailureMessage
+    //
+    //  A mount that did not happen has to say so. Mount reports every reason
+    //  as one generic HRESULT, so the message re-derives the one distinction
+    //  that changes what the user should do: a name no loader claims versus
+    //  a file that could not be read or is not an image inside.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (FormatMountFailureMessage_UnknownExtension_ListsWhatIsRead)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Notes.txt");
+
+
+
+        Assert::IsTrue (message.find (L"C:\\disks\\Notes.txt") != wstring::npos,
+            L"the message must name the file the user picked");
+        Assert::IsTrue (message.find (L".woz") != wstring::npos,
+            L"a name no loader claims earns the list of names they do");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_KnownExtension_BlamesTheContents)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Broken.dsk");
+
+
+
+        Assert::IsTrue (message.find (L"C:\\disks\\Broken.dsk") != wstring::npos,
+            L"the message must name the file the user picked");
+
+        // A .dsk IS read, so reciting the supported formats back would be
+        // both useless and misleading -- the extension was never the problem.
+        Assert::IsTrue (message.find (L".woz") == wstring::npos,
+            L"a recognized extension must not be answered with the format list");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_EmptyPath_StillReadsAsASentence)
+    {
+        wstring  message = DiskImageStore::FormatMountFailureMessage (string());
+
+
+
+        Assert::IsTrue (message.find (L"(unknown path)") != wstring::npos,
+            L"a missing path must be named as missing, not left as a blank gap");
+    }
+
+
     TEST_METHOD (MakeRecoveryPath_NeverCollidesWithAnEarlierRescue)
     {
         // Overwriting a previous recovery would repeat the mistake being fixed:
