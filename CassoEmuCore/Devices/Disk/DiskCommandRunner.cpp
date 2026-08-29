@@ -2412,11 +2412,14 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
 
     if (!fits)
     {
+        size_t  spare = total - first;
+
         snprintf (summary, sizeof (summary),
                   "Error: sector range exceeds the disk\n"
-                  "       %d sectors requested from track %d sector %d. Only %zu available.\n",
+                  "       %d sectors requested from track %d sector %d.\n"
+                  "       Only %zu sector%s available.\n",
                   options.disk.count, options.disk.track, options.disk.sector,
-                  total - first);
+                  spare, (spare == 1) ? "" : "s");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2590,12 +2593,14 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
         if (!fits)
         {
+            size_t  spare = total - first;
+
             snprintf (summary, sizeof (summary),
                       "Error: sector range exceeds the disk\n"
-                      "       %zu bytes from track %d sector %d requires %zu sectors. Only\n"
-                      "       %zu available.\n",
+                      "       %zu bytes from track %d sector %d requires %zu sectors.\n"
+                      "       Only %zu sector%s available.\n",
                       payload.size(), options.disk.track, options.disk.sector,
-                      needed, total - first);
+                      needed, spare, (spare == 1) ? "" : "s");
         }
 
         CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2740,11 +2745,14 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
     if (!fits)
     {
+        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+
         snprintf (summary, sizeof (summary),
                   "Error: block range exceeds the disk\n"
-                  "       %d blocks requested from block %d. Only %d available.\n",
+                  "       %d blocks requested from block %d.\n"
+                  "       Only %d block%s available.\n",
                   options.disk.count, options.disk.block,
-                  ProDosSkeleton::kTotalBlocks - options.disk.block);
+                  spare, (spare == 1) ? "" : "s");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2879,11 +2887,14 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
 
     if (!fits)
     {
+        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+
         snprintf (summary, sizeof (summary),
                   "Error: block range exceeds the disk\n"
-                  "       %zu bytes from block %d requires %zu blocks. Only %d available.\n",
+                  "       %zu bytes from block %d requires %zu blocks.\n"
+                  "       Only %d block%s available.\n",
                   payload.size(), options.disk.block,
-                  needed, ProDosSkeleton::kTotalBlocks - options.disk.block);
+                  needed, spare, (spare == 1) ? "" : "s");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
