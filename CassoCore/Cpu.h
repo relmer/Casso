@@ -252,5 +252,9 @@ public:
 
 protected:
     void TracePush (Byte opcode);
+
+    // Side-effect-free read for the trace, routed through the same read-page
+    // table the fetch uses so operands come from the bank that executed.
+    Byte TracePeek (Word address) const;
     void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
 };

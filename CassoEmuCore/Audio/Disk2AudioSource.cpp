@@ -75,6 +75,8 @@ static HRESULT DecodeWavToMonoFloat (
     DWORD                    floatCount     = 0;
     DWORD                    i              = 0;
 
+
+
     outSamples.clear();
 
     hr = MFCreateSourceReaderFromURL (path, nullptr, &reader);
@@ -208,6 +210,8 @@ HRESULT Disk2AudioSource::LoadSamples (
     fs::path        mechDir;
     fs::path        fullPath;
     vector<float>   slots[s_kcSampleFiles];
+
+
 
     CBRAEx (devicesDir != nullptr && mechanism != nullptr && targetSampleRate != 0, E_INVALIDARG);
 

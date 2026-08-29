@@ -15,6 +15,9 @@
 PerfStats & PerfStats::Instance()
 {
     static PerfStats  s_inst;
+
+
+
     return s_inst;
 }
 
@@ -35,6 +38,8 @@ void PerfStats::Record (const char * label, double ms)
 {
     constexpr double             kAlpha = 0.1;
     std::lock_guard<std::mutex>  lock (m_mutex);
+
+
 
     if (label != nullptr)
     {
@@ -101,5 +106,8 @@ PerfStats::Stat PerfStats::Get (const char * label) const
 std::unordered_map<std::string, PerfStats::Stat> PerfStats::GetAll() const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
     return m_stats;
 }

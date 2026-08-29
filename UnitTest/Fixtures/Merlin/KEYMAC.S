@@ -1,1 +1,307 @@
-	Kªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª                              ªª           ËÅÙÍÁÃ             ªª                              ªª   Çìåî Å® Âòåäïî   ¹¯²¶¯¸´   ªª                              ªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ªª   Á óáíðìå Áää¯Åäéô ëåùâïáòä ªª íáãòï æáãéìéôù®  Áìóï ôï     ªª éììõóôòáôå éîôåòæáãéîç ïæ    ªª ÕÓÅÒ òïõôéîåó éî çåîåòáì®    ªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ªª Ôï õóåº ÂÒÕÎ ËÅÙÍÁÃ  æòïí    ªª ÅØÅÃ ôèåî éîöïëå ÷éôè ÕÓÅÒ   ªª æòïí åäéôïò®                 ªª                              ªª Ëåùâïáòä íáãòïó áòå éîöïëåä  ªª âù ðòåóóéîç ïîå ïæ ôèå Áððìå ªª ëåùó ôïçåôèåò ÷éôè á òåçõìáò ªª ëåù®                         ªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ªª   ÕÓÅÒ ¢óôòéîç¢ óåôó õð áî   ªª ÁÕÔÏÅÄÉÔ óôòéîç ÷èéãè ÷éìì   ªª âå åøåãõôåä ïî áîù æïììï÷éîç ªª ÅÄÉÔ®  ¨Áää¯Éîóåòô ÷éìì ôõòî ªª ïææ ôèéó íïäå®©  Éî ôèå åäéô ªª óôòéîç¬ á ÞÒ æïììï÷åä âù     ªª Ä¬ ¾¬ ïò ¼¬ ÷éìì çéöå ÄÅÌ¬   ªª ïò òéçèô¯ìåæô ãõòóïò íïöåó®  ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª ÔÒ ÅØÐ ÏÆÆÙÅÓ ½ ±ÎÏ ½ °ÓÁÖÏÂÊ ËÂÄ ¢Óáöå ïâêåãô ãïäå¿ ¨ÙÅÓ¯ÎÏ©¢ª Íåòìéî ¦ Áððìå óôõææºÆÒÏÍ ½ ¤³Ã »Á±ÌÅÎÄÍÏÖÅ ½ ¤³Å »Á²ÌÄÅÓÔ ½ ¤´² »Á´ÌÉÎÖÅÃ ½ ¤ÁÅ »Åäéô íïäå ëåù éîðõô öåãôïòÅÆÌÇ ½ ¤Æ° »Íéîõó ÷èåî éî åäéô íïäåÁÍÐÅÒ ½ ¤³ÆµÓÔÒÉÎÇÓ ½ ¤¸¶° »Åäéôïò ðõôó óôòéîç èåòåËÅÙ ½ ¤Ã°°°ÓÔÒÏÂÅ ½ ¤Ã°±°ÍÏÎÍÏÖÅ ½ ¤ÆÅ²ÃÁÕØÍÏÖÅ ½ ¤Ã³±±ØÆÅÒ ½ ¤Ã³±´ÍÁÉÎ×ÒÔ ½ ¤Ã°°´ÁÕØ×ÒÔ ½ ¤Ã°°µÒÅÁÄÚÐ ½ ¤Ã°±¶ÏÐÅÎÁÐÐ ½ ¤Ã°¶± »Ïðåî áððìå ëåùÃÌÓÄÁÐÐ ½ ¤Ã°¶² »Ãìïóåä áððìå ëåù ÐÁÇª Õóáçå âù ôèéó ðòïçòáíºÓÔÁÔÅ ½ ¤¹°ÙÓÁÖ ½ ¤¹±ÍÁÃÐÎÔ ½ ¤¹²ÉÎÄÅØ ½ ¤¹´ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªÉÎÃÄ ÍÁÃ ÉÎÃ Ý± ÂÎÅ ÎÉ ÉÎÃ Ý±«±ÎÉ ¼¼¼ÓÔÁÄÒ ÍÁÃ ÌÄÁ £Ý± ÓÔÁ Ý² ÌÄÁ £¾Ý± ÓÔÁ Ý²«± ¼¼¼ÔÏÁÕØ ÍÁÃ ÐÈÁ ÂÉÔ ÚÐÆÌÁÇÍ ÓÅÃ ÓÔÁÄÒ Ý±»¤³ÅÄ ÐÌÁ ÊÍÐ ØÆÅÒ ¼¼¼ÔÏÍÁÉÎ ÍÁÃ ÐÈÁ ÂÉÔ ÚÐÆÌÁÇÁ ÃÌÃ ÓÔÁÄÒ Ý±»¤³ÅÄ ÐÌÁ ÊÍÐ ØÆÅÒ ¼¼¼ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª Óåôõð òïõôéîåó õðïî ÂÒÕÎº ÏÒÇ ¤¹°°° »Ìïáä áääòåóó ÌÄÁ ¤Å°°² ÃÍÐ £¤Å± »Íåòìéî­ðòï¿ ÂÎÅ ºÒÅÔ »Éçîïòå éæ îïô ÌÄÁ £¤´Ã »Óåô õð ÕÓÅÒ öåãôïò ÓÔÁ ÁÍÐÅÒ ÓÔÁÄÒ ÓÔÁÒÔ»ÁÍÐÅÒ«± ÓÔÁÄÒ ÈÅÒÅÉÎÔ»ÆÒÏÍ ÓÔÁÄÒ ÈÅÒÅÁÄÒ­±»ÅÎÄÍÏÖÅ ÓÔÁÄÒ ÓÔÁÒÔ»ÄÅÓÔ ÌÄÙ £° ÊÓÒ ÍÏÎÍÏÖÅ »Íïöå éîôåòæáãå ôï ðáçå ³ ÓÔÁÄÒ ÈÅÒÅÁÄÒ»ÆÒÏÍ ÓÔÁÄÒ ÈÅÒÅÎÄ»ÅÎÄÍÏÖÅ ÓÔÁÄÒ ¤¹°°»ÄÅÓÔ ÓÅÃ »ÍÁÉÎ­¾ÁÕØ ÊÓÒ ÁÕØÍÏÖÅ »Íïöå íáéî ðòïç ôï áõø íåí» áîä òåôõòî ôï ãáììåò ÌÄÁ ÒÅÁÄÚÐ »Áõø ïò íáéî öåòóéïî¿ ÌÓÒ ÓÔÁ ÚÐÆÌÁÇÍ ÓÔÁ ÁÕØ×ÒÔ ÓÔÁ ÚÐÆÌÁÇÁ ÓÔÁ ÍÁÉÎ×ÒÔºÒÅÔ ÒÔÓª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Éîôåòæáãå ôï çï ïî ðáçå ³ íáéî íåíïòùºª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÈÅÒÅÉÎÔ ÏÒÇ ¤³°°ÓÔÁÒÔ ÓÔÁÄÒ ÉÎÐÕÔ»ÉÎÖÅÃ ÌÄÙ £­± ÓÔÁ ÁÕØ×ÒÔÎØÂ ÉÎÙ »Çáôèåò óôòéîç ÌÄÁ ÓÔÒÉÎÇÓ¬Ù » éî ÕÓÅÒ ãïííáîä ÓÔÁ ÁÕÔÏÃÍÄ¬Ù »¨Íáø ìåîçôè ½ ¤²°© ÂÎÅ ÎØÂ ÓÔÁ ÓÔÁÔÅ »Éîéô ÓÔÁÔÅ ÓÔÁ ÉÎÄÅØ »Éîéô éîäåø ôï ãíä ÓÔÁ ÍÁÉÎ×ÒÔ ÒÔÓÉÎÐÕÔ ÔÏÁÕØ ÁÕØÉÎÐÕÔ »Ëåùçåô åîôòùÅØÉÔ ÌÄÙ ÙÓÁÖ »Ëåùçåô åøéô ÒÔÓÚÐÆÌÁÇÍ ÄÆÂ ¤´° »Ãèáîçåä ïî òõî ÅÒÒ ª­±¯¤³Ä° ÏÒÇ »Òåãáìì ðòåóåîô áäòó éî» ìïáäåä ðòïçòáí ¨íõóô äï» âåæïòå îåøô ÏÒÇ©ª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Íáéî ðòïçòáí áîä íáã ôáâìå ôï çï éî áõø íåíºª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ÈÅÒÅÁÄÒ ÏÒÇ ¤¹°°ª Îå÷ åäéô íïäå ëåù çåô òïõôéîå ¨åîôòù ðïéîô©ºÁÕØÉÎÐÕÔ ÓÔÙ ÙÓÁÖ »Íõóô ðòåóåòöå Ù ¨¦ Ø© ÌÄÙ ÁÕÔÏÃÍÄ » éæ õóåä® ÂÎÅ ÁÕÔÏÅÄÉÔ »Âòáîãè éæ áî áõôïåäéô ÂÉÔ ÓÔÁÔÅ ÂÍÉ ÇÅÔÎØÔ »Âòáîãè éæ äïéîç íáãòï ÊÓÒ ÇÅÔËÅÙ »Ïôèåò÷éóå¬ çåô ëåù ÐÈÁ ÌÄÁ ÏÐÅÎÁÐÐ »Ïîå ïæ ôèå Áððìå ÏÒÁ ÃÌÓÄÁÐÐ » ëåùó ðòåóóåä¿ ÁÓÌ »Áîó÷åò ôï ãáòòù ÐÌÁ ÂÃÃ ÇÏÅØÉÔ »Âòáîãè éæ îïô ÓÔÁ ÅÎÄÔÂÌ »Éî ãáóå ãíä îïô æïõîä ÁÎÄ £¤·Æ » óáöå ãõòòåîô éîðõô ÓÔÁ ÅÎÄÔÂÌ«± » ôï õóå æïò éô ÓÔÁÄÒ ÍÁÃÔÂÌ»ÍÁÃÐÎÔÃÍÄ¿ ÌÄÁ ¨ÍÁÃÐÎÔ©¬Ù »Ìïïë æïò ãïííáîä ÃÍÐ ÅÎÄÔÂÌ »Íáôãè éîðõô¿ ÂÅÑ ÇÅÔÎØÔ »Âòáîãè éæ óïÇÅÔÃÈÒ ÉÎÃÄ ÍÁÃÐÎÔ »Íïöå ôï îåøô íáã ÌÄÁ ¨ÍÁÃÐÎÔ©¬Ù ÂÍÉ ÇÅÔÃÈÒ »Ìïïð ôéìì ðìõó ÉÎÃÄ ÍÁÃÐÎÔ »Ðïéîô ôï ãíä âùôå ÂÎÅ ÃÍÄ¿ »Áì÷áùó ôáëåîÇÅÔÎØÔ ÉÎÃÄ ÍÁÃÐÎÔ »Ðïéîô ôï íáãòï óåìåãôåä» ïò ôï îåøô ãèò ÌÄÁ ¨ÍÁÃÐÎÔ©¬Ù »Çåô ãõòòåîô ãèò ïæ íáãòï® ÓÔÁ ÓÔÁÔÅ »Ãìåáò æìáç ïî ìáóô ãèò ÏÒÁ £¤¸° »Íõóô áì÷áùó óåô èéçè âéôÇÏÅØÉÔ ÔÏÍÁÉÎ ÅØÉÔ »Ìåáöå öéá éîôåòæáãåÇÅÔËÅÙ ÌÄÁ ËÅÙ ÂÐÌ ÇÅÔËÅÙ ÂÉÔ ÓÔÒÏÂÅ ÒÔÓÁÕÔÏÅÄÉÔ ÂÉÔ ÅÆÌÇ »Æòïí Áää¯Éîóåòô ïò åäéô¿ ÂÍÉ ÙÉÎÄØ »Âòáîãè éæ æòïí åäéô ÌÄÁ £° »Ôõòî ïææ áõôï éæ ÓÔÁ ÓÔÁÔÅ » æòïí Áää¯Éîóåòô ÓÔÁ ÁÕÔÏÃÍÄ ÊÓÒ ÇÅÔËÅÙ ÊÍÐ ÇÏÅØÉÔÙÉÎÄØ ÌÄÙ ÉÎÄÅØ »Çåô éîäåø ôï îåøô ãíä ãèò ÉÎÃ ÉÎÄÅØ »Ðïéîô ôï îåøô ïîå ÌÄÁ ÁÕÔÏÃÍÄ¬Ù »Çåô îåøô ãíä ãèò ÂÎÅ ÉÓÑ »Âòáîãè éæ îïô ìáóô ïîå ÓÔÁ ÉÎÄÅØ »Éîéô éîäåø æïò îåøô ìéîå ÌÄÁ £¤¸Ä »Åøéô ÷éôè ÃÒÉÓÑ ÃÍÐ £¢Ñ¢¦¤¹Æ »Ãïîôòïì Ñ¿ ÂÎÅ ÉÓÒ ÌÄÙ £° »Óåô ôï ðòïãåóó îåøô ìéîå ÓÔÙ ÉÎÄÅØ » æòïí óôáòô ïæ íáãòïÉÓÒ ÃÍÐ £¢Ò¢¦¤¹Æ »Ãïîôòïì Ò ìåáä éî¿ ÂÎÅ ÄÏÃÍÄ »Âòáîãè éæ îïô ÉÎÃ ÉÎÄÅØ »Âõíð éîäåø ÌÄÁ ÁÕÔÏÃÍÄ«±¬Ù ÃÍÐ £¢Ä¢ ÂÎÅ ÌÁÒ ÌÄÁ £¤ÆÆ »Óõâóôéôõôå äåìÌÁÒ ÃÍÐ £¢¼¢ »Îåøô ãèò á ¼ ÂÎÅ ÒÁÒ ÌÄÁ £¢È¢¦¤¹Æ »Ôòáîóìáôå ôï âáãëóðáãåÒÁÒ ÃÍÐ £¢¾¢ »ïò ¾ ÂÎÅ ÄÏÃÍÄ »Êõóô éçîïòå ãîôò Ò éæ îïô ÌÄÁ £¢Õ¢¦¤¹Æ »Ôòáîóìáôå ôï ãîôò ÕÄÏÃÍÄ ÊÍÐ ÇÏÅØÉÔÚÐÆÌÁÇÁ ÄÆÂ ¤´° »Ãèáîçåä ïî òõîÍÁÃÔÂÌ ÄÃÉ ¢´ ½ ¤¢ ÄÃÉ ¢µ ÄÆÂ ¥¢ ÁÓÃ ¡·¢ ¢¦¤¹Æ¡ ÄÆÂ ¤¹Æ¦¢Î¢¬¤¸¸¬¤¸¸¬¤¸¸¬¤¸¸¬¤¸¸¬¤°¸ ÄÃÉ ¢Ü ÅÒÒ Ü¢ ÁÓÃ ¢¸ª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­¢°Ä ÄÃÉ ¢® ¾¾¾ ¢ ÁÓÃ ¢¬ ¼¼¼¢°Ä ÄÆÂ ¤¹Æ¦¢Ë¢ »Õð áòòï÷ ÁÓÃ ¢ ÐÈÁ¢¸Ä ÁÓÃ ¢ ÔØÁ¢¸Ä ÁÓÃ ¢ ÐÈÁ¢¸Ä ÁÓÃ ¢ ÔÙÁ¢¸Ä ÁÓÃ ¢ ÐÈÁ¢°Ä ÄÆÂ ¤¹Æ¦¢Ê¢ »Äï÷î áòòï÷ ÁÓÃ ¢ ÐÌÁ¢¸Ä ÁÓÃ ¢ ÔÁÙ¢¸Ä ÁÓÃ ¢ ÐÌÁ¢¸Ä ÁÓÃ ¢ ÔÁØ¢¸Ä ÁÓÃ ¢ ÐÌÁ¢°Ä ÁÓÃ ¡¢ ÁÓÃ ¢¢¡ ÄÆÂ ¤¸¸¬¤±Æ¦¢É¢ »Âáãëóðáãå ¦ éîóåòô ÁÓÃ ¢§ ÁÓÃ §§¢ ÄÆÂ ¤¸¸¬¤±Æ¦¢É¢ ÄÃÉ ¢³ ÌÄÁ £¢ ÄÃÉ ¢Ø ÌÄØ £¢ ÄÃÉ ¢Ù ÌÄÙ £¢ ÄÃÉ ¢Ä ÄÆÂ ¢ ÄÃÉ ¢È ÈÅØ ¢ ÄÃÉ ¢½ ÁÄÃ ¢ ÄÃÉ ¢Ì ÌÄÁ ¢ ÄÃÉ ¢Ó ÓÔÁ ¢ ÄÃÉ ¢­ ÓÂÃ ¢ ÄÃÉ ¢Ï ÏÒÁ ¢ ÄÃÉ ¢Ã ÃÍÐ ¢ ÄÃÉ ¢Á ÁÎÄ ¢ ÄÃÉ ¢Å ÅÏÒ ¢ ÁÓÃ ¢Ò ÒÔÓ¢°Ä ÄÃÉ ¢Ê ÊÓÒ ¢ ÄÃÉ ¢Ë ÊÍÐ ¢ ÄÃÉ ¢Â ÂÖÃ ¢ ÄÃÉ ¢Ö ÂÖÓ ¢ ÄÃÉ ¢Ð ÂÐÌ ¢ ÄÃÉ ¢Í ÂÍÉ ¢ ÄÃÉ ¢Î ÂÎÅ ¢ ÄÃÉ ¢Ñ ÂÅÑ ¢ ÁÓÃ ¢Ú ÌÄ  £°¢¸¸¸¸¸¸°¸ ÁÓÃ ¢¹¨©¬Ù¢ ÈÅØ ¸¸¸¸¸¸ »Âáãëóðáãå ôï âåô÷ååî ¨© ÄÆÂ ¤±Æ¦¢É¢ »Åøéô éî éîóåòô íïäå ÁÓÃ ¢°¨¬Ø©¢ ÈÅØ ¸¸¸¸¸¸ »Âáãëóðáãå ôï âåô÷ååî ¨© ÄÆÂ ¤±Æ¦¢É¢ »Åøéô éî éîóåòô íïäåÅÎÄÔÂÌ ÄÁ ° »Ãïííáîä ãèò ðõô èåòåÁÕÔÏÃÍÄ ÄÓ ¤²° ÅÒÒ ª­±¯¤±°°° ÏÒÇ »Òåãáìì òåáì áäòó æïò ìïáäÈÅÒÅÎÄ ÅÒÒ ª­±¯¤¹¸µ³ ÄÏ ÓÁÖÏÂÊ ÓÁÖÅ ËÅÙÍÁÃ ÆÉÎ
+********************************
+*                              *
+*           KEYMAC             *
+*                              *
+*   Glen E. Bredon   9/26/84   *
+*                              *
+*------------------------------*
+*   A sample Add/Edit keyboard *
+* macro facility.  Also to     *
+* illustrate interfacing of    *
+* USER routines in general.    *
+*------------------------------*
+* To use: BRUN KEYMAC  from    *
+* EXEC then invoke with USER   *
+* from editor.                 *
+*                              *
+* Keyboard macros are invoked  *
+* by pressing one of the Apple *
+* keys together with a regular *
+* key.                         *
+*------------------------------*
+*   USER "string" sets up an   *
+* AUTOEDIT string which will   *
+* be executed on any following *
+* EDIT.  (Add/Insert will turn *
+* off this mode.)  In the edit *
+* string, a ^R followed by     *
+* D, >, or <, will give DEL,   *
+* or right/left cursor moves.  *
+********************************
+
+ TR
+ EXP OFF
+YES = 1
+NO = 0
+
+SAVOBJ KBD "Save object code? (YES/NO)"
+
+* Merlin & Apple stuff:
+
+FROM = $3C ;A1L
+ENDMOVE = $3E ;A2L
+DEST = $42 ;A4L
+INVEC = $AE ;Edit mode key input vector
+EFLG = $F0 ;Minus when in edit mode
+AMPER = $3F5
+STRINGS = $860 ;Editor puts string here
+KEY = $C000
+STROBE = $C010
+MONMOVE = $FE2C
+AUXMOVE = $C311
+XFER = $C314
+MAINWRT = $C004
+AUXWRT = $C005
+READZP = $C016
+OPENAPP = $C061 ;Open apple key
+CLSDAPP = $C062 ;Closed apple key
+ PAG
+* Usage by this program:
+
+STATE = $90
+YSAV = $91
+MACPNT = $92
+INDEX = $94
+
+********************************
+
+INCD MAC
+ INC ]1
+ BNE NI
+ INC ]1+1
+NI <<<
+
+STADR MAC
+ LDA #]1
+ STA ]2
+ LDA #>]1
+ STA ]2+1
+ <<<
+
+TOAUX MAC
+ PHA
+ BIT ZPFLAGM
+ SEC
+ STADR ]1;$3ED
+ PLA
+ JMP XFER
+ <<<
+
+TOMAIN MAC
+ PHA
+ BIT ZPFLAGA
+ CLC
+ STADR ]1;$3ED
+ PLA
+ JMP XFER
+ <<<
+
+********************************
+
+* Setup routines upon BRUN:
+
+ ORG $9000 ;Load address
+
+ LDA $E002
+ CMP #$E1 ;Merlin-pro?
+ BNE :RET ;Ignore if not
+ LDA #$4C ;Set up USER vector
+ STA AMPER
+ STADR START;AMPER+1
+ STADR HEREINT;FROM
+ STADR HEREADR-1;ENDMOVE
+ STADR START;DEST
+ LDY #0
+ JSR MONMOVE ;Move interface to page 3
+ STADR HEREADR;FROM
+ STADR HEREND;ENDMOVE
+ STADR $900;DEST
+ SEC ;MAIN->AUX
+ JSR AUXMOVE ;Move main prog to aux mem
+; and return to caller
+ LDA READZP ;Aux or main version?
+ LSR
+ STA ZPFLAGM
+ STA AUXWRT
+ STA ZPFLAGA
+ STA MAINWRT
+:RET RTS
+
+*---------------------------------------
+* Interface to go on page 3 main memory:
+*---------------------------------------
+
+HEREINT ORG $300
+
+START STADR INPUT;INVEC
+ LDY #-1
+ STA AUXWRT
+NXB INY ;Gather string
+ LDA STRINGS,Y ; in USER command
+ STA AUTOCMD,Y ;(Max length = $20)
+ BNE NXB
+ STA STATE ;Init STATE
+ STA INDEX ;Init index to cmd
+ STA MAINWRT
+ RTS
+
+INPUT TOAUX AUXINPUT ;Keyget entry
+
+EXIT LDY YSAV ;Keyget exit
+ RTS
+
+ZPFLAGM DFB $40 ;Changed on run
+
+ ERR *-1/$3D0
+
+ ORG ;Recall present adrs in
+; loaded program (must do
+; before next ORG)
+
+*---------------------------------------------
+* Main program and mac table to go in aux mem:
+*---------------------------------------------
+
+HEREADR ORG $900
+
+* New edit mode key get routine (entry point):
+
+AUXINPUT STY YSAV ;Must preserve Y (& X)
+ LDY AUTOCMD ; if used.
+ BNE AUTOEDIT ;Branch if an autoedit
+ BIT STATE
+ BMI GETNXT ;Branch if doing macro
+ JSR GETKEY ;Otherwise, get key
+ PHA
+ LDA OPENAPP ;One of the Apple
+ ORA CLSDAPP ; keys pressed?
+ ASL ;Answer to carry
+ PLA
+ BCC GOEXIT ;Branch if not
+ STA ENDTBL ;In case cmd not found
+ AND #$7F ; save current input
+ STA ENDTBL+1 ; to use for it
+ STADR MACTBL;MACPNT
+CMD? LDA (MACPNT),Y ;Look for command
+ CMP ENDTBL ;Match input?
+ BEQ GETNXT ;Branch if so
+GETCHR INCD MACPNT ;Move to next mac
+ LDA (MACPNT),Y
+ BMI GETCHR ;Loop till plus
+ INCD MACPNT ;Point to cmd byte
+ BNE CMD? ;Always taken
+
+GETNXT INCD MACPNT ;Point to macro selected
+; or to next chr
+ LDA (MACPNT),Y ;Get current chr of macro.
+ STA STATE ;Clear flag on last chr
+ ORA #$80 ;Must always set high bit
+GOEXIT TOMAIN EXIT ;Leave via interface
+
+GETKEY LDA KEY
+ BPL GETKEY
+ BIT STROBE
+ RTS
+
+AUTOEDIT BIT EFLG ;From Add/Insert or edit?
+ BMI YINDX ;Branch if from edit
+ LDA #0 ;Turn off auto if
+ STA STATE ; from Add/Insert
+ STA AUTOCMD
+ JSR GETKEY
+ JMP GOEXIT
+
+YINDX LDY INDEX ;Get index to next cmd chr
+ INC INDEX ;Point to next one
+ LDA AUTOCMD,Y ;Get next cmd chr
+ BNE ISQ ;Branch if not last one
+ STA INDEX ;Init index for next line
+ LDA #$8D ;Exit with CR
+ISQ CMP #"Q"&$9F ;Control Q?
+ BNE ISR
+ LDY #0 ;Set to process next line
+ STY INDEX ; from start of macro
+ISR CMP #"R"&$9F ;Control R lead in?
+ BNE DOCMD ;Branch if not
+ INC INDEX ;Bump index
+ LDA AUTOCMD+1,Y
+ CMP #"D"
+ BNE LAR
+ LDA #$FF ;Substitute del
+LAR CMP #"<" ;Next chr a <
+ BNE RAR
+ LDA #"H"&$9F ;Translate to backspace
+RAR CMP #">" ;or >
+ BNE DOCMD ;Just ignore cntr R if not
+ LDA #"U"&$9F ;Translate to cntr U
+DOCMD JMP GOEXIT
+
+ZPFLAGA DFB $40 ;Changed on run
+MACTBL
+ DCI "4 = $"
+ DCI "5 DFB %"
+ ASC !7" "&$9F!
+ DFB $9F&"N",$88,$88,$88,$88,$88,$08
+ DCI "\ ERR \"
+ ASC "8*------------------------------"0D
+ DCI ". >>> "
+ ASC ", <<<"0D
+ DFB $9F&"K" ;Up arrow
+ ASC " PHA"8D
+ ASC " TXA"8D
+ ASC " PHA"8D
+ ASC " TYA"8D
+ ASC " PHA"0D
+ DFB $9F&"J" ;Down arrow
+ ASC " PLA"8D
+ ASC " TAY"8D
+ ASC " PLA"8D
+ ASC " TAX"8D
+ ASC " PLA"0D
+ ASC !" ASC ""!
+ DFB $88,$1F&"I" ;Backspace & insert
+ ASC "' ASC ''"
+ DFB $88,$1F&"I"
+ DCI "3 LDA #"
+ DCI "X LDX #"
+ DCI "Y LDY #"
+ DCI "D DFB "
+ DCI "H HEX "
+ DCI "= ADC "
+ DCI "L LDA "
+ DCI "S STA "
+ DCI "- SBC "
+ DCI "O ORA "
+ DCI "C CMP "
+ DCI "A AND "
+ DCI "E EOR "
+ ASC "R RTS"0D
+ DCI "J JSR "
+ DCI "K JMP "
+ DCI "B BVC "
+ DCI "V BVS "
+ DCI "P BPL "
+ DCI "M BMI "
+ DCI "N BNE "
+ DCI "Q BEQ "
+ ASC "Z LD  #0"88888808
+ ASC "9(),Y"
+ HEX 888888 ;Backspace to between ()
+ DFB $1F&"I" ;Exit in insert mode
+ ASC "0(,X)"
+ HEX 888888 ;Backspace to between ()
+ DFB $1F&"I" ;Exit in insert mode
+
+ENDTBL DA 0 ;Command chr put here
+
+AUTOCMD DS $20
+
+ ERR *-1/$1000
+
+ ORG ;Recall real adrs for load
+
+HEREND ERR *-1/$9853
+
+ DO SAVOBJ
+ SAVE KEYMAC
+ FIN

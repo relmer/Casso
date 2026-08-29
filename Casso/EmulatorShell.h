@@ -62,6 +62,7 @@
 class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
+class SalvageDialogContent;
 struct MonitorSpec;
 
 
@@ -901,6 +902,51 @@ private:
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+    // Whether the Disk menu offers the write-protect toggle for a drive.
+    bool    IsWriteProtectToggleOffered (int drive);
+
+    // Whether the Disk menu offers salvage for a drive: only a damaged image
+    // with ordinary 16-sector structure can be rebuilt from its sectors.
+    bool    IsSalvageOffered (int drive);
+
+    // Shows a dialog whose body is a caller-built panel rather than text runs,
+    // for content a string cannot carry (here: an aligned figures table and a
+    // warning banner).
+    int     ShowSalvageDialog (const DialogDefinition & def,
+                               std::unique_ptr<SalvageDialogContent> content);
+
+    // The whole salvage interaction: assess, show the figures, write the copy
+    // on confirmation, then offer to insert it.
+    void    RunSalvageFlow (int drive);
+
+    // Reports a freshly mounted image that failed its stored checksum, with
+    // salvage offered inline. Raised here rather than by the loader because a
+    // dialog with an action on it is the shell's business, and EhmNotifyUser
+    // carries a string and nothing else.
+    void    ReportDamagedMount (int drive);
+
+    // The EHM user-notification sink, installed with SetNotifyFunction so
+    // every CHRN / CBRN in the tree reports through Casso's own themed
+    // dialog. Nothing had ever installed one, so they all fell through to
+    // EhmNotifyUser's built-in path and became raw Win32 message boxes.
+    //
+    // Static because SetNotifyFunction takes a plain function pointer; it
+    // forwards to the one live shell.
+    static void  NotifyUser (const wchar_t * message);
+
+    // Holds a report raised before there is a window to show it in. Public
+    // and static because wWinMain installs the sink before the shell exists.
+    static void  QueueNotification (const std::wstring & message);
+
+    // Shows one notification, marshaling as needed. Callable from any
+    // thread: a flush that fails on the CPU thread reports through here.
+    void         ShowNotification (const std::wstring & message);
+
+    // Replays notifications raised before the window existed. Startup reports
+    // a bad prefs file before there is anything to parent a dialog to, and a
+    // queued message that appears a moment later beats a bare Win32 box.
+    void         FlushPendingNotifications ();
+
     // Render a "simple" dialog (text + buttons + an optional Info /
     // Warning / Error glyph icon -- no custom body, tick, hyperlinks,
     // app-bitmap icon, or resizable mode) as a MessageDialog (DxuiWindow
@@ -1360,6 +1406,35 @@ private:
         class MockingboardCard *      mockingboard     = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
         class PrinterCard *           printerCard      = nullptr;
+
+        // The //e-and-later halves of the two devices above: the same
+        // objects as `softSwitches` / `keyboard` when the machine has the
+        // //e variants, null on a ][ or ][+. Both are resolved once at build
+        // time from the configured device type, in the same statement that
+        // sets the base pointer -- so each is non-null in exactly the cases
+        // where downcasting the base would have succeeded, and callers that
+        // need the derived surface (80COL, 80STORE, DHIRES, ALTCHARSET) read
+        // a pointer instead of re-deriving it at every use. Null is the
+        // ][ / ][+ answer, which every caller already had to handle.
+        class Apple2eSoftSwitchBank * iieSoftSwitches  = nullptr;
+        class Apple2eKeyboard *       iieKeyboard      = nullptr;
+
+        // Video modes, addressed by name. All five exist on every machine --
+        // SelectVideoMode switches between them per frame from soft-switch
+        // state and cannot afford to construct one mid-render -- so these are
+        // non-null together, from CreateVideoModes until teardown.
+        //
+        // These replaced positional lookups into m_videoModes. That vector
+        // still OWNS the modes, but nothing outside CreateVideoModes indexes
+        // it: an index carries no type, so every use site had to restate
+        // which slot meant which mode and downcast to match, and a mode
+        // inserted anywhere but the end would have silently re-pointed all
+        // of them at the wrong renderer.
+        class AppleTextMode *         text40           = nullptr;
+        class AppleLoResMode *        loRes            = nullptr;
+        class AppleHiResMode *        hiRes            = nullptr;
+        class AppleDoubleHiResMode *  doubleHiRes      = nullptr;
+        class Apple80ColTextMode *    text80           = nullptr;
     };
 
     MachineRefs                   m_refs;

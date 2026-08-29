@@ -1,7 +1,7 @@
 # Casso Architecture
 
-How Casso is built, how the pieces fit at runtime, and — because it emulates a
-1 MHz machine on a modern host and has to stay cheap doing it — **why the hot
+How Casso is built, how the pieces fit at runtime, and (because it emulates a
+1 MHz machine on a modern host and has to stay cheap doing it) **why the hot
 paths are shaped the way they are**. If you are about to touch the memory bus,
 the CPU fetch path, the device tick loop, or the render pipeline, read the
 relevant section first; the performance model is load-bearing, not incidental.
@@ -10,7 +10,7 @@ For code style, EHM conventions, and build/merge gates see
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md). For the
 per-feature design history see `specs/`. For the //e hardware-fidelity rationale
 see [`specs/004-apple-iie-fidelity/iie-audit.md`](specs/004-apple-iie-fidelity/iie-audit.md)
-(historical — the work it drove is done; the code cites it by section number).
+(historical: the work it drove is done; the code cites it by section number).
 
 ---
 
@@ -18,7 +18,7 @@ see [`specs/004-apple-iie-fidelity/iie-audit.md`](specs/004-apple-iie-fidelity/i
 
 1. [Projects and layering](#1-projects-and-layering)
 2. [Threading model](#2-threading-model)
-3. [The memory model](#3-the-memory-model) — the centerpiece
+3. [The memory model](#3-the-memory-model): the centerpiece
 4. [CPU fetch / execute](#4-cpu-fetch--execute)
 5. [Devices and the per-instruction tick](#5-devices-and-the-per-instruction-tick)
 6. [Video and the render / present pipeline](#6-video-and-the-render--present-pipeline)
@@ -38,7 +38,7 @@ about the emulator, and the emulator core knows nothing about Win32/D3D:
 |---|---|---|
 | **CassoCore** | static lib | 6502/65C02 CPU, microcode/opcode tables, assembler, parser |
 | **CassoEmuCore** | static lib | Apple II devices, memory bus, MMU, video modes, audio generators |
-| **Casso** | Win32 GUI | the emulator app — D3D11 render, WASAPI audio, Dxui chrome, shell |
+| **Casso** | Win32 GUI | the emulator app: D3D11 render, WASAPI audio, Dxui chrome, shell |
 | **CassoCli** | console | AS65-compatible assembler CLI (+ a `run` subcommand) |
 | **UnitTest** | DLL | MS Native CppUnitTest; links CassoCore + CassoEmuCore |
 
@@ -46,7 +46,7 @@ The dependency arrows only point downward: `Casso → {CassoEmuCore, CassoCore}`
 `CassoEmuCore → CassoCore`, `CassoCore → nothing`. This is why the CPU can be
 driven headless by tests and by the CLI, and it is the reason one specific
 optimization (the inline read fast path, §4) is careful **not** to leak
-emulator types back up into `CassoCore` — see [Roads not taken](#9-roads-not-taken).
+emulator types back up into `CassoCore`; see [Roads not taken](#9-roads-not-taken).
 
 The runtime object graph in the GUI:
 
@@ -72,11 +72,11 @@ EmulatorShell ── owns ── MachineManager ── builds ── the machine
 
 Two threads matter:
 
-- **The emulation (CPU) thread** — `CpuManager::ThreadProc`. It drains a command
+- **The emulation (CPU) thread**: `CpuManager::ThreadProc`. It drains a command
   queue (`DrainCommandQueue`), runs CPU slices (`ExecuteCpuSlices`), ticks the
   cycle-driven devices, and produces the video framebuffer. Everything that
   touches CPU / bus / device state runs here.
-- **The UI thread** — `EmulatorShell::RunMessageLoop`. It pumps Win32 messages,
+- **The UI thread**: `EmulatorShell::RunMessageLoop`. It pumps Win32 messages,
   paints the chrome (the Dxui panel tree), and presents via D3D. The Dxui panel
   tree is **single-threaded and UI-thread-affine** (enforced by
   `DxuiAssertUiThread`, ~154 call sites), so anything that mutates a panel or
@@ -115,7 +115,7 @@ combinationally, every cycle, to drive exactly one chip's select line:
 - `$D000–$FFFF` → motherboard ROM or language-card RAM (per the LC latches)
 
 The soft switches are latches; the decode is a pure function of
-`(address, latches)`. Some accesses *also* toggle a latch — that is the "side
+`(address, latches)`. Some accesses *also* toggle a latch; that is the "side
 effect," and it is just the chip reacting to being addressed.
 
 ### 3.2 The software model: two lanes, memoizing the decode
@@ -132,19 +132,19 @@ cache is the page table, and it splits along a real hardware distinction:
 
 `MemoryBus::ReadByte` is uniform: `page = m_readPage[addr>>8]; if (page) return
 page[addr&0xFF]; else dispatch to the device`. Writes are the same with
-`m_writePage`. The read path has no `address <` special-casing — a page is either
+`m_writePage`. The read path has no `address <` special-casing; a page is either
 a pointer (fast) or null (fall through to the device).
 
-The two granularities are not a wart — they are faithful. **Memory decode is
+The two granularities are not a wart; they are faithful. **Memory decode is
 coarse** (RAM/ROM are page/bank aligned → a 256-entry page table suffices).
-**I/O decode is fine** (page `$C0` packs several overlapping sub-page devices —
+**I/O decode is fine** (page `$C0` packs several overlapping sub-page devices (
 keyboard `$C000–$C063`, speaker `$C030–$C03F`, soft switches `$C050–$C07F`, LC
-control `$C080–$C08F`, disk `$C0E0–$C0EF` — so the device map must be
+control `$C080–$C08F`, disk `$C0E0–$C0EF`) so the device map must be
 byte-granular). The device map resolves overlaps **first-match-wins** (entries
 sorted by start), which is why it is precomputed from the device list rather than
 scanned per access (`BuildIoDeviceMap`, rebuilt only on `AddDevice`/`RemoveDevice`).
 
-### 3.3 Passive vs reactive pages — what is mapped where
+### 3.3 Passive vs reactive pages: what is mapped where
 
 A page gets a **page-table pointer** iff the chip that answers there is passive
 storage; it stays on the **device handler** iff the chip reacts to being
@@ -165,7 +165,7 @@ Notes:
   they stay coherent (read-ROM/write-RAM works because the read page points at
   ROM while the write goes to the hidden RAM).
 - The reactive `$Cxxx` pages (`$C3xx` latches INTC8ROM, `$CFFF` clears it) keep
-  the handler even on the //c where the effect is inert — modeled faithfully as
+  the handler even on the //c where the effect is inert, modeled faithfully as
   "reactive page → handler."
 
 ### 3.4 Re-pointing: keeping the cache correct
@@ -208,7 +208,7 @@ Byte ReadByte (Word address) {
 ```
 
 `m_readPages` is a `Byte* const*` pointing at the bus's `m_readPage[256]` array.
-Crucially it is a bare pointer-to-pointers — `CassoCore` knows nothing about
+Crucially it is a bare pointer-to-pointers, `CassoCore` knows nothing about
 `MemoryBus`. `MemoryBusCpu` overrides `ReadByteSlow` to route the slow path
 through the bus (I/O device dispatch). The standalone base `Cpu` leaves
 `m_readPages` null and always takes the slow path into its flat `memory[]`.
@@ -216,7 +216,7 @@ through the bus (I/O device dispatch). The standalone base `Cpu` leaves
 `ReadByteSlow` (for I/O) calls `UpdateBusCycle`, which refreshes the
 sub-instruction bus-cycle estimate the Disk II controller samples at `$C0Ex`.
 It is **absolute** (`m_busCycle = m_totalCycles + (lastCycles-1)`), re-derived at
-each access — so RAM and ROM fetches, which take the fast path and skip it, cause
+each access, so RAM and ROM fetches, which take the fast path and skip it, cause
 no drift (the `$C0Ex` access itself, always a slow-path I/O read, refreshes it).
 
 **65C02.** `Cpu65C02` shares the dispatch and adds the CMOS instructions
@@ -240,16 +240,16 @@ keyboard      ->Tick (...);
 // AppleMouse is an ICycleSink wired via SetCycleSink (same cadence)
 ```
 
-`Apple2eMmu` is not a bus device — it is a **coordinator** that owns the aux
+`Apple2eMmu` is not a bus device; it is a **coordinator** that owns the aux
 RAM and re-points the page table on banking changes (§3.4). It owns the
 `CxxxRomRouter` (which it registers on the bus).
 
 **The tick is a hot loop, so idle work is gated.** The pattern: do the expensive
 thing only when it can matter.
 
-- **Mockingboard** — `Ay8910::GenerateSample` early-outs when all amplitude
+- **Mockingboard**: `Ay8910::GenerateSample` early-outs when all amplitude
   registers are zero (`IsSilent`); a silent PSG does no synthesis.
-- **`AppleMouse::Tick`** (the //c's biggest single cost before gating) — drains
+- **`AppleMouse::Tick`** (the //c's biggest single cost before gating), drains
   host motion behind a **relaxed atomic load** so the common idle tick pays no
   locked read-modify-write, and only calls `UpdateIrqLines` when a latch actually
   changed this tick.
@@ -267,7 +267,7 @@ Mockingboard VIA, mouse X/Y + VBL, etc.), which drives the CPU IRQ line.
 framebuffer. Flash and mode timing come from the cycle-driven `VideoTiming`, not
 from the render.
 
-**Dirty tracking — don't re-rasterize an unchanged screen.** The `MemoryBus`
+**Dirty tracking; don't re-rasterize an unchanged screen.** The `MemoryBus`
 marks the display pages "watched"; a write that actually *changes a displayed
 byte* raises `m_videoDirty`. Two refinements keep an idle DOS prompt from
 re-rendering: **screen-hole exclusion** (the `$78–$7F` bytes of each 128-byte
@@ -275,7 +275,7 @@ block are undisplayed scratch that firmware hammers) and a **same-value compare*
 (a re-store of the same byte is not dirty). A banking change also raises dirty,
 since it can swap which buffer the renderer reads with no write landing.
 
-**Present gating (GPU) — present on change.** `D3DRenderer::NeedsPresent` returns
+**Present gating (GPU), present on change.** `D3DRenderer::NeedsPresent` returns
 false (skip both the CRT post-process and the swap-chain `Present`) when the
 framebuffer is clean, CRT params are unchanged, and the persistence trail has
 settled. So a static screen costs ~no GPU. When a present *is* needed,
@@ -283,9 +283,9 @@ settled. So a static screen costs ~no GPU. When a present *is* needed,
 runs the CRT post-process into the back buffer.
 
 **Chrome.** The drive band, `//c` switch bar, buttons, and letterbox are painted
-by the Dxui panel tree on the UI thread — immediate-mode, re-tessellated each
+by the Dxui panel tree on the UI thread, immediate-mode, re-tessellated each
 presented frame (`DxuiPainter::PushQuad`). This is the current largest CPU render
-cost — the perf facet of the off-thread-compositing initiative (#100; see §9).
+cost, the perf facet of the off-thread-compositing initiative (#100; see §9).
 
 ---
 
@@ -293,8 +293,8 @@ cost — the perf facet of the off-thread-compositing initiative (#100; see §9)
 
 WASAPI output on the UI/audio side; the generators (speaker delta-sigma, Disk II
 mechanical, Mockingboard PSG) produce PCM from cycle-timestamped events on the
-CPU thread. `WasapiAudio::SubmitFrame` is **non-blocking** — it drops rather than
-blocks, capped at a 3-frame backlog — so audio buffer pressure never throttles
+CPU thread. `WasapiAudio::SubmitFrame` is **non-blocking** (it drops rather than
+blocks, capped at a 3-frame backlog) so audio buffer pressure never throttles
 the emulation thread. (Emulation speed is governed by the frame pacing in the
 CPU-thread loop, not by audio.)
 
@@ -308,9 +308,9 @@ also lives in the commit messages; this is the durable summary.
 | Area | Problem | Fix | Why |
 |---|---|---|---|
 | **`$C100–$CFFF` fetch (//c)** | mouse firmware runs from `$C700` through `CxxxRomRouter::Read`'s virtual dispatch every byte | page-map the passive internal-ROM pages into `m_readPage`; keep `$C3`/`$CF` on the handler | reactive pages need the handler; passive ROM wants a pointer |
-| **`$D000–$FFFF` fetch** | ROM/LC fetches (e.g. //e monitor keyboard poll at `$FDxx`) paid `LanguageCardBank::Read`'s virtual dispatch every byte | page-map the LC window; re-point on bank/read/ALTZP/`$C028` changes | it's memory with no read side effects — belongs in the fast lane |
+| **`$D000–$FFFF` fetch** | ROM/LC fetches (e.g. //e monitor keyboard poll at `$FDxx`) paid `LanguageCardBank::Read`'s virtual dispatch every byte | page-map the LC window; re-point on bank/read/ALTZP/`$C028` changes | it's memory with no read side effects, belongs in the fast lane |
 | **`$Cxxx` routing** | `Apple2eMmu` getters (`GetIntCxRom`/`GetSlotC3Rom`) were virtual, called per `$Cxxx` access | mark `Apple2eMmu` `final` (devirtualize + inline); add a //c no-slots fast path in the router | trivial getters shouldn't be indirect calls on a hot path |
-| **//c mouse tick** | two atomic RMW drains + `UpdateIrqLines` every instruction (~9.7% of the //c) | relaxed-load guard on the drain; skip `UpdateIrqLines` when nothing latched | host input arrives at ≤1 kHz, not 1 MHz — don't pay per instruction |
+| **//c mouse tick** | two atomic RMW drains + `UpdateIrqLines` every instruction (~9.7% of the //c) | relaxed-load guard on the drain; skip `UpdateIrqLines` when nothing latched | host input arrives at ≤1 kHz, not 1 MHz, don't pay per instruction |
 | **Device dispatch** | `FindDevice` linearly scanned the device list on every `$C000+` access | precompute a byte-granular `address→device` map, rebuilt on device add/remove | overlaps make it byte-granular; first-match-wins is baked in at build time |
 | **CPU reads** | `ReadByte` was virtual (indirect call per fetch) | non-virtual inline page-table fast path + virtual `ReadByteSlow` hook for I/O | fetches dominate; the fast path must not be a call |
 | **Video render** | framebuffer was FNV-hashed each frame to detect change | watched-page dirty tracking with screen-hole + same-value filtering | a hash still reads the whole buffer; a write hook is O(changes) |
@@ -330,7 +330,7 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 
 - **A 64 KB byte map returning bytes for ROM.** The device map removes the
   *scan*, not the *dispatch*; for pure-memory fetches the virtual call is the
-  cost. A map that returns bytes-by-pointer *is* the page table — so ROM went
+  cost. A map that returns bytes-by-pointer *is* the page table, so ROM went
   into the page table, not a fancier device map.
 - **Merging the page table and device map into one per-page `{read, write,
   handler}` table.** Blocked by two load-bearing facts: (1) the CPU's inline fast
@@ -341,19 +341,19 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
   CPU decoupling or I/O precision, for a cosmetic gain on the hottest path.
 - **Consolidating the `$C0` soft-switch devices into one IOU-style handler.**
   This is the *only* path to a truly unified per-page table (it would make the
-  device lane page-granular), and it is hardware-faithful — but it's a
+  device lane page-granular), and it is hardware-faithful, but it's a
   device-architecture change (new class, rewired switches, changed
   first-match-wins semantics, many tests), not a table merge. Left as a possible
   future initiative on its own branch.
 - **Tracked, not started (#100):** move Dxui compositing **off the UI thread**
   (retained-mode immutable-snapshot / commit-and-swap). The primary driver is
   *correctness*, not perf: paint lives on the UI thread, so any modal loop (disk
-  picker, file dialog, window drag, `MessageBox`) freezes all rendering — which
+  picker, file dialog, window drag, `MessageBox`) freezes all rendering, which
   cheaper frames cannot fix. It also folds in the perf win (the immediate-mode
   `PushQuad` re-tessellation noted in §6). Blocked by the single-threaded panel
   tree (~154 `DxuiAssertUiThread`); a UI-thread-only retained geometry cache
   would buy the perf half but not the freeze fix.
-- **Deferred:** CPU **dynarec / threaded dispatch** — the interpreter's
+- **Deferred:** CPU **dynarec / threaded dispatch**, the interpreter's
   per-instruction overhead is the largest remaining CPU cluster, but a major
   undertaking (self-modifying code, exact cycle accuracy, undocumented-opcode
   semantics).
@@ -376,5 +376,5 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 
 ---
 
-*Keep this current when a hot path or a banking trigger changes — the
+*Keep this current when a hot path or a banking trigger changes; the
 performance model is the part most easily broken by a well-meaning refactor.*

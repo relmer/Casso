@@ -92,6 +92,33 @@ namespace AssemblerTests
 
 
 
+        //  AN OPCODE'S CASE NEVER MATTERS, and no flag is involved in that.
+        //
+        //  THE HELP MAKES THIS CLAIM ON as65's BEHALF. `-i` is as65's request
+        //  for case-insensitive opcodes, and it is accepted here as a no-op
+        //  BECAUSE the behavior it asks for is already unconditional, not
+        //  because it is unimplemented -- which is what the help used to say.
+        //  The difference matters to anyone reading the flag list to decide
+        //  whether they can rely on lowercase source: they can, and always
+        //  could.
+        //
+        //  Assembled with no options at all, so nothing but the default is
+        //  being measured.
+        TEST_METHOD (OpcodeCaseIsIgnoredWithNoFlagAskingForIt)
+        {
+            Assembler  asm6502 = BuildAssembler();
+            auto       lower   = asm6502.Assemble ("lda #$42");
+            auto       upper   = asm6502.Assemble ("LDA #$42");
+            auto       mixed   = asm6502.Assemble ("Lda #$42");
+
+            Assert::IsTrue (lower.success, L"lowercase assembles with no flag asked for");
+            Assert::IsTrue (mixed.success, L"and so does mixed case");
+            Assert::IsTrue (lower.bytes == upper.bytes, L"to the same bytes as uppercase");
+            Assert::IsTrue (mixed.bytes == upper.bytes);
+        }
+
+
+
 
 
         ////////////////////////////////////////////////////////////////////////////////
@@ -684,6 +711,57 @@ namespace AssemblerTests
         //  Org_SetsStartAddress
         //
         ////////////////////////////////////////////////////////////////////////////////
+
+        //  The tool's summary line counts THIS, and used to count
+        //  listing.size() instead. A listing is only built when one was asked
+        //  for, so an ordinary run reported "0 lines assembled" for a file it
+        //  had just assembled correctly -- a number that was wrong precisely
+        //  when nobody had asked for the feature that made it right.
+        TEST_METHOD (LinesAssembled_IsCountedEvenWithNoListing)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                R"(                 .org $C000
+                                    NOP
+                                    RTS
+                )");
+
+            Assert::IsTrue (result.success);
+            Assert::IsTrue (result.listing.empty(), L"no listing was requested, so there is none");
+            Assert::IsTrue (result.linesAssembled >= 3,
+                            L"the three source lines were assembled whether or not they were listed");
+        }
+
+
+
+
+        //  With a listing, the two agree -- which is what makes the count a
+        //  correction rather than a second, differently-wrong number.
+        TEST_METHOD (LinesAssembled_MatchesTheListingWhenOneIsBuilt)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            {
+                Assembler  asm6502 (cpu.GetInstructionSet(), options);
+                auto       result = asm6502.Assemble (
+                    R"(                 .org $C000
+                                        NOP
+                                        RTS
+                    )");
+
+                Assert::IsTrue   (result.success);
+                Assert::IsFalse  (result.listing.empty());
+                Assert::AreEqual (result.listing.size(), result.linesAssembled,
+                                  L"the count and the listing must not disagree about the same assembly");
+            }
+        }
+
+
+
 
         TEST_METHOD (Org_SetsStartAddress)
         {
@@ -1665,6 +1743,118 @@ namespace AssemblerTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  Listing_Wrapping
+        //
+        //  -w was accepted and read by no code, so a listing ran as wide as its
+        //  widest source line however narrow a width was asked for.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_WrapsToTheRequestedWidth)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+            std::string       source  = "LDA #$42 ; a trailing comment long enough to need more than one row";
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            Assembler       asm6502 (cpu.GetInstructionSet(), options);
+            AssemblyResult  result = asm6502.Assemble (source);
+
+            Assert::IsTrue (result.success);
+
+            std::vector<std::string>  rows = Assembler::FormatListingRows (result.listing[0], false, 40);
+
+            Assert::IsTrue (rows.size() > 1, L"a line wider than the width must produce continuations");
+
+            for (const std::string & row : rows)
+            {
+                Assert::IsTrue (row.size() <= 40,
+                                L"no row may exceed the width, which is the whole of what -w asks for");
+            }
+
+            //  Continuations line up under the SOURCE, not under the address and
+            //  bytes -- a listing is read positionally, and text wrapped into the
+            //  fixed columns would be read as belonging to them.
+            std::string  first  = Assembler::FormatListingLine (result.listing[0], false);
+            size_t       indent = first.size() - result.listing[0].sourceText.size();
+
+            Assert::AreEqual (indent, rows[1].find_first_not_of (' '),
+                              L"a continuation starts at the source column");
+        }
+
+
+
+        //  A width of zero means "do not wrap", so a caller with no preference
+        //  gets exactly what it got before wrapping existed.
+        TEST_METHOD (Listing_WidthOfZeroLeavesTheRowAlone)
+        {
+            TestCpu           cpu;
+            AssemblerOptions  options = {};
+
+            cpu.InitForTest();
+            options.generateListing = true;
+
+            Assembler       asm6502 (cpu.GetInstructionSet(), options);
+            AssemblyResult  result = asm6502.Assemble ("LDA #$42 ; a trailing comment long enough to matter");
+
+            std::vector<std::string>  rows = Assembler::FormatListingRows (result.listing[0], false, 0);
+
+            Assert::AreEqual ((size_t) 1, rows.size(), L"width 0 must not wrap");
+            Assert::AreEqual (Assembler::FormatListingLine (result.listing[0], false), rows[0]);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  DebugInfo_TwoOrders
+        //
+        //  Reading a debug file is two questions -- "what is at $0310" and
+        //  "where did FOO go" -- so both orders are written.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (DebugInfo_ListsSymbolsByAddressAndAgainByName)
+        {
+            std::unordered_map<std::string, Word>  symbols;
+
+            symbols["zebra"] = 0x0300;
+            symbols["ALPHA"] = 0x0310;
+            symbols["mid"]   = 0x0308;
+
+            std::string  text      = Assembler::FormatDebugInfo (symbols);
+            size_t       byAddress = text.find ("; by address");
+            size_t       bySymbol  = text.find ("; by symbol");
+
+            Assert::IsTrue (byAddress != std::string::npos, L"the address-ordered table must be labeled");
+            Assert::IsTrue (bySymbol  != std::string::npos, L"and so must the name-ordered one");
+            Assert::IsTrue (byAddress < bySymbol,           L"address order first, as it always was");
+
+            //  In the first table zebra ($0300) precedes ALPHA ($0310); in the
+            //  second, case-insensitive order puts ALPHA first. Asserting both
+            //  is what distinguishes two orders from the same order printed
+            //  twice.
+            std::string  first  = text.substr (byAddress, bySymbol - byAddress);
+            std::string  second = text.substr (bySymbol);
+
+            Assert::IsTrue (first.find ("zebra") < first.find ("ALPHA"),
+                            L"the first table is ordered by address");
+            Assert::IsTrue (second.find ("ALPHA") < second.find ("mid"),
+                            L"the second is ordered by name, case-insensitively");
+            Assert::IsTrue (second.find ("mid") < second.find ("zebra"),
+                            L"so `mid` sorts between ALPHA and zebra rather than after both");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  Listing_ColumnLayout_MatchesAS65
         //
         //  Pins the listing's field positions against the AS65 layout, column
@@ -1734,6 +1924,103 @@ namespace AssemblerTests
 
 
 
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Listing_Pagination
+        //
+        //  What -h asks for, checked where it happens.
+        //
+        //  The page height reached the assembler options and was read by
+        //  NOTHING: no code anywhere in the tool broke a listing into pages, so
+        //  a listing produced with -h 10 and one produced with no flag at all
+        //  were byte-for-byte identical. Pagination had to be built before the
+        //  flag could be fixed -- parsing the number correctly would have
+        //  changed nothing on its own.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        static AssemblyResult ListingOfNops (int count)
+        {
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       source;
+
+            options.generateListing = true;
+            cpu.InitForTest();
+
+            //  No trailing newline: it would make an empty final line that the
+            //  listing renders, and the count these tests reason about has to
+            //  be the one asked for.
+            for (int i = 0; i < count; i++)
+            {
+                source += (i == 0) ? "NOP" : "\nNOP";
+            }
+
+            Assembler  asm6502 (cpu.GetInstructionSet(), options);
+
+            return asm6502.Assemble (source);
+        }
+
+
+        static size_t CountPageBreaks (const std::string & listing)
+        {
+            size_t  breaks = 0;
+
+            for (char c : listing)
+            {
+                if (c == '\f')
+                {
+                    breaks++;
+                }
+            }
+
+            return breaks;
+        }
+
+
+        TEST_METHOD (Listing_NoPageHeight_IsOneContinuousPage)
+        {
+            AssemblyResult  result = ListingOfNops (42);
+
+            Assert::AreEqual ((size_t) 42, result.listing.size());
+            Assert::AreEqual ((size_t) 0, CountPageBreaks (Assembler::FormatListing (result)),
+                              L"the default must not start breaking pages");
+        }
+
+
+        //  42 lines at 10 to a page is four breaks: after lines 10, 20, 30 and
+        //  40. Not five -- the last two lines do not fill a page, and a form
+        //  feed with nothing after it is a blank page on the printer.
+        TEST_METHOD (Listing_PageHeight_BreaksEveryThatManyLines)
+        {
+            AssemblyResult  result = ListingOfNops (42);
+            std::string     paged  = Assembler::FormatListing (result, 10);
+
+            Assert::AreEqual ((size_t) 4, CountPageBreaks (paged));
+        }
+
+
+        //  The flag has to reach the page it names. A height of 1 breaks
+        //  between every pair of lines, which no off-by-one can also produce.
+        TEST_METHOD (Listing_PageHeightOfOne_BreaksBetweenEveryLine)
+        {
+            AssemblyResult  result = ListingOfNops (5);
+            std::string     paged  = Assembler::FormatListing (result, 1);
+
+            Assert::AreEqual ((size_t) 4, CountPageBreaks (paged));
+        }
+
+
+        //  A listing that fits has no break in it at all, which is what stops
+        //  pagination from putting a form feed on the front of a short one.
+        TEST_METHOD (Listing_ShorterThanThePage_HasNoBreakAtAll)
+        {
+            AssemblyResult  result = ListingOfNops (5);
+
+            Assert::AreEqual ((size_t) 0, CountPageBreaks (Assembler::FormatListing (result, 60)));
+        }
 
 
         ////////////////////////////////////////////////////////////////////////////////

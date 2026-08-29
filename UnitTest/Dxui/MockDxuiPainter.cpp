@@ -124,6 +124,8 @@ void MockDxuiPainter::FillConvexQuad (float x0, float y0, float x1, float y1,
     float              minY = std::min (std::min (y0, y1), std::min (y2, y3));
     float              maxY = std::max (std::max (y0, y1), std::max (y2, y3));
 
+
+
     call.kind   = RecordedPaintKind::FillConvexQuad;
     call.x      = minX;
     call.y      = minY;

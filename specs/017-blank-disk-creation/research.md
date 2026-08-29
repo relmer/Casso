@@ -12,12 +12,12 @@ code.
 **Rationale**: `NibblizeWithMap` already emits, per track, 16× (20-sync-nibble
 gap, `D5 AA 96` address field with 4-and-4 V/T/S/checksum, `DE AA EB`, 6-sync
 gap, `D5 AA AD` + 342 6&2 nibbles + checksum, `DE AA EB`) with correct 10-bit
-self-sync nibbles (`PackSyncNibbleBits`) — this IS a formatted track. An
+self-sync nibbles (`PackSyncNibbleBits`); this IS a formatted track. An
 all-zeros buffer already produces a formatted-but-empty disk (noted in
 `NibblizationTests.cpp` and `scripts/BuildDemoDisk.ps1`). Volume number
 defaults to the existing `kDefaultVolume = 254`.
 
-**Alternatives**: A standalone `FormatTrack()` bit-stream builder — rejected:
+**Alternatives**: A standalone `FormatTrack()` bit-stream builder, rejected:
 duplicate of the encoder that mounting `.dsk` files already exercises daily.
 
 ## R-002: WOZ output via WozLoader::Serialize
@@ -27,12 +27,12 @@ with the existing `WozLoader::Serialize` (WOZ v2: real CRC32, INFO with
 write-protect byte, TMAP from quarter-track map, block-aligned TRKS).
 
 **Rationale**: The serializer already exists and is the flush path for mounted
-WOZ images — creation gets byte-format parity with what mounting writes back.
+WOZ images, creation gets byte-format parity with what mounting writes back.
 `info[2]` carries the image write-protect flag, which is exactly where FR-014's
 WOZ toggle persists.
 
-**Alternatives**: `WozLoader::BuildSyntheticV2` — rejected: single-track test
-helper. Hand-rolled WOZ writer — rejected: exists already.
+**Alternatives**: `WozLoader::BuildSyntheticV2`, rejected: single-track test
+helper. Hand-rolled WOZ writer, rejected: exists already.
 
 ## R-003: DSK/PO output is the sector buffer itself
 
@@ -47,7 +47,7 @@ needed).
 does for any `.dsk`/`.po`.
 
 **Alternatives**: Building DSK by denibblizing a built DiskImage
-(`Denibblize`) — workable but a pointless round-trip for creation.
+(`Denibblize`), workable but a pointless round-trip for creation.
 
 ## R-004: DOS 3.3 skeleton (data-only)
 
@@ -62,7 +62,7 @@ even though data-only leaves them empty, catalog owns T17) keeps every
 DOS-era tool's expectations intact and the usable capacity identical to a
 real freshly-INITed disk. `CATALOG` lists clean/empty (SC-003, FR-005).
 
-**Alternatives**: Freeing T1–2 for ~8KB extra space — rejected: diverges from
+**Alternatives**: Freeing T1–2 for ~8KB extra space, rejected: diverges from
 what any 1980s tool ever produced; compatibility over 8KB.
 
 ## R-005: ProDOS skeleton (data-only)
@@ -77,7 +77,7 @@ at block 6 with blocks 0–6 marked used, everything else free.
 `CAT`s it clean regardless of boot-block content. Volume name fixed in v1 per
 spec assumption (no metadata UI).
 
-**Alternatives**: 4-block directory vs single-block — the standard 4-block
+**Alternatives**: 4-block directory vs single-block, the standard 4-block
 directory (2–5) matches real formatter output; chosen for tool compatibility.
 
 ## R-006: Bootable DOS 3.3 payload
@@ -92,8 +92,8 @@ sector) so the boot lands at a clean prompt instead of `FILE NOT FOUND`.
 greeting program). The VTOC from R-004 already reserves T0–2. Writing one
 small DOS file is a modest, pure extension of the skeleton writer.
 
-**Alternatives**: DOS tracks without HELLO — boots to `FILE NOT FOUND` then
-breaks to BASIC; rejected as a polish-level defect. Bundling DOS — forbidden
+**Alternatives**: DOS tracks without HELLO, boots to `FILE NOT FOUND` then
+breaks to BASIC; rejected as a polish-level defect. Bundling DOS, forbidden
 (copyright); the download-with-explicit-user-action path is established.
 
 ## R-007: Bootable ProDOS payload
@@ -107,11 +107,11 @@ therefore offers exactly "ProDOS 1.1.1"; more versions arrive by adding
 
 **Rationale**: A ProDOS disk boots via boot blocks → `PRODOS` file →
 `XXX.SYSTEM`; all three pieces come from the already-cataloged image. File
-writing needs a seedling/sapling allocator — new pure core code
+writing needs a seedling/sapling allocator, new pure core code
 (`ProDosFileWriter`), unit-testable against the bitmap/directory invariants.
 
-**Alternatives**: Whole-disk copy of the Users Disk — rejected: not an empty
-volume (spec FR-005). Skipping ProDOS-bootable in v1 — kept in scope; it is
+**Alternatives**: Whole-disk copy of the Users Disk, rejected: not an empty
+volume (spec FR-005). Skipping ProDOS-bootable in v1, kept in scope; it is
 the priced item in this feature and the listbox decision came from clarify.
 
 ## R-008: Boot-payload availability & download
@@ -128,8 +128,8 @@ When offline/declined, the bootable toggle disables with an explanation
 the picker already downloads stock disks on explicit selection, so no new
 consent surface is needed.
 
-**Alternatives**: A generic "ensure asset" facade — does not exist today;
-building one is out of scope. `StartupAssetEntry` with `BootDisk` kind — the
+**Alternatives**: A generic "ensure asset" facade, does not exist today;
+building one is out of scope. `StartupAssetEntry` with `BootDisk` kind, the
 startup dialog is for launch-time batches; a single on-demand fetch fits the
 `DownloadStockBootDisk` shape better.
 
@@ -146,7 +146,7 @@ picker's drive.
 sort order"). The survey confirmed both lambdas are small and local; a footer
 button was considered and rejected because the user asked for a row.
 
-**Alternatives**: Footer button next to Browse... — rejected per user decision.
+**Alternatives**: Footer button next to Browse... rejected per user decision.
 
 ## R-010: Create dialog composition
 
@@ -161,13 +161,13 @@ buttons. Navigation/validation logic lives in a pure, `IFileSystem`-injected
 filter, name validation, unique-name generation, mounted-path refusal input);
 the dialog is a thin view over it (constitution VI).
 
-**Rationale**: Every widget exists (`DxuiTextInput` verified — the
+**Rationale**: Every widget exists (`DxuiTextInput` verified, the
 color-picker hex field and Disk2 debug panel already use it). The model in
 core keeps FR-006/007/018 logic unit-tested without a window.
 
-**Alternatives**: Native `IFileDialog` — rejected in the design session
+**Alternatives**: Native `IFileDialog`, rejected in the design session
 (cohesion; the user chose the themed in-app dialog). `DxuiTreeView` folder
-pane — deferred; up-button + folder rows cover FR-006 with less surface.
+pane, deferred; up-button + folder rows cover FR-006 with less surface.
 
 ## R-011: Write-protect toggle mechanics & surface
 
@@ -183,14 +183,14 @@ readOnlyFile), disabled when the drive is empty; failure paths report and
 re-read true state (FR-016).
 
 **Rationale**: The four-source `WriteProtectInfo` model, the padlock, and the
-cause-naming tooltip already exist — the toggle only adds the two mutation
+cause-naming tooltip already exist; the toggle only adds the two mutation
 paths. The Disk menu is where per-drive disk actions live; the existing
 Settings>Disk checkbox remains the separate per-drive *user* setting
 (different `userSetting` bit, per-machine pref) and is untouched.
 
-**Alternatives**: Drive-widget click affordance — the widget's click surface
+**Alternatives**: Drive-widget click affordance, the widget's click surface
 is fully claimed (body=insert, eject region); a context menu is future polish.
-Merging with the Settings user-WP checkbox — rejected: different semantics
+Merging with the Settings user-WP checkbox, rejected: different semantics
 (travels-with-image vs this-machine preference), both legitimately coexist in
 the OR model.
 
@@ -201,12 +201,12 @@ the OR model.
 Prints` idiom); thereafter the last folder a disk was created in, persisted as
 a new `GlobalUserPrefs::lastDiskCreateFolder` (UTF-8 string; the standard
 4-edit recipe: member, `s_kKnownTopLevel`, `ToJson`, `FromJson`). This is the
-repo's first persisted folder pref — the print folder is recomputed each time
+repo's first persisted folder pref; the print folder is recomputed each time
 and is NOT a precedent to copy for semantics, only for the known-folder call.
 
 **Rationale**: User decision from clarify. Note `AssetBootstrap::
 GetDiskDirectory()` (`%LOCALAPPDATA%\Casso\Disks`) was considered as default
-and rejected — hidden from casual browsing; downloads live there, user disks
+and rejected, hidden from casual browsing; downloads live there, user disks
 belong in Documents.
 
 ## R-013: Mounted-target refusal source of truth

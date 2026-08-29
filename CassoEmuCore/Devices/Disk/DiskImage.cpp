@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "DiskImageStore.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 
@@ -65,6 +66,21 @@ void DiskImage::InitWholeTrackMap()
 //  Maps a head quarter-track position to its backing storage slot, or -1
 //  when the position holds no data (unformatted: an out-of-range slot or a
 //  zero-length stream). Callers treat -1 as no flux under the head.
+//
+//  WORTH KNOWING BEFORE WRITING A TEST THAT MOVES THE HEAD. On a WOZ the map
+//  comes from the image's own TMAP, so distinct quarter-tracks address distinct
+//  flux and a head parked between tracks reads what a real drive would. On a
+//  sector image it is the synthetic qt / 4 default, because .dsk and .po
+//  physically cannot carry half-track data -- there is nothing else it could
+//  be, and this is a property of the format rather than a defect here.
+//
+//  The consequence lands on tests, not on the product: against a sector image
+//  an off-track head resolves to the neighboring whole track and reads it
+//  perfectly, so a stepper that leaves the head in the wrong place stays
+//  invisible to the guest, where a real drive would be off-track and read
+//  nothing. A stepper mutation survived a direct-boot gate for exactly this
+//  reason and was caught only by a structural assertion. Gates that are meant
+//  to be sensitive to head positioning belong on a WOZ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +339,8 @@ bool DiskImage::IsWriteProtected() const
     return m_imageWriteProtected
         || m_userWriteProtected
         || m_fileReadOnly
-        || m_fileNoPermission;
+        || m_fileNoPermission
+        || m_sourceCrcMismatch;
 }
 
 
@@ -342,10 +359,11 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
 
 
 
-    info.imageFlag    = m_imageWriteProtected;
-    info.userSetting  = m_userWriteProtected;
-    info.readOnlyFile = m_fileReadOnly;
-    info.noPermission = m_fileNoPermission;
+    info.imageFlag        = m_imageWriteProtected;
+    info.userSetting      = m_userWriteProtected;
+    info.readOnlyFile     = m_fileReadOnly;
+    info.noPermission     = m_fileNoPermission;
+    info.checksumMismatch = m_sourceCrcMismatch;
 
     return info;
 }
@@ -540,6 +558,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_loaded         = false;
     m_dirty          = false;
     m_rawSourceBytes = raw;
+    m_wozMetadata.Clear();
     InitWholeTrackMap();
 
     switch (fmt)
@@ -609,6 +628,7 @@ HRESULT DiskImage::Load (const string & filePath)
     m_dirty          = false;
     m_format         = DiskFormat::Dsk;
     m_rawSourceBytes = move (raw);
+    m_wozMetadata.Clear();
     InitWholeTrackMap();
 
 Error:
@@ -656,6 +676,7 @@ void DiskImage::Eject()
 
     m_filePath.clear();
     m_rawSourceBytes.clear();
+    m_wozMetadata.Clear();
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
@@ -666,6 +687,7 @@ void DiskImage::Eject()
     m_userWriteProtected  = false;
     m_fileReadOnly        = false;
     m_fileNoPermission    = false;
+    m_sourceCrcMismatch   = false;
 }
 
 
@@ -677,41 +699,43 @@ void DiskImage::Eject()
 //  Flush
 //
 //  Serializes dirty track state back to the original file using the
-//  appropriate inverse path. WOZ and any source without a known on-disk
-//  path no-op (cached raw bytes are written verbatim if present).
+//  appropriate inverse path. A synthesized image with no backing file has
+//  nothing to write and simply stops being dirty.
+//
+//  Two behaviors here used to lose data. The write opened the target
+//  directly, which truncates it before the first byte lands, and never
+//  checked the stream afterwards -- so a full volume replaced a working
+//  image with a truncated one and reported success. And a failed Serialize
+//  fell back to writing the file's PRE-SESSION bytes over the user's disk,
+//  returning S_OK: every guest write of that session silently reverted.
+//
+//  Both are gone. The bytes go through WriteFileAtomically, and a failed
+//  serialize fails loudly and leaves the image dirty so a later flush
+//  retries. A WOZ whose Serialize fails now refuses to save and says so,
+//  where it used to quietly revert the file -- which is the point: writing
+//  stale bytes and calling it success is never the right answer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::Flush()
 {
-    HRESULT       hr      = S_OK;
-    bool          fileOk  = false;
+    HRESULT       hr       = S_OK;
+    bool          hasPath  = false;
     vector<Byte>  bytes;
 
 
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 
-    // A synthesized image with no backing file has nothing to write, so it
-    // skips straight to the shared "no longer dirty" tail below rather than
-    // repeating it on its own exit path.
-    if (!m_filePath.empty())
+    hasPath = !m_filePath.empty();
+
+    if (hasPath)
     {
         hr = Serialize (bytes);
+        CHR (hr);
 
-        if (FAILED (hr))
-        {
-            BAIL_OUT_IF (m_rawSourceBytes.empty(), S_OK);
-            bytes = m_rawSourceBytes;
-            hr    = S_OK;
-        }
-
-        ofstream file (m_filePath, ios::binary);
-        fileOk = file.good();
-        CBR (fileOk);
-
-        file.write (reinterpret_cast<const char *> (bytes.data()),
-                    static_cast<streamsize> (bytes.size()));
+        hr = DiskImageStore::WriteFileAtomically (m_filePath, bytes);
+        CHR (hr);
     }
 
     m_dirty = false;

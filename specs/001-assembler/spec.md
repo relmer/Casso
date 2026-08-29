@@ -11,7 +11,7 @@
 
 A developer writes a short assembly snippet containing basic instructions (e.g., LDA, STA, ADC) with immediate, zero-page, and absolute addressing modes. The assembler converts this into the correct machine code bytes, and the developer can load those bytes into the emulator's memory for execution.
 
-**Why this priority**: Without correct opcode resolution for the core instruction set, no other assembler feature is useful. This is the foundation — the assembler must correctly turn mnemonics + addressing modes into opcode bytes using the existing instruction table.
+**Why this priority**: Without correct opcode resolution for the core instruction set, no other assembler feature is useful. This is the foundation, the assembler must correctly turn mnemonics + addressing modes into opcode bytes using the existing instruction table.
 
 **Independent Test**: Can be fully tested by assembling a handful of instructions, comparing emitted bytes against known-good opcodes, and verifying the output length matches expectations.
 
@@ -102,7 +102,7 @@ A developer writes assembly code with semicolon-delimited comments (full-line an
 
 A test developer uses a convenience method on TestCpu to assemble source text directly into emulator memory, execute it, and verify the CPU state afterward. This eliminates the need to hand-code raw opcode bytes in test cases.
 
-**Why this priority**: This is the primary consumer of the assembler — making unit tests dramatically more readable and maintainable. Without this integration, the assembler provides value only in isolation.
+**Why this priority**: This is the primary consumer of the assembler, making unit tests dramatically more readable and maintainable. Without this integration, the assembler provides value only in isolation.
 
 **Independent Test**: Can be fully tested by writing a test that assembles a short program, runs it, and asserts register values, memory contents, and flag states.
 
@@ -141,10 +141,10 @@ When assembly source contains errors (invalid mnemonics, bad addressing mode syn
 
 - What happens when source text is empty? The assembler succeeds with zero output bytes and no errors.
 - What happens when `.org` sets an address lower than the current output position? The assembler reports an error (cannot move origin backward within a contiguous block).
-- What happens when a label name collides with a mnemonic (e.g., a label named `LDA`)? The assembler reports an error — label names must not be reserved mnemonics.
+- What happens when a label name collides with a mnemonic (e.g., a label named `LDA`)? The assembler reports an error, label names must not be reserved mnemonics.
 - What happens when a branch offset is exactly at the boundary (±127/128 bytes)? Offsets of -128 to +127 are valid; ±128 on the positive side is out of range.
 - What happens when `.text` contains an empty string (`""`)? Zero bytes are emitted; this is not an error.
-- What happens when the CPU executes a BRK instruction during `run`? BRK is a software interrupt — it pushes PC+2 and the status register to the stack, then loads PC from the IRQ vector at $FFFE/$FFFF. If the vector points to uninitialized memory ($FF fill), the CPU will encounter an illegal opcode and stop.
+- What happens when the CPU executes a BRK instruction during `run`? BRK is a software interrupt, it pushes PC+2 and the status register to the stack, then loads PC from the IRQ vector at $FFFE/$FFFF. If the vector points to uninitialized memory ($FF fill), the CPU will encounter an illegal opcode and stop.
 - What happens when addressing mode syntax is ambiguous (e.g., `STA $10` could be zero-page or absolute)? The assembler prefers the shorter encoding (zero-page) when the address fits in one byte.
 
 ---
@@ -179,7 +179,7 @@ A developer uses the Casso executable from the command line to assemble source f
 
 A developer requests a listing file that shows each source line alongside its assembled address and machine code bytes. This is essential for debugging assembly programs and verifying the assembler's output.
 
-**Why this priority**: Listing files are a critical debugging tool — they show exactly what bytes were generated at what addresses, making it easy to spot encoding errors or incorrect label resolution.
+**Why this priority**: Listing files are a critical debugging tool, they show exactly what bytes were generated at what addresses, making it easy to spot encoding errors or incorrect label resolution.
 
 **Independent Test**: Can be tested by assembling a program with listing enabled and verifying the listing contains the correct address, bytes, and source text for each line.
 
@@ -217,7 +217,7 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - **FR-001**: The assembler MUST accept a string of assembly source text via an instance method and produce an assembly result containing machine code bytes, a symbol table, errors, warnings, and listing data
 - **FR-002**: The assembler MUST recognize all 56 standard 6502 mnemonics with all valid addressing modes
 - **FR-003**: The assembler MUST resolve opcodes by looking up the existing instruction table (mnemonic + addressing mode → opcode byte), not by maintaining a separate encoding table
-- **FR-004**: The assembler MUST perform two passes — the first to determine label addresses, the second to emit final bytes with resolved references
+- **FR-004**: The assembler MUST perform two passes: the first to determine label addresses, the second to emit final bytes with resolved references
 - **FR-005**: The assembler MUST support labels defined by an identifier followed by a colon (e.g., `loop:`)
 - **FR-006**: The assembler MUST support the `.org` directive to set the current assembly address
 - **FR-007**: The assembler MUST support the `.byte` directive to emit one or more raw byte values
@@ -230,11 +230,11 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - **FR-014**: The assembler MUST collect all errors with line numbers rather than stopping at the first error
 - **FR-015**: The assembler MUST report errors for: invalid mnemonics, invalid addressing mode syntax, undefined labels, duplicate labels, out-of-range values, and out-of-range branch offsets
 - **FR-016**: The assembler MUST prefer shorter encodings when ambiguous (e.g., zero-page over absolute when the address fits in one byte)
-- **FR-017**: The assembler MUST NOT depend on the CPU class — it produces bytes and a symbol table only
+- **FR-017**: The assembler MUST NOT depend on the CPU class; it produces bytes and a symbol table only
 - **FR-018**: A test integration method MUST assemble source text and write the output into emulator memory at the current PC
 - **FR-019**: A test integration method MUST execute instructions until the PC reaches a specified target address
 - **FR-020**: The run-until method MUST stop execution when the CPU encounters an illegal opcode (the default stop condition)
-- **FR-021a**: The run-until method MUST accept an optional maximum cycle count; when specified, execution stops after that many cycles if no other stop condition fires first. There is no default cycle limit — omitting the parameter means unlimited cycles
+- **FR-021a**: The run-until method MUST accept an optional maximum cycle count; when specified, execution stops after that many cycles if no other stop condition fires first. There is no default cycle limit, omitting the parameter means unlimited cycles
 - **FR-021b**: The CLI MUST support `--stop $ADDR` to set an explicit stop address that halts execution when PC reaches it
 - **FR-021c**: The CLI MUST support `--max-cycles N` to set an explicit cycle limit for the `run` subcommand
 - **FR-021d**: BRK MUST be implemented as a software interrupt (push PC+2 and status register to stack, load PC from IRQ vector at $FFFE/$FFFF), NOT as a stop condition
@@ -260,7 +260,7 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - **FR-036**: The default fill byte MUST be `$FF` (EEPROM erased state)
 - **FR-037**: The CLI MUST support a `--fill N` flag to override the default fill byte
 - **FR-038**: During Pass 1, when a line cannot be fully parsed, the assembler MUST use best-effort size estimation to advance the PC by a reasonable amount (based on partial mnemonic recognition), minimizing cascading label offset errors in Pass 2
-- **FR-039**: The Assembler MUST be an instance-based class — configuration (instruction set reference, fill byte, options) is provided at construction time
+- **FR-039**: The Assembler MUST be an instance-based class, configuration (instruction set reference, fill byte, options) is provided at construction time
 - **FR-040**: The `Assemble()` method MUST return a result struct containing the assembled bytes (flat memory image), symbol table, error list, warning list, and listing data
 - **FR-041**: An Assembler instance MUST be reusable across multiple `Assemble()` calls without re-creating the object
 
@@ -294,10 +294,10 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 - Macros and macro expansion
 - Conditional assembly directives (`#if`, `.ifdef`, `.ifndef`)
 - Relocatable output or linking multiple object files
-- Include files or file I/O in the assembler core — the assembler takes a string; file reading is done by the CLI layer
+- Include files or file I/O in the assembler core; the assembler takes a string; file reading is done by the CLI layer
 - Illegal/undocumented 6502 opcodes
-- Command-line symbol definition (`-Dlabel=value`) — future enhancement
-- CPU variant selection (`--cpu 65c02`) — future enhancement when 65C02 extensions are added to the emulator
+- Command-line symbol definition (`-Dlabel=value`), future enhancement
+- CPU variant selection (`--cpu 65c02`), future enhancement when 65C02 extensions are added to the emulator
 
 ## Assumptions
 
@@ -313,8 +313,8 @@ A developer uses verbose mode to see detailed assembly progress and controls whe
 
 ### Session 2026-04-23
 
-- Q: What is the assembled output model (flat image vs. sparse/segmented)? → A: Flat memory image (up to 64 KB) with configurable fill byte defaulting to `$FF` (EEPROM erased state). Output covers lowest to highest address used. `--fill N` CLI flag allows overriding the fill byte. No sparse/segmented model needed — 64 KB max makes flat blob practical. Important for EEPROM programmer compatibility.
-- Q: How should the assembler handle parse errors in Pass 1 (label address computation)? → A: Best-effort size estimation — when a line cannot be fully parsed, the assembler estimates the instruction size (e.g., 1–3 bytes based on partial mnemonic recognition) so the PC advances by a reasonable amount. This minimizes cascading label offset errors in Pass 2.
-- Q: What should cause execution to stop when running assembled programs? → A: Stop on illegal opcode (current Run() behavior) with optional `--stop $ADDR` CLI override. Support `--max-cycles` but only when explicitly specified (no default limit). BRK is NOT a stop signal — it is a software interrupt that must be implemented correctly (push PC+2 and status, load PC from IRQ vector $FFFE/$FFFF). The `$FF` fill byte naturally halts execution since uninitialized memory is an illegal opcode.
+- Q: What is the assembled output model (flat image vs. sparse/segmented)? → A: Flat memory image (up to 64 KB) with configurable fill byte defaulting to `$FF` (EEPROM erased state). Output covers lowest to highest address used. `--fill N` CLI flag allows overriding the fill byte. No sparse/segmented model needed, 64 KB max makes flat blob practical. Important for EEPROM programmer compatibility.
+- Q: How should the assembler handle parse errors in Pass 1 (label address computation)? → A: Best-effort size estimation, when a line cannot be fully parsed, the assembler estimates the instruction size (e.g., 1–3 bytes based on partial mnemonic recognition) so the PC advances by a reasonable amount. This minimizes cascading label offset errors in Pass 2.
+- Q: What should cause execution to stop when running assembled programs? → A: Stop on illegal opcode (current Run() behavior) with optional `--stop $ADDR` CLI override. Support `--max-cycles` but only when explicitly specified (no default limit). BRK is NOT a stop signal; it is a software interrupt that must be implemented correctly (push PC+2 and status, load PC from IRQ vector $FFFE/$FFFF). The `$FF` fill byte naturally halts execution since uninitialized memory is an illegal opcode.
 - Q: Where does execution begin when running an assembled program? → A: Default entry point is the first instruction address (lowest assembled address, or `$8000` if no `.org`). Override with `--entry $ADDR` or `--reset-vector` to use `$FFFC/$FFFD`. This gives a simple default for test programs while supporting real 6502 reset-vector conventions when needed.
 - Q: What is the assembler's public API shape (static function vs. instance-based)? → A: Instance-based API. Assembler object holds configuration (instruction set reference, fill byte, options) set at construction. `Assemble()` is called on the instance and returns a result struct with bytes, symbol table, errors, warnings, and listing. Allows reuse across multiple assemblies without rebuilding config.

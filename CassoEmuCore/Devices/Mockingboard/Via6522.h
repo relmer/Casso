@@ -29,6 +29,8 @@
 //    $4 T1C-L      $C PCR   (handshake control -- stored, not modeled)
 //    $5 T1C-H      $D IFR   (bit7 = IRQ summary, bit6 = T1, bit5 = T2, ...)
 //    $6 T1L-L      $E IER   (bit7 = set/clear control, per-source enables)
+//                           ($C PCR: CA1/CB1 active-edge selects are modeled;
+//                            the CA2/CB2 output modes are not)
 //    $7 T1L-H      $F ORA/IRA (same as $1, no CA handshake)
 //
 //  Timer 1 is a 16-bit down-counter clocked at the CPU phi2 rate. It is
@@ -42,7 +44,7 @@
 //  Modeled: full register file, ports A/B + DDRs, Timer 1 (one-shot and
 //  continuous) and Timer 2 (one-shot), IFR/IER and the level-sensitive
 //  IRQ line. NOT modeled (registers stored, behavior absent): the shift
-//  register clocking, CA1/CA2/CB1/CB2 handshaking, PB6 pulse counting,
+//  register clocking, CA2/CB2 handshaking, PB6 pulse counting,
 //  and PB7 timer output. The Mockingboard needs none of these.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +89,12 @@ public:
     // IER write control bit: 1 = set the flagged enables, 0 = clear them.
     static constexpr Byte    kIerSetClear = 0x80;
 
+    // PCR: bit 0 selects the CA1 active edge, bit 4 the CB1 active edge
+    // (0 = falling, 1 = rising). The CA2/CB2 mode fields are unmodeled.
+    static constexpr Byte    kPcrCa1Rising = 0x01;
+    static constexpr Byte    kPcrCb1Rising = 0x10;
+    static constexpr Byte    kPcrModeled   = kPcrCa1Rising | kPcrCb1Rising;
+
     Via6522 () { Reset (); }
 
     // Register-file access (reg is masked to 0..15). Reads of the timer
@@ -116,6 +124,12 @@ public:
     void    SetPortAInput (Byte value) { m_portAIn = value; }
     void    SetPortBInput (Byte value) { m_portBIn = value; }
 
+    void    SetCa1        (bool level);
+    void    SetCb1        (bool level);
+
+    bool    GetCa1        () const { return m_ca1; }
+    bool    GetCb1        () const { return m_cb1; }
+
     // Inspectors for tests.
     Byte     GetIfr        () const;
     Byte     GetIer        () const { return static_cast<Byte> (m_ier | kIrqAny); }
@@ -140,6 +154,13 @@ private:
     Byte  m_ddrb    = 0;
     Byte  m_portAIn = 0;
     Byte  m_portBIn = 0;
+
+    // Control-line inputs. Idle high, matching an undriven open-collector
+    // peripheral output held up by its pull-up -- so a VIA whose lines are
+    // never driven sees no edge and behaves exactly as it did before these
+    // existed.
+    bool  m_ca1 = true;
+    bool  m_cb1 = true;
 
     Byte     m_sr    = 0;
     Byte     m_acr   = 0;

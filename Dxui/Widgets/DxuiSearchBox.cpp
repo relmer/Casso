@@ -503,6 +503,7 @@ void DxuiSearchBox::RelayoutInput()
                         m_boundsDip.bottom };
 
 
+
     if (r.right < r.left)
     {
         r.right = r.left;

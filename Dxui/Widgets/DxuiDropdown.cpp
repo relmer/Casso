@@ -680,6 +680,7 @@ DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors() const
                           s_kEdgeDisabledArgb, s_kFocusRingArgb };
 
 
+
     if (m_hasThemeColors)
     {
         c = m_themeColors;
@@ -754,6 +755,9 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                  : (m_armed && m_hover) ? c.boxPressed
                                  : (m_open || m_hover)  ? c.boxHover
                                  :                        c.boxIdle;
+
+
+
     textColor = m_enabled ? c.text : c.textDisabled;
     edgeColor = m_enabled ? c.edge : c.edgeDisabled;
     edgePx = m_scaler.Pxf (s_kEdgePx);
@@ -765,8 +769,6 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     chevronX = m_boundsDip.right - chevronRight - chevronW;
     chevronY = (m_boundsDip.top + m_boundsDip.bottom) / 2 - chevronH / 2;
     textWidth = (m_boundsDip.right - m_boundsDip.left) - textInset - (chevronRight + chevronW);
-
-
 
     if (m_selected >= 0 && m_selected < (int) m_items.size())
     {

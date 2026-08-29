@@ -19,7 +19,7 @@ VS Code: `Ctrl+Shift+B` → `Build + Test Debug` or `Build + Test Release`.
 .\x64\Release\Casso.exe --machine apple2e --disk1 path\to\image.woz
 ```
 
-Soft reset: GUI menu (or Ctrl+Reset). Power cycle: GUI menu — re-seeds RAM
+Soft reset: GUI menu (or Ctrl+Reset). Power cycle: GUI menu, re-seeds RAM
 via `Prng` so previously-deterministic state diverges intentionally.
 
 ## Run unit + integration tests
@@ -77,8 +77,8 @@ Error:
 ```
 
 Test isolation rules (constitution §II, NON-NEGOTIABLE):
-- Use `HeadlessHost` — never construct a real `Casso/HostShell`.
-- Use `IFixtureProvider` for any fixture file — never call `CreateFileW`,
+- Use `HeadlessHost`; never construct a real `Casso/HostShell`.
+- Use `IFixtureProvider` for any fixture file; never call `CreateFileW`,
   `fopen`, `std::ifstream` on a host path directly.
 - Pin the PRNG seed to `0xCA550001` (the harness default).
 - Re-running any test must produce byte-identical scraped text and identical
@@ -94,7 +94,7 @@ Test isolation rules (constitution §II, NON-NEGOTIABLE):
 
 The Phase 15 perf budget (FR-042 / SC-007) is enforced by
 `UnitTest/EmuTests/PerformanceTests.cpp`. It runs **only in Release**
-builds — Debug builds compile a sentinel test that reports
+builds, Debug builds compile a sentinel test that reports
 "skipped" because the unoptimized debug build's measurements are
 not actionable.
 
@@ -154,23 +154,23 @@ codegen, not flake.
 ### CI gating
 
 Both perf tests are part of the standard `Build + Test Release`
-target — failure fails CI. They are skipped in Debug runs (the
+target, failure fails CI. They are skipped in Debug runs (the
 sentinel test `CycleEmulation_SkippedInDebug` logs the reason and
 passes), so the default `Build + Test Debug` target stays fast.
 
 ### What to do if the test flakes on slower hardware
 
-1. **Confirm it's the host, not the emulator** — re-run the test
+1. **Confirm it's the host, not the emulator**: re-run the test
    suite alone (no other build/test/IDE workload). If it then
    passes, it was host contention.
-2. **Re-derive the threshold** — `kPerformanceCeilingMs` is the
+2. **Re-derive the threshold**: `kPerformanceCeilingMs` is the
    only knob; recompute as
    `target_fraction × (1,000,000 / 1.023 MHz × 1000)`. The test
    source comment documents the math.
-3. **Bump headroom, not budget** — if a slower CI tier needs more
+3. **Bump headroom, not budget**: if a slower CI tier needs more
    slack, raise the ceiling to e.g. 150 ms (≈ 6× headroom). Do
    **not** change the per-cycle target; it's the shipping budget.
-4. **Increase sample count** — if jitter, not slowness, is the
+4. **Increase sample count**: if jitter, not slowness, is the
    issue, bump `kStabilityRunCount` and use median-of-medians
    rather than raw worst.
 

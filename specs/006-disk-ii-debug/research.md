@@ -15,7 +15,7 @@ touch points.
 
 ---
 
-## Part 1 — Disk II Nibble Format (for the address-mark watcher)
+## Part 1: Disk II Nibble Format (for the address-mark watcher)
 
 ### 1.1 Address mark (sector header)
 
@@ -78,7 +78,7 @@ v1 of the watcher treats the data mark as "seen" on prologue match
 without waiting for the body checksum, because:
 
 - A false positive on the data mark merely emits a spurious `DATA READ`
-  row with `S?` — visible to the user, easy to dismiss, no logic error.
+  row with `S?`, visible to the user, easy to dismiss, no logic error.
 - Waiting for the body checksum would require buffering ~342 nibbles
   before any event fires, defeating the live-streaming UX.
 
@@ -98,7 +98,7 @@ the state machine resets without firing an event.
 
 ---
 
-## Part 2 — Win32 Virtual-Mode ListView
+## Part 2: Win32 Virtual-Mode ListView
 
 ### 2.1 Why virtual mode is mandatory here
 
@@ -120,15 +120,15 @@ Microsoft documents the pattern in *Virtual List-View Controls*
 
 `ListView_SetItemCountEx (hwnd, count, flags)` accepts two flag bits:
 
-- `LVSICF_NOINVALIDATEALL` — don't repaint every row; the control invalidates
+- `LVSICF_NOINVALIDATEALL`: don't repaint every row; the control invalidates
   only the rows whose state changes.
-- `LVSICF_NOSCROLL` — don't move the scroll position when the row count
+- `LVSICF_NOSCROLL`: don't move the scroll position when the row count
   changes.
 
 Pass **both** flags for an append-only log. Without `LVSICF_NOSCROLL`, the
 control may auto-scroll on count change in ways that fight the auto-tail
 heuristic; with `LVSICF_NOSCROLL`, the only scroll movement comes from the
-explicit `ListView_EnsureVisible` call in the auto-tail handler — which is
+explicit `ListView_EnsureVisible` call in the auto-tail handler, which is
 exactly what FR-013 requires.
 
 ### 2.3 The auto-tail heuristic
@@ -155,15 +155,15 @@ last-row visibility).
 
 ### 2.4 Sources
 
-- Microsoft Docs: *List-View Controls — Virtual List-View Controls*
+- Microsoft Docs: *List-View Controls, Virtual List-View Controls*
   (`learn.microsoft.com/en-us/windows/win32/controls/list-view-controls-overview`).
 - Microsoft Docs: *LVM_SETITEMCOUNT message* (and its `Ex` wrapper macro).
-- Process Explorer (Sysinternals) source-leak references — same idiom,
+- Process Explorer (Sysinternals) source-leak references, same idiom,
   same `LVSICF_NOSCROLL` usage for its 30 Hz process-list refresh.
 
 ---
 
-## Part 3 — Casso-Specific Touch Points
+## Part 3: Casso-Specific Touch Points
 
 Pre-touch fingerprinting (read-only) of the Disk II controller and the
 existing dialog patterns Casso uses. These line ranges are advisory; the
@@ -173,14 +173,14 @@ implementer should re-verify against current HEAD before each PR.
 
 Current public surface includes:
 
-- `HandleSwitch(uint8_t addr)` — soft-switch dispatcher; cases `0x9` (motor on),
+- `HandleSwitch(uint8_t addr)`: soft-switch dispatcher; cases `0x9` (motor on),
   `0xA`/`0xB` (drive select), `0x0..0x7` (phase magnets).
-- `HandlePhase(int phaseIndex, bool energized)` — computes `qtDelta`, clamps
+- `HandlePhase(int phaseIndex, bool energized)`: computes `qtDelta`, clamps
   `m_quarterTrack` to `[0, kMaxQuarterTrack]`.
-- `Tick(uint64_t cycles)` — runs the spindown counter; transitions
+- `Tick(uint64_t cycles)`: runs the spindown counter; transitions
   `m_motorOn` from true to false when the counter expires.
-- `MountImage(int drive, /* image */)` / `EjectImage(int drive)` — mount/eject.
-- `NibbleReadByte()` / `NibbleWriteByte(uint8_t)` — nibble-stream access from
+- `MountImage(int drive, /* image */)` / `EjectImage(int drive)`, mount/eject.
+- `NibbleReadByte()` / `NibbleWriteByte(uint8_t)`, nibble-stream access from
   the CPU.
 
 **Required additions**:
@@ -200,8 +200,8 @@ Current public surface includes:
 
 Current shell already owns:
 
-- `OptionsDialog m_optionsDialog;` (or pointer) — pattern Feature 005 set.
-- `MachinePickerDialog m_machinePickerDialog;` — analogous.
+- `OptionsDialog m_optionsDialog;` (or pointer), pattern Feature 005 set.
+- `MachinePickerDialog m_machinePickerDialog;`: analogous.
 - Open-dialog menu handlers for `IDM_VIEW_OPTIONS` etc.
 
 **Required additions**:
@@ -236,7 +236,7 @@ adds a recording-sink mock and asserts:
 
 ---
 
-## Part 4 — SPSC Lock-Free Ring Buffer
+## Part 4: SPSC Lock-Free Ring Buffer
 
 ### 4.1 Why SPSC (and not a general MPMC queue)
 
@@ -326,7 +326,7 @@ followed any number of overflow events.
 
 ---
 
-## Part 5 — Performance Budget (Sanity Check)
+## Part 5: Performance Budget (Sanity Check)
 
 ### 5.1 Event rate
 
@@ -338,7 +338,7 @@ followed any number of overflow events.
   cruise).
 - Tight-loop torture (CPU hammering `$C0E0`-`$C0E7`): can produce
   10,000+ head-step events/sec if the CPU spins on the soft switch. This
-  is the FR-010 lossage scenario — the ring fills, the marker fires,
+  is the FR-010 lossage scenario, the ring fills, the marker fires,
   and the developer sees what happened.
 
 ### 5.2 Memory
@@ -355,11 +355,11 @@ acceptable per NFR-003.
 
 - Per fire site: ~5 ns for the `nullptr` check (mispredicted branch on the
   first call after attach, otherwise predicted-not-taken) plus ~30 ns for
-  one SPSC push (two atomic loads, one store, one release update — all
+  one SPSC push (two atomic loads, one store, one release update, all
   uncontended on x86-64) when attached.
 - Per nibble: ~10 ns for the watcher (one switch statement, one state
   update). At a peak nibble rate of ~32k nibbles/sec (Disk II's bitrate
-  divided by 8), that's ~320 µs/sec — < 0.1% of a 1 MHz CPU thread.
+  divided by 8), that's ~320 µs/sec, < 0.1% of a 1 MHz CPU thread.
 - Drain timer: a 4,096-entry drain at ~50 ns/entry = ~200 µs every 33 ms
   = ~0.6% UI thread.
 
@@ -367,7 +367,7 @@ All well within NFR-001's "< 1 %" budget.
 
 ---
 
-## Part 6 — Decisions to Validate at Implementation Time
+## Part 6: Decisions to Validate at Implementation Time
 
 The spec encodes the design; these are the small implementation choices
 that the plan defers to the implementer:

@@ -41,6 +41,8 @@ static HRESULT DecodeToMonoFloat (
     DWORD                    floatCount = 0;
     DWORD                    i          = 0;
 
+
+
     outSamples.clear();
 
     hr = MFCreateSourceReaderFromURL (path, nullptr, &reader);

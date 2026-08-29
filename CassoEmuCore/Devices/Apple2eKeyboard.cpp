@@ -252,6 +252,8 @@ Byte Apple2eKeyboard::MapTypedChar (Byte ascii) const
                    && m_keyboardSwitchDvorak.load (memory_order_acquire)
                    && !m_hostKeyboardDvorak.load  (memory_order_acquire);
 
+
+
     return remaps ? QwertyToDvorak (ascii) : ascii;
 }
 
@@ -381,6 +383,8 @@ void Apple2eKeyboard::Write (Word address, Byte value)
                          || (address >= 0xC011 && address <= 0xC01F)
                          || (address == 0xC028)
                          || (address >= 0xC050 && address <= 0xC05F);
+
+
 
     if (address == 0xC010)
     {

@@ -5,13 +5,13 @@
 **Status**: Draft
 **Input**: User description: "Deliver a fully correct, architecturally sound emulation of the Apple //e (non-Enhanced) such that the Casso emulator can boot the //e ROM, drive all internal devices and ROMs correctly, run real //e software (including disk-based software with copy protection), and pass a comprehensive automated test suite."
 
-**Authoritative Requirements Input**: [`iie-audit.md`](iie-audit.md) — full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.
+**Authoritative Requirements Input**: [`iie-audit.md`](iie-audit.md), full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.
 
 ## Clarifications
 
 ### Session 2026-05-05
 
-- Q: When MIXED mode is active and 80COL=1, should the bottom 4 text rows render in 80-column or 40-column? → A: 80-column (option A) — matches real //e hardware and addresses audit item M12. Captured as FR-017a; routed through the composed video subsystem (FR-020), not a branched code path.
+- Q: When MIXED mode is active and 80COL=1, should the bottom 4 text rows render in 80-column or 40-column? → A: 80-column (option A), matches real //e hardware and addresses audit item M12. Captured as FR-017a; routed through the composed video subsystem (FR-020), not a branched code path.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -43,9 +43,9 @@ A user mounts an Apple disk image (`.dsk`, `.do`, `.po`, or `.woz`) into Drive 1
 
 When the user ejects a disk, switches machines, or exits the emulator after writing to a disk, the modified disk image is flushed back to its source file with no data loss.
 
-**Why this priority**: The Apple //e ecosystem is overwhelmingly disk-based. A //e emulator that cannot reliably load period software — including copy-protected software — fails its primary purpose. This drives the requirement for nibble-level Disk II controller emulation rather than sector-level shortcuts.
+**Why this priority**: The Apple //e ecosystem is overwhelmingly disk-based. A //e emulator that cannot reliably load period software, including copy-protected software, fails its primary purpose. This drives the requirement for nibble-level Disk II controller emulation rather than sector-level shortcuts.
 
-**Independent Test**: Mount each fixture disk image (DOS 3.3, ProDOS, WOZ, copy-protected — all bundled in-repo as test fixtures), boot the //e from slot 6, and verify via text-screen scrape and/or framebuffer hash that the expected post-boot state is reached. Verify that a write-then-eject cycle produces a modified image file equal to the expected reference.
+**Independent Test**: Mount each fixture disk image (DOS 3.3, ProDOS, WOZ, copy-protected, all bundled in-repo as test fixtures), boot the //e from slot 6, and verify via text-screen scrape and/or framebuffer hash that the expected post-boot state is reached. Verify that a write-then-eject cycle produces a modified image file equal to the expected reference.
 
 **Acceptance Scenarios**:
 
@@ -127,7 +127,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **Floating-bus reads on $C011-$C01F**: The high bit carries the soft-switch flag; the low 7 bits must reflect floating-bus behavior, not be zero, and not return whatever the data bus last latched on a different instruction.
 - **Two-consecutive-odd-read pre-write of the Language Card**: The reads do not need to target the same odd address; any two odd $C08x reads in succession arm the pre-write state. Any intervening write to the LC region resets it.
 - **Power-on Language Card state**: Defaults to `MF_BANK2 | MF_WRITERAM` (matching AppleWin), not all-zero, not "ROM read / RAM write disabled."
-- **Power-cycle vs soft reset**: Power-cycle initializes RAM to indeterminate values (not zero — the Casso harness must seed it to a deterministic-but-non-zero pattern for test repeatability). Soft reset preserves RAM (main, aux, and LC).
+- **Power-cycle vs soft reset**: Power-cycle initializes RAM to indeterminate values (not zero, the Casso harness must seed it to a deterministic-but-non-zero pattern for test repeatability). Soft reset preserves RAM (main, aux, and LC).
 - **80STORE interaction with PAGE2 and HIRES**: When 80STORE=1, the routing of writes to text/hi-res pages is decided by PAGE2 and HIRES (per //e MMU rules), independent of RAMRD/RAMWRT.
 - **Slot 6 ROM no longer shadowed**: A prior bug had INTCXROM-like behavior masking slot 6's ROM and breaking disk boot. INTCXROM and SLOTC3ROM must be honored exactly per audit §8 so that slot 6 is reachable for boot.
 - **$C800-$CFFF expansion ROM with INTC8ROM**: The expansion ROM window must follow the documented INTC8ROM rules including the access-pattern that disables it.
@@ -154,7 +154,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 - **FR-005**: When RAMRD=1, reads from $0200-$BFFF (excluding regions overridden by 80STORE) MUST return auxiliary RAM contents; when RAMWRT=1, writes to that range MUST go to auxiliary RAM.
 - **FR-006**: When ALTZP=1, accesses to $0000-$01FF MUST be routed to auxiliary zero-page and stack memory; when ALTZP=0, they MUST use main memory. ALTZP MUST also select the auxiliary Language Card RAM bank for $D000-$FFFF when LC RAM-read or RAM-write is active.
-- **FR-007**: When 80STORE=1, writes to the text page ($0400-$07FF) MUST be routed by PAGE2 (PAGE2=0 → main, PAGE2=1 → aux), and when 80STORE=1 with HIRES=1, writes to the hi-res page ($2000-$3FFF) MUST be routed by PAGE2 the same way — independent of RAMRD/RAMWRT.
+- **FR-007**: When 80STORE=1, writes to the text page ($0400-$07FF) MUST be routed by PAGE2 (PAGE2=0 → main, PAGE2=1 → aux), and when 80STORE=1 with HIRES=1, writes to the hi-res page ($2000-$3FFF) MUST be routed by PAGE2 the same way, independent of RAMRD/RAMWRT.
 
 #### Language Card (audit §3)
 
@@ -188,7 +188,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **FR-022**: The system MUST natively load and serve WOZ-format images at the nibble level.
 - **FR-023**: The system MUST load `.dsk`, `.do`, and `.po` images by passing them through a nibblization layer that converts the sector-level image into the nibble track form expected by the controller (and the inverse for writes/save-back).
 - **FR-024**: Copy-protected disks that depend on nibble-level timing or non-standard track formats MUST be supportable by virtue of the nibble-level emulation, validated against at least one bundled public-domain copy-protected fixture.
-- **FR-025**: Disk writes MUST be auto-flushed to the source host file when the disk is ejected, when the active machine configuration is switched, or when the emulator exits — with no silent loss of written data.
+- **FR-025**: Disk writes MUST be auto-flushed to the source host file when the disk is ejected, when the active machine configuration is switched, or when the emulator exits, with no silent loss of written data.
 
 #### ROM mapping (audit §8)
 
@@ -234,7 +234,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 #### Test isolation (constitution: Testing Discipline)
 
 - **FR-043**: Tests MUST NOT read or write any host state outside in-repo fixtures: no real filesystem (other than fixture reads), no registry, no environment dependencies, no network, no real audio device, no real display. All such dependencies MUST be injected through interfaces and mocked.
-- **FR-044**: Disk images required by tests MUST be bundled in-repo as test fixtures (DOS 3.3, ProDOS, WOZ, copy-protected — all public-domain or original to this project).
+- **FR-044**: Disk images required by tests MUST be bundled in-repo as test fixtures (DOS 3.3, ProDOS, WOZ, copy-protected, all public-domain or original to this project).
 
 #### Acceptance / validation programs (in-harness)
 
@@ -257,7 +257,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **Language Card State Machine**: Pre-write arming via two consecutive odd reads; write-resets-arming; bank selection; RAM-read vs ROM-read selection; preserves contents across soft reset.
 - **Disk II Controller and Drive**: Nibble-level controller with LSS-equivalent sequencer, two drive slots, head position state, write-protect state, motor state. Reads/writes nibble-stream track buffers.
 - **Disk Image (Nibble Track Buffer)**: In-memory nibble representation of a disk's tracks, sourced from WOZ natively or from `.dsk`/`.do`/`.po` via nibblization. Writes flow back to the source file on eject/switch/exit.
-- **Video Subsystem**: Composable mode set — 40-col text, 80-col text, lo-res, hi-res (with NTSC artifact color), double hi-res — driven by a video timing model that also produces VBL state.
+- **Video Subsystem**: Composable mode set (40-col text, 80-col text, lo-res, hi-res (with NTSC artifact color), double hi-res) driven by a video timing model that also produces VBL state.
 - **Character ROM**: The //e character ROM data including primary and ALTCHARSET (MouseText) sets.
 - **Keyboard**: Surfaces $C000 data, $C010 strobe-clear, and $C061/$C062/$C063 modifier reads. Accepts injected keystrokes from the test harness.
 - **Speaker**: Toggles on $C030 access and feeds the audio generator; in tests, fed to a mock audio sink.
@@ -278,7 +278,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 - **SC-005**: The full Casso test suite (unit + //e integration) is deterministic: two consecutive runs on the same checkout produce identical pass/fail results and identical scraped/hashed outputs.
 - **SC-006**: No test in the suite reads or writes host state outside in-repo fixtures (no host filesystem outside the repo, no registry, no network, no real audio device, no real window). This is verifiable by static review and by running the suite in a sandboxed environment with those resources unavailable.
 - **SC-007**: Under typical //e workload (idle BASIC prompt, light BASIC program), the emulator process consumes on average ≤ ~1% of one host CPU core, measured by a performance regression test over a multi-second sampling window.
-- **SC-008**: The CPU, soft-switch, video, and interrupt-controller layers are structured such that adding any one of (a) 65C02 variant, (b) //c machine, (c) //e Enhanced machine, (d) ProDOS clock card, (e) mouse card, (f) Mockingboard, requires only additive changes — no modification of existing layer interfaces is needed. Verified by architectural review at feature completion.
+- **SC-008**: The CPU, soft-switch, video, and interrupt-controller layers are structured such that adding any one of (a) 65C02 variant, (b) //c machine, (c) //e Enhanced machine, (d) ProDOS clock card, (e) mouse card, (f) Mockingboard, requires only additive changes, no modification of existing layer interfaces is needed. Verified by architectural review at feature completion.
 - **SC-009**: The full set of validation programs listed in FR-045 runs successfully in the headless harness as part of the standard test target.
 
 ## Out of Scope *(explicitly deferred)*
@@ -304,8 +304,8 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ## References
 
-- `iie-audit.md` — authoritative gap analysis and desired-correct-behavior reference (cited per subsystem in the FRs above).
-- AppleWin — https://github.com/AppleWin/AppleWin — primary implementation reference for behaviors observed on real //e hardware.
-- Jim Sather, *Understanding the Apple IIe* — primary documentary reference for //e MMU, soft switches, video, and Disk II behavior.
-- Existing Casso specs: `specs/001-assembler`, `specs/002-as65-assembler-compat`, `specs/003-apple2-platform-emulator` — for project conventions and prior context.
-- `.specify/memory/constitution.md` — project-wide standards (Code Quality, Testing Discipline, UX Consistency).
+- `iie-audit.md`: authoritative gap analysis and desired-correct-behavior reference (cited per subsystem in the FRs above).
+- AppleWin: https://github.com/AppleWin/AppleWin, primary implementation reference for behaviors observed on real //e hardware.
+- Jim Sather, *Understanding the Apple IIe*, primary documentary reference for //e MMU, soft switches, video, and Disk II behavior.
+- Existing Casso specs: `specs/001-assembler`, `specs/002-as65-assembler-compat`, `specs/003-apple2-platform-emulator`, for project conventions and prior context.
+- `.specify/memory/constitution.md`: project-wide standards (Code Quality, Testing Discipline, UX Consistency).

@@ -596,6 +596,8 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
     DxuiMouseButton  button = (wParam & MK_LBUTTON) ? DxuiMouseButton::Left
                                                     : DxuiMouseButton::None;
 
+
+
     return DispatchMouse (DxuiMouseEventKind::Move,
                           button,
                           (int) (short) LOWORD (lParam),

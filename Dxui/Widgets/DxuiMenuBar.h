@@ -166,6 +166,15 @@ public:
     RECT  MenuRect          (int menuIndex) const;
     RECT  DropdownRect      () const;
 
+    //  Width the open dropdown needs for its widest row, never narrower than
+    //  the standard width. A fixed width silently clipped any label longer
+    //  than it -- the text wrapped and ran into the row beneath.
+    int   DropdownWidthPx (size_t index, UINT dpi) const;
+
+    //  One text run in pixels, measured when a renderer is available and
+    //  estimated from glyph width otherwise.
+    int   MeasureRunPx (const std::wstring & run, float fontDip, UINT dpi) const;
+
     // Minimum client width (physical px) that keeps every menu title on
     // the strip: the right edge of the last title after the most recent
     // Layout (the strip is anchored at the client left). Zero before the

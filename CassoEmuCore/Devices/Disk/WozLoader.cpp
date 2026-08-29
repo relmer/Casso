@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Version.h"
 #include "WozLoader.h"
 
 
@@ -23,6 +24,42 @@ static constexpr Byte    kMetaMagic[]   = { 'M', 'E', 'T', 'A' };
 static constexpr Byte    kTmapEmptyTrack = 0xFF;
 static constexpr int     kQuarterTracksPerTrack = 4;
 static constexpr int     kMaxTracks      = 40;
+static constexpr size_t  kChunkHeaderSize = 8;      // 4-byte id + 4-byte size
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  INFO chunk field offsets, from the start of the chunk's payload
+//
+//  Casso owns four of these -- version, disk type, write protect and largest
+//  track -- and re-emits the rest of the chunk exactly as it was read. The
+//  values below are the ones it writes for a disk it authored itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr size_t  kInfoVersionOff      = 0;
+static constexpr size_t  kInfoDiskTypeOff     = 1;
+static constexpr size_t  kInfoWriteProtectOff = 2;
+static constexpr size_t  kInfoCleanedOff      = 4;
+static constexpr size_t  kInfoCreatorOff      = 5;
+static constexpr size_t  kInfoCreatorSize     = 32;
+static constexpr size_t  kInfoDiskSidesOff    = 37;
+static constexpr size_t  kInfoBitTimingOff    = 39;
+static constexpr size_t  kInfoLargestTrackOff = 44;
+
+static constexpr Byte    kInfoVersion2        = 2;
+static constexpr Byte    kDiskType525         = 1;
+static constexpr Byte    kSingleSided         = 1;
+static constexpr Byte    kCleaned             = 1;
+static constexpr Byte    kBitTiming525        = 32;   // 4us, in 125ns units
+
+// Stamped into creator only on a disk Casso authored. A disk Casso merely
+// edited keeps whoever imaged it in that field -- overwriting it is how a
+// preservation dump loses the one record of where it came from.
+static constexpr char    kCassoCreator[]      = "Casso " VERSION_STRING;
 
 
 
@@ -189,6 +226,8 @@ static void ParseV1Track (
 {
     size_t   bitCount = 0;
 
+
+
     bitCount = Read16LE (trackPtr + 6648);
 
     if (bitCount == 0 || bitCount > WozLoader::kV1TrackRecordSize * 8)
@@ -214,6 +253,15 @@ static void ParseV1Track (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseV2Track
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static HRESULT ParseV2Track (
     const vector<Byte>  &  raw,
     const Byte          *  trkRecord,
@@ -227,6 +275,8 @@ static HRESULT ParseV2Track (
     size_t     byteOffset    = 0;
     size_t     byteCount     = 0;
     size_t     rawSize       = 0;
+
+
 
     startBlock = Read16LE (trkRecord);
     blockCount = Read16LE (trkRecord + 2);
@@ -254,6 +304,127 @@ static HRESULT ParseV2Track (
     }
 
     out.SetTrackBitCount (destTrack, bitCount);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindChunkPayload
+//
+//  Locate one chunk by walking the table from the header, the same way Load
+//  does: a chunk id is four uppercase letters, and a chunk that overruns the
+//  file ends the walk. Reports the payload's offset and declared size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT FindChunkPayload (
+    const vector<Byte>  &  raw,
+    const Byte          *  magic,
+    size_t              &  outOffset,
+    uint32_t            &  outSize)
+{
+    HRESULT   hr      = E_FAIL;
+    size_t    pos     = WozLoader::kHeaderSize;
+    size_t    rawSize = raw.size();
+    bool      found   = false;
+
+
+
+    outOffset = 0;
+    outSize   = 0;
+
+    while (!found && pos + kChunkHeaderSize <= rawSize)
+    {
+        const Byte *  id        = raw.data() + pos;
+        uint32_t      chunkSize = 0;
+        bool          isChunkId = true;
+        int           idByte    = 0;
+
+        for (idByte = 0; isChunkId && idByte < 4; idByte++)
+        {
+            isChunkId = (id[idByte] >= 'A' && id[idByte] <= 'Z');
+        }
+
+        if (!isChunkId)
+        {
+            break;
+        }
+
+        chunkSize = Read32LE (raw.data() + pos + 4);
+
+        if (pos + kChunkHeaderSize + chunkSize > rawSize)
+        {
+            break;
+        }
+
+        if (MatchMagic (id, magic))
+        {
+            outOffset = pos + kChunkHeaderSize;
+            outSize   = chunkSize;
+            found     = true;
+            hr        = S_OK;
+        }
+
+        pos += kChunkHeaderSize + chunkSize;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::SetWriteProtectFlag
+//
+//  Patch the write-protect flag into a WOZ file's bytes without rebuilding
+//  the file. Only the INFO flag byte and the header CRC change.
+//
+//  This exists because the flag lives inside the file, so changing it has to
+//  write -- and the only writer available was the full rebuild-from-model
+//  serializer. Sending a one-bit edit through that meant a menu click could
+//  relayout an entire image, which is a lot of blast radius for one bit.
+//  Bytes that are never parsed here are bytes that cannot be damaged here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProtected)
+{
+    HRESULT    hr         = S_OK;
+    size_t     rawSize    = fileBytes.size();
+    size_t     infoOffset = 0;
+    uint32_t   infoSize   = 0;
+    bool       sigOk      = false;
+    bool       infoUsable = false;
+
+
+
+    CBR (rawSize >= kHeaderSize);
+
+    sigOk = MatchSig (fileBytes.data(), kSigV2) || MatchSig (fileBytes.data(), kSigV1);
+    CBR (sigOk);
+
+    hr = FindChunkPayload (fileBytes, kInfoMagic, infoOffset, infoSize);
+    CHR (hr);
+
+    infoUsable = (infoSize >= kInfoChunkSize);
+    CBR (infoUsable);
+
+    fileBytes[infoOffset + kInfoWriteProtectOff] = static_cast<Byte> (writeProtected ? 1 : 0);
+
+    // The stored CRC covers everything after the 12-byte header, so the one
+    // changed byte invalidates it. Recompute rather than zero it: zero means
+    // "not computed", which would quietly drop the file's own damage check.
+    Write32LE (fileBytes.data() + kSigLen,
+               Crc32 (fileBytes.data() + kHeaderSize, rawSize - kHeaderSize));
 
 Error:
     return hr;
@@ -294,6 +465,13 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           sigV2                = false;
     bool           sigV1                = false;
     size_t         rawSize              = 0;
+    uint32_t       storedCrc            = 0;
+    bool           crcOk                = true;
+    bool           isChunkId            = false;
+    int            idByte               = 0;
+    WozMetadata    metadata;
+
+
 
     rawSize = raw.size();
     CBR (rawSize >= kHeaderSize);
@@ -307,23 +485,54 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     isV2 = sigV2;
 
+    // A stored CRC of zero means the writer computed none, which the format
+    // defines as "skip validation". Any other value must match, and a
+    // mismatch is REPORTED rather than fatal: a damaged preservation dump is
+    // precisely the file a user needs to be able to open and inspect. The
+    // image carries the fact so a later flush can warn before replacing the
+    // file with a freshly checksummed copy of the same damage.
+    storedCrc = Read32LE (raw.data() + kSigLen);
+
+    if (storedCrc != 0)
+    {
+        crcOk = (storedCrc == Crc32 (raw.data() + kHeaderSize, rawSize - kHeaderSize));
+    }
+
+    out.SetSourceCrcMismatch (!crcOk);
+
+    if (!crcOk)
+    {
+        // Deliberately NOT reported here. EhmNotifyUser carries a string and
+        // nothing else, and this report needs an action on it -- salvage --
+        // which only the shell can offer. EmulatorShell::ReportDamagedMount
+        // raises it after the mount instead. The flag below is what it reads.
+    }
+
     pos = kSigLen + kCrcLen;
 
     while (pos + 8 <= raw.size())
     {
         const Byte *   id        = raw.data() + pos;
         uint32_t       chunkSize = 0;
-        bool           known     = false;
 
-        known = MatchMagic (id, kInfoMagic)
-             || MatchMagic (id, kTmapMagic)
-             || MatchMagic (id, kTrksMagic)
-             || MatchMagic (id, kMetaMagic);
+        // Any four-uppercase-letter tag is a chunk, not only the three Casso
+        // models. An unrecognized chunk has to be stepped over and kept, not
+        // treated as end-of-table -- stopping there loses it AND everything
+        // after it on the next rewrite. Bit-stream blocks cannot be mistaken
+        // for a tag: 6-and-2 nibbles all have the high bit set, so every one
+        // of them falls outside 'A'..'Z'.
+        isChunkId = true;
 
-        if (!known)
+        for (idByte = 0; isChunkId && idByte < 4; idByte++)
         {
-            // After TRKS the remainder of a v2 file is the per-track
-            // bit-stream blocks; they aren't chunks. Stop scanning.
+            isChunkId = (id[idByte] >= 'A' && id[idByte] <= 'Z');
+        }
+
+        if (!isChunkId)
+        {
+            // A TRKS size covering only the record table -- what Casso
+            // itself wrote before 1.16.2 -- leaves the walk pointing into
+            // track data. Stop rather than read bit streams as a table.
             break;
         }
 
@@ -337,6 +546,13 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             CBR (chunkSize >= kInfoChunkSize);
             writeProtected = (raw[chunkPos + 2] != 0);
             sawInfo        = true;
+
+            // Held verbatim so a rewrite re-emits the fields Casso does not
+            // model -- creator, synchronized, cleaned, boot sector format,
+            // timing, compatible hardware, required RAM -- instead of
+            // synthesizing a spec-valid replacement that says "unknown".
+            metadata.infoPayload.assign (raw.data() + chunkPos,
+                                         raw.data() + chunkPos + chunkSize);
         }
         else if (MatchMagic (id, kTmapMagic))
         {
@@ -350,9 +566,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             trksSize = chunkSize;
             sawTrks  = true;
         }
-        else if (MatchMagic (id, kMetaMagic))
+        else
         {
-            // META chunk is optional, ignored on load.
+            // META, and whatever a later revision of the format adds. Casso
+            // reads none of it, which is precisely why it can be handed back
+            // untouched.
+            WozChunk   passThrough;
+
+            memcpy (passThrough.id, id, 4);
+            passThrough.payload.assign (raw.data() + chunkPos,
+                                        raw.data() + chunkPos + chunkSize);
+            metadata.passThrough.push_back (passThrough);
         }
 
         pos = chunkPos + chunkSize;
@@ -362,6 +586,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
+    out.SetWozMetadata         (metadata);
     out.ClearQuarterTrackMap();
 
     {
@@ -450,6 +675,199 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozLoader::ReadPaddedField
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WozLoader::ReadPaddedField (const Byte * bytes, size_t length)
+{
+    std::string  text (reinterpret_cast<const char *> (bytes), length);
+    size_t       end  = text.find_last_not_of (" \t\r\n");
+
+
+
+    text = (end == std::string::npos) ? std::string() : text.substr (0, end + 1);
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ParseMetaChunk
+//
+//  Key, tab, value, one pair per line. A line with no tab is skipped rather
+//  than stored under an empty key, because the format defines no such thing and
+//  a half-read pair presented as data is worse than a pair not presented.
+//
+//  A CHUNK WITHOUT A TRAILING NEWLINE STILL YIELDS ITS LAST PAIR. Real images
+//  are written both ways, and dropping the final field on the ones that omit it
+//  loses whichever key the writer happened to put last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::ParseMetaChunk (const Byte              *  bytes,
+                                size_t                     length,
+                                std::vector<MetaField>  &  out)
+{
+    std::string  text (reinterpret_cast<const char *> (bytes), length);
+    size_t       at   = 0;
+
+
+
+    while (at < text.size())
+    {
+        size_t  lineEnd = text.find ('\n', at);
+        size_t  stop    = (lineEnd == std::string::npos) ? text.size() : lineEnd;
+        size_t  tab     = text.find ('\t', at);
+
+        if (tab != std::string::npos && tab < stop)
+        {
+            MetaField  field;
+
+            field.key   = text.substr (at, tab - at);
+            field.value = text.substr (tab + 1, stop - tab - 1);
+
+            // A CRLF-terminated chunk leaves the carriage return on the value.
+            while (!field.value.empty() &&
+                   (field.value.back() == '\r' || field.value.back() == ' '))
+            {
+                field.value.pop_back();
+            }
+
+            if (!field.key.empty() && !field.value.empty())
+            {
+                out.push_back (field);
+            }
+        }
+
+        at = stop + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::Describe
+//
+//  Everything the image says about itself, without decoding a single track.
+//
+//  IT STOPS WHERE Load STOPS, at the first identifier that is not a chunk. In a
+//  v2 file the per-track bit-stream blocks follow TRKS and are not chunks, so
+//  scanning past them would read block data as a chunk header. A file whose
+//  TRKS size covers only its records -- which is what this project's own
+//  serializer writes -- therefore reaches no META, and reporting nothing is the
+//  honest answer rather than a guess at where META might have been.
+//
+//  Nothing here fails. An unreadable or truncated image leaves isWoz false and
+//  every other field at its default; a caller asking what an image says has
+//  already been told it could not be used, and a second error code adds nothing
+//  it can act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::Describe (const vector<Byte> & raw, Description & out)
+{
+    size_t  pos     = kSigLen + kCrcLen;
+    size_t  rawSize = raw.size();
+    bool    sigV1   = false;
+    bool    sigV2   = false;
+
+
+
+    out = Description();
+
+    if (rawSize < kHeaderSize)
+    {
+        return;
+    }
+
+    sigV2 = MatchSig (raw.data(), kSigV2);
+    sigV1 = MatchSig (raw.data(), kSigV1);
+
+    if (!sigV1 && !sigV2)
+    {
+        return;
+    }
+
+    out.isWoz      = true;
+    out.wozVersion = sigV2 ? 2 : 1;
+
+    while (pos + 8 <= rawSize)
+    {
+        const Byte *  id        = raw.data() + pos;
+        uint32_t      chunkSize = Read32LE (raw.data() + pos + 4);
+        size_t        chunkPos  = pos + 8;
+        bool          known     = MatchMagic (id, kInfoMagic)
+                               || MatchMagic (id, kTmapMagic)
+                               || MatchMagic (id, kTrksMagic)
+                               || MatchMagic (id, kMetaMagic);
+
+        if (!known || chunkPos + chunkSize > rawSize)
+        {
+            break;
+        }
+
+        if (MatchMagic (id, kInfoMagic) && chunkSize >= kInfoChunkSize)
+        {
+            const Byte *  info = raw.data() + chunkPos;
+
+            out.infoVersion    = info[kInfoOffsetVersion];
+            out.diskType       = info[kInfoOffsetDiskType];
+            out.writeProtected = info[kInfoOffsetWriteProtected] != 0;
+            out.synchronized   = info[kInfoOffsetSynchronized]   != 0;
+            out.cleaned        = info[kInfoOffsetCleaned]        != 0;
+            out.creator        = ReadPaddedField (info + kInfoOffsetCreator, kInfoCreatorLength);
+
+            // Version 1 stops short of the boot-sector field. Absent is not
+            // the same answer as "the image said unknown".
+            if (out.infoVersion >= 2)
+            {
+                out.hasBootSectorFormat = true;
+                out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
+            }
+        }
+        else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
+        {
+            const Byte *  tmap      = raw.data() + chunkPos;
+            bool          seen[256] = {};
+            size_t        qt        = 0;
+
+            for (qt = 0; qt < kTmapChunkSize; qt++)
+            {
+                if (tmap[qt] != kTmapEmptyTrack)
+                {
+                    out.quarterTracksWithData++;
+
+                    if (!seen[tmap[qt]])
+                    {
+                        seen[tmap[qt]] = true;
+                        out.trackSlotsWithData++;
+                    }
+                }
+            }
+        }
+        else if (MatchMagic (id, kMetaMagic))
+        {
+            ParseMetaChunk (raw.data() + chunkPos, chunkSize, out.meta);
+        }
+
+        pos = chunkPos + chunkSize;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BuildSyntheticV2
 //
 //  Test helper: emits a minimal valid WOZ v2 image holding a single track
@@ -463,6 +881,11 @@ Error:
 //      [240..1535] TRKS chunk (8 byte hdr + 1280 byte TRK records)
 //                  TRK[0] = (startingBlock=3, blockCount=N, bitCount)
 //      [block 3..]  bit-stream payload
+//
+//  The TRKS chunk size spans the record table AND the bit-stream payload
+//  that follows it, per the WOZ2 spec -- the payload is chunk content, not
+//  trailing data, so a size covering only the records leaves every later
+//  chunk unreachable to a conformant parser.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -479,9 +902,12 @@ HRESULT WozLoader::BuildSyntheticV2 (
     size_t    fileBytes      = 0;
     size_t    pos            = 0;
     size_t    trksRecBytes   = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t    trksSize       = 0;
     size_t    trksHdr        = 8;
     size_t    bitStreamStart = 0;
     int       qt             = 0;
+
+
 
     payloadBytes = (trackZeroBitCount + 7) / 8;
     blocks       = (payloadBytes + kV2BlockSize - 1) / kV2BlockSize;
@@ -491,7 +917,7 @@ HRESULT WozLoader::BuildSyntheticV2 (
         blocks = 1;
     }
 
-    fileBytes = 3 * kV2BlockSize + blocks * kV2BlockSize;
+    fileBytes = (kV2FirstDataBlock + blocks) * kV2BlockSize;
 
     outBytes.assign (fileBytes, 0);
 
@@ -523,12 +949,15 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
     pos += 8 + kTmapChunkSize;
 
+    // Records plus the block-aligned payload that follows them.
+    trksSize = trksRecBytes + blocks * kV2BlockSize;
+
     memcpy (outBytes.data() + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksSize));
 
-    bitStreamStart = 3 * kV2BlockSize;
+    bitStreamStart = kV2FirstDataBlock * kV2BlockSize;
 
-    Write16LE (outBytes.data() + pos + trksHdr,                  static_cast<uint16_t> (3));
+    Write16LE (outBytes.data() + pos + trksHdr,                  kV2FirstDataBlock);
     Write16LE (outBytes.data() + pos + trksHdr + 2,              static_cast<uint16_t> (blocks));
     Write32LE (outBytes.data() + pos + trksHdr + 4,              static_cast<uint32_t> (trackZeroBitCount));
 
@@ -559,10 +988,24 @@ HRESULT WozLoader::BuildSyntheticV2 (
 //      [248..1535]   TRKS chunk (8-byte hdr + 160 x 8-byte TRK records)
 //      [block 3..]   per-track bit streams, each block-aligned (512 bytes)
 //
+//  The TRKS chunk size spans the records AND the bit streams after them:
+//  they are the chunk's content, not trailing data. Sizing it to the record
+//  table alone puts a conformant parser's next chunk offset in the middle of
+//  track data, so it sees no valid id and stops -- which silently hides any
+//  chunk written after TRKS.
+//
 //  The TMAP is rebuilt from the image's quarter-track map (ResolveQuarterTrack),
 //  and each slot's TRK record points at its block-aligned bit stream. The
 //  write-protect flag is carried through from INFO. Emitting v2 for any source
 //  variant is fine -- the loader reads v2 and Casso only models 5.25" disks.
+//
+//  Rebuilding from the model is what makes guest writes survive, and it is
+//  also why anything the model does not hold has to come from somewhere else:
+//  the image's retained WozMetadata supplies the source INFO chunk and every
+//  chunk Casso never parsed, so a round trip preserves them byte for byte
+//  instead of replacing them with spec-valid defaults that say "unknown".
+//  Casso stamps its own name into creator only on a disk it authored -- one
+//  with no retained source INFO.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -575,20 +1018,28 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         uint32_t   bitCount   = 0;
     };
 
-    HRESULT             hr           = S_OK;
-    int                 slotCount    = img.GetTrackCount();
-    uint16_t            nextBlock    = 3;                 // blocks 0..2 hold the chunks
-    uint16_t            largestTrack = 0;
-    size_t              trksRecBytes = kV2TrkRecordCount * kV2TrkRecordSize;
-    size_t              pos          = 0;
-    int                 slot         = 0;
-    int                 qt           = 0;
-    vector<TrkGeom>     geom (kV2TrkRecordCount);
+    HRESULT               hr            = S_OK;
+    int                   slotCount     = img.GetTrackCount();
+    uint16_t              nextBlock     = kV2FirstDataBlock;
+    uint16_t              largestTrack  = 0;
+    size_t                trksRecBytes  = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t                trksSize      = 0;
+    size_t                pos           = 0;
+    int                   slot          = 0;
+    int                   qt            = 0;
+    const WozMetadata &   meta          = img.GetWozMetadata();
+    bool                  hasSourceInfo = false;
+    size_t                chunkCount    = 0;
+    size_t                chunkIdx      = 0;
+    vector<TrkGeom>       geom (kV2TrkRecordCount);
 
     if (slotCount > static_cast<int> (kV2TrkRecordCount))
     {
         slotCount = static_cast<int> (kV2TrkRecordCount);
     }
+
+    hasSourceInfo = (meta.infoPayload.size() >= kInfoChunkSize);
+    chunkCount    = meta.passThrough.size();
 
     // Pass 1: assign each populated slot a block-aligned region after the
     // three fixed header blocks.
@@ -617,6 +1068,11 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         }
     }
 
+    // Pass 1 fixed the payload span, so the TRKS chunk size is now known:
+    // the record table plus every block assigned above.
+    trksSize = trksRecBytes
+             + static_cast<size_t> (nextBlock - kV2FirstDataBlock) * kV2BlockSize;
+
     outBytes.assign (static_cast<size_t> (nextBlock) * kV2BlockSize, 0);
 
     // Header (CRC filled in last).
@@ -628,24 +1084,46 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     memcpy    (outBytes.data() + pos, kInfoMagic, 4);
     Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
     {
-        Byte *        info      = outBytes.data() + pos + 8;
-        const char    creator[] = "Casso";
+        Byte *   info = outBytes.data() + pos + kChunkHeaderSize;
 
-        info[0] = 2;                                            // INFO version 2
-        info[1] = 1;                                            // disk type: 5.25"
-        // Persist only the image's OWN write-protect flag -- a transient
+        if (hasSourceInfo)
+        {
+            // Start from what the file said. Everything Casso does not model
+            // -- creator, synchronized, cleaned, boot sector format, bit
+            // timing, compatible hardware, required RAM -- belongs to the
+            // source, and synthesizing replacements for them is what quietly
+            // degraded every WOZ that passed through a flush.
+            memcpy (info, meta.infoPayload.data(), kInfoChunkSize);
+        }
+        else
+        {
+            // No source INFO means Casso authored this disk, and only here
+            // does it put its own name in the creator field.
+            info[kInfoDiskTypeOff] = kDiskType525;
+            info[kInfoCleanedOff]  = kCleaned;
+            memset (info + kInfoCreatorOff, ' ', kInfoCreatorSize);
+            memcpy (info + kInfoCreatorOff, kCassoCreator, sizeof (kCassoCreator) - 1);
+        }
+
+        // A version 1 INFO ends after the creator string, so a v1 source
+        // leaves the later fields zero -- and zero is not a legal disk-sides
+        // or bit-timing value. Fill those two, since emitting a v2 container
+        // means they have to say something. The three Casso cannot derive
+        // stay zero, which this format defines as "unknown": boot sector
+        // format, compatible hardware and required RAM.
+        if (info[kInfoVersionOff] < kInfoVersion2)
+        {
+            info[kInfoVersionOff]   = kInfoVersion2;
+            info[kInfoDiskSidesOff] = kSingleSided;
+            info[kInfoBitTimingOff] = kBitTiming525;
+        }
+
+        // The fields Casso owns, written last so they win over the source.
+        // Only the image's OWN write-protect flag is persisted: a transient
         // user setting or a read-only backing file must not be baked into
-        // the serialized image bytes.
-        info[2] = static_cast<Byte> (img.IsImageWriteProtected() ? 1 : 0);
-        info[3] = 0;                                            // synchronized
-        info[4] = 1;                                            // cleaned
-        memset (info + 5, ' ', 32);                             // creator: 32 bytes, space-padded
-        memcpy (info + 5, creator, sizeof (creator) - 1);
-        info[37] = 1;                                           // disk sides
-        info[38] = 0;                                           // boot sector format: unknown
-        info[39] = 32;                                          // optimal bit timing: 5.25" = 4us
-        // compatible hardware (+40..41) / required RAM (+42..43): unknown = 0
-        Write16LE (info + 44, largestTrack);                   // largest track, in blocks
+        // the image bytes.
+        info[kInfoWriteProtectOff] = static_cast<Byte> (img.IsImageWriteProtected() ? 1 : 0);
+        Write16LE (info + kInfoLargestTrackOff, largestTrack);
     }
 
     pos += 8 + kInfoChunkSize;
@@ -671,7 +1149,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     // TRKS chunk: 160 fixed 8-byte records; populated slots reference their
     // block-aligned bit stream, the rest stay zero (empty).
     memcpy    (outBytes.data() + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksSize));
     {
         Byte *   trks = outBytes.data() + pos + 8;
 
@@ -707,6 +1185,29 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         }
 
         memcpy (outBytes.data() + dstOff, bits->data(), byteCount);
+    }
+
+    // Chunks Casso does not model, re-emitted after the last bit-stream
+    // block -- where the source had them -- in source order and byte for
+    // byte. META is the one that matters: it carries a preservation dump's
+    // title, publisher, copyright and imaging provenance, none of which the
+    // track model can hold, and none of which can be reconstructed once a
+    // rewrite has dropped it.
+    for (chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++)
+    {
+        const WozChunk &   chunk       = meta.passThrough[chunkIdx];
+        size_t             payloadSize = chunk.payload.size();
+        size_t             at          = outBytes.size();
+
+        outBytes.resize (at + kChunkHeaderSize + payloadSize);
+
+        memcpy    (outBytes.data() + at, chunk.id, sizeof (chunk.id));
+        Write32LE (outBytes.data() + at + sizeof (chunk.id), static_cast<uint32_t> (payloadSize));
+
+        if (payloadSize > 0)
+        {
+            memcpy (outBytes.data() + at + kChunkHeaderSize, chunk.payload.data(), payloadSize);
+        }
     }
 
     // Header CRC32 over everything after the 12-byte header.

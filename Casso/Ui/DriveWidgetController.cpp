@@ -130,6 +130,8 @@ uint64_t DriveWidgetController::PublishSyncEvent (
 {
     DriveSyncEvent  evt = {};
 
+
+
     evt.eventId     = m_nextSyncEventId++;
     evt.driveId     = driveId;
     evt.action      = action;

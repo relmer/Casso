@@ -66,6 +66,8 @@ const wchar_t * JoystickToggleButton::Label() const
 {
     const wchar_t *  label = s_kLabel;      // the disabled / off state
 
+
+
     switch (m_mode)
     {
         case InputMappingMode::Paddle:  label = s_kPaddleLabel; break;
@@ -283,6 +285,8 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 const wchar_t * JoystickToggleButton::TooltipText() const
 {
     const wchar_t *  tip = s_kTooltip;      // matches Label()'s default arm
+
+
 
     switch (m_mode)
     {

@@ -37,6 +37,9 @@ static constexpr int    s_kPagePadDp       = 16;
 RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 
@@ -224,6 +227,8 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
+
+
 
     m_scaler = scaler;
 
@@ -796,6 +801,8 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     constexpr int              s_kIndicatorWidthDp   = 140;
     constexpr const wchar_t  * s_kFont               = DxuiTheme::kBodyFace;
     constexpr float            s_kFloatEpsilon       = 0.001f;
+
+
 
     int    focusedControlId = m_fadeFocusedId;
     float  focusedAlpha     = m_fadeFocusedAlpha;

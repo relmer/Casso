@@ -98,19 +98,28 @@ public:
     }
 
 
-    TEST_METHOD (EveryToken_HasACanonicalSpelling)
+    //  Every token AS65 CLAIMS must round-trip name -> token -> name.
+    //
+    //  This swept all of Directive when as65 was the only dialect, because the
+    //  enum was total over as65's table. It no longer is: Merlin introduced
+    //  tokens with no as65 spelling, and FR-005 requires them to stay that way --
+    //  as65 must not accept another dialect's constructs, so `.HEX` going
+    //  unrecognized here is the requirement rather than a gap.
+    //
+    //  Narrowing the sweep to as65's own tokens keeps the regression it was
+    //  written for (RMB) while dropping a claim that is now false. The totality
+    //  that remains -- every token is claimed by at least one dialect -- is
+    //  checked in DialectMechanismTests, where both tables are in scope.
+    TEST_METHOD (EveryAs65Token_HasACanonicalSpelling)
     {
-        int  token = 0;
-
-        // Skips None; every real token must round-trip name -> token -> name.
-        for (token = 1; token < (int) Directive::Count; token++)
+        for (const DirectiveTable::Spelling & entry : DirectiveTable::GetAllSpellings())
         {
-            const char *  name = DirectiveTable::GetCanonicalName ((Directive) token);
+            const char *  name = DirectiveTable::GetCanonicalName (entry.token);
 
             Assert::IsTrue (name[0] == '.',
-                L"every Directive needs a canonical dotted spelling");
+                L"every as65 Directive needs a canonical dotted spelling");
 
-            Assert::IsTrue (DirectiveTable::FromSpelling (name) == (Directive) token,
+            Assert::IsTrue (DirectiveTable::FromSpelling (name) == entry.token,
                 L"canonical spelling must map back to its own token");
         }
     }

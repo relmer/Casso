@@ -212,6 +212,8 @@ bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
     // cost, so `outCycles` is left alone when no interrupt was pending.
     bool  dispatched = TryStepInterrupt();
 
+
+
     if (dispatched)
     {
         outCycles      = static_cast<uint32_t> (m_lastCycles);

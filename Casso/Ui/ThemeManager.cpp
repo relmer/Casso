@@ -231,6 +231,7 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
     const LoadedTheme *  match = nullptr;
 
 
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.familyId == familyId && t.variantId == variantId)

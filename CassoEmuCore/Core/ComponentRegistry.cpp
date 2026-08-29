@@ -61,6 +61,8 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
 {
     auto  it = s_factories.find (typeName);
 
+
+
     // Null for an unregistered type name; the caller reports it against the
     // machine config that named it.
     return (it != s_factories.end()) ? it->second (config, bus)
@@ -131,4 +133,5 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("acia-6551",            Acia6551::Create);
     registry.Register ("parallel-printer",     PrinterCard::Create);
     registry.Register ("mockingboard",         MockingboardCard::Create);
+    registry.Register ("mockingboard-c",       MockingboardCard::CreateSpeech);
 }

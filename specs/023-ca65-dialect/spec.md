@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Accept ca65 source — the modern Apple II and 6502 cross-development standard — as a dialect profile on top of the dialect mechanism built for Merlin." (Split out of `019-assembler-dialects`; seeded by GitHub issue #92.)
+**Input**: User description: "Accept ca65 source, the modern Apple II and 6502 cross-development standard, as a dialect profile on top of the dialect mechanism built for Merlin." (Split out of `019-assembler-dialects`; seeded by GitHub issue #92.)
 
 ## Overview
 
@@ -31,7 +31,7 @@ That leaves three honest options:
 1. **Absolute subset only.** Accept ca65 source that never needs the linker.
    Achievable, and genuinely useful for single-file programs and for developers
    who prefer ca65's syntax. But by the assessment recorded in issue #92, *most
-   published ca65 projects will not assemble unmodified* — they use `.segment` and
+   published ca65 projects will not assemble unmodified*, they use `.segment` and
    `.import` as a matter of course.
 2. **Add relocatable output and a linker.** Full compatibility, and a much larger
    feature. Relocatable object output is already tracked as GitHub issue #58.
@@ -43,7 +43,7 @@ watches it fail on the first `.import` concludes the claim was false. That is a
 worse outcome than not claiming ca65 support at all.
 
 This specification therefore treats **how the subset is communicated** as a
-first-class requirement, not a documentation afterthought — and leaves the
+first-class requirement, not a documentation afterthought, and leaves the
 question of whether to pursue option 2 open, tied to issue #58.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -81,7 +81,7 @@ byte-for-byte against output from ca65 itself.
 ### User Story 2 - Be told clearly when source exceeds the subset (Priority: P1)
 
 A developer whose ca65 project *does* use the linker gets an immediate, specific
-explanation rather than a confusing parse error — naming the construct, and
+explanation rather than a confusing parse error, naming the construct, and
 stating that Casso assembles the absolute subset.
 
 **Why this priority**: This ships with Story 1 rather than after it. The subset
@@ -130,7 +130,7 @@ unsupported.
 2. **Given** the project documentation, **When** a developer looks up ca65 support,
    **Then** the supported and unsupported construct sets are listed explicitly.
 3. **Given** the documented boundary, **When** it is compared against actual
-   behavior, **Then** they agree exactly — no documented-but-missing and no
+   behavior, **Then** they agree exactly, no documented-but-missing and no
    working-but-undocumented constructs.
 
 ---
@@ -143,7 +143,7 @@ unsupported.
   it against the other two.
 - What happens when source uses `.segment` with a name whose placement happens to
   be unambiguous? It MUST still be refused unless the feature explicitly defines a
-  supported interpretation — silently guessing a location is worse than refusing.
+  supported interpretation, silently guessing a location is worse than refusing.
 - What happens when a cheap local is referenced outside the scope of its enclosing
   named label? It MUST be reported as out of scope rather than treated as an
   undefined symbol.
@@ -198,7 +198,7 @@ unsupported.
 
 ### Key Entities
 
-- **ca65 Dialect Profile**: The ca65 instance of the dialect mechanism from 019 —
+- **ca65 Dialect Profile**: The ca65 instance of the dialect mechanism from 019,
   its directive spellings, label schemes, scoping rules, and macro grammar.
 - **Symbol Scope**: A ca65 lexical scope, its visibility rules, and how cheap
   locals and explicit global references resolve against it.
@@ -211,7 +211,7 @@ unsupported.
 
 - **SC-001**: A corpus of linker-free ca65 source assembles to byte-identical
   output against ca65's own builds.
-- **SC-002**: Every construct outside the subset produces a diagnostic naming it —
+- **SC-002**: Every construct outside the subset produces a diagnostic naming it;
   no construct fails as an unexplained parse error.
 - **SC-003**: A developer evaluating Casso can determine whether their ca65 project
   will assemble without attempting it, using the documentation alone.
@@ -219,7 +219,7 @@ unsupported.
   verified by test rather than by review.
 - **SC-005**: Merlin and AS65 output remain byte-for-byte identical, verified
   against the corpora from `019-assembler-dialects`.
-- **SC-006**: Adding ca65 requires no change to the dialect mechanism itself — if
+- **SC-006**: Adding ca65 requires no change to the dialect mechanism itself, if
   the mechanism needs modifying, that is a defect in 019's design, recorded as
   such.
 

@@ -185,6 +185,18 @@ private:
     static constexpr uint32_t  kWpBadgeShadeArgb  = 0xFF7A6026;   // darker brass edge / shackle
     static constexpr uint32_t  kWpBadgeHoleArgb   = 0xFF2A2109;   // keyhole
 
+    // Damaged-image badge, shown in the padlock's place when the mounted
+    // image's stored checksum did not match its contents. A deliberately
+    // different mark, not a variant of the padlock: an ordinary write-protect
+    // is a setting the user chose and can clear, while this is the file
+    // itself being wrong, and the two must not read as the same state. Amber
+    // warning triangle, which is louder than the brass on purpose.
+    static constexpr int      kDamageBadgeWidthPx  = 15;
+    static constexpr int      kDamageBadgeHeightPx = 14;
+    static constexpr uint32_t kDamageFillArgb      = 0xFFE8A317;   // amber body
+    static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
+    static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
+
     static bool  RectContains (const RECT & rect, int x, int y);
     static int   Scale        (int value, UINT dpi);
     static float Clamp01      (float v);
@@ -213,6 +225,13 @@ private:
     static void  DrawPadlock (IDxuiPainter & painter,
                               float left, float top, float w, float h,
                               uint32_t fill, uint32_t shade, uint32_t hole);
+
+    // Draws a warning triangle with an exclamation mark inside the given
+    // box, in the same flat-fill house style as the padlock. Used for a
+    // damaged image, where "write-protected" would understate the problem.
+    static void  DrawDamageBadge (IDxuiPainter & painter,
+                                  float left, float top, float w, float h,
+                                  uint32_t fill, uint32_t edge, uint32_t mark);
 
     void                PaintBasenameLabel (IDxuiPainter      & painter,
                                             IDxuiTextRenderer & text,

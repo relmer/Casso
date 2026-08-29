@@ -108,6 +108,8 @@ size_t KeystrokeInjector::InjectString (
     size_t   consumed = 0;
     bool     ok       = true;
 
+
+
     // Stops at the first key the machine would not take, and reports how many
     // did land -- callers compare against text.size() to detect a short write.
     for (char ch : text)
@@ -144,6 +146,8 @@ size_t KeystrokeInjector::InjectLine (
 {
     HRESULT  hrReturn = S_OK;
     size_t   consumed = InjectString (core, text, kPerKeyCycleBudget);
+
+
 
     // The RETURN only goes in if the whole line did; a short line leaves the
     // count short and never settles, so the caller sees the failure.

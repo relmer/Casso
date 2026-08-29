@@ -1,7 +1,7 @@
-# T128a — EHM-on-fallible-internals audit
+# T128a: EHM-on-fallible-internals audit
 
 **Spec**: 004-apple-iie-fidelity / Phase 16 / T128a
-**Constitution**: §I 1.4.0 (expanded EHM rule) — every function that
+**Constitution**: §I 1.4.0 (expanded EHM rule); every function that
 contains fallible operations (`new`, EHM macros, Win32 calls that fail,
 or any function documented to fail) must follow the EHM pattern internally
 (`HRESULT hr = S_OK;` at top, `Error:` label before cleanup, single exit
@@ -38,14 +38,14 @@ containing at least one line added by this feature).
 
 ## Verdict
 
-**PASS** — 0 EHM-on-fallible-internal violations. Every non-HRESULT-
+**PASS**, 0 EHM-on-fallible-internal violations. Every non-HRESULT-
 returning function added or modified by this feature that contains
 fallible operations follows the internal EHM pattern. Examples verified:
 
-- `DiskImageStore::AutoFlushAll()` — void return; uses internal `HRESULT
+- `DiskImageStore::AutoFlushAll()`: void return; uses internal `HRESULT
   hr = S_OK;` / `Error:` / `IGNORE_RETURN_VALUE` for any leaked HRESULT.
-- `EmulatorShell::WireLanguageCard()` — void return; uses internal EHM.
-- `EmulatorShell::HandleKeyDownCommand()` — void return; the `iieKbd`
+- `EmulatorShell::WireLanguageCard()`: void return; uses internal EHM.
+- `EmulatorShell::HandleKeyDownCommand()`: void return; the `iieKbd`
   cast block contains no fallible ops, so no EHM is required.
 
 For functions that return `HRESULT`, the contract is carried by the

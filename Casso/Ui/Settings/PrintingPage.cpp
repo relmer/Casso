@@ -28,6 +28,9 @@ static constexpr int    s_kPagePadDp       = 16;
 RECT PrintingPage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 

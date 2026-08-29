@@ -105,6 +105,7 @@ void DiskManager::ProbeFileWritability (
     fs::path         p (path);
 
 
+
     outReadOnly     = false;
     outNoPermission = false;
 
@@ -154,6 +155,7 @@ void DiskManager::ApplyExternalWriteProtect (
     bool  userWp       = false;
 
 
+
     if (image == nullptr)
     {
         return;
@@ -178,12 +180,15 @@ void DiskManager::ApplyExternalWriteProtect (
 //
 //  ToggleImageWriteProtect
 //
-//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle
-//  flips the image flag and persists it -- pending guest writes are
-//  flushed FIRST because a protected image drops dirty content at flush,
-//  and the flag itself lands via ForceFlush, which persists regardless of
-//  the (now-set) gate. Sector-image formats have no in-image flag, so the
-//  toggle sets or clears the backing file's read-only attribute instead.
+//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle has
+//  to reach the file. SetImageWriteProtect does the whole operation --
+//  flush pending guest writes, patch the one flag byte, recompute the
+//  header CRC, write it back atomically, then move the live image's flag to
+//  match. That ordering used to live here, split across a Flush, a flag
+//  assignment and a ForceFlush, and getting it wrong lost data; it belongs
+//  with the operation, not with the menu handler. Sector-image formats have
+//  no in-image flag, so the toggle sets or clears the backing file's
+//  read-only attribute instead.
 //
 //  Either way the function ends by re-probing the backing file and
 //  re-applying the external state: the padlock, tooltip, and menu check
@@ -217,20 +222,8 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     {
         protecting = !image->GetWriteProtectInfo().imageFlag;
 
-        if (protecting)
-        {
-            // Persist pending guest writes while the image still accepts a
-            // flush -- protecting first would drop them.
-            hr = m_diskStore.Flush (6, drive);
-            CHR (hr);
-        }
-
-        image->SetImageWriteProtected (protecting);
-
-        // The flag travels in the file's INFO chunk; ForceFlush persists it
-        // past the write gate the flag itself just closed.
-        hr = m_diskStore.ForceFlush (6, drive);
-        CHRF (hr, image->SetImageWriteProtected (!protecting));
+        hr = m_diskStore.SetImageWriteProtect (6, drive, protecting);
+        CHR (hr);
     }
     else
     {
@@ -321,6 +314,7 @@ void DiskManager::MountCommandLineDisks (
     std::string  resolvedDisk2 = disk2Path;
 
 
+
     if (resolvedDisk1.empty() && !m_currentMachineName.empty())
     {
         std::wstring  saved;
@@ -405,6 +399,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     HRESULT              hr         = S_OK;
     Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
+    bool                 mounted    = false;
 
 
 
@@ -412,6 +407,8 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 
     hr = m_diskStore.Mount (6, drive, path);
     CHR (hr);
+
+    mounted = true;
 
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
@@ -460,6 +457,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
                                          DriveWidgetController::SyncAction::DoorClose,
                                          NowMs());
         m_diskAudioSources[drive]->OnDiskInserted();
+    }
+
+    // Last, so anything the callback does (raising a dialog, say) sees a fully
+    // mounted drive.
+    if (mounted && m_onMounted)
+    {
+        m_onMounted (drive);
     }
 
 Error:
@@ -544,6 +548,7 @@ void DiskManager::RemountSlot6Disks()
     std::string  savedDisk[DiskImageStore::kDriveCount];
     HRESULT      hrMount = S_OK;
     int          drive   = 0;
+
 
 
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)

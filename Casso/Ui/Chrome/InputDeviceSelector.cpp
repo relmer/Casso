@@ -41,6 +41,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int    sx      = 0;
 
 
+
     m_dpi = eDpi;
 
     for (int i = 0; i < n; i++)
@@ -148,6 +149,8 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
 
+
+
     Segment  hit = Segment::None;
     int      i   = 0;
 
@@ -180,6 +183,8 @@ bool InputDeviceSelector::SegmentSelected (int index) const
     // The joystick segment is an independent toggle; paddle and mouse are
     // two states of the one pointer mode, so at most one of them lights.
     bool  selected = false;
+
+
 
     switch (index)
     {
@@ -225,6 +230,8 @@ const wchar_t * InputDeviceSelector::TooltipText() const
     // Pointer mode outranks the joystick toggle: it is the more specific
     // thing the control is currently doing.
     const wchar_t *  tip = kTipOffState;
+
+
 
     if      (m_pointer == InputMappingMode::Mouse)  { tip = kTipMouseState;    }
     else if (m_pointer == InputMappingMode::Paddle) { tip = kTipPaddleState;   }
@@ -283,6 +290,8 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
     float                     fontPx    = 0.0f;
     float                     ledR      = 0.0f;
+
+
 
     if (m_bounds.right <= m_bounds.left)
     {
@@ -467,6 +476,8 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
     // paddle and mouse glyphs. The top-down glyph is left at full size.
     GlyphMap  g (box, skeuo ? 0.86f : 1.0f);
 
+
+
     if (!skeuo)
     {
         // Top-down (joystick-icon.svg).
@@ -549,6 +560,8 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
 void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
     GlyphMap  g (box);
+
+
 
     if (!skeuo)
     {
@@ -701,6 +714,8 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
 void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
     GlyphMap  g (box);
+
+
 
     if (!skeuo)
     {

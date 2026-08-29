@@ -282,6 +282,8 @@ int  MachineConfigUpgrade::FindKey (
     int  found = -1;      // -1 == absent
     int  i     = 0;
 
+
+
     for (i = 0; found < 0 && i < (int) entries.size(); ++i)
     {
         if (entries[(size_t) i].first == key)
@@ -294,6 +296,15 @@ int  MachineConfigUpgrade::FindKey (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigUpgrade::EntryHasKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  MachineConfigUpgrade::EntryHasKey (
     const JsonValue & entry,
     const string    & key)
@@ -305,8 +316,18 @@ bool  MachineConfigUpgrade::EntryHasKey (
 }
 
 
-// Insert `capabilityFlag` on every object element of `arr` that
-// lacks one. Returns true if any element was changed.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigUpgrade::TryInjectCapabilityFlag
+//
+//  Insert `capabilityFlag` on every object element of `arr` that
+//  lacks one. Returns true if any element was changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  MachineConfigUpgrade::TryInjectCapabilityFlag (
     JsonValue   & arr,
     const char  * defaultFlag)
@@ -637,8 +658,15 @@ bool  MachineConfigUpgrade::TryFoldExternalDriveIntoDiskPort (
 
 
 
-// Build a new top-level object, applying the version canonicalization
-// rule in place. `outChanged` is set to true if anything moved.
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigUpgrade::RewriteTopLevel
+//
+//  Build a new top-level object, applying the version canonicalization
+//  rule in place. `outChanged` is set to true if anything moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 JsonValue  MachineConfigUpgrade::RewriteTopLevel (
     const JsonValue & root,
     bool            & outChanged)
@@ -693,6 +721,15 @@ JsonValue  MachineConfigUpgrade::RewriteTopLevel (
     return JsonValue (std::move (rebuilt));
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigUpgrade::MigrateUserConfig
+//
+////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineConfigUpgrade::MigrateUserConfig (
     const string & content,

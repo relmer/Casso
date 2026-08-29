@@ -91,6 +91,8 @@ void CassoBranding::DrawCassowaryRainbow (
     float  rowH        = 0.0f;
     float  colW        = 0.0f;
 
+
+
     // Find the first / last non-empty row so the rainbow bands span the actual
     // silhouette extents rather than the full grid (which would waste stripes
     // on the empty rows above).

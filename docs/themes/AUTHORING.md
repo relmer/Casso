@@ -16,18 +16,18 @@ preserved by `ThemeLoader`:
 
 - `$cassoThemeVersion` (required, currently `1`)
 - `$cassoBuiltIn` (reserved for built-in themes; never set this on a user
-  theme — `AssetBootstrap` only overwrites directories marked built-in)
+  theme, `AssetBootstrap` only overwrites directories marked built-in)
 - `name`, `familyId`, `variantId`, `author`, `description`
 - `useMicaBackdrop`
-- `crtDefaults` — preferred CRT post-processing presets
-- `uiTokens` — opaque JSON blob reserved for the native renderer
-- `driveVisualProfile` — drive visual treatment selector
+- `crtDefaults`: preferred CRT post-processing presets
+- `uiTokens`: opaque JSON blob reserved for the native renderer
+- `driveVisualProfile`: drive visual treatment selector
 
 The authoritative schema lives at
 [`specs/007-ui-overhaul/contracts/theme-metadata.schema.json`](../../specs/007-ui-overhaul/contracts/theme-metadata.schema.json).
 
-The three built-in themes — `Skeuomorphic`, `DarkModern`, `RetroTerminal`
-— under `Resources/Themes/` are the working reference.
+The three built-in themes (`Skeuomorphic`, `DarkModern`, `RetroTerminal`
+) under `Resources/Themes/` are the working reference.
 
 ## What is in flight
 

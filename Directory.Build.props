@@ -35,9 +35,32 @@
     <SupportJustMyCode>false</SupportJustMyCode>
   </PropertyGroup>
 
+  <!--
+    MultiProcessorCompilation
+      ON. Without /MP, cl.exe compiles the files on its command line one at a
+      time, on one core. Every project here was built that way, so an 8-thread
+      machine ran a full build on one thread and left seven idle.
+
+      It costs the most where it hurts most. A code-analysis build runs
+      /analyze and the Core Check plugin as extra per-file passes, so each
+      translation unit costs several times a plain compile, and none of it
+      overlapped: the four analysis configurations took 17 to 22 minutes
+      each.
+
+      /MP is incompatible with /Gm (minimal rebuild), which the projects
+      already disable, and with /Yc when one command line creates a
+      precompiled header from several sources. MSBuild compiles the PCH
+      source in its own cl.exe invocation, so that case does not arise.
+
+      Build.ps1 also passes -m, which is the other half: /MP parallelizes the
+      files within one project, -m parallelizes projects that do not depend
+      on each other.
+  -->
+
   <ItemDefinitionGroup>
     <ClCompile>
       <SupportJustMyCode>false</SupportJustMyCode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
   </ItemDefinitionGroup>
 

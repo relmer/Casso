@@ -322,6 +322,8 @@ const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
     // does not know -- writing an unknown token back out would strand it.
     const char *  token = s_kpszInputModeOff;
 
+
+
     switch (mode)
     {
         case InputMappingMode::Joystick:  token = s_kpszInputModeJoystick; break;
@@ -354,6 +356,8 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
     // miss result so a prefs file written by a newer build keeps whatever the
     // caller was already using rather than silently disabling input mapping.
     InputMappingMode  mode = fallback;
+
+
 
     if      (s == s_kpszInputModeJoystick) { mode = InputMappingMode::Joystick; }
     else if (s == s_kpszInputModePaddle)   { mode = InputMappingMode::Paddle;   }

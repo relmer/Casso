@@ -135,6 +135,8 @@ static bool HasRequiredKeys (const JsonValue              & obj,
     bool  result  = true;
     bool  isEmpty = false;
 
+
+
     outProblem.clear();
 
 
@@ -182,6 +184,16 @@ static bool HasRequiredKeys (const JsonValue              & obj,
 //  call a failable API, so they take the documented non-HRESULT EHM shape: a
 //  vestigial `hr` for the macro, and the normal result returned at `Error:`.
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemeLoader::TryGetBoolOpt
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  ThemeLoader::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
@@ -200,6 +212,15 @@ Error:
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemeLoader::GetNumberOpt
+//
+////////////////////////////////////////////////////////////////////////////////
+
 double  ThemeLoader::GetNumberOpt (
     const JsonValue   & obj,
     const std::string & key,
@@ -217,6 +238,15 @@ Error:
     return result;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemeLoader::GetStringOpt
+//
+////////////////////////////////////////////////////////////////////////////////
 
 std::string  ThemeLoader::GetStringOpt (
     const JsonValue   & obj,
@@ -248,6 +278,9 @@ Error:
 std::wstring  ThemeLoader::StripTrailingSep (const std::wstring & p)
 {
     std::wstring  r = p;
+
+
+
     while (!r.empty() && (r.back() == L'\\' || r.back() == L'/'))
     {
         r.pop_back();

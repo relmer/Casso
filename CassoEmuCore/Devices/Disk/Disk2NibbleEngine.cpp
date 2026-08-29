@@ -444,6 +444,8 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
     // the MSB means the LSS has finished shifting a whole nibble in.
     bool  ready = m_latchIsFresh && (m_readLatch & kLatchMsbMask) != 0;
 
+
+
     if (ready)
     {
         outNibble      = m_readLatch;
@@ -525,6 +527,8 @@ uint8_t Disk2NibbleEngine::NextWeakBit()
     // 0x4CCCCCCC = floor (0.3 * 2^32). Compare m_weakRngState (unsigned
     // 32-bit) against this for a ~30% probability of returning 1.
     static constexpr uint32_t   kWeakThreshold = 0x4CCCCCCCu;
+
+
 
     m_weakRngState = m_weakRngState * kLcgMultiplier + kLcgIncrement;
 

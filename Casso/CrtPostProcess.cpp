@@ -134,6 +134,8 @@ CrtParams MakeCrtParams (
     CrtParams                    params;
     const GlobalUserPrefs::Crt & preset = CrtPresets::ForMode (modeIndex);
 
+
+
     // Default everything from the monitor-type preset; layered sources
     // overwrite into this struct in lowest-priority-first order so the
     // highest-priority winner is the final value.
@@ -486,6 +488,8 @@ HRESULT CrtPostProcess::Initialize (
     D3D11_SAMPLER_DESC     sd       = {};
     D3D11_BLEND_DESC       bld      = {};
 
+
+
     CrtVertex vertices[] =
     {
         { -1.0f,  1.0f, 0.0f, 0.0f },
@@ -756,6 +760,7 @@ void CrtPostProcess::DrawFullscreen (
     ID3D11ShaderResourceView  * nullSrvs[kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer              * cbs[1]                        = { m_constantBuffer.Get() };
     float                       blendFactor[4]                = { 0.0f, 0.0f, 0.0f, 0.0f };
+
 
 
     // Unbind RTs first so a previously-bound RT isn't simultaneously bound

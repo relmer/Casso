@@ -163,6 +163,7 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
         foreach ($platformToBuild in $platformsToBuild) {
             $msbuildArgs = @(
                 $solutionPath,
+                "-m",
                 "-p:Configuration=$config",
                 "-p:Platform=$platformToBuild",
                 "-p:PreferredToolArchitecture=$preferredArch",
@@ -191,8 +192,12 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
     }
 }
 else {
+    #  -m builds projects that do not depend on each other at the same time;
+    #  /MP (Directory.Build.props) parallelizes the files within a project.
+    #  Neither was set, so a full build used one core out of eight.
     $msbuildArgs = @(
         $solutionPath,
+        "-m",
         "-p:Configuration=$Configuration",
         "-p:Platform=$Platform",
         "-p:PreferredToolArchitecture=$preferredArch"

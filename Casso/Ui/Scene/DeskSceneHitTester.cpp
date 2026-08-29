@@ -112,9 +112,15 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
     // Bodies as bounds boxes rather than triangle meshes, deliberately: the
     // question is which DEVICE is in front, not which of its 250k triangles,
     // and the boxes are tight around cases that are themselves box-shaped.
+    //
+    // ABSENT BOUNDS MEAN NO OCCLUSION INFORMATION, NOT "NOTHING IS IN FRONT".
+    // A caller that supplies no monitor body gets the pre-occlusion behavior:
+    // the glass claims what it covers. Starting `monitorFrontal` at false
+    // instead made the picture unclickable for every such caller, which is
+    // the opposite of a refinement.
     float  tMonitorBody   = FLT_MAX;
     float  tDriveBody[2]  = { FLT_MAX, FLT_MAX };
-    bool   monitorFrontal = false;
+    bool   monitorFrontal = (monitorBoundsMin == nullptr || monitorBoundsMax == nullptr);
 
     if (includeGlass && monitorBoundsMin != nullptr && monitorBoundsMax != nullptr)
     {

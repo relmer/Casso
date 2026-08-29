@@ -18,6 +18,12 @@ class DriveAudioMixer;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// The render side runs on its own event-driven thread: WASAPI signals the
+// event each device quantum, and the pump moves pending samples into the
+// endpoint independent of the emulation thread's cadence. When the pending
+// queue runs dry the pump writes a short fade-out of the last frame instead
+// of letting the device insert hard silence -- an underrun becomes a ramp,
+// not a click (#125).
 class WasapiAudio
 {
 public:
@@ -61,6 +67,9 @@ private:
     // anyone reaches for the volume control.
     static constexpr int64_t  kReinitRetryMs = 1000;
 
+    void    RenderPump ();
+    void    DrainFrames (UINT32 toWrite, BYTE * buffer);
+
     // The endpoint died under us (AUDCLNT_E_DEVICE_INVALIDATED and friends:
     // default-device switch, dock/undock, driver reset). Tears the client
     // down and arms the throttled re-open in SubmitFrame. An expected
@@ -68,15 +77,15 @@ private:
     void     NoteEndpointLoss (HRESULT hrLoss);
     int64_t  NowMs            () const;
 
+    // PUMP THREAD's half of that: record the FIRST failing hr and let the
+    // pump stop. A later failure must not overwrite it, or the reason the
+    // endpoint went away would be replaced by a consequence of its going.
+    void  ReportEndpointLoss (HRESULT hrLoss);
+
     ComPtr<IMMDeviceEnumerator>  m_enumerator;
     ComPtr<IMMDevice>            m_device;
     ComPtr<IAudioClient>         m_audioClient;
     ComPtr<IAudioRenderClient>   m_renderClient;
-
-    // Device-loss recovery state, all CPU-thread (Initialize and SubmitFrame
-    // both run there).
-    bool     m_deviceLost     = false;
-    int64_t  m_reinitAtMs     = 0;
 
     UINT32  m_bufferFrames    = 0;
     UINT32  m_sampleRate      = 44100;
@@ -84,19 +93,47 @@ private:
     UINT32  m_channels        = 1;
     bool    m_initialized     = false;
 
-    // Pending interleaved samples waiting to be drained into WASAPI.
-    // Layout matches m_channels: mono buffers store one float per
-    // frame; stereo buffers store interleaved L,R pairs (2 floats
-    // per frame). The drain loop divides size() by m_channels to
-    // compute frame counts.
+    // Pending interleaved-STEREO samples waiting for the render pump.
+    // Written by the emulation thread in SubmitFrame, consumed by the
+    // pump thread; m_pendingMutex guards every access.
     vector<float> m_pendingSamples;
+    std::mutex    m_pendingMutex;
+
+    // Render pump thread state: the WASAPI buffer-ready event, the stop
+    // flag, and the last stereo frame written -- the seed for the fade-out
+    // filler that replaces hard underrun silence.
+    std::thread         m_renderThread;
+    HANDLE              m_renderEvent = nullptr;
+    std::atomic<bool>   m_renderStop { false };
+    float               m_lastL = 0.0f;
+    float               m_lastR = 0.0f;
+
+    // Frames left in the filler-to-real resume crossfade (see DrainFrames).
+    UINT32              m_resumeRamp = 0;
 
     // Per-frame scratch buffers. Reused across SubmitFrame() calls
-    // to avoid per-frame allocation.
+    // to avoid per-frame allocation. m_mixScratch holds the completed
+    // stereo mix before it is appended to the pending queue under lock.
     vector<float> m_speakerScratch;
     vector<float> m_driveScratch;
+    vector<float> m_mixScratch;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
+
+    // Endpoint loss and the throttled reopen. The PUMP ONLY REPORTS: it
+    // records the failing hr and stops, because Shutdown joins the render
+    // thread and calling it from inside that thread would join itself. The
+    // teardown and the retry both run on the CPU thread, in SubmitFrame.
+    std::atomic<HRESULT>  m_endpointLossHr { S_OK };
+    bool                  m_deviceLost = false;
+    int64_t               m_reinitAtMs = 0;
+
+    // Diagnostic tap: when CASSO_AUDIO_DUMP names a file, every generated
+    // stereo sample is appended to it as raw float32 pairs -- the exact
+    // stream handed to the device, captured before the device can touch
+    // it. Opened lazily on first use; empty when the variable is unset.
+    FILE *  m_dumpFile    = nullptr;
+    bool    m_dumpChecked = false;
     std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
 };
 

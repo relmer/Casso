@@ -38,6 +38,8 @@ Word AppleHiResMode::ScanlineAddress (int scanline, Word pageBase)
     int  subRow      = scanline % 8;   // 0-7 (which of 8 interleave rows)
     int  lineInGroup = (scanline % 64) / 8;   // 0-7 (which line within group)
 
+
+
     return static_cast<Word> (
         pageBase + subRow * 1024 + group * 40 + lineInGroup * 128);
 }
@@ -65,7 +67,13 @@ Word AppleHiResMode::GetActivePageAddress (bool page2) const
 //
 //  Render
 //
-//  Rasterizes the hi-res screen, decoding NTSC artifact color.
+//  Rasterizes the hi-res screen. Which decode runs depends on the monitor:
+//  a color monitor gets NTSC artifact color at 280 pixels, a monochrome one
+//  gets the 560 half-dot stream. They are separate decodes because artifact
+//  color is what a color monitor MAKES from the dots -- tinting it cannot
+//  recover the dots, and a monochrome monitor never saw the color at all.
+//
+//  The description below is the color path.
 //
 //  TWO PASSES per scanline, and the split is what makes artifact color
 //  possible. A hi-res pixel's color depends on its NEIGHBORS -- the Apple II
@@ -96,9 +104,15 @@ void AppleHiResMode::Render (
     int          fbWidth,
     int          fbHeight)
 {
+    static constexpr int kPixelsPerScanline   = 280;
+    static constexpr int kHalfDotsPerScanline = 560;
+
+
+
     Word      pageBase      = GetActivePageAddress (m_page2);
     bool      pixels[280]   = {};
     bool      palettes[280] = {};
+    bool      halfDots[560] = {};
     Byte      data          = 0;
     bool      palBit        = false;
     uint32_t  color         = 0;
@@ -130,9 +144,65 @@ void AppleHiResMode::Render (
             }
         }
 
-        // Pass 2: determine color for each pixel
         fbY = scanline * 2;
 
+        if (m_monochrome)
+        {
+            // Pass 2, monochrome: the 560 half-dot stream itself.
+            //
+            // The shift register clocks 7 pixels per byte, and the palette
+            // bit DELAYS that byte's output by one half-dot -- which is the
+            // physical cause of the color pair swap the color decode models
+            // as a palette. A monochrome monitor has no color to swap, so
+            // what it shows instead is the shift: a byte with bit 7 set
+            // paints half a dot to the right of where its neighbor would.
+            // That is real horizontal detail, and it only exists at 560.
+            //
+            // Each pixel occupies two adjacent half-dots. Runs are OR-ed in
+            // rather than assigned, because a shifted byte butting against
+            // an unshifted one makes the two overlap by a half-dot -- the
+            // hardware lights that slot, so the later byte must not clear
+            // what the earlier one lit.
+            for (fbX = 0; fbX < kHalfDotsPerScanline; fbX++)
+            {
+                halfDots[fbX] = false;
+            }
+
+            for (int x = 0; x < kPixelsPerScanline; x++)
+            {
+                if (!pixels[x])
+                {
+                    continue;
+                }
+
+                int slot = x * 2 + (palettes[x] ? 1 : 0);
+
+                if (slot < kHalfDotsPerScanline)
+                {
+                    halfDots[slot] = true;
+                }
+
+                if (slot + 1 < kHalfDotsPerScanline)
+                {
+                    halfDots[slot + 1] = true;
+                }
+            }
+
+            for (fbX = 0; fbX < kHalfDotsPerScanline; fbX++)
+            {
+                color = halfDots[fbX] ? kNtscWhite : kNtscBlack;
+
+                if (fbX < fbWidth && fbY + 1 < fbHeight)
+                {
+                    framebuffer[fbY       * fbWidth + fbX] = color;
+                    framebuffer[(fbY + 1) * fbWidth + fbX] = color;
+                }
+            }
+
+            continue;
+        }
+
+        // Pass 2, color: determine artifact color for each pixel
         for (int x = 0; x < 280; x++)
         {
             if (!pixels[x])

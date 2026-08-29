@@ -18,7 +18,7 @@ public:
 
 - `relativePath` is relative to `UnitTest/Fixtures/`.
 - Implementation MUST reject any path containing `..`, drive letters, or
-  absolute path roots — return E_INVALIDARG.
+  absolute path roots, return E_INVALIDARG.
 - Implementation MUST resolve the fixtures directory once at construction
   and cache it; subsequent calls do not re-discover the path.
 

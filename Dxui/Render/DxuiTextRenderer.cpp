@@ -768,13 +768,12 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     ComPtr<IDWriteFontFace>        face;
     BOOL                           familyFound = FALSE;
     bool                           isCached    = false;
-    float                          kMeasureBox = 0.0f;
+    float                          kMeasureBox = 4096.0f;
     UINT32                         familyIndex = 0;
     DWRITE_FONT_METRICS            metrics     = {};
     DWRITE_LINE_METRICS            lineMetrics = {};
     UINT32                         lineCount   = 0;
     const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
-    kMeasureBox = 4096.0f;
     const wchar_t                * kMeasureText  = L"Mg";
 
 

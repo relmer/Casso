@@ -21,10 +21,21 @@
 RECT ThemePage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::ComputePreviewGeometry
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
                                         int           driveBandDp,
@@ -39,6 +50,8 @@ void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
     float  availAspect  = (availH > 0) ? ((float) availW / (float) availH) : 0.0f;
     int    prevW        = 0;
     int    prevH        = 0;
+
+
 
     if (availW <= 0 || availH <= 0)
     {
@@ -68,6 +81,15 @@ void ThemePage::ComputePreviewGeometry (const RECT  & availRect,
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::PaintPreviewWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void ThemePage::PaintPreviewWindow (DxuiPainter                          & painter,
                                    DxuiTextRenderer                     & text,
                                    const RECT                           & availRect,
@@ -95,6 +117,8 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     int      screenH      = 0;
     UINT     effectiveDpi = 0;
     auto      ScalePx  = [&scale] (int dp) -> int { return (int) ((float) dp * scale); };
+
+
 
     // Bottom inset: a full/compact drive bar when the machine has a Disk ][
     // controller, else just the joystick band (mirrors the live chrome's
@@ -475,6 +499,8 @@ void ThemePage::UpdateCrtMonitorCheckboxEnabled()
     std::string  selected = SelectedThemeId();
     bool         isSkeuo  = !selected.empty()
                             && !CassoTheme::ForName (selected).compactDrives;
+
+
 
     m_crtMonitorCheckbox.SetEnabled (isSkeuo);
 }

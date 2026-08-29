@@ -110,6 +110,7 @@ InputPanelLayoutSlots ComputeInputDebugPanelLayout (
     int                    lvHeight     = 0;
 
 
+
     x = margin;
     slots.emuLabel = MakeRect (x, y, rowLblWidth, rowHeight);
     x += rowLblWidth + rowGap;

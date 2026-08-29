@@ -142,6 +142,8 @@ void CpuOperations::Branch (Cpu & cpu, Instruction instruction, Word operand)
         0x02    // Zero
     };
 
+
+
     Byte flag = !!(s_kflagMask[instruction.asBranch.flag] & cpu.status.status);
 
     if (flag == instruction.asBranch.value)
@@ -622,6 +624,9 @@ void CpuOperations::ReturnFromInterrupt (Cpu & cpu)
 {
     Byte pulled      = cpu.PopByte();
     Byte preserved   = cpu.status.status & 0x30;
+
+
+
     cpu.status.status = (pulled & ~0x30) | preserved;
 
     cpu.PC = cpu.PopWord();

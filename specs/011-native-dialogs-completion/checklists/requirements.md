@@ -35,6 +35,6 @@
   `GlobalUserPrefs`, `DriveWidgetState`, `DiskIIDebugDialogState`, `IFileOpenDialog`,
   `MessageBoxW`) because the user request was an audit-driven cleanup whose scope
   is *defined* by those specific surfaces. These references are scope anchors,
-  not implementation prescriptions — the spec does not dictate how the new DX
+  not implementation prescriptions; the spec does not dictate how the new DX
   primitive is built, only what it must replace.
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`.

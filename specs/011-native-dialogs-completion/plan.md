@@ -26,11 +26,11 @@ Dialog).
 
 **Language/Version**: C++ (stdcpplatest, MSVC v145, VS 2026)
 **Primary Dependencies**: Windows SDK, Direct3D 11, Direct2D, DirectWrite, WIC, STL
-  — plus existing in-tree `DxUiPainter`, `ChromeTheme`, `SettingsWindow`,
+ (plus existing in-tree `DxUiPainter`, `ChromeTheme`, `SettingsWindow`,
   `SettingsPanel`, `GlobalUserPrefs`, `DriveWidget`, `DriveWidgetController`
 **Storage**: JSON-backed user-prefs file managed by `GlobalUserPrefs`
-  (`Casso/Shell/GlobalUserPrefs.cpp`) — new `recentDisks` array key for MRU
-**Testing**: Microsoft Native C++ Unit Test Framework (`UnitTest/` project) —
+  (`Casso/Shell/GlobalUserPrefs.cpp`)) new `recentDisks` array key for MRU
+**Testing**: Microsoft Native C++ Unit Test Framework (`UnitTest/` project),
   headless unit tests only; no Win32, no real file I/O
 **Target Platform**: Windows 10/11, x64 and ARM64
 **Project Type**: Desktop application (Win32 GUI, native DX chrome)
@@ -41,7 +41,7 @@ Dialog).
   - All system includes via `Pch.h` only; quoted includes for project headers
   - EHM pattern (`HRESULT hr = S_OK;` + single `Error:` exit, asserting `*A`
     variants by default; non-asserting variants only for genuinely
-    user/external failure modes — e.g. missing MRU file, missing ROM
+    user/external failure modes, e.g. missing MRU file, missing ROM
     download, `ShellExecuteW` on a system with no default browser)
   - 5 blank lines between top-level constructs; 3 blank lines between the
     variable-declaration block and the first statement; column-aligned
@@ -65,7 +65,7 @@ Dialog).
 | I. Code Quality (formatting, EHM, etc.)  | PASS   | All new code follows EHM (`*A` variants default), 5/3 blank-line rules, column alignment, Pch.h-only system includes.          |
 | II. Testing Discipline (headless tests)  | PASS   | MRU pruning + cap, dialog layout metrics, filename truncation are all factored as pure functions taking injected predicates / metrics. No real file I/O in unit tests. |
 | III. UX Consistency                       | PASS   | All converted dialogs preserve existing text and accelerators; no CLI change.                                                  |
-| IV. Performance                           | PASS   | One-frame open/repaint; MRU prune uses cheap `std::filesystem::exists` only — never network-stat. Edge case explicitly punted to next launch. |
+| IV. Performance                           | PASS   | One-frame open/repaint; MRU prune uses cheap `std::filesystem::exists` only, never network-stat. Edge case explicitly punted to next launch. |
 | V. Simplicity & Maintainability          | PASS   | Single new primitive directory; no new third-party dependency (no constitution amendment needed); `DiskIIDebugDialogState` UI/logic separation is preserved. |
 
 **Approved third-party dependencies**: No additions. Implementation uses
@@ -144,11 +144,11 @@ tests live in the `UnitTest` project. No changes to `CassoCore`,
 
 ### Explicitly Out of Scope (do not touch)
 
-- `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage` — keep
+- `Casso/Shell/WindowCommandManager.cpp::PromptForDiskImage`: keep
   `IFileOpenDialog`. This is the supported modern picker and FR-015
   explicitly allows it.
 - `Casso/Main.cpp` EHM `SetNotifyFunction` callback that calls
-  `MessageBoxW` — this is the chicken-and-egg last-resort path used
+  `MessageBoxW`; this is the chicken-and-egg last-resort path used
   before the DX painter is initialized (or after it has failed). FR-015
   explicitly allows it.
 
@@ -158,7 +158,7 @@ tests live in the `UnitTest` project. No changes to `CassoCore`,
   of absolute paths, most-recent-first, cap 16. Load/save plumbing
   follows the same pattern as the recent `preserve machines section` fix.
 - **`DriveWidgetState`**: add `std::filesystem::path imagePath` (or
-  `std::string imageName` — see data-model.md). Plumb from the
+  `std::string imageName`; see data-model.md). Plumb from the
   disk-mount path (whichever code already updates "drive contents")
   through `DriveWidgetController` to the widget.
 - **`SettingsWindow` modal-overlay plumbing**: extract the
@@ -166,7 +166,7 @@ tests live in the `UnitTest` project. No changes to `CassoCore`,
   logic into the new `DialogPrimitive`. `SettingsWindow` is then
   expressed in terms of `DialogPrimitive` (preferred) or co-exists
   with it during the transition (fallback if the refactor surfaces
-  unexpected coupling — decide in Phase 0 research).
+  unexpected coupling, decide in Phase 0 research).
 - **`WindowCommandManager`**: the three MessageBox-based commands
   (Help/About, Help/Keymap, machine-info) route to
   `DialogPrimitive::Show` with `DialogDefinition` values. The two
@@ -184,7 +184,7 @@ All of these MUST be headless (no Win32, no real file I/O):
   `DialogDefinition` + metrics struct (font heights, padding, dpi
   scale, max width) and return a `DialogLayoutResult` (icon rect,
   body rects, hyperlink rects, button rects, total size). Tested
-  with synthetic metrics — no DirectWrite calls.
+  with synthetic metrics, no DirectWrite calls.
 - **Drive label truncation**: pure function taking a basename, a
   max-pixel-width, and a "measure glyph-run width" callback; returns
   the truncated display string. Tests inject a deterministic measure

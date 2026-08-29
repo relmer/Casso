@@ -4,6 +4,7 @@
 #include "CassoBranding.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
+#include "Widgets/DxuiWarningBadge.h"
 
 
 
@@ -67,6 +68,8 @@ void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
     int    i      = 0;
     float  denom  = (float) ((height > 1) ? (height - 1) : 1);
 
+
+
     if (height <= 0)
     {
         return;
@@ -84,6 +87,15 @@ void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawCaseRidge
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
                                 float frontLeft, float frontRight,
                                 float backLeft,  float backRight,
@@ -95,6 +107,8 @@ void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
     float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
     float  right = frontRight + (backRight - frontRight) * depthT;
 
+
+
     painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
 }
 
@@ -103,6 +117,15 @@ void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
 // helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
 // monitor chin stamp the identical logo.
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawPadlock
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DriveWidget::DrawPadlock (IDxuiPainter & painter,
                               float left, float top, float w, float h,
@@ -118,6 +141,8 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
     float  holeX     = left + (w - holeW) * 0.5f;
     float  holeY     = bodyTop + bodyH * 0.28f;
 
+
+
     // Shackle: a squared arch (two posts + a top bar) open at the
     // bottom where it disappears behind the lock body.
     painter.FillRect (shackleX,                        top, shackleW,  thickness, shade);
@@ -130,6 +155,34 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
 
     // Keyhole.
     painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidget::DrawDamageBadge
+//
+//  A warning triangle with an exclamation mark, drawn where the padlock would
+//  go when the mounted image is damaged. The shape carries the distinction:
+//  a padlock says "you cannot write to this", which is true but sounds like a
+//  setting, and this state is the file being wrong rather than a choice
+//  anyone made.
+//
+//  The triangle is a degenerate convex quad (the apex given twice) rather
+//  than a stack of scanlines, so it gets the painter's own edge handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::DrawDamageBadge (IDxuiPainter & painter,
+                                   float left, float top, float w, float h,
+                                   uint32_t fill, uint32_t edge, uint32_t mark)
+{
+    // The mark itself lives in Dxui: the info banner's warning severity shows
+    // the same triangle, and one implementation keeps them from drifting.
+    DxuiWarningBadge::Draw (painter, left, top, w, h, fill, edge, mark);
 }
 
 
@@ -890,6 +943,11 @@ void DriveWidget::Paint (
 //  cycle. So the badge is drawn OUTSIDE the marquee's clip and given its own
 //  fixed place, and only the text moves.
 //
+//  The badge is the write-protect padlock, or the damage warning triangle
+//  when the image failed its checksum -- one badge either way, because a
+//  damaged image is already write-protected and the padlock beside the
+//  triangle would only restate the milder half.
+//
 //  When the name fits, the badge and the name are centered as a PAIR: pinning
 //  the badge at the left edge of a strip whose text is centered leaves a hole
 //  between them, and the two stop reading as one label about one disk. When
@@ -920,6 +978,7 @@ void DriveWidget::PaintBasenameLabel (
     float                  drawX         = 0.0f;
     bool                   clipped       = false;
     bool                   locked        = m_state.writeProtect.Any();
+    bool                   damaged       = m_state.writeProtect.checksumMismatch;
     float                  badgeW        = 0.0f;
     float                  badgeH        = 0.0f;
     float                  badgeGap      = 0.0f;
@@ -929,6 +988,9 @@ void DriveWidget::PaintBasenameLabel (
     float                  nameW         = 0.0f;
     int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                 std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
     basenameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
     labelLeft = (float) m_labelRect.left;
     labelTop = (float) m_labelRect.top;
@@ -936,8 +998,6 @@ void DriveWidget::PaintBasenameLabel (
     labelH = (float) (m_labelRect.bottom - m_labelRect.top);
     speedPxPerSec = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
     gap = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
-
-
 
     if (m_state.mountedImagePath.empty())
     {
@@ -963,8 +1023,8 @@ void DriveWidget::PaintBasenameLabel (
 
     if (locked)
     {
-        badgeW   = (float) Scale (kWpBadgeWidthPx,  dpi);
-        badgeH   = (float) Scale (kWpBadgeHeightPx, dpi);
+        badgeW   = (float) Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
+        badgeH   = (float) Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
         badgeGap = (float) Scale (kWpBadgeLabelGapPx, dpi);
     }
 
@@ -989,8 +1049,19 @@ void DriveWidget::PaintBasenameLabel (
     {
         badgeY = labelTop + (labelH - badgeH) * 0.5f;
 
-        DrawPadlock (painter, badgeX, badgeY, badgeW, badgeH,
-                     kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+        // A damaged image shows the warning triangle in the badge's place
+        // rather than beside it: damage already implies write protection, and
+        // drawing both would say the milder half twice.
+        if (damaged)
+        {
+            DrawDamageBadge (painter, badgeX, badgeY, badgeW, badgeH,
+                             kDamageFillArgb, kDamageEdgeArgb, kDamageMarkArgb);
+        }
+        else
+        {
+            DrawPadlock (painter, badgeX, badgeY, badgeW, badgeH,
+                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+        }
     }
 
     // Confine all drawing to the drive's label strip so a long name never
@@ -1095,6 +1166,8 @@ DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
     // Eject is tested first because its rect sits INSIDE the body rect --
     // reversing these would make the button unreachable.
     DriveWidgetRegion  region = DriveWidgetRegion::None;
+
+
 
     if      (RectContains (m_ejectRect, x, y)) { region = DriveWidgetRegion::Eject; }
     else if (RectContains (m_bodyRect,  x, y)) { region = DriveWidgetRegion::Body;  }

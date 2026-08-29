@@ -24,6 +24,7 @@ int  SettingsPanelState::FindKey (
     int  found = -1;
 
 
+
     for (i = 0; i < (int) entries.size() && found < 0; ++i)
     {
         if (entries[(size_t) i].first == key)
@@ -36,8 +37,18 @@ int  SettingsPanelState::FindKey (
 }
 
 
-// The four Get*Opt helpers share one contract: a failed read restores the
-// fallback, because the getter may have written to `out` before failing.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::TryGetBoolOpt
+//
+//  The four Get*Opt helpers share one contract: a failed read restores the
+//  fallback, because the getter may have written to `out` before failing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  SettingsPanelState::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
@@ -45,6 +56,7 @@ bool  SettingsPanelState::TryGetBoolOpt (
 {
     bool      out = fallback;
     HRESULT   hr  = obj.GetBool (key, out);
+
 
 
     if (FAILED (hr))
@@ -55,6 +67,15 @@ bool  SettingsPanelState::TryGetBoolOpt (
     return out;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::GetStringOpt
+//
+////////////////////////////////////////////////////////////////////////////////
 
 std::string  SettingsPanelState::GetStringOpt (
     const JsonValue   & obj,
@@ -65,6 +86,7 @@ std::string  SettingsPanelState::GetStringOpt (
     HRESULT      hr  = obj.GetString (key, out);
 
 
+
     if (FAILED (hr))
     {
         out = fallback;
@@ -73,6 +95,15 @@ std::string  SettingsPanelState::GetStringOpt (
     return out;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::GetIntOpt
+//
+////////////////////////////////////////////////////////////////////////////////
 
 int  SettingsPanelState::GetIntOpt (
     const JsonValue   & obj,
@@ -83,6 +114,7 @@ int  SettingsPanelState::GetIntOpt (
     HRESULT  hr  = obj.GetInt (key, out);
 
 
+
     if (FAILED (hr))
     {
         out = fallback;
@@ -91,6 +123,15 @@ int  SettingsPanelState::GetIntOpt (
     return out;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::GetNumberOpt
+//
+////////////////////////////////////////////////////////////////////////////////
 
 double  SettingsPanelState::GetNumberOpt (
     const JsonValue   & obj,
@@ -101,6 +142,7 @@ double  SettingsPanelState::GetNumberOpt (
     HRESULT  hr  = obj.GetNumber (key, out);
 
 
+
     if (FAILED (hr))
     {
         out = fallback;
@@ -110,11 +152,21 @@ double  SettingsPanelState::GetNumberOpt (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::ParseCapability
+//
+////////////////////////////////////////////////////////////////////////////////
+
 CapabilityFlag  SettingsPanelState::ParseCapability (
     const std::string & str,
     CapabilityFlag      fallback)
 {
     CapabilityFlag  flag = fallback;
+
 
 
     if      (str == "optional")        { flag = CapabilityFlag::Optional;       }
@@ -157,6 +209,7 @@ const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
     const char *  text = "authentic";
 
 
+
     switch (s)
     {
         case SettingsSpeedMode::Authentic: text = "authentic"; break;
@@ -168,11 +221,21 @@ const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::SpeedFromString
+//
+////////////////////////////////////////////////////////////////////////////////
+
 SettingsSpeedMode  SettingsPanelState::SpeedFromString (
     const std::string & s,
     SettingsSpeedMode   fallback)
 {
     SettingsSpeedMode  mode = fallback;
+
 
 
     if      (s == "authentic") { mode = SettingsSpeedMode::Authentic; }
@@ -198,6 +261,7 @@ const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
     const char *  text = "color";
 
 
+
     switch (c)
     {
         case SettingsColorMode::Color: text = "color"; break;
@@ -210,11 +274,21 @@ const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::ColorFromString
+//
+////////////////////////////////////////////////////////////////////////////////
+
 SettingsColorMode  SettingsPanelState::ColorFromString (
     const std::string & s,
     SettingsColorMode   fallback)
 {
     SettingsColorMode  mode = fallback;
+
 
 
     if      (s == "color") { mode = SettingsColorMode::Color; }
@@ -241,6 +315,7 @@ const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
     const char *  text = "buffer-and-flush";
 
 
+
     switch (mode)
     {
         case SettingsWriteMode::BufferAndFlush: text = "buffer-and-flush"; break;
@@ -251,11 +326,21 @@ const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelState::WriteModeFromString
+//
+////////////////////////////////////////////////////////////////////////////////
+
 SettingsWriteMode  SettingsPanelState::WriteModeFromString (
     const std::string & s,
     SettingsWriteMode  fallback)
 {
     SettingsWriteMode  mode = fallback;
+
 
 
     if      (s == "buffer-and-flush") { mode = SettingsWriteMode::BufferAndFlush; }
@@ -343,6 +428,7 @@ HRESULT SettingsPanelState::LoadFromMachine (
     HRESULT   hr              = S_OK;
     JsonType  defaultRootType = JsonType::Null;
     JsonType  mergedRootType  = JsonType::Null;
+
 
 
     defaultRootType = defaultJson.GetType();
@@ -811,6 +897,7 @@ HRESULT SettingsPanelState::Apply (
     int      i  = 0;
 
 
+
     // Live-effect fields (FR-011 -- always pushed; cheap, idempotent).
     sink.ApplySpeedMode   (m_current.prefs.speedMode);
     sink.ApplyColorMode   (m_current.prefs.colorMode);
@@ -881,6 +968,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     size_t              i              = 0;
     JsonType            mergedRootType = JsonType::Null;
     bool                hasUiPrefs     = false;
+
 
 
     mergedRootType = mergedJson.GetType();
@@ -983,6 +1071,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     bool               hasAux          = false;
     uint32_t           totalRamBytes   = 0;
     JsonType           mergedRootType  = JsonType::Null;
+
+
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -1323,7 +1413,8 @@ HRESULT SettingsPanelState::ExtractHardware (
     {
         { "disk-ii",                 "Disk ][" },
         { "smartport",               "SmartPort" },
-        { "mockingboard",            "Mockingboard" },
+        { "mockingboard",            "Mockingboard A (sound)" },
+        { "mockingboard-c",          "Mockingboard C (sound + speech)" },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
         { "parallel",                "Parallel Printer" },
@@ -1498,6 +1589,7 @@ JsonValue SettingsPanelState::BuildJson (
     // would have produced.
     JsonValue                                       result;
     JsonType                                        rootType = JsonType::Null;
+
 
 
     rootType = mergedJson.GetType();

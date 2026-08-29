@@ -234,6 +234,8 @@ bool WindowPlacementProfile::TryLoad (
 {
     bool  found = false;
 
+
+
     // A zero-sized stored placement counts as absent -- restoring it would
     // hand the user an invisible window.
     if (m_prefs != nullptr)

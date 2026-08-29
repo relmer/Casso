@@ -1,8 +1,11 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
+#include "DialectProfile.h"
+#include "DialectRegistry.h"
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
+#include "StringEncoding.h"
 
 
 
@@ -426,7 +429,7 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 
 bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 {
-    return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::Relative);
+    return m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::Relative);
 }
 
 
@@ -571,6 +574,8 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
     bool                                  fitsInPage = resolved && value >= 0 && value <= 0xFF;
     GlobalAddressingMode::AddressingMode  mode       = rule.fallback;
 
+
+
     ASSERT (rule.syntax == syntax);
 
 
@@ -582,11 +587,30 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
             continue;
         }
 
-        if (m_opcodeTable.HasMode (mnemonic, candidate.mode))
+        if (m_opcodeTable->HasMode (mnemonic, candidate.mode))
         {
             mode = candidate.mode;
             break;
         }
+    }
+
+    // A dialect that lets the accumulator go unnamed resolves there when the
+    // mnemonic has no implied form at all. Which mnemonics those are is the
+    // opcode table's answer, not the profile's -- a second list would be a
+    // second list to get wrong -- and a dialect that requires `LSR A` reaches
+    // none of this, so a bare LSR stays the missing operand it has always been.
+    //
+    // The implied-mode test is uncovered and cannot be covered: no mnemonic in
+    // either table carries an implied AND an accumulator encoding, so removing
+    // it changes nothing anything can observe. Recorded here rather than
+    // dropped, because it is what keeps the precedence right by construction
+    // instead of by the tables happening not to overlap.
+    if ((syntax == OperandSyntax::None) &&
+        (m_dialect.GetOperandlessForm() == OperandlessForm::ImpliedOrAccumulator) &&
+        !m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::SingleByteNoOperand) &&
+        m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::Accumulator))
+    {
+        mode = GlobalAddressingMode::Accumulator;
     }
 
     return mode;
@@ -628,6 +652,8 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 {
     Byte  size = 1;      // opcode only, and the fallback for an unknown syntax
 
+
+
     switch (syntax)
     {
         case OperandSyntax::None:
@@ -643,7 +669,7 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
         case OperandSyntax::Indirect:
             // A jump is 3 bytes -- JMP (abs), JMP (abs,X), JSR abs -- and every
             // other parenthesized form is 2, on both instruction sets.
-            size = m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
+            size = m_opcodeTable->HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
             break;
 
         case OperandSyntax::IndexedX:
@@ -685,9 +711,10 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
 {
     std::string result;
+
+
+
     result.reserve (str.size());
-
-
 
     for (size_t i = 0; i < str.size(); i++)
     {
@@ -758,8 +785,13 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
     {
         ExprResult  er;
 
-        // Check for quoted string — emit each character as a value
-        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
+        // A quoted run is text, UNLESS this dialect spells a character constant
+        // with the quotation mark -- in which case the evaluator owns it, and
+        // sending it here instead would give the two passes different readings
+        // of the same argument. The delimiter comes off the context the
+        // evaluator is about to be handed, so the two cannot disagree.
+        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"' &&
+            (arg.front() != ctx.highAsciiCharDelimiter))
         {
             std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
@@ -811,10 +843,13 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const AssemblerOptions & options) :
-    m_opcodeTable  (opcodeTable),
-    m_options      (options),
-    m_listingLevel (options.generateListing ? 1 : 0)
+AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets, const AssemblerOptions & options) :
+    m_instructionSets (instructionSets),
+    m_opcodeTable     (&instructionSets.GetBase()),
+    m_options         (options),
+    m_dialect         (options.dialectProfile != nullptr ? *options.dialectProfile
+                                                         : DialectRegistry::Get (options.dialect)),
+    m_listingLevel    (options.generateListing ? 1 : 0)
 {
 }
 
@@ -830,9 +865,250 @@ AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const Assembl
 
 void AssemblySession::RecordError (int lineNumber, const std::string & message)
 {
-    AssemblyError error = {};
+    RecordErrorAt (lineNumber, m_diagnosticColumn, message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordErrorAt
+//
+//  The one place an ordinary error is built, with the position stated rather
+//  than taken from ambient state.
+//
+//  RecordError is this with the line's own column, which is what the great
+//  majority of diagnostics want. The exceptions are the ones whose subject is a
+//  particular field -- a label that duplicates another, an operand that will not
+//  evaluate -- and those say where they mean instead of moving the ambient
+//  value and hoping the next caller resets it.
+//
+//  A column of 0 says the field was never written, and the line's own column
+//  stands in. That matters most where a diagnostic exists BECAUSE the field is
+//  missing: an equate with no expression has no expression to point at, and
+//  answering "no column at all" would drop the position from exactly the
+//  diagnostics that most need one. The substitution can never invent a position
+//  for a dialect that records none, since its line column is 0 as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::RecordErrorAt (int lineNumber, int column, const std::string & message)
+{
+    AssemblyError  error = {};
+
+
+
     error.lineNumber = lineNumber;
     error.message    = message;
+    error.file       = m_currentSourceFile;
+    error.column     = (column != 0) ? column : m_diagnosticColumn;
+    m_result.errors.push_back (error);
+    m_result.success = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::PrimaryColumn
+//
+//  Which column stands for the line as a whole.
+//
+//  The opcode field, because that is what a line IS -- an instruction, a
+//  directive, or a macro call -- and a diagnostic about the line is nearly
+//  always about that. The label is the fallback for a line that has no opcode at
+//  all, where it is the only thing written.
+//
+//  The COLUMNS are tested rather than the text, and that is not the same check.
+//  A profile clears the text of both fields once it has read an equate, so a
+//  test on emptiness would answer 0 for a line whose fields are perfectly well
+//  known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::PrimaryColumn (const ParsedLine & parsed)
+{
+    return (parsed.mnemonicColumn != 0) ? parsed.mnemonicColumn : parsed.labelColumn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::OperandNamesAnOperation
+//
+//  Whether the field after the opcode names something this assembler could
+//  execute.
+//
+//  Asked on behalf of the active profile, and dialect-NEUTRAL by construction:
+//  the instruction set is the shared one, the alternate spellings are whichever
+//  the active profile declares, and the directive lookup is the active profile's
+//  own. Nothing here names a dialect, and a profile that declares no aliases and
+//  no directives simply gets false.
+//
+//  Only the FIRST WORD is considered. A field-based dialect hands the whole rest
+//  of the operand over, so `LDA #$00` arrives with the instruction and its own
+//  operand together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::OperandNamesAnOperation (const ParsedLine & parsed) const
+{
+    std::string  word;
+    size_t       end   = parsed.operand.find_first_of (" \t");
+    bool         names = false;
+
+
+
+    word  = Parser::ToUpper ((end == std::string::npos) ? parsed.operand : parsed.operand.substr (0, end));
+    names = !word.empty() &&
+            (m_opcodeTable->NamesAnInstruction (word) ||
+             (m_dialect.GetDirectiveForSpelling (word) != Directive::None));
+
+    for (const MnemonicAlias & alias : m_dialect.GetMnemonicAliases())
+    {
+        if (word == alias.spelling)
+        {
+            names = true;
+            break;
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::DescribeUnknownOperation
+//
+//  What to say about a word the active dialect cannot execute.
+//
+//  Three answers, in descending order of how much they explain, and the order is
+//  the point. The dialect's own account comes first because only it knows the
+//  mistakes its line model invites -- an indented label reads as an unknown
+//  opcode and nothing about the word itself says so. Failing that, another
+//  dialect may simply define the word, and "your source is written for a
+//  different assembler" is a different problem from "no such instruction". The
+//  plain report is what is left.
+//
+//  The active dialect is NAMED whenever another one is, because the developer's
+//  question at that moment is which of the two they are running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::DescribeUnknownOperation (const ParsedLine & parsed) const
+{
+    std::string                          message = m_dialect.ExplainUnknownOperation (parsed,
+                                                                                      OperandNamesAnOperation (parsed));
+    DialectRegistry::ForeignConstruct    foreign = {};
+
+
+
+    if (!message.empty())
+    {
+        return message;
+    }
+
+    message = "Invalid mnemonic: " + parsed.mnemonic;
+    foreign = DialectRegistry::FindForeignConstruct (Parser::ToUpper (parsed.mnemonic), m_dialect.GetId());
+
+    if (foreign.dialect != nullptr)
+    {
+        message += std::string (". ") + parsed.mnemonic + " is " + foreign.category + " belonging to the "
+                 + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::DescribeUnknownDirective
+//
+//  What to say about a directive spelling the active dialect's table did not
+//  resolve.
+//
+//  The spelling is NAMED, because that is the whole content of the report: a
+//  mistyped directive and a directive belonging to some other assembler are
+//  indistinguishable from the line's shape alone, and the developer can tell
+//  them apart the instant the word is quoted back.
+//
+//  The foreign-construct lookup is the same one the unknown-mnemonic report
+//  uses, asked with the leading dot removed -- a dialect that spells the word
+//  bare would not recognize it dotted, and it is the WORD that belongs to that
+//  dialect rather than this dialect's punctuation of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::DescribeUnknownDirective (const ParsedLine & parsed) const
+{
+    std::string                       message  = "Unknown directive: " + parsed.directive;
+    std::string                       bareWord = parsed.directive;
+    DialectRegistry::ForeignConstruct foreign  = {};
+    bool                              isDotted = !bareWord.empty() && (bareWord[0] == '.');
+
+
+
+    if (isDotted)
+    {
+        bareWord = bareWord.substr (1);
+    }
+
+    foreign = DialectRegistry::FindForeignConstruct (bareWord, m_dialect.GetId());
+
+    if (foreign.dialect != nullptr)
+    {
+        message += std::string (". ") + bareWord + " is " + foreign.category + " belonging to the "
+                 + foreign.dialect->GetName() + " dialect, not to " + m_dialect.GetName();
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordRefusal
+//
+//  A construct Casso understood and declined, as against source it could not
+//  make sense of.
+//
+//  Its own function rather than a flag on RecordError, so the kind is decided
+//  by which call is written instead of by remembering an argument. There is one
+//  call site, and a refusal that reached the other one would be indistinguishable
+//  from a syntax error -- which is the single thing this distinction exists to
+//  prevent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::RecordRefusal (int lineNumber, const std::string & message)
+{
+    AssemblyError  error = {};
+
+
+
+    error.lineNumber = lineNumber;
+    error.message    = message;
+    error.file       = m_currentSourceFile;
+    error.column     = m_diagnosticColumn;
+    error.kind       = DiagnosticKind::SubsetBoundary;
     m_result.errors.push_back (error);
     m_result.success = false;
 }
@@ -867,6 +1143,8 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             AssemblyError warning = {};
             warning.lineNumber = lineNumber;
             warning.message    = message;
+            warning.file       = m_currentSourceFile;
+            warning.column     = m_diagnosticColumn;
             m_result.warnings.push_back (warning);
             break;
         }
@@ -876,6 +1154,8 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
             AssemblyError error = {};
             error.lineNumber = lineNumber;
             error.message    = message;
+            error.file       = m_currentSourceFile;
+            error.column     = m_diagnosticColumn;
             m_result.errors.push_back (error);
             m_result.success = false;
             break;
@@ -951,6 +1231,46 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::ReserveBytes
+//
+//  Pass 1's only way to occupy space, and the reason the two cursors cannot
+//  drift by accident. Sizing a line moves the program counter and the output
+//  cursor by the same amount every time; the two things that separate them are
+//  an origin directive in a dialect whose origin relocates, and a dummy
+//  section -- where the addresses advance and the output does not, because
+//  nothing inside one is ever placed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReserveBytes (Word count)
+{
+    // How much of what was reserved is actually PLACED. Inside a dummy section
+    // the space is described rather than occupied, so none of it is: moving the
+    // output cursor there would leave a hole in the object exactly the size of
+    // a layout the source asked not to emit.
+    Word  placed = m_inDummySection ? 0 : count;
+
+
+
+    m_pc        += count;
+    m_outputPos += placed;
+
+    // A directive that placed nothing has produced no output, so it must not
+    // be what stops the first origin from placing the image.
+    if (placed > 0)
+    {
+        m_outputStarted = true;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::Initialize
 //
 //  Resets the session and seeds the symbol table before pass 1 walks a line.
@@ -978,8 +1298,42 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 
     m_result             = {};
     m_result.success     = true;
-    m_result.startAddress = 0;
+
+    // The caller's answer first, so an in-source directive can see one is
+    // already there and leave it alone. Precedence settled in one place beats a
+    // comparison at every site that could name an output.
+    m_result.outputFileName = m_options.outputFileName;
+
+    // The dialect's own starting address, not a hard zero. Merlin assembles to
+    // $8000 when the source names no origin, and a source that names one
+    // overwrites this at its first ORG -- so the default is only ever visible
+    // where the source said nothing. Getting it wrong yields byte-perfect
+    // output at the wrong address, which reads as a far deeper problem.
+    m_result.startAddress = m_dialect.GetDefaultOrigin();
     m_pc                 = m_result.startAddress;
+
+    // The output cursor starts wherever the program counter does. Only an
+    // origin directive can separate them, and only in a dialect that says so.
+    m_outputPos          = m_result.startAddress;
+    m_outputStarted      = false;
+
+    // Both passes evaluate with the dialect's binding rule, or an expression
+    // would fold one way while sizing a line and the other way while emitting
+    // it. Same for the character-constant spelling, and for the same reason.
+    m_pass1Ctx.binding   = m_dialect.GetOperatorBinding();
+    m_pass2Ctx.binding   = m_dialect.GetOperatorBinding();
+
+    m_pass1Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
+    m_pass2Ctx.highAsciiCharDelimiter = m_dialect.GetHighAsciiCharDelimiter();
+
+    m_pass1Ctx.operatorSpellings      = m_dialect.GetOperatorSpellings();
+    m_pass2Ctx.operatorSpellings      = m_dialect.GetOperatorSpellings();
+
+    m_pass1Ctx.arithmetic             = m_dialect.GetArithmeticWidth();
+    m_pass2Ctx.arithmetic             = m_dialect.GetArithmeticWidth();
+
+    m_pass1Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
+    m_pass2Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
 
     m_lines = Parser::SplitLines (sourceText);
 
@@ -1029,6 +1383,8 @@ void AssemblySession::SortDiagnosticsByLine()
         return a.lineNumber < b.lineNumber;
     };
 
+
+
     std::stable_sort (m_result.errors.begin(),   m_result.errors.end(),   byLine);
     std::stable_sort (m_result.warnings.begin(), m_result.warnings.end(), byLine);
 }
@@ -1058,7 +1414,8 @@ void AssemblySession::SortDiagnosticsByLine()
 
 AssemblyResult AssemblySession::Run (const std::string & sourceText)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr                 = S_OK;
+    bool     crossedTheBoundary = false;
 
 
 
@@ -1067,6 +1424,14 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
 
     hr = RunPass1();
     CHR (hr);
+
+    // A source using a construct Casso deliberately does not support has been
+    // read in full and every offender named. Emitting bytes for the rest of it
+    // would answer a question nobody asked, and pass 2 would bury the refusals
+    // under the cascade an unsupported construct always produces -- the entry
+    // symbols a linker would have resolved are simply undefined here.
+    crossedTheBoundary = !m_boundaryOffenses.empty();
+    BAIL_OUT_IF (crossedTheBoundary, S_OK);
 
     hr = RunPass2();
     CHR (hr);
@@ -1144,8 +1509,32 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 
 
 
-    info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber);
+    // Before anything can fail: a diagnostic raised while processing this line
+    // must name the file the line came from, and this is the last point at
+    // which that is known.
+    m_currentSourceFile    = current.sourceFile;
+
+    info.parsed            = Parser::ParseLine (current.text, current.sourceLineNumber, m_dialect);
+    info.sourceFile        = current.sourceFile;
+
+    // And where on the line. Only knowable after the parse, since the profile is
+    // what segmented the fields -- but set unconditionally, so a line whose
+    // dialect records no columns leaves 0 rather than the previous line's answer.
+    m_diagnosticColumn     = PrimaryColumn (info.parsed);
+
+    // Which instruction set sized this line. Recorded here so pass 2 replays it
+    // rather than recomputing -- see LineInfo::usedExtendedSet for why
+    // recomputation is not equivalent.
+    info.usedExtendedSet   = m_extendedActive;
+
     info.pc                = m_pc;
+    info.outputPos         = m_outputPos;
+
+    // Recorded before any stage runs, for the reason usedExtendedSet is: pass 2
+    // walks this record rather than the source, so it cannot see which section
+    // the line sat in unless pass 1 says so.
+    info.emitsNoBytes      = m_inDummySection;
+
     info.isInstruction     = false;
     info.isDirective       = false;
     info.isConstant        = false;
@@ -1156,6 +1545,11 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.macroDepth        = current.macroDepth;
     info.conditionalSkip   = false;
     info.listingSuppressed = (m_listingLevel <= 0);
+
+    // Before any stage reads the line: local labels and local references become
+    // the scoped names everything downstream will look up.
+    hr = ApplyLocalLabelScope (current, info);
+    CHR (hr);
 
     hr = RunPass1Stages (current, info);
     CHR (hr);
@@ -1177,19 +1571,42 @@ Error:
 //
 //  AssemblySession::IsMacroDefinitionStart
 //
-//  "NAME macro [params]" -- the operand, upper-cased, is MACRO followed by
-//  end-of-operand or whitespace.
+//  Two shapes open a definition, and which one a dialect uses is grammar rather
+//  than vocabulary.
+//
+//    * as65 writes "NAME macro [params]" -- the name is the first word and the
+//      keyword sits in the operand, so there is nothing for a directive table
+//      to resolve and this reads the operand against the keyword the ACTIVE
+//      dialect supplies.
+//    * A dialect whose opening directive IS in its table -- Merlin's MAC --
+//      puts the keyword in the opcode field and the name in the label, where
+//      the token settles it with no string comparison at all.
+//
+//  Recognizing the token form rather than a spelling is what keeps this a
+//  vocabulary difference: nothing here knows the word MAC.
+//
+//  The operand form is a spelling and so comes from the profile, for the same
+//  reason the terminator and the local declaration do. A dialect answering
+//  empty has no operand form at all, and the difference is not academic: the
+//  vendor macro library is included with `PUT MACRO LIBRARY`, whose operand
+//  begins with as65's keyword, and a fixed spelling reads that as a definition
+//  of a macro named PUT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper)
+bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper,
+                                               const std::string & defKeyword)
 {
-    bool  looksLikeMacro = (operandUpper.substr (0, 5) == "MACRO") &&
-                           (operandUpper.size() <= 5 ||
-                            operandUpper[5] == ' '  ||
-                            operandUpper[5] == '\t');
+    bool  looksLikeMacro = !defKeyword.empty() &&
+                           (operandUpper.compare (0, defKeyword.size(), defKeyword) == 0) &&
+                           (operandUpper.size() <= defKeyword.size()   ||
+                            operandUpper[defKeyword.size()] == ' '     ||
+                            operandUpper[defKeyword.size()] == '\t');
+    bool  namedByLabel   = (parsed.directiveToken == Directive::MacroDef) && !parsed.label.empty();
 
-    return !parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro;
+
+
+    return namedByLabel || (!parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro);
 }
 
 
@@ -1218,24 +1635,55 @@ bool AssemblySession::IsConditionalDirective (Directive token)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::IsConditionalLine
+//  AssemblySession::TokenForLine
 //
-//  Both spellings are accepted: the dotted directive form, and the bare
-//  mnemonic form as65 also allows. The bare form never takes the parser's
-//  directive path and so carries no token, which is why it is resolved from
-//  the spelling table here rather than read off ParsedLine.
+//  Which directive, if any, a parsed line names -- through the ACTIVE PROFILE
+//  and nothing else.
+//
+//  A dialect whose parser already resolved the word says so on the line, and
+//  that answer is taken as it stands. A dialect that spells a directive where a
+//  mnemonic would go leaves the word unresolved instead, so it is offered back
+//  to the profile that produced the line.
+//
+//  Reading a fixed table here was a leak between dialects, and a wide one: the
+//  word a profile DECLINED was then offered to another vocabulary, so 55
+//  spellings one dialect does not have still resolved, eight of them steering
+//  conditional assembly. A profile declining a word is the answer, not the
+//  beginning of a search.
+//
+//  Upper-casing is part of that and not a nicety. Profiles are asked in upper
+//  case by contract, one shipped dialect stores its mnemonic raw, and the
+//  mismatch made the old leak fire on conventional upper-case source and not on
+//  lower-case -- which reads like a guard and is not one. Normalizing in ONE
+//  place is what keeps the three callers from disagreeing about it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
+Directive AssemblySession::TokenForLine (const ParsedLine & parsed) const
 {
-    Directive  token = parsed.isDirective
-                           ? parsed.directiveToken
-                           : DirectiveTable::FromSpelling (parsed.mnemonic);
+    return parsed.isDirective
+               ? parsed.directiveToken
+               : m_dialect.GetDirectiveForSpelling (ToUpperCase (parsed.mnemonic));
+}
 
 
 
-    return IsConditionalDirective (token);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsConditionalLine
+//
+//  Both spellings are accepted: the directive form the parser resolved, and the
+//  bare mnemonic form a dialect may also allow. The bare form never takes the
+//  parser's directive path and so carries no token, which is why the line is
+//  resolved rather than read straight off ParsedLine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsConditionalLine (const ParsedLine & parsed) const
+{
+    return IsConditionalDirective (TokenForLine (parsed));
 }
 
 
@@ -1278,11 +1726,14 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     const LineInfo    & info,
     const std::string & operandUpper) const
 {
-    Pass1Prelude  kind = Pass1Prelude::None;
+    Pass1Prelude               kind        = Pass1Prelude::None;
+    const SubsetBoundaryRow *  boundaryRow = SubsetBoundary::Find (m_dialect.GetSubsetBoundary(),
+                                                                   info.parsed.directiveToken);
 
 
 
-    if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper))
+    if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper,
+                                                  m_dialect.GetMacroSyntax().defKeyword))
     {
         kind = Pass1Prelude::MacroDefinition;
     }
@@ -1294,9 +1745,27 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     {
         kind = Pass1Prelude::Skipped;
     }
-    else if (info.parsed.isDirective && info.parsed.directive == ".ORG")
+    else if (info.parsed.isDirective && info.parsed.directiveToken == Directive::Org)
     {
+        // The TOKEN, not the canonical spelling. Matching ".ORG" made the origin
+        // directive reachable only from a dialect that spells it with a dot, so
+        // a second dialect's ORG parsed correctly, resolved to the right token,
+        // and then silently did nothing. AS65 is unaffected: both its spellings
+        // already reported the same canonical name.
         kind = Pass1Prelude::Org;
+    }
+    else if (info.parsed.isDirective && info.parsed.directiveToken == Directive::KeyboardInput)
+    {
+        kind = Pass1Prelude::KeyboardInput;
+    }
+    else if (info.parsed.isDirective && boundaryRow != nullptr)
+    {
+        // Classified, not yet refused: a row whose trigger is the second
+        // occurrence answers for a construct whose first occurrence is
+        // accepted, and only the handler counts. Tested AFTER the skip arm on
+        // purpose -- a construct inside a false conditional is not assembled,
+        // so refusing it would report a boundary the source never crossed.
+        kind = Pass1Prelude::SubsetBoundary;
     }
     else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
     {
@@ -1370,6 +1839,10 @@ HRESULT AssemblySession::RunCollectingState (const PendingLine & current, LineIn
         hr = CollectMacroBody (current, info);
         break;
 
+    case Pass1State::CollectingLoop:
+        hr = CollectLoopBody (current, info);
+        break;
+
     case Pass1State::Normal:
         break;
     }
@@ -1391,6 +1864,10 @@ Error:
 //  Phase 2. Everything that decides whether the line assembles at all, or
 //  that moves the PC. Runs before a label can bind.
 //
+//  `entryPC` is the program counter as the line was REACHED, read before any
+//  handler can move it. That is where a label on this line binds -- see the
+//  origin case for why nothing the directive then does may change it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
@@ -1398,6 +1875,7 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
     HRESULT       hr           = S_OK;
     std::string   operandUpper = ToUpperCase (info.parsed.operand);
     Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
+    Word          entryPC      = m_pc;
 
 
 
@@ -1419,7 +1897,30 @@ HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, Line
 
     case Pass1Prelude::Org:
         hr = HandleOrgDirective (current, info);
+        CHR (hr);
+
+        // An origin claims the line before the label stage runs, so a label
+        // sharing it had been dropped without a word. It binds to the program
+        // counter AS THE LINE WAS REACHED -- exactly where a label on any other
+        // line binds -- rather than to anything the directive then does.
+        hr = RecordLabel (current, info, entryPC);
         info.isDirective = true;
+        break;
+
+    case Pass1Prelude::KeyboardInput:
+        hr = HandleKeyboardInput (current, info);
+        CHR (hr);
+
+        info.isDirective = true;
+        break;
+
+    // A refused construct is claimed and nothing else happens to the line --
+    // deliberately including its label, which is how an entry symbol is
+    // written. The refusal is the whole answer for that line, and binding a
+    // label there could only add a second complaint about a construct already
+    // declined.
+    case Pass1Prelude::SubsetBoundary:
+        hr = HandleSubsetBoundary (current, info, outClaimed);
         break;
 
     case Pass1Prelude::SegmentSwitch:
@@ -1505,7 +2006,7 @@ HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo &
     BAIL_OUT_IF (claimed, S_OK);
 
     // The PC has stopped moving, so a label on this line binds here.
-    hr = RecordLabel (current, info);
+    hr = RecordLabel (current, info, m_pc);
     CHR (hr);
 
     hr = RunContentStages (current, info);
@@ -1635,19 +2136,26 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
 
 
 
-    // `.END STRUCT` reaches this as a directive with an argument; bare
-    // `end struct` reaches it as a mnemonic with an operand. Both name what
-    // they close in the first word of what follows.
-    if (info.parsed.isDirective && info.parsed.directive == ".END")
+    // The TOKEN, not the canonical spelling. Comparing ".END" recognized the
+    // end directive only in a dialect that spells it with a dot, so a dialect
+    // spelling it otherwise would resolve to the right token and then fail to
+    // close the block -- every following line swallowed into the struct with no
+    // diagnostic. Same trap the origin directive was caught in.
+    //
+    // The mnemonic arm survives for a dialect that spells its end directive
+    // where a mnemonic would go; both spellings name what they close in the
+    // first word of what follows.
+    //
+    // WHICH WORD spells either of them is the active profile's business and not
+    // this function's. Comparing against fixed text let one dialect's source be
+    // closed by another dialect's word, and it did so in both halves at once:
+    // the opening word and the name of the thing it closes.
+    if (TokenForLine (info.parsed) == Directive::End)
     {
-        endsWhat = info.parsed.directiveArg;
-    }
-    else if (info.parsed.mnemonic == "END")
-    {
-        endsWhat = info.parsed.operand;
+        endsWhat = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
     }
 
-    isEnd = (GetLeadingWord (ToUpperCase (endsWhat)) == "STRUCT");
+    isEnd = (m_dialect.GetDirectiveForSpelling (GetLeadingWord (ToUpperCase (endsWhat))) == Directive::Struct);
 
 // Error:
     return hr;
@@ -1680,6 +2188,8 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
         { Directive::Dd,   4                },
     };
 
+
+
     return std::span<const StructMemberType> (s_kTypes, std::size (s_kTypes));
 }
 
@@ -1695,9 +2205,11 @@ std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMem
 //  returns the number of bytes it reserves, or 0 when the leading word is not a
 //  storage directive at all.
 //
-//  FromStorageSpelling rather than FromSpelling: inside a .STRUCT body there is
-//  no instruction to be ambiguous with, so `count rmb 4` is unambiguously four
-//  reserved bytes.
+//  The ambiguous vocabulary is consulted as well as the ordinary one, and this
+//  is the only place that is sound: inside a structure body there is no
+//  instruction to be ambiguous with, so `count rmb 4` is unambiguously four
+//  reserved bytes. Both answers come from the ACTIVE profile -- a dialect with
+//  no structures claims neither spelling and reserves nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1707,7 +2219,7 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
     const StructMemberType  * match = nullptr;
     Directive                 token = {};
     size_t                    split     = operand.find_first_of (" \t");
-    token = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
+    std::string               spelling  = ToUpperCase (operand.substr (0, split));
     std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
     size_t                    exprStart = countExpr.find_first_not_of (" \t");
 
@@ -1715,6 +2227,12 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
 
     outSize   = 0;
     countExpr = (exprStart == std::string::npos) ? countExpr : countExpr.substr (exprStart);
+    token     = m_dialect.GetDirectiveForSpelling (spelling);
+
+    if (token == Directive::None)
+    {
+        token = m_dialect.GetAmbiguousDirectiveForSpelling (spelling);
+    }
 
 
 
@@ -1840,42 +2358,111 @@ Error:
 //  the arguments substituted, so assembling it here would resolve labels and
 //  expressions against the definition's PC instead of the call site's.
 //
-//  LOCAL is the one directive read on the way past, because its names have to
-//  be known before expansion can rename them per-invocation -- otherwise two
-//  invocations in the same file would define the same label twice. It is still
-//  pushed into the body as well, since expansion re-reads it.
+//  EVERY OPEN DEFINITION RECEIVES EVERY LINE, and one terminator closes them
+//  all. A definition opened here does not become body text of the one already
+//  collecting -- it opens beside it, and from that point the two share a tail.
+//  So a pair written as
+//
+//      ADDX MAC        ADDX is TXA CLC ADC ]1
+//       TXA            ADDA is      CLC ADC ]1
+//      ADDA MAC
+//       CLC
+//       ADC ]1
+//       <<<
+//
+//  makes both, the first ending with the second's body. Collecting the opening
+//  line as text instead makes only the first, containing an opener that nothing
+//  ever closes, and the source reads as one unterminated definition.
+//
+//  The local-label declaration is the one directive read on the way past,
+//  because its names have to be known before expansion can rename them
+//  per-invocation -- otherwise two invocations in the same file would define
+//  the same label twice. It is still pushed into the body as well, since
+//  expansion re-reads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr            = S_OK;
+    MacroSyntax  syntax        = m_dialect.GetMacroSyntax();
+    std::string  mnemonic      = ToUpperCase (info.parsed.mnemonic);
+    std::string  operandUpper  = ToUpperCase (info.parsed.operand);
+    std::string  endKeyword    = syntax.endKeyword;
+    std::string  localKeyword  = syntax.localKeyword;
+    bool         opensAnother  = false;
+    bool         endsBody      = false;
+    bool         declaresLocal = false;
 
 
 
-    std::string mnUpper = info.parsed.mnemonic;
+    // A further definition OPENS rather than being collected, recognized by the
+    // same predicate the prelude opens the first one with -- so nothing decides
+    // twice what an opening line looks like. Tested first because such a line is
+    // never a terminator and never a local declaration.
+    opensAnother = IsMacroDefinitionStart (info.parsed, operandUpper, syntax.defKeyword);
 
+    // The macro-end TOKEN closes the body, and so does the active dialect's
+    // bare keyword. as65 needs the keyword: it has no token for this, since
+    // `.ENDM` is absent from its spelling table and parses as an unrecognized
+    // dotted directive that merely keeps its text. A dialect that DOES carry
+    // the token was the one being lost -- it would spell its terminator,
+    // resolve it to exactly the right token, and then have it swallowed into
+    // the body it was meant to close, leaving the remainder of the file inside
+    // a macro nobody calls.
+    endsBody = (info.parsed.directiveToken == Directive::MacroEnd) ||
+               (!endKeyword.empty() &&
+                ((mnemonic == endKeyword) ||
+                 (info.parsed.isDirective && info.parsed.directive == "." + endKeyword)));
 
-
-    if (mnUpper == "ENDM" || (info.parsed.isDirective && info.parsed.directive == ".ENDM"))
+    if (opensAnother)
     {
-        MacroDefinition def = {};
-        def.name       = m_currentMacroName;
-        def.body       = m_currentMacroBody;
-        def.paramNames = m_currentMacroParams;
-        def.localLabels = m_currentMacroLocals;
-        def.lineNumber = m_currentMacroLine;
-        m_macros[m_currentMacroName] = def;
+        OpenMacroDefinition (current, info, operandUpper);
+    }
+    else if (endsBody)
+    {
+        // The terminator may carry a LABEL, and the vendor sources do it:
+        // KEYMAC.S ends a macro with `NI <<<`, so the body's own branch target
+        // sits on the same line that closes the definition. Dropping the line
+        // whole -- which is what closing the body does -- takes that label with
+        // it and leaves every branch to it unresolvable. The label is re-emitted
+        // on a line of its own instead, where expansion renames it like any
+        // other body label.
+        if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
+        {
+            for (MacroDefinition & pending : m_pendingMacros)
+            {
+                pending.localLabels.push_back (info.parsed.label);
+                pending.body.push_back (info.parsed.label);
+            }
+        }
+
+        // One terminator closes every definition that is open, which is what
+        // makes the shorthand work at all -- the shorter definitions were never
+        // going to get a terminator of their own.
+        for (const MacroDefinition & pending : m_pendingMacros)
+        {
+            m_macros[pending.name] = pending;
+        }
+
+        m_pendingMacros.clear();
         m_pass1State = Pass1State::Normal;
     }
     else
     {
-        std::string bodyMn = info.parsed.mnemonic;
+        // The declaring keyword comes from the ACTIVE dialect rather than being
+        // compared against a fixed word. A dialect without one answers empty and
+        // no line is claimed -- which matters, because in a field-based dialect a
+        // line beginning with that word is a LABEL in column 1, and treating it
+        // as a declaration deletes the line's instruction and its label together.
+        declaresLocal = !localKeyword.empty() &&
+                        ((mnemonic == localKeyword) ||
+                         (info.parsed.isDirective && info.parsed.directive == "." + localKeyword));
 
-        if (bodyMn == "LOCAL" || (info.parsed.isDirective && info.parsed.directive == ".LOCAL"))
+        if (declaresLocal)
         {
-            std::string localArg = bodyMn == "LOCAL" ? info.parsed.operand : info.parsed.directiveArg;
-            auto localNames = Parser::SplitArgList (localArg);
+            std::string  localArg   = (mnemonic == localKeyword) ? info.parsed.operand : info.parsed.directiveArg;
+            auto         localNames = Parser::SplitArgList (localArg);
 
             for (const auto & ln : localNames)
             {
@@ -1890,12 +2477,31 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 
                 if (!name.empty())
                 {
-                    m_currentMacroLocals.push_back (name);
+                    for (MacroDefinition & pending : m_pendingMacros)
+                    {
+                        pending.localLabels.push_back (name);
+                    }
                 }
             }
         }
 
-        m_currentMacroBody.push_back (current.text);
+        // A dialect whose body labels are unique per expansion declares nothing,
+        // so every label the body defines is collected on the way past. Without
+        // it the second expansion redefines the first's labels and every branch
+        // in it resolves to the wrong copy -- which is why Merlin's own sources
+        // can expand one macro three times and still ship a working object.
+        if (syntax.labelsArePerExpansion && !info.parsed.label.empty())
+        {
+            for (MacroDefinition & pending : m_pendingMacros)
+            {
+                pending.localLabels.push_back (info.parsed.label);
+            }
+        }
+
+        for (MacroDefinition & pending : m_pendingMacros)
+        {
+            pending.body.push_back (current.text);
+        }
     }
 
 // Error:
@@ -1917,47 +2523,95 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 //  must not be defined, or a later invocation would silently expand a
 //  definition the author excluded.
 //
-//  A name that collides with a real mnemonic is recorded as an error but the
-//  definition still proceeds -- reporting one clear "conflicts with mnemonic"
-//  beats abandoning the definition and then emitting an "unknown macro" at
-//  every call site, which buries the actual cause.
-//
 //  `handled` reports whether this line opened a definition; the HRESULT
 //  reports only whether the attempt itself ran.
+//
+//  This is the FIRST definition only. A line opening one while another is
+//  already collecting never reaches the prelude -- the collecting state claims
+//  it first -- and is opened from there, through the same helper.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, LineInfo & info,
                                                  const std::string & operandUpper, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr = S_OK;
+
+
 
     handled = false;
-
-
 
     // Same predicate ClassifyPass1Line used to route here, so the two cannot
     // disagree about what opens a definition.
     BAIL_OUT_IF (!IsAssembling(), S_OK);
-    BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper), S_OK);
+    BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper,
+                                          m_dialect.GetMacroSyntax().defKeyword), S_OK);
+
+    OpenMacroDefinition (current, info, operandUpper);
+
+    handled = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::OpenMacroDefinition
+//
+//  Pushes one definition onto the collecting stack and puts pass 1 into the
+//  collecting state. Everything that makes a definition -- its name, where it
+//  opened, and any parameter names it declared -- is decided here and nowhere
+//  else, because both the prelude and the collector open definitions and a
+//  second copy of this reasoning is a second answer waiting to disagree.
+//
+//  A name that collides with a real mnemonic is recorded as an error but the
+//  definition still proceeds -- reporting one clear "conflicts with mnemonic"
+//  beats abandoning the definition and then emitting an "unknown macro" at
+//  every call site, which buries the actual cause.
+//
+//  WHERE THE NAME IS depends on the shape. In as65's `NAME macro` the keyword
+//  is the operand, so the name is the first word; in the token form the keyword
+//  occupies the opcode field and the name is the label beside it. Reading the
+//  wrong field would name the macro after its own opening directive, and every
+//  call site would then fail to find it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::OpenMacroDefinition (const PendingLine & current, const LineInfo & info,
+                                             const std::string & operandUpper)
+{
+    MacroDefinition  opened     = {};
+    std::string      defKeyword = m_dialect.GetMacroSyntax().defKeyword;
+
+
+
+    opened.name = (info.parsed.directiveToken == Directive::MacroDef)
+                      ? info.parsed.label
+                      : info.parsed.mnemonic;
 
     // Name collision check
-    if (m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+    if (m_opcodeTable->NamesAnInstruction (opened.name))
     {
-        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + info.parsed.mnemonic);
+        RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + opened.name);
     }
 
-    m_pass1State = Pass1State::CollectingMacro;
-    m_currentMacroName = info.parsed.mnemonic;
-    m_currentMacroLine = current.sourceLineNumber;
-    m_currentMacroBody.clear();
-    m_currentMacroParams.clear();
-    m_currentMacroLocals.clear();
+    opened.lineNumber = current.sourceLineNumber;
+    opened.sourceFile = current.sourceFile;
+    opened.openColumn = PrimaryColumn (info.parsed);
 
-    // Parse parameter names (after "macro" keyword)
-    if (operandUpper.size() > 5)
+    // Parameter names follow the opening keyword in the operand, so this reads
+    // the operand shape only. The token form declares no names at all -- its
+    // parameters are positional -- and taking a substring of its operand would
+    // turn whatever the line carried into a parameter list.
+    if ((info.parsed.directiveToken != Directive::MacroDef) &&
+        !defKeyword.empty() && (operandUpper.size() > defKeyword.size()))
     {
-        std::string paramStr = info.parsed.operand.substr (6);
+        std::string paramStr = info.parsed.operand.substr (defKeyword.size() + 1);
 
         if (!paramStr.empty())
         {
@@ -1976,16 +2630,14 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
 
                 if (!name.empty())
                 {
-                    m_currentMacroParams.push_back (name);
+                    opened.paramNames.push_back (name);
                 }
             }
         }
     }
 
-    handled = true;
-
-Error:
-    return hr;
+    m_pendingMacros.push_back (opened);
+    m_pass1State = Pass1State::CollectingMacro;
 }
 
 
@@ -2019,23 +2671,17 @@ HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current
     Directive    token   = Directive::None;
     std::string  condArg;
 
+
+
     handled = false;
 
 
 
-    // The dotted form carries its token from the parser; the bare mnemonic
-    // form does not take the directive path, so it resolves here. Either way
-    // the argument comes from wherever that spelling puts it.
-    if (info.parsed.isDirective)
-    {
-        token   = info.parsed.directiveToken;
-        condArg = info.parsed.directiveArg;
-    }
-    else if (!info.parsed.mnemonic.empty())
-    {
-        token   = DirectiveTable::FromSpelling (info.parsed.mnemonic);
-        condArg = info.parsed.operand;
-    }
+    // The token comes from the active profile either way -- see TokenForLine.
+    // Only the ARGUMENT differs, because the two spellings put it in different
+    // fields.
+    token   = TokenForLine (info.parsed);
+    condArg = info.parsed.isDirective ? info.parsed.directiveArg : info.parsed.operand;
 
     BAIL_OUT_IF (!IsConditionalDirective (token), S_OK);
 
@@ -2104,6 +2750,8 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
     state.parentAssembling = IsAssembling();
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
+    state.openFile         = current.sourceFile;
+    state.openColumn       = m_diagnosticColumn;
 
     if (state.parentAssembling)
     {
@@ -2162,6 +2810,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 {
     HRESULT hr = S_OK;
 
+
+
     ConditionalState state = {};
 
 
@@ -2169,6 +2819,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
     state.parentAssembling = IsAssembling();
     state.seenElse         = false;
     state.openLineNumber   = current.sourceLineNumber;
+    state.openFile         = current.sourceFile;
+    state.openColumn       = m_diagnosticColumn;
 
     if (state.parentAssembling)
     {
@@ -2297,6 +2949,21 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 //  value that only arrives in pass 2 would mean every one of them was wrong
 //  the first time round.
 //
+//  WHETHER THE OUTPUT CURSOR COMES ALONG is the dialect's answer, not this
+//  function's. A seeking dialect writes into an address-indexed image, so the
+//  cursor follows and the gap becomes fill. A relocating one leaves the output
+//  contiguous and changes only what labels bind to -- which is how one Merlin
+//  object holds three sections assembled at three addresses.
+//
+//  Either way the FIRST origin places the image: until something has been
+//  reserved there is no output to strand, and the byte stream has to begin
+//  where the source said it would.
+//
+//  An origin with NO OPERAND resyncs the program counter to the cursor -- "put
+//  the address back where the bytes actually are". That is meaningless while
+//  the two cannot differ, so a seeking dialect keeps reporting it as a missing
+//  operand rather than silently accepting a no-op.
+//
 //  The FIRST .org also sets m_result.startAddress, which is the load address
 //  of the emitted image. Later ones only move the PC; the image still begins
 //  where the first one put it.
@@ -2309,17 +2976,28 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 
 HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineInfo & info)
 {
-    HRESULT     hr = S_OK;
+    HRESULT     hr        = S_OK;
+    bool        relocates = (m_dialect.GetOriginSemantic() == OriginSemantic::ProgramCounterOnly);
+    bool        isResync  = relocates && info.parsed.directiveArg.empty();
     ExprResult  er;
 
 
+
+    if (isResync)
+    {
+        m_pc    = m_outputPos;
+        info.pc = m_pc;
+    }
+
+    BAIL_OUT_IF (isResync, S_OK);
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
     er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
 
     if (!er.success)
     {
-        RecordError (current.sourceLineNumber, ".org expression must be resolvable: " + er.error);
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
     }
     else
     {
@@ -2333,6 +3011,12 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
         m_pc    = newAddr;
         info.pc = m_pc;
 
+        if (!relocates || !m_outputStarted)
+        {
+            m_outputPos    = newAddr;
+            info.outputPos = newAddr;
+        }
+
         if (!m_originSet)
         {
             m_result.startAddress = newAddr;
@@ -2340,8 +3024,218 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
         }
     }
 
-// Error:
+Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandleKeyboardInput
+//
+//  A line that names a symbol and asks for its value from outside the source.
+//
+//  Merlin stops the assembly and prompts the operator at the keyboard; the
+//  answer becomes the symbol's value, and conditional assembly downstream reads
+//  it. A batch assembler has nobody to ask, so the answer comes from the
+//  predefined symbols the caller supplied -- the same channel every other
+//  externally-supplied value arrives on -- and nothing is ever read from a
+//  console.
+//
+//  THE MISSING ANSWER IS AN ERROR, deliberately, and neither of the two easier
+//  outcomes is acceptable. Blocking on a prompt turns an unattended build into a
+//  hang, and defaulting to zero assembles a DIFFERENT PROGRAM in silence: the
+//  vendor sources gate whole sections on these symbols, so a wrong answer
+//  produces a clean assembly of code nobody asked for. The diagnostic carries
+//  the symbol and the prompt, because the prompt is the only place the source
+//  says what the answer means.
+//
+//  The binding is written here rather than left to the blanket predefine so the
+//  directive does its own work: it is the same value from the same map, but a
+//  reader of this function can see what a KBD line results in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineInfo & info)
+{
+    HRESULT             hr        = S_OK;
+    const std::string & name      = info.parsed.label;
+    std::string         prompt    = StripDelimitedText (info.parsed.directiveArg);
+    bool                hasName   = !name.empty();
+    auto                answer    = m_options.predefinedSymbols.end();
+    bool                hasAnswer = false;
+
+
+
+    if (!hasName)
+    {
+        RecordError (current.sourceLineNumber,
+            info.parsed.directive + " needs a symbol name in the label field");
+    }
+
+    BAIL_OUT_IF (!hasName, S_OK);
+
+    answer    = m_options.predefinedSymbols.find (name);
+    hasAnswer = (answer != m_options.predefinedSymbols.end());
+
+    if (!hasAnswer)
+    {
+        std::string  message = "No answer supplied for " + name;
+
+        if (!prompt.empty())
+        {
+            message += " (" + prompt + ")";
+        }
+
+        message += ". Define it on the command line, for example "
+                 + std::string (1, m_options.flagPrefix) + "d " + name + "=0";
+
+        RecordError (current.sourceLineNumber, message);
+    }
+
+    BAIL_OUT_IF (!hasAnswer, S_OK);
+
+    m_symbols[name]     = (Word) answer->second;
+    m_symbolKinds[name] = SymbolKind::Equ;
+    m_exprSymbols[name] = answer->second;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandleSubsetBoundary
+//
+//  One construct the active profile refuses, recorded rather than reported.
+//
+//  Nothing is said here, and that is the design. The advice a relocatable
+//  module gets turns on whether ANY line of it declares an external symbol, so
+//  the earliest moment the message can be right is after the last line has been
+//  read. Reporting at the point of the construct would mean choosing between
+//  offering a fix that may not work and offering none at all.
+//
+//  The claim is conditional because a construct can be inside the subset once
+//  and outside it twice. An occurrence that the row does not refuse is left
+//  entirely alone -- unclaimed, so whatever handles it ordinarily still does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandleSubsetBoundary (const PendingLine & current, LineInfo & info, bool & outClaimed)
+{
+    HRESULT                    hr         = S_OK;
+    const SubsetBoundaryRow *  row        = SubsetBoundary::Find (m_dialect.GetSubsetBoundary(),
+                                                                  info.parsed.directiveToken);
+    int                        occurrence = 0;
+    BoundaryOffense            offense    = {};
+
+
+
+    // The classifier found a row for this token a moment ago, so its absence
+    // now would mean the boundary table changed mid-line.
+    CBRA (row);
+
+    occurrence = ++m_boundaryOccurrences[(int) info.parsed.directiveToken];
+    outClaimed = (row->trigger == SubsetBoundaryTrigger::EveryOccurrence) || (occurrence > 1);
+
+    BAIL_OUT_IF (!outClaimed, S_OK);
+
+    offense.row        = row;
+    offense.lineNumber = current.sourceLineNumber;
+    offense.column     = PrimaryColumn (info.parsed);
+    offense.file       = current.sourceFile;
+
+    m_boundaryOffenses.push_back (offense);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ReportSubsetBoundaryRefusals
+//
+//  Every construct the boundary refused, reported once the whole source has
+//  been read.
+//
+//  Every one of them, not the first. A developer meeting this boundary is
+//  deciding whether to port a file at all, and that decision needs the size of
+//  the gap; stopping at the first refusal turns one answer into as many
+//  assembly runs as there are constructs.
+//
+//  The module's linkage is settled before anything is composed, because it is a
+//  property of the file rather than of a line: one external declaration
+//  anywhere rules out the workaround for every refusal in the file, including
+//  those above it in the source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReportSubsetBoundaryRefusals()
+{
+    ModuleLinkage  linkage = ModuleLinkage::SelfContained;
+
+
+
+    for (const BoundaryOffense & offense : m_boundaryOffenses)
+    {
+        if (offense.row->makesModuleDependOnAnother)
+        {
+            linkage = ModuleLinkage::DependsOnOther;
+        }
+    }
+
+    for (const BoundaryOffense & offense : m_boundaryOffenses)
+    {
+        // Deferred, so the ambient file is whichever was processed last. The
+        // file the construct was MET in is restored before recording, exactly
+        // as the unclosed-block diagnostics below do -- and so is the column,
+        // which would otherwise point at wherever the last line's opcode
+        // happened to sit.
+        m_currentSourceFile = offense.file;
+        m_diagnosticColumn  = offense.column;
+
+        RecordRefusal (offense.lineNumber,
+                       SubsetBoundary::ComposeRefusal (*offense.row, linkage, m_dialect.GetName()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::StripDelimitedText
+//
+//  The text inside a delimited operand, with its opening and closing delimiter
+//  removed. Merlin takes ANY character as the delimiter, so the pair is read off
+//  the operand rather than compared against a quote set -- the same rule the
+//  string directives follow, and for the same reason.
+//
+//  An operand that is not delimited comes back unchanged, which is what a
+//  prompt-less line wants: there is nothing to strip and nothing to complain
+//  about.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::StripDelimitedText (const std::string & operand)
+{
+    bool  isDelimited = (operand.size() >= 2) && (operand.front() == operand.back());
+
+
+
+    return isDelimited ? operand.substr (1, operand.size() - 2) : operand;
 }
 
 
@@ -2373,8 +3267,11 @@ HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
 
     BAIL_OUT_IF (!IsSegmentDirective (token), S_OK);
 
-    // Save current PC to current segment
-    m_segmentPC[(int) m_currentSegment] = m_pc;
+    // Save current PC to current segment, and the output cursor beside it --
+    // a segment picks up where it left off in BOTH, or its bytes would resume
+    // at the right address and the wrong place in the file.
+    m_segmentPC[(int) m_currentSegment]        = m_pc;
+    m_segmentOutputPos[(int) m_currentSegment] = m_outputPos;
 
     // The long and short spellings share a token, so each segment is one
     // comparison rather than two -- and .CODE can no longer drift from
@@ -2393,8 +3290,10 @@ HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
     }
 
     // Restore target segment's PC
-    m_pc    = m_segmentPC[(int) m_currentSegment];
-    info.pc = m_pc;
+    m_pc           = m_segmentPC[(int) m_currentSegment];
+    m_outputPos    = m_segmentOutputPos[(int) m_currentSegment];
+    info.pc        = m_pc;
+    info.outputPos = m_outputPos;
 
     info.isDirective = true;
     handled = true;
@@ -2409,9 +3308,159 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::QualifyLocalName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::QualifyLocalName (const std::string & scope, const std::string & name)
+{
+    return scope + kLocalScopeSeparator + name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::QualifyLocalReferences
+//
+//  Rewrites every local-label reference in one operand to the scoped name its
+//  definition was recorded under.
+//
+//  Done as a TEXT rewrite rather than as a second symbol-lookup path, because a
+//  local label is referenced from inside an expression -- `LDA :TABLE+5,X` --
+//  and every consumer downstream reads that expression as text. Qualifying it
+//  once here means the operand classifier, the evaluator, and the unused-label
+//  sweep all see the same name without any of them learning what a local label
+//  is.
+//
+//  The prefix is only taken as one where an identifier follows it, so a colon
+//  used for anything else is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::QualifyLocalReferences (const std::string & text, char prefix,
+                                                     const std::string & scope, bool & outSawLocal)
+{
+    std::string  result;
+    size_t       i          = 0;
+    bool         startsName = false;
+
+
+
+    while (i < text.size())
+    {
+        startsName = (text[i] == prefix) && ((i + 1) < text.size()) &&
+                     (isalpha ((unsigned char) text[i + 1]) || (text[i + 1] == '_'));
+
+        if (startsName)
+        {
+            outSawLocal = true;
+        }
+
+        if (startsName && !scope.empty())
+        {
+            result += scope;
+            result += kLocalScopeSeparator;
+        }
+        else
+        {
+            result += text[i];
+        }
+
+        i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ApplyLocalLabelScope
+//
+//  Binds this line to the local-label scope it sits in, before any stage reads
+//  it.
+//
+//  Two things happen and their ORDER is the rule. A label that is not local
+//  OPENS a new scope, and every local label and local reference after it belongs
+//  to that one; references on this same line then resolve against it. Reversing
+//  the two would attach a line's own references to the previous scope.
+//
+//  A string operand is skipped outright. Its text is payload, and one of the
+//  vendor sources contains `ASC ":::6::6:6:"` -- rewriting inside it would emit
+//  different bytes rather than resolve a symbol.
+//
+//  Does nothing at all for a dialect with no local-label prefix, which is what
+//  keeps AS65 byte-identical.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::ApplyLocalLabelScope (const PendingLine & current, LineInfo & info)
+{
+    HRESULT       hr         = S_OK;
+    ParsedLine &  parsed     = info.parsed;
+    char          prefix     = m_dialect.GetLocalLabelPrefix();
+    bool          isPrivate  = m_dialect.GetMacroSyntax().labelsArePerExpansion && (current.macroDepth > 0);
+    bool          isLocal    = false;
+    bool          isPayload  = false;
+    bool          sawLocal   = false;
+
+
+
+    BAIL_OUT_IF (prefix == 0, S_OK);
+
+    isLocal = !parsed.label.empty() && (parsed.label[0] == prefix);
+
+    // A label a macro expansion produced does NOT open a scope. It is private to
+    // the expansion -- renamed per invocation, so no source can name it -- and
+    // letting it become the enclosing global would re-scope every local after
+    // the call site. The vendor sources prove it matters: `MAKE DUMP.S` calls
+    // macros defining `LP` and `ND` in the middle of a routine whose own locals
+    // belong to a global label further up, and each call would otherwise strand
+    // the locals that follow it.
+    // Nor does a REASSIGNABLE one. The same name is defined over and over -- the
+    // whole reason a dialect offers the form -- so treating each as a new scope
+    // would put successive locals under names that differ only by which
+    // definition happened to come last. CLOCK.S has `INCTIME` open a scope,
+    // `]LOOP` follow immediately, and `:OUT` further down belong to `INCTIME`.
+    if (!isLocal && !parsed.label.empty() && !isPrivate && (parsed.labelKind == SymbolKind::Label))
+    {
+        m_localLabelScope = parsed.label;
+    }
+
+    isPayload = (parsed.directiveToken == Directive::StringData);
+
+    if (!isPayload)
+    {
+        parsed.operand      = QualifyLocalReferences (parsed.operand,      prefix, m_localLabelScope, sawLocal);
+        parsed.directiveArg = QualifyLocalReferences (parsed.directiveArg, prefix, m_localLabelScope, sawLocal);
+        parsed.constantExpr = QualifyLocalReferences (parsed.constantExpr, prefix, m_localLabelScope, sawLocal);
+    }
+
+    if ((isLocal || sawLocal) && m_localLabelScope.empty())
+    {
+        RecordError (current.sourceLineNumber,
+                     "Local label used before any global label: " + (isLocal ? parsed.label : parsed.operand));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::RecordLabel
 //
-//  Binds a label to the current PC in pass 1, so pass 2 can resolve forward
+//  Binds a label to `address` in pass 1, so pass 2 can resolve forward
 //  references to it. Three tables are written together and must stay in step:
 //  m_symbols (the Word address), m_symbolKinds (Label vs Equ vs Set, which is
 //  what lets .SET be redefined and a label not), and m_exprSymbols (the
@@ -2426,46 +3475,137 @@ Error:
 //  far more often a typo that would otherwise assemble into something silently
 //  wrong.
 //
+//  The address is passed in rather than read from m_pc because a label sharing
+//  a line with an origin directive binds to the OUTPUT CURSOR, not to the
+//  relocated program counter. Merlin's `HEREINT ORG INTRFACE` is the case: the
+//  loader that copies the interface section to page 3 needs to know where the
+//  section sits in the file it was loaded from, so binding the label to $0300
+//  would be silently, plausibly wrong.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info)
+HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & info, Word address)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr           = S_OK;
+    char         prefix       = m_dialect.GetLocalLabelPrefix();
+    bool         isLocal      = false;
+    bool         isRebindable = (info.parsed.labelKind == SymbolKind::Set);
+    std::string  spelled;
+    std::string  stored;
 
 
 
     // Most lines carry no label; that is not a failure, just nothing to record.
     BAIL_OUT_IF (info.parsed.label.empty(), S_OK);
 
+    if (isRebindable)
+    {
+        hr = RecordRebindableLabel (current, info, address);
+        CHR (hr);
+    }
+
+    BAIL_OUT_IF (isRebindable, S_OK);
+
+    // A local label is validated as the name it SPELLS and stored under the name
+    // it BINDS to. Validating the joined name instead would reject every one of
+    // them, since the separator is deliberately a character no label may hold.
+    isLocal = (prefix != 0) && (info.parsed.label[0] == prefix);
+    spelled = isLocal ? info.parsed.label.substr (1) : info.parsed.label;
+    stored  = isLocal ? QualifyLocalName (m_localLabelScope, spelled) : info.parsed.label;
+
+    // A local with no scope to belong to was already reported where the scope is
+    // known; binding it to a name beginning with the separator would only
+    // produce a second, stranger diagnostic later.
+    BAIL_OUT_IF (isLocal && m_localLabelScope.empty(), S_OK);
+
     {
         std::string labelError;
-        HRESULT     hrLabel = Parser::ValidateLabel (info.parsed.label, m_opcodeTable, labelError);
+        HRESULT     hrLabel = Parser::ValidateLabel (spelled, *m_opcodeTable, labelError,
+                                                     m_dialect.GetExtraSymbolCharacters());
 
         if (FAILED (hrLabel))
         {
-            RecordError (current.sourceLineNumber, labelError);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn, labelError);
         }
-        else if (m_symbols.count (info.parsed.label) > 0)
+        else if (m_symbols.count (stored) > 0)
         {
-            RecordError (current.sourceLineNumber, "Duplicate label: " + info.parsed.label);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn,
+                           "Duplicate label: " + info.parsed.label);
         }
         else
         {
             std::string  upper;
 
-            m_symbols[info.parsed.label]     = m_pc;
-            m_symbolKinds[info.parsed.label] = SymbolKind::Label;
-            m_exprSymbols[info.parsed.label] = (int32_t) m_pc;
+            m_symbols[stored]     = address;
+            m_symbolKinds[stored] = SymbolKind::Label;
+            m_exprSymbols[stored] = (int32_t) address;
 
             // Warn if label resembles mnemonic by case
-            upper = ToUpperCase (info.parsed.label);
+            upper = ToUpperCase (spelled);
 
-            if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
+            if (upper != spelled && m_opcodeTable->IsMnemonic (upper))
             {
                 RecordWarning (current.sourceLineNumber, "Label name resembles mnemonic: " + info.parsed.label);
             }
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordRebindableLabel
+//
+//  Binds a label whose dialect allows the same name again further down.
+//
+//  Redefinition is the POINT of the form rather than something tolerated, so
+//  there is no duplicate check -- the second definition replaces the first and
+//  every reference between them kept the value it saw. What is still an error is
+//  colliding with a name bound some other way: a label or an equate is immutable,
+//  and rebinding one would move references already resolved against it. That is
+//  the same rule a reassignable constant follows, and it is the same table that
+//  records which kind a name is.
+//
+//  The name is NOT validated the way an ordinary label is. It is the profile's
+//  construction rather than the source's spelling, exactly like a constant's
+//  name -- the source wrote a sigil the shared label rules reject, and the
+//  profile has already turned it into something the expression tokenizer can lex.
+//
+//  THE COLLISION CHECK IS UNREACHABLE TODAY and is recorded rather than removed.
+//  Only a dialect's variable forms produce a name in this namespace, and both of
+//  them -- the assignment and this -- bind it as reassignable, so nothing can
+//  make one immutable first. It stays because it is what keeps that true by
+//  construction: a dialect adding a third form gets the diagnostic rather than a
+//  silent rebind. Verified by mutation, and nothing caught it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RecordRebindableLabel (const PendingLine & current, LineInfo & info, Word address)
+{
+    HRESULT              hr        = S_OK;
+    const std::string &  name      = info.parsed.label;
+    auto                 kindIt    = m_symbolKinds.find (name);
+    bool                 isTaken   = (kindIt != m_symbolKinds.end()) && (kindIt->second != SymbolKind::Set);
+
+
+
+    if (isTaken)
+    {
+        RecordError (current.sourceLineNumber,
+            "Cannot redefine " + name + " (was defined as immutable)");
+    }
+
+    BAIL_OUT_IF (isTaken, S_OK);
+
+    m_symbols[name]     = address;
+    m_symbolKinds[name] = SymbolKind::Set;
+    m_exprSymbols[name] = (int32_t) address;
 
 Error:
     return hr;
@@ -2534,7 +3674,8 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
 
         if (!er.success)
         {
-            RecordError (current.sourceLineNumber, "Cannot evaluate constant expression: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           "Cannot evaluate constant expression: " + er.error);
         }
         else
         {
@@ -2654,7 +3795,7 @@ HRESULT AssemblySession::HandlePass1Word (const PendingLine & /*current*/, LineI
 
 
 
-    m_pc += (Word) (args.size() * 2);
+    ReserveBytes ((Word) (args.size() * 2));
 
     return S_OK;
 }
@@ -2678,7 +3819,287 @@ HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineI
 
 
 
-    m_pc += (Word) text.size();
+    ReserveBytes ((Word) text.size());
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryEncodeStringOperand
+//
+//  One encoded-string operand into bytes.
+//
+//  The delimiter is whatever character opens the text -- ANY character, not a
+//  fixed quote set -- and it also decides whether the text carries the high bit,
+//  so it is read before the payload rather than skipped past.
+//
+//  Data after the closing delimiter (`ASC "TEXT"8D8D`) is a run of RAW
+//  HEXADECIMAL BYTE PAIRS, appended verbatim after the encoded text.
+//
+//  Settled against the shipped object rather than reasoned about. `MAKE DUMP`
+//  carries `ASC "This destroys current source."8D8D` followed by
+//  `ASC "Do you really want it (Y/N)? "00`, and its object holds the high-ASCII
+//  text with `8D 8D` and then `00` immediately after -- so the digits are
+//  hexadecimal, two per byte, and the bytes are NOT forced to the delimiter's
+//  high-bit convention the way the text is. `00` staying `00` is what proves the
+//  second half; a high-bit rule would have made it `80`.
+//
+//  Every one of the 14 such lines across the vendor sources is a bare digit run
+//  with no separator, so no comma form is accepted here. Adding one would be
+//  guessing at a spelling the corpus does not contain.
+//
+//  UNVERIFIED: whether a trailing run after DCI counts toward the terminator.
+//  Every trailing-run line on the disk is ASC, so nothing pins it. The text is
+//  encoded first and the run appended after, which leaves DCI's inversion on the
+//  last character of the TEXT.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryEncodeStringOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                              std::string & outError)
+{
+    const std::string &  operand   = parsed.directiveArg;
+    std::string          extra;
+    char                 delimiter = 0;
+    size_t               closing   = std::string::npos;
+    bool                 hasText   = (operand.size() >= 2);
+    bool                 closed    = false;
+    bool                 encoded   = false;
+
+
+
+    if (!hasText)
+    {
+        outError = "String directive needs delimited text";
+    }
+    else
+    {
+        delimiter = operand[0];
+        closing   = operand.find (delimiter, 1);
+        closed    = (closing != std::string::npos);
+
+        if (!closed)
+        {
+            outError = std::string ("Unterminated string: no closing ") + delimiter;
+        }
+        else
+        {
+            extra = operand.substr (closing + 1);
+
+            StringEncoding::Encode (operand.substr (1, closing - 1),
+                                    parsed.stringMode,
+                                    StringEncoding::HighBitFromDelimiter (delimiter),
+                                    outBytes);
+
+            encoded = TryParseHexBytes (extra, outBytes);
+
+            if (!encoded)
+            {
+                outError = "Trailing data after a string operand must be whole hexadecimal bytes: " + extra;
+                outBytes.clear();
+            }
+        }
+    }
+
+    return encoded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryParseHexBytes
+//
+//  A run of hexadecimal digit pairs APPENDED to whatever the caller already
+//  has, so one call can extend an encoded string rather than replace it.
+//
+//  An odd number of digits is refused rather than padded. A half byte means the
+//  source says something the reader cannot resolve, and both plausible repairs
+//  -- pad the front, pad the back -- change every byte after it.
+//
+//  Empty text is a success that appends nothing, which is what makes this
+//  usable for the common case of no trailing data at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryParseHexBytes (const std::string & text, std::vector<Byte> & outBytes)
+{
+    size_t  pos    = 0;
+    bool    parsed = ((text.size() % 2) == 0);
+
+
+
+    while (parsed && (pos < text.size()))
+    {
+        int  value = HexByte (text, pos);
+
+        if (value < 0)
+        {
+            parsed = false;
+            break;
+        }
+
+        outBytes.push_back ((Byte) value);
+        pos += 2;
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::TryEncodeHexOperand
+//
+//  One raw-hexadecimal directive into bytes.
+//
+//  The digits are the bytes: no expression is evaluated and no value is
+//  range-checked, which is the whole point of the directive -- it is how a
+//  source writes data the assembler has no other way to spell.
+//
+//  Separators are removed before parsing rather than parsed as structure.
+//  Every one of the nine occurrences across the vendor sources is an unbroken
+//  digit run, so the comma form is UNVERIFIED here and accepted only because
+//  the directive documents it and refusing it could only cost a user source
+//  that assembles elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::TryEncodeHexOperand (const ParsedLine & parsed, std::vector<Byte> & outBytes,
+                                           std::string & outError)
+{
+    std::string  digits;
+    bool         encoded = false;
+
+
+
+    for (char ch : parsed.directiveArg)
+    {
+        if ((ch != ',') && (ch != ' ') && (ch != '\t'))
+        {
+            digits += ch;
+        }
+    }
+
+    if (digits.empty())
+    {
+        outError = "Hexadecimal data directive needs at least one byte";
+    }
+    else
+    {
+        encoded = TryParseHexBytes (digits, outBytes);
+
+        if (!encoded)
+        {
+            outError = "Hexadecimal data must be whole bytes of hexadecimal digits: " + parsed.directiveArg;
+            outBytes.clear();
+        }
+    }
+
+    return encoded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Hex
+//
+//  Sized by running the encoder and measuring, so the two passes cannot
+//  disagree about how many bytes the line occupies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Hex (const PendingLine & current, LineInfo & info)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeHexOperand (info.parsed, bytes, error);
+
+
+
+    if (!encoded)
+    {
+        RecordError (current.sourceLineNumber, error);
+    }
+
+    ReserveBytes ((Word) bytes.size());
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitHexDirective
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitHexDirective (const LineInfo & info, Word & emitPC)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeHexOperand (info.parsed, bytes, error);
+
+
+
+    IGNORE_RETURN_VALUE (encoded, false);
+
+    for (Byte value : bytes)
+    {
+        EmitByte (value, emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1String
+//
+//  Sizes an encoded-string directive by ENCODING it and measuring the result,
+//  rather than by counting characters. The encodings differ in what they add at
+//  the ends -- a length prefix, or nothing -- so a character count is right for
+//  some modes and quietly wrong for others.
+//
+//  The operand text is all the encoding depends on, so this cannot disagree with
+//  pass 2 over a forward reference: there are none to have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1String (const PendingLine & current, LineInfo & info)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeStringOperand (info.parsed, bytes, error);
+
+
+
+    if (!encoded)
+    {
+        RecordError (current.sourceLineNumber, error);
+    }
+
+    ReserveBytes ((Word) bytes.size());
 
     return S_OK;
 }
@@ -2701,7 +4122,7 @@ HRESULT AssemblySession::HandlePass1Dd (const PendingLine & /*current*/, LineInf
 
 
 
-    m_pc += (Word) (args.size() * 4);
+    ReserveBytes ((Word) (args.size() * 4));
 
     return S_OK;
 }
@@ -2736,11 +4157,12 @@ HRESULT AssemblySession::HandlePass1Ds (const PendingLine & current, LineInfo & 
 
         if (!er.success)
         {
-            RecordError (current.sourceLineNumber, ".ds size must be resolvable: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           info.parsed.directive + " size must be resolvable: " + er.error);
         }
         else
         {
-            m_pc += (Word) er.value;
+            ReserveBytes ((Word) er.value);
         }
     }
 
@@ -2790,7 +4212,7 @@ HRESULT AssemblySession::HandlePass1Align (const PendingLine & current, LineInfo
 
         if (overshoot != 0)
         {
-            m_pc += (Word) (alignment - overshoot);
+            ReserveBytes ((Word) (alignment - overshoot));
         }
     }
 
@@ -2911,6 +4333,564 @@ HRESULT AssemblySession::HandlePass1Title (const PendingLine & /*current*/, Line
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandlePass1Loop
+//
+//  Opens a repeat block: everything up to the terminator is collected, and the
+//  terminator requeues the collection once per iteration.
+//
+//  The count is settled HERE, in pass 1, and it has to be: the block becomes
+//  lines while pass 1 is still walking, so an expression naming a label defined
+//  further down has no answer yet and never will. That is a property of what
+//  expansion is rather than a limitation worth working around -- pass 2 sees the
+//  expanded lines, not the block.
+//
+//  The collecting state is entered even when the count is refused, so the
+//  terminator still closes something. Bailing out instead would leave the body
+//  assembling once as ordinary lines and the terminator reported as an orphan,
+//  which buries one clear diagnostic under two misleading ones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Loop (const PendingLine & current, LineInfo & info)
+{
+    HRESULT     hr        = S_OK;
+    bool        inRange   = false;
+    ExprResult  er;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+
+    m_loopBody.clear();
+    m_loopCount     = 0;
+    m_loopNesting   = 0;
+    m_loopLine      = current.sourceLineNumber;
+    m_loopColumn    = m_diagnosticColumn;
+    m_loopFile      = current.sourceFile;
+    m_loopDirective = info.parsed.directive;
+    m_pass1State    = Pass1State::CollectingLoop;
+
+    inRange = er.success && (er.value >= 0) && (er.value <= kMaxLoopIterations);
+
+    if (!er.success)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " repeat count must be resolvable: " + er.error);
+    }
+    else if (!inRange)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " repeat count must be 0 to "
+                       + std::to_string (kMaxLoopIterations));
+    }
+    else
+    {
+        m_loopCount = er.value;
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::CollectLoopBody
+//
+//  One line swallowed by an open repeat block.
+//
+//  A nested block is collected as ORDINARY BODY TEXT, counted only so the right
+//  terminator closes the outer one. Every copy of the outer body then meets the
+//  inner opening directive again and expands it afresh, which is what makes
+//  nesting cost a counter rather than a stack.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::CollectLoopBody (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr     = S_OK;
+    bool     opens  = (info.parsed.directiveToken == Directive::Loop);
+    bool     closes = (info.parsed.directiveToken == Directive::LoopEnd);
+
+
+
+    if (closes && (m_loopNesting == 0))
+    {
+        ExpandCollectedLoop();
+    }
+    else
+    {
+        if (opens)
+        {
+            m_loopNesting++;
+        }
+
+        if (closes)
+        {
+            m_loopNesting--;
+        }
+
+        m_loopBody.push_back (current);
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ExpandCollectedLoop
+//
+//  The collected body, requeued once per iteration.
+//
+//  Lines go to the FRONT of the pending queue in reverse, which is how macro
+//  expansion already puts generated lines back in source order -- the queue is
+//  consumed from the front. Each copy carries the line number and file its
+//  original was written in, so a diagnostic raised in the last iteration points
+//  at the one line the author actually wrote.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ExpandCollectedLoop()
+{
+    m_pass1State = Pass1State::Normal;
+
+    for (int iteration = 0; iteration < m_loopCount; iteration++)
+    {
+        for (size_t index = m_loopBody.size(); index > 0; index--)
+        {
+            m_pendingLines.push_front (m_loopBody[index - 1]);
+        }
+    }
+
+    m_loopBody.clear();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1LoopEnd
+//
+//  A loop terminator that closes nothing.
+//
+//  Reachable only OUTSIDE a repeat block: while one is open the collecting
+//  state claims the line before dispatch ever runs. So there is exactly one
+//  thing this can mean, and saying it is the whole job -- a terminator with no
+//  opening directive was previously dropped without a word, which is the
+//  silently-ignored shape this dialect's directives were built to avoid.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1LoopEnd (const PendingLine & current, LineInfo & info)
+{
+    RecordError (current.sourceLineNumber,
+                 info.parsed.directive + " has no loop to close");
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1DummySection
+//
+//  Opens a section that assigns addresses and emits nothing.
+//
+//  This is how a source describes a memory layout it does not own -- a page of
+//  zero-page variables, a block of scratch -- and gets names for every field
+//  without a byte of it appearing in the object. Every line inside is sized
+//  exactly as it would be anywhere else, so a label lands where the layout says;
+//  what changes is only that the output cursor stays where it was.
+//
+//  A section inside a section is refused rather than nested. There is one place
+//  to return to, and a second entry would overwrite it -- so the first section's
+//  end would restore the second's origin and every byte after it would be placed
+//  somewhere nobody asked for, silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1DummySection (const PendingLine & current, LineInfo & info)
+{
+    HRESULT     hr       = S_OK;
+    bool        isNested = m_inDummySection;
+    ExprResult  er;
+
+
+
+    if (isNested)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " is already open, from line " + std::to_string (m_dummyLine));
+    }
+
+    BAIL_OUT_IF (isNested, S_OK);
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+
+    if (!er.success)
+    {
+        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
+    }
+
+    BAIL_OUT_IF (!er.success, S_OK);
+
+    m_dummyReturnPC     = m_pc;
+    m_dummyReturnOutput = m_outputPos;
+    m_dummyLine         = current.sourceLineNumber;
+    m_dummyColumn       = m_diagnosticColumn;
+    m_dummyFile         = current.sourceFile;
+    m_dummyDirective    = info.parsed.directive;
+    m_inDummySection    = true;
+
+    m_pc                = (Word) er.value;
+    info.pc             = m_pc;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1DummySectionEnd
+//
+//  Closes a dummy section, putting both cursors back where the section was
+//  entered from.
+//
+//  A terminator with no section open is reported rather than ignored: it means
+//  either an opening directive that never assembled -- inside a conditional the
+//  author did not expect to be false, typically -- or a stray line, and both
+//  leave the reader with a file whose addresses are not what they look like.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1DummySectionEnd (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr     = S_OK;
+    bool     isOpen = m_inDummySection;
+
+
+
+    if (!isOpen)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " has no dummy section to close");
+    }
+
+    BAIL_OUT_IF (!isOpen, S_OK);
+
+    m_pc             = m_dummyReturnPC;
+    m_outputPos      = m_dummyReturnOutput;
+    m_inDummySection = false;
+
+    info.pc          = m_pc;
+    info.outputPos   = m_outputPos;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1CpuSelect
+//
+//  A dialect that selects its CPU in the source, doing it.
+//
+//  From here to the end of the assembly the wider instruction table answers
+//  every lookup. Recorded per line as it goes -- see LineInfo::usedExtendedSet
+//  -- rather than replayed by pass 2, because conditional assembly can put this
+//  line inside a block the two passes need not agree about.
+//
+//  ASKING FIRST is obligatory, and this is the caller InstructionSetProvider's
+//  comment names. A provider with nothing to switch to answers with the base
+//  table, so switching against it would leave the source told it had reached a
+//  wider processor and the assembler quietly on the narrow one. Saying so is
+//  the only honest answer available: the tables are injected, so this layer
+//  cannot go and find one.
+//
+//  AN OPERAND IS ACCEPTED AND IGNORED, and the reasoning that once refused one
+//  is kept here because it was right for as long as the answer was unknown.
+//  Whether this directive has a form that puts the CPU BACK was an open question
+//  about the language, and refusing the operand was the only reading that
+//  answered nothing: ignoring it would have said "there is no such form, and
+//  writing one selects the wider processor anyway", silently.
+//
+//  It is no longer open. Assembled under the real assembler, an operand draws no
+//  diagnostic and selects nothing -- the wider set stays selected, proven by an
+//  instruction only the wider processor has still assembling on the line after
+//  it. So the transition really is one-way, and the refusal became the thing
+//  rejecting source the real assembler accepts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1CpuSelect (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr           = S_OK;
+    bool     canSelect    = m_instructionSets.HasExtended();
+
+
+
+    if (!canSelect)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " selects a wider instruction set, and this assembly was"
+                     " given only one instruction set to work from");
+    }
+
+    BAIL_OUT_IF (!canSelect, S_OK);
+
+    m_extendedActive = true;
+    m_opcodeTable    = &m_instructionSets.GetExtended();
+
+    // Reported so the caller can say WHICH instruction set the assembly ran on
+    // and what chose it. Nothing outside the source knows: the directive may sit
+    // inside a conditional, so an invocation that passed no CPU flag cannot tell
+    // "the default stood" from "the source selected the wider set" without being
+    // told, and those two read identically in an empty report.
+    m_result.extendedSetSelectedInSource = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1ObjectFile
+//
+//  The source naming its own output.
+//
+//  THE CALLER WINS. A name supplied from outside the source is honored and this
+//  directive is then recorded only as what the source would have asked for, so
+//  a build script can point one source at several outputs without editing it.
+//  The precedence is settled in Initialize, which seeds the result with the
+//  caller's name; all this has to do is not overwrite one.
+//
+//  A later directive replaces an earlier one, the way a later origin does. The
+//  name in effect is the last one the source stated, which is the only reading
+//  that does not require knowing how many are above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1ObjectFile (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr        = S_OK;
+    std::string  name      = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasName   = !name.empty();
+    bool         callerSet = !m_options.outputFileName.empty();
+
+
+
+    if (!hasName)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+    }
+
+    BAIL_OUT_IF (!hasName, S_OK);
+    BAIL_OUT_IF (callerSet, S_OK);
+
+    m_result.outputFileName = name;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::BindPositionalParameters
+//
+//  One parameter-binding line, in whichever pass is asking.
+//
+//  The values are split on the MACRO ARGUMENT separator, because these are the
+//  same parameters an invocation supplies and a source writing them two ways
+//  would be two rules for one form. The name each binds under is the profile's,
+//  so a binding and a reference to it cannot disagree about what the symbol is
+//  called.
+//
+//  They bind as REASSIGNABLE, which is the whole point: a fragment may be
+//  included twice under different bindings, and an immutable symbol would report
+//  the second as a duplicate of the first.
+//
+//  EACH DIAGNOSTIC BELONGS TO EXACTLY ONE PASS, because this line is visited by
+//  both and anything said in both is said twice. How the line is WRITTEN is
+//  settled in pass 1, which is the first pass that can answer it. Whether an
+//  expression resolves is settled in pass 2, which is the first pass that can:
+//  the vendor's own use binds a label defined BELOW the fragment it
+//  parameterizes, so refusing a forward reference in pass 1 would reject the one
+//  shape the directive exists for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::BindPositionalParameters (int                 lineNumber,
+                                                   const ParsedLine &  parsed,
+                                                   ExprContext      &  ctx,
+                                                   bool                isFinalPass)
+{
+    HRESULT                   hr        = S_OK;
+    MacroSyntax               syntax    = m_dialect.GetMacroSyntax();
+    std::vector<std::string>  values    = Parser::SplitOnSeparator (parsed.directiveArg, syntax.argumentSeparator);
+    size_t                    count     = values.size();
+    bool                      hasValues = (count > 0);
+    bool                      fitsForm  = (count <= (size_t) kMaxPositionalParams);
+
+
+
+    if (!hasValues && !isFinalPass)
+    {
+        RecordError (lineNumber, parsed.directive + " binds no parameters. Values are separated by '"
+                                 + std::string (1, syntax.argumentSeparator) + "'");
+    }
+
+    BAIL_OUT_IF (!hasValues, S_OK);
+
+    // More values than the positional form can name. The extras would bind to
+    // symbols no source can spell, which is silently assembling a program whose
+    // author believed every value was in use.
+    if (!fitsForm && !isFinalPass)
+    {
+        RecordError (lineNumber, parsed.directive + " binds " + std::to_string (count)
+                                 + " parameters, and only " + std::to_string (kMaxPositionalParams)
+                                 + " can be referred to");
+    }
+
+    BAIL_OUT_IF (!fitsForm, S_OK);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        std::string  name    = m_dialect.GetPositionalParameterSymbol ((int) i + 1);
+        ExprResult   er      = {};
+        bool         isNamed = !name.empty();
+
+        // A profile claiming this directive and naming no symbol for a parameter
+        // would bind nothing while reporting success, so it fails loudly here
+        // rather than leaving every reference undefined for no stated reason.
+        CBRA (isNamed);
+
+        er = ExpressionEvaluator::Evaluate (values[i], ctx);
+
+        if (er.success)
+        {
+            m_symbols[name]     = (Word) er.value;
+            m_symbolKinds[name] = SymbolKind::Set;
+            m_exprSymbols[name] = er.value;
+
+            if (isFinalPass)
+            {
+                m_fullSymbols[name] = er.value;
+            }
+        }
+        else if (isFinalPass)
+        {
+            RecordErrorAt (lineNumber, parsed.operandColumn,
+                           "Cannot evaluate parameter binding: " + er.error);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1ParameterBinding
+//
+//  Pass 1 binds so the lines below are SIZED against the values in effect --
+//  a parameter naming a zero-page address makes the instruction beside it two
+//  bytes rather than three, and getting that wrong moves every label after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1ParameterBinding (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+
+    hr = BindPositionalParameters (current.sourceLineNumber, info.parsed, m_pass1Ctx, false);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RebindParameters
+//
+//  And pass 2 binds again, where the line is reached, for the reason
+//  RebindMutableConstant does: pass 2 reads one table built after pass 1
+//  finished, so without this every reference resolves to the LAST binding the
+//  file made rather than to the one above it.
+//
+//  It emits nothing, which is why the cursor is untouched. The pass-2 column is
+//  the only hook that runs in source order, and the assembly-time assertion
+//  already uses it for an action rather than for bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RebindParameters (const LineInfo & info, Word & /*emitPC*/)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+
+    hr = BindPositionalParameters (info.parsed.lineNumber, info.parsed, m_pass2Ctx, true);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::IgnorePass1Directive
 //
 //  Recognized and deliberately does nothing: .OPT_NOOP is accepted only for
@@ -2971,7 +4951,62 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::Text,        &AssemblySession::HandlePass1Text,                  &AssemblySession::EmitTextDirective      },
     { Directive::Title,       &AssemblySession::HandlePass1Title,                 nullptr                                  },
     { Directive::Word,        &AssemblySession::HandlePass1Word,                  &AssemblySession::EmitWordDirective      },
+
+    //  Merlin's directives. The TOKENS exist so the vocabulary is complete in
+    //  one place and this static_assert fires once rather than once per
+    //  directive added.
+    //
+    //  A null pass-1 column means NOT IMPLEMENTED YET, and the line is then
+    //  dropped without a word -- which is the silent wrong-bytes failure this
+    //  dialect's vocabulary exists to prevent, not a way of saying "emits
+    //  nothing". The tokens whose rows are legitimately null say so at their
+    //  own rows below: an earlier phase claims the line, or the boundary
+    //  refuses it by name.
+    //
+    //  WordHighFirst shares its pass-1 handler with the ordinary word directive
+    //  because the two reserve identically -- two bytes per argument, whatever
+    //  order pass 2 writes them in. Only the emitter differs, and a second
+    //  sizing function would be a copy that could drift from the one the
+    //  neighboring row uses.
+    { Directive::StringData,      &AssemblySession::HandlePass1String,      &AssemblySession::EmitStringDirective    },
+    { Directive::HexData,         &AssemblySession::HandlePass1Hex,         &AssemblySession::EmitHexDirective       },
+    { Directive::WordHighFirst,   &AssemblySession::HandlePass1Word,        &AssemblySession::EmitWordHighFirstDirective },
+
+    //  ERR acts entirely in pass 2, where every symbol is known. Its pass-1 row
+    //  is the recognizer rather than a no-op: a directive with no pass-1 handler
+    //  is not marked as one, and an unmarked line never reaches pass-2 dispatch.
+    { Directive::ErrorIf,         &AssemblySession::IgnorePass1Directive,    &AssemblySession::EmitErrorIfDirective   },
+    { Directive::Loop,            &AssemblySession::HandlePass1Loop,        nullptr                                  },
+    { Directive::LoopEnd,         &AssemblySession::HandlePass1LoopEnd,     nullptr                                  },
+    { Directive::DummySection,    &AssemblySession::HandlePass1DummySection,    nullptr                              },
+    { Directive::DummySectionEnd, &AssemblySession::HandlePass1DummySectionEnd, nullptr                              },
+    { Directive::MacroDef,        nullptr,                                  nullptr                                  },
+    { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
+    { Directive::CpuSelect,       &AssemblySession::HandlePass1CpuSelect,   nullptr                                  },
+    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  nullptr                                  },
+
+    //  KBD acts entirely in the prelude, before a label can bind, so both rows
+    //  are null for the same reason ORG's are rather than because it is
+    //  unimplemented.
+    { Directive::KeyboardInput,   nullptr,                                  nullptr                                  },
+
+    //  VAR binds in BOTH passes. Pass 1 so the lines below it are sized against
+    //  the values in effect, and pass 2 so a reference resolves against the
+    //  binding above it rather than the last one the file made. The pass-2 row
+    //  emits no bytes -- the same use of that column the assembly-time assertion
+    //  already makes.
+    { Directive::ParameterBinding, &AssemblySession::HandlePass1ParameterBinding, &AssemblySession::RebindParameters },
+
+    //  Refused by name rather than handled. The refusal is a table of its own,
+    //  consulted before dispatch, so these rows stay null by design.
+    { Directive::Relocatable,     nullptr,                                  nullptr                                  },
+    { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
+    { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
+    { Directive::FileType,        nullptr,                                  nullptr                                  },
+    { Directive::SaveObject,      nullptr,                                  nullptr                                  },
     };
+
+
 
     // Adding a Directive without adding its row fails the build here. Row
     // ORDER is checked at lookup instead -- a static_assert cannot see a
@@ -2994,10 +5029,17 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 //  directive table and the pass1 column says who handles it.
 //
 //  Unlike pass 2, a null column here means NOT HANDLED rather than "handled,
-//  emits nothing" -- an unknown dotted spelling, or a directive an earlier
-//  phase already claimed -- so `handled` is false and the line falls through
-//  to whatever comes next. Same order-assert as pass 2, protecting the same
-//  index-by-token assumption.
+//  emits nothing" -- a directive an earlier phase already claimed -- so
+//  `handled` is false and the line falls through to whatever comes next. Same
+//  order-assert as pass 2, protecting the same index-by-token assumption.
+//
+//  A spelling that resolved to NO token is the other case, and it fails the
+//  assembly. The line looks like a directive and names nothing the dialect
+//  defines, so nothing can size it: it produces no bytes, every address below
+//  it moves up, and the run would otherwise succeed while quietly building
+//  something other than what was written. It is a SOURCE error rather than a
+//  subset boundary -- a word the assembler never recognized is not a construct
+//  it understood and declined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3009,6 +5051,11 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
 
 
 
+    if (token == Directive::None)
+    {
+        RecordError (current.sourceLineNumber, DescribeUnknownDirective (info.parsed));
+    }
+
     if (token > Directive::None && token < Directive::Count)
     {
         const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
@@ -3017,8 +5064,8 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
         handler = row.pass1;
     }
 
-    // A directive with no pass-1 row is not ours: an unknown dotted spelling,
-    // or one an earlier phase already claimed.
+    // A directive with no pass-1 row is not ours: an unrecognized spelling,
+    // reported just above, or one an earlier phase already claimed.
     handled          = (handler != nullptr);
     info.isDirective = handled;
 
@@ -3071,11 +5118,11 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
     if (values.empty() && !info.parsed.directiveArg.empty())
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        m_pc += (Word) args.size();
+        ReserveBytes ((Word) args.size());
     }
     else
     {
-        m_pc += (Word) values.size();
+        ReserveBytes ((Word) values.size());
     }
 
 // Error:
@@ -3452,15 +5499,29 @@ Error:
 
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr      = S_OK;
-    auto    macroIt = m_macros.find (info.parsed.mnemonic);
+    HRESULT                   hr        = S_OK;
+    MacroSyntax               syntax    = m_dialect.GetMacroSyntax();
+    std::string               name      = info.parsed.mnemonic;
+    std::vector<std::string>  args;
+    std::vector<std::string>  expandedLines;
+    std::string               uniqueSuffix;
+    int                       highest   = 0;
+    int                       supplied  = 0;
+    bool                      isDefined = false;
 
 
 
     handled = false;
 
+    // The argument separator is the dialect's. Merlin's is a semicolon, which is
+    // also why the field scanner refuses to treat one inside the operand as a
+    // comment: `ADD SUMSTR;DEFLEN;PL` passes three arguments, and a parser
+    // stripping from the first semicolon would pass one.
+    args      = Parser::SplitOnSeparator (info.parsed.operand, syntax.argumentSeparator);
+    isDefined = (m_macros.find (name) != m_macros.end());
+
     // Not a macro call; the line belongs to a later stage.
-    BAIL_OUT_IF (macroIt == m_macros.end(), S_OK);
+    BAIL_OUT_IF (!isDefined, S_OK);
 
     // Claimed even though it failed: the line was a macro call, so no later
     // stage should try to reinterpret it.
@@ -3469,36 +5530,105 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
                 "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
             handled = true);
 
+    // A parameter the body refers to with no argument to fill it. REJECTED here
+    // rather than expanded with the gap left empty, and the difference is not
+    // cosmetic: an empty substitution turns `LDA ]2` into `LDA `, and a body
+    // whose lines happen to survive that assembles a DIFFERENT program without
+    // complaint.
+    //
+    // The commonest cause is not a typo. What separates one argument from the
+    // next is the dialect's -- Merlin uses a semicolon where others use a comma
+    // -- so a call written in another assembler's punctuation arrives as ONE
+    // argument however many were meant, and every parameter after the first is
+    // unfilled. Claimed on the way out for the same reason the depth limit is.
+    highest = HighestParameterReferenced (m_macros[name], syntax.parameterSigil);
+    supplied = (int) args.size();
+
+    CBRFEx (highest <= supplied, S_OK,
+            RecordError (current.sourceLineNumber,
+                name + " refers to parameter " + std::string (1, syntax.parameterSigil) +
+                std::to_string (highest) + " but the invocation supplies " + std::to_string (supplied) +
+                " argument(s). Arguments are separated by '" + std::string (1, syntax.argumentSeparator) + "'.");
+            handled = true);
+
+    m_macroUniqueCounter++;
+    uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
+
+    hr = SubstituteMacroParams (m_macros[name], args, uniqueSuffix, expandedLines);
+    CHR (hr);
+
+    // Insert expanded lines at the FRONT of the queue (reverse order)
+    for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
     {
-        std::vector<std::string> args;
-        std::vector<std::string> expandedLines;
+        PendingLine  pl = {};
 
-        if (!info.parsed.operand.empty())
-        {
-            args = Parser::SplitArgList (info.parsed.operand);
-        }
-
-        m_macroUniqueCounter++;
-        std::string uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
-
-        hr = SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines);
-        CHR (hr);
-
-        // Insert expanded lines at the FRONT of the queue (reverse order)
-        for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
-        {
-            PendingLine pl   = {};
-            pl.text          = expandedLines[bi];
-            pl.sourceLineNumber = current.sourceLineNumber;
-            pl.macroDepth    = current.macroDepth + 1;
-            m_pendingLines.push_front (pl);
-        }
-
-        handled = true;
+        pl.text             = expandedLines[bi];
+        pl.sourceLineNumber = current.sourceLineNumber;
+        pl.sourceFile       = current.sourceFile;
+        pl.macroDepth       = current.macroDepth + 1;
+        m_pendingLines.push_front (pl);
     }
+
+    handled = true;
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HighestParameterReferenced
+//
+//  How many arguments a body actually needs.
+//
+//  Scans the RAW stored body, which is what makes it agree with substitution by
+//  construction rather than by two implementations happening to match.
+//  ApplyMacroSubstitutions replaces the sigil form wherever it occurs, comments
+//  included, so a check that first stripped comments would pass a call whose
+//  expansion then substituted an empty string into one.
+//
+//  A digit is what separates a parameter from a variable symbol -- `]1` is an
+//  argument and `]COUNT` a name -- so anything but a digit after the sigil is
+//  not a parameter at all. Zero is excluded with it: a dialect that spells the
+//  argument COUNT that way is asking a question, not naming a slot.
+//
+//  0 for a dialect with no positional form, so it can never refuse a call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int AssemblySession::HighestParameterReferenced (const MacroDefinition & macroDef, char sigil)
+{
+    int  highest = 0;
+
+
+
+    if (sigil == 0)
+    {
+        return highest;
+    }
+
+    for (const std::string & line : macroDef.body)
+    {
+        size_t  pos = 0;
+
+        while ((pos = line.find (sigil, pos)) != std::string::npos)
+        {
+            pos++;
+
+            if ((pos < line.size()) && (line[pos] >= '1') && (line[pos] <= '9'))
+            {
+                int  index = line[pos] - '0';
+
+                highest = (index > highest) ? index : highest;
+            }
+        }
+    }
+
+    return highest;
 }
 
 
@@ -3519,13 +5649,17 @@ Error:
 //  the expansion and the file would end with an unclosed-block error pointing
 //  at the macro rather than at whatever is wrong.
 //
-//  LOCAL declarations are dropped rather than emitted: uniqueSuffix has
+//  Local-label declarations are dropped rather than emitted: uniqueSuffix has
 //  already done their work, so passing them through would leave a directive
 //  the assembler would have to ignore anyway.
 //
-//  EXITM and LOCAL stay string comparisons rather than DirectiveTable tokens
-//  on purpose -- they are macro-body keywords, and tokenizing them would cost
-//  a lookup on every line of every file to serve lines that only appear here.
+//  The keyword is the ACTIVE DIALECT'S, not a literal. It stays out of the
+//  spelling tables on purpose -- it is a macro-body keyword, and tokenizing it
+//  would cost a lookup on every line of every file to serve lines that appear
+//  only here -- but comparing a fixed word instead means a dialect whose source
+//  merely CONTAINS that word loses the line. In a field-based dialect the first
+//  word of a line is a label, so `LOCAL LDA #1` is a labeled instruction, and
+//  dropping it deletes both the label and two bytes with no diagnostic.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3534,9 +5668,9 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
                                                  const std::string & uniqueSuffix,
                                                  std::vector<std::string> & expandedLines)
 {
-    HRESULT hr = S_OK;
-
-    const auto & body = macroDef.body;
+    HRESULT       hr           = S_OK;
+    std::string   localKeyword = m_dialect.GetMacroSyntax().localKeyword;
+    const auto &  body         = macroDef.body;
 
 
 
@@ -3552,26 +5686,32 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
 
         if (isExitm)
         {
-            int ifDepth = 0;
+            int          ifDepth = 0;
+            std::string  closer  = m_dialect.GetSpellingForDirective (Directive::Endif);
+
             hr = CountExitmIfDepth (expandedLines, ifDepth);
             CHR (hr);
 
+            // Spelled by the ACTIVE PROFILE. This is the one line the assembler
+            // writes for itself, and a fixed word here put another dialect's
+            // spelling into this dialect's stream -- where it is an unknown
+            // operation on a line the source never wrote and cannot see. Indented
+            // because a dialect whose first column is the label field would read
+            // it as one.
             for (int ed = 0; ed < ifDepth; ed++)
             {
-                expandedLines.push_back ("                ENDIF");
+                expandedLines.push_back ("                " + closer);
             }
 
             break;
         }
 
-        // `local` declares macro-local labels, which uniqueSuffix has already
-        // taken care of, so the declaration itself never reaches the output.
-        // Left as a string compare for the same reason as EXITM: it is a
-        // macro-body keyword, and putting it in DirectiveTable would tokenize
-        // it on every line in the file.
+        // The local-label declaration, which uniqueSuffix has already taken care
+        // of, so it never reaches the output. Recognized by the active dialect's
+        // keyword: a dialect with none answers empty and no line is claimed.
         firstWord = GetLeadingWord (ToUpperCase (expanded));
 
-        if (firstWord == "LOCAL" || firstWord == ".LOCAL")
+        if (!localKeyword.empty() && ((firstWord == localKeyword) || (firstWord == "." + localKeyword)))
         {
             continue;
         }
@@ -3597,19 +5737,32 @@ Error:
 //
 //  AssemblySession::CheckForExitm
 //
+//  Does this body line abandon the rest of the expansion?
+//
+//  The keyword stays a string compare rather than joining a spelling table: a
+//  table feeds the parser, so a row there would cost a lookup on every line of
+//  every file to serve lines that appear only inside a macro body. What it must
+//  NOT stay is a fixed word -- the profile supplies it, beside the terminator
+//  and the local declaration, and a dialect with no early exit answers empty and
+//  claims no line at all. A fixed word truncated a body silently in any dialect
+//  whose source happened to contain it.
+//
+//  The dotted form is admitted the way the local declaration's is, for the same
+//  reason: a dialect writing its keywords with a leading dot spells this one
+//  that way too, and stating it twice in the profile would be one spelling that
+//  could disagree with itself.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm)
 {
-    HRESULT      hr   = S_OK;
-    std::string  code = ToUpperCase (StripCommentAndTrim (line));
+    HRESULT      hr          = S_OK;
+    std::string  exitKeyword = m_dialect.GetMacroSyntax().exitKeyword;
+    std::string  code        = ToUpperCase (StripCommentAndTrim (line));
 
 
 
-    // EXITM stays a string compare rather than joining DirectiveTable: the
-    // table feeds Parser::ParseLine, so adding it there would tokenize EXITM on
-    // every line in the file, not just inside a macro body being expanded.
-    isExitm = (code == "EXITM" || code == ".EXITM");
+    isExitm = !exitKeyword.empty() && ((code == exitKeyword) || (code == "." + exitKeyword));
 
 // Error:
     return hr;
@@ -3632,10 +5785,16 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
 //  so an IF/ENDIF pair inside the abandoned region cancels out and only the
 //  genuinely unclosed ones are counted.
 //
-//  Recognized through DirectiveTable rather than by comparing spellings here.
-//  That list used to be written out by hand, a third copy of the vocabulary
-//  that a dialect adding a synonym would not have reached -- the synonym would
-//  open a block that this loop never counted, and EXITM would under-close.
+//  Each line is READ BY THE ACTIVE PROFILE rather than scanned for a leading
+//  word here. The spellings were once written out in this loop, then read from
+//  a fixed table, and both were wrong in both directions for any dialect but the
+//  one the table belonged to: a foreign word that dialect never wrote was
+//  counted, and its own conditional was not. An EXITM then synthesized the wrong
+//  number of closers, which either leaves a block open past the expansion or
+//  closes one the source is still inside.
+//
+//  Parsing rather than word-splitting also settles a labeled conditional, which
+//  no leading-word scan can: the first field of such a line is the label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3649,15 +5808,9 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
 
 
-    // The spellings were written out here -- IF/.IF/IFDEF/.IFDEF/IFNDEF/
-    // .IFNDEF and ENDIF/.ENDIF -- which made this the third place in the
-    // assembler holding a copy of the vocabulary. DirectiveTable owns all
-    // eight, so this only has to know which tokens open a block and which
-    // closes one.
     for (const std::string & line : expandedLines)
     {
-        Directive  token = DirectiveTable::FromSpelling (
-                               GetLeadingWord (ToUpperCase (StripCommentAndTrim (line))));
+        Directive  token = TokenForLine (m_dialect.ParseLine (line, 0));
 
         if (token == Directive::If || token == Directive::Ifdef || token == Directive::Ifndef)
         {
@@ -3677,15 +5830,43 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ApplyMacroSubstitutions
+//
+////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
                                                    const MacroDefinition & macroDef,
                                                    const std::vector<std::string> & args,
                                                    const std::string & uniqueSuffix)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr    = S_OK;
+    char     sigil = m_dialect.GetMacroSyntax().parameterSigil;
 
 
+
+    // Positional parameters, for a dialect that spells them with a sigil rather
+    // than declaring names. Substitution deliberately ignores identifier
+    // boundaries: Merlin's own library splices a parameter INTO a symbol, and
+    // both directions appear on the distribution disk -- `LDX #A]1-ADRTBL`
+    // pastes the argument after a prefix, `LDX #]1END-]1-1` before a suffix. A
+    // whole-word rule would leave both untouched and every reference undefined.
+    if (sigil != 0)
+    {
+        for (int ai = 1; ai <= kMaxPositionalParams; ai++)
+        {
+            std::string  placeholder = std::string (1, sigil) + std::to_string (ai);
+            std::string  replacement = (ai <= (int) args.size()) ? args[ai - 1] : "";
+            size_t       pos         = 0;
+
+            while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
+            {
+                expanded.replace (pos, placeholder.size(), replacement);
+                pos += replacement.size();
+            }
+        }
+    }
 
     // Replace \0 with argument count
     {
@@ -3891,7 +6072,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
     // and not be an opcode, a bit-op, or a macro name.
     fLooksLikeLabel = info.parsed.startsAtColumn0 &&
                       info.parsed.label.empty() &&
-                      !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+                      !m_opcodeTable->IsMnemonic (info.parsed.mnemonic) &&
                       !IsBitOpMnemonic (info.parsed.mnemonic) &&
                       (m_macros.find (info.parsed.mnemonic) == m_macros.end());
 
@@ -3905,15 +6086,17 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         hr = ExtractColonlessLabelName (current, labelName);
         CHR (hr);
 
-        hrLabel = Parser::ValidateLabel (labelName, m_opcodeTable, labelError);
+        hrLabel = Parser::ValidateLabel (labelName, *m_opcodeTable, labelError,
+                                         m_dialect.GetExtraSymbolCharacters());
 
         if (FAILED (hrLabel))
         {
-            RecordError (current.sourceLineNumber, labelError);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn, labelError);
         }
         else if (m_symbols.count (labelName) > 0)
         {
-            RecordError (current.sourceLineNumber, "Duplicate label: " + labelName);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.labelColumn,
+                           "Duplicate label: " + labelName);
         }
         else
         {
@@ -4130,7 +6313,8 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
         }
         else if (!er.hasUnresolved)
         {
-            RecordError (current.sourceLineNumber, "Expression error: " + er.error);
+            RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+                           "Expression error: " + er.error);
             info.hasError = true;
         }
     }
@@ -4186,9 +6370,9 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
         info.resolvedMode = mode;
 
 
-        if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+        if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
         {
-            m_pc += 1 + entry.operandSize;
+            ReserveBytes ((Word) (1 + entry.operandSize));
         }
         else
         {
@@ -4207,16 +6391,16 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 altMode = GlobalAddressingMode::AbsoluteY;
             }
 
-            if (altMode != mode && m_opcodeTable.TryLookup (info.parsed.mnemonic, altMode, entry))
+            if (altMode != mode && m_opcodeTable->TryLookup (info.parsed.mnemonic, altMode, entry))
             {
                 info.resolvedMode = altMode;
-                m_pc += 1 + entry.operandSize;
+                ReserveBytes ((Word) (1 + entry.operandSize));
             }
             else if (!info.hasError)
             {
-                if (!m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
+                if (!m_opcodeTable->NamesAnInstruction (info.parsed.mnemonic))
                 {
-                    RecordError (current.sourceLineNumber, "Invalid mnemonic: " + info.parsed.mnemonic);
+                    RecordError (current.sourceLineNumber, DescribeUnknownOperation (info.parsed));
                 }
                 else if (info.classified.syntax == OperandSyntax::None)
                 {
@@ -4228,7 +6412,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 }
 
                 info.hasError = true;
-                m_pc += EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic);
+                ReserveBytes (EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic));
             }
         }
     }
@@ -4256,14 +6440,14 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 //
 //  Both point at the line the block OPENED on, which is where the fix goes --
 //  never at EOF, which is merely where the pass ran out of source and noticed.
-//  The macro case has m_currentMacroLine; the conditional case has
+//  The macro case has MacroDefinition::lineNumber; the conditional case has
 //  ConditionalState::openLineNumber, carried for exactly this.
 //
-//  Unclosed conditionals get one error per open level rather than a single
-//  "3 level(s) open" summary: each one is separately missing an ENDIF, so
-//  each is separately somewhere to go. Emitted in ascending line order, the
-//  order errors are read in -- which falls out of walking the stack forward,
-//  since it is outermost-first.
+//  Unclosed macros and unclosed conditionals alike get one error per open level
+//  rather than a single "3 level(s) open" summary: each one is separately
+//  missing its own closer, so each is separately somewhere to go. Emitted in
+//  ascending line order, the order errors are read in -- which falls out of
+//  walking each stack forward, since both are outermost-first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4273,9 +6457,41 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
 
 
-    if (m_pass1State == Pass1State::CollectingMacro)
+    ReportSubsetBoundaryRefusals();
+
+    // These diagnostics are DEFERRED: the construct opened arbitrarily far back,
+    // and by now the ambient source file is whichever was processed last. So the
+    // file is restored from where the construct OPENED, exactly as the line
+    // number already was. Without this an IF opened inside an included file is
+    // reported with the right line and the wrong file, which is a stronger
+    // version of blaming the end of the file.
+    // One error per open definition, each at its own opening line, for the same
+    // reason the conditional stack below gets one per level: several can be open
+    // at once now that a definition may share the terminator of the one after
+    // it, and each is separately missing one. Walking the stack forward gives
+    // ascending line order, which is the order they are read in.
+    for (const MacroDefinition & pending : m_pendingMacros)
     {
-        RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
+        m_currentSourceFile = pending.sourceFile;
+        m_diagnosticColumn  = pending.openColumn;
+
+        RecordError (pending.lineNumber, "Unclosed macro definition: " + pending.name);
+    }
+
+    if (m_pass1State == Pass1State::CollectingLoop)
+    {
+        m_currentSourceFile = m_loopFile;
+        m_diagnosticColumn  = m_loopColumn;
+
+        RecordError (m_loopLine, "Unclosed " + m_loopDirective + " block (no matching terminator)");
+    }
+
+    if (m_inDummySection)
+    {
+        m_currentSourceFile = m_dummyFile;
+        m_diagnosticColumn  = m_dummyColumn;
+
+        RecordError (m_dummyLine, "Unclosed " + m_dummyDirective + " section (no matching terminator)");
     }
 
     // One error per unclosed level, each at the line its own IF opened on --
@@ -4285,6 +6501,9 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
     // line: errors are read in source order, like every other diagnostic here.
     for (const ConditionalState & open : m_condStack)
     {
+        m_currentSourceFile = open.openFile;
+        m_diagnosticColumn  = open.openColumn;
+
         RecordError (open.openLineNumber, "Unclosed if block (no matching endif)");
     }
 
@@ -4313,7 +6532,8 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
 HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr       = S_OK;
+    std::string  multiNop = m_dialect.GetMultiNopMnemonic();
 
 
 
@@ -4321,16 +6541,19 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
 
 
-    // Only "nop <count>" is a multi-NOP; a bare NOP is an ordinary opcode.
+    // Only the repeat form is a multi-NOP; the bare mnemonic is an ordinary
+    // opcode, and a dialect with no such form claims no line at all.
     //
-    // This is the second dual-purpose as65 mnemonic, the other being the RMB
-    // branch in Parser::ParseLine. They stay apart rather than sharing a table
-    // because the table could not hold what separates them: RMB splits on the
-    // operand's *shape* (a comma means the Rockwell instruction), which the
-    // parser can see, while NOP splits on the operand's *value*, which needs the
-    // expression evaluator and the pass-1 symbol table. Both spellings are
-    // dialect facts -- a second dialect replaces this pair.
-    BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
+    // This is the second dual-purpose spelling, the other being the RMB branch
+    // in the AS65 profile. They stay apart rather than sharing a table because
+    // the table could not hold what separates them: RMB splits on the operand's
+    // *shape* (a comma means the Rockwell instruction), which the parser can
+    // see, while this one splits on the operand's *value*, which needs the
+    // expression evaluator and the pass-1 symbol table. Both are dialect facts,
+    // which is why the SPELLINGS come from the profile and only the decision
+    // stays here.
+    BAIL_OUT_IF (multiNop.empty() || ToUpperCase (info.parsed.mnemonic) != multiNop ||
+                 info.parsed.operand.empty(), S_OK);
 
     {
         ExprResult  er;
@@ -4342,10 +6565,10 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
         {
             info.isDirective           = true;
             info.parsed.isDirective    = true;
-            info.parsed.directive      = ".MULTINOP";
+            info.parsed.directive      = m_dialect.GetSpellingForDirective (Directive::MultiNop);
             info.parsed.directiveToken = Directive::MultiNop;
             info.parsed.directiveArg   = info.parsed.operand;
-            m_pc += (Word) er.value;
+            ReserveBytes ((Word) er.value);
         }
 
         handled = true;
@@ -4403,13 +6626,47 @@ HRESULT AssemblySession::RunPass2()
 
     for (const auto & info : m_lineInfos)
     {
-        Word emitPCStart    = info.pc;
-        Word emitPC         = info.pc;
+        // Bytes go where pass 1 said they would land, which is NOT the address
+        // the line runs at once a relocating origin has moved the two apart.
+        // Expressions on the line still see info.pc, because that is what a
+        // label on it bound to and what a branch from it is computed against.
+        Word emitPCStart    = info.outputPos;
+        Word emitPC         = info.outputPos;
         bool lineHasAddress = false;
+
+        // Pass 2 walks the recorded lines rather than the pending ones, so the
+        // originating file has to be re-established here or every diagnostic
+        // raised while emitting would be attributed to the top-level input. The
+        // column travels with it, for the same reason and from the same record.
+        m_currentSourceFile = info.sourceFile;
+        m_diagnosticColumn  = PrimaryColumn (info.parsed);
+
+        // Same reasoning for the instruction set: REPLAY what pass 1 recorded
+        // for this line rather than re-deriving it. Emitting against a
+        // different table than the one that sized the line is how an operand
+        // ends up the wrong width.
+        m_opcodeTable = info.usedExtendedSet ? &m_instructionSets.GetExtended()
+                                             : &m_instructionSets.GetBase();
+
+        // A reassignable symbol takes its value again here, so a reference sees
+        // what was assigned most recently BEFORE it rather than what the file
+        // assigned last.
+        hr = RebindMutableConstant (info);
+        CHR (hr);
 
         if (info.hasError)
         {
             // Nothing to emit
+        }
+        else if (info.emitsNoBytes)
+        {
+            // A dummy section's lines were sized and addressed and must produce
+            // no bytes. The output cursor never advanced across them, so every
+            // one of them would emit on top of whatever the previous real line
+            // placed -- which is silent wrong output rather than a diagnostic.
+            // They still carry an address, because that is the whole point of
+            // having assembled them.
+            lineHasAddress = info.isDirective || info.isInstruction || !info.parsed.label.empty();
         }
         else if (info.isDirective)
         {
@@ -4540,6 +6797,69 @@ HRESULT AssemblySession::ResolveEquConstants()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::RebindMutableConstant
+//
+//  Gives a reassignable symbol its value again at the point pass 2 reaches its
+//  definition, so every reference resolves against the assignment most recently
+//  before it.
+//
+//  Without this the two passes disagree about what the symbol holds. Pass 1
+//  walks the file in order and sees each assignment in turn -- which is exactly
+//  what sizes the lines between them -- while pass 2 reads one table built after
+//  pass 1 finished, so every reference resolves to the LAST value the file ever
+//  assigned. An immutable symbol cannot show the difference, which is why this
+//  went unnoticed; a reassignable one shows it as wrong bytes and no diagnostic.
+//
+//  A reassignable LABEL is the same problem with the program counter for an
+//  expression, and it is the more damaging half: every one of CLOCK.S's eight
+//  `]LOOP` branches would otherwise be computed against the last of them, which
+//  assembles cleanly into eight wrong branch offsets.
+//
+//  An expression that will not evaluate leaves the previous value standing
+//  rather than clearing the symbol. The failure is reported where the constant
+//  is defined; blanking it here would add a second, stranger complaint at every
+//  reference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RebindMutableConstant (const LineInfo & info)
+{
+    HRESULT     hr        = S_OK;
+    bool        isMutable = info.isConstant && info.parsed.isConstant &&
+                            (info.parsed.constantKind == SymbolKind::Set);
+    bool        isLabel   = !info.parsed.label.empty() &&
+                            (info.parsed.labelKind == SymbolKind::Set);
+    ExprResult  er        = {};
+
+
+
+    if (isLabel)
+    {
+        m_symbols[info.parsed.label]     = info.pc;
+        m_fullSymbols[info.parsed.label] = (int32_t) info.pc;
+    }
+
+    BAIL_OUT_IF (!isMutable, S_OK);
+
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+    er                   = ExpressionEvaluator::Evaluate (info.parsed.constantExpr, m_pass2Ctx);
+
+    if (er.success)
+    {
+        m_symbols[info.parsed.constantName]     = (Word) er.value;
+        m_fullSymbols[info.parsed.constantName] = er.value;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::ReportUnresolvedEqus
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4557,10 +6877,15 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
             continue;
         }
 
+        m_currentSourceFile = info.sourceFile;
+        m_diagnosticColumn  = PrimaryColumn (info.parsed);
+
         if (info.parsed.constantKind == SymbolKind::Equ &&
             m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end())
         {
-            RecordError (info.parsed.lineNumber,
+            // The expression is the subject, so the diagnostic points at it
+            // rather than at the sign that assigned it.
+            RecordErrorAt (info.parsed.lineNumber, info.parsed.operandColumn,
                 "Cannot resolve equ expression: " + info.parsed.constantExpr);
         }
     }
@@ -4588,6 +6913,90 @@ HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC
     for (char c : text)
     {
         EmitByte (m_charMap.table[(unsigned char) c], emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitStringDirective
+//
+//  The bytes an encoded-string directive produces, from exactly the encoder pass
+//  1 sized the line with.
+//
+//  A failure here is silent on purpose: pass 1 already reported it against the
+//  same operand text, and reporting again would print every malformed string
+//  twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitStringDirective (const LineInfo & info, Word & emitPC)
+{
+    std::vector<Byte>  bytes;
+    std::string        error;
+    bool               encoded = TryEncodeStringOperand (info.parsed, bytes, error);
+
+
+
+    IGNORE_RETURN_VALUE (encoded, false);
+
+    for (Byte value : bytes)
+    {
+        EmitByte (value, emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitErrorIfDirective
+//
+//  Merlin's assembly-time assertion: the expression is evaluated, and a NON-ZERO
+//  result fails the assembly.
+//
+//  In pass 2 rather than pass 1, because the expressions worth asserting on are
+//  about what was assembled -- `ERR END-LABTBL-1/$700` bounds a table by the
+//  distance between its own two labels -- and one of those labels is a forward
+//  reference at the point the directive is read.
+//
+//  It emits no bytes. It rides the pass-2 emitter table anyway because that is
+//  the pass in which every symbol is known, and the table is what says which
+//  pass a directive acts in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitErrorIfDirective (const LineInfo & info, Word & /*emitPC*/)
+{
+    ExprResult  er      = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
+    bool        asserts = false;
+
+
+
+    if (!er.success)
+    {
+        RecordErrorAt (info.parsed.lineNumber, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
+    }
+    else
+    {
+        asserts = (er.value != 0);
+
+        if (asserts)
+        {
+            RecordError (info.parsed.lineNumber,
+                         "Assembly-time assertion failed: " + info.parsed.directiveArg
+                         + " evaluated to " + std::to_string (er.value));
+        }
     }
 
     return S_OK;
@@ -4700,6 +7109,15 @@ Error:
 //  to expression evaluation rather than erroring, so `"` as a character
 //  literal still works.
 //
+//  A QUOTED RUN IS NOT TEXT IN EVERY DIALECT, and which it is comes off the
+//  evaluation context rather than being decided here. A dialect that spells a
+//  character constant with the quotation mark has already given the evaluator
+//  that delimiter, so `"A"` is one character with bit 7 set and not a
+//  one-character string -- Merlin's byte directive takes an EXPRESSION, and
+//  reading it as text emits the wrong byte while looking entirely reasonable.
+//  A dialect with no such spelling answers 0, which matches no argument, so the
+//  text branches stand exactly as they were.
+//
 //  A failed evaluation records the error and keeps going, so one bad argument
 //  in a long table reports itself without hiding the rest. m_result.success is
 //  cleared once at the end rather than per-failure.
@@ -4712,14 +7130,17 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 
 
 
-    auto args = Parser::SplitArgList (info.parsed.directiveArg);
-    bool ok   = true;
+    auto args      = Parser::SplitArgList (info.parsed.directiveArg);
+    char charQuote = m_pass2Ctx.highAsciiCharDelimiter;
+    bool ok        = true;
 
 
 
     for (const auto & arg : args)
     {
-        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
+        bool isText = (arg.size() >= 2) && (arg.front() == '"') && (arg.front() != charQuote);
+
+        if (isText && arg.back() == '"')
         {
             std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
@@ -4729,7 +7150,7 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
                 EmitByte (m_charMap.table[(unsigned char) c], emitPC);
             }
         }
-        else if (arg.size() >= 2 && arg.front() == '"')
+        else if (isText)
         {
             size_t closeQuote = arg.find ('"', 1);
 
@@ -4841,6 +7262,58 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
         {
             EmitByte ((Byte) (v & 0xFF), emitPC);
             EmitByte ((Byte) ((v >> 8) & 0xFF), emitPC);
+        }
+    }
+    else
+    {
+        m_result.success = false;
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitWordHighFirstDirective
+//
+//  Two bytes per value, HIGH byte first -- the reverse of the processor's own
+//  order, and the entire reason the directive exists beside the ordinary one.
+//
+//  It is not a 6502 address layout. The order is what a jump table read by
+//  pushing an address onto the stack wants, and what data shared with a
+//  big-endian format wants, so a dialect offering both spellings is offering two
+//  different data layouts rather than a synonym.
+//
+//  Everything else matches the ordinary word directive exactly, including the
+//  "no arguments" versus "arguments that all failed" distinction: without it an
+//  unevaluable line would silently emit nothing and every following address
+//  would be two bytes early.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitWordHighFirstDirective (const LineInfo & info, Word & emitPC)
+{
+    HRESULT hr = S_OK;
+
+
+
+    std::vector<int32_t> values;
+
+
+
+    TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
+
+    if (values.size() != 0 || info.parsed.directiveArg.empty())
+    {
+        for (int32_t v : values)
+        {
+            EmitByte ((Byte) ((v >> 8) & 0xFF), emitPC);
+            EmitByte ((Byte) (v & 0xFF), emitPC);
         }
     }
     else
@@ -5123,7 +7596,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
             emit = false;
 
 
-            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+            if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
             {
                 // Emit placeholder bytes handled by caller
             }
@@ -5213,7 +7686,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         Byte        offsetByte  = 0;
         bool        hasEncoding = false;
 
-        hasEncoding = m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry);
+        hasEncoding = m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry);
 
         if (!hasEncoding)
         {
@@ -5257,7 +7730,7 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
     {
         OpcodeEntry entry = {};
 
-        if (!m_opcodeTable.TryLookup (info.parsed.mnemonic, mode, entry))
+        if (!m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
         }
@@ -5310,6 +7783,13 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
 
 
 
+    // Counted BEFORE both bails below, because this is how many lines were
+    // assembled rather than how many were listed. The two differ whenever no
+    // listing was asked for -- which is the ordinary case -- and again inside
+    // a suppressed region, whose lines are assembled and deliberately not
+    // shown.
+    m_result.linesAssembled++;
+
     BAIL_OUT_IF (!m_options.generateListing, S_OK);
 
     // A suppressed line still lists when it was skipped by a conditional, so
@@ -5334,7 +7814,7 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         {
             OpcodeEntry cycleEntry = {};
 
-            if (m_opcodeTable.TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+            if (m_opcodeTable->TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
             {
                 listLine.cycleCounts = cycleEntry.cycleCounts;
             }
@@ -5456,16 +7936,27 @@ HRESULT AssemblySession::DetectUnusedLabels()
 
         if (m_referencedLabels.find (sym.first) == m_referencedLabels.end())
         {
-            int defLine = 0;
+            int          defLine   = 0;
+            int          defColumn = 0;
+            std::string  defFile;
 
             for (const auto & info : m_lineInfos)
             {
                 if (info.parsed.label == sym.first)
                 {
-                    defLine = info.parsed.lineNumber;
+                    defLine   = info.parsed.lineNumber;
+                    defColumn = info.parsed.labelColumn;
+                    defFile   = info.sourceFile;
                     break;
                 }
             }
+
+            // The warning belongs to where the label was DEFINED, so the file
+            // and the column both come from that line rather than from wherever
+            // the sweep happens to be. The label itself is the subject, so the
+            // column is its own rather than the line's.
+            m_currentSourceFile = defFile;
+            m_diagnosticColumn  = defColumn;
 
             RecordWarning (defLine, "Unused label: " + sym.first);
         }

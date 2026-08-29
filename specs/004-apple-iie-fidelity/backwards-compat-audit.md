@@ -1,4 +1,4 @@
-# Backwards-Compatibility Audit — feature `004-apple-iie-fidelity`
+# Backwards-Compatibility Audit: feature `004-apple-iie-fidelity`
 
 **Phase 14 / T121.** Audit log enumerating every test surface and machine
 configuration touching original Apple ][ or Apple ][+ behavior, classifying
@@ -8,7 +8,7 @@ during phases 1-13 of this feature with its justification.
 
 Scope: FR-039 (][ and ][+ continue to work; existing tests pass without
 assertion changes other than those that encoded bugs since fixed) and
-FR-040 (composition over branching — //e wiring is added on top of, not
+FR-040 (composition over branching, //e wiring is added on top of, not
 substituted for, the ][/][+ wiring).
 
 ---
@@ -19,7 +19,7 @@ The two production ][/][+ machine configs MUST remain byte-identical to
 their pre-feature shape. They are owned by the Phase 003 platform
 emulator feature and the Phase 004 feature has no business modifying
 them. If a Phase 004 commit had to change either file, that would be a
-direct violation of FR-040 (composition over branching) — the //e
+direct violation of FR-040 (composition over branching), the //e
 configuration lives in its own file (`Apple2e.json`) and the //e build
 path is a *separate* composition.
 
@@ -51,7 +51,7 @@ fe218ad7c443b4dde832849787171d196a08f834  Machines/Apple2Plus.json
 
 These hashes MUST match at every Phase 14+ checkpoint. If they ever
 diverge from master without a corresponding spec amendment, that's a
-regression — fix the production code, not the configs.
+regression; fix the production code, not the configs.
 
 ### 1.3 Pinned shape (assert this in `BackwardsCompatTests`)
 
@@ -168,11 +168,11 @@ listed assertion changes weakens an existing ][/][+ guarantee.**
 
 Across phases 1-13, **zero pre-existing ][/][+ assertions were
 weakened**. Every change is one of:
-1. **Additive** — new test methods asserting //e-specific behavior in
+1. **Additive**: new test methods asserting //e-specific behavior in
    new test classes, never touching ][/][+ test classes.
-2. **Helper-shared** — refactoring a test helper that ][/][+ tests
+2. **Helper-shared**: refactoring a test helper that ][/][+ tests
    happen to call; the ][/][+ test bodies remain byte-identical.
-3. **New device** — adding a new `AppleIIe*` device class with its own
+3. **New device**: adding a new `AppleIIe*` device class with its own
    test class; the original `AppleII*` device classes and their tests
    are unchanged.
 
@@ -213,7 +213,7 @@ regression. The fix belongs in the production code, never in the test.
 
 ## 5. Growable ][/][+ test surface
 
-It is acceptable — encouraged, even — to **add** new ][/][+ tests in
+It is acceptable (encouraged, even) to **add** new ][/][+ tests in
 later phases. What is not acceptable is removing or weakening existing
 ones. Specifically, you may:
 
@@ -247,5 +247,5 @@ At Phase 14 GATE (T122), the following must hold:
 5. No assertion in any modified test file has been weakened (this
    document audits each file).
 
-If any of these fail, Phase 14 is BLOCKED — fix the production code,
+If any of these fail, Phase 14 is BLOCKED; fix the production code,
 not the tests.

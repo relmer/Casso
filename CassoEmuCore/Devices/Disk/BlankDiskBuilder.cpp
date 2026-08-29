@@ -108,6 +108,8 @@ void BlankDiskBuilder::ReorderDosToPo (const vector<Byte> & dosOrdered, vector<B
         0, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 15
     };
 
+
+
     int  track = 0;
     int  file  = 0;
 
@@ -174,10 +176,7 @@ HRESULT BlankDiskBuilder::Build (
     vector<Byte>        & outBytes)
 {
     HRESULT       hr    = S_OK;
-    int           track = 0;
     vector<Byte>  buffer;
-    vector<Byte>  built;
-    DiskImage     img;
 
 
 
@@ -220,10 +219,51 @@ HRESULT BlankDiskBuilder::Build (
         }
     }
 
-    switch (spec.format)
+    hr = WrapInContainer (spec.format, spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlankDiskBuilder::WrapInContainer
+//
+//  A DOS-ordered sector buffer written as the container the caller asked for.
+//
+//  SPLIT OUT BECAUSE IT IS NOT THIS BUILDER'S ALONE. DirectBootBuilder produces
+//  the same 143,360-byte DOS-ordered buffer and needs the same three answers,
+//  and a second copy of the .po reordering or the WOZ nibblization is a second
+//  place for the sector skew to be got wrong.
+//
+//  `unformatted` asks for raw media rather than an empty filesystem, and only
+//  changes the WOZ arm: a disk with no structure gets full-capacity all-zero
+//  bit tracks instead of a nibblized image of a buffer that holds nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlankDiskBuilder::WrapInContainer (
+    DiskFormat            format,
+    bool                  unformatted,
+    const vector<Byte> &  sectors,
+    vector<Byte>       &  outBytes)
+{
+    HRESULT       hr    = S_OK;
+    int           track = 0;
+    vector<Byte>  built;
+    DiskImage     img;
+
+
+
+    switch (format)
     {
         case DiskFormat::Woz:
-            if (spec.contents == BlankDiskContents::Unformatted)
+            if (unformatted)
             {
                 // Raw media: full-capacity all-zero bit tracks, no structure.
                 for (track = 0; track < NibblizationLayer::kTrackCount; track++)
@@ -233,7 +273,7 @@ HRESULT BlankDiskBuilder::Build (
             }
             else
             {
-                hr = NibblizationLayer::NibblizeDsk (buffer, img);
+                hr = NibblizationLayer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
 
@@ -242,15 +282,15 @@ HRESULT BlankDiskBuilder::Build (
             break;
 
         case DiskFormat::Dsk:
-            built = buffer;
+        case DiskFormat::Do:
+            built = sectors;
             break;
 
         case DiskFormat::Po:
-            ReorderDosToPo (buffer, built);
+            ReorderDosToPo (sectors, built);
             break;
 
         default:
-            // ValidateSpec admits exactly the three formats above.
             CBRAEx (false, E_UNEXPECTED);
             break;
     }

@@ -27,6 +27,9 @@ static constexpr LONG  s_kPopupH       = 150;
 static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 {
     RECT  out = {};
+
+
+
     out.left = l; out.top = t; out.right = r; out.bottom = b;
     return out;
 }
@@ -44,6 +47,9 @@ static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 static SIZE  MakeSize (LONG cx, LONG cy)
 {
     SIZE  out = {};
+
+
+
     out.cx = cx; out.cy = cy;
     return out;
 }

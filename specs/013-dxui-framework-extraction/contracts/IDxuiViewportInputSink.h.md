@@ -27,15 +27,15 @@ public:
 };
 ```
 
-## Reserved chords (NOT forwarded — FR-034)
+## Reserved chords (NOT forwarded: FR-034)
 
 `DxuiViewport::OnKey` consumes (returns `true`) for every key when focused with `SetConsumesInput(true)`, **except**:
 
-- `Tab` — focus navigation
-- `Shift+Tab` — focus navigation reverse
-- `Esc` — focus scope / dialog cancel
-- `Alt` — menu activation
-- `F10` — Dxui-level shortcut
+- `Tab`: focus navigation
+- `Shift+Tab`: focus navigation reverse
+- `Esc`: focus scope / dialog cancel
+- `Alt`: menu activation
+- `F10`: Dxui-level shortcut
 
 These five always stay in Dxui. Everything else forwards to the sink.
 

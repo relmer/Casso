@@ -1,1 +1,375 @@
-	ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª                              ªª          ΝΑΛΕ ΔΥΝΠ           ªª                              ªª   Ημεξ Ε® Βςεδοξ   Έ―±µ―Έ΄   ªª                              ªª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ªª                              ªª     Νεςμιξ­πςο ασσενβμες     ªª                              ªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªªª Τθισ ναλεσ α θεψ δυνπ τεψτ ζιμε ζςον α Νεςμιξ­πςοª οβκεγτ ζιμε αζτες α φαμιδ ασσενβμω οζ αξω σουςγε®ª ¨Ιτ ισ ΞΟΤ υσαβμε χιτθ ομδες φεςσιοξσ οζ Νεςμιξ®©ªª Το υσε ιτ¬ ΒÒΥΞ ιτ ζςον ΕΨΕΓ ιξ Νεςμιξ­πςο»ª Μοαδ δεσιςεδ σουςγε»ª ΑΣΝ ιτ»ª Τωπε ΥΣΕÒ ζςον τθε εδιτος®ªª ¨Τθισ χιμμ ασλ ιζ ωου νεαξ ιτ¬ βεγαυσε ιτ χιμμª δεστςοω τθε εψιστιξη σουςγε γοδε ιξ νενοςω®©ªª Ιζ συγγεσσζυμ¬ τθε γυςςεξτ σουςγε ιξ νενοςω χιμμª βε ςεπμαγεδ χιτθ τθε θεψ δυνπ οζ τθε οβκεγτ ζιμεª πςεφιουσμω ασσενβμεδ®  Τθε μαστ μιξε οζ τθε ζιμεª χιμμ γοξταιξ α ΒΣΑΦΕ μιξε χιτθ τθε γοςςεγτ αδδςεσσª αξδ μεξητθ βυτ χιτθουτ ζιμε ξανε®  Ωου γαξ υσεª Νεςμιξ§σ εδιτος το ιξσεςτ τθε δεσιςεδ ζιμε ξανεª αξδ τθεξ γαξ υσε Νεςμιξ§σ Χςιτε γονναξδ το σαφεª τθισ ζιμε ασ α ΔΟΣ ΕΨΕΓ ζιμε®  ¨Ιζ ωου δο ξοτª ιξσεςτ τθε ζιμε ξανε τθεξ ωου χιμμ ηετ α ΣΩΞΤΑΨª ΕÒÒΟÒ χθεξ τθε ζιμε ισ ΕΨΕΓεδ® ΤÒ ΕΨΠ ΟΖΖΜΟΑΔΑΔÒ ½ ¤Ή°°° »Αδδςεσσ οζ ΒÒΥΞΝΑΙΞΠÒΟΗ ½ ¤Ή°° »Ναιξ πςοηςαν ιξ αυψ νενΙΞΤÒΖΑΓΕ ½ ¤³°° »Ιξτεςζαγε ιξ ναιξ νενª Νεςμιξ στυζζΊΣΟΥÒΓΕ ½ ¤Α »Σουςγε βεηιξξιξηΘΙΝΕΝ ½ ¤Γ »Τοπ οζ υσαβμε νενοςωΕΞΔΣÒΓ ½ ¤Ε »Εξδ οζ σουςγε ζιμεΟΒΚΠΞΤ ½ ¤Ε² »Αδδςεσσ οζ οβκ ¨ιξ αυψ νεν©ΟΒΜΕΞ ½ ¤Ε΄ »Μεξητθ οζ οβκεγτ γοδεΑΔÒΣΦ ½ ¤Ε¶ »ΟÒΗ αδδςεσσ οζ μαστ ασσενβμωΦΑΜΙΔ ½ ¤ΕΈ »Ζμαησ φαμιδ ασσενβμωΤΑΒΣ ½ ¤Ζ΄ »Νεςμιξ εδιτος§σ ταβσª Υσαηε βω τθισ πςοηςανΊΑΔÒΣ ½ ¤Ή° »Σαφε ζος ΑΔÒΣΦΜΕΞ ½ ¤Ή² »Σαφε ζος ΟΒΜΕΞΤΨΤΠ ½ ¤Ή΄ »Ζος ΣΕΞΔΝΣΗ ςουτιξεΒΩΤΓΞΤ ½ ¤Ή¶ »Γουξτδοχξ ζος βωτεσ―μιξεΨÒΕΗ ½ ¤ΉΕ »Òεηιστες σαφεσ ζοςΑÒΕΗ ½ ¤ΉΖ » βαξλ σχιτγθιξη υσε®ª ΔαταΊΒΩΤΕΣΠΕÒ ½ ±¶ »£ βωτεσ―μιξε δεσιςεδª Αππμε στυζζΊΖÒΟΝ ½ ¤³Γ »Α±ΜΕΞΔΝΟΦΕ ½ ¤³Ε »Α²ΜΔΕΣΤ ½ ¤΄² »Α΄ΜΑΝΠΕÒ ½ ¤³ΖµΒΑΣΙΓ ½ ¤Ε°°°ΛΕΩΙΞ ½ ¤ΖΔ°ΓΓΟΥΤ ½ ¤ΖΔΕΔΝΟΞΝΟΦΕ ½ ¤ΖΕ²Γª ΑΥΨ νεν ερυατεσΊΝΑΙΞΧÒΤ ½ ¤Γ°°΄ΑΥΨΧÒΤ ½ ¤Γ°°µÒΕΑΔΪΠ ½ ¤Γ°±¶ΑΥΨΝΟΦΕ ½ ¤Γ³±±ΨΖΕÒ ½ ¤Γ³±΄ ΑΣΤ µ°ΝΟΦ ΝΑΓ ΜΔΑ έ± ΣΤΑ έ² ΌΌΌΝΟΦΔ ΝΑΓ ΝΟΦ έ±»έ² ΝΟΦ έ±«±»έ²«± ΌΌΌΙΞΓΔ ΝΑΓ ΙΞΓ έ± ΒΞΕ ΞΙ ΙΞΓ έ±«±ΞΙ ΌΌΌΔΕΓΔ ΝΑΓ ΜΔΑ έ± ΒΞΕ ΞΔ ΔΕΓ έ±«±ΞΔ ΔΕΓ έ± ΌΌΌΣΤΑΔÒ ΝΑΓ ΜΔΑ £έ± ΣΤΑ έ² ΜΔΑ £Ύέ± ΣΤΑ έ²«± ΌΌΌΤΟΑΥΨ ΝΑΓ ΠΘΑ ΒΙΤ ΪΠΖΜΑΗΝ ΣΕΓ ΣΤΑΔÒ έ±»¤³ΕΔ ΠΜΑ ΚΝΠ ΨΖΕÒ ΌΌΌΓΑΜΜ ΝΑΓ ΣΤΨ ΨÒΕΗ ΜΔΨ £Αέ±­ΑΔÒΤΒΜ ΚΣÒ ΓΑΜΜΝΑΙΞ ΌΌΌΣΤΟÒΕ ΝΑΓ ΜΔΨ £έ±ΕΞΔ­έ±­±ΜΠ ΜΔΑ έ±¬Ψ ΚΣÒ ΠΥΤΣÒΓ ΔΕΨ ΒΠΜ ΜΠ ΌΌΌΑΔΔÒΕΣΣ ΝΑΓ ΜΔΑ έ±«± ΜΔΨ έ± ΚΣÒ ΝΑΛΑΔÒ ΌΌΌ ΑΣΤ µ°ª Σετυπ ςουτιξεσ υποξ ΒÒΥΞΊ ΟÒΗ ΜΟΑΔΑΔÒ ΜΔΑ £¤΄Γ »Σετ υπ ΥΣΕÒ φεγτος ΣΤΑ ΑΝΠΕÒ ΣΤΑΔÒ ΣΤΑÒΤ»ΑΝΠΕÒ«± ΣΤΑΔÒ ΘΕÒΕΙΞΤ»ΖÒΟΝ ΣΤΑΔÒ ΘΕÒΕΝΑΙΞ­±»ΕΞΔΝΟΦΕ ΣΤΑΔÒ ΣΤΑÒΤ»ΔΕΣΤ ΜΔΩ £° ΚΣÒ ΝΟΞΝΟΦΕ »Νοφε ιξτεςζαγε το παηε ³ ΣΤΑΔÒ ΘΕÒΕΝΑΙΞ»ΖÒΟΝ ΣΤΑΔÒ ΘΕÒΕΞΔ­±»ΕΞΔΝΟΦΕ ΣΤΑΔÒ ΝΑΙΞΠÒΟΗ»ΔΕΣΤ ΣΕΓ »ΝΑΙΞ­ΎΑΥΨ ΚΣÒ ΑΥΨΝΟΦΕ »Νοφε ναιξ πςοη το αυψ νεν» αξδ ςετυςξ το γαμμες ΜΔΑ ÒΕΑΔΪΠ ΜΣÒ ΣΤΑ ΪΠΖΜΑΗΝ ΣΤΑ ΑΥΨΧÒΤ ΣΤΑ ΪΠΖΜΑΗΑ ΣΤΑ ΝΑΙΞΧÒΤ ÒΤΣª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Ιξτεςζαγε το ηο οξ παηε ³ ναιξ νενοςωΊª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ΘΕÒΕΙΞΤ ΟÒΗ ΙΞΤÒΖΑΓΕΣΤΑÒΤ ΤΟΑΥΨ ΝΑΙΞ »Κυνπ το σταςτ οζ ναιξ πςοηςανΓΑΜΜΕÒ ΚΣÒ ΗΟÒΟΥΤ »Γαμμ ςουτιξε ιξδεψεδ βω Ψ ΤΟΑΥΨ ÒΕΤΥÒΞ »Κυνπ το ÒΤΣ ιξ αυψ νενΗΟÒΟΥΤ ΜΔΑ ΑΔÒΤΒΜ«±¬Ψ »Ηετ αδδςεσσ οζ δεσιςεδ ΠΘΑ » ςουτιξε αξδ πυτ ιτ ΜΔΑ ΑΔÒΤΒΜ¬Ψ » οξ σταγλ ΠΘΑ ΜΔΑ ΑÒΕΗ »Òεπμαγε ςεηιστεςσ ΜΔΨ ΨÒΕΗ ÒΤΣ »Ηο το ςουτιξε φια ÒΤΣ»¨Òετυςξσ το μιξε αζτες ΓΑΜΜΕÒ©ΑΔÒΤΒΜΑΛΕΩΙΞ ΔΑ ΛΕΩΙΞ­±ΑΓΟΥΤ ΔΑ ΓΟΥΤ­±ΑÒΕΤ ΔΑ ÒΕΤ­±ΑΗΕΤΕΞΔΣ ΔΑ ΗΕΤΕΞΔΣ­±ΑΝΕÒΜΙΞ ΔΑ ΝΕÒΜΙΞ­±ΗΕΤΕΞΔΣ ΜΔΩ £° ΜΔΑ ¨ΕΞΔΣÒΓ©¬Ω ÒΤΣÒΕΤ ΠΜΑ ΠΜΑ ΠΜΑ ΠΜΑ ÒΤΣΝΕÒΜΙΞ ΚΝΠ ΒΑΣΙΓ »Εψεγ εξτςωΪΠΖΜΑΗΝ ΔΖΒ ¤΄° »Γθαξηεδ οξ ςυξ ΕÒÒ ά¤³Δ° ΟÒΗ »Òεγαμμ αγτυαμ μοαδ αδδςεσσª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ª Ναιξ πςοηςαν το ηο ιξ αυψ νενΊª­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­ΘΕÒΕΝΑΙΞ ΟÒΗ ΝΑΙΞΠÒΟΗΝΑΙΞ ΜΔΑ ΒΑΣΙΓ »Ζςον ΝεςμιξΏ ΓΝΠ £¤²Δ ΒΞΕ ΊΕΨΙΤ »Ιηξοςε ιζ ξοτ ΜΔΑ ΒΑΣΙΓ«² »Νεςμιξ­πςοΏ ΓΝΠ £¤Ε± ΒΞΕ ΊΕΨΙΤ »Ιηξοςε ιζ ξοτ ΚΣÒ ΣΕΞΔΝΣΗ ΘΕΨ ΈΔΈΔ ΑΣΓ ΆΤθισ δεστςοωσ γυςςεξτ σουςγε®ΆΈΔΈΔ ΑΣΓ ΆΔο ωου ςεαμμω χαξτ ιτ ¨Ω―Ξ©Ώ Ά°°ΊΗΛ ΓΑΜΜ ΛΕΩΙΞ ΑΞΔ £¥±±°±±±±± ΓΝΠ £ΆΞΆ ΒΕΡ ΊΕΨΙΤ ΓΝΠ £ΆΩΆ ΒΞΕ ΊΗΛ ΜΔΑ ΟΒΜΕΞ ΣΤΑ ΜΕΞ »Σαφε ζος ΖΙΞΙΣΘ ΟÒΑ ΟΒΜΕΞ«± »Οβκεγτ μεξητθ ° Ώ ΒΕΡ ΊΕΨΙΤ »Μεαφε ιζ σο ΝΟΦ ΟΒΜΕΞ«±»ΜΕΞ«± ΝΟΦΔ ΑΔÒΣΦ»ΑΔÒΣ ΓΑΜΜ ΗΕΤΕΞΔΣ »Εξδ οζ σουςγε σθουμδ θαφε ΓΜΓ » αξ ¤ΖΖ ιζ ασσενβμω φαμιδ ΑΔΓ £± »¨Ξοτε ΗΕΤΕΞΔΣ μεαφεσ Ω½°© ΟÒΑ ΦΑΜΙΔ »Φαμιδ ασσενβμω δοξεΏ ΒΕΡ ΊΟΛ »Βςαξγθ ιζ σο»Ζαμμ ιξτο ΊΕΨΙΤ ιζ ξοτΊΕΨΙΤ ΣΤΑ ΑΥΨΧÒΤ »Νυστ δο βεζοςε ΨΖΕÒ γαμμ ΓΑΜΜ ÒΕΤª Ξοτε Ω½° τθςουηθουτ τθε ναιξ μοοπΊΊΟΛ ΣΤΑ ΝΑΙΞΧÒΤ »Πςεπαςε το ναλε θεψ ζιμε ΝΟΦΔ ΣΟΥÒΓΕ»ΕΞΔΣÒΓ ΣΤΟÒΕ ΖÒΣΤ »Στοςε ΓΑΜΜ­±µ±ΊΒΙΗΜΟΟΠ ΑΔΔÒΕΣΣ ΑΔÒΣΦ »Στοςε γυςςεξτ οβκ αδςσ ΜΔΑ £ΒΩΤΕΣΠΕÒ »Σετ £ βωτεσ―μιξε ΣΤΑ ΒΩΤΓΞΤ ΜΔΑ £ΆΊΆ »Γομοξ αζτες αδςσΊΜΟΟΠ ΚΣÒ ΠΥΤΣÒΓ »Πυτ γομοξ ος σπαγε ΜΔΑ ¨ΟΒΚΠΞΤ©¬Ω »Ηετ οβκεγτ βωτε ΚΣÒ ΝΑΛΒΩΤΕ »Πυτ ιτ ιξ σουςγε ΙΞΓΔ ΟΒΚΠΞΤ »Ποιξτ το ξεψτ οβκ βωτε ΔΕΓΔ ΟΒΜΕΞ »Γουξτ δοχξ οβκ μεξητθ ΒΞΕ ΊΟΞ »Ταλεξ ιζ ΟΒΜΕΞ μοχ ξοτ ° ΜΔΑ ΟΒΜΕΞ«± ΒΕΡ ΊΖΙΞΙΣΘ »Δοξε χθεξ ΟΒΜΕΞ ςεαγθεσ °ΊΟΞ ΜΔΑ £¤Α° »Πςεπαςε το στοςε σπαγε ΔΕΓ ΒΩΤΓΞΤ ΒΞΕ ΊΜΟΟΠ »Μοοπ ιζ μιξε ξοτ δοξε ΚΣÒ ΠΥΤΓÒ »Στοςε ΓÒ ΜΔΑ ΑΔÒΣΦ »Βυνπ αδδςεσσ ΓΜΓ ΑΔΓ £ΒΩΤΕΣΠΕÒ ΣΤΑ ΑΔÒΣΦ ΒΓΓ ΊΒΙΗΜΟΟΠ ΙΞΓ ΑΔÒΣΦ«± ΒΓΣ ΊΒΙΗΜΟΟΠ »Αμχαωσ ταλεξΊΖΙΞΙΣΘ ΚΣÒ ΠΥΤΓÒ »Πυτ ΓÒ ΣΤΟÒΕ ΜΑΣΤ »Στοςε ΒΣΑΦΕ ¬Α¤ ΑΔΔÒΕΣΣ ΑΔÒΣ »Στοςε αδςσ ζος ΒΣΑΦΕ ΣΤΟÒΕ ΜΜ »Στοςε ¬Μ¤ ΑΔΔÒΕΣΣ ΜΕΞ » αξδ μεξητθ ΚΣÒ ΠΥΤΓÒ » αξδ ΓÒ ΜΔΨ £Έ ΤΩΑ »½°ΊΪΤ ΣΤΑ ΤΑΒΣ¬Ψ »Ϊεςο αμμ ταβσ βεζοςε ΔΕΨ » ςετυςξιξη το εδιτος ΒΠΜ ΊΪΤ ΚΝΠ ΊΕΨΙΤ »Αμμ δοξεΖÒΣΤ ΘΕΨ ΈΔ ÒΕΦ ΆΓΑΜΜ­±µ±ΆΖÒΣΤΕΞΔΜΑΣΤ ÒΕΦ ΆΒΣΑΦΕ ¬Α¤ΆΜΑΣΤΕΞΔΜΜ ÒΕΦ Ά¬Μ¤ΆΜΜΕΞΔΠΥΤΓÒ ΜΔΑ £¤ΈΔ ΒΞΕ ΠΥΤΣÒΓΝΑΛΑΔÒ ΚΣÒ ΝΑΛΒΩΤΕ ΤΨΑΝΑΛΒΩΤΕ ΠΘΑ ΜΣÒ »Σθιζτ θιηθ ξιββμε το μοχ ΜΣÒ ΜΣÒ ΜΣÒ ΚΣÒ ΊΝΑΛΞΙΒ ΠΜΑ ΑΞΔ £¤Ζ »Ναλε μοχ ξιββμεΊΝΑΛΞΙΒ ΟÒΑ £Ά°Ά ΓΝΠ £ΆΉΆ«± ΒΜΤ ΠΥΤΣÒΓ »Βςαξγθ ιζ δεγ ξυνβες ΑΔΓ £ΆΑΆ­ΆΊΆ­± »Αδδ Α­Ζ οζζσετΠΥΤΣÒΓ ΣΤΑ ¨ΕΞΔΣÒΓ©¬Ω ΙΞΓΔ ΕΞΔΣÒΓ ΜΔΑ ΕΞΔΣÒΓ ΓΝΠ ΘΙΝΕΝ »Ηοξε τοο ζαςΏ ΜΔΑ ΕΞΔΣÒΓ«± ΣΒΓ ΘΙΝΕΝ«± ΒΗΕ ΑΒΟÒΤ »Αβοςτ ιζ σο ÒΤΣΑΒΟÒΤ ΣΤΑ ΑΥΨΧÒΤ »Νυστ δο βεζοςε γαμμιξη ΨΖΕÒ ΝΟΦΔ ΣΟΥÒΓΕ»ΕΞΔΣÒΓ »Λιμμ ΆσουςγεΆ ΓΑΜΜ ΝΕÒΜΙΞ »Òετυςξ το ΕΨΕΓ ΑΣΤ µ°ΣΕΞΔΝΣΗ ΠΜΑ »Ηεξεςαμ νση ουτπυτ ςουτιξε ΣΤΑ ΤΨΤΠ ΠΜΑ ΣΤΑ ΤΨΤΠ«± ΒΞΕ ΊΞΨΤ »Αμχαωσ ταλεξΊΠΓΘÒ ΚΣÒ ΓΘÒΟΥΤΊΞΨΤ ΜΔΩ £° ΙΞΓ ΤΨΤΠ ΒΞΕ ΊΞΙ ΙΞΓ ΤΨΤΠ«±ΊΞΙ ΜΔΑ ¨ΤΨΤΠ©¬Ω ΒΞΕ ΊΠΓΘÒ ΜΔΑ ΤΨΤΠ«± ΠΘΑ ΜΔΑ ΤΨΤΠ ΠΘΑ ÒΤΣΓΘÒΟΥΤ ΓΑΜΜ ΓΟΥΤÒΕΤΥÒΞ ÒΤΣΓΑΜΜΝΑΙΞ ΣΤΑ ΑÒΕΗ ΒΙΤ ΪΠΖΜΑΗΑ »Γμεας ος σετ οφεςζμοχ βιτ ΓΜΓ »Το ναιξ ΣΤΑΔÒ ΓΑΜΜΕÒ»¤³ΕΔ ΚΝΠ ΨΖΕÒΪΠΖΜΑΗΑ ΔΖΒ ¤΄° »Γθαξηεδ οξ ςυξ ΕÒÒ ά¤±°°° »Δοξ§τ εξγςοαγθ οξ σωνβομ τβμ ΟÒΗ »Òεγαμμ ςεαμ αδςσ ζος μοαδΘΕÒΕΞΔ ΕÒÒ ά¤Ή¶°°
+********************************
+*                              *
+*          MAKE DUMP           *
+*                              *
+*   Glen E. Bredon   8/15/84   *
+*                              *
+*------------------------------*
+*                              *
+*     Merlin-pro assembler     *
+*                              *
+********************************
+
+* This makes a hex dump text file from a Merlin-pro
+* object file after a valid assembly of any source.
+* (It is NOT usable with older versions of Merlin.)
+*
+* To use it, BRUN it from EXEC in Merlin-pro;
+* Load desired source;
+* ASM it;
+* Type USER from the editor.
+*
+* (This will ask if you mean it, because it will
+* destroy the existing source code in memory.)
+*
+* If successful, the current source in memory will
+* be replaced with the hex dump of the object file
+* previously assembled.  The last line of the file
+* will contain a BSAVE line with the correct address
+* and length but without file name.  You can use
+* Merlin's editor to insert the desired file name
+* and then can use Merlin's Write command to save
+* this file as a DOS EXEC file.  (If you do not
+* insert the file name then you will get a SYNTAX
+* ERROR when the file is EXECed.
+
+ TR
+ EXP OFF
+
+LOADADR = $9000 ;Address of BRUN
+MAINPROG = $900 ;Main program in aux mem
+INTRFACE = $300 ;Interface in main mem
+
+* Merlin stuff:
+
+SOURCE = $A ;Source beginning
+HIMEM = $C ;Top of usable memory
+ENDSRC = $E ;End of source file
+OBJPNT = $E2 ;Address of obj (in aux mem)
+OBLEN = $E4 ;Length of object code
+ADRSV = $E6 ;ORG address of last assembly
+VALID = $E8 ;Flags valid assembly
+TABS = $F4 ;Merlin editor's tabs
+
+* Usage by this program:
+
+ADRS = $90 ;Save for ADRSV
+LEN = $92 ;Save for OBLEN
+TXTP = $94 ;For SENDMSG routine
+BYTCNT = $96 ;Countdown for bytes/line
+XREG = $9E ;Register saves for
+AREG = $9F ; bank switching use.
+
+* Data:
+
+BYTESPER = 16 ;# bytes/line desired
+
+* Apple stuff:
+
+FROM = $3C ;A1L
+ENDMOVE = $3E ;A2L
+DEST = $42 ;A4L
+AMPER = $3F5
+BASIC = $E000
+KEYIN = $FD0C
+COUT = $FDED
+MONMOVE = $FE2C
+
+* AUX mem equates:
+
+MAINWRT = $C004
+AUXWRT = $C005
+READZP = $C016
+AUXMOVE = $C311
+XFER = $C314
+
+ AST 50
+
+
+MOV MAC
+ LDA ]1
+ STA ]2
+ <<<
+
+MOVD MAC
+ MOV ]1;]2
+ MOV ]1+1;]2+1
+ <<<
+
+INCD MAC
+ INC ]1
+ BNE NI
+ INC ]1+1
+NI
+ <<<
+
+DECD MAC
+ LDA ]1
+ BNE ND
+ DEC ]1+1
+ND DEC ]1
+ <<<
+
+STADR MAC
+ LDA #]1
+ STA ]2
+ LDA #>]1
+ STA ]2+1
+ <<<
+
+TOAUX MAC
+ PHA
+ BIT ZPFLAGM
+ SEC
+ STADR ]1;$3ED
+ PLA
+ JMP XFER
+ <<<
+
+CALL MAC
+ STX XREG
+ LDX #A]1-ADRTBL
+ JSR CALLMAIN
+ <<<
+
+STORE MAC
+ LDX #]1END-]1-1
+LP LDA ]1,X
+ JSR PUTSRC
+ DEX
+ BPL LP
+ <<<
+
+ADDRESS MAC
+ LDA ]1+1
+ LDX ]1
+ JSR MAKADR
+ <<<
+
+ AST 50
+
+* Setup routines upon BRUN:
+
+ ORG LOADADR
+
+ LDA #$4C ;Set up USER vector
+ STA AMPER
+ STADR START;AMPER+1
+ STADR HEREINT;FROM
+ STADR HEREMAIN-1;ENDMOVE
+ STADR START;DEST
+ LDY #0
+ JSR MONMOVE ;Move interface to page 3
+ STADR HEREMAIN;FROM
+ STADR HEREND-1;ENDMOVE
+ STADR MAINPROG;DEST
+ SEC ;MAIN->AUX
+ JSR AUXMOVE ;Move main prog to aux mem
+; and return to caller
+ LDA READZP
+ LSR
+ STA ZPFLAGM
+ STA AUXWRT
+ STA ZPFLAGA
+ STA MAINWRT
+ RTS
+
+*---------------------------------------
+* Interface to go on page 3 main memory:
+*---------------------------------------
+
+HEREINT ORG INTRFACE
+
+START TOAUX MAIN ;Jump to start of main program
+
+CALLER JSR GOROUT ;Call routine indexed by X
+ TOAUX RETURN ;Jump to RTS in aux mem
+
+GOROUT LDA ADRTBL+1,X ;Get address of desired
+ PHA ; routine and put it
+ LDA ADRTBL,X ; on stack
+ PHA
+ LDA AREG ;Replace registers
+ LDX XREG
+ RTS ;Go to routine via RTS
+;(Returns to line after CALLER)
+ADRTBL
+AKEYIN DA KEYIN-1
+ACOUT DA COUT-1
+ARET DA RET-1
+AGETENDS DA GETENDS-1
+AMERLIN DA MERLIN-1
+
+GETENDS LDY #0
+ LDA (ENDSRC),Y
+ RTS
+
+RET PLA
+ PLA
+ PLA
+ PLA
+ RTS
+
+MERLIN JMP BASIC ;Exec entry
+
+ZPFLAGM DFB $40 ;Changed on run
+
+ ERR \$3D0
+
+ ORG ;Recall actual load address
+
+*-------------------------------
+* Main program to go in aux mem:
+*-------------------------------
+
+HEREMAIN ORG MAINPROG
+
+MAIN LDA BASIC ;From Merlin?
+ CMP #$2D
+ BNE :EXIT ;Ignore if not
+ LDA BASIC+2 ;Merlin-pro?
+ CMP #$E1
+ BNE :EXIT ;Ignore if not
+ JSR SENDMSG
+ HEX 8D8D
+ ASC "This destroys current source."8D8D
+ ASC "Do you really want it (Y/N)? "00
+:GK CALL KEYIN
+ AND #%11011111
+ CMP #"N"
+ BEQ :EXIT
+ CMP #"Y"
+ BNE :GK
+ LDA OBLEN
+ STA LEN ;Save for FINISH
+ ORA OBLEN+1 ;Object length 0 ?
+ BEQ :EXIT ;Leave if so
+ MOV OBLEN+1;LEN+1
+ MOVD ADRSV;ADRS
+ CALL GETENDS ;End of source should have
+ CLC ; an $FF if assembly valid
+ ADC #1 ;(Note GETENDS leaves Y=0)
+ ORA VALID ;Valid assembly done?
+ BEQ :OK ;Branch if so
+;Fall into :EXIT if not
+:EXIT STA AUXWRT ;Must do before XFER call
+ CALL RET
+
+* Note Y=0 throughout the main loop:
+
+:OK STA MAINWRT ;Prepare to make hex file
+ MOVD SOURCE;ENDSRC
+ STORE FRST ;Store CALL-151
+:BIGLOOP ADDRESS ADRSV ;Store current obj adrs
+ LDA #BYTESPER ;Set # bytes/line
+ STA BYTCNT
+ LDA #":" ;Colon after adrs
+:LOOP JSR PUTSRC ;Put colon or space
+ LDA (OBJPNT),Y ;Get object byte
+ JSR MAKBYTE ;Put it in source
+ INCD OBJPNT ;Point to next obj byte
+ DECD OBLEN ;Count down obj length
+ BNE :ON ;Taken if OBLEN low not 0
+ LDA OBLEN+1
+ BEQ :FINISH ;Done when OBLEN reaches 0
+:ON LDA #$A0 ;Prepare to store space
+ DEC BYTCNT
+ BNE :LOOP ;Loop if line not done
+ JSR PUTCR ;Store CR
+ LDA ADRSV ;Bump address
+ CLC
+ ADC #BYTESPER
+ STA ADRSV
+ BCC :BIGLOOP
+ INC ADRSV+1
+ BCS :BIGLOOP ;Always taken
+
+:FINISH JSR PUTCR ;Put CR
+ STORE LAST ;Store BSAVE ,A$
+ ADDRESS ADRS ;Store adrs for BSAVE
+ STORE LL ;Store ,L$
+ ADDRESS LEN ; and length
+ JSR PUTCR ; and CR
+ LDX #8
+ TYA ;=0
+:ZT STA TABS,X ;Zero all tabs before
+ DEX ; returning to editor
+ BPL :ZT
+ JMP :EXIT ;All done
+
+FRST HEX 8D
+ REV "CALL-151"
+FRSTEND
+
+LAST REV "BSAVE ,A$"
+LASTEND
+
+LL REV ",L$"
+LLEND
+
+PUTCR LDA #$8D
+ BNE PUTSRC
+
+MAKADR JSR MAKBYTE
+ TXA
+MAKBYTE PHA
+ LSR ;Shift high nibble to low
+ LSR
+ LSR
+ LSR
+ JSR :MAKNIB
+ PLA
+ AND #$F ;Make low nibble
+:MAKNIB ORA #"0"
+ CMP #"9"+1
+ BLT PUTSRC ;Branch if dec number
+ ADC #"A"-":"-1 ;Add A-F offset
+PUTSRC STA (ENDSRC),Y
+ INCD ENDSRC
+ LDA ENDSRC
+ CMP HIMEM ;Gone too far?
+ LDA ENDSRC+1
+ SBC HIMEM+1
+ BGE ABORT ;Abort if so
+ RTS
+
+ABORT STA AUXWRT ;Must do before calling XFER
+ MOVD SOURCE;ENDSRC ;Kill "source"
+ CALL MERLIN ;Return to EXEC
+
+ AST 50
+
+SENDMSG PLA ;General msg output routine
+ STA TXTP
+ PLA
+ STA TXTP+1
+ BNE :NXT ;Always taken
+:PCHR JSR CHROUT
+:NXT LDY #0
+ INC TXTP
+ BNE :NI
+ INC TXTP+1
+:NI LDA (TXTP),Y
+ BNE :PCHR
+ LDA TXTP+1
+ PHA
+ LDA TXTP
+ PHA
+ RTS
+
+CHROUT CALL COUT
+RETURN RTS
+
+CALLMAIN STA AREG
+ BIT ZPFLAGA ;Clear or set overflow bit
+ CLC ;To main
+ STADR CALLER;$3ED
+ JMP XFER
+
+ZPFLAGA DFB $40 ;Changed on run
+
+ ERR \$1000 ;Don't encroach on symbol tbl
+
+ ORG ;Recall real adrs for load
+
+HEREND ERR \$9600

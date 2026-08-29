@@ -1,4 +1,4 @@
-# Quickstart — Working with Dxui
+# Quickstart: Working with Dxui
 
 This document is the "you've just landed on the branch, what do you do" guide for the three most common tasks during the migration.
 
@@ -25,7 +25,7 @@ Expected at every phase gate: zero build errors, zero warnings, zero analysis fi
 
 ## 2. Write a Dxui widget
 
-A widget is an `IDxuiControl` (typically deriving from `DxuiPanel` if it has children, or directly from a leaf base if not). It paints against `IDxuiPainter` / `IDxuiTextRenderer` / `IDxuiTheme` — never against the concretes.
+A widget is an `IDxuiControl` (typically deriving from `DxuiPanel` if it has children, or directly from a leaf base if not). It paints against `IDxuiPainter` / `IDxuiTextRenderer` / `IDxuiTheme`; never against the concretes.
 
 ```cpp
 // Dxui/Widgets/DxuiMyWidget.h
@@ -145,7 +145,7 @@ namespace DxuiTests
 }
 ```
 
-No D3D11 device. No HWND. The widget logic — "fill background, then draw label" — is verified at the interface boundary. This is the SC-007 model.
+No D3D11 device. No HWND. The widget logic ("fill background, then draw label") is verified at the interface boundary. This is the SC-007 model.
 
 ## 4. The migration ritual (per phase)
 
@@ -153,11 +153,11 @@ For each of the 11 migration phases listed in `plan.md`:
 
 1. Branch off the previous phase's commit on `013-dxui-framework-extraction`.
 2. Make the phase's file moves / creates / deletes per the plan.
-3. `scripts\Build.ps1 -Configuration Debug -Platform x64` — fix any errors.
-4. `scripts\Build.ps1 -Configuration Release -Platform ARM64` — DPI / ARM64-specific stuff sometimes bites here first.
-5. `scripts\RunTests.ps1` — must pass.
-6. `scripts\Build.ps1 -RunCodeAnalysis` — must pass clean.
-7. For phases that move existing functionality (2, 3, 4, 7, 11), verify the user-visible behavior manually — open the app, exercise the affected surface, compare side-by-side with the previous build if visual.
+3. `scripts\Build.ps1 -Configuration Debug -Platform x64`: fix any errors.
+4. `scripts\Build.ps1 -Configuration Release -Platform ARM64`: DPI / ARM64-specific stuff sometimes bites here first.
+5. `scripts\RunTests.ps1`: must pass.
+6. `scripts\Build.ps1 -RunCodeAnalysis`: must pass clean.
+7. For phases that move existing functionality (2, 3, 4, 7, 11), verify the user-visible behavior manually, open the app, exercise the affected surface, compare side-by-side with the previous build if visual.
 8. Commit with `<type>(dxui): <description>` Conventional Commits format (scope = `dxui` for framework work, `casso/ui` for consumer migration). Include `Co-authored-by: Copilot <…>` trailer if the AI authored material.
 9. Merge to master with `--no-ff` (never squash).
 10. Move to the next phase.
@@ -222,7 +222,7 @@ sheet->ShowModelessDialog (IDOK);                          // OK / Cancel / Appl
 
 > The old `DxuiDialogManager::Show (std::move (dialog), ShowParams {})` returning a
 > `std::future<int>` is **gone** (FR-126). The "Wrong: block and touch Dxui from the worker"
-> example above is retained only to illustrate the thread-marshalling rule — the `dialogs.Show`
+> example above is retained only to illustrate the thread-marshalling rule, the `dialogs.Show`
 > API it shows no longer exists.
 
 ## Common pitfalls

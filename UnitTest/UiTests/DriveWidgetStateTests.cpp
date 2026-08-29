@@ -206,6 +206,74 @@ public:
                           ComposeWriteProtectTooltip (1, L"foo.dsk", wpNoPerm));
     }
 
+    TEST_METHOD (WriteProtectTooltip_DamagedImageLeadsWithItsOwnSentence)
+    {
+        // A damaged image is not a setting anyone chose, so reporting it as
+        // plain write-protection would send the user hunting for a toggle that
+        // will refuse them. It says what is wrong and that Casso will not
+        // write, and it leads.
+        WriteProtectInfo  wp;
+
+        wp.checksumMismatch = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"suspect.woz\" is damaged: its stored checksum does not match "
+                          L"its contents. Casso will not write to it, because rewriting the "
+                          L"file would hide the damage."),
+            ComposeWriteProtectTooltip (1, L"suspect.woz", wp));
+
+        Assert::AreEqual (
+            std::wstring (L"This disk image is damaged: its stored checksum does not match "
+                          L"its contents. Casso will not write to it, because rewriting the "
+                          L"file would hide the damage."),
+            ComposeWriteProtectTooltip (1, std::wstring(), wp),
+            L"and it still reads as a sentence without an image name");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_DamageSuppressesTheOtherCauses)
+    {
+        // Damage is the whole story, so it tells it alone.
+        //
+        // These previously appended: an image could be reported damaged AND
+        // flagged AND behind the drive preference, all in one tooltip. That
+        // reads as a list of things to go fix, and none of them can be fixed
+        // -- the disk is unwritable because it is damaged, and clearing a flag
+        // or a preference changes nothing while it stays that way. Naming them
+        // sends the user hunting for a remedy that does not exist.
+        WriteProtectInfo  wp;
+
+        wp.checksumMismatch = true;
+        wp.imageFlag        = true;
+        wp.readOnlyFile     = true;
+        wp.userSetting      = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"a.woz\" is damaged: its stored checksum does not match its "
+                          L"contents. Casso will not write to it, because rewriting the file "
+                          L"would hide the damage."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"damage stands alone, whatever else happens to be true");
+    }
+
+
+    TEST_METHOD (WriteProtectTooltip_UndamagedStillListsEveryCause)
+    {
+        // The suppression is specific to damage. With no damage the tooltip
+        // still has to account for every reason the disk will not take a
+        // write, because those the user CAN act on.
+        WriteProtectInfo  wp;
+
+        wp.imageFlag   = true;
+        wp.userSetting = true;
+
+        Assert::AreEqual (
+            std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag). "
+                          L"Drive 1 is also write-protected in Settings > Disk."),
+            ComposeWriteProtectTooltip (1, L"a.woz", wp),
+            L"an undamaged image still names its causes and still says 'also'");
+    }
+
+
     TEST_METHOD (WriteProtectTooltip_FallsBackWithoutAName)
     {
         WriteProtectInfo  wp;

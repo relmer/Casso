@@ -1,10 +1,10 @@
-# Coordination — concurrent spec sessions
+# Coordination: concurrent spec sessions
 
 State that belongs to no single spec, and would otherwise live only in one
 session's conversation. Written down because it survives neither compaction nor
 a move to another machine.
 
-Keep this current or delete it. A stale coordination note is worse than none —
+Keep this current or delete it. A stale coordination note is worse than none;
 it is read by exactly the people who have no other way to check it.
 
 ## Active work
@@ -15,26 +15,26 @@ it is read by exactly the people who have no other way to check it.
 | 020 | `020-disk-file-access` | Disk file read/write, `disk` subcommand, boot config. |
 
 Both branch from `master` and integrate through it. **Nothing flows directly
-between the two branches** — no cherry-picks, no cross-branch merges. Shared
+between the two branches**, no cherry-picks, no cross-branch merges. Shared
 artifacts are landed on `master` and picked up by a normal merge. That is why
 the command-line parser was moved into `CassoCore` before either started.
 
 ## The conflict surface is three files, and only one is source
 
-Measured, not assumed — re-measured after 020 landed its CLI edge, which added
+Measured, not assumed, re-measured after 020 landed its CLI edge, which added
 the third. Across their whole diffs the branches overlap on:
 
     CassoCore/CassoCore.vcxproj
     UnitTest/UnitTest.vcxproj
     CassoCli/CommandLine.cpp
 
-The two project files are additive — each session adds its own `<ClCompile>` /
+The two project files are additive; each session adds its own `<ClCompile>` /
 `<ClInclude>` rows.
 
 **Resolve by keeping both sides. Never take one side.** Accepting one drops the
 other session's files from the build, and the failure is quiet: the `.cpp` still
 sits on disk so nothing looks missing, the suite still compiles, and it still
-passes — with fewer tests in it. Both sessions report exact test counts (020's
+passes, with fewer tests in it. Both sessions report exact test counts (020's
 is at the top of its `tasks.md`), so the check after merging is that the count
 matches the sum of both sides, not merely that the run is green.
 
@@ -46,7 +46,7 @@ that same usage text. Same keep-both rule when it does.
 
 Nothing else is shared. 019 touches none of `CommandLineOptions.h`,
 `CommandLineParser.h/.cpp`, `UnitTest/CommandLineTests.cpp` or
-`CassoCli/CassoCli.vcxproj`, all of which 020 has edited — which is the
+`CassoCli/CassoCli.vcxproj`, all of which 020 has edited, which is the
 measurement behind the sequencing rule in the next section.
 
 ## Sequencing: the `as65` fallback removal (019 T049)
@@ -74,7 +74,7 @@ placed by 020 as a deliberate tripwire so that removing the fallback has to be a
 decision rather than an accident. Deleting it is the intended outcome. Say so in
 the commit message, or it reads later as someone removing an inconvenient test.
 
-Both sessions also touch `PrintUsage` by one line each — 020 registering `disk`,
+Both sessions also touch `PrintUsage` by one line each, 020 registering `disk`,
 019 registering `as65`. Same keep-both rule.
 
 ## Extending the fixtures
@@ -111,7 +111,7 @@ Three things learned doing it, each having cost something:
 
 - **Check that the push succeeded before removing the worktree.** A rejected
   non-fast-forward leaves the commit reachable only from that worktree's HEAD,
-  and removing it orphans the work — the edit has to be redone from scratch
+  and removing it orphans the work; the edit has to be redone from scratch
   against current `master`. This happened; the section you are reading is the
   second writing of it.
 - **Put `<temp-path>` outside the repository**, in a temp directory rather than
@@ -125,15 +125,15 @@ Three things learned doing it, each having cost something:
 Its failure mode is the inverse of the one above, and far worse.
 
 The worktree route fails *loudly*: if `master` moved, the push is rejected. The
-plumbing route fails *silently*. You set the correct parent — so the push
-fast-forwards cleanly — but the tree you built came from whatever you read
+plumbing route fails *silently*. You set the correct parent, so the push
+fast-forwards cleanly, but the tree you built came from whatever you read
 earlier, so every line that landed in between is reverted by a commit that looks
 entirely normal. Parent correct, push clean, CheckStyle green, tree internally
 consistent. Nothing complains.
 
 This happened (`b877ae91` restoring what `299e6433` had added). It was caught
 only because the author thought to ask whether their own commit had deleted
-anything — no tool volunteered it. **A push succeeding is not evidence that
+anything, no tool volunteered it. **A push succeeding is not evidence that
 nothing was lost.** If you use plumbing anyway, diff your new tree against the
 current remote tip before pushing, not against the base you started from.
 
@@ -142,7 +142,7 @@ READMEs, `UnitTest/Fixtures/README.md` and `.github/copilot-instructions.md` are
 all written by both sessions. A conflicting *code* edit usually announces itself;
 a prose edit does not. Rewriting a section wholesale from a copy fetched twenty
 minutes ago silently deletes whatever landed in between, and the result still
-reads like a coherent document — which is why it survives review.
+reads like a coherent document, which is why it survives review.
 
 This has already happened once: commit `b877ae91`, "restore the type-T trap
 paragraph I clobbered." So: pull immediately before editing a shared prose file,
@@ -153,7 +153,7 @@ so the other session can check nothing of theirs went with it.
 
 Both directories are CC BY-NC-ND 3.0 and carry a `LICENSE` covering the whole
 directory. Per constitution 1.9.0 a sidecar `LICENSE` per directory is the
-entire obligation for a fixture — no per-file accounting, and adding one is
+entire obligation for a fixture, no per-file accounting, and adding one is
 never an amendment. Material whose license forbids modification must be
 read-only to its tests.
 
@@ -161,14 +161,14 @@ read-only to its tests.
 
 A status block that reports one test count is reporting half a result. Release
 compiles EHM assertions away, so a test that drives an asserting rejection passes
-there and fails in Debug — and the reverse shape exists too, since the two
+there and fails in Debug, and the reverse shape exists too, since the two
 configurations do not run the same set.
 
 This is not hypothetical. Spec 019's status block quoted a Release figure alone,
 and Debug had been **red** underneath it for an unknown stretch: three fixture
 tests were driving the decoder's asserting rejections, which `SetupForUnitTests`
 routes to `Assert::Fail`. Nothing said so, because nothing was looking. The fix
-was `ExpectedEhmAssert` and no production change at all — the tests were wrong,
+was `ExpectedEhmAssert` and no production change at all; the tests were wrong,
 not the code, which is exactly why it went unnoticed for so long.
 
 So: run both, quote both, and quote them as a pair (`3131 Release / 3134 Debug`),
@@ -178,7 +178,7 @@ the other matches, and the case where it does not is the case worth catching.
 The same reasoning applies to a mutation harness. If breaking the code under
 test **crashes** the run rather than failing an assertion, a harness that scores
 by looking for a `Failed:` line sees no failures and reports the mutation as
-uncaught — or worse, as caught-nothing-to-see. Require a complete tally of the
+uncaught, or worse, as caught-nothing-to-see. Require a complete tally of the
 expected size, and treat a short one as "run did not complete". A crash in Debug
 is a silent overwrite in Release.
 
@@ -186,7 +186,7 @@ is a silent overwrite in Release.
 sessions wrote their own, each rediscovering the same failure modes at their own
 cost, and the quality varied: one scored a crashed run as a miss, one silently
 mutated nothing because a multi-line anchor was LF against a CRLF file, and one
-left the mutated binaries in place after restoring the source — so the next
+left the mutated binaries in place after restoring the source, so the next
 suite run would have reported a confident green against code that was not on
 disk. The script enforces all five conditions, and reports ANCHOR NOT FOUND,
 DID NOT COMPILE and RUN DID NOT COMPLETE as distinct outcomes rather than
@@ -197,7 +197,7 @@ folding any of them into "not caught". It never passes `-AllowStale`.
 Sessions on this project may run on different physical machines. **Only git
 crosses.** Not the working tree, not `%LOCALAPPDATA%`, not Claude Code memory
 files, and not per-clone git config such as `core.hooksPath` or
-`.git/info/exclude` — which is why `/DevDisks/` is ignored in `.gitignore`
+`.git/info/exclude`, which is why `/DevDisks/` is ignored in `.gitignore`
 rather than locally.
 
 Practical consequence: before reporting that you are blocked on something from
@@ -218,6 +218,6 @@ same thing is a second thing to go stale.
 | Rules every session needs | `.github/copilot-instructions.md` |
 | Cross-session state | this file |
 
-Claude Code memory is the least portable form of any of these — it is keyed per
+Claude Code memory is the least portable form of any of these; it is keyed per
 directory and per machine, so a worktree gets its own and none of it survives a
 move. Anything worth keeping belongs in the repo as well.

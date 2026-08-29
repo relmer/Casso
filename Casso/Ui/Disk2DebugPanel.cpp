@@ -97,10 +97,19 @@ void Disk2DebugPanel::ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcep
 
 
 
-// Builds the "Invalid track: tok1, tok2" detail label by slicing
-// the rejected UTF-16 spans out of the original expression. If the
-// edit parsed cleanly, returns an empty string. Defensive about
-// bad spans so an out-of-range index can't crash the dialog.
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2DebugPanel::BuildInvalidLabel
+//
+//  Builds the "Invalid track: tok1, tok2" detail label by slicing
+//  the rejected UTF-16 spans out of the original expression. If the
+//  edit parsed cleanly, returns an empty string. Defensive about
+//  bad spans so an out-of-range index can't crash the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring Disk2DebugPanel::BuildInvalidLabel (
     LPCWSTR                                                  prefix,
     const std::wstring                                     & expr,
@@ -110,6 +119,8 @@ std::wstring Disk2DebugPanel::BuildInvalidLabel (
     size_t        i        = 0;
     int           beginIdx = 0;
     int           endIdx   = 0;
+
+
 
     // No rejected spans means the edit parsed cleanly, so there is no label
     // to build and `result` stays empty.
@@ -456,6 +467,8 @@ void Disk2DebugPanel::ApplyListSelection()
 {
     DebugSelectionResult  res =
         DebugDialogProjection::ResolveSelection (m_selectedSeq, m_events, m_filteredIndices);
+
+
 
     m_selectedSeq = res.seq;
     m_eventList->SetSelectedRow (res.row);
@@ -1445,6 +1458,8 @@ void Disk2DebugPanel::FillRow (int row, std::vector<DxuiListView::Cell> & out) c
     size_t   idx         = inRange ? m_filteredIndices[(size_t) row] : m_events.size();
     wchar_t  driveBuf[8] = {};
 
+
+
     // The list can ask for a row that the filter has since dropped, or whose
     // event was evicted from the ring. Leaving `out` empty renders a blank
     // row, which is what the list expects for a vanished entry.
@@ -1626,6 +1641,7 @@ void Disk2DebugPanel::ClearEvents()
     uint32_t            drained                       = 0;
 
 
+
     m_droppedSinceLastDrain.store (0, std::memory_order_release);
     do
     {
@@ -1676,12 +1692,18 @@ void Disk2DebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point 
 void Disk2DebugPanel::OnMotorCommandOn()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOn);
+
+
+
     PublishToRing (e);
 }
 
 void Disk2DebugPanel::OnMotorEngaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorEngaged);
+
+
+
     PublishToRing (e);
 }
 
@@ -1698,6 +1720,9 @@ void Disk2DebugPanel::OnMotorEngaged()
 void Disk2DebugPanel::OnMotorCommandOff()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOff);
+
+
+
     PublishToRing (e);
 }
 
@@ -1714,6 +1739,9 @@ void Disk2DebugPanel::OnMotorCommandOff()
 void Disk2DebugPanel::OnMotorDisengaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorDisengaged);
+
+
+
     PublishToRing (e);
 }
 
@@ -1730,6 +1758,9 @@ void Disk2DebugPanel::OnMotorDisengaged()
 void Disk2DebugPanel::OnHeadStep (int prevQt, int newQt)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::HeadStep);
+
+
+
     e.payload.step.prevQt = prevQt;
     e.payload.step.newQt  = newQt;
     PublishToRing (e);
@@ -1748,6 +1779,9 @@ void Disk2DebugPanel::OnHeadStep (int prevQt, int newQt)
 void Disk2DebugPanel::OnHeadBump (int atQt)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::HeadBump);
+
+
+
     e.payload.bump.atQt = atQt;
     PublishToRing (e);
 }
@@ -1765,6 +1799,9 @@ void Disk2DebugPanel::OnHeadBump (int atQt)
 void Disk2DebugPanel::OnAddressMark (int track, int sector, int volume)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::AddrMark);
+
+
+
     e.payload.addrMark.track  = track;
     e.payload.addrMark.sector = sector;
     e.payload.addrMark.volume = volume;
@@ -1784,6 +1821,9 @@ void Disk2DebugPanel::OnAddressMark (int track, int sector, int volume)
 void Disk2DebugPanel::OnDataMarkRead (int track, int sector, int volume, int byteCount)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DataRead);
+
+
+
     e.payload.dataMark.track     = track;
     e.payload.dataMark.sector    = sector;
     e.payload.dataMark.volume    = volume;
@@ -1804,6 +1844,9 @@ void Disk2DebugPanel::OnDataMarkRead (int track, int sector, int volume, int byt
 void Disk2DebugPanel::OnDataMarkWrite (int track, int sector, int volume, int byteCount)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DataWrite);
+
+
+
     e.payload.dataMark.track     = track;
     e.payload.dataMark.sector    = sector;
     e.payload.dataMark.volume    = volume;
@@ -1847,6 +1890,9 @@ void Disk2DebugPanel::OnDriveSelect (int drive)
 void Disk2DebugPanel::OnDiskInserted (int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DiskInserted);
+
+
+
     e.drive               = (int8_t) drive;
     e.payload.drive.drive = drive;
     PublishToRing (e);
@@ -1865,6 +1911,9 @@ void Disk2DebugPanel::OnDiskInserted (int drive)
 void Disk2DebugPanel::OnDiskEjected (int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DiskEjected);
+
+
+
     e.drive               = (int8_t) drive;
     e.payload.drive.drive = drive;
     PublishToRing (e);
@@ -1883,6 +1932,9 @@ void Disk2DebugPanel::OnDiskEjected (int drive)
 void Disk2DebugPanel::OnAudioStarted (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioStarted);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -1903,6 +1955,9 @@ void Disk2DebugPanel::OnAudioStarted (SoundKind kind, int drive)
 void Disk2DebugPanel::OnAudioRestarted (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioRestarted);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -1923,6 +1978,9 @@ void Disk2DebugPanel::OnAudioRestarted (SoundKind kind, int drive)
 void Disk2DebugPanel::OnAudioContinued (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioContinued);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -1943,6 +2001,9 @@ void Disk2DebugPanel::OnAudioContinued (SoundKind kind, int drive)
 void Disk2DebugPanel::OnAudioSilent (SoundKind kind, int drive, SilentReason reason)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioSilent);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -1963,6 +2024,9 @@ void Disk2DebugPanel::OnAudioSilent (SoundKind kind, int drive, SilentReason rea
 void Disk2DebugPanel::OnAudioLoopStarted (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioLoopStarted);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -1983,6 +2047,9 @@ void Disk2DebugPanel::OnAudioLoopStarted (SoundKind kind, int drive)
 void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioLoopStopped);
+
+
+
     e.drive                = (int8_t) drive;
     e.payload.audio.kind   = kind;
     e.payload.audio.drive  = drive;
@@ -2007,6 +2074,9 @@ void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 int64_t Disk2DebugPanel::NowMs() const
 {
     auto  delta = std::chrono::steady_clock::now() - m_uptimeAnchor;
+
+
+
     return std::chrono::duration_cast<std::chrono::milliseconds> (delta).count();
 }
 

@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 10,
+    "$cassoMachineVersion": 12,
     "name": "Apple ][ plus",
     "releaseYear": 1979,
     "cpu": "6502",
@@ -31,7 +31,7 @@
     ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
-        { "slot": 4, "device": "mockingboard" },
+        { "slot": 4, "device": "mockingboard-c" },
         // The Disk ][ Interface has two drive connectors whether or not both
         // are used, so the card always declares two ports. An empty string
         // detaches that drive without changing the card.

@@ -167,16 +167,21 @@ public:
     }
 
     //
-    //  THE ORBIT SWINGS THE EYE, NOT THE MODELS -- so from half a turn away
+    //  THE ORBIT TURNS THE MODELS, NOT THE EYE -- so from half a turn away
     //  the same two drives project mirrored: the one on the left appears on
-    //  the right. That is the property worth pinning, because it fails both
-    //  ways this feature can rot: an orbit that silently stops reaching the
-    //  view matrix projects them un-mirrored, and one that moves the MODELS
-    //  breaks every model-space system (hit boxes, lamp shadows) that
-    //  depends on them staying put.
+    //  the right. The mirroring is what a user sees, and it is pinned first.
     //
-    //  And an absurd pitch must clamp rather than flip: at the pole LookAt's
-    //  basis collapses, and the symptom is NaN rects, not an exception.
+    //  WHICH SIDE MOVES IS ALSO PART OF THE CONTRACT. The camera stays where
+    //  it is and the devices' world transforms carry the rotation, because
+    //  everything lit and shadowed is anchored in WORLD space: turning the
+    //  eye instead leaves the room's lights fixed relative to the machines,
+    //  so the shading and both shadow passes never change as the scene
+    //  spins. A composition whose world matrices came back unchanged under
+    //  yaw would be the camera-orbit regression, and is failed here.
+    //
+    //  And an absurd pitch must stay finite rather than blow up: ten radians
+    //  is a legal number and the symptom of mishandling it is NaN rects, not
+    //  an exception.
     //
     TEST_METHOD (Orbit_Yaw_Mirrors_The_View_And_Pitch_Clamps)
     {
@@ -201,11 +206,27 @@ public:
         Assert::IsTrue (front.driveRectPx[0].right <= front.driveRectPx[1].left);
         Assert::IsTrue (behind.driveRectPx[1].right <= behind.driveRectPx[0].left);
 
-        // The models did not move: world transforms are identical.
+        // The MODELS carried the turn: their world transforms differ, and
+        // the camera's did not move.
+        {
+            bool  driveTurned   = false;
+            bool  monitorTurned = false;
+
+            for (int i = 0; i < 16; i++)
+            {
+                driveTurned   = driveTurned ||
+                                std::abs (front.driveWorld[0][i] - behind.driveWorld[0][i]) > 1e-4f;
+                monitorTurned = monitorTurned ||
+                                std::abs (front.monitorWorld[i] - behind.monitorWorld[i]) > 1e-4f;
+            }
+
+            Assert::IsTrue (driveTurned);
+            Assert::IsTrue (monitorTurned);
+        }
+
         for (int i = 0; i < 16; i++)
         {
-            Assert::AreEqual (front.driveWorld[0][i], behind.driveWorld[0][i], 1e-6f);
-            Assert::AreEqual (front.monitorWorld[i],  behind.monitorWorld[i],  1e-6f);
+            Assert::AreEqual (front.viewProj[i], behind.viewProj[i], 1e-4f);
         }
 
         // Ten radians of pitch clamps to a steep look-down and still projects

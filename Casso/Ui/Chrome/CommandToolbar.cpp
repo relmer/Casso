@@ -200,6 +200,8 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
     // strip. 0 == unlit, which is why Idle keeps the initializer.
     uint32_t  core = 0;
 
+
+
     switch (status)
     {
     case PrinterStatus::Receiving: core = 0xFF4CE96A; break;   // bright green: printing now
@@ -792,6 +794,8 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
     // slider is inert and the press should fall through.
     bool  handled = m_flyoutOpen && !m_muted && m_volumeSlider.OnLButtonDown (x, y);
 
+
+
     for (Button & btn : m_buttons)
     {
         if (!handled && btn.enabled && PointIn (btn.rc, x, y))
@@ -955,6 +959,8 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
     float     iconW    = iconDip;
     float     textX    = 0.0f;
     wchar_t   glyph[2] = { btn.glyph, 0 };
+
+
 
     if (!btn.enabled)
     {

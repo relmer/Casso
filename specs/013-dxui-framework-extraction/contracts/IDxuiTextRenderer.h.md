@@ -41,6 +41,6 @@ public:
 ## Contract notes
 
 - All text is `std::wstring` (FR-080).
-- DIPs in, scaled internally — same rule as `IDxuiPainter` (FR-022).
+- DIPs in, scaled internally, same rule as `IDxuiPainter` (FR-022).
 - `Measure` reports the wrapped block size if `maxWidthDip > 0`, else the single-line size. Widgets that need word-by-word metrics should fold them in widget-side; the interface stays small.
-- No font enumeration / discovery in the interface — that lives in the concrete renderer's construction.
+- No font enumeration / discovery in the interface; that lives in the concrete renderer's construction.

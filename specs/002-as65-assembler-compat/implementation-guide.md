@@ -1,13 +1,13 @@
-# Implementation Guide: Spec 002 — Full AS65 Assembler Clone
+# Implementation Guide: Spec 002: Full AS65 Assembler Clone
 
 **Purpose**: Continuation instructions for the speckit.implement agent. Read this file alongside the spec artifacts before resuming implementation.
 
 ## Current State
 
 - **Branch**: `002-as65-assembler-compat`
-- **Phase 1**: COMPLETE (committed cf1d70a) — skeleton files, project structure, types
-- **Phase 2**: COMPLETE (committed 57abaa8) — full expression evaluator with 57 tests
-- **Phase 3**: IN PROGRESS — integrating expression evaluator into assembler
+- **Phase 1**: COMPLETE (committed cf1d70a), skeleton files, project structure, types
+- **Phase 2**: COMPLETE (committed 57abaa8), full expression evaluator with 57 tests
+- **Phase 3**: IN PROGRESS, integrating expression evaluator into assembler
 - **Tests**: 290 passing (222 spec-001 + 57 expression evaluator + 11 placeholders)
 - **Build**: All 4 configs (Debug/Release × x64/ARM64) clean, 0 warnings
 
@@ -25,7 +25,7 @@ Before EVERY commit:
 
 ## Phase 3 Implementation Strategy (Next Up)
 
-Phase 3 integrates the expression evaluator into the assembler (T011-T017). The key challenge is backward compatibility — all 222 existing spec-001 tests must continue to pass unchanged.
+Phase 3 integrates the expression evaluator into the assembler (T011-T017). The key challenge is backward compatibility, all 222 existing spec-001 tests must continue to pass unchanged.
 
 ### Approach: Incremental Replacement
 
@@ -42,21 +42,21 @@ Do NOT rewrite the entire Assemble() method at once. Instead:
    - Use `ExpressionEvaluator::Evaluate()` instead of `Parser::ParseValue()` for `.org` addresses.
    - For `.byte`/`.word` value lists, split on commas (respecting parentheses) and evaluate each element.
 
-4. **The `ClassifiedOperand` struct** needs a new field to store the raw operand expression string for Pass 2 evaluation. Currently it stores a pre-parsed `value` and `labelName` — the new approach stores the expression text and evaluates it in Pass 2 when all symbols are known.
+4. **The `ClassifiedOperand` struct** needs a new field to store the raw operand expression string for Pass 2 evaluation. Currently it stores a pre-parsed `value` and `labelName`, the new approach stores the expression text and evaluates it in Pass 2 when all symbols are known.
 
-5. **Run the existing tests after EVERY change** — if any of the 222 spec-001 tests break, fix immediately before proceeding.
+5. **Run the existing tests after EVERY change**: if any of the 222 spec-001 tests break, fix immediately before proceeding.
 
 ### Files to Modify
 
-- `CassoCore/Assembler.cpp` — Pass 2 value resolution, directive handling
-- `CassoCore/Assembler.h` — may need `#include "ExpressionEvaluator.h"`
-- `CassoCore/Parser.h` — add `expression` field to `ClassifiedOperand` (or create a new operand struct)
-- `CassoCore/Parser.cpp` — store raw operand text for expression evaluation
+- `CassoCore/Assembler.cpp`: Pass 2 value resolution, directive handling
+- `CassoCore/Assembler.h`: may need `#include "ExpressionEvaluator.h"`
+- `CassoCore/Parser.h`: add `expression` field to `ClassifiedOperand` (or create a new operand struct)
+- `CassoCore/Parser.cpp`: store raw operand text for expression evaluation
 
 ### What NOT to Change
 
-- Do NOT modify `Parser::ParseLine` — it correctly splits label/mnemonic/operand and handles directives
-- Do NOT modify `Parser::SplitLines` — it works correctly
+- Do NOT modify `Parser::ParseLine`; it correctly splits label/mnemonic/operand and handles directives
+- Do NOT modify `Parser::SplitLines`; it works correctly
 - Do NOT modify the test files in `UnitTest/AssemblerTests.cpp` or `UnitTest/ParserTests.cpp`
 - Do NOT change the public API of `Assembler::Assemble()` or `AssemblyResult`
 
@@ -83,9 +83,9 @@ After Phase 3, the remaining MVP phases are:
 ## Security Rules
 
 - **NEVER** download or execute external binaries (as65.exe, etc.)
-- Dormann source (GPL) downloaded on demand, compared, then deleted — never committed
-- Conformance test inputs are our own work — committed
-- Expected outputs are hand-computed — committed
+- Dormann source (GPL) downloaded on demand, compared, then deleted; never committed
+- Conformance test inputs are our own work: committed
+- Expected outputs are hand-computed: committed
 
 ## AS65 Reference
 

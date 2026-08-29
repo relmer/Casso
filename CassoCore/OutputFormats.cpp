@@ -119,6 +119,9 @@ void OutputFormats::WriteFlatImage (const std::vector<Byte> & data, Word startAd
 static void WriteHexByte (std::ostream & stream, Byte value)
 {
     char buf[4];
+
+
+
     snprintf (buf, sizeof (buf), "%02X", value);
     stream << buf;
 }

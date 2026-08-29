@@ -1493,6 +1493,8 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     bool                        useDepth   = depthTest && m_depthDsv != nullptr;
     ID3D11DepthStencilState   * depthState = m_depthState.Get();
 
+
+
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
 

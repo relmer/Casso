@@ -33,8 +33,8 @@
 
 - Domain terminology (ImageWriter II command set, dot densities, slot firmware) is the
   product being emulated, not implementation detail; it is retained deliberately.
-- The single open risk — whether Print Shop drives an ImageWriter II through a
-  parallel-type card — is captured in Assumptions with an explicit contingency
+- The single open risk: whether Print Shop drives an ImageWriter II through a
+  parallel-type card, is captured in Assumptions with an explicit contingency
   (Super Serial Card emulation as follow-on) rather than a [NEEDS CLARIFICATION],
   because it is resolvable only by experiment, not by stakeholder decision.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`

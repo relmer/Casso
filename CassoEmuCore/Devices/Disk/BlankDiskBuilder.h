@@ -78,6 +78,18 @@ public:
                            const BootPayload   & payload,
                            vector<Byte>        & outBytes);
 
+    //
+    //  A DOS-ordered sector buffer written as one of the containers.
+    //
+    //  Public because DirectBootBuilder produces the same buffer and needs the
+    //  same three answers. A second copy of the .po reordering or the WOZ
+    //  nibblization would be a second place for the sector skew to be wrong.
+    //
+    static HRESULT  WrapInContainer (DiskFormat            format,
+                                     bool                  unformatted,
+                                     const vector<Byte> &  sectors,
+                                     vector<Byte>       &  outBytes);
+
 private:
     static void  ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
 };

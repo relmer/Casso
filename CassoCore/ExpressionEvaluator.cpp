@@ -51,7 +51,13 @@ struct ExpressionEvaluator::Token
 class ExpressionEvaluator::Tokenizer
 {
 public:
-    Tokenizer (const std::string & text) : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false) { }
+    Tokenizer (const std::string & text, char highAsciiCharDelimiter,
+               std::span<const OperatorSpelling> operatorSpellings,
+               const char * extraSymbolCharacters)
+        : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false),
+          m_highAsciiCharDelimiter (highAsciiCharDelimiter),
+          m_operatorSpellings (operatorSpellings),
+          m_extraSymbolCharacters ((extraSymbolCharacters != nullptr) ? extraSymbolCharacters : "") { }
 
     Token Next()
     {
@@ -95,17 +101,20 @@ private:
     Token ReadHexNumber();
     Token ReadBinaryNumber();
     Token ReadOctalNumber();
-    Token ReadCharConstant();
+    Token ReadCharConstant (char delimiter, bool setsHighBit);
     Token ReadDecimalNumber();
     Token ReadIdentifier();
     Token ReadOperator();
     Token ScanDigits (int base, const char * emptyError);
 
-    const std::string & m_text;
-    size_t              m_pos;
-    Token               m_peeked;
-    bool                m_hasPeeked;
-    bool                m_lastWasValue;
+    const std::string                 & m_text;
+    size_t                              m_pos;
+    Token                               m_peeked;
+    bool                                m_hasPeeked;
+    bool                                m_lastWasValue;
+    char                                m_highAsciiCharDelimiter;
+    std::span<const OperatorSpelling>   m_operatorSpellings;
+    std::string                         m_extraSymbolCharacters;
 };
 
 
@@ -231,8 +240,15 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 //
 //  ReadCharConstant
 //
-//  Reads a single-quoted character constant. The opening quote has already
-//  been consumed by the caller.
+//  Reads a delimited character constant. The opening delimiter has already
+//  been consumed by the caller, which also says which character closes it and
+//  whether this spelling carries the high bit.
+//
+//  `setsHighBit` is what makes the second delimiter worth having rather than a
+//  synonym. A dialect that offers two spellings offers them because they mean
+//  different bytes -- the apostrophe form is the plain character and the other
+//  is the same character in high ASCII, which is the encoding Apple II text is
+//  stored in.
 //
 //  An UNKNOWN escape yields the literal character rather than an error, so
 //  `'\q'` is `q`. That is the period assembler behavior, and rejecting it
@@ -249,10 +265,12 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant (char delimiter, bool setsHighBit)
 {
-    char  ch  = 0;
-    char  esc = 0;
+    constexpr int32_t  kHighBit = 0x80;
+    char               ch       = 0;
+    char               esc      = 0;
+    int32_t            value    = 0;
 
 
 
@@ -285,10 +303,17 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
             }
         }
 
-        if (m_pos < m_text.size() && m_text[m_pos] == '\'')
+        if (m_pos < m_text.size() && m_text[m_pos] == delimiter)
         {
             m_pos++;
-            token = { TokType::Number, (int32_t) (unsigned char) ch, "" };
+            value = (int32_t) (unsigned char) ch;
+
+            if (setsHighBit)
+            {
+                value |= kHighBit;
+            }
+
+            token = { TokType::Number, value, "" };
         }
     }
 
@@ -420,6 +445,11 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 //
 //  ReadIdentifier
 //
+//  The dialect's extra symbol characters are accepted here as well as in
+//  ValidateLabel, and they have to be: a name accepted as a definition and then
+//  not lexed as one identifier resolves nowhere, which is the failure Merlin's
+//  `CMD?` shows -- one diagnostic for the label and another for every use.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
@@ -429,7 +459,8 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
 
 
 
-    while (m_pos < m_text.size() && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_' || m_text[m_pos] == '.'))
+    while (m_pos < m_text.size() && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_' || m_text[m_pos] == '.' ||
+                                     m_extraSymbolCharacters.find (m_text[m_pos]) != std::string::npos))
         m_pos++;
 
     name = m_text.substr (start, m_pos - start);
@@ -559,28 +590,95 @@ const ExpressionEvaluator::Monograph * ExpressionEvaluator::FindMonograph (char 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExpressionEvaluator::FindDialectOperator
+//
+//  Whether the active dialect claims this character for a bitwise operation.
+//
+//  A table on the way IN rather than a second set of folds: the operations
+//  already exist and only the spelling differs, so this maps a character onto a
+//  token the evaluator has always had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExpressionEvaluator::TokType ExpressionEvaluator::FindDialectOperator (
+    char                                lead,
+    std::span<const OperatorSpelling>   spellings)
+{
+    struct OperationRow
+    {
+        ExprOperator  operation;
+        TokType       token;
+    };
+
+    static constexpr OperationRow  s_kOperations[] =
+    {
+        { ExprOperator::BitOr,  TokType::Pipe  },
+        { ExprOperator::BitXor, TokType::Caret },
+        { ExprOperator::BitAnd, TokType::Amp   },
+    };
+
+    TokType  token = TokType::End;
+
+
+
+    for (const OperatorSpelling & spelling : spellings)
+    {
+        if (spelling.character != lead)
+        {
+            continue;
+        }
+
+        for (const OperationRow & row : s_kOperations)
+        {
+            if (row.operation == spelling.operation)
+            {
+                token = row.token;
+            }
+        }
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadOperator — punctuation, with m_pos on the lead character
 //
 //  Consumes one or two characters and yields the matching token, or an
 //  Error token naming the character when it is not punctuation we know.
 //
+//  The dialect's own spellings are consulted FIRST, before either shared table.
+//  A dialect renaming a character has to take it away from whatever it meant
+//  before, or Merlin's `!` -- exclusive-or -- would first match the inequality
+//  digraph it happens to lead.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOperator()
 {
-    char               next = 0;
-    const Digraph    * two  = nullptr;
-    const Monograph  * one  = nullptr;
+    char               next     = 0;
+    const Digraph    * two      = nullptr;
+    const Monograph  * one      = nullptr;
+    TokType            dialect  = TokType::End;
 
 
 
     char               lead  = m_text[m_pos++];
-    next = (m_pos < m_text.size()) ? m_text[m_pos] : '\0';
-    two = FindDigraph (lead, next);
-    one = (two == nullptr) ? FindMonograph (lead) : nullptr;
+    next    = (m_pos < m_text.size()) ? m_text[m_pos] : '\0';
+    dialect = FindDialectOperator (lead, m_operatorSpellings);
+    two     = (dialect == TokType::End) ? FindDigraph (lead, next) : nullptr;
+    one     = (dialect == TokType::End && two == nullptr) ? FindMonograph (lead) : nullptr;
     Token              token = { TokType::Error, 0, std::string ("Unexpected character: ") + lead };
 
-    if (two != nullptr)
+    if (dialect != TokType::End)
+    {
+        token = { dialect, 0, "" };
+    }
+    else if (two != nullptr)
     {
         m_pos++;                       // consume the second character
         token = { two->type, 0, "" };
@@ -627,7 +725,16 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
         if (c == '\'')
         {
             m_pos++;
-            token = ReadCharConstant();
+            token = ReadCharConstant ('\'', false);
+        }
+        else if ((m_highAsciiCharDelimiter != 0) && (c == m_highAsciiCharDelimiter))
+        {
+            // The dialect's high-ASCII spelling of the same thing. Absent
+            // unless a profile named a delimiter, so a dialect without one
+            // still gets "unexpected token" here rather than a second syntax it
+            // does not have.
+            m_pos++;
+            token = ReadCharConstant (m_highAsciiCharDelimiter, true);
         }
         else if (c == '$')
         {
@@ -692,6 +799,43 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::Narrow
+//
+//  Reduces one value to the dialect's arithmetic width.
+//
+//  Applied at every point a value is produced or folded rather than once at the
+//  end, because the whole difference lives in the INTERMEDIATES: division and
+//  the comparisons read a negative 32-bit value entirely differently from the
+//  16-bit pattern it truncates to, while addition and multiplication agree
+//  either way. Masking only the answer would leave exactly the cases that matter
+//  computing in the wrong width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int32_t ExpressionEvaluator::Narrow (int32_t value, const ExprContext & ctx)
+{
+    constexpr int32_t  kWordMask = 0xFFFF;
+
+
+
+    return (ctx.arithmetic == ArithmeticWidth::Word16) ? (value & kWordMask) : value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ToUpperIdent
+//
+////////////////////////////////////////////////////////////////////////////////
 
 std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 {
@@ -803,6 +947,11 @@ bool ExpressionEvaluator::TryParsePrimary (Tokenizer & tok, const ExprContext & 
     else
     {
         error = "Unexpected token in expression";
+    }
+
+    if (ok)
+    {
+        result = Narrow (result, ctx);
     }
 
     return ok;
@@ -922,7 +1071,7 @@ bool ExpressionEvaluator::TryParseUnary (Tokenizer & tok, const ExprContext & ct
 
         if (ok)
         {
-            result = op->Apply (result);
+            result = Narrow (op->Apply (result), ctx);
         }
     }
 
@@ -1104,6 +1253,12 @@ const ExpressionEvaluator::BinaryOp * ExpressionEvaluator::FindBinaryOp (TokType
 //  `minLevel` or tighter, recursing at level + 1 for the right operand so the
 //  fold stays left-associative.
 //
+//  A dialect binding LEFT TO RIGHT flattens every operator to the loosest level
+//  instead of reading its row. That is the whole of the difference: with one
+//  level, the recursion for the right operand can absorb nothing, so the fold
+//  runs strictly left to right and parentheses become the only way to group.
+//  The operator set, the folds, and the diagnostics are untouched.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExpressionEvaluator::TryParseBinary (
@@ -1115,7 +1270,10 @@ bool ExpressionEvaluator::TryParseBinary (
 {
     const BinaryOp *  op    = nullptr;
     int32_t           right = 0;
+    int               level = 0;
+    bool              flat  = (ctx.binding == OperatorBinding::LeftToRight);
     bool              ok    = false;
+
 
 
     ok = TryParseUnary (tok, ctx, result, error);
@@ -1124,7 +1282,14 @@ bool ExpressionEvaluator::TryParseBinary (
     {
         op = ok ? FindBinaryOp (tok.Peek().type) : nullptr;
 
-        if (op == nullptr || op->level < minLevel)
+        if (op == nullptr)
+        {
+            break;
+        }
+
+        level = flat ? s_kLoosestBinaryLevel : op->level;
+
+        if (level < minLevel)
         {
             break;
         }
@@ -1132,11 +1297,16 @@ bool ExpressionEvaluator::TryParseBinary (
         tok.Next();
 
         right = 0;
-        ok    = TryParseBinary (tok, ctx, op->level + 1, right, error);
+        ok    = TryParseBinary (tok, ctx, level + 1, right, error);
 
         if (ok)
         {
             ok = op->Apply (result, right, result, error);
+        }
+
+        if (ok)
+        {
+            result = Narrow (result, ctx);
         }
     }
 
@@ -1182,7 +1352,7 @@ ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprCo
         end     = trimmed.find_last_not_of (" \t");
         trimmed = trimmed.substr (start, end - start + 1);
 
-        Tokenizer  tok (trimmed);
+        Tokenizer  tok (trimmed, ctx.highAsciiCharDelimiter, ctx.operatorSpellings, ctx.extraSymbolCharacters);
 
         if (!TryParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
         {

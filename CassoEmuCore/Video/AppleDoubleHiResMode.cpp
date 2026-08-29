@@ -80,26 +80,37 @@ Word AppleDoubleHiResMode::GetActivePageAddress (bool page2) const
 //
 //  ReadDhrByte
 //
-//  Helper: reads one byte from either aux memory (if useAux and aux is
-//  bound) or main memory (videoRam pointer or memory bus).
+//  Helper: reads one byte of one half of a DHR byte pair.
+//
+//  `direct` is the bank this half belongs to -- the aux buffer for the aux
+//  half, the main buffer for the main half. Both are wired straight to the
+//  RAM the //e MMU owns, and the bus is only a fallback for a renderer with
+//  no direct pointers.
+//
+//  Going straight to the banks is a CORRECTNESS requirement, not a shortcut.
+//  DHR needs main and aux at the same instant, but the bus page table for
+//  $2000-$3FFF follows live MMU banking: with 80STORE and HIRES set, PAGE2
+//  alone points that whole range at aux (Apple2eMmu::ResolveHires20_3F), and
+//  with 80STORE off it follows RAMRD. Reading the main half through the bus
+//  therefore returned the AUX byte for any program that left the switches
+//  pointing at aux while the frame was scanned, rendering aux into both
+//  halves of every 14-dot group.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static Byte ReadDhrByte (
-    bool         useAux,
-    const Byte * auxMem,
+    const Byte * direct,
     const Byte * videoRam,
     MemoryBus  & bus,
     Word         addr)
 {
-    // Preference order: aux (when this byte belongs there and aux is bound),
-    // then a direct main-RAM pointer, then the bus. The bus path is the slow
-    // fallback for a renderer with no direct pointers wired.
     Byte  value = 0;
 
-    if      (useAux && auxMem != nullptr) { value = auxMem[addr];       }
-    else if (videoRam != nullptr)         { value = videoRam[addr];     }
-    else                                  { value = bus.ReadByte (addr); }
+
+
+    if      (direct != nullptr)   { value = direct[addr];       }
+    else if (videoRam != nullptr) { value = videoRam[addr];     }
+    else                          { value = bus.ReadByte (addr); }
 
     return value;
 }
@@ -115,9 +126,21 @@ static Byte ReadDhrByte (
 //  Apple //e Double Hi-Res 560x192. Each scanline is 80 bytes total —
 //  40 from aux RAM and 40 from main RAM, interleaved aux-first per byte
 //  position: aux[$2000], main[$2000], aux[$2001], main[$2001], ...
-//  Each byte contributes 7 horizontal dots (bit 7 unused). 4 consecutive
-//  dots form a 4-bit nibble that indexes the 16-color DHR palette
-//  (FR-019, audit M8 closure).
+//  Each byte contributes 7 horizontal dots (bit 7 unused).
+//
+//  Pass 1 unpacks a scanline into its 560 dots. Pass 2 turns those dots
+//  into pixels, and which pass 2 runs depends on the monitor:
+//
+//    color        4 consecutive dots form a nibble indexing the 16-color
+//                 DHR palette, replicated across the cell's 4 dots
+//                 (140 color cells across).
+//    monochrome   each dot is its own pixel, lit or dark (560 across).
+//
+//  The color decode is lossy by nature -- it throws away which of the four
+//  dots in a cell were lit and keeps only how many and in what arrangement.
+//  That is correct for a color monitor, where NTSC does the same thing, but
+//  it destroys art authored as 560x192 monochrome. So the monochrome path is
+//  not a tint of the color path; it has to decode from the dots.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,10 +150,14 @@ void AppleDoubleHiResMode::Render (
     int          fbWidth,
     int          fbHeight)
 {
-    static constexpr int kDhrPixelsPerScanline = 560;
-    static constexpr int kDhrScanlines         = 192;
-    static constexpr int kBytesPerScanline     = 40;
-    static constexpr int kBitsPerByte          = 7;
+    static constexpr int      kDhrPixelsPerScanline = 560;
+    static constexpr int      kDhrScanlines         = 192;
+    static constexpr int      kBytesPerScanline     = 40;
+    static constexpr int      kBitsPerByte          = 7;
+    static constexpr uint32_t kMonoOn               = 0xFFFFFFFF;
+    static constexpr uint32_t kMonoOff              = 0xFF000000;
+
+
 
     Word     pageBase                    = GetActivePageAddress (m_page2);
     bool     dots[kDhrPixelsPerScanline] = {};
@@ -153,8 +180,8 @@ void AppleDoubleHiResMode::Render (
         {
             Word addr = static_cast<Word> (lineAddr + byteIdx);
 
-            auxByte  = ReadDhrByte (true,  m_auxMem, videoRam, m_bus, addr);
-            mainByte = ReadDhrByte (false, m_auxMem, videoRam, m_bus, addr);
+            auxByte  = ReadDhrByte (m_auxMem,  videoRam, m_bus, addr);
+            mainByte = ReadDhrByte (m_mainMem, videoRam, m_bus, addr);
 
             for (int bit = 0; bit < kBitsPerByte; bit++)
             {
@@ -169,13 +196,34 @@ void AppleDoubleHiResMode::Render (
             }
         }
 
-        // Pass 2: group 4 consecutive dots into a nibble that indexes
+        // Scanlines are doubled vertically, so 192 emulated lines fill the
+        // 384-line framebuffer and DHR matches the other modes' geometry.
+        fbY = scanline * 2;
+
+        if (m_monochrome)
+        {
+            // Pass 2, monochrome: one dot, one pixel. Lit dots are white so
+            // the shell's phosphor tint reaches full brightness on green and
+            // amber monitors as well as white.
+            for (fbX = 0; fbX < kDhrPixelsPerScanline; fbX++)
+            {
+                color = dots[fbX] ? kMonoOn : kMonoOff;
+
+                if (fbX < fbWidth && fbY + 1 < fbHeight)
+                {
+                    framebuffer[fbY       * fbWidth + fbX] = color;
+                    framebuffer[(fbY + 1) * fbWidth + fbX] = color;
+                }
+            }
+
+            continue;
+        }
+
+        // Pass 2, color: group 4 consecutive dots into a nibble that indexes
         // the 16-color palette. Each color cell is 4 dots wide; we
         // replicate the same color across all 4 dots in the cell so
         // the framebuffer renders true 16-color DHR (560 horizontal
         // dots, 140 color cells).
-        fbY = scanline * 2;
-
         for (int cell = 0; cell + 3 < kDhrPixelsPerScanline; cell += 4)
         {
             paletteIdx = (dots[cell + 0] ? 1 : 0)

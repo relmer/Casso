@@ -118,6 +118,7 @@ void DxuiFormLayout::Arrange (
     LONG  cursorY  = boundsDip.top;
 
 
+
     for (const Entry & entry : m_entries)
     {
         LONG  rowLeft     = boundsDip.left + (entry.kind == RowKind::SubRow ? indent : 0);

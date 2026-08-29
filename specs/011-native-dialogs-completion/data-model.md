@@ -62,14 +62,14 @@ private:
 | Mount via any path (picker/drag/boot)    | `RecordMount` → moves or inserts at index 0, evicts oldest   |
 | Boot picker render                       | `Prune` with real `exists` → re-persist if anything changed  |
 | User clears prefs                        | List goes empty                                              |
-| Eject                                    | No change — MRU remembers past mounts, not current state     |
+| Eject                                    | No change: MRU remembers past mounts, not current state     |
 
 ## 2. Drive Widget State extension
 
 **Owner**: `Casso/Ui/Chrome/DriveWidget.*` (state struct) +
 `DriveWidgetController` (population).
 
-**Existing shape** (snapshot — actual fields per current source):
+**Existing shape** (snapshot, actual fields per current source):
 roughly `{ driveIndex, isActive, … }`.
 
 **Extension** (FR-007 / FR-008):
@@ -93,7 +93,7 @@ struct DriveWidgetState
 - Edge case from spec: filenames with no extension or multiple dots
   display the literal `path.filename()` result; do not strip extensions.
 
-**Truncation algorithm** (pure, testable — `DriveLabelTruncation.*`):
+**Truncation algorithm** (pure, testable, `DriveLabelTruncation.*`):
 
 ```cpp
 std::wstring TruncateToWidth (

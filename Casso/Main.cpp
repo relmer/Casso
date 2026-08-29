@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "CommandLineParser.h"
+#include "Core/TextEncoding.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -21,66 +23,20 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseTraceSize
-//
-//  Parse a --trace size override like "20M", "500000", or "2G" into a
-//  ring-buffer entry count. Suffixes K/M/G multiply by 1e3/1e6/1e9.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static size_t ParseTraceSize (const wstring & text)
-{
-    unsigned long long  value = 0;
-    wchar_t           * end   = nullptr;
-
-
-
-    // An unrecognized suffix leaves the bare number rather than rejecting it,
-    // so "--trace 20X" is 20 entries, not an error at startup.
-    if (!text.empty())
-    {
-        value = wcstoull (text.c_str(), &end, 10);
-
-        if (end != nullptr && *end != L'\0')
-        {
-            switch (towupper (*end))
-            {
-                case L'K':  value *= 1000ull;        break;
-                case L'M':  value *= 1000000ull;     break;
-                case L'G':  value *= 1000000000ull;  break;
-                default:                             break;
-            }
-        }
-    }
-
-    return (size_t) value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ParseCommandLine
 //
 //  Reads the GUI shell's few command-line options: which machine to boot,
 //  disks to mount, and the CPU trace ring size.
 //
-//  Unrecognized arguments are IGNORED rather than rejected. This is a GUI
-//  application that Windows may launch with a shell-supplied argument, and
-//  refusing to start over one nobody asked about is worse than silently
-//  skipping it.
+//  THE GRAMMAR LIVES IN CORE, shared with CassoCli, so both prefixes work at
+//  both executables and CassoCli's help can write these flags with whichever
+//  prefix its reader asked for. A hand-rolled loop here used to compare wide
+//  literals, took only the `--` form for everything but `--trace`, and could
+//  not be reached by a test.
 //
-//  --trace accepts three spellings -- bare, space-separated size, and
-//  `=size` -- with both `--` and `/` prefixes, because it is a diagnostic flag
-//  people type from memory under time pressure.
-//
-//  The default ring is deliberately large: roughly a minute of emulated 6502
-//  time at about 340K instructions per second, which at around ten bytes per
-//  entry is a couple hundred megabytes. A trace that is too short to contain
-//  the fault is worth nothing, and anyone passing --trace has already accepted
-//  the cost.
+//  The conversion goes through the process's narrow code page, not UTF-8:
+//  TextEncoding::WideToNarrow says why, and why that heals itself if the
+//  process code page ever becomes UTF-8.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,13 +47,12 @@ static HRESULT ParseCommandLine (
     wstring & outDisk2,
     size_t  & outTraceCapacity)
 {
-    // ~1 minute of emulated 6502 time (~340K instructions/sec). Each ring
-    // entry is ~10 bytes, so the default ring is ~200 MB.
-    static constexpr size_t  s_kTraceDefaultEntries = 20000000;
-
-    HRESULT   hr   = S_OK;
-    int       argc = 0;
-    LPWSTR  * argv = nullptr;
+    HRESULT                              hr   = S_OK;
+    int                                  argc = 0;
+    LPWSTR                             * argv = nullptr;
+    std::vector<std::string>             narrow;
+    std::vector<char *>                  pointers;
+    CommandLineOptions::EmulatorOptions  parsed;
 
 
 
@@ -108,35 +63,20 @@ static HRESULT ParseCommandLine (
 
     for (int i = 0; i < argc; i++)
     {
-        wstring arg (argv[i]);
-
-        if (arg == L"--machine" && i + 1 < argc)
-        {
-            outMachine = argv[++i];
-        }
-        else if (arg == L"--disk1" && i + 1 < argc)
-        {
-            outDisk1 = argv[++i];
-        }
-        else if (arg == L"--disk2" && i + 1 < argc)
-        {
-            outDisk2 = argv[++i];
-        }
-        else if (arg == L"--trace" || arg == L"/trace")
-        {
-            outTraceCapacity = s_kTraceDefaultEntries;
-
-            // Optional space-separated numeric override: "--trace 50M".
-            if (i + 1 < argc && iswdigit (argv[i + 1][0]))
-            {
-                outTraceCapacity = ParseTraceSize (argv[++i]);
-            }
-        }
-        else if (arg.rfind (L"--trace=", 0) == 0 || arg.rfind (L"/trace=", 0) == 0)
-        {
-            outTraceCapacity = ParseTraceSize (arg.substr (arg.find (L'=') + 1));
-        }
+        narrow.push_back (TextEncoding::WideToNarrow (argv[i]));
     }
+
+    for (std::string & arg : narrow)
+    {
+        pointers.push_back (arg.data());
+    }
+
+    parsed = CommandLineParser::ParseEmulator ((int) pointers.size(), pointers.data());
+
+    outMachine       = TextEncoding::NarrowToWide (parsed.machine);
+    outDisk1         = TextEncoding::NarrowToWide (parsed.disk1);
+    outDisk2         = TextEncoding::NarrowToWide (parsed.disk2);
+    outTraceCapacity = parsed.traceEntries;
 
     LocalFree (argv);
 
@@ -209,6 +149,7 @@ static HRESULT LoadMachineConfig (
     HRESULT             hrSaved        = S_OK;
     bool                foundConfig    = false;
     string              error;
+
 
 
     outUserExited = false;
@@ -530,11 +471,12 @@ int WINAPI wWinMain (
     // _CrtSetDbgFlag (_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF);
 #endif
 
-    // Register GUI error notification so EHM errors show a MessageBox
-    SetNotifyFunction ([] (const wchar_t * message)
-    {
-        MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
-    });
+    // Route every EHM user-facing error (CHRN / CBRN) through Casso's own
+    // themed dialog rather than a system message box. Installed here, before
+    // anything can fail, so a command-line or machine-config failure is
+    // reported too; those happen before the shell exists, so the sink queues
+    // them and the shell replays them once there is a window.
+    SetNotifyFunction (&EmulatorShell::NotifyUser);
 
     // Register a GUI assertion breakpoint. In debug builds a failed EHM
     // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks

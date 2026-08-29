@@ -11,20 +11,20 @@ name the experiment that confirms them.
 (`$C080 + slot*$10`; slot 1 → `$C090-$C09F`). Write to `$C0n0` latches a data
 byte into the fixed-capacity SPSC ring (strobe implied). Read of `$C0n1`
 returns status with the "ready" bit asserted while the ring has headroom and
-**de-asserted within a high-water margin of the ring's capacity** — so a guest
+**de-asserted within a high-water margin of the ring's capacity**, so a guest
 honoring the handshake stalls rather than overflows if the drain ever falls
 behind. All other offsets in the window read as ready/echo and ignore writes,
-tolerantly — Print Shop interface drivers vary in which offsets they poke.
+tolerantly, Print Shop interface drivers vary in which offsets they poke.
 
-**Ring sizing / FR-002 guarantee**: The ring is sized generously (≥ 64 KB —
+**Ring sizing / FR-002 guarantee**: The ring is sized generously (≥ 64 KB,
 orders of magnitude beyond the fastest sustained 6502 `STA $C0n0` loop,
 ≈ 255 KB/s, across many drain intervals). The consumer drains on the presenter
 tick, so in normal operation the ring sits near-empty and ready stays
-continuously asserted — the "always ready" behavior drivers expect. The
+continuously asserted, the "always ready" behavior drivers expect. The
 high-water de-assert exists for the one case a pure sizing argument cannot
 cover: the drain runs on the UI thread, and a **modal host dialog (e.g. the
 Windows print dialog) can hold that thread for seconds while the guest keeps
-writing**. Backpressure — not a bigger buffer — is what makes FR-002's
+writing**. Backpressure, not a bigger buffer, is what makes FR-002's
 "never loses or reorders a byte" hold unconditionally for a handshake-honoring
 guest. Overflow past the guard remains a programming error (debug assert); it
 is unreachable while the guard is honored.
@@ -35,19 +35,19 @@ guard"; tolerance across the window maximizes compatibility with the several
 parallel-card drivers Print Shop ships (Apple II Parallel, Grappler+,
 Epson APL).
 
-**Alternatives**: Cycle-accurate strobe/ACK timing — rejected; no consumer
+**Alternatives**: Cycle-accurate strobe/ACK timing, rejected; no consumer
 can observe it and FR-002 only requires no byte loss.
 
 **Empirical confirmation**: the byte-capture debug sink (R-014) is built
 first; booting Print Shop with each parallel interface selection and diffing
 captures verifies which offsets its drivers actually touch. The exact ready
-bit position(s) get locked down then — the card can assert ready on all bits
+bit position(s) get locked down then; the card can assert ready on all bits
 that any driver tests without conflict.
 
-**LOCKED (2026-07-14, live Print Shop capture — T011)**: ready = `$83`,
+**LOCKED (2026-07-14, live Print Shop capture, T011)**: ready = `$83`,
 busy = `$00`. Print Shop's Grappler+ driver probes `(status & $07) == $03`
 before sending a single byte (Centronics SELECT and FAULT# high with
-PAPER-OUT **low** — so the old all-bits-set `$FF` guess failed the probe and
+PAPER-OUT **low**, so the old all-bits-set `$FF` guess failed the probe and
 produced "PRINTER TEST FAILED" with zero bytes written). Our firmware's CSW
 loop and Print Shop's Apple II Parallel driver both poll bit 7 set; `$83`
 satisfies every observed probe at once. The Apple II Parallel driver polls
@@ -55,12 +55,12 @@ satisfies every observed probe at once. The Apple II Parallel driver polls
 with `X = slot*16`. Two further captures locked graphics behavior: the
 welcome message arrives as `ESC L <lo> <hi>` (binary little-endian column
 count, 512 for the test) followed by exactly that many column bytes, with
-**bit 7 as the TOP pin** — the reverse of `ESC G`'s documented LSB-top
+**bit 7 as the TOP pin**, the reverse of `ESC G`'s documented LSB-top
 order (the message prints upside down otherwise).
 
 **Sign capture addendum (2026-07-14)**: a full Print Shop sign print locked
 two more dialect facts. `ESC A` takes **one binary parameter**: line feed =
-n/72" (the sign feeds `ESC A $07` = 14 native rows between passes — the
+n/72" (the sign feeds `ESC A $07` = 14 native rows between passes, the
 overlap feed; text uses `ESC A $0C` = 1/6"). The old parameterless "6 lpi"
 reading fed 24 rows per pass: a 1.7x vertical stretch with banding. And
 `ESC L` columns are **120 dpi** (the sign is 96+864 = 960 columns for the
@@ -76,7 +76,7 @@ BASIC output hook plus Pascal 1.1 protocol signature bytes and entry points
 `ParallelFirmware.h` containing (a) the assembled bytes and (b) the source
 text as a string literal. A unit test (`FirmwareParityTests`) assembles the
 source with the in-repo CassoCore assembler and asserts byte equality with
-the embedded array — drift between source and bytes fails the build's test
+the embedded array, drift between source and bytes fails the build's test
 gate, with no build-order coupling between CassoCli and CassoEmuCore.
 
 **Rationale**: FR-003 requires original firmware built from in-repo source;
@@ -84,8 +84,8 @@ the parity test enforces provenance without custom build steps. Pascal
 signature bytes make slot scanners and Pascal-protocol printing recognize the
 card.
 
-**Alternatives**: MSBuild custom step invoking CassoCli — rejected
-(build-order coupling, ARM64/x64 cross complications); shipping Apple's ROM —
+**Alternatives**: MSBuild custom step invoking CassoCli (rejected
+(build-order coupling, ARM64/x64 cross complications); shipping Apple's ROM)
 prohibited (copyright, FR-003).
 
 ## R-003: ImageWriter II command subset
@@ -101,7 +101,7 @@ with a debug-log channel for unknown sequences.
 
 **Rationale**: Covers Print Shop (graphics + color), New Print Shop, and
 BASIC/DOS text listings without chasing the long tail (custom character
-download, proportional justification — out of scope per spec Assumptions).
+download, proportional justification, out of scope per spec Assumptions).
 
 **Empirical confirmation**: captured byte streams from Print Shop test
 prints (R-014) are the acceptance oracle; the TRM is the reference for each
@@ -118,11 +118,11 @@ red, blue}. Composites are *derived* at render time from multi-primary cells
 3+ primaries → black-dominant). Rows allocated in page-length chunks as the
 strip grows; hard cap 60 form lengths (FR-015).
 
-**Rationale**: Overprint mixing (FR-007/FR-027) falls out of the bitfield —
+**Rationale**: Overprint mixing (FR-007/FR-027) falls out of the bitfield,
 the interpreter just ORs the current ribbon primary into struck cells,
 exactly like physical double-striking. 4 bpp keeps a max strip ≈ 60 MB.
 
-**Alternatives**: palette-indexed 7-color cells — rejected: loses strike
+**Alternatives**: palette-indexed 7-color cells, rejected: loses strike
 history, makes composite rules eager instead of declarative.
 
 ## R-005: Paper renderer (ink model)
@@ -143,8 +143,8 @@ with a different stamp).
 renderer in CassoEmuCore and unit-testable; kernel tables make it fast
 enough (a 576-dpi page is ~29 MP of mostly-untouched white).
 
-**Alternatives**: D2D/GPU render — rejected for determinism and test
-isolation; per-dot analytic coverage at render time — rejected as needless
+**Alternatives**: D2D/GPU render, rejected for determinism and test
+isolation; per-dot analytic coverage at render time, rejected as needless
 FLOP burn versus precomputed kernels.
 
 ## R-006: Golden testing without file I/O
@@ -166,8 +166,8 @@ shell (`HostPrintServices`, `PrintJobStore`). Set pHYs DPI metadata from the
 configured output resolution so pasted/printed images carry true physical
 size.
 
-**Alternatives**: stb_image_write — unnecessary (WIC is Windows SDK, already
-the platform norm); GDI+ — legacy.
+**Alternatives**: stb_image_write (unnecessary (WIC is Windows SDK, already
+the platform norm); GDI+) legacy.
 
 ## R-008: Clipboard formats
 
@@ -189,7 +189,7 @@ designed out.
 shown in the Print confirmation per FR-014.
 
 **Spike (time-boxed, before UI polish tasks)**: WinRT `PrintManager` via
-`IPrintManagerInterop` — the modern system dialog with live preview, fed by
+`IPrintManagerInterop`, the modern system dialog with live preview, fed by
 D2D page callbacks. Adopt in place of PrintDlgEx if it (a) works unpackaged,
 (b) coexists with the app's threading model. Outcome recorded in tasks.md;
 either way the `HostPrintServices` seam isolates the choice.
@@ -198,7 +198,7 @@ either way the `HostPrintServices` seam isolates the choice.
 
 **Decision**: Per machine, under the existing per-machine user-state
 directory: `PendingPrint/strip.png` (native-grid raster encoded as an
-indexed PNG — lossless, tiny for mostly-white strips) plus
+indexed PNG, lossless, tiny for mostly-white strips) plus
 `PendingPrint/strip.json` sidecar (format version, paper-advance position,
 page-boundary rows, cap state). Serialize/deserialize to memory buffers in
 `PrintJobSerializer` (pure, unit-tested); `PrintJobStore` does the file I/O.
@@ -206,8 +206,8 @@ Save on clean exit and after deliver (Print/Save/Copy)/discard; cleared only
 on discard (delivery is non-destructive); missing/corrupt/unknown-version
 files → start with empty paper, silently (spec: crash loss acceptable).
 
-**Alternatives**: proprietary binary blob — rejected (PNG is already
-required, inspectable, compresses ideally); saving the *rendered* strip —
+**Alternatives**: proprietary binary blob (rejected (PNG is already
+required, inspectable, compresses ideally); saving the *rendered* strip)
 rejected (native grid is the source of truth; render settings may change
 between sessions).
 
@@ -227,9 +227,9 @@ preparation time (hosted pre-sliced, like the per-mechanism Disk II sets).
 ## R-012: Presentation pacing (FR-031)
 
 **Decision**: `PrinterPresenter` (shell) replays interpreter events at
-approximately real ImageWriter II draft speed — ~250 chars/s head travel for
+approximately real ImageWriter II draft speed (~250 chars/s head travel for
 text, graphics rows at the equivalent head-pass rate, line feeds ~20 ms per
-1/144" step burst — driving both the panel's paper animation and
+1/144" step burst) driving both the panel's paper animation and
 `PrinterAudioSource` events from the same clock. The raster is always
 complete ahead of the presentation; a bounded presentation queue coalesces
 when the guest outruns the show by more than ~2 pages (jump-cut forward with
@@ -251,7 +251,7 @@ mount in confidence order (FR-025 > FR-022 > FR-023 stops at first hit):
    (high-bit-masked ASCII; no volume names) and ProDOS volume/file names
    (plain ASCII), matched against per-title name signatures.
 The signature list ships as a small embedded table (title, display name,
-filename substrings, catalog names) — bundled data, not user-editable in v1.
+filename substrings, catalog names), bundled data, not user-editable in v1.
 
 ## R-014: Byte-capture debug sink (build-first)
 
@@ -265,7 +265,7 @@ doubles as the FR-009 unknown-command diagnostics channel.
 **Decision**: New `ComponentRegistry` device type `"parallel-printer"`.
 Embedded `Machines/Apple2e*.json` gain
 `{ "slot": 1, "device": "parallel-printer", "capability": "optional" }`
-(no ROM file — firmware is embedded). `MachineConfigUpgrade` adds the slot 1
+(no ROM file, firmware is embedded). `MachineConfigUpgrade` adds the slot 1
 entry to existing user configs when absent and no other device occupies
 slot 1; the existing `enabled` flag carries per-machine disable
 (Settings → Hardware, existing UI). Firmware bytes are installed via
@@ -283,7 +283,7 @@ Detailed geometry follows the DxuiWindow architecture from spec 013.
 
 **Update (2026-07-09)**: the panel shipped as a **separate top-level
 `DxuiWindow`** (peer of the main window, like the Disk II / Input debug
-panels), NOT a docked `ChromeLayout` edge surface — the user confirmed it
+panels), NOT a docked `ChromeLayout` edge surface, the user confirmed it
 should be its own Dxui window (and it doubles as print preview, FR-020). The
 indicator remains a chrome control; clicking it opens the panel window.
 
@@ -300,22 +300,22 @@ text renderer already samples textures): add an MVP constant buffer, one
 textured/lit shader, and two meshes (chassis + dynamically-curled paper). No
 new engine, no image asset, no new third-party dependency.
 
-**Rationale**: The hero visual — printout mapped onto curling paper receding in
-perspective — is genuinely 3D and reads as flat trapezoids if faked in 2D. The
+**Rationale**: The hero visual, printout mapped onto curling paper receding in
+perspective, is genuinely 3D and reads as flat trapezoids if faked in 2D. The
 chassis and paper share one camera, so both go 3D together. It becomes the
-pilot 3D primitive the drive widgets adopt when they move to true 3D — a
+pilot 3D primitive the drive widgets adopt when they move to true 3D, a
 lower-stakes place to prove the path than always-visible drive chrome.
 Isolating 3D to the final stage keeps the content pipeline testable and leaves
 a flat 2D fallback available (FR-032). Caveat: the 3D scene needs a live user
 eyeball for aesthetic tuning; the 2D content phases self-verify (testable math
 + capturable panel).
 
-## R-018: Long-banner memory — delivery cap + incremental preview
+## R-018: Long-banner memory: delivery cap + incremental preview
 
 **Decision**: Two independent bounds. (1) **Delivery** (PNG/clipboard) caps the
 whole-strip render dpi against a fixed RGBA budget (`WholeStripDpi()`, ~512 MB),
 dropping from 576 toward but not below the ~160×144 native grid, and renders the
-strip ONCE — the clipboard PNG is encoded from that same image (was a double
+strip ONCE; the clipboard PNG is encoded from that same image (was a double
 render). Effectively lossless (no source detail above native). (2) **Preview**
 renders only newly-produced rows into a persistent tile buffer inside a ~1-page
 `PrinterViewport` (FR-033), so per-frame cost is flat regardless of strip

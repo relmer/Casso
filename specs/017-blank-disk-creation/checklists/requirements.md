@@ -33,7 +33,7 @@
 ## Notes
 
 - Default configuration (WOZ + DOS 3.3 + pre-formatted) retained after GH #89's
-  fix made every v1 format reliably writable — WOZ stays the default for
+  fix made every v1 format reliably writable, WOZ stays the default for
   robustness (order-agnostic, represents any filesystem), no longer as a
   workaround. Dependencies section updated to match.
 - FR-013 keeps blank-image generation as pure, unit-testable core logic per the

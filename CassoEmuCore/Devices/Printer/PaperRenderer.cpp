@@ -114,6 +114,8 @@ void PaperRenderer::BuildDiscKernels (int outputDpi)
     int      side       = 2 * foot + 1;
     int      rem        = 0;
 
+
+
     if (m_kernelDpi == outputDpi && !m_kernels.empty())
     {
         return;
@@ -186,6 +188,8 @@ void PaperRenderer::BlendPixel (RgbaImage & img, int x, int y, int alpha,
 {
     Byte *   p = nullptr;
 
+
+
     if (x < 0 || y < 0 || x >= img.width || y >= img.height || alpha <= 0)
     {
         return;
@@ -220,6 +224,8 @@ void PaperRenderer::StampDisc (RgbaImage & img, int xpx, int ypx, int phase,
     const DiscKernel &   k  = m_kernels[(size_t) phase];
     int                  ky = 0;
     int                  kx = 0;
+
+
 
     for (ky = 0; ky < k.h; ky++)
     {
@@ -270,6 +276,8 @@ void PaperRenderer::StampSquare (RgbaImage & img, int x0, int y0, int x1, int y1
     int   x = 0;
     int   y = 0;
 
+
+
     for (y = y0; y < y1; y++)
     {
         for (x = x0; x < x1; x++)
@@ -315,6 +323,8 @@ HRESULT PaperRenderer::Render (
     int       outW    = 0;
     int       outH    = 0;
     int       row     = 0;
+
+
 
     CBRAEx (dpi > 0, E_INVALIDARG);
 

@@ -1058,6 +1058,73 @@ public:
     }
 
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  MockingboardVariants_FriendlyNames_And_RoundTrip
+    //
+    //  The Hardware tab names the card MODEL, the way a buyer knew it --
+    //  "Mockingboard A (sound)" / "Mockingboard C (sound + speech)" --
+    //  never a raw device-type string or a chip part number. And the
+    //  variant a machine carries must survive the settings round trip:
+    //  BuildJson re-emits the slot's device string untouched, which is
+    //  what makes the choice persistent across sessions.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (MockingboardVariants_FriendlyNames_And_RoundTrip)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        bool                 sawC = false;
+        bool                 sawA = false;
+
+
+
+        const char * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [
+                { "slot": 4, "device": "mockingboard-c" },
+                { "slot": 5, "device": "mockingboard" },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON";
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        {
+            if (st.Hardware()[i].displayName == "Slot 4: Mockingboard C (sound + speech)")
+            {
+                sawC = true;
+            }
+
+            if (st.Hardware()[i].displayName == "Slot 5: Mockingboard A (sound)")
+            {
+                sawA = true;
+            }
+        }
+
+        Assert::IsTrue (sawC, L"The sound+speech model must be named as the product");
+        Assert::IsTrue (sawA, L"The sound-only model must be named as the product");
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("\"mockingboard-c\"") != std::string::npos,
+                        L"The variant must survive the settings round trip verbatim");
+    }
+
+
     // FR-041: opening / closing the panel must not pause emulation.
     // The applied-sink interface deliberately lacks any pause hook so
     // the only way to reach the emulator from the panel is through the

@@ -44,6 +44,7 @@ HRESULT MockDxuiTextRenderer::DrawString (
     RecordedTextCall  call;
 
 
+
     call.kind        = RecordedTextKind::DrawString;
     call.text        = (text != nullptr) ? text : L"";
     call.x           = xDip;
@@ -158,6 +159,7 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     constexpr float  s_kFallbackLineHeightDip = 16.0f;
     std::wstring     key                      = (text != nullptr) ? text : L"";
     auto             it                       = m_cannedMetrics.find (key);
+
 
 
     if (m_measureReturnsZero)

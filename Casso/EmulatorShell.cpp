@@ -45,6 +45,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
+#include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 
 #pragma comment(lib, "ole32.lib")
@@ -61,6 +62,36 @@
     "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' " \
     "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
     "language='*'\"")
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  User-notification marshaling
+//
+//  A notification raised off the UI thread is posted rather than shown: the
+//  dialog is Dxui, and Dxui asserts UI-thread affinity. lParam carries an
+//  owned wstring the message loop deletes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#define WM_APP_NOTIFY_USER   (WM_APP + 0x22)
+#define WM_APP_REPORT_DAMAGE (WM_APP + 0x23)
+#define WM_APP_RUN_SALVAGE   (WM_APP + 0x24)
+
+// The shell the EHM notification sink forwards to. One shell per process;
+// cleared in the destructor so a late report cannot touch a dead object.
+static EmulatorShell *  s_pNotifyShell = nullptr;
+
+// Reports raised before there is a window to parent a dialog to. File scope
+// rather than a shell member because the sink is installed at the top of
+// wWinMain, before the shell is constructed -- command-line and machine-config
+// failures happen in that window and must not vanish. Drained once the window
+// exists. The CPU thread can append, hence the lock.
+static std::vector<std::wstring>  s_pendingNotifications;
+static std::mutex                 s_pendingNotifyMutex;
 
 
 
@@ -357,6 +388,15 @@ bool EmulatorShell::TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outM
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::CenterInWorkArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void EmulatorShell::CenterInWorkArea (
     const RECT & work,
     int          windowW,
@@ -369,13 +409,23 @@ void EmulatorShell::CenterInWorkArea (
 }
 
 
-// Loads an HICON resource into a CPU-side premultiplied BGRA8
-// pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
-// path. Uses a GDI memory DC + 32-bit DIB section to capture the
-// icon's alpha-channelled pixels (LoadImageW preserves alpha when
-// LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
-// pixels in place because D2D's DrawBitmap expects premultiplied
-// sources.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LoadIconAsPremulBgra
+//
+//  Loads an HICON resource into a CPU-side premultiplied BGRA8
+//  pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
+//  path. Uses a GDI memory DC + 32-bit DIB section to capture the
+//  icon's alpha-channelled pixels (LoadImageW preserves alpha when
+//  LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
+//  pixels in place because D2D's DrawBitmap expects premultiplied
+//  sources.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT EmulatorShell::LoadIconAsPremulBgra (
     HINSTANCE               hInstance,
     int                     iconResourceId,
@@ -528,6 +578,8 @@ EmulatorShell::EmulatorShell()
     // harness instead of going through this path.
     uint64_t    seed = static_cast<uint64_t> (time (nullptr));
 
+
+
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
     m_prng = make_unique<Prng> (seed);
@@ -610,6 +662,11 @@ EmulatorShell::~EmulatorShell()
 
 
 
+    // Before anything else tears down: a notification arriving mid-teardown
+    // must not reach a half-destroyed shell.
+    SetNotifyFunction (nullptr);
+    s_pNotifyShell = nullptr;
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
@@ -646,7 +703,7 @@ EmulatorShell::~EmulatorShell()
             m_refs.keyboard->SetInputEventSink (nullptr);
         }
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
@@ -758,6 +815,11 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
+    // wWinMain installed the sink already; this just gives it a shell to
+    // forward to. Anything reported before now is sitting in the queue and
+    // is replayed once the window exists.
+    s_pNotifyShell = this;
+
     RegisterChromeDock();
     InitAssetPathsAndStores();
 
@@ -838,6 +900,10 @@ HRESULT EmulatorShell::Initialize (
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
     PowerCycle();
+
+    // Every mount reports a damaged image, not just this one. Installed before
+    // the command-line disks go in so those are covered too.
+    m_diskManager->SetMountedCallback ([this] (int drive) { ReportDamagedMount (drive); });
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
@@ -2972,7 +3038,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     // elsewhere. The switch strip re-reads the device on its next
     // SyncSwitchBarState.
     {
-        Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+        Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
 
         if (iieKbd != nullptr)
         {
@@ -3271,6 +3337,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_hwnd = m_host->Hwnd();
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
+    // There is a window to parent a dialog to now, so anything reported
+    // during startup can finally be shown.
+    FlushPendingNotifications();
+
     // The caption (title + icon + min/max/close) is owned and rendered
     // by the host (CreateParams::captionStyle == Standard), which also
     // classifies the caption / system-button / resize-edge NC hits --
@@ -3478,8 +3548,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_DISK_WP1: return m_diskStore.IsMounted (6, 0);
-            case IDM_DISK_WP2: return m_diskStore.IsMounted (6, 1);
+            case IDM_DISK_WP1:      return IsWriteProtectToggleOffered (0);
+            case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
+            case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
+            case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
             default:           return true;
         }
     });
@@ -3528,10 +3600,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
                 WriteProtectInfo  info = image->GetWriteProtectInfo();
 
-                return ((info.imageFlag || info.readOnlyFile)
-                            ? L"Allow writes to \""
-                            : L"Write-protect \"")
-                     + name + L"\"";
+                // Names the flag the command actually changes. The old wording
+                // ("Allow writes to ...") described an outcome the command
+                // cannot promise -- the host file's read-only attribute and the
+                // drive preference protect the disk too, and neither is touched
+                // here. It also flipped on readOnlyFile, so a writable image in
+                // a read-only file offered to "allow writes" and then could not.
+                return (info.imageFlag ? L"Clear \"" : L"Set \"")
+                     + name + L"\" internal write-protect flag";
             }
 
             default:
@@ -4621,6 +4697,470 @@ void EmulatorShell::SaveGlobalPrefs()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::NotifyUser
+//
+//  The EHM notification sink. Forwards to the live shell; if there is none
+//  (teardown), the message is dropped rather than crashing on a stale
+//  pointer -- an error report is not worth taking the process down for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyUser (const wchar_t * message)
+{
+    if (message == nullptr)
+    {
+        return;
+    }
+
+    // No shell yet (startup) or none left (teardown): hold the text rather
+    // than drop it. Everything raised this early is replayed the moment there
+    // is a window to show it in.
+    if (s_pNotifyShell == nullptr)
+    {
+        QueueNotification (message);
+        return;
+    }
+
+    s_pNotifyShell->ShowNotification (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::QueueNotification
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueNotification (const std::wstring & message)
+{
+    std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+
+
+    s_pendingNotifications.push_back (message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowNotification
+//
+//  Shows one notification as a themed modal. Callable from any thread.
+//
+//  Three cases, in order. With no window yet the text is queued for
+//  FlushPendingNotifications -- startup reports a bad prefs file before
+//  there is anything to parent a dialog to. Off the UI thread it is posted,
+//  because the dialog is Dxui and Dxui asserts UI-thread affinity; a flush
+//  failing on the CPU thread takes that path. Otherwise it is shown here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowNotification (const std::wstring & message)
+{
+    DialogDefinition  def;
+    bool              isOffThread = false;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    isOffThread = (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        wstring *  carried = new (std::nothrow) wstring (message);
+
+        if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                                 reinterpret_cast<LPARAM> (carried)))
+        {
+            delete carried;
+        }
+
+        return;
+    }
+
+    def.title = L"Casso";
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { message, false, wstring() });
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    ShowModalDialog (def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FlushPendingNotifications
+//
+//  Replays anything reported before the window existed. The queue is drained
+//  under the lock and shown outside it, because showing is modal and holding
+//  a lock across a nested message loop invites a deadlock with a CPU-thread
+//  notification arriving mid-dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FlushPendingNotifications()
+{
+    std::vector<std::wstring>  pending;
+    size_t                     i = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+        pending.swap (s_pendingNotifications);
+    }
+
+    for (i = 0; i < pending.size(); i++)
+    {
+        ShowNotification (pending[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSalvageDialog
+//
+//  Shows a dialog whose body is a caller-built panel instead of wrapped text
+//  runs. The salvage dialog needs a figures table and a warning banner, and
+//  neither survives being expressed as a string: a table spaced with padding
+//  characters comes apart at any font or DPI other than the author's.
+//
+//  Wider than the standard dialog because the table has three columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
+                                      std::unique_ptr<SalvageDialogContent>  content)
+{
+    constexpr int  s_kDialogWidthDip  = 520;
+    constexpr int  s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
+    constexpr int  s_kMinHeightDip    = 160;
+    constexpr int  s_kMaxHeightDip    = 620;
+
+
+
+    MessageDialog                       dlg;
+    DxuiWindow::CreateParams            params;
+    std::vector<MessageDialog::Button>  buttons;
+    HRESULT                             hr        = S_OK;
+    int                                 heightDip = 0;
+    int                                 result    = -1;
+
+
+
+    CBRAEx (content != nullptr, E_INVALIDARG);
+
+    // The panel measures itself once laid out; until then its preferred
+    // height is the estimate it reported for the width we are about to give
+    // it, which is why the width is fixed above rather than derived.
+    heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
+                            s_kMinHeightDip,
+                            s_kMaxHeightDip);
+
+    for (const DialogButton & button : def.buttons)
+    {
+        buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
+    }
+
+    dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
+
+    params.title                    = def.title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&m_chromeTheme);
+
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsSalvageOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsSalvageOffered (int drive)
+{
+    // Reads the verdict reached at mount rather than re-deriving it. This runs
+    // from the menu's enable query, so it runs on every draw of that menu:
+    // assessing here cost 11 ms for an ordinary disk and 154 ms for a
+    // copy-protected one, per drive, on the UI thread.
+    return m_diskStore.IsSalvageOffered (6, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RunSalvageFlow
+//
+//  Assess, show the figures, write on confirmation, then offer to insert the
+//  copy. The assessment is shown BEFORE anything is written: a lossy copy is
+//  the user's decision to make with the numbers in front of them, not one to
+//  learn about afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunSalvageFlow (int drive)
+{
+    SalvageAssessment                       assessment;
+    DenibblizeReport                        report;
+    DialogDefinition                        def;
+    std::unique_ptr<SalvageDialogContent>   content;
+    HRESULT                                 hr          = S_OK;
+    int                                     choice      = 0;
+    bool                                    isOffThread = false;
+    std::wstring                            sourcePath;
+    std::wstring                            destName;
+    std::wstring                            summary;
+
+
+
+    // The Disk menu dispatches on the CPU thread and this builds a Dxui modal.
+    // Reached from the damage prompt it is already on the UI thread; reached
+    // from the menu it was not, so the dialog never appeared and the command
+    // looked like it did nothing at all.
+    isOffThread = (m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        PostMessageW (m_hwnd, WM_APP_RUN_SALVAGE, (WPARAM) drive, 0);
+        return;
+    }
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    if (!assessment.isOffered)
+    {
+        return;
+    }
+
+    sourcePath = fs::path (m_diskStore.GetSourcePath (6, drive)).wstring();
+    destName   = fs::path (assessment.suggestedPath).filename().wstring();
+
+    content = std::make_unique<SalvageDialogContent>();
+    content->SetAssessment (sourcePath, destName, assessment);
+
+    def.title = L"Salvage readable sectors";
+    def.buttons.push_back (DialogButton { L"Salvage", 1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Cancel",  0, false, true,  false });
+
+    choice = ShowSalvageDialog (def, std::move (content));
+    if (choice != 1)
+    {
+        return;
+    }
+
+    hr = m_diskStore.SalvageToFile (6, drive, assessment.suggestedPath, report);
+
+    if (FAILED (hr))
+    {
+        DialogDefinition  failed;
+
+        failed.title = L"Could not write the salvaged copy";
+        failed.icon  = DialogIcon::Error;
+        failed.body.push_back (DialogTextRun {
+            fs::path (assessment.suggestedPath).wstring() + L"\n\n"
+            L"The original disk image was not changed.\n\n" +
+            WindowCommandManager::FormatSystemError (hr), false, std::wstring() });
+        failed.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+        ShowModalDialog (failed);
+        return;
+    }
+
+    // Result first, then the question: the counts are what happened, not part
+    // of the prompt.
+    summary = L"Salvaged copy written to:\n\n" +
+              fs::path (assessment.suggestedPath).wstring() + L"\n\n" +
+              std::to_wstring (report.sectorsRecovered) + L" sectors recovered, " +
+              std::to_wstring (report.sectorsLost) + L" lost. The original disk "
+              L"image was not changed.\n\n"
+              L"Insert the salvaged copy into drive " + std::to_wstring (drive + 1) + L"?";
+
+    def = DialogDefinition();
+    def.title = L"Salvage complete";
+    def.body.push_back (DialogTextRun { summary, false, std::wstring() });
+    def.buttons.push_back (DialogButton { L"Insert",  1, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Not now", 0, false, true,  false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        HRESULT  hrMount = m_diskManager->MountDiskInSlot6 (drive, assessment.suggestedPath);
+
+        IGNORE_RETURN_VALUE (hrMount, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReportDamagedMount
+//
+//  The damage report, with salvage offered inline so the dialog is not a dead
+//  end. Reached after every mount; silent unless the image failed its stored
+//  checksum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReportDamagedMount (int drive)
+{
+    DiskImage          * image       = m_diskStore.GetImage (6, drive);
+    SalvageAssessment    assessment;
+    DialogDefinition     def;
+    HRESULT              hr          = S_OK;
+    int                  choice      = 0;
+    bool                 isOffThread = false;
+
+
+
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    // Mounts run on the CPU thread -- the picker and the menu both route
+    // through it so a flush never races the drive engine -- and this raises a
+    // modal. Bounce to the UI thread rather than building a dialog from there.
+    isOffThread = (m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+
+    if (isOffThread)
+    {
+        PostMessageW (m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
+        return;
+    }
+
+    if (!image->HasSourceCrcMismatch())
+    {
+        return;
+    }
+
+    def.title = L"Disk image is damaged";
+    def.icon  = DialogIcon::Warning;
+    // The sentence leads and the path follows it: naming the file before
+    // saying anything about it makes the reader hold a path in mind with no
+    // reason to yet.
+    def.body.push_back (DialogTextRun {
+        L"This disk image's stored checksum does not match its contents. "
+        L"The file is damaged or was written by a tool that miscomputed it.\n\n" +
+        fs::path (m_diskStore.GetSourcePath (6, drive)).wstring() + L"\n\n"
+        L"Casso has loaded it so you can read it, and has write-protected it "
+        L"for this session. Rewriting the file would give it a newly computed "
+        L"checksum, silently hiding the damaged sectors.",
+        false, std::wstring() });
+
+    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+
+    if (SUCCEEDED (hr) && assessment.isOffered)
+    {
+        def.buttons.push_back (DialogButton { L"Salvage readable sectors...", 1,
+                                              false, false, false });
+    }
+
+    def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
+
+    choice = ShowModalDialog (def);
+
+    if (choice == 1)
+    {
+        RunSalvageFlow (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsWriteProtectToggleOffered
+//
+//  Whether the Disk menu should offer the write-protect toggle for a drive.
+//  Reads the bay, then defers to the pure predicate so the rule itself stays
+//  testable without a mounted store behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
+{
+    const DiskImage *  image   = m_diskStore.GetImage (6, drive);
+    bool               mounted = m_diskStore.IsMounted (6, drive);
+
+
+
+    if (image == nullptr)
+    {
+        return false;
+    }
+
+    return ShouldEnableWriteProtectMenuItem (mounted, image->GetWriteProtectInfo());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowModalDialog
+//
+//  Every modal in Casso goes through the Dxui host path. Kept as its own
+//  entry point so callers name the intent rather than the renderer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 {
     return ShowSimpleDialogViaDxui (def);
@@ -4657,6 +5197,8 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     constexpr uint32_t  s_kGlyphArgbInfo    = 0xFF4A9EDB;
     constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
     constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
+
+
 
     std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
     MessageDialog                       dlg;
@@ -4763,6 +5305,8 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // scaled drives without a separate constant.
     constexpr int  s_kFullDriveBarDp    = 225;
     constexpr int  s_kCompactDriveBarDp = 105;
+
+
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
     int   priorThicknessDp   = m_driveBarThicknessDp;
@@ -5373,6 +5917,8 @@ void EmulatorShell::UpdatePrinterPreview()
 {
     static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
 
+
+
     HRESULT    hr        = S_OK;
     uint64_t   activity  = 0;
     int64_t    nowMs     = 0;
@@ -5539,7 +6085,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
 
 void EmulatorShell::SyncSwitchBarState()
 {
-    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
     bool               diskOn = false;
 
 
@@ -5593,7 +6139,7 @@ const Byte * EmulatorShell::AuxRamBuffer() const
 
 void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 {
-    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
 
 
 
@@ -5965,6 +6511,8 @@ int EmulatorShell::RunMessageLoop()
     // exits on empty-queue long before the deadline.
     constexpr int64_t  s_kMaxDrainMs = 8;
 
+
+
     MSG      msg             = {};
     HRESULT  hr              = S_OK;
     int      exitCode        = 0;
@@ -6033,6 +6581,37 @@ int EmulatorShell::RunMessageLoop()
             // it doubles as the signal to reflow the chrome for a possible
             // Disk ][ controller add/remove (the window size is unchanged, so
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
+            // A notification raised off the UI thread. lParam owns a
+            // heap-allocated copy of the text, handed over by ShowNotification.
+            // A mount that ran on the CPU thread wants its damage report raised
+            // here, where a modal can be built.
+            if (msg.message == WM_APP_REPORT_DAMAGE)
+            {
+                ReportDamagedMount ((int) msg.wParam);
+                continue;
+            }
+
+            // Likewise the salvage flow: the Disk menu dispatches it from the
+            // CPU thread, and it builds a modal.
+            if (msg.message == WM_APP_RUN_SALVAGE)
+            {
+                RunSalvageFlow ((int) msg.wParam);
+                continue;
+            }
+
+            if (msg.message == WM_APP_NOTIFY_USER)
+            {
+                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    ShowNotification (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
             if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
             {
                 UpdateWindowTitle();
@@ -6716,6 +7295,13 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             break;
         }
 
+        case IDM_DISK_SALVAGE1:
+        case IDM_DISK_SALVAGE2:
+        {
+            RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            break;
+        }
+
         case IDM_AUDIO_DRIVE_ENABLE:
         case IDM_AUDIO_DRIVE_DISABLE:
         {
@@ -7152,7 +7738,7 @@ bool EmulatorShell::ShouldPublishFrame()
 uint32_t EmulatorShell::ComputeVideoModeSig()
 {
     uint32_t                  sig = 0;
-    Apple2eSoftSwitchBank *   iie = nullptr;
+    Apple2eSoftSwitchBank *   iie = m_refs.iieSoftSwitches;
 
 
 
@@ -7162,8 +7748,6 @@ uint32_t EmulatorShell::ComputeVideoModeSig()
         sig |= m_refs.softSwitches->IsMixedMode()    ? 0x02u : 0u;
         sig |= m_refs.softSwitches->IsPage2()        ? 0x04u : 0u;
         sig |= m_refs.softSwitches->IsHiresMode()    ? 0x08u : 0u;
-
-        iie = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
 
         if (iie != nullptr)
         {
@@ -7489,32 +8073,40 @@ void EmulatorShell::RenderFramebuffer()
 
 
 
+    // Nothing to render before a machine is built, or after one is torn
+    // down. The modes are created and cleared together, so text40 answers
+    // for all of them and every use below can go straight to m_refs.
+    if (m_refs.text40 == nullptr)
+    {
+        return;
+    }
+
     // A color monitor renders text white; the monochrome monitors keep the
     // text renderer's green here and the post-render tint below recolors the
-    // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
-    // text mode and [4] (when present) the 80-col mode. Flash state is pushed
-    // in from emulated time (Render no longer self-advances it) so the blink
+    // whole frame to the selected phosphor. Flash state is pushed in from
+    // emulated time (Render no longer self-advances it) so the blink
     // survives the render-skip gate.
     {
         uint32_t textOnColor = (color == ColorMode::Color)
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
                                    : s_kMonoSourceTextBgra;
 
-        if (!m_videoModes.empty())
-        {
-            AppleTextMode *  text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
+        m_refs.text40->SetOnColor    (textOnColor);
+        m_refs.text40->SetFlashState (flashOn);
 
-            text40->SetOnColor    (textOnColor);
-            text40->SetFlashState (flashOn);
-        }
+        m_refs.text80->SetOnColor    (textOnColor);
+        m_refs.text80->SetFlashState (flashOn);
 
-        if (m_videoModes.size() > 4)
-        {
-            Apple80ColTextMode *  text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
+        // Both graphics modes decode from the dots differently per monitor,
+        // so they need the monitor type rather than a tint of one decode.
+        // In both cases the color decode has already discarded what a
+        // monochrome monitor would show -- DHR collapses each 4-dot cell to
+        // one palette entry, and hi-res folds the half-dot shift into a
+        // color pair -- so no amount of post-tinting brings it back.
+        bool monoMonitor = (color != ColorMode::Color);
 
-            text80->SetOnColor    (textOnColor);
-            text80->SetFlashState (flashOn);
-        }
+        m_refs.hiRes->SetMonochrome       (monoMonitor);
+        m_refs.doubleHiRes->SetMonochrome (monoMonitor);
     }
 
     m_machineManager->SelectVideoMode();
@@ -7525,19 +8117,14 @@ void EmulatorShell::RenderFramebuffer()
     // would darken every frame. (2) A change of active mode means the buffer
     // last held graphics / another mode, so no text row can be trusted. Steady
     // color text hits neither and lets AppleTextMode redraw only changed rows.
-    if (!m_videoModes.empty())
     {
         bool forceFullText = (color != ColorMode::Color)
                           || (m_refs.activeVideoMode != m_prevActiveVideoMode);
 
         if (forceFullText)
         {
-            static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
-
-            if (m_videoModes.size() > 4)
-            {
-                static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->InvalidateCache();
-            }
+            m_refs.text40->InvalidateCache();
+            m_refs.text80->InvalidateCache();
         }
     }
 
@@ -7561,35 +8148,31 @@ void EmulatorShell::RenderFramebuffer()
     // we route through Apple80ColTextMode::RenderRowRange; otherwise through
     // AppleTextMode::RenderRowRange. Both share a single composed code path
     // (no branched duplicated render logic).
-    if (m_mixedMode && m_graphicsMode && !m_videoModes.empty())
+    if (m_mixedMode && m_graphicsMode)
     {
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        auto * iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-        bool   use80Col    = iieSwitches != nullptr && iieSwitches->Is80ColMode();
+        bool  use80Col = m_refs.iieSoftSwitches != nullptr
+                      && m_refs.iieSoftSwitches->Is80ColMode();
 
-        if (use80Col && m_videoModes.size() > 4)
+        if (use80Col)
         {
-            auto * text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
-
-            text80->SetPage2 (false);
-            text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    nullptr,
-                                    m_cpuFramebuffer.data(),
-                                    kFramebufferWidth,
-                                    kFramebufferHeight);
+            m_refs.text80->SetPage2 (false);
+            m_refs.text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                           nullptr,
+                                           m_cpuFramebuffer.data(),
+                                           kFramebufferWidth,
+                                           kFramebufferHeight);
         }
         else
         {
-            auto * text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
-
-            text40->SetPage2 (m_page2);
-            text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                    nullptr,
-                                    m_cpuFramebuffer.data(),
-                                    kFramebufferWidth,
-                                    kFramebufferHeight);
+            m_refs.text40->SetPage2 (m_page2);
+            m_refs.text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                           nullptr,
+                                           m_cpuFramebuffer.data(),
+                                           kFramebufferWidth,
+                                           kFramebufferHeight);
         }
     }
 
@@ -8069,6 +8652,8 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
 
     m_uiShell.OnMouseLeave();
 
@@ -9413,7 +9998,7 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto *  iieKbd = m_refs.iieKeyboard;
 
 
 
@@ -9627,7 +10212,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 {
     HRESULT   hr     = S_OK;
-    auto    * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto    * iieKbd = m_refs.iieKeyboard;
     bool      lAlt   = false;
     bool      rAlt   = false;
 
@@ -9955,7 +10540,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
     bool  driveJoystick = m_arrowsJoystick &&
-                          (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                          (m_refs.iieSoftSwitches != nullptr ||
                            m_refs.gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
@@ -10058,15 +10643,14 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // so MapTypedChar can skip the remap and avoid double-translating).
             // Clipboard paste feeds KeyPress directly (not this path), so pasted
             // text is never remapped -- matching the hardware encoder.
-            auto  * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+            Byte  code = static_cast<Byte> (ch);
 
-            if (iieKbd != nullptr)
+            if (m_refs.iieKeyboard != nullptr)
             {
-                iieKbd->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
-            }
+                m_refs.iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
 
-            Byte    code   = (iieKbd != nullptr) ? iieKbd->MapTypedChar (static_cast<Byte> (ch))
-                                                 : static_cast<Byte> (ch);
+                code = m_refs.iieKeyboard->MapTypedChar (code);
+            }
 
             m_refs.keyboard->KeyPress (code);
             m_refs.keyboard->BeginKeyRepeat (code);
@@ -10125,7 +10709,7 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto   * iieSw    = m_refs.iieSoftSwitches;
     auto   * gamePort = m_refs.gamePort;
     bool     left     = false;
     bool     right    = false;
@@ -10210,7 +10794,7 @@ Error:
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto   * iieKbd   = m_refs.iieKeyboard;
     auto   * gamePort = m_refs.gamePort;
     bool     button0  = false;
     bool     button1  = false;
@@ -10318,8 +10902,8 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::SetArrowsJoystick (bool on)
 {
-    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * iieSw    = m_refs.iieSoftSwitches;
+    auto * iieKbd   = m_refs.iieKeyboard;
     auto * gamePort = m_refs.gamePort;
 
 
@@ -10389,7 +10973,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 {
-    auto             * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto             * iieSw = m_refs.iieSoftSwitches;
     InputMappingMode   prev  = m_pointerMode;
 
 
@@ -10835,7 +11419,7 @@ Error:
 
 void EmulatorShell::PushPaddlePosition()
 {
-    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieSw    = m_refs.iieSoftSwitches;
     auto * gamePort = m_refs.gamePort;
     Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
     Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
@@ -10871,7 +11455,7 @@ void EmulatorShell::PushPaddlePosition()
 
 void EmulatorShell::PushPaddleButton (int index, bool pressed)
 {
-    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    auto * iieKbd   = m_refs.iieKeyboard;
     auto * gamePort = m_refs.gamePort;
 
 
@@ -10957,7 +11541,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
     bool  isFireKey = m_arrowsJoystick &&
-                      (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                      (m_refs.iieSoftSwitches != nullptr ||
                        m_refs.gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');
 
@@ -11706,6 +12290,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
     bool          hasTrace       = false;
 
 
+
     // One-shot: the graceful-exit path and the crash handler both call this,
     // and only the first through gets to write.
     wonTheRace = m_traceDumped.compare_exchange_strong (expected, true);
@@ -11908,7 +12493,7 @@ void EmulatorShell::OpenInputDebugDialog()
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
@@ -11977,7 +12562,7 @@ void EmulatorShell::AttachDebugSinksIfOpen()
 
         m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+        iieSwitches = m_refs.iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());

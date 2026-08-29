@@ -93,6 +93,48 @@ void Cpu::EnableTrace (size_t capacity)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TracePeek
+//
+//  Read one byte for the trace: the byte the CPU would fetch, without
+//  disturbing anything.
+//
+//  It goes through the SAME read-page table the instruction fetch uses,
+//  because memory[] is the wrong buffer the moment an MMU re-points a page.
+//  On the //e and //c the MMU rebinds all of $0000-$BFFF from RAMRD / RAMWRT /
+//  ALTZP / 80STORE, so a trace that read memory[] printed operands from main
+//  RAM while the CPU executed from aux -- and a disassembly whose operands
+//  belong to a different bank is worse than none, because it reads as fact.
+//  This was visible in a //e trace of a stack-page disk loader, where a
+//  branch that plainly jumped backwards printed a forward operand.
+//
+//  A null page is I/O ($C000-$CFFF) or unmapped space, and those fall back to
+//  memory[] rather than the bus ON PURPOSE: a bus read of $C0xx toggles soft
+//  switches. Recording the machine must never change it, so the trace accepts
+//  a stale byte there instead of a side effect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Cpu::TracePeek (Word address) const
+{
+    if (m_readPages != nullptr)
+    {
+        const Byte *  page = m_readPages[address >> 8];
+
+        if (page != nullptr)
+        {
+            return page[address & 0xFF];
+        }
+    }
+
+    return memory[address];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TracePush
 //
 //  Snap the current pre-execution CPU state into the ring buffer.
@@ -105,9 +147,8 @@ void Cpu::EnableTrace (size_t capacity)
 //  banking). It must NOT be re-read from the raw Cpu::memory[] array,
 //  which only backs $00-$BF RAM and is stale for ROM/$Cxxx/$Dxxx-$FFFF
 //  -- doing so makes the disassembly lie in exactly the banked regions
-//  a fault trace most needs to be correct about. The operand bytes are
-//  read from the raw RAM backing, which is exact for $0000-$BFFF code
-//  (where bootloaders/decryptors live) and approximate elsewhere.
+//  a fault trace most needs to be correct about. The operand bytes go
+//  through TracePeek for the same reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,8 +160,8 @@ void Cpu::TracePush (Byte opcode)
 
     e.pc     = PC;
     e.opcode = opcode;
-    e.op1    = memory[(Word) (PC + 1)];
-    e.op2    = memory[(Word) (PC + 2)];
+    e.op1    = TracePeek ((Word) (PC + 1));
+    e.op2    = TracePeek ((Word) (PC + 2));
     e.a      = A;
     e.x      = X;
     e.y      = Y;
@@ -230,6 +271,8 @@ HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
     bool                       isOpen          = false;
     bool                       wrote           = false;
     char                       line[160];
+
+
 
     HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
@@ -495,6 +538,8 @@ void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & 
         "CZIDBVN"
     };
 
+
+
     // Print the registers and the opcode byte
     std::printf ("SP: %02x  A: %04X  X: %04X  Y: %04X  %c%c%c%c%c%c%c    [%04X] %02X ",
                  SP,
@@ -688,6 +733,8 @@ void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
     bool  hasOperand = microcode.isLegal
                        && microcode.globalAddressingMode != GlobalAddressingMode::SingleByteNoOperand
                        && microcode.globalAddressingMode != GlobalAddressingMode::Accumulator;
+
+
 
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
@@ -1224,6 +1271,9 @@ Word Cpu::PopWord()
 {
     Byte lo = PopByte();
     Byte hi = PopByte();
+
+
+
     return lo | (hi << 8);
 }
 
@@ -1292,6 +1342,9 @@ Word Cpu::ReadWord (Word address)
 {
     Byte lo = ReadByte (address);
     Byte hi = ReadByte (static_cast<Word> (address + 1));
+
+
+
     return static_cast<Word> (lo | (hi << 8));
 }
 
@@ -1741,6 +1794,8 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
     Byte  addressingMode            = 0;
     Byte  currentAddressingModeFlag = 1;
 
+
+
     while (addressingMode < addressingModeMax)
     {
         if (addressingModeFlags & currentAddressingModeFlag)
@@ -1802,6 +1857,8 @@ HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
     HRESULT       hr     = S_OK;
     bool          isOpen = false;
     std::ifstream file     (filename, std::ios::binary);
+
+
 
     isOpen = file.is_open();
     CBRAEx (isOpen, E_INVALIDARG);

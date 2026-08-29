@@ -1,0 +1,7 @@
+; Conformance: colon-less labels
+    .org $0000
+start
+    nop             ; $EA at $0000
+    jmp start       ; $4C $00 $00
+done
+    nop             ; $EA at $0006

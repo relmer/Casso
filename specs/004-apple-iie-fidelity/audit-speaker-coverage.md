@@ -24,25 +24,25 @@
 |---|---------------------------------------------------------------------------------|-----------------------|---------------|
 | A | `$C030` toggle on **read**                                                      | (1), (2), (6), (7)    | covered       |
 | B | `$C030` toggle on **write** (e.g. `STA $C030`)                                  | none                  | **gap → closed in T015a** |
-| C | `$C030-$C03F` 16-byte mirror — every address in range toggles identically       | none                  | **gap → closed in T015a** |
-| D | Headless `MockAudioSink::ToggleCount` correctly reflects CPU writes             | none                  | gap → deferred to Phase 6 (audio path) — see note 1 |
-| E | Soft-vs-power-cycle behavior: toggle-counter zeroed by power cycle but speaker state preserved across soft reset | none | gap → deferred to Phase 4 (reset semantics split) — see note 2 |
+| C | `$C030-$C03F` 16-byte mirror, every address in range toggles identically       | none                  | **gap → closed in T015a** |
+| D | Headless `MockAudioSink::ToggleCount` correctly reflects CPU writes             | none                  | gap → deferred to Phase 6 (audio path), see note 1 |
+| E | Soft-vs-power-cycle behavior: toggle-counter zeroed by power cycle but speaker state preserved across soft reset | none | gap → deferred to Phase 4 (reset semantics split), see note 2 |
 | F | Cycle counter timestamp accuracy                                                | (6), (7), (8)         | covered       |
 | G | Power-on silent state                                                           | (4)                   | covered       |
 | H | `Reset()` clears state and timestamps                                           | (5)                   | covered       |
 
 ### Gaps closed in T015a
 
-- **B**: added `SpeakerTests::Write_TogglesSpeakerState` —
+- **B**: added `SpeakerTests::Write_TogglesSpeakerState`,
   `Write($C030, value)` flips the analog speaker state identically to a
   `Read`.
-- **C**: added `SpeakerTests::Mirror_C03X_AllAddressesToggle` — verifies
+- **C**: added `SpeakerTests::Mirror_C03X_AllAddressesToggle`, verifies
   every address in `$C030..$C03F` toggles the speaker exactly once per
   access (read OR write), confirming the 16-byte mirror per audit §5.
 
 ### Gaps deferred (with rationale)
 
-1. **D — `MockAudioSink::ToggleCount` reflects CPU writes**: in Phase 0 the
+1. **D, `MockAudioSink::ToggleCount` reflects CPU writes**: in Phase 0 the
    `AppleSpeaker` is *not* wired through the new `IAudioSink` path; the
    audio renderer still walks the timestamp ring directly. Closing this
    gap requires routing speaker activity through the host shell's audio
@@ -50,7 +50,7 @@
    Phase 0 concern. T015a includes a comment in `MockAudioSink.h` noting that
    Phase 0 ships only the toggle-count *API*; the wiring lands in Phase 6.
 
-2. **E — soft-vs-power-cycle behavior**: Phase 0 only models `Reset()` as a
+2. **E, soft-vs-power-cycle behavior**: Phase 0 only models `Reset()` as a
    single power-on path. Phase 4 splits `Reset` into `SoftReset` and
    `PowerCycle`. Once that split exists, T0xx in Phase 4 will add
    `SpeakerTests::SoftResetPreservesState` and

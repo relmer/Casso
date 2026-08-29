@@ -888,6 +888,7 @@ void DxuiMenuBar::PaintStrip (
     uint32_t  stripFg   = m_stripColorsSet ? m_stripTextOverride  : theme.Foreground();
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     painter.FillRect ((float) m_stripRect.left,
@@ -1031,6 +1032,7 @@ void DxuiMenuBar::PaintDropdownRows (
     bool      menuHasCheckable   = false;
     int       checkGutterPx      = 0;
     int       labelLeftPx        = rowPadLeftPx;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1367,6 +1369,108 @@ int DxuiMenuBar::MenuStripContentWidthPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiMenuBar::DropdownWidthPx
+//
+//  The dropdown was a fixed 300 DIP. Any label longer than that wrapped and
+//  overran the row beneath it, which is invisible until a caller has something
+//  long to say -- and menu labels that name a file routinely do.
+//
+//  Measures the widest row instead: label plus its accelerator, inside the
+//  same gutters the rows are drawn with, floored at the old fixed width so
+//  every existing menu keeps the width it had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMenuBar::DropdownWidthPx (size_t index, UINT dpi) const
+{
+    int   minWidthPx    = ScaleDpi (s_kDropdownWidthDip, dpi);
+    int   rowPadLeftPx  = ScaleDpi (s_kRowPadLeftDip, dpi);
+    int   checkGutterPx = ScaleDpi (s_kCheckGutterDip, dpi);
+    int   gapPx         = ScaleDpi (s_kRowPadLeftDip, dpi) * 2;
+    int   widestPx      = 0;
+    float fontDip       = (float) ScaleDpi ((int) s_kFontDip, dpi);
+
+
+
+    if (index >= m_items.size())
+    {
+        return minWidthPx;
+    }
+
+    for (const DxuiMenuBarSubitem & sub : m_items[index].submenu)
+    {
+        std::wstring  stripped;
+        wchar_t       mnCh  = 0;
+        int           mnIdx = -1;
+        int           rowPx = 0;
+
+        if (sub.isSeparator)
+        {
+            continue;
+        }
+
+        ParseMnemonic (sub.LabelText(), stripped, mnIdx, mnCh);
+
+        rowPx = MeasureRunPx (stripped, fontDip, dpi);
+
+        if (!sub.hotkey.empty())
+        {
+            rowPx += gapPx + MeasureRunPx (sub.hotkey, fontDip, dpi);
+        }
+
+        if (rowPx > widestPx)
+        {
+            widestPx = rowPx;
+        }
+    }
+
+    widestPx += rowPadLeftPx + checkGutterPx + rowPadLeftPx;
+
+    return (widestPx > minWidthPx) ? widestPx : minWidthPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::MeasureRunPx
+//
+//  One text run in pixels, from the cached measuring renderer when there is
+//  one and a DPI-scaled glyph estimate otherwise -- the same fallback the
+//  title row uses, so a transient renderer failure degrades identically.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMenuBar::MeasureRunPx (const std::wstring & run, float fontDip, UINT dpi) const
+{
+    HRESULT  hr     = E_FAIL;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+
+
+
+    if (m_textRendererForMeasure != nullptr)
+    {
+        hr = m_textRendererForMeasure->MeasureString (run.c_str(), fontDip, s_kFontFamily,
+                                                      width, height);
+    }
+
+    if (SUCCEEDED (hr) && width > 0.0f)
+    {
+        return (int) (width + 0.5f);
+    }
+
+    return (int) run.size() * ScaleDpi (s_kFallbackGlyphWidthDip, dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMenuBar::DropdownRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1375,7 +1479,7 @@ RECT DxuiMenuBar::DropdownRect() const
 {
     RECT  rect          = {};
     RECT  title         = {};
-    int   dropdownWidth = ScaleDpi (s_kDropdownWidthDip, m_dpi);
+    int   dropdownWidth = DropdownWidthPx ((size_t) m_openIndex, m_dpi);
 
 
 
@@ -1842,7 +1946,7 @@ void DxuiMenuBar::ShowDropdownPopup()
     BAIL_OUT_IF (m_activePopup == nullptr, S_OK);
 
     title        = m_titleRects[m_openIndex];
-    dropWidthPx  = ScaleDpi (s_kDropdownWidthDip, eDpi);
+    dropWidthPx  = DropdownWidthPx ((size_t) m_openIndex, eDpi);
     dropHeightPx = DropdownHeightPx (m_openIndex);
 
     // Anchor on the title (window-client px) -> screen px.
@@ -1863,7 +1967,7 @@ void DxuiMenuBar::ShowDropdownPopup()
     showParams.shadow           = true;
     // Show scales sizeDip by the owner DPI: width is the DIP constant
     // directly; height converts the measured pixel height back to DIPs.
-    showParams.sizeDip.cx       = s_kDropdownWidthDip;
+    showParams.sizeDip.cx       = MulDiv (dropWidthPx, s_kBaseDpi, (int) eDpi);
     showParams.sizeDip.cy       = MulDiv (dropHeightPx, s_kBaseDpi, (int) eDpi);
     showParams.backgroundArgb   = m_cachedPalette.bg;
     showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderDropdownPopup (p, t); };
@@ -2031,6 +2135,7 @@ void DxuiMenuBar::OnPopupClick (POINT localPx)
     int                          row      = PopupRowAtLocalY (localPx.y);
     const DxuiMenuBarSubitem  *  entry    = (row >= 0) ? EntryAt (m_openIndex, row) : nullptr;
     std::function<void()>        dispatch;
+
 
 
     DXUI_ASSERT_UI_THREAD();

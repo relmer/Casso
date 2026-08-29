@@ -261,6 +261,8 @@ bool UiShell::HandleKey (WPARAM vk)
     // unrecognized key would reach the emulated keyboard behind the menu.
     bool  menuOpen = (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
 
+
+
     if (menuOpen)
     {
         (void) m_mainMenu->HandleKey (vk);

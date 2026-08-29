@@ -103,6 +103,8 @@ void SettingsApplyAdapter::ApplyDriveVolumes (float motor, float head, float doo
 {
     char  payload[32] = {};
 
+
+
     sprintf_s (payload, "%d,%d,%d",
                (int) std::lround (motor * 100.0f),
                (int) std::lround (head  * 100.0f),
@@ -123,6 +125,8 @@ void SettingsApplyAdapter::ApplyDriveVolumes (float motor, float head, float doo
 void SettingsApplyAdapter::ApplyDrivePan (float driveOnePan, float driveTwoPan)
 {
     char  payload[32] = {};
+
+
 
     sprintf_s (payload, "%d,%d",
                (int) std::lround (driveOnePan * 100.0f),
@@ -148,6 +152,8 @@ void SettingsApplyAdapter::ApplyWriteProtect (int drive, bool wp)
     // command id encodes the drive; the payload carries the bool.
     WORD  id = (drive == 0) ? IDM_DISK_WRITEPROTECT1
                             : IDM_DISK_WRITEPROTECT2;
+
+
 
     if (drive == 0 || drive == 1)
     {
@@ -175,6 +181,9 @@ void SettingsApplyAdapter::ApplyExternalDriveConnected (bool connected)
     // band), which asserts UI-thread affinity. Mirrors ApplyColorMode.
     WORD  id = connected ? IDM_DRIVE_EXTERNAL_CONNECT
                          : IDM_DRIVE_EXTERNAL_DISCONNECT;
+
+
+
     PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
 }
 
@@ -193,5 +202,8 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
     // //c-only live effect: connect/disconnect the mouse
     // peripheral. UI-thread routed like the external drive.
     WORD  id = connected ? IDM_MOUSE_CONNECT : IDM_MOUSE_DISCONNECT;
+
+
+
     PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
 }

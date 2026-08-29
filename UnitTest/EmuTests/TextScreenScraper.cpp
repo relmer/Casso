@@ -131,6 +131,8 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
     int                        row;
     int                        cell;
 
+
+
     rows.reserve (kRows);
 
     for (row = 0; row < kRows; row++)

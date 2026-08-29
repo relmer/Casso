@@ -17,7 +17,7 @@
 **Key technical details**:
 - **Headers**: `d3d11.h`, `dxgi.h` (via Windows SDK)
 - **Link libraries**: `d3d11.lib`, `dxgi.lib`
-- **Device creation**: `D3D11CreateDeviceAndSwapChain()` — single call creates both device and swap chain
+- **Device creation**: `D3D11CreateDeviceAndSwapChain()`, single call creates both device and swap chain
 - **Texture**: `D3D11_USAGE_DYNAMIC` with `D3D11_CPU_ACCESS_WRITE` for per-frame `Map`/`Unmap` upload
 - **Sampler**: `D3D11_FILTER_MIN_MAG_MIP_POINT` for nearest-neighbor (crisp pixels)
 - **Fullscreen**: Borderless window via `SetWindowLong(GWL_STYLE, WS_POPUP)` + `SetWindowPos()`. No DXGI fullscreen state changes.
@@ -30,11 +30,11 @@
 
 **Decision**: Pull-mode WASAPI shared-mode with float32 mono at 44.1 kHz, 100ms buffer, submitted from CPU thread in 1ms slices.
 
-**Rationale**: Pull-mode (polling) integrates cleanly with the 1ms execution slice architecture — audio samples generated per-slice are submitted to WASAPI immediately on the CPU thread. Shared-mode coexists with other Windows audio. Float32 is the modern WASAPI native format. 100ms WASAPI buffer provides headroom; a pending sample buffer decouples sample generation from WASAPI drain. Speaker amplitude is ±0.25f.
+**Rationale**: Pull-mode (polling) integrates cleanly with the 1ms execution slice architecture, audio samples generated per-slice are submitted to WASAPI immediately on the CPU thread. Shared-mode coexists with other Windows audio. Float32 is the modern WASAPI native format. 100ms WASAPI buffer provides headroom; a pending sample buffer decouples sample generation from WASAPI drain. Speaker amplitude is ±0.25f.
 
 **Alternatives considered**:
 - **Event-driven WASAPI**: More complex (requires separate thread or event wait), no benefit for a 1ms-slice emulator architecture.
-- **DirectSound**: Legacy API, deprecated. WASAPI is the modern replacement. AppleWin uses DirectSound with audio-driven clock feedback — we adopted 1ms slices from AppleWin but with WASAPI instead.
+- **DirectSound**: Legacy API, deprecated. WASAPI is the modern replacement. AppleWin uses DirectSound with audio-driven clock feedback, we adopted 1ms slices from AppleWin but with WASAPI instead.
 - **PCM16 format**: Works but float32 is preferred by modern drivers; avoids quantization noise and format conversion overhead.
 
 **Key technical details**:
@@ -118,11 +118,11 @@ Physical: 0  7 14  5 12  3 10  1  8 15  6 13  4 11  2  9
 
 **Decision**: Pre-computed lookup table approach mapping hi-res byte patterns to RGBA pixel pairs.
 
-**Rationale**: The Apple II produces color through NTSC artifact coloring — each pixel's screen column determines its color phase. A lookup table captures this relationship without requiring a full NTSC signal simulation. This is the approach used by production emulators (AppleWin, MAME, JACE).
+**Rationale**: The Apple II produces color through NTSC artifact coloring, each pixel's screen column determines its color phase. A lookup table captures this relationship without requiring a full NTSC signal simulation. This is the approach used by production emulators (AppleWin, MAME, JACE).
 
 **Alternatives considered**:
 - **Full NTSC signal simulation (YIQ color space)**: More accurate but significantly more complex and slower. Not justified for functional emulation.
-- **Per-pixel calculation**: Correct but slower than a lookup. The 7-pixel-per-byte × palette-bit state space is only 256 × 2 = 512 entries — easily pre-computed.
+- **Per-pixel calculation**: Correct but slower than a lookup. The 7-pixel-per-byte × palette-bit state space is only 256 × 2 = 512 entries, easily pre-computed.
 
 **Key technical details**:
 
@@ -145,7 +145,7 @@ Physical: 0  7 14  5 12  3 10  1  8 15  6 13  4 11  2  9
 | Orange | 255 | 106 | 60 | Odd column, palette 1 |
 
 ### Algorithm
-1. Pre-compute `NtscColorTable[512]` — indexed by `(palette_bit << 8) | byte_value`
+1. Pre-compute `NtscColorTable[512]`, indexed by `(palette_bit << 8) | byte_value`
 2. Each entry contains 14 RGBA pixels (7 logical pixels × 2× doubling)
 3. Per-scanline: for each of 40 bytes, look up the 14-pixel strip and copy to framebuffer
 4. Cross-byte adjacency: check last pixel of previous byte against first pixel of current byte for white merging
@@ -194,7 +194,7 @@ Physical: 0  7 14  5 12  3 10  1  8 15  6 13  4 11  2  9
 - All undefined opcodes become guaranteed 1-byte 1-cycle NOPs (vs unpredictable on NMOS)
 
 **New addressing mode**:
-- Zero Page Indirect `($ZP)` — operand is 8-bit ZP address; CPU reads 16-bit effective address from ZP and ZP+1. No X/Y index.
+- Zero Page Indirect `($ZP)`, operand is 8-bit ZP address; CPU reads 16-bit effective address from ZP and ZP+1. No X/Y index.
 
 **Metrics**: NMOS 6502 has 151 legal opcodes. 65C02 has 178 legal opcodes (+27 new). Remaining 78 slots are guaranteed NOPs.
 

@@ -108,6 +108,8 @@ PrintPagination::PageFit PrintPagination::FitFullPageToBox (double contentW, dou
     double    scaleW    = (contentW  > 0.0) ? (availW / contentW)  : 1.0;
     double    scaleH    = (fullPageH > 0.0) ? (availH / fullPageH) : scaleW;
 
+
+
     fit.scale = (std::min) (scaleW, scaleH);
 
     if (fit.scale <= 0.0)

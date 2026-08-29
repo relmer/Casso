@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Rebuilds the casso-rocks demo disk image from sources.
 
@@ -32,7 +32,26 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Debug'
+    [string]$Configuration = 'Debug',
+
+    # Lay the image out in PowerShell, the way this script always did, rather
+    # than with `CassoCli disk sectorwrite`. Kept as the second witness: the
+    # CLI path exercises `disk create` and `disk sectorwrite` end to end,
+    # the legacy path writes raw file offsets, and -Compare diffs the two.
+    [switch]$LegacyLayout,
+
+    # Build the image both ways and report whether they are identical.
+    [switch]$Compare,
+
+    #  Rebuild and COMPARE, writing nothing.
+    #
+    #  The drift check used to live in BootDiskTests, which read the committed
+    #  image and failed when it did not match what the test had just built.
+    #  That made a unit test report on the state of the working tree: it failed
+    #  on a tree that was perfectly correct except that nobody had re-run this
+    #  script. The question belongs here, where the disk is built, and CI can
+    #  ask it without a test touching the file at all.
+    [switch]$Verify
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,24 +81,30 @@ $kStage1Length    = $kBytesPerSector
 $kStage2Length    = $kBytesPerSector
 $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
-# DOS 3.3 logical-to-physical sector interleave. Casso's nibblization
-# layer expects .dsk files in PHYSICAL sector order; writing logical
-# sector S of track T means stamping it at file offset
-# (T * 16 + LtoP[S]) * 256.
-$kDsk_LtoP = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
+# DOS 3.3 physical-to-file sector interleave, indexed by physical sector --
+# the number in the address field the drive presents at that position, which
+# is how the demo's own RWTS files what it reads. A .dsk holds its sectors in
+# DOS logical order, so placing payload page S under address mark S means
+# writing it at file offset (T * 16 + PhysicalToFile[S]) * 256. Only the
+# LEGACY layout reads this copy; the default path says `sectorwrite
+# --physical` and lets the engine's own table answer, which is what makes
+# -Compare an independent witness of the same sixteen numbers.
+$kDsk_PhysicalToFile = @(0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-function Get-LogicalSectorOffset {
+function Get-PhysicalSectorOffset {
     param(
         [int]$Track,
-        [int]$LogicalSector
+        [int]$PhysicalSector
     )
-    return ($Track * $kSectorsPerTrack + $kDsk_LtoP[$LogicalSector]) * $kBytesPerSector
+    return ($Track * $kSectorsPerTrack + $kDsk_PhysicalToFile[$PhysicalSector]) * $kBytesPerSector
 }
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +125,15 @@ function Get-AssembledRegion {
     # .bin written) from warnings-only (.bin written, exit 1).
     if (Test-Path $outBin) { Remove-Item $outBin }
 
-    & $cli $SourcePath -o $outBin -q -z | Out-Null
+    # The dialect is named, because assembling no longer guesses: an
+    # unrecognized first argument is refused rather than taken as a source file.
+    #
+    # --flat is REQUIRED and was not always. This script reads its regions
+    # out of the output at their ORIGIN, so it needs the whole 64 KB address
+    # space, not just the bytes the source filled. Spec 020 made the
+    # assembled bytes the default and retired the flag that used to name
+    # them, which left this script reading offset $0800 of a 253-byte file.
+    & $cli as65 $SourcePath -o $outBin -q -z --flat | Out-Null
 
     if (-not (Test-Path $outBin)) {
         throw "Assembly failed: $SourcePath (no output produced)"
@@ -173,70 +206,218 @@ $hgr      = Read-AssetFile 'cassowary.hgr'           $kImageLength
 $bands    = Read-AssetFile 'test-bands.hgr'          $kImageLength
 $lores    = Read-AssetFile 'lores-bars.lores'        ($kBytesPerSector * 4)
 
+function Build-LayoutInPowerShell {
+    #  The original method: allocate the image, place every region at a
+    #  computed file offset, write it out.
+    #
+    #  KEPT AS AN INDEPENDENT WITNESS, not as a fallback. It shares no code
+    #  with the sectorwrite path, so the two agreeing byte for byte is evidence
+    #  rather than a tautology. Run -Compare to check them against each other.
+
+    # $00-filled blank disk (matches the test fixture; nibblizer doesn't
+    # care, but a zero fill keeps unused sectors clean).
+    $image = New-Object byte[] $kImageSize
+
+    # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 0 0) $stage1
+
+    # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-PhysicalSectorOffset (1 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Track 3 logical sector 0: stage 2 ($1000..$10FF)
+    Write-Bytes-At $image (Get-PhysicalSectorOffset 3 0) $stage2
+
+    # Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
+    for ($sector = 0; $sector -lt 4; $sector++) {
+        $slice = New-Object byte[] $kBytesPerSector
+        [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
+        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (1 + $sector)) $slice
+    }
+
+    # Tracks 4-5: DHGR main pattern
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-PhysicalSectorOffset (4 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Tracks 6-7: HGR1 cassowary
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-PhysicalSectorOffset (6 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    # Tracks 8-9: HGR2 test bands
+    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+            $fileOff    = Get-PhysicalSectorOffset (8 + $trackOff) $sector
+            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+            $slice      = New-Object byte[] $kBytesPerSector
+            [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
+            Write-Bytes-At $image $fileOff $slice
+        }
+    }
+
+    #  BUILDS AND RETURNS, NEVER WRITES. It used to write the image here as
+    #  well, which made -Verify compare the file against what it had just
+    #  put there: it reported a match on a disk with a whole track zeroed.
+    #  Every caller that wants the bytes on disk writes them itself.
+    return ,$image
+}
+
+
+function Build-LayoutWithCassoCli {
+    #  The same layout as seven `disk sectorwrite --physical` calls.
+    #
+    #  --physical says exactly what the demo needs said: its RWTS files each
+    #  sector by address-mark number, so page N of every region must sit
+    #  under mark N, and a physical run-on advances mark by mark. The
+    #  interleave stays in the layer that owns it -- this path never touches
+    #  the sixteen numbers, which is what makes -Compare an independent
+    #  witness against the legacy layout that spells them out.
+
+    $dsk = Join-Path $demoDir "casso-rocks.dsk"
+
+    #  An unformatted image, because this disk has no filesystem: it boots
+    #  its own loader, which reads fixed tracks. --format none is that.
+    if (Test-Path $dsk) { Remove-Item $dsk -Force }
+
+    & $cli disk create $dsk --type dsk --format none | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "disk create failed ($LASTEXITCODE)" }
+
+    #  Each stage goes to a scratch file first: sectorwrite takes a file, and
+    #  the assembled regions are in memory at this point.
+    $tmp1 = Join-Path $demoDir "stage1.tmp"
+    $tmp2 = Join-Path $demoDir "stage2.tmp"
+
+    [System.IO.File]::WriteAllBytes($tmp1, $stage1)
+    [System.IO.File]::WriteAllBytes($tmp2, $stage2)
+
+    #  Track, physical sector, and what goes there: the layout the demo
+    #  documents, in the order its boot loader reads it.
+    $plan = @(
+        @{ Track = 0; Sector = 0; Path = $tmp1 },
+        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 3; Sector = 0; Path = $tmp2 },
+        @{ Track = 3; Sector = 1; Path = (Join-Path $demoDir "lores-bars.lores") },
+        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
+        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") },
+        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "test-bands.hgr") }
+    )
+
+    foreach ($step in $plan) {
+        & $cli disk sectorwrite $dsk $step.Path --physical --track $step.Track --sector $step.Sector | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "disk sectorwrite failed: $($step.Path) at track $($step.Track) physical sector $($step.Sector)"
+        }
+    }
+
+    Remove-Item $tmp1 -Force
+    Remove-Item $tmp2 -Force
+
+    return ,([System.IO.File]::ReadAllBytes($dsk))
+}
+
+
 Write-Host "Laying out .dsk image..." -ForegroundColor Cyan
 
-# $00-filled blank disk (matches the test fixture; nibblizer doesn't
-# care, but a zero fill keeps unused sectors clean).
-$image = New-Object byte[] $kImageSize
+$dskPath = Join-Path $demoDir "casso-rocks.dsk"
 
-# Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
-Write-Bytes-At $image (Get-LogicalSectorOffset 0 0) $stage1
+if ($Verify) {
+    #  Built in memory and compared. The PowerShell layout is used because it
+    #  is the one that writes nothing: the CassoCli path lays the image down
+    #  with `disk create` and `disk sectorwrite`, which is a write by construction.
+    $expected = Build-LayoutInPowerShell
 
-# Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (1 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+    if (-not (Test-Path $dskPath)) {
+        throw "$dskPath is missing. Run scripts/BuildDemoDisk.ps1 to build it."
     }
-}
 
-# Track 3 logical sector 0: stage 2 ($1000..$10FF)
-Write-Bytes-At $image (Get-LogicalSectorOffset 3 0) $stage2
+    $actual = [System.IO.File]::ReadAllBytes($dskPath)
+    $same   = ($expected.Length -eq $actual.Length)
+    $firstDifference = -1
 
-# Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
-for ($sector = 0; $sector -lt 4; $sector++) {
-    $slice = New-Object byte[] $kBytesPerSector
-    [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-    Write-Bytes-At $image (Get-LogicalSectorOffset 3 (1 + $sector)) $slice
-}
-
-# Tracks 4-5: DHGR main pattern
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (4 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+    if ($same) {
+        for ($i = 0; $i -lt $expected.Length; $i++) {
+            if ($expected[$i] -ne $actual[$i]) {
+                $same = $false
+                $firstDifference = $i
+                break
+            }
+        }
     }
-}
 
-# Tracks 6-7: HGR1 cassowary
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (6 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+    if (-not $same) {
+        Write-Host ''
+        Write-Host "casso-rocks.dsk is not what the sources build." -ForegroundColor Red
+
+        if ($firstDifference -ge 0) {
+            $track  = [int][Math]::Floor($firstDifference / 4096)
+            $sector = [int][Math]::Floor(($firstDifference % 4096) / 256)
+            Write-Host ("  first difference at byte {0}: track {1}, sector {2}" -f `
+                        $firstDifference, $track, $sector) -ForegroundColor Yellow
+        }
+        else {
+            Write-Host ("  committed {0} bytes, sources build {1}" -f `
+                        $actual.Length, $expected.Length) -ForegroundColor Yellow
+        }
+
+        Write-Host '  Run scripts/BuildDemoDisk.ps1 to rebuild it.' -ForegroundColor Yellow
+        Write-Host ''
+        exit 1
     }
+
+    Write-Host "casso-rocks.dsk matches what the sources build." -ForegroundColor Green
+    exit 0
 }
 
-# Tracks 8-9: HGR2 test bands
-for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-    for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-        $fileOff    = Get-LogicalSectorOffset (8 + $trackOff) $sector
-        $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-        $slice      = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image $fileOff $slice
+if ($Compare) {
+    #  Both methods, and whether they agree. Checking them against each
+    #  other is the reason the old one is still here.
+    $viaCli   = Build-LayoutWithCassoCli
+    $viaShell = Build-LayoutInPowerShell
+
+    [System.IO.File]::WriteAllBytes($dskPath, $viaCli)
+
+    $same = ($viaCli.Length -eq $viaShell.Length)
+
+    if ($same) {
+        for ($i = 0; $i -lt $viaCli.Length; $i++) {
+            if ($viaCli[$i] -ne $viaShell[$i]) { $same = $false; break }
+        }
     }
+
+    if (-not $same) {
+        throw "The two layout methods disagree. One of them has the sector skew wrong."
+    }
+
+    Write-Host "Both methods agree, byte for byte." -ForegroundColor Green
+}
+elseif ($LegacyLayout) {
+    $image = Build-LayoutInPowerShell
+    [System.IO.File]::WriteAllBytes($dskPath, $image)
+}
+else {
+    Build-LayoutWithCassoCli | Out-Null
 }
 
-$dskPath = Join-Path $demoDir 'casso-rocks.dsk'
-[System.IO.File]::WriteAllBytes($dskPath, $image)
+$image = [System.IO.File]::ReadAllBytes($dskPath)
 
 Write-Host "Wrote $dskPath ($($image.Length) bytes)" -ForegroundColor Green

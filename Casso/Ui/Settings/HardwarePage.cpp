@@ -47,6 +47,9 @@ static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
 RECT HardwarePage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
+
     return rc;
 }
 
@@ -65,6 +68,8 @@ DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
     // Required is the safe default for an unmapped flag: it shows the row
     // without offering a toggle the machine may not support.
     DxuiTreeCapabilityFlag  mapped = DxuiTreeCapabilityFlag::Required;
+
+
 
     switch (flag)
     {
@@ -122,6 +127,7 @@ HardwarePage::HardwarePage(std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     size_t  i = 0;
+
 
 
     Adopt (m_machineLabel);

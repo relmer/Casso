@@ -131,10 +131,11 @@ chk_w
 
 
 ; ----------------------------------------------------------------------------
-; read_track -- read 16 sectors in whatever physical order they arrive on
-;               the current track. Each sector's address mark identifies
-;               the logical sector number, which becomes the destination
-;               page offset (DHI = DBASE + sector). Caller sets DBASE.
+; read_track -- read 16 sectors in whatever order they arrive on the current
+;               track. Each sector's address mark identifies the physical
+;               sector number, which becomes the destination page offset
+;               (DHI = DBASE + sector). Caller sets DBASE, and the disk
+;               builder places payload page N under address mark N.
 ; ----------------------------------------------------------------------------
 read_track
     ; Read more than 16 sectors so we tolerate the odd missed sector

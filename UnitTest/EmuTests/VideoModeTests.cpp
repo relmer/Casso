@@ -1,6 +1,8 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
+#include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2eSoftSwitchBank.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -717,6 +719,136 @@ public:
         Assert::IsTrue (sawBlue,   L"NTSC palette must include blue");
         Assert::IsTrue (sawOrange, L"NTSC palette must include orange");
     }
+
+    TEST_METHOD (Hires_ColorMonitorIsTheDefault)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        AppleHiResMode hires (bus);
+
+        Assert::IsFalse (hires.IsMonochrome(),
+            L"Hi-res must start on the color decode");
+    }
+
+    // An isolated dot is where the color decode and the monochrome decode
+    // disagree most: a color monitor makes violet out of it, and a
+    // monochrome monitor shows it lit. Tinting the violet gives ~57%
+    // brightness, which is the defect this replaces.
+    TEST_METHOD (Hires_Monochrome_IsolatedDotIsFullyLit)
+    {
+        MemoryBus              bus;
+        std::vector<uint32_t>  fb (560 * 384, 0xFFCCCCCC);
+
+
+
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word a = 0x2000; a < 0x4000; a++) { bus.WriteByte (a, 0x00); }
+
+        bus.WriteByte (0x2000, 0x01);   // bit 0 only, palette bit clear
+
+        AppleHiResMode hires (bus);
+        hires.SetPage2     (false);
+        hires.SetMonochrome (true);
+
+        hires.Render (nullptr, fb.data(), 560, 384);
+
+        // Pixel 0 occupies half-dots 0 and 1, at full brightness.
+        Assert::AreEqual (0xFFFFFFFFu, fb[0], L"half-dot 0 must be fully lit");
+        Assert::AreEqual (0xFFFFFFFFu, fb[1], L"half-dot 1 must be fully lit");
+        Assert::AreEqual (0xFF000000u, fb[2], L"half-dot 2 must stay dark");
+
+        // Same dot on a color monitor is violet -- the case that used to be
+        // luminance-tinted to ~57% gray instead of shown lit.
+        hires.SetMonochrome (false);
+        hires.Render (nullptr, fb.data(), 560, 384);
+
+        Assert::AreEqual (0xFFFF44FDu, fb[0],
+            L"the color decode must still make violet from an isolated dot");
+    }
+
+    // The half-dot shift is the whole reason monochrome hi-res is 560 wide.
+    // Bit 7 delays a byte's output by half a dot, so the SAME bit pattern
+    // lands one half-dot to the right. At 280 that detail does not exist.
+    TEST_METHOD (Hires_Monochrome_PaletteBitShiftsByAHalfDot)
+    {
+        MemoryBus              bus;
+        std::vector<uint32_t>  fb (560 * 384, 0xFFCCCCCC);
+
+
+
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word a = 0x2000; a < 0x4000; a++) { bus.WriteByte (a, 0x00); }
+
+        // Row 0 byte 0: bit 0, palette bit CLEAR -> half-dots 0,1.
+        // Row 1 byte 0: bit 0, palette bit SET   -> half-dots 1,2.
+        bus.WriteByte (0x2000, 0x01);
+        bus.WriteByte (AppleHiResMode::ScanlineAddress (1, 0x2000), 0x81);
+
+        AppleHiResMode hires (bus);
+        hires.SetPage2      (false);
+        hires.SetMonochrome (true);
+
+        hires.Render (nullptr, fb.data(), 560, 384);
+
+        const int  row1 = 2 * 560;   // scanline 1, first of its doubled rows
+
+        Assert::AreEqual (0xFFFFFFFFu, fb[0], L"unshifted: half-dot 0 lit");
+        Assert::AreEqual (0xFFFFFFFFu, fb[1], L"unshifted: half-dot 1 lit");
+        Assert::AreEqual (0xFF000000u, fb[2], L"unshifted: half-dot 2 dark");
+
+        Assert::AreEqual (0xFF000000u, fb[row1 + 0], L"shifted: half-dot 0 dark");
+        Assert::AreEqual (0xFFFFFFFFu, fb[row1 + 1], L"shifted: half-dot 1 lit");
+        Assert::AreEqual (0xFFFFFFFFu, fb[row1 + 2], L"shifted: half-dot 2 lit");
+        Assert::AreEqual (0xFF000000u, fb[row1 + 3], L"shifted: half-dot 3 dark");
+    }
+
+    // Adjacent lit pixels are white on both monitors, but for different
+    // reasons -- and on a monochrome monitor a run must stay solid rather
+    // than developing a hole where a shifted byte meets an unshifted one.
+    TEST_METHOD (Hires_Monochrome_RunsStaySolidAcrossAByteSeam)
+    {
+        MemoryBus              bus;
+        std::vector<uint32_t>  fb (560 * 384, 0xFFCCCCCC);
+        int                    darkInRun = 0;
+
+
+
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word a = 0x2000; a < 0x4000; a++) { bus.WriteByte (a, 0x00); }
+
+        // Byte 0 all seven dots lit and unshifted; byte 1 all seven lit and
+        // shifted. The seam between them is the interesting half-dot.
+        bus.WriteByte (0x2000, 0x7F);
+        bus.WriteByte (0x2001, 0xFF);
+
+        AppleHiResMode hires (bus);
+        hires.SetPage2      (false);
+        hires.SetMonochrome (true);
+
+        hires.Render (nullptr, fb.data(), 560, 384);
+
+        // Byte 0 covers half-dots 0-13. Byte 1 is shifted, so it covers
+        // 15-28 and leaves half-dot 14 dark -- the gap the hardware makes.
+        for (int x = 0; x < 14; x++)
+        {
+            if (fb[x] != 0xFFFFFFFFu) { darkInRun++; }
+        }
+
+        Assert::AreEqual (0, darkInRun, L"an unshifted run must be solid");
+        Assert::AreEqual (0xFF000000u, fb[14],
+            L"a shifted byte after an unshifted one leaves a half-dot gap");
+        Assert::AreEqual (0xFFFFFFFFu, fb[15], L"the shifted run starts at 15");
+        Assert::AreEqual (0xFFFFFFFFu, fb[28], L"the shifted run ends at 28");
+        Assert::AreEqual (0xFF000000u, fb[29], L"and stops there");
+    }
 };
 
 
@@ -1274,5 +1406,219 @@ public:
 
         Assert::AreEqual (static_cast<Word> (0x2000), dhr.GetActivePageAddress (false));
         Assert::AreEqual (static_cast<Word> (0x4000), dhr.GetActivePageAddress (true));
+    }
+
+    // DHR needs main and aux at the same instant, and the memory bus cannot
+    // supply that: under 80STORE + HIRES, PAGE2 alone points the whole
+    // $2000-$3FFF range at aux. Reading the main half through the bus used
+    // to render the aux byte into BOTH halves of every 14-dot group.
+    //
+    // Note the setup: 80STORE is written straight to the soft-switch bank,
+    // because $C000-$C00B belongs to Apple2eKeyboard on the bus and a
+    // bus.WriteByte there latches nothing -- which would make this test pass
+    // for the wrong reason. The asserts below pin that down before the
+    // render, so a broken fixture fails as a fixture rather than as a pass.
+    TEST_METHOD (DHR_MainHalfIgnoresAuxBankingUnder80Store)
+    {
+        MemoryBus              bus;
+        RamDevice              mainRam (0x0000, 0xBFFF);
+        Apple2eMmu             mmu;
+        Apple2eSoftSwitchBank  sw (&bus);
+        Byte *                 mainPtr = mainRam.GetData();
+        std::vector<uint32_t>  fb (560 * 384, 0xFFCCCCCC);
+        std::string            dots;
+
+
+
+        for (int page = 0x00; page < 0xC0; page++)
+        {
+            bus.SetReadPage  (page, mainPtr + (page * 0x100));
+            bus.SetWritePage (page, mainPtr + (page * 0x100));
+        }
+
+        sw.SetMmu (&mmu);
+        mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        bus.AddDevice (&sw);
+
+        Byte * auxPtr = mmu.GetAuxBuffer();
+
+        // Distinguishable content so a main/aux mix-up cannot look correct.
+        mainPtr[0x2000] = 0x2A;   // 0b0101010
+        auxPtr [0x2000] = 0x55;   // 0b1010101
+
+        sw.Write     (0xC001, 0x00);   // 80STORE on -- bank surface, not bus
+        bus.ReadByte (0xC057);         // HIRES on
+        bus.ReadByte (0xC055);         // PAGE2 on
+
+        Assert::IsTrue (mmu.Get80Store(), L"fixture: 80STORE did not latch");
+        Assert::IsTrue (sw.IsHiresMode(), L"fixture: HIRES did not latch");
+        Assert::IsTrue (sw.IsPage2(),     L"fixture: PAGE2 did not latch");
+
+        Assert::AreEqual (static_cast<Byte> (0x55), bus.ReadByte (0x2000),
+            L"fixture: the bus must now be banked to aux for this to prove anything");
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory  (auxPtr);
+        dhr.SetMainMemory (mainPtr);
+        dhr.SetPage2      (false);
+        dhr.SetMonochrome (true);
+
+        dhr.Render (nullptr, fb.data(), 560, 384);
+
+        for (int x = 0; x < 14; x++)
+        {
+            dots += (fb[x] == 0xFFFFFFFFu) ? '1' : '0';
+        }
+
+        // Dots 0-6 are aux 0x55; dots 7-13 are main 0x2A. Rendering the aux
+        // byte twice would read "10101011010101".
+        Assert::AreEqual (std::string ("10101010101010"), dots,
+            L"DHR must read the main half from main RAM, not from the banked bus");
+    }
+
+    // A color monitor is the default, since that is what the shell selects
+    // until the user picks a phosphor.
+    TEST_METHOD (DHR_ColorMonitorIsTheDefault)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        AppleDoubleHiResMode dhr (bus);
+
+        Assert::IsFalse (dhr.IsMonochrome(),
+            L"DHR must start on the color decode");
+    }
+
+    // One lit dot must light exactly one pixel on a monochrome monitor. The
+    // color decode widens it to the whole 4-dot cell, which is what makes
+    // 560x192 monochrome artwork unreadable through it.
+    TEST_METHOD (DHR_Monochrome_LightsOneDotPerPixel)
+    {
+        const int              fbW  = 560;
+        const int              fbH  = 384;
+        std::vector<uint32_t>  fb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<Byte>      auxBuf (0x10000, 0x00);
+
+
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word addr = 0x2000; addr < 0x4000; addr++)
+        {
+            bus.WriteByte (addr, 0x00);
+        }
+
+        // Bit 0 of the aux byte is dot 0; bit 0 of the main byte is dot 7.
+        // Everything else on scanline 0 stays dark.
+        auxBuf[0x2000] = 0x01;
+        bus.WriteByte (0x2000, 0x01);
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory  (auxBuf.data());
+        dhr.SetPage2      (false);
+        dhr.SetMonochrome (true);
+
+        dhr.Render (nullptr, fb.data(), fbW, fbH);
+
+        Assert::AreEqual (0xFFFFFFFFu, fb[0],
+            L"Dot 0 (aux bit 0) must be lit");
+        Assert::AreEqual (0xFFFFFFFFu, fb[7],
+            L"Dot 7 (main bit 0) must be lit");
+
+        for (int x = 1; x < 7; x++)
+        {
+            Assert::AreEqual (0xFF000000u, fb[x],
+                L"A lit dot must not spread across its 4-dot color cell");
+        }
+
+        for (int x = 8; x < 14; x++)
+        {
+            Assert::AreEqual (0xFF000000u, fb[x],
+                L"A lit dot must not spread across its 4-dot color cell");
+        }
+
+        // Scanlines are still doubled, so row 1 repeats row 0.
+        Assert::AreEqual (0xFFFFFFFFu, fb[fbW + 0], L"Row 1 must repeat scanline 0");
+        Assert::AreEqual (0xFF000000u, fb[fbW + 1], L"Row 1 must repeat scanline 0");
+    }
+
+    // The dither patterns that monochrome DHR art shades with survive on a
+    // monochrome monitor and collapse on a color one. Asserting both halves
+    // together is the point: it is the DIFFERENCE that was missing, not
+    // either decode on its own.
+    TEST_METHOD (DHR_Monochrome_KeepsDitherThatColorCollapses)
+    {
+        const int              fbW      = 560;
+        const int              fbH      = 384;
+        std::vector<uint32_t>  monoFb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<uint32_t>  colorFb (fbW * fbH, 0xFFCCCCCC);
+        std::vector<Byte>      auxBuf (0x10000, 0x00);
+        int                    monoEdges = 0;
+        const Byte             kDither   = 0x55;
+
+
+
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x5FFF);
+        bus.AddDevice (&ram);
+
+        for (Word addr = 0x2000; addr < 0x4000; addr++)
+        {
+            bus.WriteByte (addr, 0x00);
+        }
+
+        // 0b1010101 in both halves: alternating dots, which is the shading
+        // dither monochrome DHR art is built from and exactly what the 4-dot
+        // cell decode cannot represent.
+        //
+        // The alternation is NOT uniform across the byte pair -- aux bit 6
+        // (dot 6) and main bit 0 (dot 7) are both set, so the two lit dots
+        // meet at the seam. That is the hardware's interleave showing
+        // through, so the expectation is derived from the bytes rather than
+        // assumed to be a clean every-other-dot pattern.
+        auxBuf[0x2000] = kDither;
+        bus.WriteByte (0x2000, kDither);
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory (auxBuf.data());
+        dhr.SetPage2     (false);
+
+        dhr.SetMonochrome (true);
+        dhr.Render (nullptr, monoFb.data(), fbW, fbH);
+
+        dhr.SetMonochrome (false);
+        dhr.Render (nullptr, colorFb.data(), fbW, fbH);
+
+        // Dots 0-6 come from the aux byte's bits 0-6, dots 7-13 from the
+        // main byte's bits 0-6.
+        for (int x = 0; x < 14; x++)
+        {
+            bool     lit      = (kDither & (1 << (x % 7))) != 0;
+            uint32_t expected = lit ? 0xFFFFFFFFu : 0xFF000000u;
+
+            Assert::AreEqual (expected, monoFb[x],
+                L"Monochrome DHR must reproduce the dither dot for dot");
+        }
+
+        // Count lit/dark edges across the byte pair. Monochrome resolves
+        // every dot; the color decode paints uniform 4-dot cells, so it can
+        // never show an edge at an odd offset inside a cell.
+        for (int x = 1; x < 14; x++)
+        {
+            if (monoFb[x] != monoFb[x - 1]) { monoEdges++; }
+        }
+
+        // 13 boundaries, all alternating except the seam at dot 6/7.
+        Assert::AreEqual (12, monoEdges,
+            L"Monochrome DHR must resolve an edge at every dot but the seam");
+
+        for (int x = 1; x < 4; x++)
+        {
+            Assert::AreEqual (colorFb[0], colorFb[x],
+                L"The color decode paints one color across a whole 4-dot cell");
+        }
     }
 };

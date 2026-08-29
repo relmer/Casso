@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-dragdrop-blur`
 **Created**: 2026-05-26
-**Status**: Draft (deferred — depends on Gaussian shader + textured-quad primitive in DxUiPainter)
+**Status**: Draft (deferred, depends on Gaussian shader + textured-quad primitive in DxUiPainter)
 **Input**: Planning draft for two related drag-drop visual upgrades requiring
 shader + offscreen-render-target plumbing in `DxUiPainter`:
 
@@ -38,14 +38,14 @@ effect should be obvious without shouting, which is apparently legal UI design.
 
 The feature has two coupled visual pieces:
 
-1. **Blurred non-drop regions** — the current flat dim overlay becomes a blurred
+1. **Blurred non-drop regions**: the current flat dim overlay becomes a blurred
    composite over the parts of the window that are not accepting the drop.
-2. **Glowing drop targets** — drive widgets receive a radial glow whose intensity
+2. **Glowing drop targets**: drive widgets receive a radial glow whose intensity
    ramps with drag hover / active state.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Non-drop chrome softens during disk drag (Priority: P2)
+### User Story 1: Non-drop chrome softens during disk drag (Priority: P2)
 
 A user drags a `.dsk`, `.po`, `.nib`, or `.woz` file over the Casso window. The
 parts of the chrome that are not valid drop targets blur and dim, while drive
@@ -77,7 +77,7 @@ drive.
 
 ---
 
-### User Story 2 — Drop targets glow with hover intent (Priority: P2)
+### User Story 2: Drop targets glow with hover intent (Priority: P2)
 
 A user drags a disk over Drive 1. A warm radial glow behind Drive 1 ramps up as
 the pointer enters its drop zone; Drive 2 remains available but less intense.

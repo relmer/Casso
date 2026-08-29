@@ -8,6 +8,30 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Core/MemoryBusCpu.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePeekProbe
+//
+//  Exposes the CPU's trace-time byte read. It is protected on Cpu because
+//  nothing outside the trace has any business calling it; a derived probe is
+//  how the test reaches it without widening the real surface.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class TracePeekProbe : public MemoryBusCpu
+{
+public:
+    explicit TracePeekProbe (MemoryBus & bus) : MemoryBusCpu (bus) {}
+
+    using Cpu::TracePeek;
+
+    void PokeBackingStore (Word address, Byte value) { memory[address] = value; }
+};
 #include "Core/InterruptController.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
@@ -399,6 +423,63 @@ public:
             L"FR-035: PowerCycle must eject drive 0");
         Assert::IsFalse (ctrl->GetDisk (1)->IsLoaded(),
             L"FR-035: PowerCycle must eject drive 1");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  TracePeekFollowsTheBankThatExecutes
+    //
+    //  The execution trace records each instruction's operand bytes, and it
+    //  must read them through the same page table the fetch used. The flat
+    //  Cpu::memory[] backing store is NOT that: the //e and //c MMU rebinds
+    //  pages across all of $0000-$BFFF (RAMRD / RAMWRT / ALTZP / 80STORE), so
+    //  a trace that read memory[] printed operands from main RAM while the
+    //  CPU executed from aux.
+    //
+    //  This is not cosmetic. A disassembly whose operands belong to a
+    //  different bank reads as fact and sends you the wrong way -- a real
+    //  //e trace of a stack-page disk loader showed a backwards branch with
+    //  a forward operand, which is what surfaced this.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (TracePeekFollowsTheBankThatExecutes)
+    {
+        MemoryBus            bus;
+        RamDevice            ramLo (0x0000, 0xBFFF);
+        RamDevice            ramHi (0xC000, 0xFFFF);
+        TracePeekProbe       cpu (bus);
+        std::vector<Byte>    altBank (0x100, 0x00);
+
+
+
+        bus.AddDevice (&ramLo);
+        bus.AddDevice (&ramHi);
+
+        // Stack page: one byte in the flat backing store, a different byte in
+        // the bank the page table points at. $01F9 is where the //e trace
+        // showed the wrong operand.
+        cpu.PokeBackingStore (0x01F9, 0x16);
+        altBank[0xF9] = 0xFB;
+
+        bus.SetReadPage (0x01, altBank.data());
+
+        Assert::AreEqual (static_cast<int> (0xFB), static_cast<int> (cpu.TracePeek (0x01F9)),
+            L"TracePeek must read the bank the page table selects, not memory[]");
+
+        // Re-point the page at the flat store and the answer must follow.
+        bus.SetReadPage (0x01, nullptr);
+
+        Assert::AreEqual (static_cast<int> (0x16), static_cast<int> (cpu.TracePeek (0x01F9)),
+            L"With no page bound, TracePeek falls back to the backing store");
+
+        // $C000-$CFFF is I/O. Those must NOT go through the bus, because a
+        // read of $C0xx toggles soft switches -- recording the machine must
+        // never change it.
+        cpu.PokeBackingStore (0xC030, 0x5A);
+
+        Assert::AreEqual (static_cast<int> (0x5A), static_cast<int> (cpu.TracePeek (0xC030)),
+            L"TracePeek must not route I/O reads through the bus");
     }
 };
 

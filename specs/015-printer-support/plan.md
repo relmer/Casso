@@ -13,8 +13,8 @@ dot grid. A deterministic CPU "paper renderer" turns the dot grid into
 true-geometry ink imagery (round overlapping pin splats, overprint color
 mixing, ribbon-weave modulation). Output is job-based: a single continuous
 fanfold strip per machine that persists across sessions and is delivered on
-demand and non-destructively to host print services from the preview panel —
-Print (Windows printer), Save (PNG file), Copy (clipboard) — each leaving the
+demand and non-destructively to host print services from the preview panel (
+Print (Windows printer), Save (PNG file), Copy (clipboard)) each leaving the
 paper loaded; Discard is the sole tear-off. There is no stored destination
 preference. A compact chrome indicator plus an on-demand panel window
 (skeuomorphic printer with animated, perforated paper and sampled audio, paced
@@ -32,11 +32,11 @@ mount time.
 
 **Language/Version**: C++ (stdcpplatest, MSVC v145 / VS 2026), Win32 desktop
 
-**Primary Dependencies**: Windows SDK only — GDI printing, WIC (PNG
+**Primary Dependencies**: Windows SDK only, GDI printing, WIC (PNG
 encode/decode), existing WASAPI + `DriveAudioMixer` audio stack, existing
 D3D11 dxui chrome (spec 013), existing `JsonParser`/`JsonWriter`. The panel's
 3D presentation is an *additive* path on the existing Dxui D3D11 pipeline
-(one MVP constant buffer + one textured/lit HLSL shader + two meshes — the
+(one MVP constant buffer + one textured/lit HLSL shader + two meshes; the
 painter already owns custom shaders/vertex buffers and the text renderer
 already samples textures; see research R-017). No new third-party dependencies
 (constitution allowlist unchanged). The in-repo assembler (CassoCore) builds
@@ -50,7 +50,7 @@ consent-gated `AssetBootstrap` downloader.
 **Testing**: Microsoft CppUnitTest (`UnitTest/` project). Interpreter,
 raster, paper renderer, recognizer, serializer, firmware, pacing, status
 model, and viewport are pure / data-driven per FR-017 and constitution Test
-Isolation — no file, registry, network, or clipboard access in unit tests;
+Isolation, no file, registry, network, or clipboard access in unit tests;
 golden verification via checked-in hash constants and small embedded expected
 tiles; clock-dependent models (pacing, status, viewport) take injected clocks.
 
@@ -59,12 +59,12 @@ tiles; clock-dependent models (pacing, status, viewport) take injected clocks.
 **Project Type**: Existing multi-project desktop application (CassoEmuCore
 static lib + Casso Win32 shell + UnitTest)
 
-**Performance Goals**: FR-018 — zero measurable emulation impact: the card's
+**Performance Goals**: FR-018, zero measurable emulation impact: the card's
 guest-facing `Write` is an O(1) ring-buffer push on the emulation thread
 (pattern: `InputEventRing`). Interpretation/rasterization drain on a dedicated
 printer worker thread. Delivery-time render of a typical 1-3 page job at 576 dpi
 completes in ≤ ~2 s; long strips scale linearly (FR-028 allows it). Preview:
-per-frame cost flat regardless of strip length — the panel renders only
+per-frame cost flat regardless of strip length, the panel renders only
 newly-produced rows into a persistent buffer inside a ~1-page viewport
 (FR-033, SC-010); whole-strip delivery renders are dpi-capped against a fixed
 ~512 MB RGBA budget (FR-028, research R-018).
@@ -72,7 +72,7 @@ newly-produced rows into a persistent buffer inside a ~1-page viewport
 **Constraints**: Deterministic interpreter and renderer (FR-009, FR-027);
 strip cap 60 fanfold pages (FR-015); native grid 1280 dots × 144 rows/inch;
 firmware must be original work (FR-003); no new third-party code; presentation
-must never mutate the (immediately-complete) raster or worker state (FR-034 —
+must never mutate the (immediately-complete) raster or worker state (FR-034,
 the mid-print preview distortion bug proved why).
 
 **Scale/Scope**: One new CassoEmuCore device family (`Devices/Printer/`), one
@@ -83,7 +83,7 @@ unit-test suites.
 
 ## Constitution Check
 
-*GATE: evaluated against constitution v1.8.0 — PASS (pre-Phase-0, re-checked
+*GATE: evaluated against constitution v1.8.0, PASS (pre-Phase-0, re-checked
 post-Phase-1, and re-checked 2026-07-09 for the preview presentation rev). No
 violations to justify; Complexity Tracking omitted.*
 
@@ -113,7 +113,7 @@ violations to justify; Complexity Tracking omitted.*
 - **V. Simplicity**: One printer, one card, one command set (SSC/6551
   explicitly deferred to the //c effort). No speculative abstraction beyond
   the `IPrinterByteSink` seam the //c serial port will eventually reuse. The
-  3D path is contained — one constant buffer, one shader, two meshes,
+  3D path is contained, one constant buffer, one shader, two meshes,
   presenting a 2D texture the testable pipeline produced; a flat fallback
   remains possible (FR-032). It is deliberately the pilot primitive the drive
   widgets adopt when they later move to true 3D.
@@ -121,7 +121,7 @@ violations to justify; Complexity Tracking omitted.*
   status, interpreter, renderer, serializer) lives in CassoEmuCore for
   UT-reachability; the shell contributes only irreducible platform edges
   (GDI, WIC file I/O, clipboard, dialogs, D3D presentation).
-- **Tech Constraints**: No allowlist amendment needed — WIC/GDI/D3D11 are
+- **Tech Constraints**: No allowlist amendment needed, WIC/GDI/D3D11 are
   Windows SDK; audio samples are downloaded assets (existing consent flow),
   not vendored code.
 
@@ -200,7 +200,7 @@ UnitTest/
     └── PrinterAudioSourceTests.cpp   # Event-voice scheduling from the presenter clock (synthetic PCM)
 ```
 
-**Structure Decision**: Follow the existing device pattern — guest-facing
+**Structure Decision**: Follow the existing device pattern, guest-facing
 hardware and all pure logic in `CassoEmuCore/Devices/Printer/` (unit-testable,
 no system dependencies), host integration (files, clipboard, printers,
 dialogs, chrome) in the `Casso` shell. This is the same split
@@ -209,7 +209,7 @@ lets FR-017 and the constitution's test-isolation rule hold without friction.
 The preview presentation keeps that split: printed *content* (strip ink, paper
 furniture, head-column reveal) renders to a 2D texture in pure code; the
 *presentation* (3D chassis + curled paper, or a flat fallback) only maps that
-texture — so the 2D-vs-3D choice is isolated to the final stage (research
+texture, so the 2D-vs-3D choice is isolated to the final stage (research
 R-017). Preview redesign phases (tasks Phase 11): A = viewport + incremental
 render (the perf fix, presentation-agnostic) → B = paper furniture → C =
 head-timing ink reveal → D = 3D scene. A–C self-verify (testable math +

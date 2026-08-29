@@ -40,6 +40,7 @@ void MessageDialog::Configure (std::unique_ptr<DxuiPanel>  content,
     int  i = 0;
 
 
+
     m_pendingContent = std::move (content);
     m_buttons        = std::move (buttons);
     m_closeBoxResult = closeBoxResult;

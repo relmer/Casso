@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -174,9 +174,12 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="As65ExitStatus.cpp" />
     <ClCompile Include="Assembler.cpp" />
     <ClCompile Include="AssemblySession.cpp" />
+    <ClCompile Include="CommandLineHelp.cpp" />
     <ClCompile Include="CommandLineParser.cpp" />
+    <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
@@ -184,7 +187,19 @@
     <ClCompile Include="ExpressionEvaluator.cpp" />
     <ClCompile Include="Microcode.cpp" />
     <ClCompile Include="OpcodeTable.cpp" />
+    <ClCompile Include="AppleTextCodec.cpp" />
+    <ClCompile Include="ApplesoftTokenizer.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
+    <ClCompile Include="As65Dialect.cpp" />
+    <ClCompile Include="MerlinDialect.cpp" />
+    <ClCompile Include="SubsetBoundary.cpp" />
+    <ClCompile Include="MerlinSubsetBoundary.cpp" />
+    <ClCompile Include="StringEncoding.cpp" />
+    <ClCompile Include="DialectHelp.cpp" />
+    <ClCompile Include="DialectRegistry.cpp" />
+    <ClCompile Include="DialectReporting.cpp" />
+    <ClCompile Include="DiagnosticFormatter.cpp" />
+    <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -198,11 +213,14 @@
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="As65ExitStatus.h" />
     <ClInclude Include="Assembler.h" />
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="CommandLineOptions.h" />
+    <ClInclude Include="CommandLineHelp.h" />
     <ClInclude Include="CommandLineParser.h" />
+    <ClInclude Include="UsageText.h" />
     <ClInclude Include="Cpu.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />
@@ -220,7 +238,21 @@
     <ClInclude Include="Instruction.h" />
     <ClInclude Include="Microcode.h" />
     <ClInclude Include="OpcodeTable.h" />
+    <ClInclude Include="AppleTextCodec.h" />
+    <ClInclude Include="ApplesoftTokenizer.h" />
     <ClInclude Include="OutputFormats.h" />
+    <ClInclude Include="As65Dialect.h" />
+    <ClInclude Include="MerlinDialect.h" />
+    <ClInclude Include="SubsetBoundary.h" />
+    <ClInclude Include="MerlinSubsetBoundary.h" />
+    <ClInclude Include="StringEncoding.h" />
+    <ClInclude Include="Dialect.h" />
+    <ClInclude Include="DialectProfile.h" />
+    <ClInclude Include="DialectHelp.h" />
+    <ClInclude Include="DialectRegistry.h" />
+    <ClInclude Include="DialectReporting.h" />
+    <ClInclude Include="DiagnosticFormatter.h" />
+    <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />

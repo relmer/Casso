@@ -11,7 +11,7 @@
 
 A developer writes assembly source that uses arithmetic, bitwise, and logical operators in operands and constant definitions. The assembler evaluates these expressions correctly, respecting operator precedence and parenthetical grouping, and emits the right bytes.
 
-**Why this priority**: Nearly every construct in the Dormann suite — constant definitions, conditional guards, macro arguments, and inline operands — depends on a full expression evaluator. Without it, none of the other features can consume real-world operands like `$ff & ~intdis` or `minus + zero + carry`.
+**Why this priority**: Nearly every construct in the Dormann suite (constant definitions, conditional guards, macro arguments, and inline operands) depends on a full expression evaluator. Without it, none of the other features can consume real-world operands like `$ff & ~intdis` or `minus + zero + carry`.
 
 **Independent Test**: Can be fully tested by assembling instructions with increasingly complex operand expressions and comparing emitted bytes against hand-computed values.
 
@@ -72,7 +72,7 @@ A developer uses `*` in expressions to refer to the current program counter valu
 
 A developer uses `if` / `else` / `endif` directives to conditionally include or exclude blocks of source based on expression values. This enables assembling the same source with different configurations without editing the source file.
 
-**Why this priority**: The Dormann suite uses conditional assembly to guard entire test sections (decimal mode tests, interrupt tests) behind configuration constants. Without this, the suite source cannot be assembled at all — the assembler would try to parse the `if`/`endif` lines and fail.
+**Why this priority**: The Dormann suite uses conditional assembly to guard entire test sections (decimal mode tests, interrupt tests) behind configuration constants. Without this, the suite source cannot be assembled at all; the assembler would try to parse the `if`/`endif` lines and fail.
 
 **Independent Test**: Can be fully tested by assembling source with conditional blocks and verifying that only the taken branch emits bytes, labels, and constants.
 
@@ -189,7 +189,7 @@ A developer uses an `ERROR` directive inside a conditional block to produce a fa
 
 A developer assembles the complete Klaus Dormann 6502 functional test suite (`6502_functional_test.a65`) using the Casso assembler and the output binary matches a reference binary produced by an external AS65/CA65 assembler. The binary can then be loaded and executed by the CPU emulator.
 
-**Why this priority**: This is the ultimate validation goal — all individual features (US1–US9) exist to enable this. If this user story passes, the assembler is confirmed capable of handling a real-world, non-trivial 6502 program.
+**Why this priority**: This is the ultimate validation goal, all individual features (US1–US9) exist to enable this. If this user story passes, the assembler is confirmed capable of handling a real-world, non-trivial 6502 program.
 
 **Independent Test**: Can be tested by assembling the Dormann suite source, comparing the output binary against a reference binary byte-for-byte, and running the binary in the CPU emulator to verify all test sections pass.
 
@@ -375,14 +375,14 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - What happens when `*` is the very first token in an expression (e.g., `* + 5`)? It is treated as the current-PC operator since there is no preceding operand.
 - What happens when a macro parameter `\1` appears but no argument was passed? An error is reported indicating a missing macro argument.
 - What happens when a macro is defined but never invoked? No error or warning (macros are inert until called).
-- What happens when `if` / `endif` straddle a macro boundary (e.g., `if` inside a macro, `endif` outside)? An error is reported — conditional blocks must be self-contained within their definition context.
-- What happens with `ds 0`? Zero bytes are emitted — this is not an error.
+- What happens when `if` / `endif` straddle a macro boundary (e.g., `if` inside a macro, `endif` outside)? An error is reported, conditional blocks must be self-contained within their definition context.
+- What happens with `ds 0`? Zero bytes are emitted; this is not an error.
 - What happens when `=` or `equ` appears without a name (e.g., `= 5`)? A parse error is reported.
 - What happens when nested `if` depth exceeds a reasonable limit? A clear error is reported (limit of 32 nesting levels).
 - What happens when an include file includes itself? A nesting depth limit (e.g., 16) prevents infinite recursion.
 - What happens with `5**` (five times current-PC)? The assembler determines from context that the first `*` is multiplication and the second is current-PC.
 - What happens with `2+*/2` (two plus current-PC divided by two)? The assembler determines from context that `*` is current-PC.
-- What happens when a `struct` contains nested `struct`? This is not supported — structs cannot nest.
+- What happens when a `struct` contains nested `struct`? This is not supported, structs cannot nest.
 - What happens when `exitm` is used outside a macro? An error is reported.
 - What happens when `\0` is used in a macro invoked with 0 arguments? `\0` evaluates to `0`.
 
@@ -399,9 +399,9 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **FR-005**: All existing expression forms (`<label`, `>label`, `label+offset`) MUST produce byte-identical output to spec 001 (backward compatibility)
 - **FR-006**: The assembler MUST support constant definitions via `NAME = EXPR` syntax
 - **FR-007**: The assembler MUST support constant definitions via `NAME equ EXPR` syntax (case-insensitive keyword)
-- **FR-008**: Constants MUST participate in the symbol table identically to labels — they can be referenced anywhere a label can be referenced
+- **FR-008**: Constants MUST participate in the symbol table identically to labels; they can be referenced anywhere a label can be referenced
 - **FR-009**: Constants defined via `=` MUST be evaluated eagerly when encountered (in both passes). Constants defined via `equ` whose right-hand side contains forward references MUST be resolved in pass 2, like labels
-- **FR-010**: Constants defined via `equ` are immutable — redefining an `equ` constant or a label MUST produce a duplicate symbol error. Constants defined via `=` are reassignable — re-assignment with `=` MUST update the value silently. A name first defined as `equ` or label MUST NOT be reassigned via `=`, and vice versa
+- **FR-010**: Constants defined via `equ` are immutable, redefining an `equ` constant or a label MUST produce a duplicate symbol error. Constants defined via `=` are reassignable, re-assignment with `=` MUST update the value silently. A name first defined as `equ` or label MUST NOT be reassigned via `=`, and vice versa
 - **FR-011**: A constant name that collides with a mnemonic or register name MUST be rejected (consistent with FR-024 from spec 001)
 - **FR-012**: The assembler MUST recognize `*` as the current-PC operator when it appears as a primary (start of an expression, or immediately after an operator or open parenthesis). `$` alone (not followed by a hex digit) MUST also be treated as the current-PC operator, matching AS65. `$` followed by a hex digit is a hex literal as before
 - **FR-013**: `*` MUST evaluate to the address that the current line's first byte will be emitted at (the PC before the line's bytes are written), in both pass 1 and pass 2
@@ -428,7 +428,7 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **FR-034**: `noopt` and `opt` directives MUST be accepted as harmless no-ops (zero bytes emitted, no error)
 - **FR-034a**: `data`, `bss`, and `code` segment directives MUST switch the current segment (see FR-077 for segment model)
 - **FR-034b**: `end` directive MUST stop assembly (remaining lines are ignored); the optional operand (e.g., `end start`) sets the program entry point for S-record/Intel HEX output and MUST be displayed on stderr when the program is assembled
-- **FR-034b2**: When no `org` directive is given, the default origin address MUST be 0 (matching AS65). Note: spec 001 used `$8000` as default — this is an intentional AS65-compatibility change
+- **FR-034b2**: When no `org` directive is given, the default origin address MUST be 0 (matching AS65). Note: spec 001 used `$8000` as default; this is an intentional AS65-compatibility change
 - **FR-034d**: The expression evaluator MUST support `lo` and `hi` as unary keyword operators equivalent to `<` and `>` (low-byte and high-byte extraction), usable both with and without parentheses: `lo(expr)`, `lo expr`, `hi(expr)`, `hi expr`
 - **FR-034e**: The expression evaluator MUST support character constants in single quotes (e.g., `'A'` evaluates to `$41`)
 - **FR-035**: The assembler MUST support an `ERROR` directive that, when inside a taken conditional block, produces a fatal assembly error with the rest of the source line as the message
@@ -450,7 +450,7 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **FR-050**: The assembler MUST support Motorola S-record output (CLI `-s` flag) containing only used memory regions
 - **FR-051**: The assembler MUST support Intel HEX output (CLI `-s2` flag) containing only used memory regions
 - **FR-052**: The assembler MUST support `list` and `nolist` directives to enable/disable listing generation; `nolist` is cumulative (two `nolist` calls require two `list` calls to re-enable). `list`/`nolist` MUST have no effect when no `-p` or `-l` option was specified on the command line
-- **FR-053**: The assembler MUST support `page` (unconditional page break) and `page EXPR` (conditional page break — continue on next page only if EXPR lines do not fit on the current page) directives for listing
+- **FR-053**: The assembler MUST support `page` (unconditional page break) and `page EXPR` (conditional page break, continue on next page only if EXPR lines do not fit on the current page) directives for listing
 - **FR-054**: The assembler MUST support `title "string"` to set the listing page header title
 - **FR-055**: The CLI MUST support `-c` to show instruction cycle counts in the listing
 - **FR-056**: The CLI MUST support `-p` to generate a pass 1 listing
@@ -512,16 +512,16 @@ A developer uses AS65's instruction synonyms (`disable`=`sei`, `enable`=`cli`, `
 - **SC-009**: All AS65 command-line flags are accepted and produce the expected behavior
 - **SC-010**: S-record and Intel HEX output files are valid and parseable by standard tools
 - **SC-011**: Listing output format matches the AS65 v1.42 format as documented in `as65.man` (column layout, address format, byte display, page headers, symbol table format)
-- **SC-012**: A comprehensive conformance test suite of 200+ individual test cases covers every operator, directive, macro feature, number format, addressing mode interaction, and edge case — each with hand-computed expected outputs
+- **SC-012**: A comprehensive conformance test suite of 200+ individual test cases covers every operator, directive, macro feature, number format, addressing mode interaction, and edge case, each with hand-computed expected outputs
 
 ## Scope Boundary
 
 ### Out of Scope
 
-- 65SC02 / 65C02 extensions (`-x` flag, `bra`, `phx`, `phy`, `plx`, `ply`, `stz`, `trb`, `tsb`, `(zp)` indirect) — deferred to a separate spec
+- 65SC02 / 65C02 extensions (`-x` flag, `bra`, `phx`, `phy`, `plx`, `ply`, `stz`, `trb`, `tsb`, `(zp)` indirect), deferred to a separate spec
 - 65C02-specific instruction synonyms (`clr` = `stz`)
 - Relocatable output or linking
-- AS65 optimization mode (zero-page promotion via `opt`/`noopt`) — `opt`/`noopt` are accepted as no-ops but do not change assembly behavior
+- AS65 optimization mode (zero-page promotion via `opt`/`noopt`), `opt`/`noopt` are accepted as no-ops but do not change assembly behavior
 
 ### Design Constraint: CPU Architecture Extensibility
 
@@ -530,19 +530,19 @@ The assembler MUST be designed so that adding support for a new CPU architecture
 - The instruction set (mnemonics, addressing modes, opcodes, cycle counts) MUST be data-driven and injected into the assembler, not hardcoded
 - The expression evaluator, macro engine, conditional assembly, directive processing, segment model, listing, and CLI MUST be CPU-independent
 - Adding a new CPU MUST require only: (1) a new instruction table, (2) any new addressing mode patterns in the operand classifier, (3) a CPU-selection mechanism (e.g., CLI flag or source directive)
-- The existing `Microcode` / `OpcodeTable` architecture from spec 001 already supports this — this spec MUST NOT break that extensibility
+- The existing `Microcode` / `OpcodeTable` architecture from spec 001 already supports this, this spec MUST NOT break that extensibility
 
 ## Assumptions
 
-- Spec 001 (assembler foundation) is fully implemented and all its tests pass — this spec extends that foundation
-- The reference assembler documentation is AS65 v1.42 by Frank A. Kingswood (`as65.man`). The AS65 binary is NOT used — it is closed-source and cannot be built from source, so running it is a security risk. Conformance is validated by hand-computed expected outputs and the AS65 manual.
-- The AS65 test case file (`testcase.a65`) from `as65_142.zip` will be used as an integration test — we verify it assembles without errors
+- Spec 001 (assembler foundation) is fully implemented and all its tests pass, this spec extends that foundation
+- The reference assembler documentation is AS65 v1.42 by Frank A. Kingswood (`as65.man`). The AS65 binary is NOT used; it is closed-source and cannot be built from source, so running it is a security risk. Conformance is validated by hand-computed expected outputs and the AS65 manual.
+- The AS65 test case file (`testcase.a65`) from `as65_142.zip` will be used as an integration test, we verify it assembles without errors
 - The Dormann `6502_functional_test.a65` (GPL-3.0) is NOT committed. A test script downloads it, assembles it, compares output against the pre-built reference binary from the Klaus2m5 `bin_files/` directory, and deletes all downloaded files.
-- CPU emulator validation will use Tom Harte's SingleStepTests (MIT-licensed, JSON-based, per-opcode) — deferred to a separate spec
+- CPU emulator validation will use Tom Harte's SingleStepTests (MIT-licensed, JSON-based, per-opcode), deferred to a separate spec
 - The Dormann `6502_functional_test.a65` source will be used with default configuration (`report = 0`, `disable_decimal = 0`, `I_flag = 3`) as the primary validation target
-- A reference binary for the Dormann suite is available in the Klaus2m5 `bin_files/` directory (data file, not executable) — downloaded on demand for comparison
-- The existing two-pass architecture is sufficient — `=` constants are evaluated eagerly when encountered, `equ` constants and labels resolve in pass 2
-- Macro expansion is textual substitution (AS65-style), not semantic — parameter values are spliced as raw text before parsing
+- A reference binary for the Dormann suite is available in the Klaus2m5 `bin_files/` directory (data file, not executable), downloaded on demand for comparison
+- The existing two-pass architecture is sufficient, `=` constants are evaluated eagerly when encountered, `equ` constants and labels resolve in pass 2
+- Macro expansion is textual substitution (AS65-style), not semantic, parameter values are spliced as raw text before parsing
 - The `*` operator disambiguation (current-PC vs. multiplication) follows AS65 convention: `*` is current-PC when it appears as a primary, multiplication when it appears as a binary operator
 - AS65 is case-sensitive by default (opcodes must be lowercase). Casso defaults to case-insensitive. The `-i` flag is accepted for compatibility but is effectively a no-op since Casso is already insensitive
 - The debug information file format (`-g`) will match AS65's format as documented; the `READDBG` sample code from the AS65 distribution is the reference
@@ -555,6 +555,6 @@ The assembler MUST be designed so that adding support for a new CPU architecture
 - Q: Which `I_flag` value should be the primary validation target? → A: `I_flag = 3` (the source file's actual default), which allows full SEI/CLI testing.
 - Q: How should `=` vs `equ` constants be evaluated across passes? → A: Follow AS65 conventions. `=` assignments evaluated eagerly when encountered (in both passes); `equ` and labels deferred to pass 2. Two passes remain sufficient.
 - Q: Should the spec cover the full AS65 feature set or only what's needed for Dormann? → A: Full, exact AS65 clone (6502 mode). All syntax, directives, macro features, expression operators, output formats, and CLI options. 65C02/65SC02 support is deferred to a separate spec.
-- Q: Should the default case-sensitivity match AS65 (lowercase opcodes required)? → A: No. Keeping case-insensitive default is a non-breaking change — any valid AS65 source (lowercase) works fine. Users who write uppercase (which AS65 would reject) also work. `-i` flag accepted for compatibility.
-- Q: Should the default origin address match AS65 (0) or keep Casso's $8000? → A: Match AS65 — default origin is 0 when no `.org` is given.
-- Q: How do we handle licensing and security for test assets? → A: Nothing GPL or proprietary is committed. The AS65 binary is closed-source and MUST NOT be downloaded or executed (security risk). Conformance is validated via hand-computed expected outputs derived from the AS65 manual. Dormann source is downloaded on demand and compared against pre-built reference binaries from `bin_files/` (data, not executables). CPU validation uses Tom Harte's MIT-licensed SingleStepTests (separate spec).- Q: Should the assembler be designed for CPU extensibility? → A: Yes. The core engine (expressions, macros, conditionals, directives, segments, listing, CLI) must be CPU-independent. Adding a new architecture (65C02, 65816, Z80, etc.) should require only a new instruction table and any new addressing mode patterns — no changes to the assembler core.
+- Q: Should the default case-sensitivity match AS65 (lowercase opcodes required)? → A: No. Keeping case-insensitive default is a non-breaking change, any valid AS65 source (lowercase) works fine. Users who write uppercase (which AS65 would reject) also work. `-i` flag accepted for compatibility.
+- Q: Should the default origin address match AS65 (0) or keep Casso's $8000? → A: Match AS65, default origin is 0 when no `.org` is given.
+- Q: How do we handle licensing and security for test assets? → A: Nothing GPL or proprietary is committed. The AS65 binary is closed-source and MUST NOT be downloaded or executed (security risk). Conformance is validated via hand-computed expected outputs derived from the AS65 manual. Dormann source is downloaded on demand and compared against pre-built reference binaries from `bin_files/` (data, not executables). CPU validation uses Tom Harte's MIT-licensed SingleStepTests (separate spec).- Q: Should the assembler be designed for CPU extensibility? → A: Yes. The core engine (expressions, macros, conditionals, directives, segments, listing, CLI) must be CPU-independent. Adding a new architecture (65C02, 65816, Z80, etc.) should require only a new instruction table and any new addressing mode patterns, no changes to the assembler core.
