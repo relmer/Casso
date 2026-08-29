@@ -73,6 +73,9 @@ Entries before versioning was introduced use dates only.
   `--boot` with `--format`, `init` with `--type`, the sector numbering flags,
   the track, sector, and block range and count checks, and the filesystem
   refusals `put`, `get`, `delete`, and `boot` report.
+- **Counts in output agree in number.** `1 block(s)` and `0 error(s)` are now
+  `1 block` and `0 errors`, across the disk commands, the assembler's error
+  total, `run`'s cycle total, and the generated cycle reference.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

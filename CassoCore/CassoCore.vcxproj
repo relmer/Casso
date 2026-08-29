@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -199,6 +199,7 @@
     <ClCompile Include="DialectHelp.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
+    <ClCompile Include="CountedNoun.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Directive.cpp" />
@@ -253,6 +254,7 @@
     <ClInclude Include="DialectHelp.h" />
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
+    <ClInclude Include="CountedNoun.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Directive.h" />

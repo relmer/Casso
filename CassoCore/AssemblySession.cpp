@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
+#include "CountedNoun.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 #include "ExpressionEvaluator.h"
@@ -5672,8 +5673,9 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     CBRFEx (highest <= supplied, S_OK,
             RecordError (current.sourceLineNumber,
                 name + " refers to parameter " + std::string (1, syntax.parameterSigil) +
-                std::to_string (highest) + " but the invocation supplies " + std::to_string (supplied) +
-                " argument(s). Arguments are separated by '" + std::string (1, syntax.argumentSeparator) + "'.");
+                std::to_string (highest) + " but the invocation supplies " +
+                CountedNoun::Of (supplied, "argument") +
+                ". Arguments are separated by '" + std::string (1, syntax.argumentSeparator) + "'.");
             handled = true);
 
     m_macroUniqueCounter++;

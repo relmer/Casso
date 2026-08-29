@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Dos33Volume.h"
+#include "CountedNoun.h"
 #include "Dos33Skeleton.h"
 #include "NibblizationLayer.h"
 
@@ -1475,8 +1476,8 @@ void Dos33Volume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (leaked > 0)
     {
         inOutOutcome.warnings.push_back (
-            std::to_string (leaked)
-          + " sector(s) this file referenced are claimed by another catalog entry"
+            CountedNoun::Of ((long long) leaked, "sector")
+          + " this file referenced are claimed by another catalog entry"
             " as well, and were left allocated rather than freed");
     }
 
