@@ -10,6 +10,7 @@
 #include "BlankDiskBuilder.h"
 #include "StockBootDisks.h"
 #include "DirectBootBuilder.h"
+#include "NibbleImageCodec.h"
 #include "NibblizationLayer.h"
 #include "ProDosSkeleton.h"
 #include "WozLoader.h"
@@ -27,10 +28,12 @@
 //
 static constexpr DiskCommandRunner::ContainerName  s_kContainers[] =
 {
-    { "dsk", DiskFormat::Dsk },
-    { "do",  DiskFormat::Do  },
-    { "po",  DiskFormat::Po  },
-    { "woz", DiskFormat::Woz },
+    { "dsk", DiskFormat::Dsk, 0 },
+    { "do",  DiskFormat::Do,  0 },
+    { "po",  DiskFormat::Po,  0 },
+    { "woz", DiskFormat::Woz, 0 },
+    { "nib", DiskFormat::Nib, NibbleImageCodec::kNibTrackSize },
+    { "nb2", DiskFormat::Nib, NibbleImageCodec::kNb2TrackSize },
 };
 
 
@@ -1706,46 +1709,59 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
+                                             size_t                   & outNibbleTrackSize,
                                              DiskFormat               & outFormat,
                                              DiskCommandResult        & result)
 {
     HRESULT      hr         = S_OK;
     bool         found      = false;
+    bool         asWord     = !options.disk.containerType.empty();
     std::string  asked      = options.disk.containerType;
     std::string  words      = ContainerWordList ("", "and");
     std::string  extensions = ContainerWordList (".", "and");
+    size_t       dot        = 0;
 
 
 
-    if (asked.empty())
+    if (!asWord)
     {
-        //  No --type, so the name decides. A name carrying no extension this
-        //  tool knows is refused for the same reason an unknown --type is.
-        hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, outFormat);
-        CHRF (hr, (result.diagnostics    += "Error: missing image type: "
-                                          + options.disk.imagePath + "\n"
-                                          + "       Valid extensions are " + extensions + ".\n"
-                                          + WithPrefix ("       Use %Ltype to specify the type.\n"),
-                   result.exitStatus      = DiskCommandResult::kNoOutput,
-                   result.badCommandLine  = true));
+        //  No --type, so the name decides. THE WRITE LIST ANSWERS IT, not the
+        //  extension reader: the reader recognizes what a file already is, and
+        //  is the wrong question for what a new one may be made as. The word
+        //  and the extension are the same string for every container here, so
+        //  one table serves both branches.
+        dot   = options.disk.imagePath.find_last_of ('.');
+        asked = (dot == std::string::npos) ? std::string()
+                                           : options.disk.imagePath.substr (dot + 1);
+    }
+
+    for (char & letter : asked)
+    {
+        letter = (char) tolower ((unsigned char) letter);
+    }
+
+    for (const ContainerName & entry : s_kContainers)
+    {
+        if (!asked.empty() && asked == entry.name)
+        {
+            outFormat          = entry.format;
+            outNibbleTrackSize = entry.nibbleTrackSize;
+            found              = true;
+            break;
+        }
+    }
+
+    if (!asWord)
+    {
+        CBRF (found, (result.diagnostics    += "Error: missing image type: "
+                                             + options.disk.imagePath + "\n"
+                                             + "       Valid extensions are " + extensions + ".\n"
+                                             + WithPrefix ("       Use %Ltype to specify the type.\n"),
+                      result.exitStatus      = DiskCommandResult::kNoOutput,
+                      result.badCommandLine  = true));
     }
     else
     {
-        for (char & letter : asked)
-        {
-            letter = (char) tolower ((unsigned char) letter);
-        }
-
-        for (const ContainerName & entry : s_kContainers)
-        {
-            if (asked == entry.name)
-            {
-                outFormat = entry.format;
-                found     = true;
-                break;
-            }
-        }
-
         CBRFEx (found, E_INVALIDARG,
                 (result.diagnostics    += "Error: unknown image type: "
                                         + options.disk.containerType + "\n"
@@ -2049,6 +2065,7 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
 
 void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
                                        DiskFormat                 format,
+                                       size_t                     nibbleTrackSize,
                                        bool                       overExisting,
                                        DiskCommandResult        & result)
 {
@@ -2062,7 +2079,8 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 
 
 
-    spec.format = format;
+    spec.format          = format;
+    spec.nibbleTrackSize = nibbleTrackSize;
 
     hr = ResolveContents (options, spec.contents, result);
     CHR (hr);
@@ -2132,10 +2150,11 @@ Error:
 
 void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskCommandResult & result)
 {
-    HRESULT     hr           = S_OK;
-    DiskFormat  format       = DiskFormat::Dsk;
-    bool        named        = !options.disk.imagePath.empty();
-    bool        alreadyThere = false;
+    HRESULT     hr              = S_OK;
+    DiskFormat  format          = DiskFormat::Dsk;
+    size_t      nibbleTrackSize = 0;
+    bool        named           = !options.disk.imagePath.empty();
+    bool        alreadyThere    = false;
 
 
 
@@ -2146,16 +2165,16 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
                                       "is already there, and create will not write over it. "
                                       "Use init to reformat it, or choose another name"));
 
-    hr = ResolveContainer (options, format, result);
+    hr = ResolveContainer (options, nibbleTrackSize, format, result);
     CHR (hr);
 
     if (!options.disk.directBootFile.empty())
     {
-        BuildDirectBoot (options, format, result);
+        BuildDirectBoot (options, format, nibbleTrackSize, result);
     }
     else
     {
-        BuildAndWrite (options, format, false, result);
+        BuildAndWrite (options, format, nibbleTrackSize, false, result);
     }
 
 Error:
@@ -2184,6 +2203,7 @@ Error:
 
 void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
                                          DiskFormat                 format,
+                                         size_t                     nibbleTrackSize,
                                          DiskCommandResult        & result)
 {
     HRESULT                        hr           = S_OK;
@@ -2243,7 +2263,7 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     hr = DirectBootBuilder::Build (payload, spec, sectors, refusal);
     CHRF (hr, result.Fail (options.disk.imagePath, options.disk.directBootFile, refusal));
 
-    hr = BlankDiskBuilder::WrapInContainer (format, false, sectors, imageBytes);
+    hr = BlankDiskBuilder::WrapInContainer (format, nibbleTrackSize, false, sectors, imageBytes);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     target.imagePath     = options.disk.imagePath;
@@ -2284,11 +2304,13 @@ Error:
 
 void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommandResult & result)
 {
-    HRESULT     hr      = S_OK;
-    DiskFormat  format  = DiskFormat::Dsk;
-    bool        named   = !options.disk.imagePath.empty();
-    bool        exists  = false;
-    bool        untyped = options.disk.containerType.empty();
+    HRESULT     hr              = S_OK;
+    DiskFormat  format          = DiskFormat::Dsk;
+    size_t      nibbleTrackSize = 0;
+    FileStamp   stamp;
+    bool        named           = !options.disk.imagePath.empty();
+    bool        exists          = false;
+    bool        untyped         = options.disk.containerType.empty();
 
 
 
@@ -2309,7 +2331,22 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
     hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
 
-    BuildAndWrite (options, format, true, result);
+    if (format == DiskFormat::Nib)
+    {
+        //  THE LENGTH DECIDES HERE, NOT THE NAME, which is the opposite of
+        //  create and for a good reason: this file exists. Either nibble track
+        //  size circulates under either extension, so reformatting by the name
+        //  would resize a .nib that happens to hold the smaller tracks --
+        //  turning a reformat into a rewrite of the whole container.
+        hr = m_fileIo.Stat (options.disk.imagePath, stamp);
+        CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be measured"));
+
+        hr = NibbleImageCodec::ResolveGeometry ((size_t) stamp.sizeBytes, nibbleTrackSize);
+        CHRF (hr, result.Fail (options.disk.imagePath, "",
+                               "is not a nibble image of a length this tool recognizes"));
+    }
+
+    BuildAndWrite (options, format, nibbleTrackSize, true, result);
 
 Error:
     return;

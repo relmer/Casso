@@ -43,7 +43,20 @@ public:
                                      const vector<Byte>  &  sourceBytes,
                                      vector<Byte>        &  out);
 
+    //  A NEW image at a named track size. Creating has no file to measure, so
+    //  the size is told rather than found; every track is derived.
+    static HRESULT  Build           (const DiskImage     &  img,
+                                     size_t                 trackSize,
+                                     vector<Byte>        &  out);
+
 private:
+    //  The shared lay-out: copy clean tracks when there are source bytes,
+    //  derive every other, pad each block to trackSize.
+    static HRESULT  Render          (const DiskImage     &  img,
+                                     const vector<Byte>  &  sourceBytes,
+                                     size_t                 trackSize,
+                                     vector<Byte>        &  out);
+
     static HRESULT  DeriveTrack     (const DiskImage & img, int track, vector<Byte> & outNibbles);
     static void     RotateGapToEnd  (vector<Byte> & nibbles);
 };

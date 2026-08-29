@@ -89,6 +89,13 @@ public:
     {
         const char  *  name;
         DiskFormat     format;
+
+        //  The track size a NEW image of this container gets, and zero for
+        //  the containers where the idea does not apply. It rides in the same
+        //  row as the word so the two cannot be set in different places: a
+        //  container offered without a size, or given one that disagrees with
+        //  its name, is not expressible.
+        size_t         nibbleTrackSize;
     };
 
     //
@@ -110,6 +117,7 @@ public:
     //  here to put the binary into.
     void  BuildDirectBoot (const CommandLineOptions & options,
                            DiskFormat                 format,
+                           size_t                     nibbleTrackSize,
                            DiskCommandResult        & result);
 
     //
@@ -146,6 +154,7 @@ public:
     //  handing them a .dsk is worse than saying no.
     //
     HRESULT  ResolveContainer (const CommandLineOptions & options,
+                               size_t                   & outNibbleTrackSize,
                                DiskFormat               & outFormat,
                                DiskCommandResult        & result);
 
@@ -177,6 +186,7 @@ public:
     //  Everything create and init share: build the bytes, then put them there.
     void  BuildAndWrite (const CommandLineOptions & options,
                          DiskFormat                 format,
+                         size_t                     nibbleTrackSize,
                          bool                       overExisting,
                          DiskCommandResult        & result);
 

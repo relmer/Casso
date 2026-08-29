@@ -281,6 +281,46 @@ void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibbleImageCodec::Build
+//
+//  A new nibble image at the size its name asks for.
+//
+//  SEPARATE FROM Serialize BECAUSE THE QUESTION IS DIFFERENT. Serialize writes
+//  an image back and takes its geometry from the file it came from; there is no
+//  such file here, so the size is a parameter and every track is derived. This
+//  is the one place a 6,384-byte track can be chosen deliberately -- writing a
+//  .nb2 that really is one, rather than 6,656-byte tracks under that name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibbleImageCodec::Build (const DiskImage & img, size_t trackSize, vector<Byte> & out)
+{
+    HRESULT   hr    = S_OK;
+    bool      sized = (trackSize == kNibTrackSize) || (trackSize == kNb2TrackSize);
+
+
+
+    //  A size that is not one of the two is a caller bug, not user input: the
+    //  words that reach here come from the container table.
+    CBRAEx (sized, E_INVALIDARG);
+
+    //  No source bytes, so every track is derived. Handing Render a synthetic
+    //  buffer here would be worse than useless: it would look like a source,
+    //  and the clean tracks -- which is all of them on a freshly built image --
+    //  would be COPIED out of it instead of derived, producing a blank disk.
+    hr = Render (img, vector<Byte>(), trackSize, out);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibbleImageCodec::Serialize
 //
 //  The image back to a nibble file.
@@ -309,40 +349,84 @@ HRESULT NibbleImageCodec::Serialize (
     const vector<Byte>  &  sourceBytes,
     vector<Byte>        &  out)
 {
-    HRESULT       hr           = S_OK;
-    HRESULT       hrSource     = S_OK;
-    size_t        trackSize    = 0;
-    size_t        sourceSize   = 0;
-    size_t        nibbleCount  = 0;
-    size_t        offset       = 0;
-    int           track        = 0;
-    bool          hasSource    = false;
-    bool          fitsInBlock  = false;
-    vector<Byte>  nibbles;
+    HRESULT   hr         = S_OK;
+    HRESULT   hrSource   = S_OK;
+    size_t    trackSize  = 0;
+    size_t    sourceSize = 0;
 
 
 
     sourceSize = sourceBytes.size();
 
     hrSource   = ResolveGeometry (sourceSize, trackSize);
-    hasSource  = SUCCEEDED (hrSource);
 
-    if (!hasSource)
+    if (FAILED (hrSource))
     {
-        //  Nothing to copy from, so every track is derived and the block size
-        //  has to be chosen rather than measured.
+        //  Nothing to copy from, so the block size has to be chosen rather
+        //  than measured.
         //
         //  IT IS NOT THE TRACK'S OWN LENGTH. A synthesized track is trimmed to
         //  the bits its content occupies -- a freshly encoded DOS 3.3 track is
         //  50,624 bits, which is 6,328 bytes and not a nibble geometry at all.
         //  Reading the size off the track therefore produces a file length no
-        //  loader would accept. The standard size is the right answer for a
-        //  file being written from nothing, and the smaller one is reachable
-        //  only by naming it, which a caller with no source bytes has not done.
+        //  loader would accept. The standard size is the answer here; a caller
+        //  that wants the smaller one names it, through Build.
         trackSize = kNibTrackSize;
     }
 
-    out.assign (trackSize * kTrackCount, kSyncNibble);
+    hr = Render (img, sourceBytes, trackSize, out);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibbleImageCodec::Render
+//
+//  Every track laid into a file of blocks of `trackSize`.
+//
+//  A CLEAN TRACK IS COPIED, NEVER RE-DERIVED, whenever there are source bytes
+//  to copy from. That is what makes an untouched track byte-identical after a
+//  flush, and it is not merely an optimization: a track holding bytes with the
+//  high bit clear does NOT survive a round trip, because such a byte is
+//  absorbed into the next one's shift. Copying sidesteps that for every track
+//  the guest did not write, which is all of them on the common path.
+//
+//  With no source bytes every track is derived, dirty or not. That is the
+//  creating case, where there is nothing to copy and the tracks were built
+//  from sync-bearing nibbles in the first place.
+//
+//  A dirty track is derived, rotated so its widest gap ends it, and padded with
+//  sync bytes. Every byte written therefore has its high bit set unless it was
+//  copied, so the padding reads back as ordinary gap rather than as a stretch
+//  the drive can never assemble a nibble from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT NibbleImageCodec::Render (
+    const DiskImage     &  img,
+    const vector<Byte>  &  sourceBytes,
+    size_t                 trackSize,
+    vector<Byte>        &  out)
+{
+    HRESULT       hr          = S_OK;
+    size_t        nibbleCount = 0;
+    size_t        offset      = 0;
+    size_t        needed      = trackSize * kTrackCount;
+    int           track       = 0;
+    bool          hasSource   = sourceBytes.size() == needed;
+    bool          fitsInBlock = false;
+    vector<Byte>  nibbles;
+
+
+
+    out.assign (needed, kSyncNibble);
 
     for (track = 0; track < kTrackCount; track++)
     {
@@ -367,10 +451,6 @@ HRESULT NibbleImageCodec::Serialize (
 
         CBRA (fitsInBlock);
 
-        //  Only when there is padding to place. A track that fills its block
-        //  exactly needs none, and rotating it anyway would move every byte for
-        //  no reason -- which would also cost the guarantee that a full track
-        //  derives back byte-identical.
         //  Only when there is padding to place. A track that fills its block
         //  exactly needs none, and rotating it anyway would move every byte for
         //  no reason -- which would also cost the guarantee that a full track

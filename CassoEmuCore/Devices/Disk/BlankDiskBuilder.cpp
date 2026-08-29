@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "BlankDiskBuilder.h"
+#include "NibbleImageCodec.h"
 
 #include "Dos33Skeleton.h"
 #include "ProDosSkeleton.h"
@@ -27,6 +28,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
         DiskFormat::Dsk,
         DiskFormat::Do,
         DiskFormat::Po,
+        DiskFormat::Nib,
     };
 
 
@@ -130,6 +132,9 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
     switch (spec.format)
     {
         case DiskFormat::Woz:
+        case DiskFormat::Nib:
+            //  Both store tracks rather than sectors, so either filesystem
+            //  goes in and unformatted media is expressible too.
             formatOk = true;
             break;
 
@@ -338,7 +343,8 @@ HRESULT BlankDiskBuilder::Build (
         }
     }
 
-    hr = WrapInContainer (spec.format, spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
+    hr = WrapInContainer (spec.format, spec.nibbleTrackSize,
+                          spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
     CHR (hr);
 
 Error:
@@ -368,6 +374,7 @@ Error:
 
 HRESULT BlankDiskBuilder::WrapInContainer (
     DiskFormat            format,
+    size_t                nibbleTrackSize,
     bool                  unformatted,
     const vector<Byte> &  sectors,
     vector<Byte>       &  outBytes)
@@ -407,6 +414,32 @@ HRESULT BlankDiskBuilder::WrapInContainer (
 
         case DiskFormat::Po:
             ReorderDosToPo (sectors, built);
+            break;
+
+        case DiskFormat::Nib:
+            if (unformatted)
+            {
+                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                {
+                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                }
+            }
+            else
+            {
+                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                CHR (hr);
+            }
+
+            //  Zero means the caller did not name a size, which is every
+            //  caller but the command line's two nibble words. The standard
+            //  size is what an unnamed one is, and Build refuses anything that
+            //  is neither -- so a wrong value is still a bug rather than a
+            //  silently odd disk.
+            hr = NibbleImageCodec::Build (img,
+                                          nibbleTrackSize != 0 ? nibbleTrackSize
+                                                               : NibbleImageCodec::kNibTrackSize,
+                                          built);
+            CHR (hr);
             break;
 
         default:

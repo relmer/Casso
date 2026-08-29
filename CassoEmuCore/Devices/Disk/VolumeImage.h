@@ -107,10 +107,22 @@ public:
 
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.
-    static HRESULT  SaveBitStream (const vector<Byte>  & originalFileBytes,
+    //  Shared by every container that stores tracks rather than sectors; the
+    //  format decides only how the bits are read out of the file and put back.
+    static HRESULT  SaveBitStream (DiskFormat            format,
+                                   const vector<Byte>  & originalFileBytes,
                                    const vector<Byte>  & editedSectors,
                                    vector<Byte>        & outFileBytes,
                                    std::string         & outRefusalReason);
+
+    //  One bit-stream container's file into a DiskImage, and back out again.
+    //  Two small dispatches rather than a branch at each of the four call
+    //  sites, so a container added to one is added to the other.
+    static HRESULT  LoadBitStream      (DiskFormat format, const vector<Byte> & fileBytes,
+                                        DiskImage & outImage);
+    static HRESULT  SerializeBitStream (DiskFormat format, const DiskImage & image,
+                                        const vector<Byte> & originalFileBytes,
+                                        vector<Byte> & outFileBytes);
 
     static std::string  DescribeUnwritableTrack (int track);
 

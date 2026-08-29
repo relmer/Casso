@@ -133,8 +133,18 @@ public:
             advertised.push_back (words[i].format);
         }
 
-        Assert::AreEqual (Writable().size(), advertised.size(),
-            L"the command line and the builder disagree on how many containers exist");
+        //  COVERAGE BOTH WAYS, NOT EQUAL COUNTS. This compared sizes until a
+        //  container arrived with two spellings: nibble images answer to both
+        //  `nib` and `nb2`, which differ only in track size and share one
+        //  DiskFormat, so six words map to five formats. Counting made that
+        //  read as a disagreement when the two lists agree completely. What
+        //  actually matters is that neither side holds something the other
+        //  does not.
+        for (DiskFormat format : advertised)
+        {
+            Assert::IsTrue (Holds (Writable(), format),
+                L"the command line offers a word for a container the builder cannot write");
+        }
 
         for (DiskFormat format : Writable())
         {

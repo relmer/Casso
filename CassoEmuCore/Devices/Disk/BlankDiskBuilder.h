@@ -73,6 +73,13 @@ struct BlankDiskSpec
     bool               bootable     = false;
     Byte               volumeNumber = NibblizationLayer::kDefaultVolume;
     std::string        volumeName   = "NEWDISK";   // ProDOS only
+
+    //  Nibble containers only, and zero everywhere else. A new image has no
+    //  file to measure, so the size its NAME implies is carried here from the
+    //  container table -- which is what stops a .nb2 being written with
+    //  6,656-byte tracks, the very mismatch the reader has to cope with in
+    //  files from elsewhere.
+    size_t             nibbleTrackSize = 0;
 };
 
 
@@ -130,6 +137,7 @@ public:
     //  nibblization would be a second place for the sector skew to be wrong.
     //
     static HRESULT  WrapInContainer (DiskFormat            format,
+                                     size_t                nibbleTrackSize,
                                      bool                  unformatted,
                                      const vector<Byte> &  sectors,
                                      vector<Byte>       &  outBytes);
