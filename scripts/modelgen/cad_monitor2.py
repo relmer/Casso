@@ -558,6 +558,20 @@ def _pocket_cutter(zshift):
 
 case = case.cut (_pocket_cutter (0.0))
 
+# AND THE BELL'S OWN VOLUME COMES OUT OF THE CASE. The bell is a solid that
+# passes through the case's rear wall, so unless the case gives up that
+# space the two carry surfaces lying on each other -- and where two surfaces
+# coincide the depth test picks per pixel, which draws as a hairline of the
+# loser cutting across the winner. That is the line that ran across the bell,
+# and a diagnostic render (case red, bell blue) showed it as exactly that: a
+# red thread lying on blue.
+#
+# Sparing the case where the bell sits was tried first and makes it worse --
+# it guarantees the coincidence rather than removing it. Cutting the bell
+# out leaves that space empty for the bell to fill, so along every surface
+# the bell shows, the bell is the only thing there.
+case = case.cut (cq.Workplane (obj=_bell_solid))
+
 
 # THE VENTS: one row of SIMPLE VERTICAL HOLES straight through the plastic,
 # thirteen a side of the spec plate, ending just above where the bell
