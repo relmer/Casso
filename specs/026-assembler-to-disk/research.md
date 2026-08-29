@@ -1,0 +1,261 @@
+# Phase 0 Research: Assembler-to-Disk Output
+
+**Feature**: `026-assembler-to-disk` | **Date**: 2026-08-29
+
+This resolves the unknowns the plan's Technical Context raised. Every finding
+below is either read off this tree or quoted from a primary source; where
+neither settles a point, it says so rather than picking quietly.
+
+## 1. Merlin's `SAV` saves a span, not the whole object
+
+**Decision**: A save point holds the bytes emitted since the previous save, or
+since the start of the assembly for the first. After a save, the accumulation is
+empty and assembly continues into a fresh one.
+
+**Rationale**: This is not a design choice. Glen Bredon's manual for Merlin
+states it directly:
+
+> "SAV will save the current object code under the specified name. This acts
+> exactly as does the MERLIN EXEC mode object saving command, except it can be
+> done several times during assembly. After a save, the MERLIN object area is
+> 'empty' and the object address is set to the last specification of OBJ, or if
+> it is not present, MERLIN HIMEM by default."
+
+"After a save, the MERLIN object area is 'empty'" is the whole answer. Several
+saves in one assembly are explicitly supported, and each one carries only what
+accumulated since the last.
+
+**How this was settled**: The question was raised because the drafted FR-012
+said "the object accumulated so far", which reads as cumulative, and because
+this tree documents `ORG` as relocating without splitting the output stream, so
+the object is one contiguous blob and the two readings genuinely differ. The
+in-tree Merlin corpus could not decide it: `CLOCK.S` is the only committed
+source with two `SAV` lines, and they are mutually exclusive, guarded by
+`DO HOURS-12 / ELSE / FIN` inside an outer `DO SAVOBJ`. Exactly one can execute
+per assembly, so the corpus never exercises the difference. The manual did.
+
+**Alternatives considered**:
+
+- *Cumulative, each save writing the whole object.* Rejected: contradicted by
+  the manual. It was the reading the draft's wording implied, and it would have
+  put a loader inside the main program's file.
+- *Delta only where an origin intervened.* Rejected: two rules where the source
+  has one, and nothing in Merlin suggests it.
+
+## 2. The load address a save point records
+
+**Decision**: Each save point records the address its own first byte assembles
+to. With no intervening `ORG` this is the previous save's last address plus one;
+where the source states a new origin, that origin governs.
+
+**Rationale**: The manual gives the no-intervening-origin case exactly:
+
+> "The SAV command sets the address of the saved file to the 'correct' value.
+> For example, the first file will have an origin of the initial ORG command,
+> the second will have the last address of the first+1, and the third will have
+> the address of the second+1,... When BLOADed later, they will go to the
+> correct location(s)."
+
+**THIS IS THE ONE PLACE THE MANUAL DOES NOT SETTLE THE QUESTION.** It describes
+the run-on case and does not say what an `ORG` between two saves does. The rule
+above is a synthesis: "the address of this span's first byte" reduces to the
+manual's stated rule exactly when nothing moves the program counter, and gives
+the only sensible answer when something does. The alternative, addresses that
+keep running consecutively even after the source has stated a new origin, would
+file a program at an address its own source contradicts, and the manual's
+closing sentence says the point of the rule is that a later `BLOAD` puts the
+file in the right place.
+
+`AssemblySession` already computes the value this needs.
+`AssemblyResult::startAddress` is set from the first `ORG` and later overwritten
+with the lowest address actually used (`AssemblySession.cpp:3109`, `:8011`),
+which is this derivation applied to a whole assembly. A save point needs it
+applied to a span.
+
+## 3. `DSK` is a streaming multi-output directive, and the tree implements it as a name
+
+**Decision**: A second `DSK` closes the output the first named and begins
+another, matching the manual. Recorded as FR-025.
+
+**Rationale**: The manual again:
+
+> "DSK instructs the assembler to assemble the following code directly to disk.
+> IF DSK is already in effect, the old file will be closed and a new one begun.
+> DSK is used primarily for extremely large files. For moderately sized
+> programs, SAV is preferred since it is 30% faster and theoretically more
+> reliable."
+
+`AssemblySession::HandlePass1ObjectFile` currently documents the opposite: "A
+later directive replaces an earlier one, the way a later origin does. The name
+in effect is the last one the source stated." For **one** `DSK` the two are
+indistinguishable, which is why this has never mattered. For two they differ:
+Merlin writes two files, the tree writes one.
+
+**The streaming half is deliberately not adopted.** Merlin's reason for `DSK`
+was an object too large to hold in memory, and it is the slower path by its own
+manual. Casso assembles into a `std::vector<Byte>` with no such ceiling, so
+streaming buys nothing, and it would defeat FR-014: a directive that writes as
+it goes cannot promise that a failed assembly leaves the image untouched. What
+is adopted is the observable behavior, which is where the file boundaries fall.
+
+**Alternatives considered**:
+
+- *Leave `DSK` as last-one-wins.* Rejected: it is wrong against the authority
+  this feature is measured by, and once save points exist a second `DSK`
+  closing the current one is nearly free.
+
+## 4. `TYP`'s operand is a ProDOS type byte, and the 16-bit range does not apply
+
+**Decision**: `TYP` takes an 8-bit ProDOS file type, written as Merlin writes
+numbers (`TYP $06`). The recognized set is the one the tool already publishes:
+`$04` text, `$06` binary, `$FC` Applesoft, `$FF` system. Anything else is
+refused naming the byte.
+
+**Rationale**: `TYP` is absent from the Merlin 8 manual, which is consistent,
+since DOS 3.3 has no ProDOS types to set. The Merlin Pro manual lists it as
+"TYP (ProDOS only)", though the archived OCR is truncated at the entry itself.
+Merlin 32 documents a `TYP` taking `$B2`-`$BD` or a three-letter alias, but that
+is the **GS/OS OMF** range for 65816 IIgs program files, and is out of scope
+while Casso declares itself 6502/65C02, the same boundary that refuses a second
+`XC`. The 8-bit ProDOS types are the right set and are already in the tree as
+`ProDosVolume::kTypeText` / `kTypeBinary` / `kTypeBasic` / `kTypeSystem`.
+
+**Type mapping and the refusal FR-010 requires**, derived from the constants
+already present in `ProDosVolume.h` and `Dos33Volume.h`:
+
+| Merlin `TYP` | ProDOS | DOS 3.3 | Note |
+|---|---|---|---|
+| `$04` | `$04` TXT | `$00` T | maps |
+| `$06` | `$06` BIN | `$04` B | maps; the default |
+| `$FC` | `$FC` BAS | `$02` A | maps |
+| `$FF` | `$FF` SYS | none | **refused on DOS 3.3** |
+| anything else | none | none | **refused, naming the byte** |
+
+`SYS` has no DOS 3.3 counterpart because the ProDOS kernel boots by scanning the
+volume directory for a `SYS`-typed entry, and DOS 3.3 has no system-program
+concept to approximate it with. `Dos33Volume::kTypeInteger` and
+`kTypeRelocatable` have no ProDOS counterpart in the recognized set either, but
+nothing needs one: `TYP` is a ProDOS directive naming a ProDOS type.
+
+## 5. The transaction seam already exists and is exactly the right shape
+
+**Decision**: Reuse `DiskImageSession` and `IVolume` unchanged. Do not build a
+second write path.
+
+**Rationale**: FR-014's all-or-nothing guarantee, including across several save
+points, falls out of what 020 already built rather than needing anything new.
+
+- `IVolume`'s header states it outright: "NOTHING MUTATES IN PLACE. The volume
+  holds its buffer as an immutable input and every mutating call produces a
+  COMPLETE new buffer, or fails and produces nothing." Several save points
+  therefore compose by feeding each `Write` the buffer the previous one
+  returned, and nothing reaches the host until the last has succeeded.
+- `IVolume::Write` is documented as "Adds or replaces", which is FR-019 for
+  free, and the same header explains why replacement computed whole is the safe
+  form.
+- `DiskImageSession` is "ONE IMAGE, OPENED AND COMMITTED AS A TRANSACTION". It
+  records a freshness stamp at read time, probes for the image being held by
+  another program, and replaces atomically. That covers three of the spec's edge
+  cases, image held open, image changed underneath, and refusal leaving the
+  target byte-for-byte, with no new code.
+- `IVolume::SetStartupProgram` exists, so FR-021 is a call rather than a
+  mechanism.
+
+**Consequence for FR-018**: `DiskImageSession::OpenedImage` carries an `isNew`
+flag used by `disk create`, and the freshness check is skipped for it. The
+assembler path must NOT set it, because a missing image is a refusal here. The
+`requireFilesystem` argument already makes an unrecognized disk a refusal too.
+
+## 6. Where the code goes, and what already lets it
+
+**Decision**: A second `ArtifactSink` implementation, in `CassoEmuCore`.
+
+**Rationale**: `ArtifactWriter.h` already declares `ArtifactSink` as an
+abstraction over "where a successful assembly's two files go", with
+`FileArtifactSink` as the production implementation, and `AssemblerMode::Run`
+already accepts a sink by pointer for exactly this purpose. An image target is a
+second implementation of an existing seam, not a new seam.
+
+Placement is settled by what links what. `CassoCli` and `UnitTest` both
+reference `CassoCore` **and** `CassoEmuCore` (checked in the two `.vcxproj`
+files), the disk layer is `CassoEmuCore/Devices/Disk`, and `ArtifactWriter` is
+already `CassoEmuCore/Cli`. So a sink that writes into an image sits beside the
+one that writes host files, and `UnitTest` reaches it. Nothing moves, and
+nothing lands in an exe.
+
+**One header hazard to respect.** `DiskCommandRunner.h` forward-declares
+`VolumeKind`, `DiskFormat`, `BlankDiskContents`, `BlankDiskSpec` and
+`BootPayload` rather than including their headers, and says why: including
+`VolumeImage.h` "would drag DiskImage.h through this header and into the console
+project". Its comment records that doing so "built the library fine and broke
+the console project". The new sink's header must follow that discipline.
+
+## 7. What the assembler already reports, and what it must start reporting
+
+**Decision**: Extend `AssemblyResult` with the save points, following the
+pattern `outputFileName` already set.
+
+**Rationale**: `AssemblyResult::outputFileName` is documented as "REPORTED
+rather than acted on. Nothing here writes a file, so this says what the name is
+and leaves the writing to whoever asked for the assembly, which keeps the
+precedence rule in one place instead of repeated at every entry point that
+produces output." A file type and a list of save points are the same kind of
+fact and belong the same way. This also keeps `CassoCore` free of any knowledge
+that disks exist, which is what lets FR-003 hold: the capability is the
+assembler's, and the directives merely feed it.
+
+The precedence rule FR-007 needs is likewise already built and already
+explained. `CommandLineParser::ApplyMerlinDefaults` deliberately does not
+default the output name, because "the precedence between the flag and the
+directive is settled by the assembler, which sees both, rather than guessed by a
+parser that sees one", and `HandlePass1ObjectFile` implements it by declining to
+overwrite a caller-supplied name. The type and the on-volume name take the same
+route.
+
+## 8. Removing a boundary row is a real change, not a deletion
+
+**Decision**: Delete the `TYP` and `SAV` rows from `s_kMerlinBoundary`, and add
+the handlers those directives then need.
+
+**Rationale**: `AssemblySession` resolves a directive against
+`m_dialect.GetSubsetBoundary()` and, on a hit, routes it to
+`HandleSubsetBoundary`, which claims the line and records an offense. Removing a
+row does not merely stop the refusal, it makes the directive fall through to the
+ordinary dispatch table at `AssemblySession.cpp:5111`, where it needs an entry
+or it becomes an unknown directive. `Directive::FileType` and
+`Directive::SaveObject` already exist and are already spelled in
+`MerlinDialect.cpp`, so the tokens are recognized; the handling behind them is
+what is missing.
+
+`SAV` needs a **pass 2** handler, unlike `DSK`, which is pass 1 only
+(`{ Directive::ObjectFile, &HandlePass1ObjectFile, nullptr }`). A save point is
+a span of emitted bytes, and bytes are emitted in pass 2.
+
+**The published list is generated, so most of it updates itself.**
+`MerlinSubsetBoundary::GetHelpText` composes from the same rows and
+`UnitTest/MerlinSubsetBoundaryTests.cpp` sweeps the accessor. The prose in
+`docs/merlin-subset.md` is the part that needs a human edit: it says "Six
+constructs are recognized and refused by name" and then lists them.
+
+## 9. Counting the boundary, correctly
+
+**Finding**: The drafted spec said this feature takes the refused count from six
+to three. It takes it from six to **four**.
+
+`s_kMerlinBoundary` holds six rows: `REL`, `ENT`, `EXT`, `XC`, `TYP`, `SAV`.
+`DSK` is not among them and never was. It is accepted today and honored by
+redirection to a host file, so it appears in `docs/merlin-subset.md`'s
+*supported* directive table, not its refused list. Closing `TYP` and `SAV`
+removes two rows and leaves four: the three linker spellings, and the second
+`XC`.
+
+`DSK` is still a gap this feature closes, but of a different kind: not a refusal
+lifted, but a directive finally meaning what it means. Corrected in the spec and
+in the checklist notes.
+
+## Sources
+
+- [Merlin: Macro Assembler for the Apple II Family, Glen Bredon](https://gswv.apple2.org.za/a2zine/Docs/MerlinManual.txt) — the `SAV` and `DSK` quotations above.
+- [Merlin Pro Macro Assembler manual](https://archive.org/details/MerlinProMacroAssembler) — lists `TYP` as "(ProDOS only)"; the OCR is truncated at the entry itself.
+- [Merlin 32 syntax reference, Brutal Deluxe](http://www.brutaldeluxe.fr/products/crossdevtools/merlin/index.html) — the GS/OS `TYP` range, recorded to explain why it does **not** apply here.
+- In-tree: `UnitTest/Fixtures/Merlin/CLOCK.S`, `CassoCore/MerlinSubsetBoundary.cpp`, `CassoCore/AssemblySession.cpp`, `CassoEmuCore/Cli/ArtifactWriter.h`, and `CassoEmuCore/Devices/Disk/{IVolume,DiskImageSession,ProDosVolume,Dos33Volume}.h`.

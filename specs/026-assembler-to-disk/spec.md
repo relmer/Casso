@@ -70,6 +70,15 @@ without one.
   It is replaced. A build loop reassembles constantly, so refusing would fail
   every build after the first, and this is what the existing file-placement
   command already does.
+- Q: Does a second `SAV` write the whole object again, or only the bytes since
+  the previous one? → A: Only the bytes since the previous one, and this was
+  settled by reading Merlin's own manual rather than by choosing. Bredon states
+  that a save may be done several times during an assembly and that "after a
+  save, the MERLIN object area is 'empty'". The saved file's address follows
+  from the same rule: the first save takes the initial origin, and each later
+  one continues from where the previous save ended. See
+  [research.md](research.md) for the quotations and for the one case the manual
+  does not settle.
 
 ---
 
@@ -154,7 +163,8 @@ host files appear instead.
 
 1. **Given** a source with two `ORG`/`SAV` sequences naming different files,
    **When** assembled to an image, **Then** both files exist on the volume, each
-   with its own recorded load address.
+   with its own recorded load address, and the second file holds only the bytes
+   assembled after the first save — not the first file's bytes as well.
 2. **Given** the same source, **When** the assembly fails after the first save
    would have been written, **Then** the image contains neither file and is
    byte-for-byte unchanged.
@@ -255,6 +265,12 @@ startup program.
 
 - **FR-008**: `DSK` MUST name the object on the volume when an image target is
   given, and MUST continue to name a host file when one is not.
+- **FR-025**: A second `DSK` in one source MUST close the output the first
+  named and begin another, rather than renaming a single output. Merlin's
+  manual is explicit that a `DSK` arriving while one is in effect closes the
+  old file and begins a new one, so a source with two of them produces two
+  files. Today the tool keeps only the last name, which is indistinguishable
+  from Merlin for one occurrence and wrong for two.
 - **FR-009**: `TYP` MUST set the object's filesystem type when an image target is
   given.
 - **FR-010**: A type with no counterpart on the target filesystem MUST be refused
@@ -263,9 +279,16 @@ startup program.
   DOS 3.3 has no system-program concept.
 - **FR-011**: A type value outside the set the tool recognizes MUST be refused,
   naming the value.
-- **FR-012**: `SAV` MUST write the object accumulated so far to the current
-  target and allow assembly to continue, so one source can produce several
-  complete files.
+- **FR-012**: `SAV` MUST write the object accumulated since the previous save —
+  or since the start of the assembly, for the first — to the current target, and
+  MUST then allow assembly to continue with that accumulation emptied. Bytes
+  already saved MUST NOT appear in a later file. This is Merlin's own behavior,
+  not a choice: its manual states that the object area is empty after a save.
+- **FR-024**: Each save point's recorded load address MUST be the address its
+  own first byte assembles to, so several saves from one source land where the
+  source put them. With no intervening origin this continues from the previous
+  save's last address plus one, which is the rule Merlin's manual states; where
+  the source does state a new origin, that origin governs.
 - **FR-020**: `SAV` MUST NOT depend on an image target. With one, it writes to
   the volume; without one, it writes a host file, so one assembly produces
   several host files. It MUST NOT be refused for want of a disk.
