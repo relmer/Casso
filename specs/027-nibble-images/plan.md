@@ -256,7 +256,12 @@ resolve. Note it is a **tracked** file, not an untracked one, so the hazard is w
 than it first appears: no `git add -A` is needed, and a plain `git commit -a` carries
 it in. T062 checks the branch diff for it.
 
-**`CLAUDE.md` is stale in two other ways worth correcting at merge time**, neither
-of them this feature's doing: it describes spec 020 as implemented-but-unmerged when
-it has merged and master is at 1.20.1, and it does not mention that GH #115 is
-fixed.
+**`CLAUDE.md` is stale in three other ways worth correcting at merge time**, none of
+them this feature's doing:
+
+- it describes spec 020 as implemented-but-unmerged when it has merged and master is
+  at 1.20.1;
+- it does not mention that GH #115 is fixed;
+- its 027 entry, added on master in `cf7d5f64`, says "the spec itself is not written
+  yet", which this branch makes untrue. That entry also still lists 027 among the
+  specs drafted but not started.
