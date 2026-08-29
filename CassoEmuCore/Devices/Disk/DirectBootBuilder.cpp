@@ -185,8 +185,8 @@ std::string DirectBootBuilder::DescribeWindow (Word loadAddress)
 
 
     snprintf (text, sizeof (text),
-              "a direct-boot payload must load between %s and %s, because page $08 carries "
-              "the loader and $C000 is not memory, and %s was asked for",
+              "a direct-boot payload must load between %s and %s. Page $08 contains the "
+              "loader and $C000 is not memory. %s was requested",
               FormatAddress (kLowestLoadAddress).c_str(),
               FormatAddress ((Word) (kMemoryCeiling - 1)).c_str(),
               FormatAddress (loadAddress).c_str());

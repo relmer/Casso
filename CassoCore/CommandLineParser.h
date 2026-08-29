@@ -141,7 +141,7 @@ public:
         "    1  Bad command line\n"
         "    2  Error opening source or output file\n"
         "    3  Error assembling source file\n"
-        "    4  Out of memory, says AS65\n"
+        "    4  Out of memory, according to AS65\n"
         "    5  Assembled with warnings";
 
     //  The same table with 4 told properly, which needs a number this library

@@ -150,7 +150,7 @@ DialectRegistry::ForeignConstruct DialectRegistry::FindForeignConstruct (const s
             if (upperSpelling == alias.spelling)
             {
                 found.dialect  = entry.profile;
-                found.category = "an alternate instruction spelling";
+                found.category = "an alternate instruction name";
                 break;
             }
         }
