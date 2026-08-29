@@ -24,23 +24,29 @@ Entries before versioning was introduced use dates only.
 - A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.
   The picture maps onto spherical-sag glass, and input is inverse-projected
   through the curvature so a click lands on the right emulated pixel.
-- Each machine gets the hardware it shipped with, at true dimensions: a
-  Monitor II over Disk IIs for the //e and ][+, a Monitor //c over 5.25
-  drives for the //c. Switching machines swaps the stack.
-- Everything the 2D drive band did carries over: activity lights, the door
-  animation on mount/eject, write-protect padlock and tooltips, drag-and-
-  drop, slot click ejects and browses, body click browses.
-- Device models are CAD-built and exported to OBJ/MTL, so openings are
-  boolean cuts and edges are real fillets.
+- Four new device models -- Monitor II, Monitor //c, Disk II, Disk IIc --
+  CAD-built from photographs at true dimensions. Openings are boolean cuts
+  and edges are real fillets.
+- Each machine gets the hardware it shipped with: a Monitor II over Disk IIs
+  for the //e and ][+, a Monitor //c over Disk IIcs for the //c. Switching
+  machines swaps the stack.
+- Case marks are modeled, not painted: embossed bezel icons, inlaid
+  cassowary, drive numbers, IN USE, the disk ][ logotype.
+- Drive doors animate on mount and eject. The Disk II swings on its
+  cantilever; the Disk IIc slides back and lifts.
+- Everything the 2D drive band did carries over: activity lights, write-
+  protect padlock and tooltips, drag-and-drop, slot click ejects and
+  browses, body click browses.
 - Alt+Enter fills the monitor with the picture alone; the drives live in a
   slide-up strip revealed by pointer dwell or Ctrl+D.
 - Settings > Theme can drop the CRT monitor and put the picture back on a
   flat rect. The 3D drives stay either way.
 - Compact themes (DarkModern, RetroTerminal) keep their 2D widgets.
-- Lamps are lit lenses in a recess rather than painted marks, and every
-  device casts a contact shadow.
-- The scene is lit per pixel from two lights plus a specular highlight, with
-  the power lamp as a real light in the same pass.
+- Per-pixel shading from two lights plus a specular highlight, with the
+  power lamp as a real light in the same pass.
+- Shadows are cast across the desk, and each device has a contact shadow
+  under it.
+- Lamps are lit lenses in a recess rather than painted marks.
 
 ### Changed
 
