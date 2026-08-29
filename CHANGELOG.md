@@ -31,8 +31,8 @@ Entries before versioning was introduced use dates only.
   same value the emulator bills. NMOS counts are unchanged.
 - **Instruction timing was wrong in three places. This changes emulated
   timing**, so software that counts cycles runs slightly differently.
-  - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` cost seven on the 65C02 whatever
-    the indexed address did. They take six, or seven across a page. 65C02 only.
+  - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` were billed seven whatever the
+    indexed address did. They take six, or seven across a page. 65C02 only.
   - A branch with a displacement of zero was billed as untaken. It is taken, to
     the instruction after it, and costs the extra cycle. Both cores, every
     conditional branch and `BRA`.
