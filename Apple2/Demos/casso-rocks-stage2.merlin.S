@@ -77,21 +77,24 @@
 ;      and either answer can end up looking at the other pair. See
 ;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
 ;
-;      Steps, monochrome answer (two, then out):
+;      Steps, monochrome answer:
 ;        0 = DHGR: 560x192 one-bit, on aux+main $2000-$3FFF. The
 ;            highest resolution the machine has.
 ;        1 = HGR: 280x192 one-bit, on HGR page 2 ($4000-$5FFF). Half
 ;            the horizontal resolution of step 0, because an HGR pixel
 ;            paints two half-dots rather than one.
 ;
-;      Steps, color answer (three):
+;      Steps, color answer:
 ;        0 = DHGR: 140 sixteen-color cells, staged from main $6000 and
 ;            main $8000.
 ;        1 = HGR: 6-color NTSC artifact, restored from main $A000.
-;        2 = LoRes (GR): the 16-color bars on text page 1. The
-;            monochrome cycle skips these -- they are a palette demo,
-;            and on a monochrome monitor a palette is sixteen levels
-;            of one color.
+;
+;      Step 2, both answers: the hi-res color-mask sweep, which runs
+;      until a key is pressed. It replaced the LoRes bars, which were a
+;      palette demo that a monochrome monitor renders as sixteen levels
+;      of one color -- whereas the sweep is worth watching either way,
+;      since half of what it walks through is dot PATTERN rather than
+;      hue. See mode_sweep.
 ;
 ;      The two images the answer did not pick stay loaded and simply
 ;      never appear.
@@ -147,7 +150,9 @@ S1_LOAD_B     EQU $0828       ; sta DBASE / step head b / jmp read_track
 ; -- Zero page ---------------------------------------------------
 STEP       EQU $46            ; step within the chosen pair's cycle (0..2)
 PAIR       EQU $47            ; 0 = the monochrome images, 1 = the color ones
-SRC_PTR    EQU $48            ; ($48),y indirect-indexed source pointer
+MASK       EQU $48            ; the sweep's current color mask
+ODDMASK    EQU $49            ; what it paints odd bytes with
+SRC_PTR    EQU $4C            ; ($4C),y indirect-indexed source pointer
 DST_PTR    EQU $4A            ; ($4A),y indirect-indexed dest pointer
 
 
@@ -261,14 +266,7 @@ POLL
 POLL_CHK2                  ; dispatch and the handlers, and it has grown
     CMP #2                 ; past a relative branch's reach
     BNE DO_EXIT
-
-    ; Step 2 is the LoRes bars, and only the color answer gets them: on
-    ; a monochrome monitor they are sixteen levels of one color, which
-    ; demonstrates nothing the two photographs have not already shown.
-    ; So the monochrome cycle is two steps and the color cycle is three.
-    LDA PAIR
-    BEQ DO_EXIT
-    JMP MODE_LORES
+    JMP MODE_SWEEP
 
 
 DO_EXIT
@@ -414,26 +412,90 @@ MODE_HGR_MONO
     JMP POLL
 
 
-MODE_LORES
-    ; Copy 1 KB LoRes pattern from $1200-$15FF to $0400-$07FF, then
-    ; switch to LoRes display (TEXT off, HIRES off, MIXED off,
-    ; PAGE2 off). All four 256-byte copies done in a single loop
-    ; with X as the offset (low byte of each address).
+; ----------------------------------------------------------------------------
+; mode_sweep -- step 2: the hi-res color-mask sweep. It is this Applesoft
+;              one-liner, which is a small classic:
+;
+;                HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 :
+;                      CALL -3082 : NEXT
+;
+;              HCOLOR= can only reach the eight masks in the ROM table at
+;              $F6F6; poking 228 reaches all 256, so the sweep walks the
+;              hi-res renderer's entire input space -- every 7-bit dot
+;              pattern against both palette states -- as stable,
+;              full-screen, uniform fields. Runs until a key.
+;
+;              PAINTED HERE RATHER THAN BY CALLING THE ROM. Driving the
+;              real HPLOT/BKGND pair in a loop worked headlessly and
+;              failed on the machine after tens of seconds of sweeping,
+;              in a way that did not reproduce in the test harness and
+;              that neither the stack pointer nor the demo's own state
+;              explained. Painting the page directly is a dozen or so
+;              bytes more, keeps the demo free of firmware entry points
+;              while it is running, and polls the keyboard three times
+;              as often as a ROM fill did.
+;
+;              WHAT BKGND ACTUALLY PAINTS, reproduced below: the working
+;              color into every byte of the page, advancing the color
+;              phase after each one. For a mask whose pixel bits land in
+;              $20-$5F that means odd bytes carry mask EOR $7F and even
+;              bytes carry the mask; every other mask paints uniformly.
+;              UnitTest's ExpectedFillByte models the same rule against
+;              the real routine.
+; ----------------------------------------------------------------------------
+MODE_SWEEP
+    ; Hi-res page 1, full screen. Step 1 may have left PAGE2 selected --
+    ; the monochrome HGR image lives there -- so PAGE1 is not optional.
+    STA STORE80OFF
+    STA COL80OFF
+    BIT DHIRESOFF
+    BIT TXTOFF
+    BIT HIRESON
+    BIT MIXOFF
     BIT PG2OFF
-    BIT HIRESOFF
-    LDX #0
-COPY_LO
-    LDA $1200,X
-    STA $0400,X
-    LDA $1300,X
-    STA $0500,X
-    LDA $1400,X
-    STA $0600,X
-    LDA $1500,X
-    STA $0700,X
-    INX
-    BNE COPY_LO
-    JMP POLL
+
+    LDA #0
+    STA MASK
+
+SWEEP_PAINT
+    ; The two bytes this mask paints with.
+    LDA MASK
+    STA ODDMASK
+    AND #$7F
+    CMP #$20
+    BCC SWEEP_FILL
+    CMP #$60
+    BCS SWEEP_FILL
+    LDA MASK
+    EOR #$7F
+    STA ODDMASK
+
+SWEEP_FILL
+    LDA #0
+    STA DST_PTR
+    LDA #$20               ; hi-res page 1
+    STA DST_PTR+1
+    LDX #32                ; 32 pages = 8 KB
+SWEEP_PAGE
+    LDY #0
+SWEEP_BYTE
+    LDA MASK
+    STA (DST_PTR),Y
+    iny
+    LDA ODDMASK
+    STA (DST_PTR),Y
+    iny
+    BNE SWEEP_BYTE
+    INC DST_PTR+1
+    dex
+    BNE SWEEP_PAGE
+
+    LDA KBD
+    BPL SWEEP_NEXT
+    JMP POLL               ; a key ends the sweep; poll takes it from here
+SWEEP_NEXT
+    INC MASK
+    JMP SWEEP_PAINT
 
 
 ; ----------------------------------------------------------------------------

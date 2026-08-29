@@ -37,17 +37,25 @@ Entries before versioning was introduced use dates only.
   as from the cycle.
 
   The answer selects the pair rather than picking a starting point, and then
-  the demo exits to BASIC. A color answer gets three steps: the DHGR image,
-  its HGR counterpart, and the LoRes bars. A monochrome answer gets the two
-  photographs and stops -- the bars are a palette demo, and a palette on a
-  monochrome monitor is sixteen levels of one color. The images the answer
-  did not pick stay loaded and simply never appear.
+  the demo exits to BASIC. Three steps either way: the chosen DHGR image, its
+  HGR counterpart, and then the hi-res color-mask sweep, which runs until a
+  key. The images the answer did not pick stay loaded and simply never appear.
 
   The exit puts the video mode back itself and hands control to Applesoft
   directly, rather than going through the reset vector. The //e's reset
   handler re-runs the video firmware init and turns 80COL back on, so the demo
   used to drop into Applesoft in 80 columns -- half-width glyphs, and typing
   that misbehaved.
+
+### Changed
+- **The LoRes bars are gone; the last mode is now the hi-res color-mask
+  sweep.** It is the Applesoft one-liner
+  `HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 : NEXT` in 6502:
+  `HCOLOR=` reaches only the eight masks in the ROM table, but poking 228
+  reaches all 256, so the sweep walks the hi-res renderer's entire input space
+  as full-screen fields and runs until a key. It is worth watching on either
+  monitor, which the bars were not -- a palette on a monochrome monitor is
+  sixteen levels of one color.
 
 ### Removed
 - **The HGR color test bands are no longer a mode on the demo disk.** They

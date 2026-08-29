@@ -65,10 +65,9 @@ public:
 
     static constexpr int       kMaxAncestorWalk  = 10;
     static constexpr size_t    kHgrPayloadSize   = 8192;
-    static constexpr size_t    kLoresPayloadSize = 1024;
     static constexpr size_t    kSectorByteSize   = 256;
     static constexpr int       kSectorsPerTrack  = 16;
-    static constexpr int       kStage2Sectors    = 2;      // stage 2 outgrew one sector
+    static constexpr int       kStage2Sectors    = 3;      // stage 2 spans three sectors
     static constexpr Word      kHgrBase          = 0x2000;
     static constexpr Word      kBootEntry        = 0xC600;
     static constexpr Word      kDemoEntry        = 0x0801;
@@ -184,7 +183,6 @@ public:
             std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
             std::vector<Byte>        hgrMonoPayload;
-            std::vector<Byte>        loresPayload;
             std::vector<Byte>        dhgrAuxPayload;
             std::vector<Byte>        dhgrMainPayload;
             std::vector<Byte>        monoAuxPayload;
@@ -204,7 +202,6 @@ public:
 
             hgrPayload      = DemoAssets::Copy (IDR_DEMO_HGR);
             hgrMonoPayload  = DemoAssets::Copy (IDR_DEMO_HGR_MONO);
-            loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
             dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
             dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
             monoAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_AUX);
@@ -213,8 +210,6 @@ public:
                 L"cassowary.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, hgrMonoPayload.size(),
                 L"cassowary-mono.hgr must be exactly 8192 bytes");
-            Assert::AreEqual (kLoresPayloadSize, loresPayload.size(),
-                L"lores-bars.lores must be exactly 1024 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size(),
                 L"dhgr-cassowary-aux.bin must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size(),
@@ -260,7 +255,7 @@ public:
             Assert::IsTrue (stage2Result.bytes.size() > 0 &&
                             stage2Result.bytes.size() <=
                                 kStage2Sectors * kSectorByteSize,
-                L"Stage 2 code must fit in the two sectors reserved for it");
+                L"Stage 2 code must fit in the sectors reserved for it");
 
             // Build a 143360-byte raw .dsk image:
             //   - File offset 1..N (track 0 sector 0 minus the first byte):
@@ -268,10 +263,10 @@ public:
             //   - Tracks 1+2: 8 KB DHGR MONO aux half (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
-            //   - Track 3 physical sectors 0..1: stage 2 code (lands at
-            //     $1000-$11FF). Track 3 physical sectors 2..5: 1 KB LoRes
-            //     test pattern (lands at $1200-$15FF, copied into text
-            //     page 1 in mode_lores).
+            //   - Track 3 physical sectors 0..2: stage 2 code (lands at
+            //     $1000-$12FF). The rest of track 3 is unused now that the
+            //     LoRes pattern has gone, so stage 2 has room to grow
+            //     without moving anything else.
             //   - Tracks 4+5: 8 KB DHGR MONO main half (loaded by stage 2
             //     init into main $8000-$9FFF, then copied to main $2000
             //     by enter_dhgr).
@@ -311,8 +306,7 @@ public:
                 raw[1 + i] = asmResult.bytes[i];
             }
 
-            // Track 3 physical sectors 0-1 -> stage 2 code at $1000-$11FF.
-            // Track 3 physical sectors 2-5 -> LoRes pattern at $1200-$15FF.
+            // Track 3 physical sectors 0-2 -> stage 2 code at $1000-$12FF.
             // Route through the interleave so each payload page sits under
             // the address mark stage 1's RWTS will file it by.
             auto StampTrack3Sector = [&] (int physicalSector,
@@ -346,13 +340,6 @@ public:
                                    stage2Result.bytes.data() + offset,
                                    remaining < kSectorByteSize ? remaining
                                                                : kSectorByteSize);
-            }
-
-            for (int sector = 0; sector < 4; sector++)
-            {
-                StampTrack3Sector (kStage2Sectors + sector,
-                                   loresPayload.data() + sector * kSectorByteSize,
-                                   kSectorByteSize);
             }
 
             // Stitch a payload across 2 tracks starting at startTrack.
@@ -588,13 +575,53 @@ public:
             VerifyMemRange (0x4000, hgrMonoPayload,
                 L"HGR mono cassowary still on page 2 at step 1");
 
-            //  THE MONOCHROME CYCLE HAS NO THIRD STEP. The LoRes bars are
-            //  a palette demo, and a palette on a monochrome monitor is
-            //  sixteen levels of one color, so the next keystroke exits
-            //  rather than showing them. The color path below still gets
-            //  them, which is what keeps the LoRes payload covered.
+            //  Step 2, the hi-res color-mask sweep: HGR, then POKE 228
+            //  / HPLOT 0,0 / CALL -3082 round and round until a key. Two
+            //  things are worth asserting and one is not. The mask
+            //  counter advancing proves the loop is running, and $E4 is
+            //  exact, so that is checked rather than eyeballing pixels.
+            //  The page no longer matching what step 1 left proves BKGND
+            //  is actually painting. What is NOT checked is the fill's
+            //  content: it is mid-flight at any given cycle, and
+            //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
+            //  models what BKGND paints, mask by mask, against the ROM.
             core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
+            core.RunCycles (1'500'000ULL);
+
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Step 2 (sweep) must turn HIRES on");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Step 2 (sweep) must keep TEXT off");
+            Assert::IsFalse (ss->IsMixedMode(),
+                L"Step 2 (sweep) must clear the MIXED that HGR sets");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Step 2 (sweep) paints hi-res page 1");
+
+            {
+                Byte    mask   = core.bus->ReadByte (0x0048);
+                size_t  intact = 0;
+
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                        == hgrMonoPayload[i])
+                    {
+                        intact++;
+                    }
+                }
+
+                Assert::IsTrue (intact < kHgrPayloadSize,
+                    L"the sweep must paint over what step 1 left on the page");
+
+                core.RunCycles (1'500'000ULL);
+
+                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                    L"the sweep's mask counter must keep advancing, or the "
+                    L"sweep has stopped sweeping");
+            }
+
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (500'000ULL);
             //  WHAT THIS CAN AND CANNOT ASSERT. That the demo let go is
             //  checkable here: the PC has to leave stage 2's own pages.
             //  Whether the machine it hands back to is healthy is not --
@@ -696,34 +723,49 @@ public:
             VerifyMemRange (0x4000, hgrMonoPayload,
                 L"the monochrome HGR image stays loaded but unvisited");
 
-            // Step 2 -> the LoRes bars, which only this answer reaches.
+            //  Step 2, the hi-res color-mask sweep: HGR, then POKE 228
+            //  / HPLOT 0,0 / CALL -3082 round and round until a key. Two
+            //  things are worth asserting and one is not. The mask
+            //  counter advancing proves the loop is running, and $E4 is
+            //  exact, so that is checked rather than eyeballing pixels.
+            //  The page no longer matching what step 1 left proves BKGND
+            //  is actually painting. What is NOT checked is the fill's
+            //  content: it is mid-flight at any given cycle, and
+            //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
+            //  models what BKGND paints, mask by mask, against the ROM.
             core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
-            Assert::IsFalse (ss->IsHiresMode(),
-                L"Step 2 (LoRes) must clear HIRES");
+            core.RunCycles (1'500'000ULL);
+
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Step 2 (sweep) must turn HIRES on");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Step 2 (LoRes) must keep TEXT off");
+                L"Step 2 (sweep) must keep TEXT off");
+            Assert::IsFalse (ss->IsMixedMode(),
+                L"Step 2 (sweep) must clear the MIXED that HGR sets");
             Assert::IsFalse (ss->IsPage2(),
-                L"Step 2 (LoRes) must clear PAGE2");
+                L"Step 2 (sweep) paints hi-res page 1");
 
-            // Spot-check the LoRes pattern landed in text page 1.
-            for (size_t i = 0; i < kLoresPayloadSize; i++)
             {
-                Byte  e = 0;
+                Byte    mask   = core.bus->ReadByte (0x0048);
+                size_t  intact = 0;
 
-                Byte  actual = core.bus->ReadByte (
-                    static_cast<Word> (0x0400 + i));
-                e = loresPayload[i];
-                if (actual != e)
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    wchar_t  msg[256] = {};
-                    swprintf_s (msg, L"LoRes pattern copy mismatch at $%04X: "
-                                     L"expected $%02X, got $%02X.",
-                                static_cast<unsigned> (0x0400 + i),
-                                static_cast<unsigned> (e),
-                                static_cast<unsigned> (actual));
-                    Assert::Fail (msg);
+                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                        == hgrPayload[i])
+                    {
+                        intact++;
+                    }
                 }
+
+                Assert::IsTrue (intact < kHgrPayloadSize,
+                    L"the sweep must paint over what step 1 left on the page");
+
+                core.RunCycles (1'500'000ULL);
+
+                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                    L"the sweep's mask counter must keep advancing, or the "
+                    L"sweep has stopped sweeping");
             }
 
             //  ESC, the other way out, and from a different mode than the

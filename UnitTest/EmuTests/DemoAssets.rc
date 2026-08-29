@@ -3,7 +3,7 @@
 //  assembly.
 //
 //  A UNIT TEST MAY NOT READ THE FILESYSTEM, and this test used to read all
-//  nine of these off the repo at run time -- and, for a while, write one back.
+//  eight of these off the repo at run time -- and, for a while, write one back.
 //  Embedding them moves the read to BUILD time, where reading files is the
 //  whole job, and leaves the test with nothing to open.
 //
@@ -20,7 +20,6 @@ IDR_DEMO_STAGE1_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks.a65"
 IDR_DEMO_STAGE2_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks-stage2.a65"
 IDR_DEMO_HGR          RCDATA "..\\..\\Apple2\\Demos\\cassowary.hgr"
 IDR_DEMO_HGR_MONO     RCDATA "..\\..\\Apple2\\Demos\\cassowary-mono.hgr"
-IDR_DEMO_LORES        RCDATA "..\\..\\Apple2\\Demos\\lores-bars.lores"
 IDR_DEMO_DHGR_AUX     RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-aux.bin"
 IDR_DEMO_DHGR_MAIN    RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-main.bin"
 

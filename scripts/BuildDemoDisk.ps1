@@ -14,8 +14,8 @@
 
            Track 0, sector 0  ($0000-$00FF) : stage 1 (boot sector)
            Tracks 1-2         ($1000-$2FFF) : DHGR mono aux half
-           Track 3, sectors 0-1 ($3000-$31FF) : stage 2
-           Track 3, sectors 2-5 ($3200-$35FF) : LoRes test pattern
+           Track 3, sectors 0-2 ($3000-$32FF) : stage 2
+           Track 3, sectors 3-15                : unused
            Tracks 4-5         ($4000-$5FFF) : DHGR mono main half
            Tracks 6-7         ($6000-$7FFF) : HGR mono cassowary
            Tracks 8-9         ($8000-$9FFF) : DHGR color aux half
@@ -93,7 +93,7 @@ $kImageSize       = $kBytesPerTrack * $kTrackCount    # 143360
 $kStage1Org       = 0x0800   # boot ROM loads boot sector here; .a65 .org $0801
 $kStage2Org       = 0x1000   # stage 1 jmp $1000 after loading track 3
 $kStage1Length    = $kBytesPerSector
-$kStage2Length    = $kBytesPerSector * 2   # stage 2 outgrew one sector
+$kStage2Length    = $kBytesPerSector * 3   # stage 2 spans three sectors now
 $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
 # DOS 3.3 physical-to-file sector interleave, indexed by physical sector --
@@ -221,7 +221,6 @@ $monoAux  = Read-AssetFile 'dhgr-cassowary-mono-aux.bin'  $kImageLength
 $monoMain = Read-AssetFile 'dhgr-cassowary-mono-main.bin' $kImageLength
 $hgr      = Read-AssetFile 'cassowary.hgr'                $kImageLength
 $hgrMono  = Read-AssetFile 'cassowary-mono.hgr'           $kImageLength
-$lores    = Read-AssetFile 'lores-bars.lores'             ($kBytesPerSector * 4)
 
 function Build-LayoutInPowerShell {
     #  The original method: allocate the image, place every region at a
@@ -249,20 +248,13 @@ function Build-LayoutInPowerShell {
         }
     }
 
-    # Track 3 logical sectors 0-1: stage 2 ($1000..$11FF). Two sectors
-    # now, and they are NOT adjacent in the file -- the interleave puts
-    # them a long way apart -- so each is placed at its own offset.
-    for ($sector = 0; $sector -lt 2; $sector++) {
+    # Track 3 logical sectors 0-2: stage 2 ($1000..$12FF). The sectors
+    # are NOT adjacent in the file -- the interleave puts them a long way
+    # apart -- so each is placed at its own offset.
+    for ($sector = 0; $sector -lt 3; $sector++) {
         $slice = New-Object byte[] $kBytesPerSector
         [Array]::Copy($stage2, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
         Write-Bytes-At $image (Get-PhysicalSectorOffset 3 $sector) $slice
-    }
-
-    # Track 3 logical sectors 2-5: LoRes pattern (4 sectors of 256 bytes)
-    for ($sector = 0; $sector -lt 4; $sector++) {
-        $slice = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (2 + $sector)) $slice
     }
 
     # Tracks 4-5: DHGR mono main half
@@ -307,7 +299,7 @@ function Build-LayoutInPowerShell {
 
 
 function Build-LayoutWithCassoCli {
-    #  The same layout as nine `disk sectorwrite --physical` calls.
+    #  The same layout as eight `disk sectorwrite --physical` calls.
     #
     #  --physical says exactly what the demo needs said: its RWTS files each
     #  sector by address-mark number, so page N of every region must sit
@@ -339,7 +331,6 @@ function Build-LayoutWithCassoCli {
         @{ Track = 0; Sector = 0; Path = $tmp1 },
         @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-aux.bin") },
         @{ Track = 3; Sector = 0; Path = $tmp2 },
-        @{ Track = 3; Sector = 2; Path = (Join-Path $demoDir "lores-bars.lores") },
         @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-main.bin") },
         @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary-mono.hgr") },
         @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
