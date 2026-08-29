@@ -130,11 +130,21 @@ bool DxuiOrbitControl::OnPointerDown (int xPx, int yPx)
         return false;
     }
 
-    m_armed    = true;
-    m_dragging = false;
-    m_armed_on = part;
-    m_pressPx  = POINT { xPx, yPx };
-    m_lastPx   = m_pressPx;
+    m_armed         = true;
+    m_dragging      = false;
+    m_armed_on      = part;
+    m_pressPx       = POINT { xPx, yPx };
+    m_lastPx        = m_pressPx;
+    m_repeatBlocked = false;
+    m_repeatAtMs    = 0;
+
+    // The arrow turns NOW. The orb does not: home discards the framing the
+    // user has built, and it keeps the release so a press can be dragged off
+    // and abandoned.
+    if (part != Part::Orb && m_onStep)
+    {
+        m_onStep (part);
+    }
 
     return true;
 }
@@ -172,7 +182,11 @@ bool DxuiOrbitControl::OnPointerMove (int xPx, int yPx)
         return true;
     }
 
-    m_dragging = true;
+    // Moving means aiming, and aiming outranks repeating. Latched for the
+    // rest of the press: going still again mid-drag must not start firing
+    // steps into the gesture the hand is still making.
+    m_dragging      = true;
+    m_repeatBlocked = true;
 
     // The orb is a click target only -- dragging from it is nothing, rather
     // than a free rotate that would make the arrows' axis lock look broken
@@ -217,25 +231,61 @@ bool DxuiOrbitControl::OnPointerUp (int xPx, int yPx)
 
     m_armed = false;
 
-    if (!m_dragging)
+    // ONLY THE ORB ACTS HERE. An arrow already turned the scene on the way
+    // down and may have gone on turning it since; firing again on release
+    // would make every click worth two steps.
+    if (!m_dragging && m_armed_on == Part::Orb && m_onHome)
     {
-        if (m_armed_on == Part::Orb)
-        {
-            if (m_onHome)
-            {
-                m_onHome();
-            }
-        }
-        else if (m_onStep)
-        {
-            m_onStep (m_armed_on);
-        }
+        m_onHome();
     }
 
-    m_dragging = false;
-    m_armed_on = Part::None;
+    m_dragging      = false;
+    m_repeatBlocked = false;
+    m_repeatAtMs    = 0;
+    m_armed_on      = Part::None;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiOrbitControl::Tick
+//
+//  The held arrow's repeat. Scheduled on the first tick after the press
+//  rather than in OnPointerDown, which is what keeps the clock out of the
+//  pointer handlers -- the caller owns the time here as it does for the
+//  chrome tooltips.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiOrbitControl::Tick (int64_t nowMs)
+{
+    if (!WantsTick())
+    {
+        return;
+    }
+
+    if (m_repeatAtMs == 0)
+    {
+        m_repeatAtMs = nowMs + kRepeatDelayMs;
+        return;
+    }
+
+    if (nowMs < m_repeatAtMs)
+    {
+        return;
+    }
+
+    m_repeatAtMs = nowMs + kRepeatIntervalMs;
+
+    if (m_onStep)
+    {
+        m_onStep (m_armed_on);
+    }
 }
 
 

@@ -17,12 +17,22 @@
 //  is the affordance that tells a user who has never tried dragging that
 //  the scene turns at all.
 //
-//  A CLICK on an arrow turns the scene a fixed step in that direction; a
-//  PRESS-AND-DRAG from an arrow turns it freely along that arrow's axis
-//  until release. Which gesture happened is decided the way buttons decide
-//  it everywhere: travel past a small threshold makes it a drag, release
-//  inside the threshold makes it a click. The central orb is home -- one
-//  click squares the scene back up.
+//  AN ARROW TURNS ON THE WAY DOWN, and keeps turning while it is held. Not
+//  on release, which is how a button commits and how this control used to
+//  behave: a button commits on release so a press can be taken back, and
+//  nothing here needs taking back -- a step in the wrong direction is undone
+//  by the arrow facing it. Waiting for the release only made the scene lag
+//  the finger.
+//
+//  HOLDING IT REPEATS, unless the pointer moves. Travel past the slop turns
+//  the press into a free drag along that arrow's axis, and the repeat does
+//  not come back for the rest of that press however still the hand goes
+//  afterward -- a drag that paused is still a drag, and firing steps into
+//  the middle of one would fight the hand that is aiming.
+//
+//  The central orb is home, and it alone still commits on RELEASE: it throws
+//  away the framing the user built, so dragging off it has to remain the way
+//  to change your mind.
 //
 //  Like the HUD notice, this floats over live content and cannot assume a
 //  background, so it paints its own soft dark backdrop and keeps every
@@ -49,8 +59,8 @@ public:
         Orb,
     };
 
-    // A click's fixed step: the arrow it was on. dxPx/dyPx on the drag
-    // callback are the travel since the LAST report, not since the press.
+    // A step: the arrow it was on. dxPx/dyPx on the drag callback are the
+    // travel since the LAST report, not since the press.
     using StepFn = std::function<void (Part part)>;
     using DragFn = std::function<void (Part part, float dxPx, float dyPx)>;
     using HomeFn = std::function<void ()>;
@@ -77,6 +87,16 @@ public:
     bool  OnPointerMove (int xPx, int yPx);
     bool  OnPointerUp   (int xPx, int yPx);
 
+    // Drives the held-arrow repeat. The caller owns the clock, as it does
+    // for the chrome tooltips: a widget that reads the time itself cannot be
+    // tested without waiting for it.
+    void  Tick (int64_t nowMs) override;
+
+    // Whether a repeat is pending, so the host can tick fast enough to serve
+    // it instead of parking until the next frame or message. Mirrors the
+    // tooltips' WantsTick.
+    bool  WantsTick () const { return m_armed && !m_repeatBlocked && m_armed_on != Part::Orb; }
+
     bool  Dragging () const { return m_armed && m_dragging; }
 
     //
@@ -96,6 +116,12 @@ public:
     // all -- the least forgivable outcome for a discoverability control.
     static constexpr int  kClickSlopPx = 4;
 
+    // Held-arrow repeat, in milliseconds: the pause before it starts, and
+    // the interval after. The pause is what keeps a single deliberate click
+    // from turning into two.
+    static constexpr int64_t  kRepeatDelayMs    = 400;
+    static constexpr int64_t  kRepeatIntervalMs = 110;
+
 private:
     // The geometry is derived from the bounds every time it is needed --
     // center, orb radius, arrow extent -- so there is no cached layout to
@@ -113,4 +139,11 @@ private:
     bool    m_dragging  = false;
     POINT   m_pressPx   = {};
     POINT   m_lastPx    = {};
+
+    // The repeat's own state. `m_repeatBlocked` latches for the rest of the
+    // press once the pointer has moved, and only the release clears it.
+    // `m_repeatAtMs` is 0 until the first tick schedules it, which is what
+    // keeps the clock out of the pointer handlers.
+    bool     m_repeatBlocked = false;
+    int64_t  m_repeatAtMs    = 0;
 };

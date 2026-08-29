@@ -7092,6 +7092,18 @@ bool EmulatorShell::TryPresentUiFrame()
         m_toolbarTooltip.Tick   (nowMs);
         m_switchBarTooltip.Tick (nowMs);
         m_driveTooltip.Tick     (nowMs);
+
+        // A HELD COMPASS ARROW REPEATS, and a held arrow produces no messages
+        // to wake this loop -- the pointer is not moving, which is the very
+        // condition the repeat exists for. So it votes for a present the
+        // whole time it is held, not only on the frames it fires: without
+        // that the loop parks and the repeat stops between steps.
+        if (m_sceneCompass.WantsTick())
+        {
+            m_sceneCompass.Tick (nowMs);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 
     // Refresh the printer status LED; marks a redraw itself on a change so
@@ -7922,7 +7934,8 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_joystickTooltip.WantsTick()  ||
         m_switchBarTooltip.WantsTick() ||
-        m_driveTooltip.WantsTick())
+        m_driveTooltip.WantsTick()     ||
+        m_sceneCompass.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
     }
