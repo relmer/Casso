@@ -205,6 +205,22 @@ namespace CliSwitchCoverageTests
               { return o.outputFormat == CommandLineOptions::OutputFormat::DosBinary; },
               "--dos-bin writes the DOS 3.3 header and the span" },
 
+            { "as65", "disk", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk" },
+              [] (const CommandLineOptions & o) { return o.imagePath == "work.dsk"; },
+              "--disk writes the object into that image" },
+
+            { "as65", "as", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--as", "PROG" },
+              [] (const CommandLineOptions & o) { return o.onDiskName == "PROG"; },
+              "--as names the object on the volume" },
+
+            { "as65", "type", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--type", "BIN" },
+              [] (const CommandLineOptions & o) { return o.imageTypeName == "BIN"; },
+              "--type sets the filesystem type" },
+
+            { "as65", "startup", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--startup" },
+              [] (const CommandLineOptions & o) { return o.setStartupProgram; },
+              "--startup makes the object the volume's startup program" },
+
             //
             //  merlin
             //
@@ -238,6 +254,22 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o)
               { return o.outputFormat == CommandLineOptions::OutputFormat::DosBinary; },
               "--dos-bin writes the DOS 3.3 header and the span" },
+
+            { "merlin", "disk", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk" },
+              [] (const CommandLineOptions & o) { return o.imagePath == "work.dsk"; },
+              "--disk writes the object into that image" },
+
+            { "merlin", "as", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--as", "PROG" },
+              [] (const CommandLineOptions & o) { return o.onDiskName == "PROG"; },
+              "--as beats the name the source gave" },
+
+            { "merlin", "type", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--type", "BIN" },
+              [] (const CommandLineOptions & o) { return o.imageTypeName == "BIN"; },
+              "--type beats the type the source gave" },
+
+            { "merlin", "startup", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--startup" },
+              [] (const CommandLineOptions & o) { return o.setStartupProgram; },
+              "--startup makes the object the volume's startup program" },
 
             //
             //  run
@@ -422,6 +454,14 @@ namespace CliSwitchCoverageTests
                 {
                     names.insert (Bare (option));
                 }
+            }
+
+            //  Both dialects, because sending the object onto a disk is the
+            //  assembler's capability rather than one dialect's: a dialect is
+            //  not required to have directives for a developer to reach it.
+            for (const char * option : CommandLineParser::GetImageTargetOptions())
+            {
+                names.insert (Bare (option));
             }
         }
         else if (mode == "run")

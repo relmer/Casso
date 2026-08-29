@@ -6,7 +6,9 @@
 #include "Assembler.h"
 #include "As65ExitStatus.h"
 #include "DialectReporting.h"
+#include "ImageArtifactSink.h"
 #include "MerlinMode.h"
+#include "Win32DiskFileIo.h"
 
 
 
@@ -83,7 +85,14 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     AssemblerOptions                asmOptions;
     DefaultFileReader               fileReader;
     FileArtifactSink                fileSink;
-    ArtifactSink                  * out        = artifacts ? artifacts : &fileSink;
+    Win32DiskFileIo                 diskFileIo;
+    ImageArtifactSink               imageSink (diskFileIo);
+    //  Empty means no image was named, which is the one question deciding
+    //  where the object goes. Asked once so the two sinks cannot disagree.
+    bool                            toImage    = !options.imagePath.empty();
+    ArtifactSink                  * chosen     = toImage ? static_cast<ArtifactSink *> (&imageSink)
+                                                         : static_cast<ArtifactSink *> (&fileSink);
+    ArtifactSink                  * out        = artifacts ? artifacts : chosen;
     Cpu                             cpu;
     SourceAssembler::Result         ar;
     std::vector<DialectReportLine>  reports;

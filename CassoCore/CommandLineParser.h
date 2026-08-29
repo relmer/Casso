@@ -371,6 +371,11 @@ public:
     //  coverage test that reads these can fail when a row is added without
     //  one; a hand-written list of the same names cannot.
     static std::span<const char * const>    GetAs65LongOptions();
+
+    // The options that send the object onto a disk. Both assembler grammars
+    // take them, because the capability is the assembler's rather than a
+    // dialect's.
+    static std::span<const char * const>    GetImageTargetOptions();
     static std::span<const char * const>    GetRunLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 
@@ -473,6 +478,12 @@ public:
     // The same, for the `--name=value` / `/name=value` form. `value` is filled
     // only when the option matched with a value attached.
     static bool         IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
+                                               std::string & value, CommandLineOptions & options);
+
+    // One long option and its value, taken attached with `=` or as the next
+    // argument. Advances the walk past whichever form it found.
+    static bool         TryLongOptionValue    (const std::string & arg, const char * canonical,
+                                               int argc, char * argv[], int & argIndex,
                                                std::string & value, CommandLineOptions & options);
 
 private:

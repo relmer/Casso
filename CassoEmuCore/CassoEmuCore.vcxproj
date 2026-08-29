@@ -235,6 +235,7 @@
     <ClCompile Include="Devices\Disk\FilePath.cpp" />
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Volume.cpp" />
+    <ClCompile Include="Devices\Disk\AssembledFilePlacement.cpp" />
     <ClCompile Include="Devices\Disk\ProDosVolume.cpp" />
     <ClCompile Include="Devices\Disk\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
@@ -249,6 +250,7 @@
     <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
     <ClCompile Include="Cli\ArtifactWriter.cpp" />
+    <ClCompile Include="Cli\ImageArtifactSink.cpp" />
     <ClCompile Include="Cli\As65Mode.cpp" />
     <ClCompile Include="Cli\AssemblerMode.cpp" />
     <ClCompile Include="Cli\MerlinMode.cpp" />
@@ -339,6 +341,7 @@
     <ClInclude Include="Devices\Disk\VolumeIntegrityReport.h" />
     <ClInclude Include="Devices\Disk\FilePath.h" />
     <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
+    <ClInclude Include="Devices\Disk\AssembledFilePlacement.h" />
     <ClInclude Include="Devices\Disk\Dos33Volume.h" />
     <ClInclude Include="Devices\Disk\ProDosVolume.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
@@ -356,6 +359,7 @@
     <ClInclude Include="Cli\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
     <ClInclude Include="Cli\ArtifactWriter.h" />
+    <ClInclude Include="Cli\ImageArtifactSink.h" />
     <ClInclude Include="Cli\As65Mode.h" />
     <ClInclude Include="Cli\AssemblerMode.h" />
     <ClInclude Include="Cli\MerlinMode.h" />

@@ -252,6 +252,24 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 };
 
 
+
+//  Where the object goes when it goes onto a disk, and what it is called and
+//  typed once it lands there.
+//
+//  ONE TABLE FOR BOTH ASSEMBLER GRAMMARS, because the capability belongs to the
+//  assembler rather than to a dialect: a dialect is not required to have
+//  directives for a developer to reach it. Two lists would be two sets of
+//  options that have to be remembered to agree, and the sweep that checks every
+//  switch is exercised would be checking two different things.
+static constexpr const char *  s_kpszImageTargetOptions[] =
+{
+    "disk",
+    "as",
+    "type",
+    "startup",
+};
+
+
 //  The emulator GUI's flags. `trace` is here so `/trace=50M` canonicalizes
 //  the same way `/out` does; its `=` tail rides through CanonicalLongFlag
 //  untouched.
@@ -1507,6 +1525,25 @@ std::span<const char * const> CommandLineParser::GetAs65LongOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::GetImageTargetOptions
+//
+//  The options that send the object onto a disk, which both assembler grammars
+//  take. Exposed so a sweep asks the grammar rather than a list somebody
+//  remembered to update.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetImageTargetOptions()
+{
+    return std::span<const char * const> (s_kpszImageTargetOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineParser::GetRunLongOptions
 //
 //  The long options `run` takes.
@@ -1840,6 +1877,55 @@ bool CommandLineParser::IsLongOption (const std::string & arg, const std::string
     if (matched && !arg.empty())
     {
         NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::TryLongOptionValue
+//
+//  One long option and its value, accepted either attached with `=` or as the
+//  argument after it.
+//
+//  BOTH FORMS, because a reader who has just typed `disk put image file --as
+//  NAME` writes the assembler's the same way, and a grammar that took only the
+//  attached form would refuse the spelling its neighbour documents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TryLongOptionValue (const std::string  & arg,
+                                            const char         * canonical,
+                                            int                  argc,
+                                            char               * argv[],
+                                            int                & argIndex,
+                                            std::string        & value,
+                                            CommandLineOptions & options)
+{
+    bool  matched = false;
+    bool  hasNext = false;
+
+
+
+    if (IsLongOptionWithValue (arg, canonical, value, options))
+    {
+        argIndex++;
+        matched = true;
+    }
+    else if (IsLongOption (arg, canonical, options))
+    {
+        //  A missing value leaves the string empty and consumes only the flag,
+        //  so the caller refuses a named-nothing rather than swallowing the
+        //  argument after it -- which would be the source file, silently.
+        hasNext   = (argIndex + 1) < argc;
+        value     = hasNext ? std::string (argv[argIndex + 1]) : std::string();
+        argIndex += hasNext ? 2 : 1;
+        matched   = true;
     }
 
     return matched;
@@ -2331,6 +2417,43 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         if (IsLongOption (arg, "--dos-bin", options))
         {
             SelectOutputFormat (FormatLongOption ("--dos-bin", options.flagPrefix), CommandLineOptions::OutputFormat::DosBinary, options);
+            argIndex++;
+            continue;
+        }
+
+        //  Writing the object into a disk image instead of a host file, and
+        //  what it is called and typed once it is there.
+        //
+        //  `--as` and `--type` are deliberately the words `disk put` already
+        //  uses for the same two ideas. The tree has been burned by the
+        //  opposite: the load and entry options record three names for two
+        //  ideas across three grammars, and this does not add a fourth.
+        //
+        //  THERE IS NO LOAD OPTION HERE, and that is the point of the feature
+        //  rather than an omission. The address comes from the origin the
+        //  source declared, and an option that could disagree with it is the
+        //  defect being removed.
+        if (TryLongOptionValue (arg, "--disk", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imagePath = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--as", argc, argv, argIndex, attachedValue, options))
+        {
+            options.onDiskName = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--type", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imageTypeName = attachedValue;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--startup", options))
+        {
+            options.setStartupProgram = true;
             argIndex++;
             continue;
         }
@@ -3115,6 +3238,34 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         // --flat as -f -l -a -t and warn four times about flags nobody wrote.
         if (ApplyOutputFormat (arg, DialectId::Merlin, options))
         {
+            argIndex++;
+            continue;
+        }
+
+        //  The image target, matched here for the reason the formats are:
+        //  these are whole words, and the letter loop below would read `--disk`
+        //  as four flags nobody wrote.
+        if (TryLongOptionValue (arg, "--disk", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imagePath = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--as", argc, argv, argIndex, attachedValue, options))
+        {
+            options.onDiskName = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--type", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imageTypeName = attachedValue;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--startup", options))
+        {
+            options.setStartupProgram = true;
             argIndex++;
             continue;
         }
