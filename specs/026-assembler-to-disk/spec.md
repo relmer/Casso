@@ -216,7 +216,14 @@ startup program.
 - The name is legal on the host but not on the target filesystem — too long, or
   using characters the filesystem forbids.
 - The source declares no origin at all, so there is no load address to record.
-- The assembly produces zero bytes.
+  **Refused**, and already so: the volume layer refuses a binary with no load
+  address rather than defaulting one, because `$0000` is legal and a default
+  would be indistinguishable from an answer. That is the correct outcome here
+  and not merely an inherited one — a defaulted address is exactly the silent
+  disagreement this feature exists to remove.
+- The assembly produces zero bytes. **Refused** for an image target: there is
+  nothing to place, and under FR-019 an empty output would replace a real file
+  with an empty one. Host output is unchanged, per FR-016.
 - The image is open in a running emulator, or held by another program.
 - A save is requested when no image target was given. **Writes a host file**;
   the directive is not refused for want of a disk.
@@ -239,7 +246,16 @@ startup program.
 - **FR-001**: The assembler MUST accept a disk image as the destination for its
   object output, for every dialect it supports, specified on the command line.
 - **FR-002**: The assembler MUST accept a file name for the object on that
-  volume.
+  volume. Where neither the command line nor a directive supplies one, the name
+  MUST be derived from the source and MUST be legal on the target filesystem —
+  a host-shaped default is not automatically a valid ProDOS or DOS 3.3 name, and
+  an illegal one is refused rather than silently truncated.
+- **FR-040**: A name or a type given on the command line with no image target
+  MUST be refused. Both describe a placement on a volume, so an invocation
+  supplying either without naming an image is one whose author believed
+  something false about what was about to happen. This applies to the flags
+  only; what the equivalent SOURCE DIRECTIVES do without an image target is
+  each directive's own question, answered in the Merlin requirements below.
 - **FR-003**: The capability MUST behave identically across dialects. A dialect
   MUST NOT be required to have directives for a developer to reach it.
 - **FR-018**: The image MUST already exist. A named image that is not there MUST
@@ -265,7 +281,8 @@ startup program.
   not the same artifact, and only the second is being specified here.
 - **FR-036**: The source lines above the first output — the equates and macro
   definitions every output shares — MUST appear in each per-output listing.
-  Same reason as FR-035: each file has to stand alone.
+  Like the symbols, they are repeated rather than factored out, because each
+  file has to stand alone for a reader holding only that one program.
 - **FR-029**: Symbol and debug output MUST be scoped per output. Independent
   outputs may occupy overlapping addresses and are never in memory together, so
   an index spanning all of them cannot answer "what is at this address" — it
@@ -330,6 +347,13 @@ startup program.
 - **FR-019**: A file already on the volume under the name the object takes MUST
   be replaced, and the replacement MUST be subject to FR-014, so a failure
   cannot leave the volume holding neither the old file nor the new one.
+- **FR-039**: Replacement MUST respect the target filesystem's own protection,
+  and a protected file MUST be refused rather than replaced. On ProDOS a
+  replacement releases the old file's blocks, which is a destroy, so it needs
+  destroy permission and not merely write permission; a file marked writable but
+  not destroyable is refused. On DOS 3.3 a locked file is refused, matching what
+  the guest does. This qualifies FR-019 rather than contradicting it: replacement
+  is the rule, and these are the two cases the filesystem itself forbids.
 
 **Precedence**
 
@@ -362,6 +386,19 @@ startup program.
   from Merlin for one occurrence and wrong for two.
 - **FR-009**: `TYP` MUST set the object's filesystem type when an image target is
   given.
+- **FR-041**: With no image target, `TYP` MUST be accepted, MUST have no effect,
+  and MUST warn that it had none. A host file has no filesystem type, so unlike
+  `DSK` and `SAV` there is no host meaning to degrade to — but refusing would
+  make period source carrying `TYP` fail to assemble to a host file, which is
+  the outcome this feature exists to remove rather than create. The warning is
+  what keeps this from being a parsed-then-ignored directive, and a build that
+  wants it fatal already has the flag for that.
+
+  This is deliberately NOT symmetric with FR-040, which refuses the `--type`
+  FLAG in the same situation. A flag was typed by the person running the command
+  now, and refusing it corrects them immediately; a directive lives in source
+  they may not own, and refusing it punishes them for its contents. The two
+  differ because their authors differ.
 - **FR-010**: A type with no counterpart on the target filesystem MUST be refused
   by name, identifying both the type and the filesystem, rather than mapped to
   an approximation. A ProDOS system file has no DOS 3.3 equivalent, because
@@ -401,17 +438,22 @@ startup program.
 
 **Integrity**
 
-- **FR-014**: A write to an image MUST be all-or-nothing. An assembly that fails
-  at any point MUST leave the image byte-for-byte as it was, including when an
-  earlier save in the same assembly had already produced a file.
-- **FR-015**: Any refusal MUST leave the image unchanged and MUST state which
+- **FR-014**: A write MUST be all-or-nothing, to whichever target the invocation
+  named. An assembly that fails at any point MUST leave that target byte-for-byte
+  as it was, including when an earlier save in the same assembly had already
+  produced a file. With an image target that means the image is untouched; with
+  no image target it means no host file from this assembly is left behind, which
+  is why every output buffers until the whole assembly succeeds.
+- **FR-015**: Any refusal MUST leave the target unchanged and MUST state which
   condition it hit, so the developer knows whether to change the source, the
   command line, or the disk.
 
 **Compatibility**
 
 - **FR-016**: Assembling to host files MUST be unchanged when no image target is
-  given.
+  given, with the single exception FR-037 states for Merlin's listing flag. That
+  exception is deliberate and carries a CHANGELOG entry; nothing else about host
+  assembly changes.
 - **FR-017**: The feature MUST be documented in the tool's own help output.
 
 ### Key Entities
@@ -447,11 +489,13 @@ startup program.
   `XC` — is attributable to the linker or to a processor the emulator does not
   model. No construct is merely reworded into a different refusal: `TYP` and
   `SAV` leave the list outright.
-- **SC-005**: No failure path leaves a modified image. Every refusal and every
-  failed assembly leaves the target byte-for-byte as it was.
+- **SC-005**: No failure path leaves a modified target. Every refusal and every
+  failed assembly leaves it byte-for-byte as it was, whether that target is an
+  image or a set of host files.
 - **SC-006**: Assembling without an image target produces byte-for-byte the same
   host files as before this feature, for every source that assembled before this
-  feature.
+  feature — with the single exception FR-037 states, where Merlin's listing flag
+  stops writing to standard output and writes files instead.
 - **SC-007**: A single assembly can produce a disk that boots straight into the
   program it just assembled, with no further command.
 

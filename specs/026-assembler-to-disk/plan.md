@@ -59,9 +59,10 @@ byte-for-byte unchanged, including after an earlier save in the same assembly
 already produced a file. This is the design's central constraint and it is what
 forces every output to buffer until the whole assembly has succeeded.
 
-**Scale/Scope**: Roughly 8 files touched, 4 added. One boundary table loses two
-rows; two directive handlers arrive; one new `ArtifactSink` implementation; the
-assembler grammar gains three flags.
+**Scale/Scope**: Around 11 source files touched and 5 added, plus 3 project
+files, 3 documents and the CHANGELOG. One boundary table loses two rows; two
+directive handlers arrive; one new `ArtifactSink` implementation; the assembler
+grammar gains four flags and Merlin's listing flag changes shape.
 
 **Unknowns**: None outstanding. Five were raised, four settled with the owner in
 `/speckit-clarify`, and the fifth (what a second `SAV` writes) was settled
@@ -132,10 +133,15 @@ CassoEmuCore/
     └── DiskCommandRunner.h/.cpp  # startup-program rules extracted for sharing (FR-022)
 
 UnitTest/
+├── SavePointTests.cpp            # NEW: the save-point invariants, no disk involved
 ├── AssemblerToDiskTests.cpp      # NEW: the sink, the transaction, the refusals
 ├── MerlinSaveObjectTests.cpp     # NEW: SAV span semantics, load addresses, two DSKs
 ├── MerlinSubsetBoundaryTests.cpp # the sweep, now over four rows
 └── Fixtures/Merlin/              # + a two-save source; CLOCK.S cannot cover this
+
+# Every NEW file above also needs a ClCompile/ClInclude entry in its owning
+# .vcxproj. MSBuild does not glob, so a file that compiles locally can still be
+# absent from a clean build.
 
 docs/
 ├── merlin-subset.md              # "Six constructs" becomes four; TYP/SAV/DSK move

@@ -99,9 +99,10 @@ does not know a disk exists, and this is what keeps that true.
 assembly — so nothing that reads them today changes. A single-save assembly's
 one save point mirrors them.
 
-## ImageTarget (new, on `CommandLineOptions`)
+## Image-target fields (new, on `CommandLineOptions`)
 
-What the invocation said about a disk. Lives with the assembler options rather
+Four flat fields rather than a nested struct, since `CommandLineOptions` already
+holds the assembler's options flat. They live with those rather
 than under `disk`, because `disk`'s nested group is documented as holding fields
 that "mean nothing to any other subcommand", and these mean something to two.
 

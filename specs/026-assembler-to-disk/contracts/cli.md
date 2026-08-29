@@ -207,18 +207,42 @@ and always asserts.
 | The image holds no recognized filesystem. | — |
 | The image is held by another program. Already worded by `DiskImageSession::kInUseRefusalText`. | — |
 | The volume has no room, or no free directory entry. | — |
-| The name is illegal on the target filesystem — too long, or forbidden characters. | — |
+| The name is illegal on the target filesystem — too long, or forbidden characters. A derived default is subject to this too. | — |
 | `--type`, or `TYP`, names a type with no counterpart on the target filesystem. Names both the type and the filesystem. | FR-010 |
 | `--type`, or `TYP`, names a value outside the recognized set. Names the value. | FR-011 |
 | `--startup` given with no `--disk`. | FR-023 |
 | `--startup` on a volume whose operating system would not run the file. Judged by the same rules `disk boot` applies. | FR-022 |
-| `--as` or `--type` given with no `--disk`. | — |
+| `--as` or `--type` given with no `--disk`. Both describe a placement on a volume. | FR-040 |
+| A file of that name is on the volume and the filesystem protects it — ProDOS destroy-disabled, or DOS 3.3 locked. | FR-039 |
+| The source declares no origin, so the object has no load address to record. | — |
+| The assembly produced zero bytes, so there is nothing to place. | — |
 
-The last row is a judgment worth stating: a name or a type with nothing to apply
-them to is a command line whose author believed something false about what was
-about to happen. The tree's own precedent is `ParseRunOptions` — "EVERY
-DIAGNOSTIC HERE IS ALSO A REFUSAL … Running anyway and reporting success told a
-build script that a command line it got wrong had worked."
+The `--as`/`--type` row is a judgment worth stating: a name or a type with
+nothing to apply them to is a command line whose author believed something false
+about what was about to happen. The tree's own precedent is `ParseRunOptions` —
+"EVERY DIAGNOSTIC HERE IS ALSO A REFUSAL … Running anyway and reporting success
+told a build script that a command line it got wrong had worked."
+
+**The protection row qualifies FR-019 rather than contradicting it.**
+Replacement is the rule, and these are the two cases the filesystem itself
+forbids. ProDOS gates destroy and write on different bits and a replacement here
+releases the old file's blocks, so it needs destroy permission — a file marked
+writable but not destroyable is refused. DOS 3.3 refuses placement over a locked
+file, matching the guest. Both are existing volume-layer behavior; the point of
+listing them is that FR-019's replace-on-collision is the *common* path in a
+build loop, so its exceptions must be stated rather than discovered.
+
+**The no-origin row is existing behavior and the right one.** The volume layer
+already refuses a binary with no load address rather than defaulting one,
+"because `$0000` is a legal load address and a default would be
+indistinguishable from an answer" — which is precisely the silent disagreement
+this feature exists to remove.
+
+**Two of these are NOT refusals under Merlin's directives.** `TYP` with no image
+target is accepted with a warning (FR-041), unlike the `--type` flag; and `SAV`
+with no image target writes a host file (FR-020). Where a directive has a host
+meaning it degrades to it, and where it has none it says so rather than failing
+source the developer may not own.
 
 ## Exit statuses
 

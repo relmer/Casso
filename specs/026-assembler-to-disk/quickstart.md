@@ -99,10 +99,31 @@ CassoCli merlin PROG.S --disk prog.dsk --as OTHER
 command line overrode it.
 
 Then the refusal that must not become an approximation (FR-010) — a source with
-`TYP $FF` against a **DOS 3.3** volume:
+`TYP $FF` against a **DOS 3.3** volume. That needs a DOS 3.3 disk, which every
+other scenario here does not use:
+
+```bash
+CassoCli disk create dos.dsk --format dos33 --volume 254
+```
+
+```bash
+CassoCli merlin SYSPROG.S --disk dos.dsk
+```
 
 **Expected**: refused, naming both the type and the filesystem, image unchanged.
-Not filed under some nearby DOS 3.3 type.
+Not filed under some nearby DOS 3.3 type. Run the same source against the ProDOS
+disk to confirm it is accepted there — a refusal that fires on both volumes is
+refusing for the wrong reason.
+
+Then `TYP` with no disk at all:
+
+```bash
+CassoCli merlin SYSPROG.S
+```
+
+**Expected**: assembles to a host file, with a warning that `TYP` had no effect
+(FR-041). NOT refused — a host file has no filesystem type, but period source
+carrying `TYP` must still assemble.
 
 ## Scenario 4 — Several files from one source (User Story 3, P3)
 

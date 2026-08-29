@@ -41,6 +41,19 @@ of scope on the same boundary that refuses a second `XC`. See research finding
 
 **Last one wins**, as `DSK` already does, and `--type` beats all of them.
 
+### With no image target
+
+Accepted, no effect, and a warning saying so (FR-041). A host file has no
+filesystem type, so unlike `DSK` and `SAV` there is no host meaning to degrade
+to. Refusing would stop period source carrying `TYP` from assembling to a host
+file at all, which is the opposite of what this feature is for; the warning is
+what keeps it from being a directive parsed and silently dropped.
+
+Note this is **not** what the `--type` flag does in the same situation — that
+is refused (FR-040). The asymmetry is deliberate: a flag was typed by whoever
+is running the command right now, and a directive lives in source they may not
+own.
+
 ## `SAV` — write an output and carry on
 
 `SAV <name>` writes everything accumulated **since the previous save** — or
