@@ -159,7 +159,7 @@ HRESULT VolumeImage::Load (
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.fileByteSize = size;
 
-    hr = DiskImageStore::DetectFormatByExtension (path, format);
+    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
 
     outDiagnosis.format = format;
@@ -297,7 +297,7 @@ HRESULT VolumeImage::Save (
 
     CBRAEx (sized, E_INVALIDARG);
 
-    hr = DiskImageStore::DetectFormatByExtension (path, format);
+    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHR (hr);
 
     if (format == DiskFormat::Woz)

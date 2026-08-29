@@ -169,10 +169,10 @@ public:
     //  read-modify-write cycle without a real file.
     void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
 
-    static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
+    static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
     //  Whether `path`'s extension names a container this build can actually
-    //  mount. Answered BY DetectFormatByExtension rather than by a second list
+    //  mount. Answered BY GetSourceFormatByExtension rather than by a second list
     //  of extensions, which is the point: the interface offering a file and
     //  the loader accepting it must not be able to disagree. They did, over
     //  `.nib` -- the drop filter said yes, the loader said no, and the mount

@@ -1593,7 +1593,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
     {
         //  No --type, so the name decides. A name carrying no extension this
         //  tool knows is refused for the same reason an unknown --type is.
-        hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, outFormat);
+        hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, outFormat);
         CHRF (hr, (result.diagnostics    += "Error: cannot tell what kind of image "
                                           + options.disk.imagePath + " should be\n"
                                           + WithPrefix ("       give it a .dsk, .do, .po or .woz"
@@ -2170,7 +2170,7 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
            result.badCommandLine  = true));
 
     //  From the file's own name, because the file is what is being reformatted.
-    hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, format);
+    hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
 
     BuildAndWrite (options, format, true, result);

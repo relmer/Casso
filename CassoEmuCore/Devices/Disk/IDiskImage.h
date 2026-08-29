@@ -18,6 +18,13 @@ enum class DiskFormat
     Dsk,
     Do,
     Po,
+
+    //  Headerless nibble images, .nib and .nb2 alike. ONE ENUMERATOR FOR BOTH:
+    //  they differ only in track size, which is not a property of the format
+    //  but of the individual file, read from its length. A second enumerator
+    //  would let the enum disagree with the file it names, since either size
+    //  circulates under either extension.
+    Nib,
 };
 
 

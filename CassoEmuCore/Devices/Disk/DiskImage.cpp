@@ -3,6 +3,7 @@
 #include "DiskImage.h"
 #include "DiskImageStore.h"
 #include "NibblizationLayer.h"
+#include "NibbleImageCodec.h"
 #include "WozLoader.h"
 
 
@@ -456,6 +457,17 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
             hr = WozLoader::Serialize (*this, outBytes);
             break;
 
+        case DiskFormat::Nib:
+            //  NOT through Denibblize. A nibble image's file format IS the byte
+            //  stream, so writing one back means re-deriving bytes and nothing
+            //  else -- no sector decode is involved. That is what makes a track
+            //  which does not decode to standard sectors cost this path nothing,
+            //  which matters because such tracks are much of the point of the
+            //  format. The source bytes go in so untouched tracks are copied
+            //  rather than re-derived.
+            hr = NibbleImageCodec::Serialize (*this, m_rawSourceBytes, outBytes);
+            break;
+
         default:
             hr = E_NOTIMPL;
             break;
@@ -571,6 +583,10 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
 
         case DiskFormat::Woz:
             hr = WozLoader::Load (raw, *this);
+            break;
+
+        case DiskFormat::Nib:
+            hr = NibbleImageCodec::Load (raw, *this);
             break;
 
         default:

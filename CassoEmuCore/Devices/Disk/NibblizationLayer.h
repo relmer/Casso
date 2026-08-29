@@ -157,6 +157,12 @@ public:
                                       std::span<const int>    tracks,
                                       DiskImage             & inOutImage);
 
+    //  One nibble read off a track: shift bits until the high bit sets, which
+    //  is the sequencer's own rule for a complete nibble. Advances bitPos;
+    //  returns 0 when a whole revolution carries none. Shared with the nibble
+    //  image codec so both agree where a nibble ends.
+    static Byte     ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos);
+
     //  Where DOS logical sector L sits within a ProDOS-ordered file's track.
     //
     //  COMPOSED from the two interleave tables above rather than restated. Both

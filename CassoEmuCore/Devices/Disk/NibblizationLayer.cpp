@@ -668,9 +668,14 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 //  The bit position is taken by REFERENCE and advanced, so a caller scanning
 //  for a mark walks the track continuously instead of restarting each time.
 //
+//  IT IS PUBLIC BECAUSE THE NIBBLE-IMAGE CODEC NEEDS THE SAME RULE. That codec
+//  derives whole bytes from a track to write a .nib back, which is this walk
+//  without the sector structure around it. A second implementation of "where
+//  does a nibble end" is a second answer waiting to disagree with this one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
+Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 {
     size_t   trackBits = img.GetTrackBitCount (track);
     Byte     value     = 0;
@@ -863,7 +868,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         addrFieldStart = bitPos;
-        n0             = ReadNibbleAt (img, track, bitPos);
+        n0             = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -872,8 +877,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = ReadNibbleAt (img, track, bitPos);
-        n2 = ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
         {
@@ -888,14 +893,14 @@ static HRESULT DecodeOneSector (
     //  read and report it as a duplicate the disk does not have.
     outFieldStart = addrFieldStart;
 
-    vOdd  = ReadNibbleAt (img, track, bitPos);
-    vEven = ReadNibbleAt (img, track, bitPos);
-    tOdd  = ReadNibbleAt (img, track, bitPos);
-    tEven = ReadNibbleAt (img, track, bitPos);
-    sOdd  = ReadNibbleAt (img, track, bitPos);
-    sEven = ReadNibbleAt (img, track, bitPos);
-    cOdd  = ReadNibbleAt (img, track, bitPos);
-    cEven = ReadNibbleAt (img, track, bitPos);
+    vOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    vEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    tOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    tEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    sOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    sEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    cOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    cEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
     outSector    = Decode44 (sOdd, sEven);
     addrVolume   = Decode44 (vOdd, vEven);
@@ -922,7 +927,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         posBeforeProlog = bitPos;
-        n0              = ReadNibbleAt (img, track, bitPos);
+        n0              = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -931,8 +936,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = ReadNibbleAt (img, track, bitPos);
-        n2 = ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kDataProlog2)
         {
@@ -965,7 +970,7 @@ static HRESULT DecodeOneSector (
         // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
-        raw           = ReadNibbleAt (img, track, bitPos);
+        raw           = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
         decodedNibble = InverseTranslate (raw);
 
         // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
@@ -988,7 +993,7 @@ static HRESULT DecodeOneSector (
     // The 343rd nibble is the data field's checksum -- the boot ROM's own
     // success gate -- and it was never read. Verifying it is what lets Casso
     // say a sector is intact rather than merely parseable.
-    decodedNibble  = InverseTranslate (ReadNibbleAt (img, track, bitPos));
+    decodedNibble  = InverseTranslate (NibblizationLayer::ReadNibbleAt (img, track, bitPos));
     dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
     dataChecksumOk = (decodedNibble == dataChecksum);
     dataTrusted    = dataTrusted && dataChecksumOk;

@@ -215,7 +215,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-    hr = DiskImageStore::DetectFormatByExtension (path, fmt);
+    hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
     CHR (hr);
 
     if (fmt == DiskFormat::Woz)

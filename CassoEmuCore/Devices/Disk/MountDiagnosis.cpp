@@ -2,6 +2,7 @@
 
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
+#include "NibbleImageCodec.h"
 
 
 
@@ -30,6 +31,7 @@ string MountDiagnosis::Describe() const
     char    note[400] = {};
     string  observed;
     string  required;
+    string  second;
     string  text;
 
 
@@ -58,7 +60,7 @@ string MountDiagnosis::Describe() const
                       "is %s, but a %s image must be exactly %s -- 35 tracks of 16 "
                       "sectors of 256 bytes. A file of any other size was either "
                       "truncated on its way here or was never a disk image",
-                      observed.c_str(), ExtensionFor (format), required.c_str());
+                      observed.c_str(), GetPrimaryExtension (format), required.c_str());
 
             text = note;
             break;
@@ -73,6 +75,28 @@ string MountDiagnosis::Describe() const
             text = "begins with a WOZ file header, but the chunks behind it do not "
                    "hold together -- Casso could not find the INFO, TMAP and TRKS "
                    "data every WOZ image carries. The file is damaged or incomplete";
+            break;
+
+        case MountFailure::WrongSizeForNibble:
+            observed = FormatByteCount (fileByteSize);
+            required = FormatByteCount (NibbleImageCodec::kNibImageSize);
+            second   = FormatByteCount (NibbleImageCodec::kNb2ImageSize);
+
+            snprintf (note, sizeof (note),
+                      "is %s, but a nibble image must be exactly %s -- 35 tracks "
+                      "of 6,656 bytes -- or exactly %s, which is 35 tracks of "
+                      "6,384. Both sizes are in circulation and either can carry "
+                      "either name, so the length is what decides",
+                      observed.c_str(), required.c_str(), second.c_str());
+
+            text = note;
+            break;
+
+        case MountFailure::NotANibbleStream:
+            text = "is the right size for a nibble image, but no part of it reads "
+                   "as one -- not one byte anywhere has the high bit that every "
+                   "nibble carries. It was most likely renamed from some other "
+                   "kind of file";
             break;
 
         case MountFailure::Unrecognized:
@@ -136,15 +160,21 @@ string MountDiagnosis::FormatByteCount (size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountDiagnosis::ExtensionFor
+//  MountDiagnosis::GetPrimaryExtension
 //
-//  The name a user would recognize their file by. The four cases are the whole
-//  of DiskFormat; anything else answers "disk", which keeps the sentence around
-//  it grammatical instead of leaving a hole in it.
+//  The name a user would recognize their file by. The cases are the whole of
+//  DiskFormat; anything else answers "disk", which keeps the sentence around it
+//  grammatical instead of leaving a hole in it.
+//
+//  PRIMARY, not the file's own. Nibble images answer to .nib and .nb2 alike and
+//  share one enumerator, so this returns the representative name. Any message
+//  that has to be right about which of the two the user actually has must take
+//  it from the path instead -- which is why the nibble size clause above names
+//  no extension at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * MountDiagnosis::ExtensionFor (DiskFormat fmt)
+const char * MountDiagnosis::GetPrimaryExtension (DiskFormat fmt)
 {
     switch (fmt)
     {
@@ -152,6 +182,7 @@ const char * MountDiagnosis::ExtensionFor (DiskFormat fmt)
         case DiskFormat::Dsk: return ".dsk";
         case DiskFormat::Do:  return ".do";
         case DiskFormat::Po:  return ".po";
+        case DiskFormat::Nib: return ".nib";
         default:              break;
     }
 

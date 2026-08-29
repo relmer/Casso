@@ -129,29 +129,29 @@ public:
         }
     };
 
-    TEST_METHOD (DetectFormatByExtension_KnownTypes)
+    TEST_METHOD (GetSourceFormatByExtension_KnownTypes)
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.dsk", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.dsk", fmt));
         Assert::IsTrue (fmt == DiskFormat::Dsk);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.DO", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.DO", fmt));
         Assert::IsTrue (fmt == DiskFormat::Do);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.po", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.po", fmt));
         Assert::IsTrue (fmt == DiskFormat::Po);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.WOZ", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.WOZ", fmt));
         Assert::IsTrue (fmt == DiskFormat::Woz);
     }
 
-    TEST_METHOD (DetectFormatByExtension_UnknownReturnsFail)
+    TEST_METHOD (GetSourceFormatByExtension_UnknownReturnsFail)
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        AssertFailed (DiskImageStore::DetectFormatByExtension ("foo.bin", fmt));
-        AssertFailed (DiskImageStore::DetectFormatByExtension ("noext",  fmt));
+        AssertFailed (DiskImageStore::GetSourceFormatByExtension ("foo.bin", fmt));
+        AssertFailed (DiskImageStore::GetSourceFormatByExtension ("noext",  fmt));
     }
 
     TEST_METHOD (IsMountableImageExtension_MatchesTheRoutedTypes)
@@ -165,13 +165,16 @@ public:
         Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("noext")));
     }
 
-    TEST_METHOD (IsMountableImageExtension_RejectsNibbleImages)
+    TEST_METHOD (IsMountableImageExtension_AcceptsNibbleImages)
     {
-        // Mount has never routed a nibble image, so nothing may offer one.
-        // The drag-and-drop filter did, and a dropped .nib then failed to
-        // mount without saying so.
-        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("foo.nib")));
-        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (wstring (L"foo.NIB")));
+        // INVERTED, NOT DELETED. Mount now routes both nibble extensions, and
+        // the assertion that it did not belongs turned around rather than
+        // removed -- the filter and the router disagreeing over these names is
+        // the exact defect this test was written for.
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (string ("foo.nib")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (string ("foo.nb2")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (wstring (L"foo.NIB")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (wstring (L"foo.Nb2")));
     }
 
     TEST_METHOD (IsMountableImageExtension_WideAgreesWithNarrow)
