@@ -17,32 +17,35 @@ Entries before versioning was introduced use dates only.
   every label below it moves. `OPT`, `NOOPT` and `-n` are now implemented
   rather than ignored.
 
+### Added
+- **The Harte vectors now check instruction timing, not just results.** The
+  packed fixtures discarded the upstream per-cycle trace, so no depth of
+  vectors could catch a timing error. They carry the cycle count now, at one
+  byte per vector, and the format is versioned so older sets are refused. It
+  found three timing bugs on its first run.
+
 ### Fixed
 - **`run` echoed flags back with a dash even on a `/`-style command line.**
 - **`-c` listings omitted the cycle count for 59 65C02 opcodes, and printed the
   NMOS value for `JMP (abs)`.** Counts now come off the instruction itself, the
   same value the emulator bills. NMOS counts are unchanged.
-- **The emulated 65C02 spent a cycle too many on `ASL`, `LSR`, `ROL` and `ROR`
-  in `abs,X`.** They take six, or seven when the indexed address crosses a
-  page. **This changes emulated timing** on the Enhanced //e and //c.
-- **The Harte vectors now check instruction timing, not just results.** The
-  packed fixtures discarded the upstream per-cycle trace, so no depth of
-  vectors could catch a timing error. They carry the cycle count now, at one
-  byte per vector, and the format is versioned so older sets are refused.
-- **A branch taken to the very next instruction was billed a cycle short.** A
-  zero displacement is still taken, but leaves `PC` where an untaken branch
-  would. **This changes emulated timing** on both cores, for every conditional
-  branch and `BRA`.
-- **`BBRn` and `BBSn` were billed a flat five cycles.** They cost five, six
-  when taken, and seven when taken across a page. **This changes emulated
-  timing** on the 65C02.
+- **Instruction timing was wrong in three places. This changes emulated
+  timing**, so software that counts cycles runs slightly differently.
+  - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` cost seven on the 65C02 whatever
+    the indexed address did. They take six, or seven across a page. 65C02 only.
+  - A branch with a displacement of zero was billed as untaken. It is taken, to
+    the instruction after it, and costs the extra cycle. Both cores, every
+    conditional branch and `BRA`.
+  - `BBRn` and `BBSn` were billed a flat five however they resolved. They cost
+    five, six when taken, and seven when taken across a page. 65C02 only.
 - **A disk image that fails to mount now says so**, rather than leaving the
   machine at a bare text screen with no message.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-- **A refused disk image now explains why it was refused** -- a wrong-sized
-  sector image is told its own size and the size it needed, a `.woz` without a
-  WOZ header that it was probably renamed, a `.woz` with one that it is
-  damaged. The `disk` subcommand reports the same reasons.
+- **A rejected disk image now says what was wrong with it.** A wrong-sized
+  sector image reports its own size and the size it needed; a `.woz` with no
+  WOZ header is told it was probably renamed from something else; a `.woz` with
+  one is told it is damaged. Previously all three got a single sentence that
+  fit none of them. The `disk` subcommand reports the same reasons.
 - **A malformed `.dsk` raised an assertion dialog in a Debug build.**
 
 ## [1.20.1]: The one with logical or physical sector addresses
