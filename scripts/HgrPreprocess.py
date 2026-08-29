@@ -232,9 +232,13 @@ def generate_color_bands_hgr ():
     #
     # Diagnostic value: this is the canonical "if the renderer writes
     # bytes in the wrong layout, blue<->orange and violet<->green
-    # show up swapped" test image. Used by the bootable demo disk
-    # alongside the cassowary so a key swap toggles between an
-    # organic color image and a synthetic palette reference.
+    # show up swapped" test image. It rode on the demo disk for a
+    # while so a keystroke could put it next to the cassowary, and
+    # came back off once VideoModeTests started asking the same
+    # question directly -- Render_SinglePixelPalette0EvenCol_Violet
+    # and its neighbours assert per pixel what this asked the eye to
+    # judge per band. Kept because it is still the fastest way to
+    # SEE the answer; write it somewhere and BLOAD it.
     out = bytearray (HGR_BYTES)
 
     # (band name, even-byte value, odd-byte value).

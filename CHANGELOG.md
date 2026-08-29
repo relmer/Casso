@@ -9,6 +9,14 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Changed
+- **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
+  dithered specifically for mono and for color displays, radically improving
+  clarity on mono. Replaced the color bars with a spiffy Beagle Bros. HGR
+  kaleidoscopesque pattern.\*
+
+  \* *Avoid staring at the kaleidoscope for extended periods. Not responsible
+  for self-hypnosis.*
+
 - **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
   used to assume as65. Binaries are unaffected.
 - **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization; `NOOPT` and `-n`
@@ -26,7 +34,19 @@ Entries before versioning was introduced use dates only.
   mnemonic, addressing mode, length, and base cycle count for the 6502 and
   65C02, generated from the emulator's own instruction tables.
 
+### Removed
+- **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
+  disk, and `scripts/HgrPreprocess.py` still generates either on demand.
+
 ### Fixed
+- **The casso-rocks demo signs off instead of just vanishing** -- a thank-you
+  line that stays on screen with the BASIC prompt under it. It also wipes the
+  monitor question the moment it is answered, so a reset partway through no
+  longer lands on a screen that still looks like a prompt and no longer
+  answers.
+- **The demo stops the drive once the last track is read** instead of leaving
+  the motor spinning for as long as it is up, and ESC out of the cycle no
+  longer leaves the key in the latch for Applesoft to swallow.
 - **`run` echoed flags back with a dash even on a `/`-style command line.**
 - **`-c` listings omitted the cycle count for 59 65C02 opcodes, and printed the
   NMOS value for `JMP (abs)`.** Counts now come off the instruction itself, the

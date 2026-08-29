@@ -13,13 +13,28 @@
       3. Lays out the standard 143360-byte DOS-order .dsk image:
 
            Track 0, sector 0  ($0000-$00FF) : stage 1 (boot sector)
-           Tracks 1-2         ($1000-$2FFF) : DHGR aux pattern
-           Track 3, sector 0  ($3000-$30FF) : stage 2
-           Track 3, sectors 1-4 ($3100-$34FF) : LoRes test pattern
-           Tracks 4-5         ($4000-$5FFF) : DHGR main pattern
-           Tracks 6-7         ($6000-$7FFF) : HGR1 cassowary
-           Tracks 8-9         ($8000-$9FFF) : HGR2 test bands
+           Tracks 1-2         ($1000-$2FFF) : DHGR mono aux half
+           Track 3, sectors 0-2 ($3000-$32FF) : stage 2
+           Track 3, sectors 3-15                : unused
+           Tracks 4-5         ($4000-$5FFF) : DHGR mono main half
+           Tracks 6-7         ($6000-$7FFF) : HGR mono cassowary
+           Tracks 8-9         ($8000-$9FFF) : DHGR color aux half
+           Tracks 10-11       ($A000-$BFFF) : DHGR color main half
+           Tracks 12-13       ($C000-$DFFF) : HGR color cassowary
            Everything else                  : $FF fill
+
+       The four cassowaries are one photo encoded four ways. Both DHGR
+       and HGR framebuffers are decoded differently depending on the
+       monitor -- color cells versus dots -- and the two decodes want
+       opposite things from the encoder, so each image is authored for
+       one monitor and reads as noise on the other. Nothing on the disk
+       can tell which is attached, so all four ship, monochrome pair
+       first. See scripts/DhgrCassowaryGen.py and
+       scripts/HgrCassowaryGen.py.
+
+       The tracks are in the order the demo reads them, which is the
+       order the modes are cycled in, so whatever the user reaches next
+       is whatever finished loading last.
 
       4. Writes the assembled image to Apple2/Demos/casso-rocks.dsk
 
@@ -78,7 +93,7 @@ $kImageSize       = $kBytesPerTrack * $kTrackCount    # 143360
 $kStage1Org       = 0x0800   # boot ROM loads boot sector here; .a65 .org $0801
 $kStage2Org       = 0x1000   # stage 1 jmp $1000 after loading track 3
 $kStage1Length    = $kBytesPerSector
-$kStage2Length    = $kBytesPerSector
+$kStage2Length    = $kBytesPerSector * 3   # stage 2 spans three sectors now
 $kImageLength     = 0x2000   # each cassowary image asset is 8 KB = 2 tracks
 
 # DOS 3.3 physical-to-file sector interleave, indexed by physical sector --
@@ -200,11 +215,12 @@ $stage2 = Get-AssembledRegion `
 
 Write-Host "Loading image assets..." -ForegroundColor Cyan
 
-$dhgrAux  = Read-AssetFile 'dhgr-cassowary-aux.bin'  $kImageLength
-$dhgrMain = Read-AssetFile 'dhgr-cassowary-main.bin' $kImageLength
-$hgr      = Read-AssetFile 'cassowary.hgr'           $kImageLength
-$bands    = Read-AssetFile 'test-bands.hgr'          $kImageLength
-$lores    = Read-AssetFile 'lores-bars.lores'        ($kBytesPerSector * 4)
+$dhgrAux  = Read-AssetFile 'dhgr-cassowary-aux.bin'       $kImageLength
+$dhgrMain = Read-AssetFile 'dhgr-cassowary-main.bin'      $kImageLength
+$monoAux  = Read-AssetFile 'dhgr-cassowary-mono-aux.bin'  $kImageLength
+$monoMain = Read-AssetFile 'dhgr-cassowary-mono-main.bin' $kImageLength
+$hgr      = Read-AssetFile 'cassowary.hgr'                $kImageLength
+$hgrMono  = Read-AssetFile 'cassowary-mono.hgr'           $kImageLength
 
 function Build-LayoutInPowerShell {
     #  The original method: allocate the image, place every region at a
@@ -221,57 +237,56 @@ function Build-LayoutInPowerShell {
     # Track 0 logical sector 0: boot sector = stage 1 ($0800..$08FF)
     Write-Bytes-At $image (Get-PhysicalSectorOffset 0 0) $stage1
 
-    # Tracks 1-2: DHGR aux pattern, stitched in logical-sector order
+    # Tracks 1-2: DHGR mono aux half, stitched in logical-sector order
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
             $fileOff    = Get-PhysicalSectorOffset (1 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($dhgrAux, $payloadOff, $slice, 0, $kBytesPerSector)
+            [Array]::Copy($monoAux, $payloadOff, $slice, 0, $kBytesPerSector)
             Write-Bytes-At $image $fileOff $slice
         }
     }
 
-    # Track 3 logical sector 0: stage 2 ($1000..$10FF)
-    Write-Bytes-At $image (Get-PhysicalSectorOffset 3 0) $stage2
-
-    # Track 3 logical sectors 1-4: LoRes pattern (4 sectors of 256 bytes)
-    for ($sector = 0; $sector -lt 4; $sector++) {
+    # Track 3 logical sectors 0-2: stage 2 ($1000..$12FF). The sectors
+    # are NOT adjacent in the file -- the interleave puts them a long way
+    # apart -- so each is placed at its own offset.
+    for ($sector = 0; $sector -lt 3; $sector++) {
         $slice = New-Object byte[] $kBytesPerSector
-        [Array]::Copy($lores, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
-        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 (1 + $sector)) $slice
+        [Array]::Copy($stage2, $sector * $kBytesPerSector, $slice, 0, $kBytesPerSector)
+        Write-Bytes-At $image (Get-PhysicalSectorOffset 3 $sector) $slice
     }
 
-    # Tracks 4-5: DHGR main pattern
+    # Tracks 4-5: DHGR mono main half
     for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
         for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
             $fileOff    = Get-PhysicalSectorOffset (4 + $trackOff) $sector
             $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
             $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($dhgrMain, $payloadOff, $slice, 0, $kBytesPerSector)
+            [Array]::Copy($monoMain, $payloadOff, $slice, 0, $kBytesPerSector)
             Write-Bytes-At $image $fileOff $slice
         }
     }
 
-    # Tracks 6-7: HGR1 cassowary
-    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-PhysicalSectorOffset (6 + $trackOff) $sector
-            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-            $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($hgr, $payloadOff, $slice, 0, $kBytesPerSector)
-            Write-Bytes-At $image $fileOff $slice
-        }
-    }
+    # Tracks 6-7: HGR mono cassowary, 8-9: DHGR color aux half,
+    # 10-11: DHGR color main half, 12-13: HGR color cassowary. Same
+    # two-track stitch each time, so the payloads drive the loop.
+    $twoTrackRegions = @(
+        @{ StartTrack =  6; Payload = $hgrMono  },
+        @{ StartTrack =  8; Payload = $dhgrAux  },
+        @{ StartTrack = 10; Payload = $dhgrMain },
+        @{ StartTrack = 12; Payload = $hgr      }
+    )
 
-    # Tracks 8-9: HGR2 test bands
-    for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
-        for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
-            $fileOff    = Get-PhysicalSectorOffset (8 + $trackOff) $sector
-            $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
-            $slice      = New-Object byte[] $kBytesPerSector
-            [Array]::Copy($bands, $payloadOff, $slice, 0, $kBytesPerSector)
-            Write-Bytes-At $image $fileOff $slice
+    foreach ($region in $twoTrackRegions) {
+        for ($trackOff = 0; $trackOff -lt 2; $trackOff++) {
+            for ($sector = 0; $sector -lt $kSectorsPerTrack; $sector++) {
+                $fileOff    = Get-PhysicalSectorOffset ($region.StartTrack + $trackOff) $sector
+                $payloadOff = ($trackOff * $kSectorsPerTrack + $sector) * $kBytesPerSector
+                $slice      = New-Object byte[] $kBytesPerSector
+                [Array]::Copy($region.Payload, $payloadOff, $slice, 0, $kBytesPerSector)
+                Write-Bytes-At $image $fileOff $slice
+            }
         }
     }
 
@@ -284,7 +299,7 @@ function Build-LayoutInPowerShell {
 
 
 function Build-LayoutWithCassoCli {
-    #  The same layout as seven `disk sectorwrite --physical` calls.
+    #  The same layout as eight `disk sectorwrite --physical` calls.
     #
     #  --physical says exactly what the demo needs said: its RWTS files each
     #  sector by address-mark number, so page N of every region must sit
@@ -314,12 +329,13 @@ function Build-LayoutWithCassoCli {
     #  documents, in the order its boot loader reads it.
     $plan = @(
         @{ Track = 0; Sector = 0; Path = $tmp1 },
-        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-aux.bin") },
         @{ Track = 3; Sector = 0; Path = $tmp2 },
-        @{ Track = 3; Sector = 1; Path = (Join-Path $demoDir "lores-bars.lores") },
-        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
-        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") },
-        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "test-bands.hgr") }
+        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-main.bin") },
+        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary-mono.hgr") },
+        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 10; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
+        @{ Track = 12; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") }
     )
 
     foreach ($step in $plan) {

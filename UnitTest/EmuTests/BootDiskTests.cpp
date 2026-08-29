@@ -13,6 +13,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Video/AppleHiResMode.h"
+#include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -65,14 +66,29 @@ public:
 
     static constexpr int       kMaxAncestorWalk  = 10;
     static constexpr size_t    kHgrPayloadSize   = 8192;
-    static constexpr size_t    kLoresPayloadSize = 1024;
     static constexpr size_t    kSectorByteSize   = 256;
     static constexpr int       kSectorsPerTrack  = 16;
+    static constexpr int       kStage2Sectors    = 3;      // stage 2 spans three sectors
     static constexpr Word      kHgrBase          = 0x2000;
-    static constexpr Word      kBootEntry        = 0xC600;
     static constexpr Word      kDemoEntry        = 0x0801;
     static constexpr Word      kStage2Entry      = 0x1000;
-    static constexpr uint64_t  kDemoCycleBudget  = 10'000'000ULL;   // 10M cycles ≈ 9.8 sec emulated; ample for 9 disk tracks (~2 sec real time)
+    static constexpr int       kSignOffRow       = 21;
+    static constexpr int       kPromptRow        = 23;
+
+    //  The line the demo leaves on the screen on its way out.
+    static constexpr const char *  kSignOffText =
+        "THANKS FOR WATCHING THE CASSO DEMO.";
+
+    //  A track read is 18 sector slots -- see read_track's comment on why it
+    //  over-reads -- which is 1.125 revolutions, about 750k cycles once head
+    //  stepping and resync are counted. Thirteen tracks is therefore ~9.8M,
+    //  and the 10M this used to be was not the 5x headroom its comment
+    //  claimed: at nine tracks it was already only ~1.4x, and the thirteenth
+    //  track ran off the end of it. The symptom was subtle enough to be worth
+    //  naming -- the demo's RWTS stores the 6-bit values first and merges the
+    //  2-bit auxiliaries in a second pass, so a read cut short mid-sector
+    //  leaves bytes that look like the right data shifted right by two.
+    static constexpr uint64_t  kDemoCycleBudget  = 20'000'000ULL;   // 20M cycles ≈ 19.6 sec emulated, ~2x what 13 tracks need
 
 
     // Walks up from the test's working directory (x64\Debug) looking for a
@@ -130,6 +146,93 @@ public:
     }
 
 
+    //  The screen do_exit hands over, and proof that what it handed to is
+    //  really Applesoft.
+    //
+    //  do_exit writes its sign-off on row 21 and leaves the cursor on that
+    //  same row, from where Applesoft's own two carriage returns -- one in
+    //  the cold start, one at the head of the READY loop -- put the "]" on
+    //  row 23 without scrolling anything.
+    //
+    //  TYPING IS THE PART NO SOFT-SWITCH ASSERTION CAN STAND IN FOR. It
+    //  exercises CSW, KSW, the text window and the 40-column screen at
+    //  once, and every exit bug this demo has had presented as a machine
+    //  that looked settled and could not be typed at: 80COL left on so
+    //  COUT wrote 40-column output onto an 80-column screen, and an ESC
+    //  left in the keyboard latch for GETLN to read as a cursor move and
+    //  swallow the next character with.
+    void AssertSignedOffToBasic (EmulatorCore & core,
+                                 const wchar_t * route,
+                                 size_t          togglesBeforeExit)
+    {
+        std::vector<std::string>  screen;
+        wchar_t                   msg[256]  = {};
+        const char *              typed     = "PRINT 2+2";
+        const char *              echo      = "]PRINT 2+2";
+        size_t                    echoRow   = 0;
+        bool                      echoed    = false;
+
+        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+
+        Assert::IsTrue (screen.size() > size_t (kPromptRow),
+            L"the text screen must have all 24 rows");
+
+        Assert::IsTrue (
+            screen[kSignOffRow].find (kSignOffText) != std::string::npos,
+            (swprintf_s (msg, L"%ls: the sign-off must be on row %d, which "
+                              L"reads \"%hs\".",
+                         route, kSignOffRow, screen[kSignOffRow].c_str()), msg));
+
+        Assert::AreEqual (']', screen[kPromptRow][0],
+            L"Applesoft's prompt must be in column 0 of the bottom row");
+
+        Assert::IsFalse (core.diskController->IsMotorOn(),
+            L"the drive must be stopped by the time the demo hands over");
+
+        //  AND IT LEAVES QUIETLY. The //e's reset handler bells on its way
+        //  past -- JSR $FF3A at $FA62+$20, 192 speaker toggles, and it runs
+        //  on the power-on boot as well as on Ctrl-Reset -- so an exit
+        //  routed through ($FFFC) beeped every single time. That beep was
+        //  indistinguishable from the one a reset makes, which cost real
+        //  time diagnosing an exit: a machine that eventually reached the
+        //  prompt and beeped on the way looked like a delayed reset rather
+        //  than a delayed keystroke. Going to $E000 direct is silent, and
+        //  this is what holds it there.
+        Assert::AreEqual (togglesBeforeExit,
+            core.speaker->GetToggleTimestamps().size(),
+            (swprintf_s (msg, L"%ls: the exit must not touch the speaker.",
+                         route), msg));
+
+        for (size_t i = 0; typed[i] != '\0'; i++)
+        {
+            core.keyboard->KeyPressRaw (typed[i]);
+            core.RunCycles (100'000ULL);
+        }
+
+        core.keyboard->KeyPressRaw ('\r');
+        core.RunCycles (2'000'000ULL);
+
+        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+
+        for (size_t r = 0; !echoed && r + 1 < screen.size(); r++)
+        {
+            if (screen[r].find (echo) != std::string::npos)
+            {
+                echoRow = r;
+                echoed  = true;
+            }
+        }
+
+        Assert::IsTrue (echoed,
+            (swprintf_s (msg, L"%ls: Applesoft must echo what is typed at it.",
+                         route), msg));
+
+        Assert::AreEqual ('4', screen[echoRow + 1][0],
+            (swprintf_s (msg, L"%ls: Applesoft must run what is typed at it "
+                              L"-- PRINT 2+2 must print 4.", route), msg));
+    }
+
+
     std::vector<Byte> ReadFileBytes (const fs::path & path)
     {
         std::vector<Byte>  bytes;
@@ -150,11 +253,11 @@ public:
     //
     //  NOTHING IN HERE OPENS A FILE.
     //
-    //  The demo's two sources and its five payloads are compiled into the test
+    //  The demo's two sources and its seven payloads are compiled into the test
     //  assembly by DemoAssets.rc, so the resource compiler reads them at build
     //  time and this test reads a pointer into its own module image.
     //
-    //  It used to read all seven off the repo and write the built image back
+    //  It used to read all nine off the repo and write the built image back
     //  over Apple2/Demos/casso-rocks.dsk. The write normally put the same
     //  bytes there, so the only trace was a changed timestamp, until a run
     //  that built a different image and left a corrupted asset in the tree.
@@ -173,10 +276,11 @@ public:
             std::string              source          = DemoAssets::Text (IDR_DEMO_STAGE1_SRC);
             std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
-            std::vector<Byte>        bandsPayload;
-            std::vector<Byte>        loresPayload;
+            std::vector<Byte>        hgrMonoPayload;
             std::vector<Byte>        dhgrAuxPayload;
             std::vector<Byte>        dhgrMainPayload;
+            std::vector<Byte>        monoAuxPayload;
+            std::vector<Byte>        monoMainPayload;
             Cpu                      cpu;
             HeadlessHost             host;
             EmulatorCore             core;
@@ -184,6 +288,7 @@ public:
             DiskImage              * img             = nullptr;
             Apple2eSoftSwitchBank  * ss              = nullptr;
             Byte                   * auxBuf          = nullptr;
+            size_t                   quietMark       = 0;
             AssemblyResult           asmResult;
             AssemblyResult           stage2Result;
             Assert::IsFalse (source.empty(), L"casso-rocks.a65 must not be empty");
@@ -191,20 +296,23 @@ public:
                 L"casso-rocks-stage2.a65 must not be empty");
 
             hgrPayload      = DemoAssets::Copy (IDR_DEMO_HGR);
-            bandsPayload    = DemoAssets::Copy (IDR_DEMO_BANDS);
-            loresPayload    = DemoAssets::Copy (IDR_DEMO_LORES);
+            hgrMonoPayload  = DemoAssets::Copy (IDR_DEMO_HGR_MONO);
             dhgrAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_AUX);
             dhgrMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MAIN);
+            monoAuxPayload  = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_AUX);
+            monoMainPayload = DemoAssets::Copy (IDR_DEMO_DHGR_MONO_MAIN);
             Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
                 L"cassowary.hgr must be exactly 8192 bytes");
-            Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
-                L"test-bands.hgr must be exactly 8192 bytes");
-            Assert::AreEqual (kLoresPayloadSize, loresPayload.size(),
-                L"lores-bars.lores must be exactly 1024 bytes");
+            Assert::AreEqual (kHgrPayloadSize, hgrMonoPayload.size(),
+                L"cassowary-mono.hgr must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size(),
                 L"dhgr-cassowary-aux.bin must be exactly 8192 bytes");
             Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size(),
                 L"dhgr-cassowary-main.bin must be exactly 8192 bytes");
+            Assert::AreEqual (kHgrPayloadSize, monoAuxPayload.size(),
+                L"dhgr-cassowary-mono-aux.bin must be exactly 8192 bytes");
+            Assert::AreEqual (kHgrPayloadSize, monoMainPayload.size(),
+                L"dhgr-cassowary-mono-main.bin must be exactly 8192 bytes");
 
             Assembler       assembler (cpu.GetInstructionSet());
 
@@ -240,33 +348,40 @@ public:
             Assert::AreEqual (Word (kStage2Entry), stage2Result.startAddress,
                 L"Stage 2 must be assembled with .org $0A00");
             Assert::IsTrue (stage2Result.bytes.size() > 0 &&
-                            stage2Result.bytes.size() <= kSectorByteSize,
-                L"Stage 2 code must fit in a single 256-byte sector");
+                            stage2Result.bytes.size() <=
+                                kStage2Sectors * kSectorByteSize,
+                L"Stage 2 code must fit in the sectors reserved for it");
 
             // Build a 143360-byte raw .dsk image:
             //   - File offset 1..N (track 0 sector 0 minus the first byte):
             //     stage 1 boot code.
-            //   - Tracks 1+2: 8 KB DHGR aux pattern (loaded by stage 1
+            //   - Tracks 1+2: 8 KB DHGR MONO aux half (loaded by stage 1
             //     into main $6000-$7FFF, then copied to aux $2000 by
             //     enter_dhgr).
-            //   - Track 3 physical sector 0: stage 2 code (lands at $1000).
-            //     Track 3 physical sectors 1..4: 1 KB LoRes test pattern
-            //     (lands at $1100-$14FF, copied into text page 1 in
-            //     mode_lores).
-            //   - Tracks 4+5: 8 KB DHGR main pattern (loaded by stage 2
+            //   - Track 3 physical sectors 0..2: stage 2 code (lands at
+            //     $1000-$12FF). The rest of track 3 is unused now that the
+            //     LoRes pattern has gone, so stage 2 has room to grow
+            //     without moving anything else.
+            //   - Tracks 4+5: 8 KB DHGR MONO main half (loaded by stage 2
             //     init into main $8000-$9FFF, then copied to main $2000
             //     by enter_dhgr).
-            //   - Tracks 6+7: 8 KB HGR1 cassowary (loaded by stage 2
+            //   - Tracks 6+7: 8 KB HGR MONO cassowary, loaded by the
+            //     background phase to main $4000-$5FFF, which IS HGR page
+            //     2 -- so mode 1 is a PAGE2 flip with no copy.
+            //   - Tracks 8+9 and 10+11: the COLOR DHGR cassowary's aux and
+            //     main halves, loaded by the background phase back into
+            //     main $6000 and main $8000 -- the same staging the
+            //     monochrome halves were copied out of, which is why mode
+            //     2 is just a second enter_dhgr call over the same
+            //     addresses.
+            //   - Tracks 12+13: 8 KB HGR COLOR cassowary (loaded by stage 2
             //     background phase directly into its stash location at
-            //     main $A000-$BFFF; mode_hgr1 memcpys to $2000 on demand).
-            //   - Tracks 8+9: 8 KB HGR2 bands (loaded by stage 2
-            //     background phase to main $4000-$5FFF, the final HGR2
-            //     framebuffer destination).
+            //     main $A000-$BFFF; mode_hgr_color memcpys to $2000).
             //
-            //   Disk layout reorder vs prior versions: DHGR data lives on
-            //   the FIRST tracks so the demo can show DHGR after only ~5
-            //   disk reads instead of waiting for all 9. HGR1+HGR2 load
-            //   in the background after first frame is up.
+            //   Track order is cycle order: the first mode's data is
+            //   physically earliest so first frame lands after ~5 disk
+            //   reads rather than all 13, and each later mode's data is
+            //   the next thing to arrive.
             //
             //   The payloads go through the DOS 3.3 physical-to-file
             //   interleave so that page S of a payload sits under address
@@ -286,8 +401,7 @@ public:
                 raw[1 + i] = asmResult.bytes[i];
             }
 
-            // Track 3 physical sector 0 -> stage 2 code at $1000.
-            // Track 3 physical sectors 1-4 -> LoRes pattern at $1100-$14FF.
+            // Track 3 physical sectors 0-2 -> stage 2 code at $1000-$12FF.
             // Route through the interleave so each payload page sits under
             // the address mark stage 1's RWTS will file it by.
             auto StampTrack3Sector = [&] (int physicalSector,
@@ -302,13 +416,25 @@ public:
                 }
             };
 
-            StampTrack3Sector (0, stage2Result.bytes.data(),
-                                  stage2Result.bytes.size());
-            for (int sector = 0; sector < 4; sector++)
+            // Stage 2 spans two sectors now, and the interleave puts them
+            // nowhere near each other in the file, so each is stamped at
+            // its own address mark rather than written as one run.
+            for (int sector = 0; sector < kStage2Sectors; sector++)
             {
-                StampTrack3Sector (1 + sector,
-                                   loresPayload.data() + sector * kSectorByteSize,
-                                   kSectorByteSize);
+                size_t  offset    = static_cast<size_t> (sector) * kSectorByteSize;
+                size_t  remaining = 0;
+
+                if (offset >= stage2Result.bytes.size())
+                {
+                    break;
+                }
+
+                remaining = stage2Result.bytes.size() - offset;
+
+                StampTrack3Sector (sector,
+                                   stage2Result.bytes.data() + offset,
+                                   remaining < kSectorByteSize ? remaining
+                                                               : kSectorByteSize);
             }
 
             // Stitch a payload across 2 tracks starting at startTrack.
@@ -336,10 +462,12 @@ public:
                 }
             };
 
-            StitchPayload (1, dhgrAuxPayload);        // tracks 1+2 -> DHGR aux @ main $6000
-            StitchPayload (4, dhgrMainPayload);       // tracks 4+5 -> DHGR main @ main $8000
-            StitchPayload (6, hgrPayload);            // tracks 6+7 -> HGR1 cassowary @ main $A000
-            StitchPayload (8, bandsPayload);          // tracks 8+9 -> HGR2 bands @ main $4000
+            StitchPayload (1,  monoAuxPayload);       // tracks 1+2   -> DHGR mono aux @ main $6000
+            StitchPayload (4,  monoMainPayload);      // tracks 4+5   -> DHGR mono main @ main $8000
+            StitchPayload (6,  hgrMonoPayload);       // tracks 6+7   -> HGR mono @ main $4000 (HGR page 2)
+            StitchPayload (8,  dhgrAuxPayload);       // tracks 8+9   -> DHGR color aux @ main $6000
+            StitchPayload (10, dhgrMainPayload);      // tracks 10+11 -> DHGR color main @ main $8000
+            StitchPayload (12, hgrPayload);           // tracks 12+13 -> HGR color @ main $A000
 
 
             hr = host.BuildApple2eWithDisk2 (core);
@@ -357,7 +485,7 @@ public:
 
             // The cheap questions, asked of the container the drive is
             // actually holding and before a processor is involved. The demo's
-            // RWTS reads nine tracks by address field and there is no
+            // RWTS reads thirteen tracks by address field and there is no
             // operating system underneath it to report a bad read, so a
             // stitched image the drive does not present verbatim is not a
             // wrong picture -- it is a processor loaded with data.
@@ -366,34 +494,95 @@ public:
             GuestSession::AssertTheDriveCanReadTheBootSector (
                 *img, L"the assembled demo disk");
 
-            core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
-
-            core.cpu->SetPC (kBootEntry);
-
+            //  NOTHING POINTS THE PROCESSOR ANYWHERE. PowerCycle leaves it
+            //  on the //e's own reset vector, so the ROM runs the power-on
+            //  and boots the disk itself: it installs CSW and KSW, writes
+            //  the break vector, the soft-entry vector at $03F2 and the
+            //  power-up byte at $03F4 from its own table, and then scans
+            //  the slots and finds the Disk II.
+            //
+            //  This used to jump straight into the boot PROM at $C600 with
+            //  the two hooks poked in by hand, which is three or four
+            //  bytes' worth of a power-on and made the harness useless for
+            //  the one thing the demo does at the end: hand the machine
+            //  back. With no power-up byte the reset handler always took
+            //  its cold path and re-booted slot 6, so an exit that worked
+            //  and an exit that crashed looked identical from here, and
+            //  the exit bugs were all found by hand in the emulator
+            //  instead. Booting the way the machine does costs about
+            //  200k cycles.
             core.RunCycles (kDemoCycleBudget);
 
-            // Verify boot landing soft-switch state (mode 0 = DHGR)
+            // BOOT LANDING IS THE QUESTION, NOT A PICTURE. Nothing can
+            // detect the monitor -- no Apple II can, the video connectors
+            // are output only -- so the demo asks, and waits in TEXT until
+            // it is answered. Everything is loaded by then, which is the
+            // point of asking first: the disk works behind the question.
             ss = core.softSwitches.get();
 
             Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
-            Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Demo must leave the //e in graphics mode (TEXT off)");
-            Assert::IsFalse (ss->IsMixedMode(),
-                L"Demo must leave MIXED off (full-screen graphics)");
-            Assert::IsFalse (ss->IsPage2(),
-                L"Mode 0 (DHGR) must select PAGE1 before any keystroke");
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 0 (DHGR) must enable HIRES");
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"Demo must wait in TEXT mode until the question is answered");
 
-            // Verify framebuffer contents at boot landing
-            // Stage 2 init reads HGR2 bands -> $4000, DHGR aux scratch
-            // -> $6000, DHGR main scratch -> $8000, then memcpys
-            // cassowary $2000 -> $A000 (stash), then enters DHGR mode
-            // (which copies $8000 -> $2000 main and $6000 -> $2000 aux).
-            // So at boot landing: $2000=DHGR main half, $4000=bands,
-            // $6000=DHGR aux scratch (still resident), $8000=DHGR main
-            // scratch (still resident), $A000=stashed cassowary, and
-            // aux $2000 = DHGR aux half.
+            //  The question itself, at row 11 column 4 ($05AC). Stored in
+            //  the source as plain ASCII -- so that as65 and Merlin emit
+            //  identical bytes for it -- and OR'd to high ASCII as it is
+            //  written, which is what the text screen displays as normal
+            //  (non-inverse, non-flashing) characters.
+            {
+                const char *  expected = "WHICH MONITOR ARE YOU USING?";
+
+                for (size_t i = 0; expected[i] != '\0'; i++)
+                {
+                    Byte  want   = static_cast<Byte> (expected[i]) | 0x80;
+                    Byte  actual = core.bus->ReadByte (
+                        static_cast<Word> (0x05AC + i));
+
+                    if (actual != want)
+                    {
+                        wchar_t  msg[256] = {};
+                        swprintf_s (msg, L"Monitor question mismatch at $%04X: "
+                                         L"expected $%02X, got $%02X.",
+                                    static_cast<unsigned> (0x05AC + i),
+                                    static_cast<unsigned> (want),
+                                    static_cast<unsigned> (actual));
+                        Assert::Fail (msg);
+                    }
+                }
+            }
+
+            //  Answer M. The monochrome halves were staged into the
+            //  framebuffer during the load phase, so this is only the
+            //  display switches, and the picture is there immediately.
+            Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
+            core.keyboard->KeyPressRaw ('M');
+            core.RunCycles (200'000ULL);
+
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Answering M must leave the //e in graphics mode (TEXT off)");
+            Assert::IsFalse (ss->IsMixedMode(),
+                L"Answering M must leave MIXED off (full-screen graphics)");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Mode 0 (DHGR mono) must select PAGE1");
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Mode 0 (DHGR mono) must enable HIRES");
+
+            // Verify framebuffer contents at boot landing.
+            //
+            // Stage 1 stages the monochrome aux half at $6000; stage 2
+            // loads the monochrome main half to $8000 and stage_dhgr
+            // copies both into the framebuffer -- copies only, the screen
+            // is still showing the question. The load phase then puts the
+            // HGR monochrome image on page 2 and the COLOR halves back
+            // over that staging. So by the time the question is answered:
+            //
+            //   main $2000 = mono DHGR main    aux $2000 = mono DHGR aux
+            //   main $4000 = mono HGR          main $6000 = color DHGR aux
+            //   main $8000 = color DHGR main   main $A000 = color HGR
+            //
+            // The staging holding the color halves rather than the
+            // monochrome ones is the whole mechanism behind mode 2 costing
+            // no memory, so it is asserted rather than assumed.
             auto VerifyMemRange = [&] (Word baseAddr,
                                        const std::vector<Byte> & expected,
                                        const wchar_t * label)
@@ -438,16 +627,16 @@ public:
                 }
             };
 
-            VerifyMemRange (0x2000, dhgrMainPayload,
-                L"DHGR main half at boot landing (main $2000)");
-            VerifyMemRange (0x4000, bandsPayload,
-                L"HGR2 bands (main $4000)");
+            VerifyMemRange (0x2000, monoMainPayload,
+                L"DHGR mono main half at boot landing (main $2000)");
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"HGR mono cassowary on HGR page 2 (main $4000)");
             VerifyMemRange (0x6000, dhgrAuxPayload,
-                L"DHGR aux scratch (main $6000)");
+                L"DHGR color aux half over the staging (main $6000)");
             VerifyMemRange (0x8000, dhgrMainPayload,
-                L"DHGR main scratch (main $8000)");
+                L"DHGR color main half over the staging (main $8000)");
             VerifyMemRange (0xA000, hgrPayload,
-                L"Stashed HGR1 cassowary (main $A000)");
+                L"Stashed HGR color cassowary (main $A000)");
 
             // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
             auxBuf = core.mmu->GetAuxBuffer();
@@ -456,73 +645,243 @@ public:
                 size_t  m = 0;
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
+                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
+                }
+
+                Assert::AreEqual (size_t (0), m,
+                    L"DHGR mono aux half at boot landing must match payload");
+            }
+
+            //  THE ANSWER SELECTS THE PAIR. A monochrome answer shows the
+            //  monochrome images and nothing else -- three steps, then
+            //  round again. The color images stay loaded the whole time
+            //  and simply never appear, which is what the mode 2 / mode 3
+            //  assertions below the re-boot are for.
+
+            // Step 1 -> HGR monochrome. No copy: the image was loaded onto
+            // HGR page 2 and the step is a PAGE2 flip out of DHGR, so what
+            // is asserted is the switch state and that page 2 still holds
+            // the image.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (200'000ULL);
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Step 1 (HGR mono) must keep HIRES on");
+            Assert::IsTrue (ss->IsPage2(),
+                L"Step 1 (HGR mono) must select PAGE2, where the image is");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Step 1 (HGR mono) must keep TEXT off");
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"HGR mono cassowary still on page 2 at step 1");
+
+            //  Step 2, the hi-res color-mask sweep: HGR, then POKE 228
+            //  / HPLOT 0,0 / CALL -3082 round and round until a key. Two
+            //  things are worth asserting and one is not. The mask
+            //  counter advancing proves the loop is running, and $E4 is
+            //  exact, so that is checked rather than eyeballing pixels.
+            //  The page no longer matching what step 1 left proves BKGND
+            //  is actually painting. What is NOT checked is the fill's
+            //  content: it is mid-flight at any given cycle, and
+            //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
+            //  models what BKGND paints, mask by mask, against the ROM.
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (1'500'000ULL);
+
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Step 2 (sweep) must turn HIRES on");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Step 2 (sweep) must keep TEXT off");
+            Assert::IsFalse (ss->IsMixedMode(),
+                L"Step 2 (sweep) must clear the MIXED that HGR sets");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Step 2 (sweep) paints hi-res page 1");
+
+            {
+                Byte    mask   = core.bus->ReadByte (0x0048);
+                size_t  intact = 0;
+
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                        == hgrMonoPayload[i])
+                    {
+                        intact++;
+                    }
+                }
+
+                Assert::IsTrue (intact < kHgrPayloadSize,
+                    L"the sweep must paint over what step 1 left on the page");
+
+                core.RunCycles (1'500'000ULL);
+
+                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                    L"the sweep's mask counter must keep advancing, or the "
+                    L"sweep has stopped sweeping");
+            }
+
+            quietMark = core.speaker->GetToggleTimestamps().size();
+            core.keyboard->KeyPressRaw (' ');
+            core.RunCycles (500'000ULL);
+            //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  handler does not clear 80COL, so exiting from a DHGR step
+            //  dropped into Applesoft with the 80-column hardware on and
+            //  the 80-column firmware not hooked up to match -- half-width
+            //  glyphs, and typing that misbehaves. do_exit sets the mode
+            //  explicitly now, and this is the guard on that.
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"do_exit must leave TEXT on");
+            Assert::IsFalse (ss->Is80ColMode(),
+                L"do_exit must leave 80COL off -- 40-column text is what "
+                L"Applesoft is about to write into");
+            Assert::IsFalse (ss->Is80Store(),
+                L"do_exit must leave 80STORE off");
+            Assert::IsFalse (ss->IsDoubleHiRes(),
+                L"do_exit must leave DHIRES off");
+            Assert::IsFalse (ss->IsPage2(),
+                L"do_exit must leave PAGE1 selected");
+
+            //  AND IT HAS TO HAND OVER A LIVE APPLESOFT, with the sign-off
+            //  still on the screen under it. Both halves are the point:
+            //  the demo wipes the text page and writes its own last line
+            //  while the picture is still up, and Applesoft's cold start
+            //  leaves the screen alone, so what the user is left looking
+            //  at is the sign-off with a prompt below it rather than
+            //  whatever the demo happened to leave in text memory.
+            AssertSignedOffToBasic (core, L"the monochrome route", quietMark);
+
+            //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
+            //  C instead: a different pair of images, reached by re-staging
+            //  the framebuffer out of the staging areas the load phase left
+            //  holding the color halves. This is the half of the feature the
+            //  M path never exercises -- and the half where the wrap has to
+            //  do real work rather than just re-issuing switches.
+            //  A power cycle drops what the drive was holding and hands
+            //  out fresh MMU buffers, so the disk has to be re-bound and
+            //  every cached pointer re-fetched before the second boot.
+            core.PowerCycle();
+            core.diskController->SetExternalDisk (0, img);
+            ss     = core.softSwitches.get();
+            auxBuf = core.mmu->GetAuxBuffer();
+            Assert::IsNotNull (ss,     L"soft switches must survive the re-boot");
+            Assert::IsNotNull (auxBuf, L"aux buffer must survive the re-boot");
+
+            core.RunCycles (kDemoCycleBudget);
+
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"The re-booted demo must wait in TEXT for its answer too");
+
+            core.keyboard->KeyPressRaw ('C');
+            core.RunCycles (600'000ULL);
+
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Answering C must leave the //e in graphics mode");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Mode 2 (DHGR color) must select PAGE1");
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Mode 2 (DHGR color) must enable HIRES");
+
+            VerifyMemRange (0x2000, dhgrMainPayload,
+                L"DHGR color main half at main $2000 after answering C");
+            {
+                size_t  m = 0;
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
                     if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
                 }
 
                 Assert::AreEqual (size_t (0), m,
-                    L"DHGR aux half at boot landing must match payload");
+                    L"DHGR color aux half must reach aux $2000 after answering C");
             }
 
-            // Cycle through the 4 display modes with keystrokes
-            Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
-
-            // Keystroke 1 -> mode 1 (HGR1 cassowary). Restores cassowary
-            // from main $A000 stash to main $2000, disables DHGR-specific
-            // soft switches, returns to vanilla HGR.
+            // Step 1 on the color answer is the HGR color cassowary,
+            // restored from the main $A000 stash to page 1.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 1 (HGR1) must keep HIRES on");
+                L"Step 1 (HGR color) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 1 (HGR1) must select PAGE1");
+                L"Step 1 (HGR color) must select PAGE1");
             VerifyMemRange (0x2000, hgrPayload,
-                L"HGR1 cassowary restored to main $2000 in mode 1");
+                L"HGR color cassowary restored to main $2000 at step 1");
 
-            // Keystroke 2 -> mode 2 (HGR2 bands).
+            //  AND THE MONOCHROME IMAGES ARE NOT IN THIS CYCLE. Page 2
+            //  still holds the monochrome HGR image, resident and never
+            //  selected -- which is the difference between the answer
+            //  filtering the cycle and merely choosing where it starts.
+            VerifyMemRange (0x4000, hgrMonoPayload,
+                L"the monochrome HGR image stays loaded but unvisited");
+
+            //  Step 2, the hi-res color-mask sweep: HGR, then POKE 228
+            //  / HPLOT 0,0 / CALL -3082 round and round until a key. Two
+            //  things are worth asserting and one is not. The mask
+            //  counter advancing proves the loop is running, and $E4 is
+            //  exact, so that is checked rather than eyeballing pixels.
+            //  The page no longer matching what step 1 left proves BKGND
+            //  is actually painting. What is NOT checked is the fill's
+            //  content: it is mid-flight at any given cycle, and
+            //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
+            //  models what BKGND paints, mask by mask, against the ROM.
             core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
-            Assert::IsTrue (ss->IsPage2(),
-                L"Mode 2 (HGR2) must enable PAGE2");
+            core.RunCycles (1'500'000ULL);
+
             Assert::IsTrue (ss->IsHiresMode(),
-                L"Mode 2 (HGR2) must keep HIRES on");
-
-            // Keystroke 3 -> mode 3 (LoRes).
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (200'000ULL);
-            Assert::IsFalse (ss->IsHiresMode(),
-                L"Mode 3 (LoRes) must clear HIRES");
+                L"Step 2 (sweep) must turn HIRES on");
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Mode 3 (LoRes) must keep TEXT off");
+                L"Step 2 (sweep) must keep TEXT off");
+            Assert::IsFalse (ss->IsMixedMode(),
+                L"Step 2 (sweep) must clear the MIXED that HGR sets");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 3 (LoRes) must clear PAGE2");
+                L"Step 2 (sweep) paints hi-res page 1");
 
-            // Spot-check the LoRes pattern landed in text page 1.
-            for (size_t i = 0; i < kLoresPayloadSize; i++)
             {
-                Byte  e = 0;
+                Byte    mask   = core.bus->ReadByte (0x0048);
+                size_t  intact = 0;
 
-                Byte  actual = core.bus->ReadByte (
-                    static_cast<Word> (0x0400 + i));
-                e = loresPayload[i];
-                if (actual != e)
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    wchar_t  msg[256] = {};
-                    swprintf_s (msg, L"LoRes pattern copy mismatch at $%04X: "
-                                     L"expected $%02X, got $%02X.",
-                                static_cast<unsigned> (0x0400 + i),
-                                static_cast<unsigned> (e),
-                                static_cast<unsigned> (actual));
-                    Assert::Fail (msg);
+                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                        == hgrPayload[i])
+                    {
+                        intact++;
+                    }
                 }
+
+                Assert::IsTrue (intact < kHgrPayloadSize,
+                    L"the sweep must paint over what step 1 left on the page");
+
+                core.RunCycles (1'500'000ULL);
+
+                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                    L"the sweep's mask counter must keep advancing, or the "
+                    L"sweep has stopped sweeping");
             }
 
-            // Keystroke 4 -> past last mode -> JMP ($FFFC) -> //e RESET.MGR
-            // -> Applesoft. Just assert we're executing in ROM.
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (50'000ULL);
-            Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
-                L"After cycling past last mode, demo must JMP into ROM "
-                L"($D000+, typically the Applesoft cold start at $E000)");
+            //  ESC, the other way out, and from a different mode than the
+            //  monochrome path used. Both routes run the same do_exit, and
+            //  what matters is that it leaves the same habitable screen
+            //  whichever step it was called from.
+            quietMark = core.speaker->GetToggleTimestamps().size();
+            core.keyboard->KeyPressRaw (0x1B);
+            core.RunCycles (200'000ULL);
+            //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  handler does not clear 80COL, so exiting from a DHGR step
+            //  dropped into Applesoft with the 80-column hardware on and
+            //  the 80-column firmware not hooked up to match -- half-width
+            //  glyphs, and typing that misbehaves. do_exit sets the mode
+            //  explicitly now, and this is the guard on that.
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"do_exit must leave TEXT on");
+            Assert::IsFalse (ss->Is80ColMode(),
+                L"do_exit must leave 80COL off -- 40-column text is what "
+                L"Applesoft is about to write into");
+            Assert::IsFalse (ss->Is80Store(),
+                L"do_exit must leave 80STORE off");
+            Assert::IsFalse (ss->IsDoubleHiRes(),
+                L"do_exit must leave DHIRES off");
+            Assert::IsFalse (ss->IsPage2(),
+                L"do_exit must leave PAGE1 selected");
+
+            AssertSignedOffToBasic (core, L"the ESC route out of the color "
+                                          L"cycle", quietMark);
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //

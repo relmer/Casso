@@ -26,12 +26,14 @@ On the horizon:
 - Atari 400/800
 - Commodore VIC-20, 64
 
-Two of the three built-in themes booting the
-[casso-rocks demo disk](Apple2/Demos), same Apple //e core, different chrome:
+The [casso-rocks demo disk](Apple2/Demos) asks which monitor you have and shows
+the cassowary drawn for it. Same photo, same Apple //e core, encoded twice —
+because the same DHGR framebuffer means different things to a color monitor and
+a monochrome one, and an image authored for either reads as noise on the other:
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-color.png" alt="The casso-rocks demo on a color monitor: the cassowary in 16-color DHGR, 140 color cells across" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same disk on a green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
 </tr></table>
 
 `CassoCli` accelerates the retro development loop, with no third-party tool in it:
