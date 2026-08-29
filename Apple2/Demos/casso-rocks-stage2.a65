@@ -106,10 +106,12 @@
 ;      monochrome HGR image instead.
 ;
 ;    Exit:
-;      JMP ($FFFC) hands off to the //e RESET.MGR which does the
-;      vanilla power-on cleanup before entering Applesoft. We
-;      pre-clear both text pages (main and aux) ourselves because
-;      the reset handler doesn't.
+;      Both text pages are wiped, the sign-off goes onto page 1, the
+;      firmware hooks and the 40-column text window go back, and then
+;      Applesoft's cold start takes over. All of it happens while the
+;      display is still showing the picture, so the screen changes
+;      once: from the last image to the sign-off with the prompt
+;      under it.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines via
 ;  hard-coded entry-point addresses (stage 1 lives at $0801-$08FF).
@@ -143,6 +145,13 @@ MOTOROFF  = $C0E8          ; slot 6 Disk II motor-off soft switch
                            ; demo that doesn't issue it explicitly
                            ; leaves the drive spinning until Ctrl-Reset)
 
+; -- Monitor entry points (published, and the same on the ][, ][+, //e, //c)
+BASIC     = $E000          ; Applesoft cold start
+INIT      = $FB2F          ; 40-column TEXT on, full window, cursor to row 23
+VTAB      = $FC22          ; recompute BASL/BASH from CV
+SETKBD    = $FE89          ; KSW back to KEYIN
+SETVID    = $FE93          ; CSW back to COUT1
+
 ; -- Stage 1 entry points (must match casso-rocks.a65 exactly) -------------
 S1_LOAD_A    = $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B    = $0828       ; sta DBASE / step head b / jmp read_track
@@ -154,6 +163,10 @@ MASK      = $48            ; the sweep's current color mask
 ODDMASK   = $49            ; what it paints odd bytes with
 SRC_PTR   = $4C            ; ($4C),y indirect-indexed source pointer
 DST_PTR   = $4A            ; ($4A),y indirect-indexed dest pointer
+
+; -- Monitor zero page (where BASIC's prompt lands on the way out) --------
+CH        = $24            ; cursor column within the text window
+CV        = $25            ; cursor row
 
 
 start
@@ -214,6 +227,12 @@ start
     lda #$B0
     jsr S1_LOAD_A          ; tracks 12 -> 13
 
+    ; Every track is in, so stop the drive. Nothing reads it again, and
+    ; nothing else in the demo -- or in the //e's reset handler --
+    ; touches $C0E8, so without this the motor stays latched on for as
+    ; long as the demo is up, and past the exit as well.
+    sta MOTOROFF
+
     ; --- The answer -------------------------------------------------------
     ; Everything is resident by now, so whichever pair they pick appears
     ; at once. A key pressed during the loads is still sitting in the
@@ -232,12 +251,20 @@ wait_answer
     beq do_exit
     jmp wait_answer
 
+; THE QUESTION COMES OFF THE TEXT PAGE THE MOMENT IT IS ANSWERED, and
+; not on the way out. The text page is not on display once the pictures
+; are up, but it is still what the machine falls back to: Ctrl-Reset,
+; the emulator's own reset button, and anything else that puts the //e
+; back in TEXT shows whatever is sitting there. Leaving the question
+; there meant those landed on a screen that still read as a prompt and
+; no longer answered to C or M.
 answer_mono
     ; stage_dhgr has already put the monochrome halves in the
     ; framebuffer, so step 0 is the display switches alone.
     lda #0
     sta PAIR
     sta STEP
+    jsr clear_text_both
     jsr show_dhgr
     jmp poll
 
@@ -246,18 +273,23 @@ answer_color
     sta PAIR
     lda #0
     sta STEP
+    jsr clear_text_both
     jmp mode_dhgr          ; takes the color branch and stages it
 
 
 poll
     lda KBD
     bpl poll
+    bit STROBE             ; BEFORE the ESC test, not after it. ESC used
+                           ; to leave the strobe set, so Applesoft's
+                           ; GETLN read the ESC as its own first
+                           ; keystroke, went into cursor-move mode, and
+                           ; swallowed the character typed after it.
     cmp #$9B               ; ESC?
     beq do_exit
-    bit STROBE
 
     ; Three steps: the chosen pair's DHGR, then its HGR, then the
-    ; LoRes bars. Past the last one, fall through into do_exit.
+    ; hi-res sweep. Past the last one, fall through into do_exit.
     inc STEP
     lda STEP
     cmp #1
@@ -270,78 +302,90 @@ poll_chk2                  ; dispatch and the handlers, and it has grown
 
 
 do_exit
-    ; Drop to BASIC via the official //e reset vector. Going through
-    ; ($FFFC) hands off to the //e RESET.MGR which does the full
-    ; power-on cleanup (40-col TEXT, no DHIRES, no 80STORE, etc.)
-    ; before entering Applesoft. JMP $E000 directly is fragile —
-    ; even after manual soft-switch cleanup it JMPs through stale
-    ; work-area pointers and lands in video memory.
+    ; THE DISPLAY STAYS IN GRAPHICS UNTIL THE TEXT PAGE IS FINISHED.
+    ; Everything below runs before INIT turns TEXT back on, so the
+    ; screen changes once -- from the last picture to the sign-off with
+    ; the prompt under it -- rather than showing a half-built page on
+    ; the way.
     ;
-    ; PUT THE VIDEO MODE BACK FIRST, and do not leave it to the reset
-    ; handler: it restores enough for a machine that was in text mode
-    ; anyway, but it does not clear 80COL. Exiting from a DHGR step
-    ; therefore dropped into Applesoft with the 80-column hardware still
-    ; on and the 80-column firmware not hooked up to match —
-    ; half-width glyphs, and typing that behaves strangely because COUT
-    ; is writing 40-column output onto an 80-column screen. It only
-    ; became reachable when the answer could leave the cycle sitting on
-    ; a DHGR step; before that the last mode was always one that had
-    ; already cleared 80COL on its way in.
+    ; The soft switches go back by hand rather than being left to the
+    ; reset handler, which restores enough for a machine that was
+    ; already in text but does not clear 80COL. Exiting from a DHGR step
+    ; therefore dropped into Applesoft with the 80-column hardware on
+    ; and the 80-column firmware not hooked up to match: half-width
+    ; glyphs, and typing that behaved strangely because COUT was writing
+    ; 40-column output onto an 80-column screen.
     ;
-    ; 80STORE has to go off before the text pages are cleared for a
-    ; second reason: with it on, writes to $0400-$07FF route by PAGE2
-    ; rather than by RAMWRT, and the two clears below depend on RAMWRT.
-    sta STORE80OFF         ; 80STORE off — RAMWRT now routes text writes
+    ; 80STORE goes off first for a second reason: with it on, writes to
+    ; $0400-$07FF route by PAGE2 rather than by RAMWRT, and the wipe
+    ; below depends on RAMWRT.
+    sta STORE80OFF         ; 80STORE off -- RAMWRT now routes text writes
     sta COL80OFF
     bit DHIRESOFF
-    bit TXTON
     bit MIXOFF
     bit PG2OFF
 
+    jsr clear_text_both
+
+    ; The sign-off, poked onto the page the way the question was. Row 21
+    ; column 2 is $06D2 by the text screen's own interleave, and 35
+    ; characters at column 2 is centered in 40.
+    ldx #0
+sp_bye
+    lda bye_line,x
+    beq sp_bye_done
+    ora #$80
+    sta $06D2,x
+    inx
+    bne sp_bye
+sp_bye_done
+
+    ; The firmware hooks, then INIT. SETKBD/SETVID first is
+    ; load-bearing: without them the //e's own reset path finds the
+    ; 80-column firmware still hooked up, restores it, and turns 80COL
+    ; back on.
+    jsr SETKBD
+    jsr SETVID
+    jsr INIT               ; 40-column TEXT on, full window
+
+    ; Where BASIC's prompt lands. Applesoft emits exactly two carriage
+    ; returns between here and its first prompt -- one in the cold start
+    ; and one at the head of the READY loop -- and GETLN then prints "]"
+    ; wherever the cursor ended up. Starting on the sign-off's own row
+    ; therefore puts the prompt on row 23 with a blank line between,
+    ; and nothing scrolls. INIT would have left the cursor on row 23,
+    ; where those two returns would have scrolled the sign-off up two.
+    lda #21
+    sta CV
+    jsr VTAB               ; BASL/BASH from CV
+    lda #0
+    sta CH
+
+    ; Applesoft's cold start, direct. It sets up its own work area and
+    ; leaves the screen alone, so the sign-off survives into BASIC.
+    ; $E003, the warm start, does not: nothing has ever set that work
+    ; area up on a machine that booted straight to this disk, so it
+    ; lands in the monitor dumping registers.
+    ;
+    ; NOTE FOR ANYONE CHANGING THIS: BootDiskTests exercises the exit on
+    ; both answers through a real //e power-on -- the processor is left
+    ; on its own reset vector and the ROM boots the disk itself -- so
+    ; the firmware hooks and the soft-entry vector at $03F2 are the ones
+    ; a real machine has. The older harness jumped straight into the
+    ; boot PROM at $C600 and reproduced neither.
+    jmp BASIC
+
+
+; ----------------------------------------------------------------------------
+; clear_text_both -- wipe text page 1 in BOTH banks. 80STORE must be off:
+;                    with it on, writes to $0400-$07FF route by PAGE2 and
+;                    ignore RAMWRT entirely.
+; ----------------------------------------------------------------------------
+clear_text_both
     sta RAMWRTON
     jsr clear_text_page1
     sta RAMWRTOFF
-    jsr clear_text_page1
-
-    sta MOTOROFF           ; arm Disk II spindown -- without this the
-                           ; drive motor stays latched on across the
-                           ; reset because the //e RESET.MGR never
-                           ; touches $C0E8.
-
-    ; PUT THE FIRMWARE HOOKS BACK, THEN LET THE RESET VECTOR DO THE
-    ; HAND-OFF. Both halves of that are load-bearing, and each was
-    ; arrived at by breaking the other:
-    ;
-    ;   - Without SETKBD/SETVID, the //e RESET.MGR restores the
-    ;     80-column firmware hook on its way past and turns 80COL back
-    ;     on, so the demo dropped into Applesoft in 80 columns with
-    ;     half-width glyphs and typing that misbehaved. Resetting the
-    ;     hooks first leaves it nothing to restore.
-    ;
-    ;   - Without the reset vector -- jumping to $E000 directly instead
-    ;     -- the color cycle re-booted the disk rather than exiting,
-    ;     while the monochrome cycle exited cleanly. $E000 is
-    ;     JMP $F128, Applesoft's cold start with its RAM-sizing scan;
-    ;     what about the color path upsets it was not established.
-    ;     $E003, the warm start, is worse still: it lands in the
-    ;     monitor dumping registers, because Applesoft's work area has
-    ;     never been set up on a machine that booted straight to this
-    ;     disk. Going through the handler gets a properly initialized
-    ;     Applesoft on both cycles.
-    ;
-    ; The three entry points are the monitor's published ones,
-    ; unchanged across the ][, ][+, //e and //c.
-    ;
-    ; NOTE FOR ANYONE CHANGING THIS: the headless harness is not an
-    ; oracle here. It jumps straight into the boot PROM at $C600 and so
-    ; never runs the //e power-on, which means it has no firmware hooks
-    ; for the reset handler to restore and does not reproduce either
-    ; failure. Both were found, and both fixes confirmed, by exiting in
-    ; the emulator and typing at the prompt.
-    jsr $FB2F              ; INIT   - text mode, full window
-    jsr $FE89              ; SETKBD - KSW back to KEYIN
-    jsr $FE93              ; SETVID - CSW back to COUT1
-    jmp ($FFFC)            ; reset vector -> //e RESET.MGR -> Applesoft
+    jmp clear_text_page1   ; tail call: its rts returns to our caller
 
 
 ; ----------------------------------------------------------------------------
@@ -606,6 +650,9 @@ ask_line
     .byte 0
 keys_line
     .text "C = COLOR      M = MONOCHROME"
+    .byte 0
+bye_line
+    .text "THANKS FOR WATCHING THE CASSO DEMO."
     .byte 0
 
 

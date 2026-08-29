@@ -13,6 +13,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Video/AppleHiResMode.h"
+#include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -69,9 +70,15 @@ public:
     static constexpr int       kSectorsPerTrack  = 16;
     static constexpr int       kStage2Sectors    = 3;      // stage 2 spans three sectors
     static constexpr Word      kHgrBase          = 0x2000;
-    static constexpr Word      kBootEntry        = 0xC600;
     static constexpr Word      kDemoEntry        = 0x0801;
     static constexpr Word      kStage2Entry      = 0x1000;
+    static constexpr int       kSignOffRow       = 21;
+    static constexpr int       kPromptRow        = 23;
+
+    //  The line the demo leaves on the screen on its way out.
+    static constexpr const char *  kSignOffText =
+        "THANKS FOR WATCHING THE CASSO DEMO.";
+
     //  A track read is 18 sector slots -- see read_track's comment on why it
     //  over-reads -- which is 1.125 revolutions, about 750k cycles once head
     //  stepping and resync are counted. Thirteen tracks is therefore ~9.8M,
@@ -136,6 +143,77 @@ public:
         }
 
         return text;
+    }
+
+
+    //  The screen do_exit hands over, and proof that what it handed to is
+    //  really Applesoft.
+    //
+    //  do_exit writes its sign-off on row 21 and leaves the cursor on that
+    //  same row, from where Applesoft's own two carriage returns -- one in
+    //  the cold start, one at the head of the READY loop -- put the "]" on
+    //  row 23 without scrolling anything.
+    //
+    //  TYPING IS THE PART NO SOFT-SWITCH ASSERTION CAN STAND IN FOR. It
+    //  exercises CSW, KSW, the text window and the 40-column screen at
+    //  once, and every exit bug this demo has had presented as a machine
+    //  that looked settled and could not be typed at: 80COL left on so
+    //  COUT wrote 40-column output onto an 80-column screen, and an ESC
+    //  left in the keyboard latch for GETLN to read as a cursor move and
+    //  swallow the next character with.
+    void AssertSignedOffToBasic (EmulatorCore & core, const wchar_t * route)
+    {
+        std::vector<std::string>  screen;
+        wchar_t                   msg[256]  = {};
+        const char *              typed     = "PRINT 2+2";
+        const char *              echo      = "]PRINT 2+2";
+        size_t                    echoRow   = 0;
+        bool                      echoed    = false;
+
+        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+
+        Assert::IsTrue (screen.size() > size_t (kPromptRow),
+            L"the text screen must have all 24 rows");
+
+        Assert::IsTrue (
+            screen[kSignOffRow].find (kSignOffText) != std::string::npos,
+            (swprintf_s (msg, L"%ls: the sign-off must be on row %d, which "
+                              L"reads \"%hs\".",
+                         route, kSignOffRow, screen[kSignOffRow].c_str()), msg));
+
+        Assert::AreEqual (']', screen[kPromptRow][0],
+            L"Applesoft's prompt must be in column 0 of the bottom row");
+
+        Assert::IsFalse (core.diskController->IsMotorOn(),
+            L"the drive must be stopped by the time the demo hands over");
+
+        for (size_t i = 0; typed[i] != '\0'; i++)
+        {
+            core.keyboard->KeyPressRaw (typed[i]);
+            core.RunCycles (100'000ULL);
+        }
+
+        core.keyboard->KeyPressRaw ('\r');
+        core.RunCycles (2'000'000ULL);
+
+        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+
+        for (size_t r = 0; !echoed && r + 1 < screen.size(); r++)
+        {
+            if (screen[r].find (echo) != std::string::npos)
+            {
+                echoRow = r;
+                echoed  = true;
+            }
+        }
+
+        Assert::IsTrue (echoed,
+            (swprintf_s (msg, L"%ls: Applesoft must echo what is typed at it.",
+                         route), msg));
+
+        Assert::AreEqual ('4', screen[echoRow + 1][0],
+            (swprintf_s (msg, L"%ls: Applesoft must run what is typed at it "
+                              L"-- PRINT 2+2 must print 4.", route), msg));
     }
 
 
@@ -399,20 +477,23 @@ public:
             GuestSession::AssertTheDriveCanReadTheBootSector (
                 *img, L"the assembled demo disk");
 
-            core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
-
-            //  CSW and KSW, which a real power-on would have installed and
-            //  this harness never does: it jumps straight into the boot
-            //  PROM at $C600. The demo hands control back to firmware that
-            //  calls through both hooks, so without them the machine it
-            //  hands back to cannot print its own prompt.
-            core.bus->WriteByte (0x0036, 0xF0);   // CSW = COUT1 ($FDF0)
-            core.bus->WriteByte (0x0037, 0xFD);
-            core.bus->WriteByte (0x0038, 0x1B);   // KSW = KEYIN ($FD1B)
-            core.bus->WriteByte (0x0039, 0xFD);
-
-            core.cpu->SetPC (kBootEntry);
-
+            //  NOTHING POINTS THE PROCESSOR ANYWHERE. PowerCycle leaves it
+            //  on the //e's own reset vector, so the ROM runs the power-on
+            //  and boots the disk itself: it installs CSW and KSW, writes
+            //  the break vector, the soft-entry vector at $03F2 and the
+            //  power-up byte at $03F4 from its own table, and then scans
+            //  the slots and finds the Disk II.
+            //
+            //  This used to jump straight into the boot PROM at $C600 with
+            //  the two hooks poked in by hand, which is three or four
+            //  bytes' worth of a power-on and made the harness useless for
+            //  the one thing the demo does at the end: hand the machine
+            //  back. With no power-up byte the reset handler always took
+            //  its cold path and re-booted slot 6, so an exit that worked
+            //  and an exit that crashed looked identical from here, and
+            //  the exit bugs were all found by hand in the emulator
+            //  instead. Booting the way the machine does costs about
+            //  200k cycles.
             core.RunCycles (kDemoCycleBudget);
 
             // BOOT LANDING IS THE QUESTION, NOT A PICTURE. Nothing can
@@ -622,21 +703,7 @@ public:
 
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (500'000ULL);
-            //  WHERE IT ENDS UP IS NOT CHECKABLE HERE. do_exit hands off
-            //  through the reset vector, and this harness jumps straight
-            //  into the boot PROM at $C600 rather than running the //e
-            //  power-on -- so the power-up byte at $3F4 is never made
-            //  valid, the handler takes its COLD path, and a cold start on
-            //  this machine re-boots slot 6. The demo comes back rather
-            //  than exiting, and no assertion about the PC can tell that
-            //  apart from a genuine failure. On a machine that powered on
-            //  normally the same code reaches Applesoft; that is verified
-            //  in the emulator, by exiting and typing at the prompt.
-            //
-            //  What IS worth asserting is the mode do_exit leaves behind,
-            //  below. It runs before the hand-off either way.
-
-            //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
             //  the 80-column firmware not hooked up to match -- half-width
@@ -654,6 +721,15 @@ public:
             Assert::IsFalse (ss->IsPage2(),
                 L"do_exit must leave PAGE1 selected");
 
+            //  AND IT HAS TO HAND OVER A LIVE APPLESOFT, with the sign-off
+            //  still on the screen under it. Both halves are the point:
+            //  the demo wipes the text page and writes its own last line
+            //  while the picture is still up, and Applesoft's cold start
+            //  leaves the screen alone, so what the user is left looking
+            //  at is the sign-off with a prompt below it rather than
+            //  whatever the demo happened to leave in text memory.
+            AssertSignedOffToBasic (core, L"the monochrome route");
+
             //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
             //  C instead: a different pair of images, reached by re-staging
             //  the framebuffer out of the staging areas the load phase left
@@ -670,12 +746,6 @@ public:
             Assert::IsNotNull (ss,     L"soft switches must survive the re-boot");
             Assert::IsNotNull (auxBuf, L"aux buffer must survive the re-boot");
 
-            core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
-            core.bus->WriteByte (0x0036, 0xF0);
-            core.bus->WriteByte (0x0037, 0xFD);
-            core.bus->WriteByte (0x0038, 0x1B);
-            core.bus->WriteByte (0x0039, 0xFD);
-            core.cpu->SetPC (kBootEntry);
             core.RunCycles (kDemoCycleBudget);
 
             Assert::IsFalse (ss->IsGraphicsMode(),
@@ -773,21 +843,7 @@ public:
             //  whichever step it was called from.
             core.keyboard->KeyPressRaw (0x1B);
             core.RunCycles (200'000ULL);
-            //  WHERE IT ENDS UP IS NOT CHECKABLE HERE. do_exit hands off
-            //  through the reset vector, and this harness jumps straight
-            //  into the boot PROM at $C600 rather than running the //e
-            //  power-on -- so the power-up byte at $3F4 is never made
-            //  valid, the handler takes its COLD path, and a cold start on
-            //  this machine re-boots slot 6. The demo comes back rather
-            //  than exiting, and no assertion about the PC can tell that
-            //  apart from a genuine failure. On a machine that powered on
-            //  normally the same code reaches Applesoft; that is verified
-            //  in the emulator, by exiting and typing at the prompt.
-            //
-            //  What IS worth asserting is the mode do_exit leaves behind,
-            //  below. It runs before the hand-off either way.
-
-            //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
             //  the 80-column firmware not hooked up to match -- half-width
@@ -804,6 +860,9 @@ public:
                 L"do_exit must leave DHIRES off");
             Assert::IsFalse (ss->IsPage2(),
                 L"do_exit must leave PAGE1 selected");
+
+            AssertSignedOffToBasic (core, L"the ESC route out of the color "
+                                          L"cycle");
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //

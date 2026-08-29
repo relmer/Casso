@@ -34,6 +34,16 @@ Entries before versioning was introduced use dates only.
   disk, and `scripts/HgrPreprocess.py` still generates either on demand.
 
 ### Fixed
+- **The casso-rocks demo signs off instead of just vanishing** -- a thank-you
+  line that stays on screen with the BASIC prompt under it. It also wipes the
+  monitor question the moment it is answered, so a reset partway through no
+  longer lands on a screen that still looks like a prompt and no longer
+  answers.
+
+- **The demo stops the drive once the last track is read** instead of leaving
+  the motor spinning for as long as it is up, and ESC out of the cycle no
+  longer leaves the key in the latch for Applesoft to swallow.
+
 - **`run` diagnostics quoted flags back in the wrong convention.** The grammar
   canonicalizes `/max-cycles` to `--max-cycles` before matching it, and the
   prefix was read after that, so it was always a dash: a reader working in the
