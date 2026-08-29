@@ -706,6 +706,17 @@ private:
         return DeskSceneActive() && m_globalPrefs.crtMonitor;
     }
 
+    // Whether a point falls inside the scene's OWN rect -- the band between
+    // the chrome bands, which is what the composition is solved into. A
+    // press outside it is on the toolbar, the status bar or the menu strip,
+    // and a gesture that begins on the scene must not begin there.
+    bool    PointInSceneRect     (int x, int y) const
+    {
+        const RECT &  vp = m_deskScene.Composition().viewportPx;
+
+        return x >= vp.left && x < vp.right && y >= vp.top && y < vp.bottom;
+    }
+
     // Initializes the desk scene renderer against the host device and loads
     // the embedded device models. Failure leaves the scene off (asserting
     // in debug -- a broken embedded asset is a build defect) and the 2D

@@ -8799,11 +8799,13 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT            hr       = S_OK;
-    DxuiMessageResult  result   = DxuiMessageResult::NotHandled;
-    int                x        = ((int) (short) LOWORD (lParam));
-    int                y        = ((int) (short) HIWORD (lParam));
-    bool               consumed = false;
+    HRESULT            hr          = S_OK;
+    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
+    int                x           = ((int) (short) LOWORD (lParam));
+    int                y           = ((int) (short) HIWORD (lParam));
+    bool               consumed    = false;
+    bool               toolbarTook = false;
+    bool               chromeTook  = false;
 
 
 
@@ -8843,25 +8845,35 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
+    chromeTook = m_joystickButton.HitTest (x, y);
+
+    m_joystickButton.SetPressed (chromeTook);
 
     // Command toolbar press (button press states + slider drag start).
-    if (m_toolbar.OnToolbarLButtonDown (x, y))
+    toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
+
+    if (toolbarTook)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
+    chromeTook = chromeTook || toolbarTook;
+
     if (IsApple2c())
     {
-        m_switchBar.SetPressedPart (m_switchBar.PartAt (x, y));
+        Apple2cSwitchBar::Part  part = m_switchBar.PartAt (x, y);
+
+        m_switchBar.SetPressedPart (part);
+
+        chromeTook = chromeTook || part != Apple2cSwitchBar::Part::None;
     }
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
-    // the press. Its return is moot here: nothing else in this handler
-    // depends on whether the click was consumed, and we always report the
-    // message as not fully handled.
-    consumed = m_uiShell.OnLButtonDown (x, y);
-    IGNORE_RETURN_VALUE (consumed, false);
+    // the press. We still report the message as not fully handled, but its
+    // verdict is not moot: a widget that took the press owns the release
+    // too, and the scene gestures below must not arm over it.
+    consumed   = m_uiShell.OnLButtonDown (x, y);
+    chromeTook = chromeTook || consumed;
 
     // //c Mouse mode (non-capturing): a press over the emulator display is
     // the guest mouse button -- but only once guest software has turned the
@@ -8907,7 +8919,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
     // Never in fullscreen, where the desk is not on screen.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-        (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen())
+        (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen() &&
+        PointInSceneRect (x, y) && !chromeTook)
     {
         BeginSceneOrbit (x, y);
         m_sceneOrbitLeftBtn = true;
@@ -8951,7 +8964,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // beside the zoom on its pinch. Guarded on a scene TARGET miss so a
     // click on the glass, a drive, or a tilt mark keeps meaning what it
     // meant.
-    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !GuestMouseLive())
+    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the
+    // press. A scene hit of None is true of every pixel of the toolbar and
+    // the status bar as well -- there is no machine out there to hit -- so
+    // arming on that alone armed a turn under the command buttons, and the
+    // release that would have fired them ended the turn instead.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        !m_mainMenu.IsOpen() && !GuestMouseLive() &&
+        PointInSceneRect (x, y) && !chromeTook)
     {
         SceneHitResult  hit = DeskSceneHit (x, y);
 
