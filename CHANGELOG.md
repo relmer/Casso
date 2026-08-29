@@ -9,115 +9,47 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Changed
-- **`CassoCli run` now requires `--as65` or `--merlin` for a source file.**
-  It used to assume as65, which is the same guess the bare `CassoCli prog.a65`
-  form was removed for in 1.18.0: the dialect decides what the source means, so
-  the same text can assemble two ways. A source given with neither flag is
-  refused with exit status 2 and an error listing both. **This will break
-  scripts** that ran `run` on a source without a dialect flag; add `--as65` to
-  keep the old behavior. Binaries are unaffected, so `run prog.bin` is
-  unchanged.
-- **`as65 -x` now emits `BRA` where AS65 does, so some sources assemble to
-  different bytes.** AS65 rewrites `JMP addr` as a two-byte `BRA` when the
-  65SC02 set is active, the target is already defined, and the displacement
-  fits in a signed byte. Casso always wrote the three-byte `JMP`. A backward,
-  in-range `jmp` assembled under `-x` now produces an image one byte shorter,
-  and every label below it moves. The old output was the divergence, but the
-  change is visible: pass `-n`, or put `NOOPT` in the source, to keep the
-  previous bytes. Nothing changes without `-x`, and forward references are
-  never rewritten.
+- **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
+  used to assume as65. Binaries are unaffected.
+- **`as65 -x` now emits `BRA` for a backward, in-range `JMP`, as AS65 does.**
+  Affected sources assemble one byte shorter and every label below moves; `-n`
+  or `NOOPT` keeps the old bytes.
 
 ### Added
-- **`OPT`, `NOOPT` and `-n` control the `JMP`-to-`BRA` substitution.**
-  Optimization is on by default, as in AS65. `NOOPT` turns it off from that
-  line on, `OPT` turns it back on, and `-n` disables it for the whole assembly
-  and overrides any `OPT` in the source. All three were previously accepted and
-  ignored.
+- **`OPT`, `NOOPT` and `-n` control the `JMP`-to-`BRA` substitution.** On by
+  default, as in AS65; `-n` overrides an `OPT` in the source.
 
 ### Fixed
-- **`run` echoed flags back in the wrong convention.** The grammar rewrites
-  `/max-cycles` to `--max-cycles` before matching, and the prefix was read
-  afterward, so every diagnostic came back with a dash even for someone working
-  in the Windows convention -- including the ones telling them what to type.
-  The prefix is now taken from the argument as typed.
-- **Dropping a `.nib` on a drive did nothing, silently.** The drag-and-drop
-  filter and the disk picker's folder scan accepted five extensions; the loader
-  has only ever handled four. A nibble image passed the filter, was accepted as
-  a drop, then failed to load with no message, and on the drop path was even
-  recorded in the recent-disks list as though it had mounted. The filter now
-  answers from the loader's own routing table instead of keeping a second list,
-  so the two cannot disagree again. Casso mounts `.dsk`, `.do`, `.po` and
-  `.woz`; `.nib` support is planned separately.
-- **`-c` listings were missing or wrong for 65C02 instructions.** The listing
-  scored every instruction from an NMOS table. The 65C02 puts `TSB`, `TRB`,
-  `STZ`, the `(zp)` mode, `INC A` / `DEC A`, the added `BIT` forms,
-  `PHX` / `PHY` / `PLX` / `PLY`, `JMP (abs,X)`, `BRA` and the Rockwell
-  `RMBn` / `SMBn` / `BBRn` / `BBSn` in slots that table scores as illegal, so
-  59 opcodes read back zero and listed with no count at all. `JMP (abs)` was
-  worse than missing: both parts use `$6C`, so a 65C02 listing printed the NMOS
-  five where the part takes six. Counts now come off the instruction itself,
-  the same value the emulator bills, so a listing and the emulated timing
-  cannot disagree. NMOS counts are unchanged.
+- **`run` echoed flags back with a dash even on a `/`-style command line.**
+- **Dropping a `.nib` on a drive did nothing, silently, and still recorded the
+  file in the recent-disks list.** The filter now answers from the loader's own
+  routing table, so the two cannot disagree. Casso mounts `.dsk`, `.do`, `.po`
+  and `.woz`.
+- **`-c` listings omitted the cycle count for 59 65C02 opcodes, and printed the
+  NMOS value for `JMP (abs)`.** Counts now come off the instruction itself, the
+  same value the emulator bills. NMOS counts are unchanged.
 - **The emulated 65C02 spent a cycle too many on `ASL`, `LSR`, `ROL` and `ROR`
-  in `abs,X`.** These are seven cycles on the NMOS 6502 however the indexed
-  address lands, and the CMOS core inherited that. The 65C02 made the last
-  cycle conditional: six normally, seven only when the address crosses a page.
-  **This changes emulated timing, not just a printed number**, so software that
-  counts cycles on an Enhanced //e or //c runs slightly differently. Four
-  opcodes are affected (`$1E`, `$3E`, `$5E`, `$7E`), CMOS only. `INC` and `DEC`
-  in `abs,X` are seven on both parts and are untouched, as is all NMOS timing.
+  in `abs,X`.** They take six, or seven when the indexed address crosses a
+  page. **This changes emulated timing** on the Enhanced //e and //c.
 - **The Harte vectors now check instruction timing, not just results.** The
-  packed fixtures kept only each vector's start and end state and discarded the
-  upstream per-cycle trace, so the suite verified what an instruction computed
-  and never what it cost -- no depth of vectors could catch a timing error.
-  Fixtures now carry the recorded cycle count and the runner compares it
-  against what the emulator billed. One byte per vector, 2% more fixture. The
-  format carries a version, so a set generated before this fails loudly rather
-  than being read a byte out of step. It found two timing bugs on its first
-  run, both fixed in this release.
+  packed fixtures discarded the upstream per-cycle trace, so no depth of
+  vectors could catch a timing error. They carry the cycle count now, at one
+  byte per vector, and the format is versioned so older sets are refused.
 - **A branch taken to the very next instruction was billed a cycle short.** A
-  taken branch costs an extra cycle, and the core decided whether one had been
-  taken by checking whether `PC` moved. That works for every displacement but
-  zero: a branch with a displacement of zero is still taken -- to the
-  instruction immediately after it -- and leaves `PC` exactly where an untaken
-  branch would, so it was billed two cycles instead of three. **This changes
-  emulated timing on both cores**, for every conditional branch and for `BRA`.
-  The branch operations now report whether they branched instead of it being
-  inferred from `PC`.
-- **`BBRn` and `BBSn` did not pay for branching.** The Rockwell bit-test
-  branches were billed a flat five cycles however they resolved. They cost like
-  branches: five when the bit test fails, six when taken, seven when taken to a
-  different page. **This changes emulated timing on the 65C02** for all sixteen
-  opcodes, which the //c ROM 4 and Enhanced //e firmware use. Sourced from
-  Bruce Clark's "65C02 Opcodes" at 6502.org and the oxyron.de 65C02 matrix,
-  which agree per opcode.
-- **A disk image that fails to mount now says so.** The mount runs on the
-  emulation thread and its result was discarded there, so a file Casso could
-  not open produced no dialog, no message and no log line -- the machine came
-  up at a bare text screen and sat there. The result is now carried back to the
-  UI thread and reported with the file and the reason. A failure at startup,
-  from `--disk1`, `--disk2` or a remembered disk, is reported once the window
-  is up rather than as a dialog during launch.
+  zero displacement is still taken, but leaves `PC` where an untaken branch
+  would. **This changes emulated timing** on both cores, for every conditional
+  branch and `BRA`.
+- **`BBRn` and `BBSn` were billed a flat five cycles.** They cost five, six
+  when taken, and seven when taken across a page. **This changes emulated
+  timing** on the 65C02.
+- **A disk image that fails to mount now says so**, rather than leaving the
+  machine at a bare text screen with no message.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-  Mounting from the drive widgets, the menu, a drag and drop or the command
-  line recorded the path before the mount had happened, so a file the loader
-  went on to refuse was offered by the picker from then on. Recording now waits
-  for the mount's result.
-- **A refused disk image now explains why it was refused.** Every failure
-  except an unreadable extension got one sentence: the file "could not be read,
-  or its contents are not a disk image this loader accepts" -- which covers a
-  truncated download, a file another program is holding, a zero-byte file and a
-  `.woz` renamed from something else, and helps with none of them. The loaders
-  now report which of those happened. A wrong-sized sector image is told its
-  own size and the size it needed ("is 4,096 bytes, but a .dsk image must be
-  exactly 143,360 bytes"), a `.woz` without a WOZ header is told it was
-  probably renamed, and a `.woz` with one is told it is damaged. The `disk`
-  subcommand reports the same reasons in the same words.
-- **A malformed `.dsk` raised an assertion dialog in a Debug build.** The
-  nibblizer treated a wrong-sized buffer as a caller's bug, which it was while
-  every caller was internal. Once a drive would mount whatever file was dropped
-  on it, a truncated image tripped the assert before anything could report it.
-  It is now an ordinary refusal carrying the expected length.
+- **A refused disk image now explains why it was refused** -- a wrong-sized
+  sector image is told its own size and the size it needed, a `.woz` without a
+  WOZ header that it was probably renamed, a `.woz` with one that it is
+  damaged. The `disk` subcommand reports the same reasons.
+- **A malformed `.dsk` raised an assertion dialog in a Debug build.**
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
