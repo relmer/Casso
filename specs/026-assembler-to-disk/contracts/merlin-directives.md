@@ -134,9 +134,18 @@ one. Both are ordinary; neither is an error.
 one made with the bytes in hand, and it is the directive whose whole purpose is
 to write this output — `DSK` merely said where the following code was headed.
 
+**`SAV` must carry a name; `DSK` already must.** A bare `SAV` is an error naming
+the directive (FR-042), not a fallback to whatever name happens to be in effect.
+Merlin's own form is `SAV filename`, and the tool already errors on a `DSK` with
+no operand. This matters more than it looks: a `SAV` that fell back would let
+several saves in one source resolve to one name, each writing over the last, and
+the assembly would report success having produced a single file where the source
+asked for several.
+
 **A span nothing named** takes the command-line name, then the default
-(`<source>.bin`). This is the ordinary single-output assembly: no directive
-names anything and the object is `<source>.bin`.
+(`<source>.bin`). This is the ordinary single-output assembly — no directive
+names anything and the object is `<source>.bin` — and, given the rule above, a
+span ended by `SAV` is never in this case.
 
 **Bytes emitted after the last save** are a span like any other and are written
 under the rule above, rather than discarded. Real Merlin leaves such bytes
@@ -162,8 +171,15 @@ produce output earns.
 output without ambiguity, so `--type` with several saves is ordinary.
 
 **Two outputs of one assembly under one name is refused** (FR-027), naming the
-file. This is deliberately NOT the same as FR-019, which replaces a file left by
-an earlier run:
+file. The common shape is several saves that never name themselves differently:
+each writes over the last, so the assembly succeeds having produced one file
+where the source asked for several, and only the final one survives. FR-042
+catches most of these at the directive — a bare `SAV` is an error rather than a
+fallback — and FR-027 catches the rest, including two saves that name the same
+file explicitly.
+
+This is deliberately NOT the same as FR-019, which replaces a file left by an
+earlier run:
 
 | | |
 |---|---|

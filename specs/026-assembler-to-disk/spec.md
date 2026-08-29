@@ -378,6 +378,19 @@ startup program.
   what a build loop needs, and replacing within one run discards an output the
   source just asked for.
 
+  The sequence this most often catches is several saves that never name
+  themselves differently. Each would write over the last, so the assembly would
+  report success having produced one file where the source asked for several,
+  and only the final one would survive. That is the shape FR-042 exists to catch
+  earlier and this one to catch regardless.
+- **FR-042**: `SAV` MUST require a name operand, and MUST report a missing one
+  as an error naming the directive. It MUST NOT fall back to the command-line
+  name, to a `DSK` in effect, or to the default. `SAV` is the directive whose
+  whole purpose is to write a named output — Merlin's own form is `SAV
+  filename` — and the tool already treats a `DSK` with no operand as an error
+  for the same reason. Falling back instead is what would let several saves in
+  one source silently resolve to one name.
+
 **Merlin directives**
 
 - **FR-008**: `DSK` MUST name the object on the volume when an image target is
