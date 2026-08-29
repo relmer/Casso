@@ -5,7 +5,7 @@
   "actualDepths": [
     200
   ],
-  "opcodeCount": 153,
+  "opcodeCount": 230,
   "source": "https://github.com/SingleStepTests/65x02",
   "upstreamRef": "main",
   "reducedFrom": "full-depth set produced by scripts/GenerateHarteTests.py",

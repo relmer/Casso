@@ -138,26 +138,41 @@ exemption explicitly, in `HarteTestRunner.cpp`:
 Everything else about `$5C` and `$CB` -- registers, flags, memory, and how
 many bytes the opcode swallows -- is still compared.
 
-### A gap worth knowing about
+### The undocumented tier
 
-The `6502` set holds 153 opcodes: the 151 legal ones, plus `$04` and `$CF`.
-`Cpu::InitializeUndocumented` implements 79 undocumented opcodes, and
-`HarteTestRunner.cpp` has a `TEST_METHOD` for each -- so 77 of those methods
-load nothing and pass without executing a vector. `RunHarteOpcode` skipping a
-missing file is correct per opcode (upstream publishes all 256 bytes and Casso
-models a subset), but the effect here is that Harte says nothing at all about
-`SLO`, `RLA`, `SRE`, `RRA`, `SAX`, `LAX`, `DCP`, `ISC` or the `NOP` family.
-`UndocumentedOpcodeTests.cpp` covers them by hand instead.
+The `6502` set holds 230 opcodes: the 151 legal ones plus all 79 undocumented
+opcodes `Cpu::InitializeUndocumented` installs. Every `SLO`, `RLA`, `SRE`,
+`RRA`, `SAX`, `LAX`, `DCP` and `ISC` addressing mode, and the whole `NOP`
+family, is checked against the corpus for final state and cycle count, at the
+same depth as the documented set.
 
-Closing it is a generation change, not a code change: run
-`GenerateHarteTests.py --cpu 6502` with its default opcode list, which already
-includes `IMPLEMENTED_ILLEGAL_6502_OPCODES`, and reduce the result. Expect the
-checked-in set to grow by roughly 800 KB, and expect it to have something to
-say.
+It used to hold 153: the legal opcodes plus `$04` and `$CF`. The other 77
+`TEST_METHOD`s found no file, skipped, and passed. That is the correct
+per-opcode behavior -- upstream publishes all 256 bytes and Casso models a
+subset -- but its effect was that the one tier verified only by tests written
+against the implementation's own understanding was also the one tier no
+external oracle had ever seen. It came out clean: 2,300,000 vectors at full
+depth, no disagreement in state or timing.
+
+Which opcodes to fetch is **read out of `CassoCore/Cpu.cpp`** by
+`GenerateHarteTests.py`, which parses the `s_kUndocumentedOpcodes` table
+rather than keeping its own copy of it. A 79-entry list written down twice is
+a second list to get wrong; the two were previously kept in step by a comment
+asking the next person to update both. Anything that stops the table being
+found is an error, not a warning, because a short list would silently generate
+fewer opcodes than Casso implements and the missing ones would go back to
+passing on an absent file.
+
+Casso deliberately does not implement the unstable opcodes -- `ANE` (`$8B`),
+`LXA` (`$AB`), `SHA`, `SHX`, `SHY`, `TAS` -- whose results on real silicon
+depend on the part, the temperature and what was last on the bus. Upstream
+publishes vectors for them, encoding one defensible model of a thing hardware
+does not do consistently. They are not generated, and there is nothing here
+to exempt.
 
 ## Vector depth: 200 by default, 10,000 available
 
-**The checked-in set is 200 vectors per opcode.** 409 opcode files, ~4 MB,
+**The checked-in set is 200 vectors per opcode.** 486 opcode files, ~4.9 MB,
 under `UnitTest/HarteVectors/`. Every clone, every worktree, and CI get real
 opcode coverage with no setup.
 
@@ -285,8 +300,8 @@ deleting it falls back to the reduced set.
 **`HarteVectorDepth` reports which one ran, on every run:**
 
 ```
-Harte 6502: 153 opcodes, 200 vectors each (30600 total, final state and cycle count) -- REDUCED set.
-Harte 6502: 153 opcodes, 10000 vectors each (1530000 total, final state and cycle count) -- FULL depth.
+Harte 6502: 230 opcodes, 200 vectors each (46000 total, final state and cycle count) -- REDUCED set.
+Harte 6502: 230 opcodes, 10000 vectors each (2300000 total, final state and cycle count) -- FULL depth.
 ```
 
 The numbers are read out of the file headers, never hardcoded, so the message

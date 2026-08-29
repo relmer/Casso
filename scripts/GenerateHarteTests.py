@@ -39,6 +39,7 @@ the recorded length. Nothing here reconstructs it.
 import argparse
 import json
 import os
+import re
 import struct
 import sys
 import urllib.request
@@ -66,48 +67,19 @@ LEGAL_6502_OPCODES = [
     0xF0, 0xF1, 0xF5, 0xF6, 0xF8, 0xF9, 0xFD, 0xFE,
 ]
 
-# Undocumented NMOS 6502 opcodes that Casso actually implements (in
-# CassoCore Cpu::InitializeUndocumented()). Harte's upstream data covers
-# all 256 opcode bytes, but exercising an illegal opcode the CPU does not
-# model would correctly fail -- so this is the deliberately-small mirror of
-# what Casso supports, and it grows as the CPU gains illegal opcodes.
-#
-# Keep in sync with BOTH:
-#   - CassoCore/Cpu.cpp             Cpu::InitializeUndocumented()  (the impl)
-#   - UnitTest/HarteTestRunner.cpp  the "Undocumented opcodes" TEST_METHODs
-#
-# The stable combined ops (SLO/RLA/SRE/RRA/SAX/LAX/DCP/ISC) across their
-# addressing modes, plus the implied/DOP/TOP NOP family.
-IMPLEMENTED_ILLEGAL_6502_OPCODES = [
-    # SLO (ASL+ORA)
-    0x03, 0x07, 0x0F, 0x13, 0x17, 0x1B, 0x1F,
-    # RLA (ROL+AND)
-    0x23, 0x27, 0x2F, 0x33, 0x37, 0x3B, 0x3F,
-    # SRE (LSR+EOR)
-    0x43, 0x47, 0x4F, 0x53, 0x57, 0x5B, 0x5F,
-    # RRA (ROR+ADC)
-    0x63, 0x67, 0x6F, 0x73, 0x77, 0x7B, 0x7F,
-    # SAX (store A&X)
-    0x83, 0x87, 0x8F, 0x97,
-    # LAX (LDA+LDX)
-    0xA3, 0xA7, 0xAF, 0xB3, 0xB7, 0xBF,
-    # DCP (DEC+CMP)
-    0xC3, 0xC7, 0xCF, 0xD3, 0xD7, 0xDB, 0xDF,
-    # ISC (INC+SBC)
-    0xE3, 0xE7, 0xEF, 0xF3, 0xF7, 0xFB, 0xFF,
-    # NOP (implied)
-    0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA,
-    # DOP (NOP zp)
-    0x04, 0x44, 0x64,
-    # DOP (NOP zp,X)
-    0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4,
-    # DOP (NOP #imm)
-    0x80, 0x82, 0x89, 0xC2, 0xE2,
-    # TOP (NOP abs)
-    0x0C,
-    # TOP (NOP abs,X)
-    0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC,
-]
+# Where the undocumented opcode set is read from, and the table inside it.
+# Upstream publishes all 256 opcode bytes; Casso models a deliberate subset,
+# and exercising an illegal opcode the CPU does not implement would fail
+# correctly rather than usefully. So the set is not written down here -- it is
+# read out of the implementation, because a second copy of a 79-entry list is
+# a second copy to get wrong.
+CPU_SOURCE_RELPATH = os.path.join("CassoCore", "Cpu.cpp")
+UNDOCUMENTED_TABLE_NAME = "s_kUndocumentedOpcodes"
+
+# One row of that table: `{ 0x03, "SLO", Microcode::...`. Anchoring on the
+# quoted mnemonic is what keeps this from matching the cycle-count constants
+# and mode enumerators that share the table's braces.
+UNDOCUMENTED_ROW_RE = re.compile(r"\{\s*0x([0-9A-Fa-f]{2})\s*,\s*\"[A-Z]{3}\"\s*,")
 
 BASE_URL = "https://raw.githubusercontent.com/SingleStepTests/65x02/main"
 
@@ -121,6 +93,60 @@ FORMAT_VERSION = 2
 # the JSON is not shaped the way this script believes, and the file should not
 # be written at all.
 MAX_CYCLES = 255
+
+
+def repo_root():
+    """The repository root, derived from this script's own location."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def read_implemented_illegal_opcodes(root):
+    """The undocumented opcodes Cpu::InitializeUndocumented() installs.
+
+    Read straight out of CassoCore/Cpu.cpp rather than restated here. Anything
+    that stops the table being found is an error: an empty or partial list
+    would silently generate fewer opcodes than Casso implements, and the
+    missing ones would then pass their tests by loading nothing at all.
+    """
+    path = os.path.join(root, CPU_SOURCE_RELPATH)
+
+    with open(path, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    start = source.find(UNDOCUMENTED_TABLE_NAME)
+
+    if start < 0:
+        raise ValueError("%s: no %s table found; the opcode set cannot be "
+                         "derived" % (path, UNDOCUMENTED_TABLE_NAME))
+
+    end = source.find("};", start)
+
+    if end < 0:
+        raise ValueError("%s: %s is not terminated"
+                         % (path, UNDOCUMENTED_TABLE_NAME))
+
+    opcodes = [int(m.group(1), 16)
+               for m in UNDOCUMENTED_ROW_RE.finditer(source[start:end])]
+
+    if not opcodes:
+        raise ValueError("%s: %s matched no rows; the row pattern no longer "
+                         "fits the table" % (path, UNDOCUMENTED_TABLE_NAME))
+
+    duplicates = sorted(set(op for op in opcodes if opcodes.count(op) > 1))
+
+    if duplicates:
+        raise ValueError("%s: %s lists %s more than once"
+                         % (path, UNDOCUMENTED_TABLE_NAME,
+                            ", ".join("$%02X" % op for op in duplicates)))
+
+    overlap = sorted(set(opcodes) & set(LEGAL_6502_OPCODES))
+
+    if overlap:
+        raise ValueError("%s: %s claims documented opcode(s) %s"
+                         % (path, UNDOCUMENTED_TABLE_NAME,
+                            ", ".join("$%02X" % op for op in overlap)))
+
+    return sorted(opcodes)
 
 
 def download_json(cpu_type, opcode, temp_dir):
@@ -245,15 +271,17 @@ def main():
 
     args = parser.parse_args()
 
+    root = repo_root()
+
     # Determine output directory
     if args.output_dir:
         output_dir = args.output_dir
     else:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.dirname(script_dir)
-        output_dir = os.path.join(repo_root, "UnitTest", args.cpu)
+        output_dir = os.path.join(root, "UnitTest", args.cpu)
 
     os.makedirs(output_dir, exist_ok=True)
+
+    illegal = read_implemented_illegal_opcodes(root)
 
     # Determine which opcodes to process. The default set is every opcode
     # Casso implements: the 151 legal opcodes plus the undocumented ones
@@ -270,12 +298,13 @@ def main():
     elif args.legal_only:
         opcodes = list(LEGAL_6502_OPCODES)
     else:
-        opcodes = sorted(LEGAL_6502_OPCODES + IMPLEMENTED_ILLEGAL_6502_OPCODES)
+        opcodes = sorted(LEGAL_6502_OPCODES + illegal)
 
     print(f"CPU type:    {args.cpu}")
     print(f"Output dir:  {output_dir}")
-    illegal_count = sum(
-        1 for op in opcodes if op in IMPLEMENTED_ILLEGAL_6502_OPCODES)
+    print(f"Opcode set:  {CPU_SOURCE_RELPATH} lists {len(illegal)} "
+          f"undocumented opcodes")
+    illegal_count = sum(1 for op in opcodes if op in illegal)
     print(f"Opcodes:     {len(opcodes)} "
           f"({len(opcodes) - illegal_count} legal, "
           f"{illegal_count} undocumented)")
