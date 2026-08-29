@@ -86,6 +86,19 @@ needs to distinguish outputs, it does so as structure INSIDE its file.
 | Symbol table (`-t`) | one | **scoped per output** | Organized by address, so it inherits the ambiguity below. |
 | Debug info (`-g`) | one | **scoped per output** | Same, and it is the one a debugger reads. |
 
+### None of this is period behavior, and that is fine
+
+Merlin wrote **no listing file at all** — screen or printer only, with `LST`
+controlling whether the listing is emitted rather than where it goes. And it
+printed **one flat symbol table per assembly**, unsegmented, even for
+multi-output sources.
+
+So `-l`, `-t` and `-g` are as65's and Casso's, not Merlin's, and SC-003 does not
+reach them: a period assembler produced no file to compare against. The
+decisions above rest on the ambiguity argument below, which is enough on its
+own. Recorded here so a later reader does not "restore fidelity" by flattening
+them back.
+
 ### Why symbols and debug info have to be scoped
 
 Independent outputs may occupy **overlapping addresses** and are never in memory

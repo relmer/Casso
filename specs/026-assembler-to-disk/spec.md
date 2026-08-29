@@ -257,12 +257,27 @@ startup program.
   ambiguous, and the shared equates and macro definitions above the first output
   belong to all of them. Without the boundary markings a reader cannot tell
   which lines became which file.
+
+  **The listing file is this tool's own, not the period assembler's.** Merlin
+  sent its listing to a screen or a printer and had no way to write one to
+  disk, so there is no period behavior to be faithful to here and SC-003 does
+  not reach it. The only relevant evidence Merlin offers is that its listing
+  stream ran continuously across a save, with no interaction between the two,
+  which is the shape this requirement takes.
 - **FR-029**: Symbol and debug output MUST be scoped per output. Independent
   outputs may occupy overlapping addresses and are never in memory together, so
   an index spanning all of them cannot answer "what is at this address" — it
   reports symbols from programs that are not loaded. This applies to the debug
   file's address index, to its by-name index, and to the symbol table, all of
   which are organized by address today.
+
+  **This is an improvement on the period assembler, not a match to it, and the
+  distinction is recorded so it is not "corrected" later.** Merlin printed one
+  flat symbol table per assembly even for multi-output sources, and it had no
+  equivalent of the machine-read debug file at all — no debugger was reading its
+  screen. So SC-003 does not reach these artifacts: a period assembler produced
+  no file to compare against. The requirement stands on the ambiguity argument
+  alone, which is sufficient.
 - **FR-030**: Symbols MUST be scoped by where they are DEFINED in the source,
   using the same cuts that divide the object, so scoping cannot disagree with
   the bytes. Symbols defined above the first output — equates naming hardware

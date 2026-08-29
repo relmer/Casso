@@ -137,6 +137,68 @@ concept to approximate it with. `Dos33Volume::kTypeInteger` and
 `kTypeRelocatable` have no ProDOS counterpart in the recognized set either, but
 nothing needs one: `TYP` is a ProDOS directive naming a ProDOS type.
 
+## 4a. Merlin has no listing FILE, so it cannot settle how one is segmented
+
+**Finding**: Merlin sends its listing to the screen and/or printer and never to
+disk. There is no listing file, and no pseudo-op that would make one.
+
+> "LST controls whether the assembly listing is to be sent to the Apple screen
+> and/or other output device."
+
+`LST` controls *whether*, not *where*. `PAG` "sends a form feed ($8C) to the
+printer. It has no effect at any time on the screen", which says plainly what
+the destination is. `TR`, `EXP`, `AST` and `SKP` shape what is printed and
+nothing more.
+
+**Why this matters.** `-l<file>` is **as65's** flag, not Merlin's. So the
+question "how should a listing file be split across several outputs" has no
+Merlin answer to be faithful to, and SC-003 does not reach it: a period
+assembler produced no such file, so it cannot have produced a different one.
+FR-028 is a Casso engineering decision and should not be defended, or later
+"corrected", on fidelity grounds.
+
+**The one relevant piece of Merlin evidence** is that the listing stream is
+continuous across a save — the manual documents no relationship between `SAV`
+or `DSK` and listing output; they manage object storage and the listing is
+unaffected. That weakly favors one listing over several, which is the shape
+FR-028 takes.
+
+**And one finding that cuts the other way, recorded because it is inconvenient
+rather than despite it**: Merlin's symbol table "appears per assembly in both
+alphabetical and numerical order, displayed after object code completes."
+Per assembly, unsegmented, *even though* multi-`SAV` assemblies were supported.
+So period behavior for the human-readable dump is one flat table.
+
+That does not rescue the machine-read debug file. Merlin has no equivalent of
+`-g`'s by-address index — no debugger was reading Merlin's screen — so the
+ambiguity argument in finding 4b stands on its own. But it does mean scoping the
+**stdout symbol table** is our improvement on Merlin rather than a match to it,
+and the spec says so rather than implying otherwise.
+
+## 4b. Why the debug file's address index cannot span several outputs
+
+**Decision**: Scope symbol and debug output per output (FR-029), by source
+position (FR-030), in one file per flag (FR-031).
+
+**Rationale**: `Assembler::FormatDebugInfo` builds both indexes from a single
+flat `std::unordered_map<std::string, Word>` covering the whole assembly, and
+its own comment states the question the file exists to answer:
+
+> "Reading a debug file is two different questions -- 'what is at $0310' and
+> 'where did FOO go'"
+
+Independent outputs may occupy overlapping addresses and are never in memory
+together, so "what is at $0310" has no single answer across them. A flat index
+answers with every candidate, including symbols from a program that is not
+loaded, which is worse than not answering.
+
+Scoping is by **source position** rather than address range, because an address
+test is ambiguous exactly where outputs overlap — the case that motivates the
+requirement. Symbols above the first output are equates and belong to none.
+
+One file per flag, because `-g` names one file and several would hit the
+refusal FR-026 already imposes on object names.
+
 ## 5. The transaction seam already exists and is exactly the right shape
 
 **Decision**: Reuse `DiskImageSession` and `IVolume` unchanged. Do not build a
