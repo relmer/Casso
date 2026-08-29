@@ -34,7 +34,7 @@ Entries before versioning was introduced use dates only.
   - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` were billed seven whatever the
     indexed address did. They take six, or seven across a page. 65C02 only.
   - A branch with a displacement of zero was billed as untaken. It is taken, to
-    the instruction after it, and costs the extra cycle. Both cores, every
+    the instruction after it, and costs the extra cycle. 6502 and 65C02, every
     conditional branch and `BRA`.
   - `BBRn` and `BBSn` were billed a flat five however they resolved. They cost
     five, six when taken, and seven when taken across a page. 65C02 only.
