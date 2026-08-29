@@ -1374,6 +1374,131 @@ public:
     }
 
 
+    TEST_METHOD (ClassifyLoadFailure_NibbleOfTheWrongLength_NamesItsOwnSizes)
+    {
+        vector<Byte>    truncated (100000, 0xFF);
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib,
+                                                                         truncated);
+        std::string     clause    = diagnosis.Describe();
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::WrongSizeForNibble,
+            L"a nibble image has its own size rule and its own verdict");
+        Assert::AreEqual ((size_t) 100000, diagnosis.fileByteSize);
+
+        //  BOTH accepted totals, because either can carry either name. A
+        //  clause naming one of them tells half the users the wrong thing.
+        Assert::IsTrue (clause.find ("232,960") != std::string::npos,
+            L"the clause must name the standard total");
+        Assert::IsTrue (clause.find ("223,440") != std::string::npos,
+            L"and the smaller one, which circulates under the same name");
+        Assert::IsTrue (clause.find ("100,000") != std::string::npos,
+            L"and the size the user's file actually was");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_RightSizedButNoNibbles_IsItsOwnVerdict)
+    {
+        vector<Byte>    zeros (NibbleImageCodec::kNibImageSize, 0x00);
+        MountDiagnosis  wrongSize = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib,
+                                                                         vector<Byte> (999, 0xFF));
+        MountDiagnosis  noNibbles = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib, zeros);
+
+        //  The two nibble refusals must not read alike: one says the download
+        //  stopped early, the other says the file was renamed from something
+        //  else, and a user can act on each.
+        Assert::IsTrue (noNibbles.failure == MountFailure::NotANibbleStream,
+            L"right size, no assemblable nibble anywhere");
+        Assert::AreNotEqual (wrongSize.Describe(), noNibbles.Describe(),
+            L"the two nibble refusals must say different things");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_NibbleGarbageOfTheRightLength_IsAccepted)
+    {
+        //  DELIBERATELY NOT REFUSED, and asserted so nobody later "fixes" it.
+        //  The format has no signature, header or checksum, and about half of
+        //  random bytes carry the high bit, so a renamed archive of the right
+        //  length is indistinguishable from a real image by inspection. It
+        //  mounts as a disk that will not boot, which is the honest outcome; a
+        //  stricter rule would refuse odd but genuine images to catch files
+        //  that fail harmlessly anyway.
+        vector<Byte>    garbage (NibbleImageCodec::kNibImageSize, 0);
+        size_t          i = 0;
+
+        for (i = 0; i < garbage.size(); i++)
+        {
+            garbage[i] = static_cast<Byte> ((i * 37) & 0xFF);
+        }
+
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib, garbage);
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::Unrecognized,
+            L"content this loader cannot rule out is not given a nibble verdict");
+    }
+
+
+    TEST_METHOD (Mount_MalformedNibbleImage_NeverAsserts)
+    {
+        //  A file the user named is edge input. E_INVALIDARG marks a coding
+        //  error in this tree and always asserts, so no mount path may reach
+        //  one however wrong the bytes are.
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr = S_OK;
+
+        hr = store.MountFromBytes (kSlot, kDrive, "short.nib", DiskFormat::Nib,
+                                   vector<Byte> (17, 0xFF), diagnosis);
+        AssertFailed (hr);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "empty.nib", DiskFormat::Nib,
+                                   vector<Byte>(), diagnosis);
+        AssertFailed (hr);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "zeros.nib", DiskFormat::Nib,
+                                   vector<Byte> (NibbleImageCodec::kNibImageSize, 0), diagnosis);
+        AssertFailed (hr);
+
+        //  AND THE VERDICT REACHES THE USER. Asserting only the HRESULT let a
+        //  gap through: the loader checked geometry alone, so a right-sized
+        //  file of zeros MOUNTED, and NotANibbleStream was a verdict nothing
+        //  could ever produce. A diagnosis with no path to it is support that
+        //  looks present and is not.
+        Assert::IsTrue (diagnosis.failure == MountFailure::NotANibbleStream,
+            L"the mount path must produce the verdict, not just fail");
+    }
+
+
+    TEST_METHOD (Mount_NibbleImage_AttributesWriteProtectionToTheFileNotTheImage)
+    {
+        //  A nibble image carries no write-protect flag of its own, unlike a
+        //  WOZ. Only the host file's state and the user's setting can protect
+        //  it, and the interface must not imply the image asked for it.
+        DiskImageStore    store;
+        DiskImage         built;
+        vector<Byte>      sectors (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>      file;
+        DiskImage       * img = nullptr;
+        WriteProtectInfo  info;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "plain.nib", DiskFormat::Nib, file));
+
+        img = store.GetImage (kSlot, kDrive);
+        Assert::IsNotNull (img);
+
+        info = img->GetWriteProtectInfo();
+        Assert::IsFalse (info.imageFlag, L"the format has no flag to carry");
+        Assert::IsFalse (info.Any(),     L"so an unprotected nibble image is unprotected");
+
+        img->SetUserWriteProtected (true);
+        info = img->GetWriteProtectInfo();
+
+        Assert::IsTrue  (info.userSetting, L"the user's setting is what protects it");
+        Assert::IsFalse (info.imageFlag,   L"and it must not be reported as the image's own");
+    }
+
+
     TEST_METHOD (ClassifyLoadFailure_EmptyFile_OutranksTheLengthTest)
     {
         vector<Byte>    nothing;

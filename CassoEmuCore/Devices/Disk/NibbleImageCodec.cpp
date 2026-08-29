@@ -113,6 +113,7 @@ HRESULT NibbleImageCodec::Load (const vector<Byte> & raw, DiskImage & out)
     size_t    trackSize = 0;
     size_t    rawSize   = 0;
     int       track     = 0;
+    bool      readable  = false;
 
 
 
@@ -120,6 +121,14 @@ HRESULT NibbleImageCodec::Load (const vector<Byte> & raw, DiskImage & out)
 
     hr = ResolveGeometry (rawSize, trackSize);
     CHR (hr);
+
+    //  The one content check the format allows, and it has to happen HERE
+    //  rather than only in the failure classifier. A classifier is consulted
+    //  when a load fails; a verdict no load can produce is a verdict the user
+    //  never sees. Content carrying no high bit anywhere cannot be read by any
+    //  drive, so refusing it is refusing a file that could never work.
+    readable = HasAnyNibble (raw);
+    CBREx (readable, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
     for (track = 0; track < kTrackCount; track++)
     {
