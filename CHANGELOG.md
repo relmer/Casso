@@ -31,22 +31,19 @@ Entries before versioning was introduced use dates only.
   same value the emulator bills. NMOS counts are unchanged.
 - **Instruction timing was wrong in three places. This changes emulated
   timing**, so software that counts cycles runs slightly differently.
-  - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` were billed seven whatever the
-    indexed address did. They take six, or seven across a page. 65C02 only.
-  - A branch with a displacement of zero was billed as untaken. It is taken, to
-    the instruction after it, and costs the extra cycle. 6502 and 65C02, every
-    conditional branch and `BRA`.
-  - `BBRn` and `BBSn` were billed a flat five however they resolved. They cost
-    five, six when taken, and seven when taken across a page. 65C02 only.
-- **Casso now reports a disk image it could not mount**, rather than leaving
-  the machine at a bare text screen with no message.
+  - `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` were counted as seven whatever the
+    indexed address did. They correctly take six, or seven across a page.
+    65C02 only.
+  - A branch with a displacement of zero was incorrectly charged as untaken. It
+    is taken, to the instruction after it, and thus costs the extra cycle.
+    6502 and 65C02, every conditional branch and `BRA`.
+  - `BBRn` and `BBSn` were billed a flat five however they resolved. They
+    actually cost five, six when taken, and seven when taken across a page.
+    65C02 only.
+- **Casso now reports a disk image that fails to mount, and why.** Previously
+  the machine came up at a bare text screen with no message. The `disk`
+  subcommand gives the same reasons.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-- **Casso now says why it rejected a disk image.** For a wrong-sized sector
-  image it gives the file's size and the size it needed; for a `.woz` with no
-  WOZ header, that the file was probably renamed from something else; for a
-  `.woz` with one, that the image is damaged. All three previously got a single
-  sentence that fit none of them. The `disk` subcommand gives the same reasons.
-- **A malformed `.dsk` raised an assertion dialog in a Debug build.**
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
