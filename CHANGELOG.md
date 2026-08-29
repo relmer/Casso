@@ -9,54 +9,20 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **The casso-rocks demo now shows the same cassowary four ways, monochrome
-  first.** Both DHGR and HGR framebuffers are read two different ways
-  depending on the monitor -- as color cells, or as individual dots -- and the
-  two readings want opposite things from the encoder. Every image on the disk
-  had been drawn for the color reading, which puts hue in every cell and
-  leaves brightness nowhere, so a green, amber, or white monitor showed a
-  field of dither with a bird somewhere inside it. Nothing downstream can
-  recover that; the luminance is gone at encode time. So the disk now carries
-  a monochrome counterpart to each: DHGR dithered to one bit across all 560
-  dots, which is the highest resolution the machine has, and HGR across 280,
-  which is half of it because an HGR pixel paints two half-dots rather than
-  one.
+- **The casso-rocks demo carries the cassowary four ways: DHGR and HGR, each
+  drawn for a color monitor and for a monochrome one.** An image authored for
+  one reads as noise on the other, because the same framebuffer means
+  different things to each.
 
-  Only the title is drawn on the images; it is built from whole color cells so
-  it survives either reading.
-
-- **The demo asks which monitor you have, and shows only those images.**
-  Nothing can detect this: no Apple II can. Every video connector the machine
-  has is output only, with no sense line and no way to read the signal back.
-  So the demo asks, the way period software carrying two sets of art did. Text
-  is the one mode that reads equally well on both kinds of monitor, which is
-  what makes the question safe to put up before the answer is known, and all
-  thirteen tracks load behind it -- so asking costs no wall-clock time at all,
-  and a key pressed while the drive is still working is still latched when the
-  loader looks. `C` or `M`, either case; `ESC` quits from the question as well
-  as from the cycle.
-
-  The answer selects the pair rather than picking a starting point, and then
-  the demo exits to BASIC. Three steps either way: the chosen DHGR image, its
-  HGR counterpart, and then the hi-res color-mask sweep, which runs until a
-  key. The images the answer did not pick stay loaded and simply never appear.
-
-  The exit puts the video mode back itself, resets the keyboard and screen
-  hooks, and only then hands off through the reset vector. Both halves matter:
-  without the hook reset the //e's handler restores the 80-column firmware
-  hook and turns 80COL back on, dropping into Applesoft in 80 columns with
-  half-width glyphs; without the handler, jumping to Applesoft's cold start
-  directly re-booted the disk instead of exiting.
+- **The demo asks which monitor you have and shows only the matching pair.**
+  Nothing can detect it -- no Apple II can -- so it asks, loads the disk
+  behind the question, and exits to BASIC after its three steps.
 
 ### Changed
-- **The LoRes bars are gone from the demo; the last step is now the hi-res
-  color-mask sweep.** It is the Applesoft one-liner
-  `HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 : NEXT` in 6502:
-  `HCOLOR=` reaches only the eight masks in the ROM table, but poking 228
-  reaches all 256, so the sweep walks the hi-res renderer's entire input space
-  as full-screen fields and runs until a key. It is worth watching on either
-  monitor, which the bars were not -- a palette on a monochrome monitor is
-  sixteen levels of one color.
+- **The demo's last step is the hi-res color-mask sweep instead of the LoRes
+  bars** -- `HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 :
+  NEXT` in 6502, running until a key. Unlike the bars it is worth watching on
+  either monitor.
 
 - **`run` no longer assembles a source under an assembler nobody named.**
   `CassoCli run prog.a65` picked as65, which is the same guess the bare
@@ -71,12 +37,10 @@ Entries before versioning was introduced use dates only.
   `run prog.bin` is unchanged.
 
 ### Removed
-- **The HGR color test bands are no longer a mode on the demo disk.** They
-  were a by-eye check that the renderer had not swapped blue for orange or
-  violet for green, and VideoModeTests now asserts that per pixel rather than
-  per band, so the 8 KB they occupied became HGR page 2 for the monochrome HGR
-  cassowary. `scripts/HgrPreprocess.py --pattern bands` still generates them
-  for anyone who wants to look at them.
+- **The HGR color test bands are no longer a mode on the demo disk.**
+  VideoModeTests asserts per pixel what they showed by eye, and their 8 KB
+  became HGR page 2 for the monochrome HGR image;
+  `scripts/HgrPreprocess.py --pattern bands` still generates them.
 
 ### Fixed
 - **`run` diagnostics quoted flags back in the wrong convention.** The grammar
