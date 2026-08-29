@@ -11,8 +11,7 @@ Entries before versioning was introduced use dates only.
 ### Changed
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving
-  clarity on mono. It asks which display you have and shows the matching set.
-  Replaced the color bars with a spiffy, Beagle Bros.-flavored HGR
+  clarity on mono. Replaced the color bars with a spiffy Beagle Bros. HGR
   kaleidoscopesque pattern.\*
 
   \* *Avoid staring at the kaleidoscope for extended periods. Not responsible

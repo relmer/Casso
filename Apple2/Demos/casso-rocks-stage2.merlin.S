@@ -431,7 +431,7 @@ MODE_HGR_MONO
 
 ; ----------------------------------------------------------------------------
 ; mode_sweep -- step 2: the hi-res color-mask sweep. It is this Applesoft
-;              one-liner, which is a small classic:
+;              one-liner, copied off a Beagle Bros. chart:
 ;
 ;                HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 :
 ;                      CALL -3082 : NEXT
