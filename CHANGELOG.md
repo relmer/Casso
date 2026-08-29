@@ -8,6 +8,14 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **An offline cycle reference, generated from the instruction tables.**
+  `docs/cycle-reference.md` lists every opcode's mnemonic, addressing mode,
+  length and base cycle count for both the NMOS 6502 and the 65C02. It is built
+  by `CycleReference` in `CassoCore` from the same `baseCycles` the emulator
+  bills, regenerated with `scripts/UpdateCycleReference.ps1`, and pinned by a
+  test that fails when the document and the tables disagree.
+
 ## [1.20.1]: The one with logical or physical sector addresses
 
 ### Fixed

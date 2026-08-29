@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte GetOperandSize (GlobalAddressingMode::AddressingMode mode)
+Byte OpcodeTable::GetOperandSize (GlobalAddressingMode::AddressingMode mode)
 {
     Byte  size = 0;
 

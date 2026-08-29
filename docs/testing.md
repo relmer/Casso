@@ -59,6 +59,25 @@ committed listing into a booted master, never from the tokenizer's own
 output. The circularity guard is spelled out in the inventory beside the
 fixture.
 
+## The generated cycle reference
+
+`docs/cycle-reference.md` is not written, it is generated: `CycleReference` in
+`CassoCore` renders both instruction tables, and `CycleReferenceTests`
+regenerates the document in memory and compares it against the committed copy.
+Change a cycle count, an addressing mode or a mnemonic and that test goes red,
+naming the first differing line and the command that fixes it.
+
+```powershell
+.\scripts\UpdateCycleReference.ps1          # regenerate and rewrite docs/
+.\scripts\UpdateCycleReference.ps1 -Check   # report staleness, change nothing
+```
+
+The test writes its freshly generated copy to `%TEMP%\Casso\cycle-reference.md`
+on every run, and the script copies that into `docs/`. Deliberately outside the
+repository: a test that wrote the document it then compares against would be
+checking its own output against itself, and `RunTests.ps1` fails any run that
+touches a tracked file.
+
 ## The Harte vectors
 
 Upstream ([SingleStepTests/65x02](https://github.com/SingleStepTests/65x02))

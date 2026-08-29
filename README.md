@@ -592,6 +592,12 @@ against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502
 (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)
 (all 151 legal-opcode test sets, 10,000 vectors each).
 
+Per-opcode mnemonics, addressing modes, lengths and cycle counts for both cores
+are in **[docs/cycle-reference.md](docs/cycle-reference.md)**. That document is
+generated from the emulator's own instruction tables and a test fails when the
+two disagree, so it is a reference for this build rather than for a 6502 in
+general.
+
 ## Assembler
 
 `CassoCli` is an AS65-compatible 6502 / 65C02 cross-assembler with a built-in
