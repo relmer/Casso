@@ -41,15 +41,16 @@ Entries before versioning was introduced use dates only.
   HGR counterpart, and then the hi-res color-mask sweep, which runs until a
   key. The images the answer did not pick stay loaded and simply never appear.
 
-  The exit puts the video mode back itself and hands control to Applesoft
-  directly, rather than going through the reset vector. The //e's reset
-  handler re-runs the video firmware init and turns 80COL back on, so the demo
-  used to drop into Applesoft in 80 columns -- half-width glyphs, and typing
-  that misbehaved.
+  The exit puts the video mode back itself, resets the keyboard and screen
+  hooks, and only then hands off through the reset vector. Both halves matter:
+  without the hook reset the //e's handler restores the 80-column firmware
+  hook and turns 80COL back on, dropping into Applesoft in 80 columns with
+  half-width glyphs; without the handler, jumping to Applesoft's cold start
+  directly re-booted the disk instead of exiting.
 
 ### Changed
-- **The LoRes bars are gone; the last mode is now the hi-res color-mask
-  sweep.** It is the Applesoft one-liner
+- **The LoRes bars are gone from the demo; the last step is now the hi-res
+  color-mask sweep.** It is the Applesoft one-liner
   `HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 : NEXT` in 6502:
   `HCOLOR=` reaches only the eight masks in the ROM table, but poking 228
   reaches all 256, so the sweep walks the hi-res renderer's entire input space
@@ -57,15 +58,6 @@ Entries before versioning was introduced use dates only.
   monitor, which the bars were not -- a palette on a monochrome monitor is
   sixteen levels of one color.
 
-### Removed
-- **The HGR color test bands are no longer a mode on the demo disk.** They
-  were a by-eye check that the renderer had not swapped blue for orange or
-  violet for green, and VideoModeTests now asserts that per pixel rather than
-  per band, so the 8 KB they occupied became HGR page 2 for the monochrome HGR
-  cassowary. `scripts/HgrPreprocess.py --pattern bands` still generates them
-  for anyone who wants to look at them.
-
-### Changed
 - **`run` no longer assembles a source under an assembler nobody named.**
   `CassoCli run prog.a65` picked as65, which is the same guess the bare
   `CassoCli prog.a65` form was removed for in 1.18.0: which dialect reads a
@@ -77,6 +69,14 @@ Entries before versioning was introduced use dates only.
   fails instead of assembling as65. Add `--as65` to keep what it did. A binary
   is unaffected -- it needs no assembler, so there is nothing to name, and
   `run prog.bin` is unchanged.
+
+### Removed
+- **The HGR color test bands are no longer a mode on the demo disk.** They
+  were a by-eye check that the renderer had not swapped blue for orange or
+  violet for green, and VideoModeTests now asserts that per pixel rather than
+  per band, so the 8 KB they occupied became HGR page 2 for the monochrome HGR
+  cassowary. `scripts/HgrPreprocess.py --pattern bands` still generates them
+  for anyone who wants to look at them.
 
 ### Fixed
 - **`run` diagnostics quoted flags back in the wrong convention.** The grammar
