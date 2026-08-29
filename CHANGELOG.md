@@ -60,22 +60,11 @@ Entries before versioning was introduced use dates only.
   it, but the blank-disk validator had no arm for it, so both `disk create
   mydisk.do` and `--type do` failed an invalid-argument check meant for caller
   bugs. Both write a DOS-ordered image now, the same as `.dsk`.
-- **A `create` combination the command line can express is refused in words
-  rather than asserted.** The container/filesystem pairing, the rule that a
-  bootable disk needs a filesystem, and the ProDOS volume-name rule all
-  reported one invalid-argument failure, which asserted in Debug and printed
-  all three rules whichever one had been broken. Each is now an ordinary
-  refusal that reports only the rule that was broken.
-- **The `disk` command's error messages are rewritten.** Every message now
-  opens with a short label and states the rule in complete sentences. Wording
-  only; the same conditions are refused, and exit codes are unchanged.
-  Affected: image type, filesystem, volume number, `--bootable` with `--boot`,
-  `--boot` with `--format`, `init` with `--type`, the sector numbering flags,
-  the track, sector, and block range and count checks, and the filesystem
-  refusals `put`, `get`, `delete`, and `boot` report.
-- **Counts in output agree in number.** `1 block(s)` and `0 error(s)` are now
-  `1 block` and `0 errors`, across the disk commands, the assembler's error
-  total, `run`'s cycle total, and the generated cycle reference.
+- **`disk create` also asserted on other combinations the command line can
+  express.** The container/filesystem pairing, the rule that a bootable disk
+  needs a filesystem, and the ProDOS volume-name rule all failed the same
+  invalid-argument check, which asserted in Debug. Each is an ordinary
+  refusal now.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
