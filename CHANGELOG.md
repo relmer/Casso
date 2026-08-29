@@ -55,16 +55,11 @@ Entries before versioning was introduced use dates only.
   the machine came up at a bare text screen with no message. The `disk`
   subcommand gives the same reasons.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-- **`disk create` raised an assertion on a `.do` image instead of making one.**
-  `do` is in the tool's own list of what it writes and its error text offers
-  it, but the blank-disk validator had no arm for it, so both `disk create
-  mydisk.do` and `--type do` failed an invalid-argument check meant for caller
-  bugs. Both write a DOS-ordered image now, the same as `.dsk`.
-- **`disk create` also asserted on other combinations the command line can
-  express.** The container/filesystem pairing, the rule that a bootable disk
-  needs a filesystem, and the ProDOS volume-name rule all failed the same
-  invalid-argument check, which asserted in Debug. Each is an ordinary
-  refusal now.
+- **`disk create` failed on `.do` images.** It now writes a DOS-ordered image,
+  the same as `.dsk`.
+- **`disk create` asserted on illegal specs instead of refusing them.** The
+  container/filesystem, bootable, and ProDOS volume-name rules now produce
+  ordinary refusals.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
