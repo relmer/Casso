@@ -469,6 +469,18 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     m_regions.clear();
     m_surface = {};
 
+    // THE TILTING ASSEMBLY GOES WITH THE OLD MONITOR. It is built only from
+    // parts this mesh names -- the Monitor II's bezel and its two tilt marks
+    // -- and the //c's has none of them, so a load that left the previous
+    // model's behind hung the last monitor's frame around the new one, kept
+    // its grips live for the cursor and the drag, and tipped a tube that was
+    // never part of it.
+    m_tiltable.clear();
+    m_tiltGrips.clear();
+    m_tiltPivotY = 0.0f;
+    m_tiltPivotZ = 0.0f;
+    m_maxTiltRad = 0.0f;
+
     lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
     hr = ObjMeshParser::Parse (objText, mtlText, triangles, materialNames);
