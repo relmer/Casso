@@ -3,6 +3,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -62,6 +63,35 @@ public:
         }
 
         return raw;
+    }
+
+
+
+    //  Turns a track's bit stream so it begins `byBits` further round the
+    //  circle. A real nibble image has an arbitrary rotational origin -- the
+    //  tool that captured it started wherever the head happened to be -- and
+    //  the encoder in this tree always starts at a sync gap, so without this
+    //  no fixture here ever puts a field across the seam.
+    static void  RotateTrackBits (DiskImage & img, int track, size_t byBits)
+    {
+        size_t        bits = img.GetTrackBitCount (track);
+        vector<Byte>  turned ((bits + 7) / 8, 0);
+        size_t        i    = 0;
+        Byte          bit  = 0;
+
+        for (i = 0; i < bits; i++)
+        {
+            bit = img.ReadBit (track, (i + byBits) % bits);
+
+            if (bit != 0)
+            {
+                turned[i >> 3] = static_cast<Byte> (turned[i >> 3] | (1 << (7 - (i & 7))));
+            }
+        }
+
+        img.ResizeTrack (track, bits);
+        memcpy (img.GetTrackBitsForWrite (track).data(), turned.data(), turned.size());
+        img.SetTrackBitCount (track, bits);
     }
 
 
@@ -273,6 +303,134 @@ public:
 
         Assert::AreEqual (NibbleImageCodec::kNibImageSize, out.size(),
             L"a file written from nothing takes the standard block size");
+    }
+
+
+
+    TEST_METHOD (RoundTrip_ARealDiskSurvivesTheContainerAtSectorLevel)
+    {
+        //  THE END-TO-END CLAIM, and the one a user would recognize: a disk
+        //  goes into a nibble image and comes back out with every sector
+        //  intact. Sectors -> GCR -> nib bytes -> GCR -> sectors, with the
+        //  comparison at the two ends. Every step is the production path.
+        DiskImage           written;
+        DiskImage           reloaded;
+        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        nibFile;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        size_t              i = 0;
+
+        //  Varied rather than a constant fill: a sector landing in the wrong
+        //  place is invisible when every sector holds the same byte.
+        for (i = 0; i < sectors.size(); i++)
+        {
+            sectors[i] = static_cast<Byte> ((i * 7 + (i / 256)) & 0xFF);
+        }
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, written));
+        AssertSucceeded (NibbleImageCodec::Serialize (written, vector<Byte>(), nibFile));
+
+        Assert::AreEqual (NibbleImageCodec::kNibImageSize, nibFile.size(),
+            L"the container is a whole nibble image");
+
+        AssertSucceeded (NibbleImageCodec::Load (nibFile, reloaded));
+        AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
+
+        //  Assert there was something to decode before comparing it, or a
+        //  codec that produced an empty disk would compare equal to nothing.
+        Assert::AreEqual (NibblizationLayer::kTrackCount, report.GetTrackCount(),
+            L"every track must have been examined");
+
+        Assert::AreEqual (sectors.size(), recovered.size());
+        Assert::AreEqual (0, memcmp (sectors.data(), recovered.data(), sectors.size()),
+            L"every sector survives the trip through the nibble container");
+    }
+
+
+
+    TEST_METHOD (Serialize_KeepsAllSixteenSectorsMarkersOnATrack)
+    {
+        //  The padding-placement proof. A rotate-and-pad that landed inside a
+        //  field would destroy one, and the sector count is how that shows.
+        //
+        //  ALL SIXTEEN ARE FINDABLE BY A BYTE SEARCH HERE, unlike in a packed
+        //  bit stream where self-sync bytes occupy ten cells and leave half the
+        //  prologues off the byte boundary. In a nibble image every nibble IS a
+        //  byte, which is the one place the format is easier to inspect.
+        DiskImage     img;
+        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0x5A);
+        vector<Byte>  nibFile;
+        size_t        i        = 0;
+        int           addrs    = 0;
+        int           datas    = 0;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (NibbleImageCodec::Serialize (img, vector<Byte>(), nibFile));
+
+        for (i = 0; i + 2 < NibbleImageCodec::kNibTrackSize; i++)
+        {
+            if (nibFile[i] == 0xD5 && nibFile[i + 1] == 0xAA && nibFile[i + 2] == 0x96)
+            {
+                addrs++;
+            }
+
+            if (nibFile[i] == 0xD5 && nibFile[i + 1] == 0xAA && nibFile[i + 2] == 0xAD)
+            {
+                datas++;
+            }
+        }
+
+        Assert::AreEqual (16, addrs, L"all sixteen address prologues survive the padding");
+        Assert::AreEqual (16, datas, L"all sixteen data prologues survive the padding");
+    }
+
+
+
+    TEST_METHOD (Serialize_PaddingMissesTheFieldsWhenTheSeamIsInside_One)
+    {
+        //  THE CASE THE ROTATION EXISTS FOR, and the only one that can tell
+        //  whether it works. Every track this tree encodes begins at a sync
+        //  gap, so the derivation seam already sits somewhere harmless and
+        //  padding appended there destroys nothing -- which means the other
+        //  tests here pass just as happily with the rotation disabled. Turning
+        //  the bit stream first puts a data field across the seam, which is
+        //  what a nibble image captured by another tool looks like.
+        //
+        //  Sector-level comparison rather than a marker count: a splice
+        //  through the middle of a data field can leave both prologues intact
+        //  and still lose the sector.
+        DiskImage           written;
+        DiskImage           reloaded;
+        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        nibFile;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        size_t              i     = 0;
+        int                 track = 0;
+
+        for (i = 0; i < sectors.size(); i++)
+        {
+            sectors[i] = static_cast<Byte> ((i * 11 + (i / 256)) & 0xFF);
+        }
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, written));
+
+        //  Far enough in to land inside a field rather than in the gap the
+        //  encoder starts with.
+        for (track = 0; track < NibbleImageCodec::kTrackCount; track++)
+        {
+            RotateTrackBits (written, track, 1500);
+        }
+
+        AssertSucceeded (NibbleImageCodec::Serialize (written, vector<Byte>(), nibFile));
+        AssertSucceeded (NibbleImageCodec::Load (nibFile, reloaded));
+        AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
+
+        Assert::AreEqual (NibblizationLayer::kTrackCount, report.GetTrackCount(),
+            L"every track must have been examined");
+        Assert::AreEqual (0, memcmp (sectors.data(), recovered.data(), sectors.size()),
+            L"padding must land in the gap, not in the field the seam runs through");
     }
 
 
