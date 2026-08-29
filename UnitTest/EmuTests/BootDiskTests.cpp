@@ -608,39 +608,30 @@ public:
                 }
             }
 
-            // Past the last step the cycle WRAPS rather than exiting, and
-            // on the monochrome answer the wrap is free: nothing in the
-            // cycle writes $2000-$3FFF, so the framebuffer the boot path
-            // staged is still sitting there and coming back to step 0 is
-            // the display switches alone. Both halves are re-checked,
-            // because "still there" is the whole claim.
+            // One more keystroke is past the last step, and that exits.
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (200'000ULL);
-            Assert::IsTrue (ss->IsGraphicsMode(),
-                L"The wrapped-to step 0 must have TEXT off");
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"The wrapped-to step 0 must have HIRES on");
-            Assert::IsFalse (ss->IsPage2(),
-                L"The wrapped-to step 0 (DHGR) must select PAGE1");
-            VerifyMemRange (0x2000, monoMainPayload,
-                L"DHGR mono main half still at main $2000 after the wrap");
-            {
-                size_t  m = 0;
-                for (size_t i = 0; i < kHgrPayloadSize; i++)
-                {
-                    if (auxBuf[0x2000 + i] != monoAuxPayload[i]) { m++; }
-                }
-
-                Assert::AreEqual (size_t (0), m,
-                    L"DHGR mono aux half still at aux $2000 after the wrap");
-            }
-
-            // ESC is the only way out.
-            core.keyboard->KeyPressRaw (0x1B);
-            core.RunCycles (200'000ULL);
             Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
-                L"ESC must JMP into ROM ($D000+, typically the Applesoft "
-                L"cold start at $E000)");
+                L"Cycling past the last step must JMP into ROM ($D000+, "
+                L"typically the Applesoft cold start at $E000)");
+
+            //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  handler does not clear 80COL, so exiting from a DHGR step
+            //  dropped into Applesoft with the 80-column hardware on and
+            //  the 80-column firmware not hooked up to match -- half-width
+            //  glyphs, and typing that misbehaves. do_exit sets the mode
+            //  explicitly now, and this is the guard on that.
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"do_exit must leave TEXT on");
+            Assert::IsFalse (ss->Is80ColMode(),
+                L"do_exit must leave 80COL off -- 40-column text is what "
+                L"Applesoft is about to write into");
+            Assert::IsFalse (ss->Is80Store(),
+                L"do_exit must leave 80STORE off");
+            Assert::IsFalse (ss->IsDoubleHiRes(),
+                L"do_exit must leave DHIRES off");
+            Assert::IsFalse (ss->IsPage2(),
+                L"do_exit must leave PAGE1 selected");
 
             //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
             //  C instead: a different pair of images, reached by re-staging
@@ -712,28 +703,33 @@ public:
             Assert::IsFalse (ss->IsHiresMode(),
                 L"Step 2 (LoRes) must clear HIRES on the color answer too");
 
-            // And the color wrap, which is the one that has to WORK for
-            // something: step 0 re-stages out of main $6000/$8000, and it
-            // only reaches aux if 80STORE goes off first. Getting that
-            // wrong puts the aux half in main on top of the main half.
-            core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (600'000ULL);
-            Assert::IsTrue (ss->IsHiresMode(),
-                L"The wrapped-to step 0 (DHGR color) must have HIRES on");
-            Assert::IsFalse (ss->IsPage2(),
-                L"The wrapped-to step 0 (DHGR color) must select PAGE1");
-            VerifyMemRange (0x2000, dhgrMainPayload,
-                L"DHGR color main half re-staged to main $2000 after the wrap");
-            {
-                size_t  m = 0;
-                for (size_t i = 0; i < kHgrPayloadSize; i++)
-                {
-                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
-                }
+            //  ESC, the other way out, and from a different mode than the
+            //  monochrome path used. Both routes run the same do_exit, and
+            //  what matters is that it leaves the same habitable screen
+            //  whichever step it was called from.
+            core.keyboard->KeyPressRaw (0x1B);
+            core.RunCycles (200'000ULL);
+            Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
+                L"ESC must JMP into ROM ($D000+, typically the Applesoft "
+                L"cold start at $E000)");
 
-                Assert::AreEqual (size_t (0), m,
-                    L"DHGR color aux half re-staged to aux $2000 after the wrap");
-            }
+            //  AND IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
+            //  handler does not clear 80COL, so exiting from a DHGR step
+            //  dropped into Applesoft with the 80-column hardware on and
+            //  the 80-column firmware not hooked up to match -- half-width
+            //  glyphs, and typing that misbehaves. do_exit sets the mode
+            //  explicitly now, and this is the guard on that.
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"do_exit must leave TEXT on");
+            Assert::IsFalse (ss->Is80ColMode(),
+                L"do_exit must leave 80COL off -- 40-column text is what "
+                L"Applesoft is about to write into");
+            Assert::IsFalse (ss->Is80Store(),
+                L"do_exit must leave 80STORE off");
+            Assert::IsFalse (ss->IsDoubleHiRes(),
+                L"do_exit must leave DHIRES off");
+            Assert::IsFalse (ss->IsPage2(),
+                L"do_exit must leave PAGE1 selected");
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //

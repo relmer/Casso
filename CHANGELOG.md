@@ -37,9 +37,15 @@ Entries before versioning was introduced use dates only.
   as from the cycle.
 
   The answer selects the pair rather than picking a starting point: three
-  steps, the chosen DHGR image, its HGR counterpart and the LoRes bars, then
-  round again. The two images the answer did not pick stay loaded and simply
-  never appear.
+  steps -- the chosen DHGR image, its HGR counterpart, and the LoRes bars --
+  and then the demo exits to BASIC. The two images the answer did not pick
+  stay loaded and simply never appear.
+
+  The exit puts the video mode back itself rather than leaving it to the reset
+  handler, which does not clear 80COL. Leaving the cycle from a DHGR step
+  otherwise dropped into Applesoft with the 80-column hardware still on and
+  the 80-column firmware not hooked up to match: half-width glyphs, and typing
+  that misbehaved.
 
 ### Removed
 - **The HGR color test bands are no longer a mode on the demo disk.** They

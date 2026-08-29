@@ -61,8 +61,9 @@
 ;
 ;    Polling loop:
 ;      Three steps, and which images they are depends on the answer.
-;      Each keystroke advances one step; past the last the cycle wraps.
-;      ESC ($9B) exits to BASIC and is the only way out.
+;      Each keystroke advances one step; past the last one the demo
+;      exits to BASIC. ESC ($9B) exits from anywhere, the question
+;      included.
 ;
 ;      THE SAME PHOTO FOUR WAYS, the monochrome pair first and then the
 ;      color pair. Every one of these framebuffers is decoded two
@@ -91,12 +92,8 @@
 ;        1 = HGR: 6-color NTSC artifact, restored from main $A000.
 ;        2 = LoRes (GR): the same bars, in their sixteen colors.
 ;
-;      BOTH WRAPS ARE RE-ENTERABLE, which the earlier cycle could not
-;      manage. On the monochrome answer nothing ever overwrites aux+main
-;      $2000, so step 0 comes back with the display switches alone; on
-;      the color answer the staging at $6000/$8000 still holds the color
-;      halves, so step 0 re-stages from it. The images the answer did
-;      not pick stay loaded and simply never appear.
+;      The two images the answer did not pick stay loaded and simply
+;      never appear.
 ;
 ;      The HGR color test bands used to be a mode here. They were a
 ;      by-eye check that the renderer had not swapped blue/orange or
@@ -254,17 +251,16 @@ POLL
     BIT STROBE
 
     ; Three steps: the chosen pair's DHGR, then its HGR, then the
-    ; LoRes bars. Past the last one the cycle wraps; ESC is the way out.
+    ; LoRes bars. Past the last one, fall through into do_exit.
     INC STEP
     LDA STEP
     CMP #1
-    BEQ MODE_HGR
-    CMP #2
-    BEQ MODE_LORES
-
-    LDA #0
-    STA STEP
-    JMP MODE_DHGR
+    BNE POLL_CHK2
+    JMP MODE_HGR           ; JMP, not beq: DO_EXIT sits between the
+POLL_CHK2                  ; dispatch and the handlers, and it has grown
+    CMP #2                 ; past a relative branch's reach
+    BNE DO_EXIT
+    JMP MODE_LORES
 
 
 DO_EXIT
@@ -275,12 +271,26 @@ DO_EXIT
     ; even after manual soft-switch cleanup it JMPs through stale
     ; work-area pointers and lands in video memory.
     ;
-    ; The reset handler doesn't clear the screen, so we wipe both
-    ; text pages first. THE GOTCHA: with 80STORE on (which DHGR
-    ; mode set), writes to $0400-$07FF route by PAGE2 status, NOT
-    ; by RAMWRT. So we turn 80STORE off entirely ? simpler than
-    ; juggling PAGE2, and the reset handler will sort the rest.
-    STA STORE80OFF         ; 80STORE off ? RAMWRT now routes text writes
+    ; PUT THE VIDEO MODE BACK FIRST, and do not leave it to the reset
+    ; handler: it restores enough for a machine that was in text mode
+    ; anyway, but it does not clear 80COL. Exiting from a DHGR step
+    ; therefore dropped into Applesoft with the 80-column hardware still
+    ; on and the 80-column firmware not hooked up to match --
+    ; half-width glyphs, and typing that behaves strangely because COUT
+    ; is writing 40-column output onto an 80-column screen. It only
+    ; became reachable when the answer could leave the cycle sitting on
+    ; a DHGR step; before that the last mode was always one that had
+    ; already cleared 80COL on its way in.
+    ;
+    ; 80STORE has to go off before the text pages are cleared for a
+    ; second reason: with it on, writes to $0400-$07FF route by PAGE2
+    ; rather than by RAMWRT, and the two clears below depend on RAMWRT.
+    STA STORE80OFF         ; 80STORE off -- RAMWRT now routes text writes
+    STA COL80OFF
+    BIT DHIRESOFF
+    BIT TXTON
+    BIT MIXOFF
+    BIT PG2OFF
 
     STA RAMWRTON
     JSR CLEAR_TEXT_PAGE1
