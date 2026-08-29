@@ -44,6 +44,13 @@ public:
     //  Exact-case: for asking whether a word AS WRITTEN is an instruction name.
     bool IsMnemonic            (const std::string & name) const;
 
+    // Operand bytes that follow the opcode, by addressing mode. Public and
+    // static because it is a property of the MODE, not of a built table: the
+    // cycle reference needs the length of opcodes this table deliberately
+    // excludes (illegal slots and assembler-hidden fills), which no OpcodeEntry
+    // exists to answer for.
+    static Byte GetOperandSize (GlobalAddressingMode::AddressingMode mode);
+
     // Every spelling this table answers to, so a sweep can ask about all of them
     // rather than about the ones somebody listed -- the same reason
     // DirectiveTable::GetAllSpellings exists. Built from the instruction set, so

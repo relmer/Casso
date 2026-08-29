@@ -184,7 +184,10 @@ Cycle-accurate IRQ/NMI infrastructure. Validated against
 (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests),
 which check both what every instruction computes and what it costs in cycles.
 The vectors are authored elsewhere, which makes them an independent oracle
-rather than a restatement of our own assumptions.
+rather than a restatement of our own assumptions. Per-opcode mnemonics,
+addressing modes, lengths and cycle counts for both cores are in
+[docs/cycle-reference.md](docs/cycle-reference.md), generated from the
+instruction tables so it describes this build rather than a 6502 in general.
 
 ### Display
 
