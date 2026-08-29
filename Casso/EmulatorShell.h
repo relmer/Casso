@@ -707,6 +707,14 @@ private:
         return DeskSceneActive() && m_globalPrefs.crtMonitor;
     }
 
+    // A left-button orbit that has not yet travelled far enough to BE one.
+    // The press arms it over anything the scene shows; only movement past
+    // the slop turns it into a rotation, and a release before that lets the
+    // click chain run as though nothing had been armed at all.
+    static constexpr int  s_kSceneOrbitSlopPx = 4;
+
+    bool  m_sceneOrbitMoved = false;
+
     // The most drives the desk scene ever composes -- DeskSceneComposition
     // sizes its world matrices to the same number.
     static constexpr int  s_kSceneDriveMax = 2;

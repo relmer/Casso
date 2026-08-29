@@ -8498,6 +8498,20 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         ((m_sceneOrbitLeftBtn && leftDown) ||
          (!m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
     {
+        // Under the slop this is still a click in the making, so the scene
+        // must not stir: a picture that shifts a pixel under a press and
+        // shifts back is worse than one that does not move at all. The
+        // right-button orbit has no click to protect and turns at once.
+        if (!m_sceneOrbitMoved &&
+            m_sceneOrbitLeftBtn &&
+            std::abs (x - m_sceneOrbitStartPx.x) <= s_kSceneOrbitSlopPx &&
+            std::abs (y - m_sceneOrbitStartPx.y) <= s_kSceneOrbitSlopPx)
+        {
+            return DxuiMessageResult::Handled;
+        }
+
+        m_sceneOrbitMoved = true;
+
         UpdateSceneOrbit (x, y);
         return DxuiMessageResult::Handled;
     }
@@ -9221,6 +9235,7 @@ void EmulatorShell::OrbitSceneBy (float yawRad, float pitchRad)
 void EmulatorShell::BeginSceneOrbit (int x, int y)
 {
     m_sceneOrbiting      = true;
+    m_sceneOrbitMoved    = false;
     m_sceneOrbitStartPx  = POINT { x, y };
     m_sceneOrbitStartYaw = m_sceneView.orbitYawRad;
     m_sceneOrbitStartPit = m_sceneView.orbitPitchRad;
@@ -9635,26 +9650,41 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    // A PLAIN DRAG ON THE SCENE TURNS IT. It used to pan, and only when
-    // zoomed -- so at rest the most natural gesture in the window did
-    // nothing at all, and what it did when zoomed was not what anyone
-    // guessed. Turning is what people expect of a 3D thing under the
-    // mouse; the pan still lives on the touchpad's two-finger slide,
-    // beside the zoom on its pinch. Guarded on a scene TARGET miss so a
-    // click on the glass, a drive, or a tilt mark keeps meaning what it
-    // meant.
-    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the
-    // press. A scene hit of None is true of every pixel of the toolbar and
-    // the status bar as well -- there is no machine out there to hit -- so
-    // arming on that alone armed a turn under the command buttons, and the
-    // release that would have fired them ended the turn instead.
+    // A PLAIN DRAG ON THE SCENE TURNS IT, AND THE SCENE INCLUDES THE MACHINE.
+    // It used to pan, and only when zoomed -- so at rest the most natural
+    // gesture in the window did nothing at all. Turning is what people expect
+    // of a 3D thing under the mouse; the pan still lives on the touchpad's
+    // two-finger slide, beside the zoom on its pinch.
+    //
+    // ARMED OVER ANYTHING THE SCENE SHOWS, not only over the empty backdrop.
+    // Requiring a target miss meant the picture and the drives' faces -- the
+    // largest and most obvious surfaces in the window, the ones a hand
+    // reaches for first -- were dead to the gesture, and a drag begun on the
+    // machine did nothing while the same drag an inch to the left turned it.
+    // A press there still MEANS what it meant; it is the release that decides
+    // which, exactly as it does for a button or for the compass:
+    //
+    //     travel past the slop  ->  a turn, and the release ends it
+    //     released inside it    ->  a click, and the chain below runs
+    //
+    // The two grab targets are excluded because a press on them already
+    // begins a different drag or a command: the bezel's tilt marks (armed
+    // above, which bails before reaching here) and a drive's door.
+    //
+    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the press.
+    // A scene hit of None is true of every pixel of the toolbar and the
+    // status bar as well -- there is no machine out there to hit -- so arming
+    // on that alone armed a turn under the command buttons, and the release
+    // that would have fired them ended the turn instead.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
         !m_mainMenu.IsOpen() && !GuestMouseLive() &&
         PointInSceneRect (x, y) && !chromeTook)
     {
-        SceneHitResult  hit = DeskSceneHit (x, y);
+        SceneHitResult  hit    = DeskSceneHit (x, y);
+        bool            onDoor = hit.target == SceneHitResult::Target::Drive
+                                 && hit.region == DriveWidgetRegion::Eject;
 
-        if (hit.target == SceneHitResult::Target::None)
+        if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
         {
             BeginSceneOrbit (x, y);
             m_sceneOrbitLeftBtn = true;
@@ -9747,12 +9777,22 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    // Likewise a Shift+drag orbit's release.
+    // Likewise a drag orbit's release -- BUT ONLY IF IT TURNED. A press that
+    // armed one and never travelled is a click, and swallowing its release
+    // would make every press on the machine do nothing at all. Fall through
+    // and let the chain below read it as the click it was.
     if (m_sceneOrbiting && m_sceneOrbitLeftBtn)
     {
-        m_sceneOrbiting = false;
-        ReleaseCapture();
-        return DxuiMessageResult::Handled;
+        bool  turned = m_sceneOrbitMoved;
+
+        m_sceneOrbiting   = false;
+        m_sceneOrbitMoved = false;
+
+        if (turned)
+        {
+            ReleaseCapture();
+            return DxuiMessageResult::Handled;
+        }
     }
 
     // ...and a bezel tilt's, which also writes where it came to rest. Saved
