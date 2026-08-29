@@ -161,7 +161,9 @@ public:
     //  COUT wrote 40-column output onto an 80-column screen, and an ESC
     //  left in the keyboard latch for GETLN to read as a cursor move and
     //  swallow the next character with.
-    void AssertSignedOffToBasic (EmulatorCore & core, const wchar_t * route)
+    void AssertSignedOffToBasic (EmulatorCore & core,
+                                 const wchar_t * route,
+                                 size_t          togglesBeforeExit)
     {
         std::vector<std::string>  screen;
         wchar_t                   msg[256]  = {};
@@ -186,6 +188,20 @@ public:
 
         Assert::IsFalse (core.diskController->IsMotorOn(),
             L"the drive must be stopped by the time the demo hands over");
+
+        //  AND IT LEAVES QUIETLY. The //e's reset handler bells on its way
+        //  past -- JSR $FF3A at $FA62+$20, 192 speaker toggles, and it runs
+        //  on the power-on boot as well as on Ctrl-Reset -- so an exit
+        //  routed through ($FFFC) beeped every single time. That beep was
+        //  indistinguishable from the one a reset makes, which cost real
+        //  time diagnosing an exit: a machine that eventually reached the
+        //  prompt and beeped on the way looked like a delayed reset rather
+        //  than a delayed keystroke. Going to $E000 direct is silent, and
+        //  this is what holds it there.
+        Assert::AreEqual (togglesBeforeExit,
+            core.speaker->GetToggleTimestamps().size(),
+            (swprintf_s (msg, L"%ls: the exit must not touch the speaker.",
+                         route), msg));
 
         for (size_t i = 0; typed[i] != '\0'; i++)
         {
@@ -272,6 +288,7 @@ public:
             DiskImage              * img             = nullptr;
             Apple2eSoftSwitchBank  * ss              = nullptr;
             Byte                   * auxBuf          = nullptr;
+            size_t                   quietMark       = 0;
             AssemblyResult           asmResult;
             AssemblyResult           stage2Result;
             Assert::IsFalse (source.empty(), L"casso-rocks.a65 must not be empty");
@@ -701,6 +718,7 @@ public:
                     L"sweep has stopped sweeping");
             }
 
+            quietMark = core.speaker->GetToggleTimestamps().size();
             core.keyboard->KeyPressRaw (' ');
             core.RunCycles (500'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
@@ -728,7 +746,7 @@ public:
             //  leaves the screen alone, so what the user is left looking
             //  at is the sign-off with a prompt below it rather than
             //  whatever the demo happened to leave in text memory.
-            AssertSignedOffToBasic (core, L"the monochrome route");
+            AssertSignedOffToBasic (core, L"the monochrome route", quietMark);
 
             //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
             //  C instead: a different pair of images, reached by re-staging
@@ -841,6 +859,7 @@ public:
             //  monochrome path used. Both routes run the same do_exit, and
             //  what matters is that it leaves the same habitable screen
             //  whichever step it was called from.
+            quietMark = core.speaker->GetToggleTimestamps().size();
             core.keyboard->KeyPressRaw (0x1B);
             core.RunCycles (200'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
@@ -862,7 +881,7 @@ public:
                 L"do_exit must leave PAGE1 selected");
 
             AssertSignedOffToBasic (core, L"the ESC route out of the color "
-                                          L"cycle");
+                                          L"cycle", quietMark);
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //
