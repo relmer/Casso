@@ -139,9 +139,10 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [ ] T060 [P] [US3] Add `UnitTest/MerlinSaveObjectTests.cpp` covering span semantics, per-save load addresses, both naming refusals, and the host-file path. Cover each span-cutting shape separately: two `SAV`s with no `DSK`, two `DSK`s with no `SAV`, and the two mixed, since a rule that handles one can fail the others
 - [ ] T061 [US3] Register `UnitTest/MerlinSaveObjectTests.cpp` in `UnitTest/UnitTest.vcxproj`
 - [ ] T062 [US3] Assert explicitly that the second output does NOT contain the first's bytes. A cumulative implementation passes every other assertion in this phase
-- [ ] T063 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to
-- [ ] T064 [P] [US3] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a four-row boundary and assert `SAV` is no longer refused
-- [ ] T065 [US3] Add a fail-after-first-save test asserting the image is byte-for-byte unchanged AND no host file was left behind
+- [ ] T063 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to Assert against the MEASURED values in research.md finding 2a rather than expectations: the two-save case gives $0300 and $6000 at 3 bytes each, the two-DSK case $0300 and $0303, and the trailing-span case one file plus a warning
+- [ ] T064 [US3] Add a trailing-span test asserting NO second file and a warning that bytes were assembled and not saved (FR-045). This is the rule Merlin contradicted the spec on, so it is the one most likely to be re-broken by someone reasoning from first principles
+- [ ] T065 [P] [US3] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a four-row boundary and assert `SAV` is no longer refused
+- [ ] T066 [US3] Add a fail-after-first-save test asserting the image is byte-for-byte unchanged AND no host file was left behind
 
 **Checkpoint**: Multi-output assembly works to both targets.
 
@@ -153,12 +154,12 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 **Independent test**: Assemble to a bootable image with the startup flag, read the volume back, and confirm it names the assembled file as its startup program.
 
-- [ ] T066 [US4] Extract the startup-runnability rules from `RunBoot` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`/`.h`, `IsRunnableAsDos33Greeting` included, into something both routes call (FR-022). **The extraction is the point, not the flag** — a second copy is how `run --merlin` once refused `XC` while `merlin` accepted it
-- [ ] T067 [US4] Add the `--startup` row to `s_kAs65Flags` and `s_kMerlinFlags` in `CassoCore/CommandLineParser.cpp`, plus the long-option entries
-- [ ] T068 [US4] Call `IVolume::SetStartupProgram` from `CassoEmuCore/Cli/ImageArtifactSink.cpp` after the last save point and before the single commit, so it participates in the same transaction (FR-021)
-- [ ] T069 [US4] Refuse `--startup` with no image target (FR-023), and refuse a file the volume's operating system would not run, on the shared rules from T066 (FR-022)
-- [ ] T070 [P] [US4] Add startup-program tests to `UnitTest/AssemblerToDiskTests.cpp`, including the DOS 3.3 greeting case where a binary named as the greeting leaves the disk booting and the program never running
-- [ ] T071 [US4] Assert `RunBoot` and the assembler path accept and refuse the same things, driving both through the shared rules so the two cannot drift
+- [ ] T067 [US4] Extract the startup-runnability rules from `RunBoot` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`/`.h`, `IsRunnableAsDos33Greeting` included, into something both routes call (FR-022). **The extraction is the point, not the flag** — a second copy is how `run --merlin` once refused `XC` while `merlin` accepted it
+- [ ] T068 [US4] Add the `--startup` row to `s_kAs65Flags` and `s_kMerlinFlags` in `CassoCore/CommandLineParser.cpp`, plus the long-option entries
+- [ ] T069 [US4] Call `IVolume::SetStartupProgram` from `CassoEmuCore/Cli/ImageArtifactSink.cpp` after the last save point and before the single commit, so it participates in the same transaction (FR-021)
+- [ ] T070 [US4] Refuse `--startup` with no image target (FR-023), and refuse a file the volume's operating system would not run, on the shared rules from T067 (FR-022)
+- [ ] T071 [P] [US4] Add startup-program tests to `UnitTest/AssemblerToDiskTests.cpp`, including the DOS 3.3 greeting case where a binary named as the greeting leaves the disk booting and the program never running
+- [ ] T072 [US4] Assert `RunBoot` and the assembler path accept and refuse the same things, driving both through the shared rules so the two cannot drift
 
 **Checkpoint**: All four stories complete.
 
@@ -166,17 +167,17 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T072 [P] Update `docs/merlin-subset.md`: "Six constructs are recognized and refused by name" becomes four, and `TYP`, `SAV` and the corrected `DSK` move to the supported table (FR-013). `MerlinSubsetBoundary::GetHelpText` needs no edit — it composes from the rows, which is the property the table exists to have
-- [ ] T073 [P] Update `docs/Assembler.md` and `README.md`: the three-command build loop becomes two, and the bootable case drops from four commands to the same two
-- [ ] T074 [P] Update the assembler help output (FR-017), which generates from the flag tables, and confirm the generated text matches the new rows
-- [ ] T075 Add `CHANGELOG.md` entries under `[Unreleased]`: the feature, and the Merlin `-l` change stated plainly as a user-visible change
-- [ ] T076 Run `scripts\RunDormannTest.ps1` and `scripts\RunHarteTests.ps1 -SkipGenerate`. This changes assembler output paths, so both are required; the checked-in 200-vector Harte depth is correct because no CPU or instruction-set code is touched. Report the depth the runner prints rather than assuming it
-- [ ] T077 Run `scripts\Build.ps1 -RunCodeAnalysis` and resolve to zero warnings. Do this on a clean rebuild — analysis over a stale Release build fabricates LNK4020 noise
-- [ ] T078 Run `scripts\CheckStyle.ps1 -Mode Staged` before the first commit containing any new file, since diff mode cannot see a file that has never been committed and will report OK while checking nothing
-- [ ] T079 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
-- [ ] T080 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
-- [ ] T081 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
-- [ ] T082 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
+- [ ] T073 [P] Update `docs/merlin-subset.md`: "Six constructs are recognized and refused by name" becomes four, and `TYP`, `SAV` and the corrected `DSK` move to the supported table (FR-013). `MerlinSubsetBoundary::GetHelpText` needs no edit — it composes from the rows, which is the property the table exists to have
+- [ ] T074 [P] Update `docs/Assembler.md` and `README.md`: the three-command build loop becomes two, and the bootable case drops from four commands to the same two
+- [ ] T075 [P] Update the assembler help output (FR-017), which generates from the flag tables, and confirm the generated text matches the new rows
+- [ ] T076 Add `CHANGELOG.md` entries under `[Unreleased]`: the feature, and the Merlin `-l` change stated plainly as a user-visible change
+- [ ] T077 Run `scripts\RunDormannTest.ps1` and `scripts\RunHarteTests.ps1 -SkipGenerate`. This changes assembler output paths, so both are required; the checked-in 200-vector Harte depth is correct because no CPU or instruction-set code is touched. Report the depth the runner prints rather than assuming it
+- [ ] T078 Run `scripts\Build.ps1 -RunCodeAnalysis` and resolve to zero warnings. Do this on a clean rebuild — analysis over a stale Release build fabricates LNK4020 noise
+- [ ] T079 Run `scripts\CheckStyle.ps1 -Mode Staged` before the first commit containing any new file, since diff mode cannot see a file that has never been committed and will report OK while checking nothing
+- [ ] T080 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
+- [ ] T081 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
+- [ ] T082 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
+- [ ] T083 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
 
 ---
 
@@ -203,8 +204,8 @@ Within phases, `[P]` tasks touch different files and can run together:
 - **Phase 2**: T009 can be AUTHORED alongside T003–T008 but cannot pass until they land, so it carries no `[P]`
 - **Phase 3**: T015 (placement) alongside the grammar work in T013–T014. T027 is not parallel — it exercises T017's sink
 - **Phase 4**: T034 (type map), T038, T039 are three separate files
-- **Phase 5**: T060 and T064 while the assembler work lands
-- **Phase 7**: T072, T073, T074 are three separate documents
+- **Phase 5**: T060 and T065 while the assembler work lands
+- **Phase 7**: T073, T074, T075 are three separate documents
 
 ## Implementation Strategy
 

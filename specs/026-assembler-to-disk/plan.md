@@ -300,13 +300,20 @@ depth; full depth is for CPU work.
   is a weaker authority than a vendor source, and the plan should say so out
   loud rather than let a hand-written file look like period evidence.
 
-  **This is now partly mitigated.** Real Merlin Pro 2.23 can be driven under
-  Casso and its answers read back off the disk, so an authored fixture can be
-  checked against the period assembler instead of standing on its own. The
-  delta-save rule and the origin rule were settled this way; the procedure and
-  its traps are in [research.md](research.md) finding 2a. What remains is to run
-  the same loop for the `DSK` span rules and the trailing-span rule, whose
-  sources are already written.
+  **This is now largely mitigated.** Real Merlin Pro 2.23 can be driven under
+  Casso and its answers read back off the disk, so an authored fixture is
+  checked against the period assembler rather than standing on its own. Four
+  rules were settled this way — delta saves, the origin governing a saved
+  address, `DSK` cutting spans without `SAV`, and trailing bytes being dropped —
+  and the last of those **contradicted the spec and corrected it**. The
+  procedure and its traps are in [research.md](research.md) finding 2a, and the
+  measured values there are the oracle the fixtures assert against.
+
+  Three rules remain assumption rather than measurement: a bare `SAV` with no
+  operand (FR-042), two saves naming one file (FR-027), and a `DSK` name
+  persisting past a `SAV` (FR-044). None contradicts anything measured, and each
+  is cheap to settle with the recorded procedure. Worth doing before the tests
+  that assert them are written, since one of the four already went the other way.
 - **`TYP`'s exact operand syntax is documented only indirectly.** The Merlin
   Pro manual's OCR is truncated at the entry. Research finding 4 reasons from
   the ProDOS type set and from what Casso already publishes, which is solid for

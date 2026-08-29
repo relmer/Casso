@@ -127,18 +127,75 @@ without `--disk` gets. A host file has no filesystem type, so unlike `DSK` and
 
 ## Scenario 4 — Several files from one source (User Story 3, P3)
 
-A source with two `ORG`/`SAV` sequences:
+**The expected values below are not invented.** They were measured by running
+these exact sources through Merlin Pro 2.23 under Casso and reading the objects
+back off the disk. See [research.md](research.md) finding 2a. Assert against
+these numbers, not against a plausible-looking result.
 
-```bash
-CassoCli merlin TWO.S --disk prog.dsk
+### 4a — Two saves with an origin between them
+
+```
+ ORG $300
+ LDA #$11
+ RTS
+ SAV SPAN1A
+ ORG $6000
+ LDA #$22
+ RTS
+ SAV SPAN1B
 ```
 
-**Expected**: both files on the volume, each with its own load address, and
-**the second holding only the bytes assembled after the first save**. That last
-clause is the one that discriminates: a cumulative implementation puts the first
-file's bytes inside the second and otherwise looks correct.
+| File | Load | Length | Bytes |
+|---|---|---|---|
+| `SPAN1A` | `$0300` | `$0003` | `A9 11 60` |
+| `SPAN1B` | `$6000` | `$0003` | `A9 22 60` |
 
-The same source with no image target:
+**Two clauses discriminate.** `SPAN1B` must be **3 bytes, not 6** — a cumulative
+implementation puts the first file's bytes inside the second and otherwise looks
+correct. And it must load at **`$6000`, not `$0303`** — taking the stated origin
+rather than continuing from the previous save.
+
+### 4b — Two `DSK`s and no `SAV` at all
+
+```
+ DSK SPAN2A
+ ORG $300
+ LDA #$11
+ RTS
+ DSK SPAN2B
+ LDA #$22
+ RTS
+```
+
+| File | Load | Length | Bytes |
+|---|---|---|---|
+| `SPAN2A` | `$0300` | `$0003` | `A9 11 60` |
+| `SPAN2B` | `$0303` | `$0003` | `A9 22 60` |
+
+Two files with no `SAV` in the source. `$0303` is the previous end plus one,
+which is the run-on rule — no origin intervened here, unlike 4a.
+
+### 4c — Bytes after the last save are dropped
+
+```
+ ORG $300
+ LDA #$11
+ RTS
+ SAV SPAN3A
+ LDA #$22
+ RTS
+```
+
+**Expected**: `SPAN3A` only, `$0300`, 3 bytes. The trailing two instructions are
+assembled and counted in the byte total but reach **no file** (FR-045), and the
+assembly **warns** that bytes were assembled and not saved.
+
+A second file here is a failure, not a bonus — Merlin writes one, and SC-003
+promises the files a period assembler would have produced. A missing warning is
+equally a failure: dropping bytes silently is the thing the warning exists to
+prevent.
+
+### 4d — Host files and failure
 
 ```bash
 CassoCli merlin TWO.S
