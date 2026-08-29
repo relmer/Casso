@@ -184,11 +184,26 @@ asked for several.
 names anything and the object is `<source>.bin` — and, given the rule above, a
 span ended by `SAV` is never in this case.
 
-**Bytes emitted after the last save** are a span like any other and are written
-under the rule above, rather than discarded. Real Merlin leaves such bytes
-unsaved in the object area, but silently dropping assembled bytes is the failure
-mode this tree has been bitten by five times, and a trailing span is
-indistinguishable from a whole ordinary assembly when nothing above it saved.
+**A span is written when a directive named it, or when it is the only span** and
+takes the command-line or default name. That last case is the ordinary
+single-output assembly and is what `CassoCli merlin` already does.
+
+**Bytes emitted after the last save, with nothing naming them, are DROPPED, and
+the assembly warns.** This was measured: Merlin saved only the file its `SAV`
+named and wrote nothing for the two instructions after it, though it assembled
+them and counted them in the total.
+
+The spec previously said such bytes were written, reasoning that silently
+dropping assembled bytes is the failure mode this tree has been bitten by five
+times. The reasoning was sound and the conclusion wrong: SC-003 promises the
+files a period assembler would have produced, and writing one Merlin does not
+write breaks that. Separating the concerns resolves it — **the file output
+matches Merlin exactly, and the warning carries the information** rather than an
+invented output carrying it.
+
+Note this does NOT drop the trailing span when a `DSK` is still in effect, since
+that `DSK` names it (FR-044). Measured: `SPAN2`'s second span was written at end
+of assembly for exactly that reason.
 
 ## Naming collisions
 

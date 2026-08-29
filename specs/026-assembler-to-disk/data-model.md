@@ -36,9 +36,11 @@ plausible lie."
 - Save points are in source order.
 - No byte appears in two save points. This is the testable form of "the object
   area is empty after a save".
-- Every emitted byte appears in **some** save point, including bytes emitted
-  after the last `SAV`. Dropping a trailing span would discard assembled bytes
-  while reporting success.
+- A save point exists for every span a directive named, and for the whole
+  assembly when no directive cut it. Bytes emitted after the last `SAV` with
+  nothing naming them produce **no** save point — measured against Merlin, which
+  assembles and counts them but writes no file. The assembly warns in that case,
+  so the bytes are not lost silently even though they are not written.
 - No two save points resolve to the same name (FR-027). Checked before anything
   is written, so the refusal is not discovered halfway through a compose.
 - A failed assembly's save points are not written anywhere, whatever they hold.

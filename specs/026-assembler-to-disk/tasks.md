@@ -44,7 +44,7 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [ ] T006 Track the current span's start in `CassoCore/AssemblySession.h`/`.cpp` so a span can be cut, and record each symbol's scope as it is defined
 - [ ] T007 Close the final span at end of assembly in `CassoCore/AssemblySession.cpp`, so an assembly with no `SAV` yields exactly one save point covering the whole object and there is no separate single-output path to keep in step
 - [ ] T008 Derive each save point's load address as the address of its own first byte in `CassoCore/AssemblySession.cpp` (FR-024), reusing the derivation `AssemblyResult::startAddress` already applies to a whole assembly
-- [ ] T009 Add `UnitTest/SavePointTests.cpp` covering the invariants in [data-model.md](data-model.md): at least one save point when bytes were emitted, source order, no byte in two save points, every emitted byte in some save point including a trailing span. Assert the COUNT before iterating — a loop over an empty list passes while checking nothing
+- [ ] T009 Add `UnitTest/SavePointTests.cpp` covering the invariants in [data-model.md](data-model.md): at least one save point when bytes were emitted, source order, no byte in two save points, no save point for an unnamed trailing span, which Merlin drops (measured), with a warning that bytes were assembled and not saved. Assert the COUNT before iterating — a loop over an empty list passes while checking nothing
 - [ ] T010 Register `UnitTest/SavePointTests.cpp` in `UnitTest/UnitTest.vcxproj`
 - [ ] T011 Verify T009 discriminates: stub the span cut to always return one save point covering everything, confirm the tests go red, restore. A test that stays green under that mutation is measuring nothing
 
@@ -115,32 +115,33 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [ ] T042 [US3] Add `HandlePass2SaveObject` to `CassoCore/AssemblySession.h`/`.cpp` plus its dispatch entry. It runs in **pass 2**, unlike `DSK`'s pass-1 handler, because a save point is a span of emitted bytes
 - [ ] T043 [US3] Require a name operand on `SAV` and report a missing one as an error naming the directive (FR-042), mirroring what `HandlePass1ObjectFile` already does for a bare `DSK`. Do NOT fall back to the command-line name, a `DSK` in effect, or the default — that fallback is what would let several saves resolve to one name
 - [ ] T044 [US3] Cut the span and empty the accumulation on `SAV` (FR-012). Bredon: "after a save, the MERLIN object area is 'empty'" — bytes already saved must not appear in a later file
-- [ ] T045 [US3] Make a second `DSK` close the current save point and open another in `CassoCore/AssemblySession.cpp` (FR-025, FR-043), replacing the last-one-wins note in `HandlePass1ObjectFile` `DSK` cuts spans on its own, so `DSK A ... DSK B` must produce two files with no `SAV` in the source
-- [ ] T046 [US3] Keep a `DSK` name in effect until another `DSK` replaces it, with `SAV` overriding it only for the span it ends (FR-044), in `CassoCore/AssemblySession.cpp`. This is what makes every combination of the two directives resolve without a special case
-- [ ] T047 [US3] **Reworks T037.** Resolve names in the order [data-model.md](data-model.md) fixes: each save point takes its own directive name first (`SAV` beating `DSK` where both name one span), THEN the command-line override is applied or refused. Overriding first reaches the same refusal through a state where several save points share a name
-- [ ] T048 [US3] Refuse a command-line name with several outputs, naming the flag and the count (FR-026). A command-line TYPE has no such limit
-- [ ] T049 [US3] Refuse two outputs resolving to one name, naming the file (FR-027), checked before anything is written. Cover the sequence this exists for: several saves that never name themselves differently, where each writes over the last and only the final one survives. This is deliberately not FR-019's cross-run replace
-- [ ] T050 [US3] Iterate save points in `FileArtifactSink` in `CassoEmuCore/Cli/ArtifactWriter.cpp` so `SAV` works with no image target (FR-020). The list is the same list the image sink walks — doing both is cheaper than special-casing one
-- [ ] T051 [US3] Buffer every host output until the whole assembly succeeds, so a failure after the first save leaves no host file behind (FR-014)
+- [ ] T045 [US3] Write a span only when a directive named it, or when it is the only span and takes the command-line or default name; drop an unnamed trailing span and warn that bytes were assembled and not saved (FR-045), in `CassoCore/AssemblySession.cpp`. Measured against Merlin: the trailing bytes are assembled and counted but reach no file, while a span a `DSK` still names IS written
+- [ ] T046 [US3] Make a second `DSK` close the current save point and open another in `CassoCore/AssemblySession.cpp` (FR-025, FR-043), replacing the last-one-wins note in `HandlePass1ObjectFile` `DSK` cuts spans on its own, so `DSK A ... DSK B` must produce two files with no `SAV` in the source
+- [ ] T047 [US3] Keep a `DSK` name in effect until another `DSK` replaces it, with `SAV` overriding it only for the span it ends (FR-044), in `CassoCore/AssemblySession.cpp`. This is what makes every combination of the two directives resolve without a special case
+- [ ] T048 [US3] **Reworks T037.** Resolve names in the order [data-model.md](data-model.md) fixes: each save point takes its own directive name first (`SAV` beating `DSK` where both name one span), THEN the command-line override is applied or refused. Overriding first reaches the same refusal through a state where several save points share a name
+- [ ] T049 [US3] Refuse a command-line name with several outputs, naming the flag and the count (FR-026). A command-line TYPE has no such limit
+- [ ] T050 [US3] Refuse two outputs resolving to one name, naming the file (FR-027), checked before anything is written. Cover the sequence this exists for: several saves that never name themselves differently, where each writes over the last and only the final one survives. This is deliberately not FR-019's cross-run replace
+- [ ] T051 [US3] Iterate save points in `FileArtifactSink` in `CassoEmuCore/Cli/ArtifactWriter.cpp` so `SAV` works with no image target (FR-020). The list is the same list the image sink walks — doing both is cheaper than special-casing one
+- [ ] T052 [US3] Buffer every host output until the whole assembly succeeds, so a failure after the first save leaves no host file behind (FR-014)
 
 ### Per-output host artifacts
 
-- [ ] T052 [US3] Split listing, symbol and debug artifacts into one set per output, named from the output (FR-028, FR-031, FR-032), in `CassoEmuCore/Cli/ArtifactWriter.cpp`
-- [ ] T053 [US3] Rework `Assembler::FormatDebugInfo` in `CassoCore/Assembler.cpp` to index per output rather than from one flat map, so "what is at $0310" has one answer where outputs overlap (FR-029)
-- [ ] T054 [US3] Repeat the equates above the first output into every per-output artifact (FR-035, FR-036). Each file must stand alone: a debugger holding only one program still needs the hardware addresses it was opened to resolve
-- [ ] T055 [US3] Keep single-output artifact names and destinations as they are (FR-033), the Merlin listing flag excepted
-- [ ] T056 [US3] Change the Merlin `-l` row in `s_kMerlinFlags` to take no value, writing `<output>.lst` files rather than standard output (FR-034, FR-037), in `CassoCore/CommandLineParser.cpp`
-- [ ] T057 [US3] Give a filename supplied to Merlin's `-l` a diagnostic naming the rule, not a generic unknown-flag message (FR-034)
-- [ ] T058 [US3] Leave the as65 `-l` row untouched (FR-038) — an as65 compatibility obligation, and as65 has no directive that could produce a second output
+- [ ] T053 [US3] Split listing, symbol and debug artifacts into one set per output, named from the output (FR-028, FR-031, FR-032), in `CassoEmuCore/Cli/ArtifactWriter.cpp`
+- [ ] T054 [US3] Rework `Assembler::FormatDebugInfo` in `CassoCore/Assembler.cpp` to index per output rather than from one flat map, so "what is at $0310" has one answer where outputs overlap (FR-029)
+- [ ] T055 [US3] Repeat the equates above the first output into every per-output artifact (FR-035, FR-036). Each file must stand alone: a debugger holding only one program still needs the hardware addresses it was opened to resolve
+- [ ] T056 [US3] Keep single-output artifact names and destinations as they are (FR-033), the Merlin listing flag excepted
+- [ ] T057 [US3] Change the Merlin `-l` row in `s_kMerlinFlags` to take no value, writing `<output>.lst` files rather than standard output (FR-034, FR-037), in `CassoCore/CommandLineParser.cpp`
+- [ ] T058 [US3] Give a filename supplied to Merlin's `-l` a diagnostic naming the rule, not a generic unknown-flag message (FR-034)
+- [ ] T059 [US3] Leave the as65 `-l` row untouched (FR-038) — an as65 compatibility obligation, and as65 has no directive that could produce a second output
 
 ### Tests
 
-- [ ] T059 [P] [US3] Add `UnitTest/MerlinSaveObjectTests.cpp` covering span semantics, per-save load addresses, both naming refusals, and the host-file path. Cover each span-cutting shape separately: two `SAV`s with no `DSK`, two `DSK`s with no `SAV`, and the two mixed, since a rule that handles one can fail the others
-- [ ] T060 [US3] Register `UnitTest/MerlinSaveObjectTests.cpp` in `UnitTest/UnitTest.vcxproj`
-- [ ] T061 [US3] Assert explicitly that the second output does NOT contain the first's bytes. A cumulative implementation passes every other assertion in this phase
-- [ ] T062 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to
-- [ ] T063 [P] [US3] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a four-row boundary and assert `SAV` is no longer refused
-- [ ] T064 [US3] Add a fail-after-first-save test asserting the image is byte-for-byte unchanged AND no host file was left behind
+- [ ] T060 [P] [US3] Add `UnitTest/MerlinSaveObjectTests.cpp` covering span semantics, per-save load addresses, both naming refusals, and the host-file path. Cover each span-cutting shape separately: two `SAV`s with no `DSK`, two `DSK`s with no `SAV`, and the two mixed, since a rule that handles one can fail the others
+- [ ] T061 [US3] Register `UnitTest/MerlinSaveObjectTests.cpp` in `UnitTest/UnitTest.vcxproj`
+- [ ] T062 [US3] Assert explicitly that the second output does NOT contain the first's bytes. A cumulative implementation passes every other assertion in this phase
+- [ ] T063 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to
+- [ ] T064 [P] [US3] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a four-row boundary and assert `SAV` is no longer refused
+- [ ] T065 [US3] Add a fail-after-first-save test asserting the image is byte-for-byte unchanged AND no host file was left behind
 
 **Checkpoint**: Multi-output assembly works to both targets.
 
@@ -152,12 +153,12 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 **Independent test**: Assemble to a bootable image with the startup flag, read the volume back, and confirm it names the assembled file as its startup program.
 
-- [ ] T065 [US4] Extract the startup-runnability rules from `RunBoot` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`/`.h`, `IsRunnableAsDos33Greeting` included, into something both routes call (FR-022). **The extraction is the point, not the flag** — a second copy is how `run --merlin` once refused `XC` while `merlin` accepted it
-- [ ] T066 [US4] Add the `--startup` row to `s_kAs65Flags` and `s_kMerlinFlags` in `CassoCore/CommandLineParser.cpp`, plus the long-option entries
-- [ ] T067 [US4] Call `IVolume::SetStartupProgram` from `CassoEmuCore/Cli/ImageArtifactSink.cpp` after the last save point and before the single commit, so it participates in the same transaction (FR-021)
-- [ ] T068 [US4] Refuse `--startup` with no image target (FR-023), and refuse a file the volume's operating system would not run, on the shared rules from T065 (FR-022)
-- [ ] T069 [P] [US4] Add startup-program tests to `UnitTest/AssemblerToDiskTests.cpp`, including the DOS 3.3 greeting case where a binary named as the greeting leaves the disk booting and the program never running
-- [ ] T070 [US4] Assert `RunBoot` and the assembler path accept and refuse the same things, driving both through the shared rules so the two cannot drift
+- [ ] T066 [US4] Extract the startup-runnability rules from `RunBoot` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`/`.h`, `IsRunnableAsDos33Greeting` included, into something both routes call (FR-022). **The extraction is the point, not the flag** — a second copy is how `run --merlin` once refused `XC` while `merlin` accepted it
+- [ ] T067 [US4] Add the `--startup` row to `s_kAs65Flags` and `s_kMerlinFlags` in `CassoCore/CommandLineParser.cpp`, plus the long-option entries
+- [ ] T068 [US4] Call `IVolume::SetStartupProgram` from `CassoEmuCore/Cli/ImageArtifactSink.cpp` after the last save point and before the single commit, so it participates in the same transaction (FR-021)
+- [ ] T069 [US4] Refuse `--startup` with no image target (FR-023), and refuse a file the volume's operating system would not run, on the shared rules from T066 (FR-022)
+- [ ] T070 [P] [US4] Add startup-program tests to `UnitTest/AssemblerToDiskTests.cpp`, including the DOS 3.3 greeting case where a binary named as the greeting leaves the disk booting and the program never running
+- [ ] T071 [US4] Assert `RunBoot` and the assembler path accept and refuse the same things, driving both through the shared rules so the two cannot drift
 
 **Checkpoint**: All four stories complete.
 
@@ -165,17 +166,17 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T071 [P] Update `docs/merlin-subset.md`: "Six constructs are recognized and refused by name" becomes four, and `TYP`, `SAV` and the corrected `DSK` move to the supported table (FR-013). `MerlinSubsetBoundary::GetHelpText` needs no edit — it composes from the rows, which is the property the table exists to have
-- [ ] T072 [P] Update `docs/Assembler.md` and `README.md`: the three-command build loop becomes two, and the bootable case drops from four commands to the same two
-- [ ] T073 [P] Update the assembler help output (FR-017), which generates from the flag tables, and confirm the generated text matches the new rows
-- [ ] T074 Add `CHANGELOG.md` entries under `[Unreleased]`: the feature, and the Merlin `-l` change stated plainly as a user-visible change
-- [ ] T075 Run `scripts\RunDormannTest.ps1` and `scripts\RunHarteTests.ps1 -SkipGenerate`. This changes assembler output paths, so both are required; the checked-in 200-vector Harte depth is correct because no CPU or instruction-set code is touched. Report the depth the runner prints rather than assuming it
-- [ ] T076 Run `scripts\Build.ps1 -RunCodeAnalysis` and resolve to zero warnings. Do this on a clean rebuild — analysis over a stale Release build fabricates LNK4020 noise
-- [ ] T077 Run `scripts\CheckStyle.ps1 -Mode Staged` before the first commit containing any new file, since diff mode cannot see a file that has never been committed and will report OK while checking nothing
-- [ ] T078 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
-- [ ] T079 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
-- [ ] T080 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
-- [ ] T081 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
+- [ ] T072 [P] Update `docs/merlin-subset.md`: "Six constructs are recognized and refused by name" becomes four, and `TYP`, `SAV` and the corrected `DSK` move to the supported table (FR-013). `MerlinSubsetBoundary::GetHelpText` needs no edit — it composes from the rows, which is the property the table exists to have
+- [ ] T073 [P] Update `docs/Assembler.md` and `README.md`: the three-command build loop becomes two, and the bootable case drops from four commands to the same two
+- [ ] T074 [P] Update the assembler help output (FR-017), which generates from the flag tables, and confirm the generated text matches the new rows
+- [ ] T075 Add `CHANGELOG.md` entries under `[Unreleased]`: the feature, and the Merlin `-l` change stated plainly as a user-visible change
+- [ ] T076 Run `scripts\RunDormannTest.ps1` and `scripts\RunHarteTests.ps1 -SkipGenerate`. This changes assembler output paths, so both are required; the checked-in 200-vector Harte depth is correct because no CPU or instruction-set code is touched. Report the depth the runner prints rather than assuming it
+- [ ] T077 Run `scripts\Build.ps1 -RunCodeAnalysis` and resolve to zero warnings. Do this on a clean rebuild — analysis over a stale Release build fabricates LNK4020 noise
+- [ ] T078 Run `scripts\CheckStyle.ps1 -Mode Staged` before the first commit containing any new file, since diff mode cannot see a file that has never been committed and will report OK while checking nothing
+- [ ] T079 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
+- [ ] T080 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
+- [ ] T081 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
+- [ ] T082 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
 
 ---
 
@@ -193,7 +194,7 @@ Phase 1 Setup
 
 **Story dependencies are real, not bookkeeping.** US2's directives need somewhere to land, so they need US1's target. US3's `SAV` needs US2's type handling to give each output a type. US4 writes a startup entry into the transaction US1 built.
 
-**The exception worth noting**: the per-output artifact work in Phase 5 (T052–T058) depends only on Phase 2's save points, not on any disk work. It can proceed in parallel with Phases 3 and 4 if that suits.
+**The exception worth noting**: the per-output artifact work in Phase 5 (T053–T059) depends only on Phase 2's save points, not on any disk work. It can proceed in parallel with Phases 3 and 4 if that suits.
 
 ## Parallel Opportunities
 
@@ -202,8 +203,8 @@ Within phases, `[P]` tasks touch different files and can run together:
 - **Phase 2**: T009 can be AUTHORED alongside T003–T008 but cannot pass until they land, so it carries no `[P]`
 - **Phase 3**: T015 (placement) alongside the grammar work in T013–T014. T027 is not parallel — it exercises T017's sink
 - **Phase 4**: T034 (type map), T038, T039 are three separate files
-- **Phase 5**: T059 and T063 while the assembler work lands
-- **Phase 7**: T071, T072, T073 are three separate documents
+- **Phase 5**: T060 and T064 while the assembler work lands
+- **Phase 7**: T072, T073, T074 are three separate documents
 
 ## Implementation Strategy
 
@@ -219,4 +220,4 @@ Three recorded lessons apply directly here and are worth not rediscovering:
 
 - **A degraded write must not read as a healthy one.** Assert the image is byte-for-byte unchanged, not merely that a call failed. `NibblizationLayer::Denibblize` returning `S_OK` over zero-filled sectors (GH #115) is the case this comes from.
 - **Assert a non-zero count before iterating.** A save-point loop over an empty list passes while checking nothing and looks identical in the output to a full run.
-- **Mutate what the test covers and confirm the test notices.** The all-or-nothing guarantee is structural — `IVolume` computes a whole buffer or none — so its tests can pass without the feature being right. T011, T030 and T061 exist for this and should not be skipped as ceremony.
+- **Mutate what the test covers and confirm the test notices.** The all-or-nothing guarantee is structural — `IVolume` computes a whole buffer or none — so its tests can pass without the feature being right. T011, T030 and T062 exist for this and should not be skipped as ceremony.

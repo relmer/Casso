@@ -411,6 +411,22 @@ startup program.
   still belongs to the `DSK` in effect. This gives one rule for every
   combination of the two directives and leaves no case needing to be refused as
   ambiguous.
+- **FR-045**: A span MUST be written when a directive named it, or when it is
+  the only span and takes the command-line or default name. Bytes emitted after
+  the last save with nothing naming them MUST NOT be written, and the assembly
+  MUST warn that they were assembled and not saved.
+
+  **This reverses an earlier rule, on evidence.** The spec said such bytes were
+  written, reasoning that silently dropping assembled bytes is a failure mode
+  this tree knows well. Measured against Merlin, only the named file reaches the
+  disk; the trailing bytes are assembled, counted in the total, and written
+  nowhere. SC-003 promises the files a period assembler would have produced, so
+  writing one it does not write breaks that. The warning carries the information
+  instead, which satisfies both: the files match Merlin, and nothing is lost in
+  silence.
+
+  The trailing span is still written where a `DSK` remains in effect, because
+  that `DSK` names it (FR-044). Both halves were measured.
 - **FR-009**: `TYP` MUST set the object's filesystem type when an image target is
   given.
 - **FR-041**: With no image target, `TYP` MUST be refused, naming the flag that

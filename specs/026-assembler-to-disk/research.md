@@ -103,13 +103,74 @@ the previous save, as the manual's own example implies for the run-on case, it
 would have been `$0303`. FR-024's rule was recorded as a synthesis because the
 manual is silent here; it is now measured behavior.
 
-**What is still assumption rather than measurement**: two `DSK` directives
-cutting spans with no `SAV` (FR-025, FR-043), a `DSK` name persisting past a
-`SAV` (FR-044), bytes emitted after the last save (the contract's trailing-span
-rule), a bare `SAV` with no operand (FR-042), and two saves naming one file
-(FR-027). Sources for the first two are written and on the work disk
-(`T.SPAN2`, `T.SPAN3`); they were not run. The procedure below makes them
-cheap to finish.
+### `DSK` cuts spans with no `SAV` present — confirmed
+
+```
+* TWO DSK, NO SAV
+ DSK SPAN2A
+ ORG $300
+ LDA #$11
+ RTS
+ DSK SPAN2B
+ LDA #$22
+ RTS
+```
+
+| File | Load | Length | Bytes |
+|---|---|---|---|
+| `SPAN2A` | `$0300` | `$0003` | `A9 11 60` |
+| `SPAN2B` | `$0303` | `$0003` | `A9 22 60` |
+
+**Two files, from two `DSK` directives, with no `SAV` anywhere** — FR-025 and
+FR-043 confirmed. Each holds only its own span, so `DSK` cuts exactly as `SAV`
+does. Merlin printed no "Object saved as" line for either, consistent with `DSK`
+streaming rather than saving a buffer.
+
+`SPAN2B` at `$0303` is the previous save's last address plus one, which is the
+manual's run-on rule. Taken with `SPAN1B` at `$6000`, both halves of FR-024 are
+now measured: addresses run on when nothing moves the program counter, and a
+stated origin governs when one does.
+
+### Bytes after the last save are DROPPED — and this contradicted the spec
+
+```
+* BYTES AFTER THE LAST SAV
+ ORG $300
+ LDA #$11
+ RTS
+ SAV SPAN3A
+ LDA #$22
+ RTS
+```
+
+Merlin reported `Object saved as SPAN3A,A$0300,L$0003`, then listed
+`0303: A9 22` and `0305: 60` and ended with `6 bytes, Errors: 0`. **Only
+`SPAN3A` reached the disk.** The trailing two instructions were assembled,
+counted in the total, and written nowhere.
+
+**The spec said the opposite**, on the reasoning that silently dropping
+assembled bytes is the failure mode this tree has been bitten by five times.
+That reasoning is sound and the conclusion was still wrong, because it is not
+this tool's decision to make: SC-003 promises the same files a period assembler
+would have produced, and writing a file Merlin does not write breaks it.
+
+**Resolved by separating the two concerns.** Casso drops the span, matching
+Merlin exactly, AND warns that bytes were assembled after the last save and not
+written. Fidelity is preserved in the files; the degraded-state doctrine is
+satisfied by the diagnostic rather than by inventing an output. A build that
+wants the warning fatal already has the flag for it.
+
+**The rule that fits all three measurements**, and preserves Casso's own CLI
+behavior: a span is written when a directive named it, or when it is the only
+span and takes the command-line or default name. `SPAN2`'s trailing span was
+written because the `DSK` still named it; `SPAN3`'s was not because nothing did;
+and an ordinary assembly with no directives at all is one span under the
+command-line name, which is what `CassoCli merlin` already does and FR-016
+protects.
+
+**What is still assumption rather than measurement**: a bare `SAV` with no
+operand (FR-042), two saves naming one file (FR-027), and a `DSK` name persisting
+past a `SAV` (FR-044). The procedure below makes each cheap to settle.
 
 ### The procedure, since 019 asked for exactly this
 
