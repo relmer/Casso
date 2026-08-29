@@ -2635,5 +2635,48 @@ namespace CpuOperationTests
             // RMW exclusion keeps it from accruing a page-cross penalty.
             Assert::AreEqual ((Byte) 6, cpu.GetLastInstructionCycles());
         }
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  IndexedShiftsCostSevenWhetherOrNotThePageCrosses
+        //
+        //  The NMOS half of a divergence the 65C02 introduced: there, these four
+        //  drop to six and pay a seventh cycle only on a real crossing. Here they
+        //  are seven either way, because the part cannot know it has crossed
+        //  until it has read and it must write regardless.
+        //
+        //  Asserted from BOTH sides of the page boundary. The CMOS retiming is a
+        //  per-instruction flag that this core never sets, and a flag that leaked
+        //  across would show up only on the crossing case -- which is exactly the
+        //  case a single non-crossing assertion would miss.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (IndexedShiftsCostSevenWhetherOrNotThePageCrosses)
+        {
+            static constexpr Byte    kIndexedShifts[4] = { 0x1E, 0x3E, 0x5E, 0x7E };   // ASL, ROL, LSR, ROR
+
+            for (Byte opcode : kIndexedShifts)
+            {
+                TestCpu  sameP;
+                TestCpu  crossing;
+
+                sameP.InitForTest();
+                sameP.RegX() = 0x10;
+                sameP.WriteBytes (0x8000, { opcode, 0x80, 0x12 });   // $1280 + $10 = $1290
+                sameP.StepOne();
+
+                crossing.InitForTest();
+                crossing.RegX() = 0x10;
+                crossing.WriteBytes (0x8000, { opcode, 0xF8, 0x12 }); // $12F8 + $10 = $1308
+                crossing.StepOne();
+
+                Assert::AreEqual ((Byte) 7, sameP.GetLastInstructionCycles());
+                Assert::AreEqual ((Byte) 7, crossing.GetLastInstructionCycles());
+            }
+        }
     };
 }

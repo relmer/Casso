@@ -66,6 +66,30 @@ Entries before versioning was introduced use dates only.
   out with the count omitted entirely. An always-taken branch is now scored at
   three, and a `JMP` rewritten as a `BRA` reports the branch's timing rather
   than the jump's.
+- **`-c` reported no cycle count for most 65C02 instructions, and the wrong one
+  for `JMP (abs)`.** The same NMOS table scored every other instruction too. The
+  65C02 puts `TSB`, `TRB`, `STZ`, the `(zp)` addressing mode, `INC A` / `DEC A`,
+  the added `BIT` forms, `PHX` / `PHY` / `PLX` / `PLY`, `JMP (abs,X)` and the
+  Rockwell `RMBn` / `SMBn` / `BBRn` / `BBSn` in slots that table scores as
+  illegal, so each of them read back zero and listed with no count beside it.
+  `JMP (abs)` was worse than missing: both parts use `$6C`, so a 65C02 listing
+  printed the NMOS five where the 65C02 takes six. The count now comes off the
+  instruction itself, which is where the emulator has always read it, so a
+  listing and the emulated timing can no longer disagree about the same byte.
+  The NMOS counts are unchanged.
+- **The emulated 65C02 spent a cycle too many executing `ASL`, `LSR`, `ROL` and
+  `ROR` in `abs,X`.** These four are seven cycles on the NMOS 6502 however the
+  indexed address lands, and the CMOS core inherited that. The 65C02 made the
+  last cycle conditional: it takes six, and seven only when the address crosses
+  a page. **This changes emulated instruction timing, not just a printed
+  number**, so anything that counts cycles on an Enhanced //e or //c -- cycle
+  budgets, timing loops, and software that paces itself off them -- runs
+  fractionally differently than it did. Four opcodes are affected ($1E, $3E,
+  $5E, $7E) and only on the CMOS core; `INC` and `DEC` in `abs,X` are seven on
+  both parts and are untouched, as is every NMOS timing. The Harte vectors could
+  not have caught this: Casso's packed fixtures keep each vector's start and end
+  state and discard the upstream per-cycle bus trace, so they check what an
+  instruction computes and never what it costs.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

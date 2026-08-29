@@ -393,6 +393,11 @@ Error:
 //  so their cost is already baked into baseCycles and adding it here would
 //  double-count. That is what the long isReadOp exclusion list is for.
 //
+//  The 65C02's abs,X shifts and rotates are the one exception, and they carry
+//  it per instruction rather than by operation: the CMOS part made that write
+//  conditional, so those four pay the cycle only on a real crossing while their
+//  NMOS twins pay it always. Same opcode, same operation, different timing.
+//
 //  ZeroPageIndirectY needs its base recovered as effectiveAddress - Y, because
 //  unlike AbsoluteX/Y the base was never a literal in the instruction; it came
 //  from the zero-page pointer.
@@ -473,7 +478,10 @@ void Cpu::StepOne()
         microcode.operation != Microcode::ResetMemoryBit     &&
         microcode.operation != Microcode::SetMemoryBit;
 
-    if (isReadOp)
+    // The 65C02's abs,X shifts and rotates are read-modify-writes that pay the
+    // crossing cycle only when the page actually crosses, so the operation-based
+    // answer above is wrong for them and they say so per instruction.
+    if (isReadOp || microcode.crossingAPageCostsACycle)
     {
         if (microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteX  ||
             microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteY  ||

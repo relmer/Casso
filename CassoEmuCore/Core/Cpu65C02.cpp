@@ -121,10 +121,58 @@ void Cpu65C02::SetOpcode (Byte                                  opcode,
 void Cpu65C02::InitializeCmos()
 {
     InitializeArithmetic();
+    RetimeIndexedShifts();
     ReclaimUndocumented();
     InitializeCmosLeftovers();
     InstallBitOps();
     InitializeNops();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RetimeIndexedShifts
+//
+//  ASL, LSR, ROL and ROR in abs,X keep their NMOS opcodes and behavior and
+//  differ only in what they cost, so they are re-timed in place rather than
+//  reinstalled.
+//
+//  The NMOS part spends seven cycles on these whether or not the indexed
+//  address crosses a page: it cannot know that it has crossed until it has
+//  read, and it must write either way. The 65C02 made the extra cycle
+//  conditional, so it spends six and pays the seventh only on a real crossing.
+//  INC and DEC in abs,X are NOT part of this -- they remain seven on both
+//  parts, which is why this walks a named list rather than every abs,X
+//  read-modify-write.
+//
+//  Both halves have to move together. Lowering the base without marking the
+//  crossing conditional would under-count every crossing access, and marking it
+//  without lowering the base would over-count every one.
+//
+//  Sources: Bruce Clark, "65C02 Opcodes", 6502.org -- "On the 6502, these four
+//  instructions always take 7 cycles, regardless of whether a page boundary was
+//  crossed or not. On the 65C02, they take 6 cycles when a page boundary is not
+//  crossed, and take 7 cycles when a page boundary is crossed." The oxyron.de
+//  65C02 opcode matrix agrees per opcode, marking $1E/$3E/$5E/$7E "6*" and
+//  $DE/$FE a flat "7".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu65C02::RetimeIndexedShifts()
+{
+    static constexpr Byte    kConditionalRmwCycles   = 6;
+    static constexpr Byte    kIndexedShiftOpcodes[4] = { 0x1E, 0x3E, 0x5E, 0x7E };   // ASL, ROL, LSR, ROR
+
+
+
+    for (Byte opcode : kIndexedShiftOpcodes)
+    {
+        instructionSet[opcode].baseCycles               = kConditionalRmwCycles;
+        instructionSet[opcode].crossingAPageCostsACycle = true;
+    }
 }
 
 

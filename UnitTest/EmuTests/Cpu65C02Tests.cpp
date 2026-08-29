@@ -242,6 +242,72 @@ namespace Cpu65C02TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  IndexedShiftsPayTheCrossingCycleOnlyWhenTheyCross
+        //
+        //  The NMOS part spends seven cycles on ASL/LSR/ROL/ROR in abs,X however
+        //  the address lands; the 65C02 spends six and pays the seventh only on a
+        //  real crossing. Both halves are asserted, because a base lowered
+        //  without the conditional crossing under-counts every crossing access
+        //  and reads exactly like a correct non-crossing one.
+        //
+        //  INC and DEC in abs,X share the mode and the read-modify-write shape
+        //  and are NOT part of the change, so they are asserted alongside: they
+        //  are what a fix applied by addressing mode rather than by opcode would
+        //  break, and nothing else here would notice.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (IndexedShiftsPayTheCrossingCycleOnlyWhenTheyCross)
+        {
+            static constexpr Byte    kIndexedShifts[4] = { 0x1E, 0x3E, 0x5E, 0x7E };   // ASL, ROL, LSR, ROR
+            static constexpr Byte    kIndexedIncDec[2] = { 0xDE, 0xFE };               // DEC, INC
+
+            for (Byte opcode : kIndexedShifts)
+            {
+                // $0380 + $10 = $0390, same page.
+                Harness h;
+
+                h.SetRegs (0, 0x10, 0, 0);
+                h.Load ({ opcode, 0x80, 0x03 });
+                h.Step();
+
+                Assert::AreEqual<Byte> (6, h.Cycles());
+            }
+
+            for (Byte opcode : kIndexedShifts)
+            {
+                // $03F8 + $10 = $0408, over the page.
+                Harness h;
+
+                h.SetRegs (0, 0x10, 0, 0);
+                h.Load ({ opcode, 0xF8, 0x03 });
+                h.Step();
+
+                Assert::AreEqual<Byte> (7, h.Cycles());
+            }
+
+            for (Byte opcode : kIndexedIncDec)
+            {
+                // Seven either way, on both cores.
+                Harness  same;
+                Harness  crossing;
+
+                same.SetRegs (0, 0x10, 0, 0);
+                same.Load ({ opcode, 0x80, 0x03 });
+                same.Step();
+
+                crossing.SetRegs (0, 0x10, 0, 0);
+                crossing.Load ({ opcode, 0xF8, 0x03 });
+                crossing.Step();
+
+                Assert::AreEqual<Byte> (7, same.Cycles());
+                Assert::AreEqual<Byte> (7, crossing.Cycles());
+            }
+        }
+
+
         TEST_METHOD (RockwellBitOpsExecute)
         {
             // Casso models the Rockwell R65C02: RMB/SMB/BBR/BBS are real

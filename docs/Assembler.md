@@ -121,12 +121,39 @@ shipped, and their opcode slots behave as NOPs.
 | Flag | Meaning |
 |---|---|
 | `-l [<file>]` | Generate a listing. `-l` alone goes to stdout; `-l file` writes to a file. |
-| `-c` | Include cycle counts in the listing. |
+| `-c` | Include cycle counts in the listing, in brackets between the bytes and the source text. |
 | `-m` | Show macro expansions in the listing. |
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Print the symbol table to stdout: each symbol with its address in hex and decimal, and a `*` on a redefinable one. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
 | `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions: what is at an address, and where a name went, and each order answers one. Casso's own format; no standard is being followed. |
+
+#### What `-c` counts
+
+The number is the **base** cost of the instruction: what every execution pays,
+with nothing added for a condition the assembler cannot see. Three costs are
+therefore excluded, because they depend on run-time state rather than on the
+line:
+
+- the extra cycle an indexed read pays when the address crosses a page — and,
+  under `-x`, the same cycle for the `abs,X` shifts and rotates,
+- the extra cycle a conditional branch pays when it is taken, and another when
+  the branch crosses a page, and
+- under `-x`, the extra cycle `ADC` and `SBC` pay while the decimal flag is set.
+
+`BRA` is the one exception, listed at three rather than two: it has no
+not-taken case, so the taken cycle is part of its base rather than a penalty.
+
+Counts follow the CPU the source is assembled for, and they are the same numbers
+the emulator bills when it executes the byte. `-x` selects the 65C02 set, where
+two things cost differently from the NMOS part:
+
+- `JMP (abs)` is six cycles rather than five. The page-wrap bug is fixed, at the
+  price of a cycle.
+- `ASL`, `LSR`, `ROL` and `ROR` in `abs,X` are six rather than seven. The NMOS
+  part always spends the seventh; the 65C02 spends it only when the address
+  crosses a page, so six is the base and the crossing is a penalty like any
+  other. `INC` and `DEC` in `abs,X` are seven on both parts and are unaffected.
 
 ### Symbols and diagnostics
 

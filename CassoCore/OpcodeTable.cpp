@@ -106,50 +106,46 @@ OpcodeTable::OpcodeTable()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetCycleCounts — standard 6502 cycle counts per opcode
+//  GetCycleCounts — an instruction's base cycle count, for the -c listing
 //
-//  Keyed by opcode, which is right for the NMOS set and only approximately
-//  right for the CMOS one: several 65C02 opcodes reuse a slot the NMOS table
-//  scores as illegal, so they read back as 0 and the listing then omits their
-//  count. BRA is corrected here because the assembler now EMITS it -- a jump
-//  replaced by a branch would otherwise lose the timing the jump had -- and it
-//  cannot be corrected in the table, because slot $80 is the undocumented
-//  two-cycle NOP on NMOS. The rest of the CMOS gap is untouched and still open.
+//  Read off the instruction ITSELF rather than out of a table keyed by opcode.
+//  A keyed table can only describe one CPU, and this function is asked about
+//  two: the 65C02 reuses dozens of slots the NMOS map leaves illegal, so an
+//  NMOS-keyed table answered 0 for TSB, TRB, STZ, the (zp) modes, INC A / DEC A,
+//  the extra BIT forms, PHX/PHY/PLX/PLY, JMP (abs,X) and the whole Rockwell
+//  bit-op set -- and the listing then printed no count at all. Worse, where the
+//  two CPUs share a slot but not a timing, the NMOS number was printed as if it
+//  were the CMOS one: JMP (abs) at $6C listed as five where the 65C02 takes six.
+//  Patching the table in place cannot fix either, because a slot legitimately
+//  holds a different value per CPU -- $80 is the undocumented two-cycle NOP #imm
+//  on NMOS and the three-cycle BRA on CMOS.
 //
-//  An always-taken branch is scored at three. Its neighbors are scored NOT
-//  taken, which is why they read two; BRA has no not-taken case, so three is
-//  its base rather than a penalty added to one.
+//  Microcode::baseCycles already carries the per-instruction count the emulator
+//  bills for executing that very byte, and it is filled in by the same tables
+//  this class inverts. Reading it is what keeps the listing and the emulator
+//  from disagreeing about an instruction, the same reason the opcode mapping is
+//  inverted from the Microcode table instead of being written out again.
+//
+//  What baseCycles deliberately excludes is exactly what a static listing
+//  cannot know: the page-crossing cycle on an indexed read, the taken-branch
+//  cycle, and the 65C02's extra cycle for ADC/SBC while the decimal flag is set.
+//  All three are added at run time by StepOne and the operations, so the number
+//  here is the base every execution pays and never an average.
+//
+//  An always-taken branch is the one instruction whose base is not its stored
+//  count. BRA is stored as two so StepOne can add the taken cycle like any other
+//  branch, but BRA has no not-taken case, so the listing states three.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte GetCycleCounts (const Microcode & instruction, Byte opcode)
+static Byte GetCycleCounts (const Microcode & instruction)
 {
-    constexpr Byte     kBranchAlwaysCycles = 3;
-    // Standard 6502 cycle counts (no page-crossing or branch-taken penalties)
-    static const Byte  s_cycles[256]       =
-    {
-        7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,  // $00-$0F
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $10-$1F
-        6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0,  // $20-$2F
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $30-$3F
-        6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0,  // $40-$4F
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $50-$5F
-        6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0,  // $60-$6F
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $70-$7F
-        0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0,  // $80-$8F
-        2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,  // $90-$9F
-        2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,  // $A0-$AF
-        2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,  // $B0-$BF
-        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,  // $C0-$CF
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $D0-$DF
-        2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,  // $E0-$EF
-        2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,  // $F0-$FF
-    };
+    constexpr Byte  kBranchAlwaysCycles = 3;
 
 
 
     return (instruction.operation == Microcode::BranchAlways) ? kBranchAlwaysCycles
-                                                              : s_cycles[opcode];
+                                                              : instruction.baseCycles;
 }
 
 
@@ -203,7 +199,7 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
         OpcodeEntry entry = {};
         entry.opcode      = (Byte) i;
         entry.operandSize = GetOperandSize (mc.globalAddressingMode);
-        entry.cycleCounts = GetCycleCounts (mc, (Byte) i);
+        entry.cycleCounts = GetCycleCounts (mc);
 
         m_table[mnemonic][mode] = entry;
     }
