@@ -67,7 +67,7 @@ roughly a dozen files, two new refusal reasons.
 
 | Principle | Assessment |
 |---|---|
-| **I. Code Quality** | Nothing here resists the house style. The codec is data-in/data-out over byte vectors, so EHM with a single exit is natural. Watch the usual traps: the two accepted track sizes and the sync byte are named constants, not literals; the derivation loop is bounded by one revolution, matching the existing `ReadNibbleAt`. |
+| **I. Code Quality** | Nothing here resists the house style. The codec is data-in/data-out over byte vectors, so EHM with a single exit is natural. Watch the usual traps: the two accepted track sizes and the sync byte are named constants, not literals; the derivation loop is bounded by one revolution, matching the existing `ReadNibbleAt`. **Every function this feature adds is VerbNoun** -- `GetContainers`, `ResolveGeometry`, `GetPrimaryExtension`, `Load`, `Serialize`. A noun-first name (`ContainersFor`, `ExtensionFor`) reads as a value rather than an action and is not accepted, `OnXxx` handlers aside. |
 | **II. Testing Discipline** | Every part is reachable from `UnitTest` without a file on disk. The codec takes and returns byte vectors; the store already has reader and flush seams; the console runner already takes `IDiskFileIo`. The round-trip invariant in research D5 gives the strongest tests a concrete assertion rather than a smoke check. |
 | **III. UX Consistency** | The refusals follow `MountDiagnosis::Describe`, which produces a predicate clause the console and the GUI each wrap in their own subject, so one wording serves both. `create`'s type list is extended in the one table that already drives both the acceptance and the error text. |
 | **IV. Performance** | One linear pass per track at mount and at flush. No hot path is touched. |
@@ -103,7 +103,7 @@ arrangement that let the file filter and the loader disagree over `.nib` in the
 first place**, and it is why `ValidateSpec`'s missing `DiskFormat::Do` arm could go
 unnoticed while the dialog worked fine.
 
-So the pairing moves into core as `BlankDiskBuilder::ContainersFor`, `ValidateSpec`
+So the pairing moves into core as `BlankDiskBuilder::GetContainers`, `ValidateSpec`
 answers from it, and the dialog renders what it returns. The executable loses a
 decision instead of gaining one, the duplication goes away, and the new container
 appears in both surfaces because there is only one place left to add it.
@@ -135,7 +135,7 @@ CassoEmuCore/Devices/Disk/
 ├── IDiskImage.h              # DiskFormat gains Nib
 ├── DiskImage.cpp             # LoadFromBytes / Serialize gain the Nib arm
 ├── DiskImageStore.cpp        # DetectFormatByExtension, ClassifyLoadFailure
-├── MountDiagnosis.h/.cpp     # two new failure reasons + ExtensionFor
+├── MountDiagnosis.h/.cpp     # two new failure reasons + the extension lookup renamed to VerbNoun
 ├── VolumeImage.cpp           # Load / Save gain the nibble container
 ├── NibblizationLayer.h/.cpp  # ReadNibbleAt promoted to a shared entry point
 ├── BlankDiskBuilder.cpp      # ValidateSpec / Build gain the Nib arm
