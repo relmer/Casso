@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
 
 
@@ -90,6 +91,17 @@ public:
     HRESULT       Mount             (int slot, int drive, const string & path);
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
                                      DiskFormat fmt, const vector<Byte> & bytes);
+
+    //  The same two mounts, reporting WHY a refusal happened as well as that
+    //  it did. A caller that has a user to answer to wants these; one that
+    //  only needs to know whether it worked keeps the shorter forms above.
+    //  The diagnosis is written on success too, as None, so a caller cannot
+    //  read a stale reason off a mount that worked.
+    HRESULT       Mount             (int slot, int drive, const string & path,
+                                     MountDiagnosis & outDiagnosis);
+    HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
+                                     DiskFormat fmt, const vector<Byte> & bytes,
+                                     MountDiagnosis & outDiagnosis);
     void          Eject             (int slot, int drive);
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
@@ -159,6 +171,19 @@ public:
 
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
+    //  Whether `path`'s extension names a container this build can actually
+    //  mount. Answered BY DetectFormatByExtension rather than by a second list
+    //  of extensions, which is the point: the interface offering a file and
+    //  the loader accepting it must not be able to disagree. They did, over
+    //  `.nib` -- the drop filter said yes, the loader said no, and the mount
+    //  failed silently.
+    //
+    //  The wide overload exists because the drag-and-drop and picker filters
+    //  work in wchar_t, and narrowing at each call site is how the two answers
+    //  drift apart again.
+    static bool     IsMountableImageExtension (const string  & path);
+    static bool     IsMountableImageExtension (const wstring & path);
+
     //  Where a recovery image goes for the Nth attempt, when an image cannot be
     //  written back to its own format without loss. Public because the naming
     //  and never-overwrite policy are part of the observable contract, not an
@@ -180,6 +205,22 @@ public:
     //  Reads a whole file into `bytes`. The read counterpart of the write
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
+
+    //  Why a mount failed, in the user's terms: the file named, then the
+    //  diagnosis worded as a sentence about it. Pure -- no filesystem access
+    //  -- and public because the wording is the observable half of a failed
+    //  mount, and the only half worth testing on its own.
+    //
+    //  It takes the diagnosis rather than re-deriving one from the path. The
+    //  path can only ever answer "is this an extension we read", which left
+    //  every other refusal sharing one sentence that named none of them.
+    static wstring  FormatMountFailureMessage (const string & path,
+                                               const MountDiagnosis & diagnosis);
+
+    //  Why a load of these bytes was refused, from what the bytes and the
+    //  format alone can settle. Static and pure, so a test can ask it about a
+    //  buffer without mounting anything.
+    static MountDiagnosis  ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes);
 private:
     struct Entry
     {

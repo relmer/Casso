@@ -364,15 +364,20 @@ void DiskManager::MountCommandLineDisks (
         return;
     }
 
-    if (!resolvedDisk1.empty())
-    {
-        hr = MountDiskInSlot6 (0, resolvedDisk1);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
+    // Drive 2 goes in first so drive 1's disk -- the one the machine boots
+    // from -- is the later of the two mounts and therefore the top entry in
+    // the recent-disks picker, which the mount completion feeds in the order
+    // the mounts finish. The two bays are independent, so the order costs
+    // nothing else.
     if (!resolvedDisk2.empty())
     {
         hr = MountDiskInSlot6 (1, resolvedDisk2);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!resolvedDisk1.empty())
+    {
+        hr = MountDiskInSlot6 (0, resolvedDisk1);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -392,6 +397,17 @@ void DiskManager::MountCommandLineDisks (
 //  controller drives the same image bytes the store will eventually
 //  serialize.
 //
+//  Whatever the outcome, it leaves through the completion callback: this
+//  runs on the CPU thread for every user-initiated mount, so the HRESULT
+//  returned here reaches nobody who can act on it. A mount that failed used
+//  to end here in silence, with the machine sitting at a bare text screen and
+//  nothing said about why.
+//
+//  The missing-controller bail is the one exception, and deliberately so.
+//  There is no drive to mount into on a machine without a Disk II, so no
+//  mount was attempted and there is no outcome to report; the only caller
+//  that can reach it already checks HasSlot6Controller first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
@@ -399,16 +415,22 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     HRESULT              hr         = S_OK;
     Disk2Controller  *   controller = FindSlot6Controller();
     DiskImage         *  external   = nullptr;
-    bool                 mounted    = false;
+    bool                 attempted  = false;
+    MountDiagnosis       diagnosis;
 
 
 
     CBR (controller != nullptr);
 
-    hr = m_diskStore.Mount (6, drive, path);
-    CHR (hr);
+    // Past here a mount was genuinely attempted, so its outcome is reported
+    // whichever way it goes.
+    attempted = true;
 
-    mounted = true;
+    // The diagnosis rides out with the outcome. Without it the shell would be
+    // left re-deriving a reason from the file name, which can only ever tell
+    // an unreadable extension from everything else.
+    hr = m_diskStore.Mount (6, drive, path, diagnosis);
+    CHR (hr);
 
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
@@ -459,14 +481,15 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
         m_diskAudioSources[drive]->OnDiskInserted();
     }
 
-    // Last, so anything the callback does (raising a dialog, say) sees a fully
-    // mounted drive.
-    if (mounted && m_onMounted)
+Error:
+    // Last, and on the way out of both paths, so anything the callback does
+    // (raising a dialog, say) sees the drive in its settled state -- fully
+    // mounted, or left as the failure left it.
+    if (attempted && m_onMountCompleted)
     {
-        m_onMounted (drive);
+        m_onMountCompleted (drive, path, hr, diagnosis);
     }
 
-Error:
     return hr;
 }
 

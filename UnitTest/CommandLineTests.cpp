@@ -225,7 +225,7 @@ namespace CommandLineTests
 
         TEST_METHOD (RunSubcommand_SelectsRun)
         {
-            ArgVector           args = { "CassoCli", "run", "demo.a65" };
+            ArgVector           args = { "CassoCli", "run", "demo.a65", "--as65" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Run);
@@ -1298,9 +1298,12 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
         }
 
+        //  The dialect is named so the refusal can only be about `--cpu`. A
+        //  source with no dialect is refused too, and without it this would
+        //  pass whether or not the unknown option was noticed at all.
         TEST_METHOD (RunOption_ItDoesNotKnow_IsRefused)
         {
-            ArgVector           args = { "CassoCli", "run", "prog.a65", "--cpu", "65c02" };
+            ArgVector           args = { "CassoCli", "run", "prog.a65", "--as65", "--cpu", "65c02" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
@@ -1899,7 +1902,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Run_ASecondInputFile_IsRefused)
         {
-            ArgVector           args = { "CassoCli", "run", "prog.a65", "extra" };
+            ArgVector           args = { "CassoCli", "run", "prog.a65", "--as65", "extra" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);

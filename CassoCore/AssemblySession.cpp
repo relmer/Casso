@@ -622,6 +622,92 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::CanReplaceJumpWithBranch
+//
+//  Whether `JMP addr` may be emitted as `BRA addr`, which is the only
+//  optimization as65 performs on the code it writes.
+//
+//  Gated on the DIALECT first. Merlin's assembler does not do this and must not
+//  acquire it by sharing an engine with as65, so the profile answers before any
+//  of the four conditions is asked.
+//
+//  Four conditions, all of them as65's:
+//
+//    * The extended instruction set is active. Asked of the OPCODE TABLE rather
+//      than of a flag, because the question is whether BRA can be encoded at
+//      all, and the table is what answers that.
+//    * Optimization is on. It is on by default; NOOPT turns it off, OPT turns
+//      it back on, and the command line's -n outranks both.
+//    * The target is ALREADY DEFINED. This is the load-bearing one. Because the
+//      address is known while pass 1 is sizing the line, the two-versus-three
+//      byte choice is made with complete information and no relaxation pass is
+//      needed. A forward reference is never optimized -- not because it could
+//      not be, but because as65 does not, and matching its bytes is the point.
+//    * The displacement reaches. A branch carries one signed byte, measured
+//      from the address after the two-byte instruction.
+//
+//  JSR is excluded by name rather than by mode: it carries JumpAbsolute too,
+//  and there is no branch that pushes a return address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::CanReplaceJumpWithBranch (const LineInfo & info,
+                                                GlobalAddressingMode::AddressingMode mode,
+                                                int32_t value, bool resolved) const
+{
+    constexpr int  kBranchSize          = 2;
+    constexpr int  kDisplacementMinimum = -128;
+    constexpr int  kDisplacementMaximum = 127;
+    bool           dialectDoesIt        = m_dialect.HasJumpToBranchOptimization();
+    bool           isJump               = (ToUpperCase (info.parsed.mnemonic) == kJumpMnemonic);
+    bool           isAbsolute           = (mode == GlobalAddressingMode::JumpAbsolute);
+    bool           hasBranch            = m_opcodeTable->HasMode (kBranchAlwaysMnemonic, GlobalAddressingMode::Relative);
+    int            displacement         = value - (int) (info.pc + kBranchSize);
+    bool           reaches              = (displacement >= kDisplacementMinimum) && (displacement <= kDisplacementMaximum);
+
+
+
+    return dialectDoesIt && m_optimizeEnabled && isJump && isAbsolute && resolved && hasBranch && reaches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EncodedMnemonic
+//
+//  The instruction a line is ENCODED as, which is what it was written as unless
+//  pass 1 replaced the jump with a branch.
+//
+//  Both the byte emitter and the listing's cycle count ask through here. That
+//  is the point: a listing reporting the timing of an instruction the image
+//  does not contain is worse than no listing, and two independent lookups is
+//  how that happens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::EncodedMnemonic (const LineInfo & info)
+{
+    std::string  mnemonic = info.parsed.mnemonic;
+
+
+
+    if (info.jumpOptimizedToBranch)
+    {
+        mnemonic = kBranchAlwaysMnemonic;
+    }
+
+    return mnemonic;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EstimateErrorRecoverySize — how far to advance the PC past an instruction
 //  that could not be encoded
 //
@@ -846,6 +932,7 @@ bool AssemblySession::TryEvaluateDirectiveArgs (
 AssemblySession::AssemblySession (const InstructionSetProvider & instructionSets, const AssemblerOptions & options) :
     m_instructionSets (instructionSets),
     m_opcodeTable     (&instructionSets.GetBase()),
+    m_optimizeEnabled (!options.disableOpt),
     m_options         (options),
     m_dialect         (options.dialectProfile != nullptr ? *options.dialectProfile
                                                          : DialectRegistry::Get (options.dialect)),
@@ -4909,6 +4996,42 @@ HRESULT AssemblySession::IgnorePass1Directive (const PendingLine & /*current*/, 
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1OptimizeControl
+//
+//  OPT turns the emitted-code optimizations on, NOOPT turns them off, and the
+//  command line's own switch beats both.
+//
+//  ONE handler for the two spellings, reading the token the line already
+//  carries. Two would be one piece of state written from two places, and the
+//  interesting rule -- that the switch is permanent -- would then have to be
+//  repeated in the one that can break it.
+//
+//  Acting in PASS 1 is the whole point: the substitution it governs decides how
+//  many bytes a line occupies, so the state has to be settled while lines are
+//  being sized rather than while they are being emitted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1OptimizeControl (const PendingLine & /*current*/, LineInfo & info)
+{
+    bool  turningOn = (info.parsed.directiveToken == Directive::Optimize);
+
+
+
+    // A source asking for optimization gets it only if the command line did not
+    // already refuse. as65 documents -n as winning even over an OPT in the
+    // source, so this is where that is enforced.
+    m_optimizeEnabled = turningOn && !m_options.disableOpt;
+
+    return S_OK;
+}
+
+
+
+
+
 //  claimed by an earlier phase (.ORG, the segments, the conditionals) or it
 //  has nothing to do until pass 2 (.MULTINOP).
 //
@@ -4941,6 +5064,8 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::List,        &AssemblySession::HandlePass1List,                  nullptr                                  },
     { Directive::MultiNop,    nullptr,                                      &AssemblySession::EmitMultiNopDirective  },
     { Directive::Nolist,      &AssemblySession::HandlePass1Nolist,                nullptr                                  },
+    { Directive::NoOptimize,  &AssemblySession::HandlePass1OptimizeControl, nullptr                                  },
+    { Directive::Optimize,    &AssemblySession::HandlePass1OptimizeControl, nullptr                                  },
     { Directive::OptNoop,     &AssemblySession::IgnorePass1Directive,               nullptr                                  },
     { Directive::Org,         nullptr,                                      nullptr                                  },
     { Directive::Page,        &AssemblySession::IgnorePass1Directive,               nullptr                                  },
@@ -6362,15 +6487,29 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
 
     {
-        OpcodeEntry entry = {};
+        OpcodeEntry entry    = {};
+        std::string encoded;
 
         GlobalAddressingMode::AddressingMode mode = ResolveAddressingMode (
             info.classified.syntax, info.parsed.mnemonic,
             exprValue, exprResolved);
         info.resolvedMode = mode;
 
+        // The one place a line is sized as an instruction other than the one it
+        // was written with. Decided here rather than in pass 2 because SIZE is
+        // what changes -- three bytes become two -- and every label below this
+        // line takes its address from that.
+        if (CanReplaceJumpWithBranch (info, mode, exprValue, exprResolved))
+        {
+            info.jumpOptimizedToBranch = true;
+            info.resolvedMode          = GlobalAddressingMode::Relative;
+            mode                       = GlobalAddressingMode::Relative;
+        }
 
-        if (m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
+        encoded = EncodedMnemonic (info);
+
+
+        if (m_opcodeTable->TryLookup (encoded, mode, entry))
         {
             ReserveBytes ((Word) (1 + entry.operandSize));
         }
@@ -7728,9 +7867,10 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
     }
     else
     {
-        OpcodeEntry entry = {};
+        OpcodeEntry entry   = {};
+        std::string encoded = EncodedMnemonic (info);
 
-        if (!m_opcodeTable->TryLookup (info.parsed.mnemonic, mode, entry))
+        if (!m_opcodeTable->TryLookup (encoded, mode, entry))
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
         }
@@ -7813,8 +7953,12 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         if (info.isInstruction && !info.hasError && emitPC > emitPCStart)
         {
             OpcodeEntry cycleEntry = {};
+            std::string encoded    = EncodedMnemonic (info);
 
-            if (m_opcodeTable->TryLookup (info.parsed.mnemonic, info.resolvedMode, cycleEntry))
+            // The instruction the image CONTAINS, which is not the one the
+            // source wrote when pass 1 replaced a jump with a branch. Reporting
+            // the written one would put a jump's timing beside a branch's bytes.
+            if (m_opcodeTable->TryLookup (encoded, info.resolvedMode, cycleEntry))
             {
                 listLine.cycleCounts = cycleEntry.cycleCounts;
             }

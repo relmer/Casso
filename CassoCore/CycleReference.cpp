@@ -82,20 +82,23 @@ std::string CycleReference::FormatPreamble()
     text += "\n";
     text += "1. **Page crossing, +1.** An indexed READ through `abs,X`, `abs,Y` or `(zp),Y`\n";
     text += "   pays one extra cycle when the effective address lands in a different page\n";
-    text += "   from the base. Stores and read-modify-write instructions do not: the part\n";
+    text += "   from the base. Stores and read-modify-writes normally do not: the part\n";
     text += "   cannot know whether the page crossed until it has read, and it must write\n";
-    text += "   either way, so that cycle is already inside their `baseCycles`.\n";
-    text += "2. **Branch taken, +1; branch taken across a page, +1 more.** A conditional\n";
-    text += "   branch not taken costs the 2 in the column. The 65C02's `BRA` is\n";
-    text += "   unconditional and so always pays the taken cycle.\n";
+    text += "   either way, so that cycle is already inside their `baseCycles`. The 65C02's\n";
+    text += "   `abs,X` shifts and rotates are the exception -- there the cost really is\n";
+    text += "   conditional, and the table marks them with a trailing `+`.\n";
+    text += "2. **Branch taken, +1; taken across a page, +1 more.** A conditional branch\n";
+    text += "   not taken costs the 2 in the column, and the page is measured against the\n";
+    text += "   instruction after the branch, so a displacement of zero is still a taken\n";
+    text += "   branch and still costs the extra cycle. `BRA` is unconditional, so its real\n";
+    text += "   minimum is 3 rather than the 2 stored for it here; `BBRn` and `BBSn` branch\n";
+    text += "   as well, costing 5, 6 taken, and 7 taken across a page.\n";
     text += "3. **Decimal arithmetic on the 65C02, +1.** `ADC` and `SBC` cost one extra\n";
     text += "   cycle while the decimal flag is set, which is what buys the CMOS part its\n";
     text += "   correct N, V and Z in decimal mode. The NMOS core pays no such cycle.\n";
     text += "\n";
-    text += "Those three are the whole of it in Casso's model, so two cycle counts on the\n";
-    text += "same row differ only because the two cores bill that opcode differently. The\n";
-    text += "real CMOS part has one more conditional cost that Casso does not yet model;\n";
-    text += "see the closing section.\n";
+    text += "Those three are the whole of it, so two cycle counts on the same row differ\n";
+    text += "only because the two cores genuinely bill that opcode differently.\n";
     text += "\n";
     text += "## Reading the tables\n";
     text += "\n";
@@ -104,6 +107,11 @@ std::string CycleReference::FormatPreamble()
     text += "  ever shows it: the 65C02 defines all 256. Casso executes an unimplemented\n";
     text += "  opcode as a one-byte, two-cycle NOP and keeps running rather than trapping,\n";
     text += "  because period software does execute them.\n";
+    text += "- A trailing `+` on a cycle count marks an instruction that pays one more\n";
+    text += "  cycle only when the indexed address crosses a page. Ordinary indexed reads\n";
+    text += "  pay that cycle too and are not marked; the marker is for the read-modify-\n";
+    text += "  writes, where the same opcode is conditional on one core and flat on the\n";
+    text += "  other.\n";
     text += "- A trailing `*` marks a slot the assembler will not emit: the NMOS\n";
     text += "  undocumented opcodes, and the 65C02's reserved opcode-map fill. They\n";
     text += "  execute and disassemble normally; they simply cannot be written by\n";
@@ -155,7 +163,7 @@ std::string CycleReference::FormatGrid (const char * heading, const Microcode ta
         {
             const Microcode & entry = table[high * kGridColumns + low];
 
-            text += entry.isLegal ? std::format (" {:2}", (int) entry.baseCycles) : std::string (" --");
+            text += std::format ("{:>3}", entry.isLegal ? DescribeCycles (entry) : std::string ("--"));
         }
 
         text += "\n";
@@ -197,16 +205,16 @@ std::string CycleReference::FormatOpcodeTable (const Microcode nmos[kOpcodeCount
         const Microcode & nmosEntry = nmos[opcode];
         const Microcode & cmosEntry = cmos[opcode];
 
-        text += std::format ("| ${:02X} | {} | {} | {}   | {}   | {} | {} | {}   | {}   |\n",
+        text += std::format ("| ${:02X} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
                              opcode,
                              PadRight (DescribeMnemonic (nmosEntry), kMnemonicCell),
                              PadRight (DescribeMode     (nmosEntry), kModeCell),
-                             DescribeLength (nmosEntry),
-                             DescribeCycles (nmosEntry),
+                             PadRight (DescribeLength   (nmosEntry), kNumberCell),
+                             PadRight (DescribeCycles   (nmosEntry), kNumberCell),
                              PadRight (DescribeMnemonic (cmosEntry), kMnemonicCell),
                              PadRight (DescribeMode     (cmosEntry), kModeCell),
-                             DescribeLength (cmosEntry),
-                             DescribeCycles (cmosEntry));
+                             PadRight (DescribeLength   (cmosEntry), kNumberCell),
+                             PadRight (DescribeCycles   (cmosEntry), kNumberCell));
     }
 
     text += "\n";
@@ -252,12 +260,12 @@ std::string CycleReference::FormatTimingDiffs (const Microcode nmos[kOpcodeCount
             continue;
         }
 
-        rows += std::format ("| ${:02X} | {} | {} | {}    | {}     |\n",
+        rows += std::format ("| ${:02X} | {} | {} | {}   | {}   |\n",
                              opcode,
                              PadRight (DescribeMnemonic (nmosEntry), kMnemonicCell),
                              PadRight (DescribeMode     (nmosEntry), kModeCell),
-                             DescribeCycles (nmosEntry),
-                             DescribeCycles (cmosEntry));
+                             PadRight (DescribeCycles   (nmosEntry), kNumberCell),
+                             PadRight (DescribeCycles   (cmosEntry), kNumberCell));
         ++count;
     }
 
@@ -265,8 +273,8 @@ std::string CycleReference::FormatTimingDiffs (const Microcode nmos[kOpcodeCount
     text += "\n";
     text += std::format ("{} opcode(s), found by comparing the two tables rather than by hand.\n", count);
     text += "\n";
-    text += "| Op  | Mnem   | Mode     | NMOS | 65C02 |\n";
-    text += "| --- | ------ | -------- | ---- | ----- |\n";
+    text += "| Op  | Mnem   | Mode     | NMOS  | 65C02 |\n";
+    text += "| --- | ------ | -------- | ----- | ----- |\n";
     text += rows;
     text += "\n";
 
@@ -322,12 +330,12 @@ std::string CycleReference::FormatCmosOnly (const Microcode nmos[kOpcodeCount], 
             continue;
         }
 
-        rows += std::format ("| ${:02X} | {} | {} | {}   | {}   |\n",
+        rows += std::format ("| ${:02X} | {} | {} | {} | {} |\n",
                              opcode,
                              PadRight (DescribeMnemonic (cmosEntry), kMnemonicCell),
                              PadRight (DescribeMode     (cmosEntry), kModeCell),
-                             DescribeLength (cmosEntry),
-                             DescribeCycles (cmosEntry));
+                             PadRight (DescribeLength   (cmosEntry), kNumberCell),
+                             PadRight (DescribeCycles   (cmosEntry), kNumberCell));
         ++added;
     }
 
@@ -364,30 +372,31 @@ std::string CycleReference::FormatFooter()
 
 
 
-    text += "## Where Casso knowingly differs\n";
+    text += "## How these numbers are checked\n";
     text += "\n";
-    text += "`$DB` is the only opcode whose modeling is a deliberate choice against an\n";
-    text += "oracle. Casso decodes it as a one-byte NOP, following Klaus Dormann's\n";
-    text += "functional test; Tom Harte's silicon-derived vectors model it as a two-byte\n";
-    text += "NOP. The two oracles disagree about an undefined opcode no real software\n";
-    text += "depends on, and the Harte harness skips that one slot as a result -- see\n";
-    text += "`IsSkippedSlot` in `UnitTest/HarteTestRunner.cpp`. Everything else in the\n";
-    text += "65C02 column, `$CB` and the 32 Rockwell bit-op slots included, does run\n";
-    text += "against the Rockwell vectors.\n";
+    text += "Tom Harte's SingleStepTests vectors record what each instruction really cost\n";
+    text += "for that vector's own operands, so every count here is compared against\n";
+    text += "recorded hardware behavior with the conditional cycles already in it: the\n";
+    text += "page crossing that happened, the branch that was taken, the decimal `ADC`.\n";
+    text += "That runs at 200 vectors per opcode on every build and 10,000 on demand,\n";
+    text += "across the documented, undocumented and Rockwell 65C02 tiers alike. What it\n";
+    text += "does not pin is WHICH cycle a given bus access lands on; only the total is\n";
+    text += "kept.\n";
     text += "\n";
-    text += "Note also that those vectors pin final machine STATE, not cycle counts, so\n";
-    text += "the numbers in this document are not covered by that suite. The tables and\n";
-    text += "this document are checked against each other; neither is checked against\n";
-    text += "silicon.\n";
+    text += "## Where Casso differs from the upstream vectors\n";
     text += "\n";
-    text += "One gap follows from that, and the table above is what makes it visible.\n";
-    text += "`ASL`, `LSR`, `ROL` and `ROR` in `abs,X` read 7 in both columns. The CMOS\n";
-    text += "part is documented to bill 6 for those four unless the index carries the\n";
-    text += "address into another page, in which case it bills 7 -- while `INC` and `DEC`\n";
-    text += "in `abs,X` bill 7 either way, which is why they are not in the same group.\n";
-    text += "Casso bills a flat 7 for all six, so those four opcodes run one cycle slow\n";
-    text += "when no page boundary is crossed. Nothing in the suite catches it, since\n";
-    text += "cycle counts are not what the vectors pin.\n";
+    text += "Three undefined 65C02 opcodes, where the corpus and the published per-opcode\n";
+    text += "tables disagree. Casso follows the tables, and the harness carries the\n";
+    text += "exemption by name rather than quietly passing:\n";
+    text += "\n";
+    text += "- `$DB` -- a one-byte NOP here, two bytes upstream. Klaus Dormann's\n";
+    text += "  functional test asserts one byte, so the whole opcode is skipped.\n";
+    text += "- `$5C` -- 8 cycles here, 4 upstream. Only the cycle comparison is skipped.\n";
+    text += "- `$CB` -- 1 cycle here, 2 upstream. Only the cycle comparison is skipped.\n";
+    text += "\n";
+    text += "Everything else about `$5C` and `$CB` -- registers, flags, memory, and how\n";
+    text += "many bytes the opcode swallows -- is still compared. The reasoning is in the\n";
+    text += "\"Disputed slots\" section of `docs/testing.md`.\n";
     text += "\n";
     text += "## References consulted\n";
     text += "\n";
@@ -504,6 +513,11 @@ std::string CycleReference::DescribeCycles (const Microcode & entry)
     if (entry.isLegal)
     {
         cycles = std::format ("{}", (int) entry.baseCycles);
+
+        if (entry.crossingAPageCostsACycle)
+        {
+            cycles += "+";
+        }
     }
 
     return cycles;

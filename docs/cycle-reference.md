@@ -15,20 +15,23 @@ and are therefore NOT in the column; add them yourself for the real figure:
 
 1. **Page crossing, +1.** An indexed READ through `abs,X`, `abs,Y` or `(zp),Y`
    pays one extra cycle when the effective address lands in a different page
-   from the base. Stores and read-modify-write instructions do not: the part
+   from the base. Stores and read-modify-writes normally do not: the part
    cannot know whether the page crossed until it has read, and it must write
-   either way, so that cycle is already inside their `baseCycles`.
-2. **Branch taken, +1; branch taken across a page, +1 more.** A conditional
-   branch not taken costs the 2 in the column. The 65C02's `BRA` is
-   unconditional and so always pays the taken cycle.
+   either way, so that cycle is already inside their `baseCycles`. The 65C02's
+   `abs,X` shifts and rotates are the exception -- there the cost really is
+   conditional, and the table marks them with a trailing `+`.
+2. **Branch taken, +1; taken across a page, +1 more.** A conditional branch
+   not taken costs the 2 in the column, and the page is measured against the
+   instruction after the branch, so a displacement of zero is still a taken
+   branch and still costs the extra cycle. `BRA` is unconditional, so its real
+   minimum is 3 rather than the 2 stored for it here; `BBRn` and `BBSn` branch
+   as well, costing 5, 6 taken, and 7 taken across a page.
 3. **Decimal arithmetic on the 65C02, +1.** `ADC` and `SBC` cost one extra
    cycle while the decimal flag is set, which is what buys the CMOS part its
    correct N, V and Z in decimal mode. The NMOS core pays no such cycle.
 
-Those three are the whole of it in Casso's model, so two cycle counts on the
-same row differ only because the two cores bill that opcode differently. The
-real CMOS part has one more conditional cost that Casso does not yet model;
-see the closing section.
+Those three are the whole of it, so two cycle counts on the same row differ
+only because the two cores genuinely bill that opcode differently.
 
 ## Reading the tables
 
@@ -37,6 +40,11 @@ see the closing section.
   ever shows it: the 65C02 defines all 256. Casso executes an unimplemented
   opcode as a one-byte, two-cycle NOP and keeps running rather than trapping,
   because period software does execute them.
+- A trailing `+` on a cycle count marks an instruction that pays one more
+  cycle only when the indexed address crosses a page. Ordinary indexed reads
+  pay that cycle too and are not marked; the marker is for the read-modify-
+  writes, where the same opcode is conditional on one core and flat on the
+  other.
 - A trailing `*` marks a slot the assembler will not emit: the NMOS
   undocumented opcodes, and the 65C02's reserved opcode-map fill. They
   execute and disassemble normally; they simply cannot be written by
@@ -75,13 +83,13 @@ Fx    2  5 --  8  4  4  6  6  2  4  2  7  4  4  7  7
 ```text
      x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 xA xB xC xD xE xF
 0x    7  6  2  1  5  3  5  5  3  2  2  1  6  4  6  5
-1x    2  5  5  1  5  4  6  5  2  4  2  1  6  4  7  5
+1x    2  5  5  1  5  4  6  5  2  4  2  1  6  4 6+  5
 2x    6  6  2  1  3  3  5  5  4  2  2  1  4  4  6  5
-3x    2  5  5  1  4  4  6  5  2  4  2  1  4  4  7  5
+3x    2  5  5  1  4  4  6  5  2  4  2  1  4  4 6+  5
 4x    6  6  2  1  3  3  5  5  3  2  2  1  3  4  6  5
-5x    2  5  5  1  4  4  6  5  2  4  3  1  8  4  7  5
+5x    2  5  5  1  4  4  6  5  2  4  3  1  8  4 6+  5
 6x    6  6  2  1  3  3  5  5  4  2  2  1  6  4  6  5
-7x    2  5  5  1  4  4  6  5  2  4  4  1  6  4  7  5
+7x    2  5  5  1  4  4  6  5  2  4  4  1  6  4 6+  5
 8x    2  6  2  1  3  3  3  5  2  2  2  1  4  4  4  5
 9x    2  6  5  1  4  4  4  5  2  5  2  1  4  5  5  5
 Ax    2  6  2  1  3  3  3  5  2  2  2  1  4  4  4  5
@@ -126,7 +134,7 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 | $1B | SLO*   | abs,Y    | 3   | 7   | NOP*   | impl     | 1   | 1   |
 | $1C | NOP*   | abs,X    | 3   | 4   | TRB    | abs      | 3   | 6   |
 | $1D | ORA    | abs,X    | 3   | 4   | ORA    | abs,X    | 3   | 4   |
-| $1E | ASL    | abs,X    | 3   | 7   | ASL    | abs,X    | 3   | 7   |
+| $1E | ASL    | abs,X    | 3   | 7   | ASL    | abs,X    | 3   | 6+  |
 | $1F | SLO*   | abs,X    | 3   | 7   | BBR1   | zp,rel   | 3   | 5   |
 | $20 | JSR    | abs      | 3   | 6   | JSR    | abs      | 3   | 6   |
 | $21 | AND    | (zp,X)   | 2   | 6   | AND    | (zp,X)   | 2   | 6   |
@@ -158,7 +166,7 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 | $3B | RLA*   | abs,Y    | 3   | 7   | NOP*   | impl     | 1   | 1   |
 | $3C | NOP*   | abs,X    | 3   | 4   | BIT    | abs,X    | 3   | 4   |
 | $3D | AND    | abs,X    | 3   | 4   | AND    | abs,X    | 3   | 4   |
-| $3E | ROL    | abs,X    | 3   | 7   | ROL    | abs,X    | 3   | 7   |
+| $3E | ROL    | abs,X    | 3   | 7   | ROL    | abs,X    | 3   | 6+  |
 | $3F | RLA*   | abs,X    | 3   | 7   | BBR3   | zp,rel   | 3   | 5   |
 | $40 | RTI    | impl     | 1   | 6   | RTI    | impl     | 1   | 6   |
 | $41 | EOR    | (zp,X)   | 2   | 6   | EOR    | (zp,X)   | 2   | 6   |
@@ -190,7 +198,7 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 | $5B | SRE*   | abs,Y    | 3   | 7   | NOP*   | impl     | 1   | 1   |
 | $5C | NOP*   | abs,X    | 3   | 4   | NOP*   | abs      | 3   | 8   |
 | $5D | EOR    | abs,X    | 3   | 4   | EOR    | abs,X    | 3   | 4   |
-| $5E | LSR    | abs,X    | 3   | 7   | LSR    | abs,X    | 3   | 7   |
+| $5E | LSR    | abs,X    | 3   | 7   | LSR    | abs,X    | 3   | 6+  |
 | $5F | SRE*   | abs,X    | 3   | 7   | BBR5   | zp,rel   | 3   | 5   |
 | $60 | RTS    | impl     | 1   | 6   | RTS    | impl     | 1   | 6   |
 | $61 | ADC    | (zp,X)   | 2   | 6   | ADC    | (zp,X)   | 2   | 6   |
@@ -222,7 +230,7 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 | $7B | RRA*   | abs,Y    | 3   | 7   | NOP*   | impl     | 1   | 1   |
 | $7C | NOP*   | abs,X    | 3   | 4   | JMP    | (abs,X)  | 3   | 6   |
 | $7D | ADC    | abs,X    | 3   | 4   | ADC    | abs,X    | 3   | 4   |
-| $7E | ROR    | abs,X    | 3   | 7   | ROR    | abs,X    | 3   | 7   |
+| $7E | ROR    | abs,X    | 3   | 7   | ROR    | abs,X    | 3   | 6+  |
 | $7F | RRA*   | abs,X    | 3   | 7   | BBR7   | zp,rel   | 3   | 5   |
 | $80 | NOP*   | #imm     | 2   | 2   | BRA    | rel      | 2   | 2   |
 | $81 | STA    | (zp,X)   | 2   | 6   | STA    | (zp,X)   | 2   | 6   |
@@ -355,11 +363,15 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 
 ## Where the two cores bill the same instruction differently
 
-1 opcode(s), found by comparing the two tables rather than by hand.
+5 opcode(s), found by comparing the two tables rather than by hand.
 
-| Op  | Mnem   | Mode     | NMOS | 65C02 |
-| --- | ------ | -------- | ---- | ----- |
-| $6C | JMP    | (abs)    | 5    | 6     |
+| Op  | Mnem   | Mode     | NMOS  | 65C02 |
+| --- | ------ | -------- | ----- | ----- |
+| $1E | ASL    | abs,X    | 7     | 6+    |
+| $3E | ROL    | abs,X    | 7     | 6+    |
+| $5E | LSR    | abs,X    | 7     | 6+    |
+| $6C | JMP    | (abs)    | 5     | 6     |
+| $7E | ROR    | abs,X    | 7     | 6+    |
 
 ## Instructions the 65C02 adds
 
@@ -430,30 +442,31 @@ have no writable 65C02 equivalent.
 | $FA | PLX    | impl     | 1   | 4   |
 | $FF | BBS7   | zp,rel   | 3   | 5   |
 
-## Where Casso knowingly differs
+## How these numbers are checked
 
-`$DB` is the only opcode whose modeling is a deliberate choice against an
-oracle. Casso decodes it as a one-byte NOP, following Klaus Dormann's
-functional test; Tom Harte's silicon-derived vectors model it as a two-byte
-NOP. The two oracles disagree about an undefined opcode no real software
-depends on, and the Harte harness skips that one slot as a result -- see
-`IsSkippedSlot` in `UnitTest/HarteTestRunner.cpp`. Everything else in the
-65C02 column, `$CB` and the 32 Rockwell bit-op slots included, does run
-against the Rockwell vectors.
+Tom Harte's SingleStepTests vectors record what each instruction really cost
+for that vector's own operands, so every count here is compared against
+recorded hardware behavior with the conditional cycles already in it: the
+page crossing that happened, the branch that was taken, the decimal `ADC`.
+That runs at 200 vectors per opcode on every build and 10,000 on demand,
+across the documented, undocumented and Rockwell 65C02 tiers alike. What it
+does not pin is WHICH cycle a given bus access lands on; only the total is
+kept.
 
-Note also that those vectors pin final machine STATE, not cycle counts, so
-the numbers in this document are not covered by that suite. The tables and
-this document are checked against each other; neither is checked against
-silicon.
+## Where Casso differs from the upstream vectors
 
-One gap follows from that, and the table above is what makes it visible.
-`ASL`, `LSR`, `ROL` and `ROR` in `abs,X` read 7 in both columns. The CMOS
-part is documented to bill 6 for those four unless the index carries the
-address into another page, in which case it bills 7 -- while `INC` and `DEC`
-in `abs,X` bill 7 either way, which is why they are not in the same group.
-Casso bills a flat 7 for all six, so those four opcodes run one cycle slow
-when no page boundary is crossed. Nothing in the suite catches it, since
-cycle counts are not what the vectors pin.
+Three undefined 65C02 opcodes, where the corpus and the published per-opcode
+tables disagree. Casso follows the tables, and the harness carries the
+exemption by name rather than quietly passing:
+
+- `$DB` -- a one-byte NOP here, two bytes upstream. Klaus Dormann's
+  functional test asserts one byte, so the whole opcode is skipped.
+- `$5C` -- 8 cycles here, 4 upstream. Only the cycle comparison is skipped.
+- `$CB` -- 1 cycle here, 2 upstream. Only the cycle comparison is skipped.
+
+Everything else about `$5C` and `$CB` -- registers, flags, memory, and how
+many bytes the opcode swallows -- is still compared. The reasoning is in the
+"Disputed slots" section of `docs/testing.md`.
 
 ## References consulted
 

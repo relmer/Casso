@@ -1715,6 +1715,46 @@ namespace AssemblerTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  Listing_CycleCount_IsRightAlignedInTwoDigits
+        //
+        //  AS65 documents -c as costing five columns -- the brackets, two digits
+        //  and the trailing space -- so a single-digit count reads `[ 2]`.
+        //
+        //  PINNED because nothing pinned it before, and the column had drifted to
+        //  four: every count in the file is a single digit, so the listing was
+        //  uniformly one column narrower than AS65's and nothing looked ragged.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Listing_CycleCount_IsRightAlignedInTwoDigits)
+        {
+            AssemblerOptions  options = {};
+            TestCpu           cpu;
+            std::string       formatted;
+
+            options.generateListing = true;
+
+            cpu.InitForTest();
+            Assembler asm6502 (cpu.GetInstructionSet(), options);
+
+            auto result = asm6502.Assemble ("NOP");
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 1, result.listing.size());
+
+            formatted = Assembler::FormatListingLine (result.listing[0], true);
+
+            Assert::IsTrue (formatted.find ("[ 2] ") != std::string::npos,
+                            L"a two-cycle NOP must list as `[ 2]`, padded to AS65's width");
+            Assert::IsTrue (formatted.find ("[2]") == std::string::npos,
+                            L"and never as the unpadded four-column form");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  Listing_FormatHelper_NoAddress
         //
         ////////////////////////////////////////////////////////////////////////////////

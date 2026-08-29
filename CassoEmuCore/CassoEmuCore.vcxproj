@@ -227,6 +227,7 @@
     <ClCompile Include="Devices\Disk2AddressMarkWatcher.cpp" />
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\Disk2NibbleEngine.cpp" />
+    <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
     <ClCompile Include="Devices\Disk\SectorDecodeReport.cpp" />
     <ClCompile Include="Devices\Disk\TrackWritability.cpp" />
@@ -329,6 +330,7 @@
     <ClInclude Include="Devices\Disk\IDiskController.h" />
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\Disk2NibbleEngine.h" />
+    <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
     <ClInclude Include="Devices\Disk\SectorDecodeReport.h" />
     <ClInclude Include="Devices\Disk\TrackWritability.h" />

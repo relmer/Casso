@@ -137,7 +137,7 @@ static constexpr CommandLineParser::DialectFlag  s_kAs65Flags[] =
     { "n",  CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
             nullptr,
             CommandLineParser::FlagCategory::AssembledCode, "",
-            "Disable optimizations; NYI. Tracked at https://github.com/relmer/Casso/issues/118" },
+            "Disable optimizations, even where the source says OPT" },
 
     { "o",  CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOrSeparate,
             nullptr,
@@ -2695,11 +2695,10 @@ void CommandLineParser::ApplyAs65Flag (const DialectFlag * flag,
     }
     else if (option == "i" || option == "n")
     {
-        //  Accepted and recorded nowhere. `-i` asks for case-insensitive
-        //  opcodes, which this assembler does unconditionally; `-n` is not
-        //  implemented, and its help says where that is tracked. Both must
-        //  parse, because an as65 command line carrying either is a command
-        //  line this mode exists to accept.
+        //  `-i` asks for case-insensitive opcodes, which this assembler does
+        //  unconditionally, so it is recorded nowhere. `-n` disables the
+        //  emitted-code optimizations for the whole assembly and outranks an
+        //  OPT in the source; the session reads it where OPT is applied.
         if (option == "n")
         {
             options.disableOpt = true;
@@ -3311,13 +3310,24 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         std::string arg = CanonicalLongFlag (argv[argIndex],
                               std::span<const char * const> (s_kpszRunLongOptions));
 
+        // THE PREFIX IS RECORDED FROM THE ARGUMENT AS TYPED, before the line
+        // above rewrites `/load` into `--load`. Reading it afterwards sees the
+        // canonical form and reports a dash to a reader who typed a slash --
+        // so every diagnostic this grammar raises came back in the other
+        // convention, including the ones that tell the reader what to type
+        // instead.
+        if (argv[argIndex][0] == '/')
+        {
+            NoteFlagPrefix ('/', options);
+        }
+
         // Which assembler reads a SOURCE handed to `run`. Named the same way the
         // subcommands name it, because the question is the same question: a
         // dialect the tool inferred is a dialect nobody stated. Ignored when the
         // input is a binary, which needs no assembler at all.
         //
-        // The default stays as65, so every `run` invocation written before this
-        // existed keeps assembling what it always did.
+        // There is no default. A source with no dialect named is refused below,
+        // for the reason the bare `CassoCli input.a65` form was removed.
         if (IsLongOption (arg, "--as65", options))
         {
             options.dialect          = DialectId::As65;
@@ -3509,6 +3519,61 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
     {
         RefuseCpuFlagWhereSelectedInSource (options);
     }
+
+    // A SOURCE HANDED TO `run` MUST NAME THE ASSEMBLER THAT READS IT. Which
+    // dialect reads a file decides what the file MEANS -- the same text
+    // assembles two ways, or assembles one way and fails the other -- so
+    // picking one for a caller who named none is the guess that `CassoCli
+    // input.a65` was removed for. It survived here because `run` predates
+    // dialect selection and kept its old behavior.
+    //
+    // A binary is unaffected: it needs no assembler, so there is nothing to
+    // name and nothing to guess.
+    //
+    // Checked after the loop for the reason the CPU check gives: the filename
+    // and the dialect flag arrive in either order, and a check inside the loop
+    // would see only the one that came first.
+    if (RefuseSourceWithoutDialect (options))
+    {
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefuseSourceWithoutDialect
+//
+//  Refuses a `run` command line that hands over source without saying which
+//  assembler reads it, and words the refusal.
+//
+//  The refusal names both flags, because there are exactly two answers and the
+//  reader is one word away from the command they meant.
+//
+//  Driven by the same predicate the runner uses to decide whether to assemble
+//  at all, so the two cannot disagree about what a source file is: anything
+//  RunMode would hand to an assembler is something this insists be named.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::RefuseSourceWithoutDialect (CommandLineOptions & options)
+{
+    bool  needsDialect = IsAssemblySource (options.inputFile) &&
+                         options.dialectSelection == DialectSelection::Defaulted;
+
+
+
+    if (needsDialect)
+    {
+        Refusal (options) << "Error: required parameter "
+                          << FormatLongOption ("--as65", options.flagPrefix) << " or "
+                          << FormatLongOption ("--merlin", options.flagPrefix) << " missing.\n";
+    }
+
+    return needsDialect;
 }
 
 

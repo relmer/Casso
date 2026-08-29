@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountDiagnosis.h"
 #include "SectorDecodeReport.h"
 
 
@@ -63,6 +64,17 @@ public:
                           const std::string    & path,
                           vector<Byte>         & outSectors,
                           SectorDecodeReport   & outReport);
+
+    //  The same load, saying why it refused. The console's `disk` commands
+    //  take this form so a user gets the same specific reason the emulator's
+    //  mount does -- the two arrive at the refusal through the same loaders,
+    //  and a reason only one of them could give would be a reason the other
+    //  went looking for and did not find.
+    static HRESULT  Load (const vector<Byte>   & fileBytes,
+                          const std::string    & path,
+                          vector<Byte>         & outSectors,
+                          SectorDecodeReport   & outReport,
+                          MountDiagnosis       & outDiagnosis);
 
     //  An edited sector buffer rendered back into the container it came from.
     //  A bit-stream image keeps every track the edit did not touch VERBATIM,

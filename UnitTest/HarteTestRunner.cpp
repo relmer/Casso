@@ -152,7 +152,11 @@ Error:
 //  an offset into a large archive, and a run can be narrowed to it.
 //
 //  The header carries the opcode as well as the count, so a file cannot be
-//  mistaken for another's -- which is what makes the per-file split safe.
+//  mistaken for another's -- which is what makes the per-file split safe. It
+//  also carries the FORMAT VERSION, which is checked before anything else is
+//  read: a version 1 file has no per-vector cycle byte, so reading it as
+//  version 2 would shift every subsequent field by one and produce a wall of
+//  plausible-looking CPU failures instead of the one real complaint.
 //
 //  Everything is verified as it reads: a truncated or corrupt file fails the
 //  load rather than producing plausible-looking vectors that would report as
@@ -164,7 +168,7 @@ HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
     HRESULT  hr       = S_OK;
     Word     count;
-    Byte     reserved;
+    Byte     version;
     bool     fOk;
     bool     isOpen   = false;
 
@@ -175,12 +179,16 @@ HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 
 
     isOpen = f.is_open();
-    CBR (isOpen);
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    // Header: vector_count (uint16), opcode (uint8), reserved (uint8)
+    // Header: vector_count (uint16), opcode (uint8), format_version (uint8)
     hr = ReadWord (f, count);             CHR (hr);
     hr = ReadByte (f, outFile.opcode);    CHR (hr);
-    hr = ReadByte (f, reserved);          CHR (hr);
+    hr = ReadByte (f, version);           CHR (hr);
+
+    outFile.formatVersion = version;
+
+    CBREx (version == HARTE_FORMAT_VERSION, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
 
     outFile.vectorCount = count;
     outFile.vectors.resize (count);
@@ -202,7 +210,8 @@ HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 
         v.name[nameLen] = '\0';
 
-        // Initial and final state
+        // Cycle count, then the initial and final states
+        hr = ReadByte (f, v.cycles);         CHR (hr);
         hr = ReadCpuState (f, v.initial);    CHR (hr);
         hr = ReadCpuState (f, v.final);      CHR (hr);
     }
@@ -376,17 +385,56 @@ static std::wstring FormatRamFailure (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatCycleFailure
+//
+//  Cycle counts read as decimal; every other field here is hex, so this cannot
+//  share a formatter with them without printing "expected $07" for seven.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring FormatCycleFailure (
+    const char *    testName,
+    Byte            opcode,
+    int             expected,
+    int             actual)
+{
+    wchar_t buf[256];
+
+
+
+    swprintf_s (buf, L"[%hs] opcode $%02X: cycles expected %d took %d",
+        testName, opcode, expected, actual);
+
+    return buf;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunHarteTestFile
 //
-//  Executes all vectors in a HarteTestFile against CpuT::Step(). CpuT is a
-//  flat-memory test CPU (TestCpu for NMOS, TestCpu65C02 for CMOS) exposing the
-//  same InitForTest / register / Poke / Peek / Step interface.
+//  Executes all vectors in a HarteTestFile against CpuT::StepAndCountCycles().
+//  CpuT is a flat-memory test CPU (TestCpu for NMOS, TestCpu65C02 for CMOS)
+//  exposing the same InitForTest / register / Poke / Peek interface.
 //  Returns the number of failures.
+//
+//  The cycle count is compared LAST. A wrong result usually explains a wrong
+//  cost -- an addressing mode that computed the wrong effective address gets
+//  the page-crossing question wrong too -- so reporting the state first names
+//  the cause rather than one of its symptoms.
+//
+//  compareCycles is false for the handful of undefined opcodes where the
+//  upstream corpus and the published per-opcode tables disagree about cost;
+//  see IsCycleCountDisputed. Everything else about those vectors is still
+//  checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class CpuT>
-static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFailure)
+static int RunHarteTestFile (const HarteTestFile & file, bool compareCycles, std::wstring & firstFailure)
 {
     int failures = 0;
 
@@ -394,10 +442,11 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 
     for (int i = 0; i < file.vectorCount; i++)
     {
-        const HarteTestVector  & v         = file.vectors[i];
-        bool                     failed    = false;
-        Byte                     expectedP = 0;
-        Byte                     actualP   = 0;
+        const HarteTestVector  & v            = file.vectors[i];
+        bool                     failed       = false;
+        Byte                     expectedP    = 0;
+        Byte                     actualP      = 0;
+        Byte                     actualCycles = 0;
 
         CpuT cpu;
         cpu.InitForTest (v.initial.pc);
@@ -416,7 +465,7 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
         }
 
         // Execute one instruction
-        cpu.Step();
+        actualCycles = cpu.StepAndCountCycles();
 
         // Compare final state
 
@@ -512,6 +561,21 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
             }
         }
 
+        // Cycle count. The vector's recorded bus trace is one entry per cycle
+        // the part actually spent on these exact operands, so every conditional
+        // cycle -- an indexed read crossing a page, a taken branch, a branch
+        // crossing a page, the 65C02's decimal ADC/SBC penalty -- is already in
+        // the recorded number and none of it is reconstructed here.
+        if (!failed && compareCycles && actualCycles != v.cycles)
+        {
+            if (failures == 0)
+            {
+                firstFailure = FormatCycleFailure (v.name, file.opcode, v.cycles, actualCycles);
+            }
+
+            failed = true;
+        }
+
         if (failed)
         {
             failures++;
@@ -532,10 +596,16 @@ static int RunHarteTestFile (const HarteTestFile & file, std::wstring & firstFai
 //  Loads the vector file for one opcode from UnitTest/<cpuDir>/ and runs it
 //  against CpuT. Missing files are skipped (opcode not generated).
 //
+//  ONLY a missing file is skipped. A file that is present but unreadable --
+//  wrong format version, truncated, corrupt -- fails the test and says so.
+//  Skipping those too would let a whole stale fixture set report as a clean
+//  run of an opcode set nobody executed, which is the exact failure
+//  HarteVectorDepth exists to prevent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class CpuT>
-static void RunHarteOpcode (const char * cpuDir, Byte opcode)
+static void RunHarteOpcode (const char * cpuDir, Byte opcode, bool compareCycles = true)
 {
     std::string    dir          = GetHarteTestDataDir (cpuDir);
     char           hex[8];
@@ -551,13 +621,39 @@ static void RunHarteOpcode (const char * cpuDir, Byte opcode)
     std::string   path = dir + "\\" + hex + ".bin";
     hrLoad = LoadHarteTestFile (path, file);
 
-    if (FAILED (hrLoad))
+    if (hrLoad == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
     {
-        // Skip if the file doesn't exist (opcode not generated).
+        // No vectors for this opcode; nothing to run.
         return;
     }
 
-    failures = RunHarteTestFile<CpuT> (file, firstFailure);
+    if (hrLoad == HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH))
+    {
+        wchar_t stale[768];
+
+        swprintf_s (stale,
+            L"%hs is Harte fixture format version %d, but this build reads "
+            L"version %d. Version 2 added the per-vector cycle count. "
+            L"Regenerate with scripts/GenerateHarteTests.py (and "
+            L"scripts/ReduceHarteVectors.py for the checked-in set).",
+            path.c_str(), file.formatVersion, HARTE_FORMAT_VERSION);
+
+        Assert::Fail (stale);
+    }
+
+    if (FAILED (hrLoad))
+    {
+        wchar_t broken[512];
+
+        swprintf_s (broken,
+            L"%hs could not be read (hr=0x%08X). The file exists, so this is a "
+            L"truncated or corrupt fixture, not a missing one.",
+            path.c_str(), (unsigned int) hrLoad);
+
+        Assert::Fail (broken);
+    }
+
+    failures = RunHarteTestFile<CpuT> (file, compareCycles, firstFailure);
 
     if (failures > 0)
     {
@@ -587,10 +683,10 @@ namespace HarteTests
     //
     //  Exhaustive where Dormann is functional. Dormann proves programs behave
     //  correctly; Harte proves each instruction's effect on every register,
-    //  flag, and touched memory cell, across thousands of randomized initial
-    //  states per opcode. Together they cover what neither does alone -- Harte
-    //  catches a flag wrong in a case no sensible program creates, which is
-    //  exactly where copy protection lives.
+    //  flag, and touched memory cell, plus what it COST in cycles, across
+    //  thousands of randomized initial states per opcode. Together they cover
+    //  what neither does alone -- Harte catches a flag wrong in a case no
+    //  sensible program creates, which is exactly where copy protection lives.
     //
     //  Every field is compared, including ones a program would never read, so a
     //  discrepancy is caught at the instruction rather than propagating into
@@ -647,43 +743,82 @@ namespace HarteTests
 
         static constexpr int  kFullDepth = 10000;
 
-        // Vector count is the first field of the file header.
-        static int ReadVectorCount (const std::filesystem::path & path)
+        // Vector count is the first field of the file header; the format
+        // version is the fourth byte. Both are read in one go so a stale set
+        // is named once here rather than 256 times, once per opcode test.
+        static bool TryReadHeader (const std::filesystem::path & path, int & outDepth, int & outVersion)
         {
             std::ifstream  f (path, std::ios::binary);
-            Byte           header[2] = { 0, 0 };
+            Byte           header[4] = { 0, 0, 0, 0 };
+            bool           fRead     = false;
 
-            if (!f.read (reinterpret_cast<char *> (header), sizeof (header)))
+            fRead = (bool) f.read (reinterpret_cast<char *> (header), sizeof (header));
+
+            if (!fRead)
             {
-                return 0;
+                return false;
             }
 
-            return header[0] | (header[1] << 8);
+            outDepth   = header[0] | (header[1] << 8);
+            outVersion = header[3];
+
+            return true;
         }
 
 
         static void ReportDepth (const char * cpuDir)
         {
-            std::string      dir      = GetHarteTestDataDir (cpuDir);
-            int              files    = 0;
-            int              minDepth = 0;
-            int              maxDepth = 0;
-            long long        vectors  = 0;
+            std::string      dir       = GetHarteTestDataDir (cpuDir);
+            int              files     = 0;
+            int              minDepth  = 0;
+            int              maxDepth  = 0;
+            long long        vectors   = 0;
+            int              badFiles  = 0;
+            int              oldestVer = 0;
+            std::string      firstBad;
             std::error_code  ec;
 
             for (const auto & entry : std::filesystem::directory_iterator (dir, ec))
             {
+                int  depth   = 0;
+                int  version = 0;
+
                 if (entry.path().extension() != ".bin")
                 {
                     continue;
                 }
 
-                int  depth = ReadVectorCount (entry.path());
+                if (!TryReadHeader (entry.path(), depth, version) || version != HARTE_FORMAT_VERSION)
+                {
+                    if (badFiles == 0)
+                    {
+                        firstBad  = entry.path().string();
+                        oldestVer = version;
+                    }
+
+                    badFiles++;
+                    continue;
+                }
 
                 files++;
                 vectors += depth;
                 minDepth = (files == 1) ? depth : (std::min) (minDepth, depth);
                 maxDepth = (std::max) (maxDepth, depth);
+            }
+
+            if (badFiles > 0)
+            {
+                std::string  message =
+                    std::to_string (badFiles) + " Harte fixture(s) for '" +
+                    std::string (cpuDir) + "' are not format version " +
+                    std::to_string (HARTE_FORMAT_VERSION) + " (first: " +
+                    firstBad + ", version " + std::to_string (oldestVer) +
+                    "). Version 2 added the per-vector cycle count, so an "
+                    "older file has no cycle data and every field after the "
+                    "vector name sits one byte off. Regenerate with "
+                    "scripts/GenerateHarteTests.py. See docs/testing.md.";
+
+                Assert::Fail (ToWide (message).c_str());
             }
 
             if (files == 0)
@@ -705,7 +840,7 @@ namespace HarteTests
                 (minDepth == maxDepth
                      ? std::to_string (minDepth) + " vectors each"
                      : std::to_string (minDepth) + "-" + std::to_string (maxDepth) + " vectors") +
-                " (" + std::to_string (vectors) + " total) -- " +
+                " (" + std::to_string (vectors) + " total, final state and cycle count) -- " +
                 (maxDepth >= kFullDepth ? "FULL depth." : "REDUCED set.") +
                 " Upstream publishes " + std::to_string (kFullDepth) +
                 "/opcode; scripts/RunHarteTests.ps1 fetches and runs it. " +
@@ -928,10 +1063,17 @@ namespace HarteTests
         //  One TEST_METHOD per illegal NMOS opcode Casso implements in
         //  CassoCore Cpu::InitializeUndocumented(). RunOpcodeTest skips
         //  silently when the matching .bin is absent, so these stay green
-        //  under a --legal-only generation. When InitializeUndocumented()
-        //  gains an opcode, add it here AND to the
-        //  IMPLEMENTED_ILLEGAL_6502_OPCODES list in
-        //  scripts/GenerateHarteTests.py.
+        //  under a --legal-only generation.
+        //
+        //  When InitializeUndocumented() gains an opcode, add it here.
+        //  Nothing else needs updating: scripts/GenerateHarteTests.py reads
+        //  that table out of Cpu.cpp rather than keeping its own copy.
+        //
+        //  Nothing in this list is exempted from any comparison. The
+        //  unstable opcodes -- ANE, LXA, SHA, SHX, SHY, TAS -- whose results
+        //  on real silicon depend on the part and the bus, are not
+        //  implemented at all, so the question of whose model to believe
+        //  never arises here.
         //
         ////////////////////////////////////////////////////////////////////////////////
 
@@ -1048,6 +1190,33 @@ namespace HarteTests
             return opcode == 0xDB;
         }
 
+
+        // Two undefined slots where the corpus's COST disagrees with the
+        // published per-opcode tables. Everything else about their vectors --
+        // registers, flags, memory, and how many bytes the opcode swallows --
+        // still has to match; only the cycle count is left uncompared.
+        //
+        // $5C: Harte's rockwell65c02 bills 4, the same as the plain 3-byte
+        // NOPs at $DC/$FC. Bruce Clark's "65C02 Opcodes" (6502.org) lists it
+        // separately as 3 bytes and 8 cycles because it is not a plain NOP --
+        // it reads an address in the 64K range and then spends four cycles on
+        // $FFFF -- and the oxyron.de 65C02 matrix agrees, printing "NOP abs 8"
+        // where it prints "NOP abs 4" for $DC and $FC.
+        //
+        // $CB: Harte bills 2 for a one-byte NOP. Both references put every
+        // one-byte NOP at one cycle; $CB is only special on WDC parts, where
+        // it is WAI, and Casso models the Rockwell part.
+        //
+        // The upstream corpus is generated by a reference implementation
+        // rather than measured off silicon (see its README), so on an
+        // undefined opcode two independent per-opcode tables that agree with
+        // each other outweigh it. This is the same call the tree already made
+        // for $DB above.
+        static bool IsCycleCountDisputed (Byte opcode)
+        {
+            return opcode == 0x5C || opcode == 0xCB;
+        }
+
         void RunRockwellOpcode (Byte opcode)
         {
             if (IsSkippedSlot (opcode))
@@ -1055,7 +1224,7 @@ namespace HarteTests
                 return;   // Dormann/Harte disagree on $DB; see IsSkippedSlot.
             }
 
-            RunHarteOpcode<TestCpu65C02> ("rockwell65c02", opcode);
+            RunHarteOpcode<TestCpu65C02> ("rockwell65c02", opcode, !IsCycleCountDisputed (opcode));
         }
 
         TEST_METHOD (Op65_00) { RunRockwellOpcode (0x00); }

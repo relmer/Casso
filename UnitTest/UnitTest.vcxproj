@@ -239,6 +239,7 @@
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
+    <ClCompile Include="JumpOptimizationTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="DialectReportingTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />

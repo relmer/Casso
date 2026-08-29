@@ -675,6 +675,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozLoader::ClassifyLoadFailure
+//
+//  Which of the two things a refused WOZ load was: bytes that are not a WOZ at
+//  all, or a genuine WOZ whose insides did not hold up.
+//
+//  THOSE ARE THE ONLY TWO THIS CAN HONESTLY SEPARATE, and the split is worth
+//  making because it sends the user somewhere different. A file that never had
+//  a WOZ header was renamed from something else and the fix is to find the real
+//  image; a file that has one is damaged, and the fix is to fetch it again.
+//
+//  It re-tests the header rather than threading a reason out through Load's
+//  thirty-odd guards. Load's guards are structural -- a truncated chunk, a
+//  missing TMAP, a TRKS too short for its record table -- and every one of them
+//  reduces to the same sentence for a reader, so carrying them separately would
+//  buy wording nobody would write differently. Re-testing costs a signature
+//  compare and, because it calls the same MatchSig over the same constants,
+//  cannot drift away from what Load decided.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MountFailure WozLoader::ClassifyLoadFailure (const vector<Byte> & raw)
+{
+    size_t  rawSize    = raw.size();
+    bool    isHeadered = false;
+
+
+
+    if (rawSize >= kHeaderSize)
+    {
+        isHeadered = MatchSig (raw.data(), kSigV2) || MatchSig (raw.data(), kSigV1);
+    }
+
+    return isHeadered ? MountFailure::MalformedWoz : MountFailure::NotAWozFile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::ReadPaddedField
 //
 ////////////////////////////////////////////////////////////////////////////////

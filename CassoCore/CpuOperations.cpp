@@ -128,14 +128,51 @@ void CpuOperations::BitTest (Cpu & cpu, Byte operand)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChargeBranchCycles
+//
+//  A taken branch costs one cycle beyond its not-taken form, and a second when
+//  the target lands on a different page from the instruction that follows the
+//  branch. Call it on the taken path only, and before PC moves -- PC is still
+//  the address of that following instruction, which is what the page is
+//  measured against.
+//
+//  The charge lives with the branch operations rather than in StepOne because
+//  only they know whether the branch was taken. StepOne inferred it from PC
+//  having moved, which is right for every displacement except zero: a branch
+//  that is taken to the very next instruction leaves PC exactly where a
+//  not-taken branch would, so it read as not taken and was billed a cycle
+//  short. The Harte vectors for BPL and BNE exercise that case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::ChargeBranchCycles (Cpu & cpu, Word target)
+{
+    static constexpr Word    kPageMask = 0xFF00;
+
+
+
+    cpu.m_lastCycles++;
+
+    if ((cpu.PC & kPageMask) != (target & kPageMask))
+    {
+        cpu.m_lastCycles++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Branch
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::Branch (Cpu & cpu, Instruction instruction, Word operand)
 {
-    static constexpr Byte s_kflagMask[] = 
-    { 
+    static constexpr Byte s_kflagMask[] =
+    {
         0x80,   // Negative
         0x40,   // Overflow
         0x01,   // Carry
@@ -148,6 +185,8 @@ void CpuOperations::Branch (Cpu & cpu, Instruction instruction, Word operand)
 
     if (flag == instruction.asBranch.value)
     {
+        ChargeBranchCycles (cpu, operand);
+
         cpu.PC = operand;
     }
 }
@@ -1019,6 +1058,14 @@ void CpuOperations::SetMemoryBit (Cpu & cpu, Instruction instruction, Word effec
 //
 //  65C02 BBRn: branch to target if bit n of the tested byte is clear.
 //
+//  It is a branch, so it pays a branch's cycles: five to test and not take it,
+//  six taken, seven taken to another page.
+//
+//  Sources: Bruce Clark, "65C02 Opcodes" (6502.org), which gives BBR/BBS one
+//  additional cycle for a taken branch within the page and two for a taken
+//  branch to a different page; and the oxyron.de 65C02 opcode matrix, which
+//  lists them as zpr 5 under the same conditional-branch rule.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::BitBranchReset (Cpu & cpu, Instruction instruction, Byte value, Word target)
@@ -1029,6 +1076,8 @@ void CpuOperations::BitBranchReset (Cpu & cpu, Instruction instruction, Byte val
 
     if ((value & (1 << bit)) == 0)
     {
+        ChargeBranchCycles (cpu, target);
+
         cpu.PC = target;
     }
 }
@@ -1043,6 +1092,8 @@ void CpuOperations::BitBranchReset (Cpu & cpu, Instruction instruction, Byte val
 //
 //  65C02 BBSn: branch to target if bit n of the tested byte is set.
 //
+//  Same cycle rule as BBRn; see BitBranchReset for the sources.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::BitBranchSet (Cpu & cpu, Instruction instruction, Byte value, Word target)
@@ -1053,6 +1104,8 @@ void CpuOperations::BitBranchSet (Cpu & cpu, Instruction instruction, Byte value
 
     if ((value & (1 << bit)) != 0)
     {
+        ChargeBranchCycles (cpu, target);
+
         cpu.PC = target;
     }
 }
@@ -1065,12 +1118,15 @@ void CpuOperations::BitBranchSet (Cpu & cpu, Instruction instruction, Byte value
 //
 //  BranchAlways
 //
-//  65C02 BRA: unconditional relative branch.
+//  65C02 BRA: unconditional relative branch. Always taken, so it always pays
+//  the taken cycle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuOperations::BranchAlways (Cpu & cpu, Word target)
 {
+    ChargeBranchCycles (cpu, target);
+
     cpu.PC = target;
 }
 

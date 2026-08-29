@@ -199,14 +199,23 @@ public:
         HRESULT        hr  = S_OK;
         vector<Byte>   raw (1024, 0);
 
-        {
-            // A wrong-sized image is a caller bug, so the guard asserts.
-            UnitTestHelpers::ExpectedEhmAssert   expect;
-
-            hr = NibblizationLayer::NibblizeDsk (raw, img);
-        }
+        // A wrong-sized image is USER INPUT and must not assert. This guard
+        // used to raise one, and the contract that justified it was true at
+        // the time: the only callers were internal, so a bad length really was
+        // a caller's bug. The live mount path then began handing this function
+        // whatever file was dropped on a drive, and a truncated .dsk started
+        // raising an assertion dialog in Debug before anything could report
+        // it. The wrong verdict, on somebody's download.
+        //
+        // It refuses with ERROR_BAD_LENGTH rather than a bare failure, so the
+        // caller can tell a wrong size from every other way a load goes wrong
+        // and say which one happened. A generic refusal would have stopped the
+        // assert and left the message as vague as it was.
+        hr = NibblizationLayer::NibblizeDsk (raw, img);
 
         AssertFailed (hr);
+        Assert::IsTrue (hr == HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+            L"a wrong-sized image must report its length as the problem");
     }
 
     TEST_METHOD (DskRoundTripIdentity_AllZeros)

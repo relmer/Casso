@@ -144,6 +144,24 @@ namespace CycleReferenceTests
         }
 
 
+        //////////////////////////////////////////////////////////////////////
+        //  Document_NamesTheDisputedSlots
+        //
+        //  The three opcodes where Casso and the upstream vectors disagree are
+        //  the document's only claim about its own trustworthiness, so a reader
+        //  must not have to go looking for them.
+        //////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Document_NamesTheDisputedSlots)
+        {
+            std::string  generated = BuildDocument();
+
+            Assert::AreNotEqual (std::string::npos, generated.find ("`$DB`"), L"the skipped opcode");
+            Assert::AreNotEqual (std::string::npos, generated.find ("`$5C`"), L"the first cycle-exempt opcode");
+            Assert::AreNotEqual (std::string::npos, generated.find ("`$CB`"), L"the second cycle-exempt opcode");
+        }
+
+
     private:
 
         //////////////////////////////////////////////////////////////////////

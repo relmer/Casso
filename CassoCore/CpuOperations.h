@@ -90,4 +90,9 @@ public:
     static void AddWithCarryCmos      (Cpu & cpu, Byte operand);
     static void SubtractWithCarryCmos (Cpu & cpu, Byte operand);
     static void BreakCmos             (Cpu & cpu);
+
+
+private:
+    // Bills the extra cycles a TAKEN branch costs. Call before moving PC.
+    static void ChargeBranchCycles    (Cpu & cpu, Word target);
 };

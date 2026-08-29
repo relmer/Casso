@@ -24,12 +24,13 @@ class Microcode;
 //  its own: the CMOS table is built in the emulator library, and this one must
 //  not reach across that boundary. The caller that has both hands them over.
 //
-//  What it reports is baseCycles and nothing more. The three conditional costs
-//  -- the page-crossing cycle on an indexed read, the taken-branch cycles, and
-//  the 65C02's decimal ADC/SBC cycle -- are added by Cpu::StepOne and the CMOS
-//  arithmetic operations at run time, so they cannot appear in a per-opcode
-//  column. The generated preamble states them instead, which is the only place
-//  a reader can be told how to compute the real cost.
+//  What it reports is baseCycles, plus the one per-instruction timing flag the
+//  tables carry. The conditional costs -- the page-crossing cycle on an indexed
+//  read, the taken-branch cycles, and the 65C02's decimal ADC/SBC cycle -- are
+//  added at run time by Cpu::StepOne, CpuOperations::ChargeBranchCycles and the
+//  CMOS arithmetic, so they cannot appear as a per-opcode number. The generated
+//  preamble states them instead, which is the only place a reader can be told
+//  how to compute the real cost.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,7 @@ private:
     static constexpr int    kGridColumns  = 16;
     static constexpr int    kMnemonicCell = 6;   // "BBR0" plus the hidden-slot marker
     static constexpr int    kModeCell     = 8;   // "(abs,X)" is the widest operand form
+    static constexpr int    kNumberCell   = 3;   // a count plus the conditional-crossing marker
 
     static std::string  FormatPreamble    ();
     static std::string  FormatGrid        (const char * heading, const Microcode table[kOpcodeCount]);
