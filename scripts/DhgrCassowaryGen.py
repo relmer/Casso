@@ -26,12 +26,11 @@ dots. Those decodes want opposite things from the encoder:
     color monitor the same dots group into arbitrary nibbles and come
     out fringed.
 
-They are exactly complementary, and nothing on the disk can tell which
-monitor is attached, so the demo ships both and the user picks. Each is
-captioned with the monitor it was authored for, in text drawn on the
-cell grid (see CellCaption) so the caption stays legible through EITHER
-decode -- the whole point being that the caption is readable precisely
-when the image around it is not.
+They are exactly complementary, and nothing on the disk can DETECT
+which monitor is attached -- no Apple II can -- so the demo ships both
+and asks which one to show. The title still goes through CellCaption's
+cell grid, because the cycle wraps and either answer can end up looking
+at the other pair.
 
 The same argument, at half the horizontal resolution, produces the HGR
 pair; see HgrCassowaryGen. Page geometry for all four is in
@@ -111,7 +110,7 @@ def build_color_cells():
     for row in Layout.band_rows():
         for cell in range(Layout.CELLS):
             pixels[cell, row] = CELL_BLACK
-    for cell, row in Layout.chrome_cells(Layout.CAPTION_COLOR):
+    for cell, row in Layout.chrome_cells():
         pixels[cell, row] = CELL_WHITE
 
     return quantized
@@ -132,10 +131,10 @@ def build_mono_dots():
         for x in range(Layout.DOTS):
             pixels[x, row] = 0
 
-    # The chrome is placed on the CELL grid even here, so that the
-    # caption survives the color decode too -- a color monitor showing
-    # this image needs to be able to read why it looks wrong.
-    for cell, row in Layout.chrome_cells(Layout.CAPTION_MONO):
+    # The title is placed on the CELL grid even here, so it survives
+    # the color decode too -- the cycle wraps, so a color monitor can
+    # end up showing this image.
+    for cell, row in Layout.chrome_cells():
         for dot in range(4):
             pixels[cell * 4 + dot, row] = 255
 

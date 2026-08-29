@@ -14,16 +14,24 @@
 ;
 ;  Stage 2:
 ;
-;    Init phase (fast path to first frame):
-;      1. Loads tracks 4+5 into main $8000-$9FFF (DHGR main pattern,
-;         the second half of the DHGR framebuffer; stage 1 already
-;         loaded the aux half to $6000 before jumping here).
-;      2. Calls enter_dhgr to copy main $8000 -> main $2000 and main
-;         $6000 -> aux $2000 (RAMWRT-toggled), then enables the //e
-;         DHGR display switches. THE CASSOWARY IS NOW VISIBLE — total
-;         time from boot is roughly 5 disk tracks (~1.25s).
+;    Ask phase:
+;      1. Puts the monitor question on the text screen. NOTHING CAN
+;         DETECT THE MONITOR — no Apple II can. Every video connector
+;         the machine has is output only: no sense line, and no way to
+;         read the signal back. So the demo asks, the way period
+;         software carrying two sets of art did. TEXT is the one mode
+;         that reads equally well on both kinds of monitor, which is
+;         what makes the question safe to display before knowing the
+;         answer.
 ;
-;    Background load (continues after first frame):
+;    Load phase (behind the question, so it costs no wall clock):
+;      2. Loads tracks 4+5 into main $8000-$9FFF (the monochrome DHGR
+;         main half; stage 1 already loaded the aux half to $6000
+;         before jumping here), then calls stage_dhgr to copy main
+;         $8000 -> main $2000 and main $6000 -> aux $2000
+;         (RAMWRT-toggled). Copies only: the display stays in TEXT.
+;         This has to happen HERE, before the color halves land on the
+;         same staging further down.
 ;      3. Loads tracks 6+7 into main $4000-$5FFF, which IS HGR page 2.
 ;         That is the monochrome HGR cassowary, and because it lands on
 ;         a real display page it needs no stash and no copy: mode 1 is
@@ -38,28 +46,36 @@
 ;         mode_hgr_color just memcpys $A000 -> $2000 on demand).
 ;
 ;      Because the staging areas are reused, mode 0 is the one mode
-;      that cannot be re-entered: by the time the user can press a
-;      key, the monochrome halves have been overwritten. Cycling is
-;      one way, as it always was.
+;      that cannot be re-entered: the monochrome halves it was built
+;      from have been overwritten by the color ones.
+;
+;    Answer:
+;      6. Waits for C or M — folded to upper case, so either case
+;         works — and starts the cycle on the pair that answer picks:
+;         M at mode 0, C at mode 2. Everything is already resident by
+;         now, so the picture appears immediately. A key pressed during
+;         the loads is still latched in the keyboard when we get here,
+;         so an impatient answer is not lost. ESC quits from the
+;         question as well as from the cycle.
 ;
 ;    Polling loop:
-;      Each keystroke advances the mode by 1. ESC ($9B) exits to
-;      BASIC at any time. Past the last mode (LoRes), next keystroke
-;      also exits. The background loads run in mode order, so each
-;      mode's data lands well before a user cycling one key at a time
-;      can reach it: mode 1 about a second after first frame, the
-;      last mode about two.
+;      Each keystroke advances the mode by 1, and past the last mode
+;      the cycle WRAPS to mode 1 rather than exiting — the question
+;      chooses where the cycle starts, so a color user would otherwise
+;      never reach the monochrome images at all. Mode 0 is the one it
+;      cannot rejoin, for the reason above. ESC ($9B) exits to BASIC at
+;      any time, and is now the only way out.
 ;
 ;      THE SAME PHOTO FOUR WAYS, the monochrome pair first and then the
 ;      color pair. Every one of these framebuffers is decoded two
 ;      different ways depending on the monitor, and the two decodes want
 ;      opposite things from the encoder, so each image is authored for
 ;      one of them and reads as noise on the other. Nothing on this disk
-;      can tell which monitor is attached, so all four ship and the user
-;      picks. Each carries a caption naming the monitor it was drawn
-;      for, and those captions are drawn on the color-cell grid, which
-;      is what keeps them legible through EITHER decode — readable,
-;      that is, exactly when the picture around them is not. See
+;      can DETECT which monitor is attached, so all four ship and the
+;      question above picks the pair to start on. Only the title is
+;      drawn on the images now; it goes on the color-cell grid, which
+;      keeps it legible through EITHER decode, because the cycle wraps
+;      and either answer can end up looking at the other pair. See
 ;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
 ;
 ;      Modes:
@@ -123,30 +139,34 @@ S1_LOAD_A    = $0817       ; sta DBASE / step head a / jmp read_track
 S1_LOAD_B    = $0828       ; sta DBASE / step head b / jmp read_track
 
 ; -- Zero page ---------------------------------------------------
-MODE      = $46            ; current display mode (0..3)
+MODE      = $46            ; current display mode (0..4)
 SRC_PTR   = $48            ; ($48),y indirect-indexed source pointer
 DST_PTR   = $4A            ; ($4A),y indirect-indexed dest pointer
 
 
 start
-    ; --- Init: load DHGR main pattern into main $8000-$9FFF (staged) ------
-    ; Stage 1 already loaded the DHGR aux pattern to main $6000 and the
-    ; head is at track 3. Two more disk reads (tracks 4+5) and we have
-    ; everything we need for first-frame DHGR.
+    ; --- Ask first, load behind the question ------------------------------
+    ; The whole ~2.2 seconds of disk loading happens while the user is
+    ; reading the question, so asking costs no wall clock at all. See
+    ; the header for why asking is the only option available.
+    jsr show_prompt
+    ldx #$60               ; show_prompt clobbers X; the loader wants $60
+
+    ; --- Load: the monochrome DHGR main half, then stage the pair ---------
+    ; Stage 1 already loaded the monochrome aux half to main $6000 and
+    ; the head is at track 3. Two more disk reads and both halves are in
+    ; the staging.
     lda #$80
     jsr S1_LOAD_B          ; tracks 3 -> 4 (odd->even)
     lda #$90
     jsr S1_LOAD_A          ; tracks 4 -> 5 (even->odd)
 
-    ; --- Init: enter DHGR (mode 0 — visible NOW) --------------------------
-    ; Total time to first frame: ~5 disk tracks at ~250ms each =
-    ; roughly 1.25s. With the original ordering (load HGR1, HGR2,
-    ; DHGR-aux, DHGR-main, then enter_dhgr) it was ~9 tracks (~2.25s).
-    lda #0
-    sta MODE
-    jsr enter_dhgr
+    ; Copy them into the framebuffer NOW, while the staging still holds
+    ; them — the color halves land on those same 16 KB below. Copies
+    ; only; the display stays in TEXT behind the question.
+    jsr stage_dhgr
 
-    ; enter_dhgr -> copy_block clobbers X, but stage 1's load_a/load_b
+    ; stage_dhgr -> copy_block clobbers X, but stage 1's load_a/load_b
     ; need X=$60 (slot 6 << 4) for the indexed soft-switch reads
     ; into the disk controller. Restore it before resuming disk I/O.
     ldx #$60
@@ -182,6 +202,40 @@ start
     lda #$B0
     jsr S1_LOAD_A          ; tracks 12 -> 13
 
+    ; --- The answer -------------------------------------------------------
+    ; Everything is resident by now, so whichever pair they pick appears
+    ; at once. A key pressed during the loads is still sitting in the
+    ; keyboard latch, so an early answer is honored rather than eaten.
+wait_answer
+    lda KBD
+    bpl wait_answer
+    bit STROBE
+    and #$DF               ; fold lower case onto upper; ESC ($9B) has
+                           ; bit 5 clear already and passes through
+    cmp #$C3               ; "C" -> start on the color pair
+    beq answer_color
+    cmp #$CD               ; "M" -> start on the monochrome pair
+    beq answer_mono
+    cmp #$9B               ; ESC -> quit without showing anything
+    beq do_exit
+    jmp wait_answer
+
+answer_mono
+    ; Mode 0. stage_dhgr has already put the monochrome halves in the
+    ; framebuffer, so all that is left is the display switches.
+    lda #0
+    sta MODE
+    jsr show_dhgr
+    jmp poll
+
+answer_color
+    ; Mode 2. The staging holds the color halves now, and re-staging
+    ; from it is exactly what mode_dhgr_color does.
+    lda #2
+    sta MODE
+    jmp mode_dhgr_color
+
+
 poll
     lda KBD
     bpl poll
@@ -199,7 +253,16 @@ poll
     beq mode_hgr_color
     cmp #4
     beq mode_lores
-    ; fall through (past mode 4) -> exit
+
+    ; Past the last mode, wrap to mode 1 rather than exiting. The
+    ; question chooses where the cycle STARTS, so a color user who
+    ; began at mode 2 would otherwise never reach the monochrome
+    ; images. Mode 0 is the one the cycle cannot rejoin -- the staging
+    ; it was built from holds the color halves now -- so it rejoins at
+    ; mode 1. ESC is the way out.
+    lda #1
+    sta MODE
+    jmp mode_hgr_mono
 
 
 do_exit
@@ -350,21 +413,18 @@ copy_lo
 ;              that makes the aux copy work.
 ; ----------------------------------------------------------------------------
 enter_dhgr
-    ; Copy main $8000-$9FFF -> main $2000-$3FFF (clobbers cassowary,
-    ; which is why we stashed a copy at $A000 during init).
-    ldx #$80
-    ldy #$20
-    jsr copy_block
+    jsr stage_dhgr
+    ; falls through into show_dhgr
 
-    ; Copy main $6000-$7FFF -> aux $2000-$3FFF.
-    sta RAMWRTON
-    ldx #$60
-    ldy #$20
-    jsr copy_block
-    sta RAMWRTOFF
 
-    ; Enable DHGR display: 80STORE on, AN3/DHIRES on, 80COL on,
-    ; TEXT off, HIRES on, PAGE1.
+; ----------------------------------------------------------------------------
+; show_dhgr — enable the DHGR display switches: 80STORE on, AN3/DHIRES
+;             on, 80COL on, TEXT off, HIRES on, PAGE1. Split out from
+;             enter_dhgr because the boot path stages the framebuffer
+;             long before it wants to leave the text screen: the
+;             question is still up while the disk loads.
+; ----------------------------------------------------------------------------
+show_dhgr
     sta STORE80ON
     sta DHIRESON
     sta COL80ON
@@ -375,12 +435,75 @@ enter_dhgr
 
 
 ; ----------------------------------------------------------------------------
+; stage_dhgr — populate aux+main $2000 from the staging areas without
+;              touching the display. See copy_block below for the
+;              RAMWRT-vs-zp interaction that makes the aux copy work,
+;              and mode_dhgr_color for why 80STORE has to be off.
+; ----------------------------------------------------------------------------
+stage_dhgr
+    ; Copy main $8000-$9FFF -> main $2000-$3FFF (clobbers whatever HGR
+    ; page 1 held, which is why the HGR images have stashes of their own).
+    ldx #$80
+    ldy #$20
+    jsr copy_block
+
+    ; Copy main $6000-$7FFF -> aux $2000-$3FFF.
+    sta RAMWRTON
+    ldx #$60
+    ldy #$20
+    jsr copy_block
+    sta RAMWRTOFF
+    rts
+
+
+show_prompt
+    ; 40-column text, page 1, main RAM. Nothing has touched 80STORE or
+    ; RAMWRT yet, so writes to $0400-$07FF land in main text page 1,
+    ; which is what a 40-column display reads.
+    sta COL80OFF
+    bit TXTON
+    bit PG2OFF
+    bit MIXOFF
+    jsr clear_text_page1
+
+    ; Row 11 column 4 is $05AC, row 13 column 4 is $06AC, by the text
+    ; screen's own interleave: base = $0400 + 128*(row mod 8) + 40*(row/8).
+    ldx #0
+sp_ask
+    lda ask_line,x
+    beq sp_keys_init
+    ora #$80               ; the text screen wants high ASCII. The
+    sta $05AC,x            ; strings are stored plain so that as65 and
+    inx                    ; Merlin emit the same bytes for them --
+    bne sp_ask             ; their high-ASCII string forms differ.
+sp_keys_init
+    ldx #0
+sp_keys
+    lda keys_line,x
+    beq sp_done
+    ora #$80
+    sta $06AC,x
+    inx
+    bne sp_keys
+sp_done
+    rts
+
+
+ask_line
+    .text "WHICH MONITOR ARE YOU USING?"
+    .byte 0
+keys_line
+    .text "C = COLOR      M = MONOCHROME"
+    .byte 0
+
+
+; ----------------------------------------------------------------------------
 ; copy_block — copy 8 KB (32 pages) from main:src to (main or aux):dst.
 ;              Caller sets X = src high byte, Y = dst high byte, and toggles
 ;              RAMWRT before/after the call when an aux dest is needed.
 ;
-;              Uses (SRC_PTR),y / (DST_PTR),y so all addressing — including
-;              the page-counter increment — flows through zp, which under
+;              Uses (SRC_PTR),y / (DST_PTR),y so all addressing -- including
+;              the page-counter increment -- flows through zp, which under
 ;              ALTZP=off is always main RAM and so unaffected by RAMWRT.
 ;              Self-modifying-code variants would break here because RAMWRT
 ;              routes the inc's writeback to aux, breaking the running code.

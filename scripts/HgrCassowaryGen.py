@@ -9,8 +9,8 @@ Writes: Apple2/Demos/cassowary.hgr       (8 KB, 6-color NTSC artifact)
 
 The DHGR pair's argument, one resolution down: an HGR framebuffer is
 also read two ways, and the two readings want opposite things from the
-encoder, so the demo ships both and captions each with the monitor it
-was drawn for. See DhgrCassowaryGen for the long form.
+encoder, so the demo ships both and asks which one to show. See
+DhgrCassowaryGen for the long form.
 
 WHAT IS DIFFERENT ABOUT HGR MONOCHROME. It is not a 560-dot canvas.
 Per AppleHiResMode's monochrome pass, a lit pixel x paints TWO adjacent
@@ -180,7 +180,7 @@ def choose_shifts(bits_row, target560, row):
 def build_mono():
     """The monochrome HGR framebuffer."""
     band   = Layout.band_rows()
-    chrome = Layout.chrome_cells(Layout.CAPTION_MONO)
+    chrome = Layout.chrome_cells()
 
     t280 = mono_target(Layout.HGR_PIX)
     t560 = mono_target(Layout.DOTS)
@@ -192,10 +192,10 @@ def build_mono():
 
     for row in range(Layout.ROWS):
         if row in band_set:
-            # Bands are drawn, not dithered. One 140-grid cell is two HGR
-            # pixels, and two adjacent lit pixels read as WHITE on a color
-            # monitor and four lit half-dots on a monochrome one -- the
-            # same dual-decode property the DHGR chrome relies on.
+            # The title band is drawn, not dithered. One 140-grid cell is
+            # two HGR pixels, and two adjacent lit pixels read as WHITE on
+            # a color monitor and four lit half-dots on a monochrome one --
+            # the same dual-decode property the DHGR title relies on.
             rowbytes = bytearray(BYTES_PER_ROW)
             for cell, r in chrome:
                 if r != row:
@@ -220,7 +220,7 @@ def build_color():
     pixels       = canvas.load()
 
     band     = set(Layout.band_rows())
-    chrome   = Layout.chrome_cells(Layout.CAPTION_COLOR)
+    chrome   = Layout.chrome_cells()
     out      = bytearray(8192)
 
     for row in range(Layout.ROWS):

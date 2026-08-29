@@ -23,9 +23,21 @@ Entries before versioning was introduced use dates only.
   one. The cycle runs monochrome DHGR, monochrome HGR, color DHGR, color HGR,
   then the LoRes bars, so the disk boots into the monochrome image.
 
-  All four are captioned with the monitor they were drawn for, in text built
-  from whole color cells so it survives either reading -- legible, that is, on
-  exactly the monitor where the picture around it is not.
+  Only the title is drawn on the images; it is built from whole color cells so
+  it survives either reading, which matters because the cycle wraps and either
+  answer can end up looking at the other pair.
+
+- **The demo asks which monitor you have, and starts on the right pair.**
+  Nothing can detect this: no Apple II can. Every video connector the machine
+  has is output only, with no sense line and no way to read the signal back.
+  So the demo asks, the way period software carrying two sets of art did. Text
+  is the one mode that reads equally well on both kinds of monitor, which is
+  what makes the question safe to put up before the answer is known, and all
+  thirteen tracks load behind it -- so asking costs no wall-clock time at all,
+  and a key pressed while the drive is still working is still latched when the
+  loader looks. `C` or `M`, either case; `ESC` quits from the question as well
+  as from the cycle. Past the last mode the cycle now wraps rather than
+  exiting, so both answers can still reach every image.
 
 ### Removed
 - **The HGR color test bands are no longer a mode on the demo disk.** They

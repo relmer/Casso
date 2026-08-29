@@ -13,10 +13,16 @@ DHGR color cells, 280 HGR pixels, 560 dots -- that all span the same
 physical screen width, so every generator passes its own `canvas_w` and
 the geometry scales. Vertical is always 192 scanlines.
 
-The chrome (title and caption) is the exception: it is always placed on
-the 140-cell grid, whatever the image's own resolution, because that is
-what makes it legible through both the color and the monochrome decode.
-See CellCaption for why.
+The title is the exception: it is always placed on the 140-cell grid,
+whatever the image's own resolution, because that is what makes it
+legible through both the color and the monochrome decode. See
+CellCaption for why.
+
+The images used to carry a caption naming the monitor they were drawn
+for, on the same grid and for the same reason. The demo asks which
+monitor it is talking to now, and shows the matching pair, so the
+caption was telling the user something they had just said -- and it was
+spending thirteen scanlines to do it. The photo box got them.
 """
 
 from pathlib import Path
@@ -38,37 +44,28 @@ SRC = (Path(__file__).resolve().parent.parent
 # wattles. HGR gets a tighter one -- see HgrCassowaryGen for why.
 CROP_PORTRAIT = (60, 40, 860, 1100)
 
-# Chrome. The title is the caption font at 2x, which is why its band is
-# roughly twice as tall.
+# The title, drawn in the CellCaption font at 2x.
 TITLE_TEXT     = "CASSO"
 TITLE_SCALE    = 2
 TITLE_TOP      = 3
 TITLE_BAND_H   = TITLE_TOP + CellCaption.GLYPH_H * TITLE_SCALE + 2
-CAPTION_TOP    = 2                                    # within the caption band
-CAPTION_BAND_H = CAPTION_TOP + CellCaption.GLYPH_H + 3
 
-CAPTION_COLOR  = "(FOR COLOR MONITORS)"
-CAPTION_MONO   = "(FOR MONOCHROME MONITORS)"
-
-# The photo box: everything the two bands leave. Fitting the picture
-# into it rather than letting the bands sit on top costs some size but
-# keeps the casque and the wattles -- the two things that make the bird
-# recognizable -- out from under the text.
+# The photo box: everything the title band leaves, down to the bottom
+# edge. Fitting the picture into it rather than letting the band sit on
+# top costs some size but keeps the casque -- the thing that makes the
+# bird recognizable -- out from under the title.
 PHOTO_TOP      = TITLE_BAND_H
-PHOTO_H        = ROWS - CAPTION_BAND_H - PHOTO_TOP
+PHOTO_H        = ROWS - PHOTO_TOP
 
 
 def band_rows():
-    """The scanlines the title and caption bands own."""
-    return (list(range(0, TITLE_BAND_H))
-          + list(range(ROWS - CAPTION_BAND_H, ROWS)))
+    """The scanlines the title band owns."""
+    return list(range(0, TITLE_BAND_H))
 
 
-def chrome_cells(caption):
-    """Every 140-grid cell the title and caption light."""
-    title = CellCaption.stamp(TITLE_TEXT, TITLE_TOP, CELLS, scale=TITLE_SCALE)
-    lower = CellCaption.stamp(caption, ROWS - CAPTION_BAND_H + CAPTION_TOP, CELLS)
-    return title | lower
+def chrome_cells():
+    """Every 140-grid cell the title lights."""
+    return CellCaption.stamp(TITLE_TEXT, TITLE_TOP, CELLS, scale=TITLE_SCALE)
 
 
 def load_photo(mode, crop):

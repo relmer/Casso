@@ -18,24 +18,30 @@
 ;  Stage 2 (assembled and shipped as a separate sector ? see
 ;  casso-rocks-stage2.a65 alongside this file) then:
 ;
-;    4. Loads tracks 4+5 -> main $8000-$9FFF (the monochrome DHGR main
-;       half), copies both halves into the aux+main framebuffer at
-;       $2000-$3FFF, and flips the //e DHGR soft switches so the
-;       cassowary appears as fast as possible (mode 0 of the cycle).
-;    5. With DHGR on screen, lazily loads the remaining demo content
-;       in the background, in the order the modes will ask for it:
-;       tracks 6+7 -> $4000, which IS HGR page 2, so the monochrome HGR
-;       cassowary needs no stash and no copy; tracks 8+9 and 10+11 ->
-;       $6000 and $8000, the staging areas step 4 has just emptied,
-;       which is where the COLOR DHGR halves go; tracks 12+13 -> $A000
-;       (the color HGR cassowary, loaded directly to its stash
+;    4. Puts the monitor question on the text screen, because nothing
+;       can detect the monitor -- no Apple II can, every video connector
+;       it has is output only. TEXT reads equally well on either kind,
+;       so the question is safe to show before the answer is known.
+;    5. Loads tracks 4+5 -> main $8000-$9FFF (the monochrome DHGR main
+;       half) and copies both halves into the aux+main framebuffer at
+;       $2000-$3FFF. Copies only: the display stays on the question.
+;       This has to happen before step 6 lands the color halves on the
+;       same staging.
+;    6. Loads the rest behind the question, in the order the modes will
+;       ask for it: tracks 6+7 -> $4000, which IS HGR page 2, so the
+;       monochrome HGR cassowary needs no stash and no copy; tracks 8+9
+;       and 10+11 -> $6000 and $8000, the staging step 5 has just
+;       emptied, which is where the COLOR DHGR halves go; tracks 12+13
+;       -> $A000 (the color HGR cassowary, loaded directly to its stash
 ;       location).
-;    6. Polls the keyboard for cycle / exit keystrokes.
+;    7. Waits for C or M and starts the cycle on that pair, then polls
+;       the keyboard for cycle / exit keystrokes.
 ;
-;  Disk layout order matches cycle order: whatever the user reaches
-;  next is whatever finished loading last, and the first mode's data is
-;  physically earliest on disk. That puts first frame at ~5 tracks
-;  (~1.25s) rather than waiting for all thirteen.
+;  ALL THIRTEEN TRACKS LOAD BEHIND THE QUESTION, which is why asking
+;  costs nothing: the ~2.2 seconds of disk work happen while the user is
+;  reading it, and a key pressed during the loads is still latched when
+;  the loader gets around to looking. Disk order matches cycle order, so
+;  whatever the user reaches next is whatever finished loading last.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines
 ;  (load_a, load_b, read_track, read_sector, chk, wait_d5_aa). The

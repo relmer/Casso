@@ -418,26 +418,68 @@ public:
 
             core.RunCycles (kDemoCycleBudget);
 
-            // Verify boot landing soft-switch state (mode 0 = DHGR)
+            // BOOT LANDING IS THE QUESTION, NOT A PICTURE. Nothing can
+            // detect the monitor -- no Apple II can, the video connectors
+            // are output only -- so the demo asks, and waits in TEXT until
+            // it is answered. Everything is loaded by then, which is the
+            // point of asking first: the disk works behind the question.
             ss = core.softSwitches.get();
 
             Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"Demo must wait in TEXT mode until the question is answered");
+
+            //  The question itself, at row 11 column 4 ($05AC). Stored in
+            //  the source as plain ASCII -- so that as65 and Merlin emit
+            //  identical bytes for it -- and OR'd to high ASCII as it is
+            //  written, which is what the text screen displays as normal
+            //  (non-inverse, non-flashing) characters.
+            {
+                const char *  expected = "WHICH MONITOR ARE YOU USING?";
+
+                for (size_t i = 0; expected[i] != '\0'; i++)
+                {
+                    Byte  want   = static_cast<Byte> (expected[i]) | 0x80;
+                    Byte  actual = core.bus->ReadByte (
+                        static_cast<Word> (0x05AC + i));
+
+                    if (actual != want)
+                    {
+                        wchar_t  msg[256] = {};
+                        swprintf_s (msg, L"Monitor question mismatch at $%04X: "
+                                         L"expected $%02X, got $%02X.",
+                                    static_cast<unsigned> (0x05AC + i),
+                                    static_cast<unsigned> (want),
+                                    static_cast<unsigned> (actual));
+                        Assert::Fail (msg);
+                    }
+                }
+            }
+
+            //  Answer M. The monochrome halves were staged into the
+            //  framebuffer during the load phase, so this is only the
+            //  display switches, and the picture is there immediately.
+            Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
+            core.keyboard->KeyPressRaw ('M');
+            core.RunCycles (200'000ULL);
+
             Assert::IsTrue (ss->IsGraphicsMode(),
-                L"Demo must leave the //e in graphics mode (TEXT off)");
+                L"Answering M must leave the //e in graphics mode (TEXT off)");
             Assert::IsFalse (ss->IsMixedMode(),
-                L"Demo must leave MIXED off (full-screen graphics)");
+                L"Answering M must leave MIXED off (full-screen graphics)");
             Assert::IsFalse (ss->IsPage2(),
-                L"Mode 0 (DHGR mono) must select PAGE1 before any keystroke");
+                L"Mode 0 (DHGR mono) must select PAGE1");
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Mode 0 (DHGR mono) must enable HIRES");
 
             // Verify framebuffer contents at boot landing.
             //
             // Stage 1 stages the monochrome aux half at $6000; stage 2
-            // loads the monochrome main half to $8000 and enter_dhgr
-            // copies both into the framebuffer. The background phase then
-            // loads the HGR monochrome image onto page 2 and the COLOR
-            // halves back over that staging. So at boot landing:
+            // loads the monochrome main half to $8000 and stage_dhgr
+            // copies both into the framebuffer -- copies only, the screen
+            // is still showing the question. The load phase then puts the
+            // HGR monochrome image on page 2 and the COLOR halves back
+            // over that staging. So by the time the question is answered:
             //
             //   main $2000 = mono DHGR main    aux $2000 = mono DHGR aux
             //   main $4000 = mono HGR          main $6000 = color DHGR aux
@@ -516,8 +558,6 @@ public:
             }
 
             // Cycle through the 5 display modes with keystrokes
-            Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
-
             // Keystroke 1 -> mode 1 (HGR monochrome). No copy: the image
             // was loaded onto HGR page 2 and the mode is a PAGE2 flip out
             // of DHGR, so what is asserted is the switch state and that
@@ -606,13 +646,72 @@ public:
                 }
             }
 
-            // Keystroke 5 -> past last mode -> JMP ($FFFC) -> //e RESET.MGR
-            // -> Applesoft. Just assert we're executing in ROM.
+            // Keystroke 5 -> past the last mode -> WRAP to mode 1 rather
+            // than exit. The question chooses where the cycle starts, so a
+            // color user beginning at mode 2 would otherwise never reach
+            // the monochrome images; wrapping is what makes every image
+            // reachable from either answer. Mode 0 is the exception and
+            // cannot be rejoined, which is why the wrap lands on 1.
             core.keyboard->KeyPressRaw (' ');
-            core.RunCycles (50'000ULL);
+            core.RunCycles (200'000ULL);
+            Assert::IsTrue (ss->IsPage2(),
+                L"Cycling past the last mode must wrap to mode 1 (PAGE2)");
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"The wrapped-to mode 1 must have HIRES on");
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"The wrapped-to mode 1 must have TEXT off");
+
+            // ESC is now the only way out.
+            core.keyboard->KeyPressRaw (0x1B);
+            core.RunCycles (200'000ULL);
             Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
-                L"After cycling past last mode, demo must JMP into ROM "
-                L"($D000+, typically the Applesoft cold start at $E000)");
+                L"ESC must JMP into ROM ($D000+, typically the Applesoft "
+                L"cold start at $E000)");
+
+            //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
+            //  C instead: the cycle has to start on the color pair, which
+            //  means re-staging the framebuffer out of the staging areas
+            //  the load phase left holding the color halves. This is the
+            //  half of the feature the M path never exercises.
+            //  A power cycle drops what the drive was holding and hands
+            //  out fresh MMU buffers, so the disk has to be re-bound and
+            //  every cached pointer re-fetched before the second boot.
+            core.PowerCycle();
+            core.diskController->SetExternalDisk (0, img);
+            ss     = core.softSwitches.get();
+            auxBuf = core.mmu->GetAuxBuffer();
+            Assert::IsNotNull (ss,     L"soft switches must survive the re-boot");
+            Assert::IsNotNull (auxBuf, L"aux buffer must survive the re-boot");
+
+            core.bus->WriteByte (0xC006, 0);  // INTCXROM=0
+            core.cpu->SetPC (kBootEntry);
+            core.RunCycles (kDemoCycleBudget);
+
+            Assert::IsFalse (ss->IsGraphicsMode(),
+                L"The re-booted demo must wait in TEXT for its answer too");
+
+            core.keyboard->KeyPressRaw ('C');
+            core.RunCycles (600'000ULL);
+
+            Assert::IsTrue (ss->IsGraphicsMode(),
+                L"Answering C must leave the //e in graphics mode");
+            Assert::IsFalse (ss->IsPage2(),
+                L"Mode 2 (DHGR color) must select PAGE1");
+            Assert::IsTrue (ss->IsHiresMode(),
+                L"Mode 2 (DHGR color) must enable HIRES");
+
+            VerifyMemRange (0x2000, dhgrMainPayload,
+                L"DHGR color main half at main $2000 after answering C");
+            {
+                size_t  m = 0;
+                for (size_t i = 0; i < kHgrPayloadSize; i++)
+                {
+                    if (auxBuf[0x2000 + i] != dhgrAuxPayload[i]) { m++; }
+                }
+
+                Assert::AreEqual (size_t (0), m,
+                    L"DHGR color aux half must reach aux $2000 after answering C");
+            }
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
             //
