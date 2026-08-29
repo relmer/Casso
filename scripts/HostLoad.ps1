@@ -65,8 +65,12 @@ function Set-CassoHostLoad {
 
 function Restore-CassoHostLoad {
     param(
-        [Parameter(Mandatory = $true)]
-        $Priority
+        #  NOT mandatory, and null is the ordinary case rather than a
+        #  mistake: with -NormalPriority nothing was lowered, so there is
+        #  nothing to put back -- and the trap that calls this fires on that
+        #  path too. A restore that throws while unwinding an error would
+        #  replace the real failure with a binding complaint about itself.
+        $Priority = $null
     )
 
     if ($null -eq $Priority) { return }

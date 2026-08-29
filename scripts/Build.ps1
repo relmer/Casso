@@ -82,22 +82,35 @@ $solutionPath = Join-Path $repoRoot 'Casso.sln'
 
 $priorityWas = $null
 
+#
+#  There are exactly two ways this script runs:
+#
+#      default            BelowNormal (or Idle with -LowPriority), and
+#                         MSBuild node reuse OFF
+#      -NormalPriority    the shell's own priority, node reuse ON
+#
+#  Nothing else decides it -- no CI sniffing, no environment variable. If
+#  you want a build at full priority you ask for one.
+#
+#  NODE REUSE IS NOT A SEPARATE PERFORMANCE KNOB HERE. It is off only
+#  because it is what makes the lowering reach the compiler, and it rides
+#  the same flag for that reason alone. A child inherits its parent's
+#  priority AT CREATION, and MSBuild's reusable workers are not children of
+#  this build: they outlive the build that made them, were started at
+#  Normal by whichever build came first, and are handed this build's work
+#  as they already are. Sampled mid-build with reuse on, exactly one
+#  MSBuild was BelowNormal -- the one we launched -- while six workers and
+#  every cl.exe under them ran at Normal, which is to say the entire
+#  compile. With reuse off: seven MSBuild and eighteen cl.exe, all
+#  BelowNormal.
+#
+#  So when we are NOT lowering there is nothing for reuse to defeat, and it
+#  stays on and keeps its roughly one second per build.
+#
 $msbuildNodeArgs = @()
 
 if (-not $NormalPriority) {
-    $priorityWas = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
-
-    #  AND THE WORKERS HAVE TO BE FRESH ONES. A child inherits its parent's
-    #  priority AT CREATION, which does nothing for MSBuild's reusable node
-    #  pool: those processes outlive the build that made them, were started
-    #  at Normal by whichever build came first, and are handed the next
-    #  build's work as they are. Measured mid-build with reuse on, exactly
-    #  one MSBuild was BelowNormal -- the one we launched -- while six
-    #  workers and every cl.exe under them ran at Normal, which is to say
-    #  the whole compile.
-    #
-    #  Turning reuse off costs about a second of node startup per build and
-    #  is what makes the lowering reach the compiler at all.
+    $priorityWas      = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
     $msbuildNodeArgs += '-nr:false'
 }
 
