@@ -93,6 +93,19 @@ public:
     void  BuildTiltedMonitorWorld (const DeskSceneComposition & comp, float out[16]) const;
 
     static void  BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16]);
+
+    // One drive's door hit box, in that drive's model space, at the openness
+    // it is currently showing. See DeskSceneModel::DoorBoundsAt.
+    bool  DoorHitBox (int drive, float outMin[3], float outMax[3]) const
+    {
+        if (drive < 0 || drive >= (int) std::size (m_doorProgress))
+        {
+            return false;
+        }
+
+        return m_drive.DoorBoundsAt (std::clamp (m_doorProgress[drive], 0.0f, 1.0f),
+                                     outMin, outMax);
+    }
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
     // The measured metrics DeskSceneLayout composes with.

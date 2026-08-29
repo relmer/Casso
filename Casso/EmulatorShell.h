@@ -707,6 +707,15 @@ private:
         return DeskSceneActive() && m_globalPrefs.crtMonitor;
     }
 
+    // The most drives the desk scene ever composes -- DeskSceneComposition
+    // sizes its world matrices to the same number.
+    static constexpr int  s_kSceneDriveMax = 2;
+
+    // Each drive's door hit box, posed to the openness that drive is showing.
+    // Filled for every slot, degenerate where there is no drive or no door,
+    // which the hit tester reads as "no door target here".
+    void  BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const;
+
     // Whether a point falls inside the scene's OWN rect -- the band between
     // the chrome bands, which is what the composition is solved into. A
     // press outside it is on the toolbar, the status bar or the menu strip,

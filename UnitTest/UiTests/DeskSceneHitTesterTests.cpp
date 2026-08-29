@@ -84,6 +84,102 @@ public:
         Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, outScreen));
     }
 
+    // A door box as the shell hands one in: posed to where the door actually
+    // is, which for an open //c latch is up clear of the lid.
+    static void MakeDoorBoxes (float riseMm, DeskRegionBox (& out)[2])
+    {
+        for (DeskRegionBox & box : out)
+        {
+            box               = DeskRegionBox {};
+            box.region        = DriveWidgetRegion::Eject;
+            box.boxMin[0]     = 52.0f;
+            box.boxMin[1]     = -6.0f;
+            box.boxMin[2]     = 40.0f + riseMm;
+            box.boxMax[0]     = 100.0f;
+            box.boxMax[1]     = 2.0f;
+            box.boxMax[2]     = 60.0f + riseMm;
+        }
+    }
+
+    //
+    //  THE DOOR TAKES ITS TARGET WITH IT. The region list is fixed in model
+    //  space, which is right for the slot and the notch and wrong for the one
+    //  part that travels: an open //c latch stands above the lid, outside
+    //  every box the case owns, and a click on the thing plainly being
+    //  reached for landed on the body -- or on nothing.
+    //
+    TEST_METHOD (Open_Door_Keeps_Its_Own_Click_Target)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        RECT                  vp        = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        DeskRegionBox         doors[2]  = {};
+        float                 screen[2] = {};
+        float                 riseMm    = 30.0f;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        MakeDoorBoxes (riseMm, doors);
+
+        // Aim at the middle of the risen door, which is above everything the
+        // fixed boxes cover.
+        ScreenAt (comp, comp.driveWorld[0], 76.0f, -2.0f, 50.0f + riseMm, screen);
+
+        // Without the door box that ray finds nothing on the drive's face.
+        {
+            SceneHitResult  hit = DeskSceneHitTester::Classify (
+                comp, metrics.glass, MakeDriveRegions(), screen[0], screen[1], 560, 384);
+
+            Assert::IsTrue (hit.target != SceneHitResult::Target::Drive ||
+                            hit.region != DriveWidgetRegion::Eject);
+        }
+
+        // With it, the same ray is a click on the door.
+        {
+            SceneHitResult  hit = DeskSceneHitTester::Classify (
+                comp, metrics.glass, MakeDriveRegions(), screen[0], screen[1], 560, 384,
+                true, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, doors);
+
+            Assert::IsTrue (hit.target == SceneHitResult::Target::Drive);
+            Assert::IsTrue (hit.region == DriveWidgetRegion::Eject);
+            Assert::AreEqual (0, hit.driveIndex);
+        }
+    }
+
+    //
+    //  ...and it does not steal what is not its own: with the door SHUT its
+    //  box sits over the face like the slot band does, so the plain corners
+    //  of the case still mean browse.
+    //
+    TEST_METHOD (Shut_Door_Leaves_The_Cases_Corners_Alone)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        RECT                  vp        = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        DeskRegionBox         doors[2]  = {};
+        float                 screen[2] = {};
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        MakeDoorBoxes (0.0f, doors);
+
+        // Bottom-left of the face, well clear of the door column.
+        ScreenAt (comp, comp.driveWorld[0], 10.0f, -2.0f, 10.0f, screen);
+
+        {
+            SceneHitResult  hit = DeskSceneHitTester::Classify (
+                comp, metrics.glass, MakeDriveRegions(), screen[0], screen[1], 560, 384,
+                true, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, doors);
+
+            Assert::IsTrue (hit.target == SceneHitResult::Target::Drive);
+            Assert::IsTrue (hit.region == DriveWidgetRegion::Body);
+        }
+    }
+
     TEST_METHOD (Glass_Hit_Carries_The_Emulated_Pixel)
     {
         DeskSceneMetrics      metrics   = MakeMetrics();

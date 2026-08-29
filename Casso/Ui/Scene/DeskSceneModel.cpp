@@ -730,6 +730,25 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
     doorOk = !IsDriveKind (kind) || !m_door.empty();
     CBRA (doorOk);
 
+    // The shut door's extent, for the hit box that follows it open.
+    {
+        float  lo[3] = {  FLT_MAX,  FLT_MAX,  FLT_MAX };
+        float  hi[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
+        for (const Dxui3DRenderer::Vertex & v : m_door)
+        {
+            lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+            lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+            lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
+        }
+
+        if (!m_door.empty())
+        {
+            memcpy (m_doorMin, lo, sizeof (m_doorMin));
+            memcpy (m_doorMax, hi, sizeof (m_doorMax));
+        }
+    }
+
     if (kind == DeskDeviceKind::Disk2c)
     {
         // The //c's face needs nothing stamped on it at all: its brand, its
@@ -1717,6 +1736,79 @@ void DeskSceneModel::PoseDoor (float progress, std::vector<Dxui3DRenderer::Verte
     }
 
     RotateDoorVerts (m_door, m_doorPivotY, m_doorPivotZ, progress * m_doorOpenRad, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::DoorBoundsAt
+//
+//  The shut door's eight corners run through the real motion, and the box
+//  around where they land.
+//
+//  THROUGH THE MOTION, not through a copy of it. Both mechanisms are pure
+//  per-vertex transforms, so eight corners pose exactly as the door's
+//  thousands do -- and the target cannot drift away from the part, which is
+//  the failure a hand-written second box invites every time either one is
+//  touched.
+//
+//  For the turning door the result is the box around the rotated corners
+//  rather than the rotated box, so it is a little larger than the door at
+//  intermediate angles. That is the harmless direction: this is a click
+//  target, and generous beats a pixel hunt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneModel::DoorBoundsAt (float progress, float outMin[3], float outMax[3]) const
+{
+    std::vector<Dxui3DRenderer::Vertex>  corners;
+    std::vector<Dxui3DRenderer::Vertex>  posed;
+    float                                lo[3] = {  FLT_MAX,  FLT_MAX,  FLT_MAX };
+    float                                hi[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
+
+
+    if (m_door.empty())
+    {
+        return false;
+    }
+
+    for (int corner = 0; corner < 8; corner++)
+    {
+        Dxui3DRenderer::Vertex  v = {};
+
+        v.x = (corner & 1) ? m_doorMax[0] : m_doorMin[0];
+        v.y = (corner & 2) ? m_doorMax[1] : m_doorMin[1];
+        v.z = (corner & 4) ? m_doorMax[2] : m_doorMin[2];
+
+        corners.push_back (v);
+    }
+
+    if (m_doorMotion == DeskDoorMotion::InThenUp)
+    {
+        SlideDoorVerts (corners, kDisk2cDoorInMm, kDisk2cDoorUpMm,
+                        std::clamp (progress, 0.0f, 1.0f), posed);
+    }
+    else
+    {
+        RotateDoorVerts (corners, m_doorPivotY, m_doorPivotZ,
+                         std::clamp (progress, 0.0f, 1.0f) * m_doorOpenRad, posed);
+    }
+
+    for (const Dxui3DRenderer::Vertex & v : posed)
+    {
+        lo[0] = std::min (lo[0], v.x);  hi[0] = std::max (hi[0], v.x);
+        lo[1] = std::min (lo[1], v.y);  hi[1] = std::max (hi[1], v.y);
+        lo[2] = std::min (lo[2], v.z);  hi[2] = std::max (hi[2], v.z);
+    }
+
+    memcpy (outMin, lo, sizeof (lo));
+    memcpy (outMax, hi, sizeof (hi));
+
+    return true;
 }
 
 

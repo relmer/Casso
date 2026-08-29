@@ -66,7 +66,8 @@ public:
                                      const float *                      monitorBoundsMin = nullptr,
                                      const float *                      monitorBoundsMax = nullptr,
                                      const float *                      driveBoundsMin   = nullptr,
-                                     const float *                      driveBoundsMax   = nullptr);
+                                     const float *                      driveBoundsMax   = nullptr,
+                                     const DeskRegionBox *              driveDoorBoxes   = nullptr);
 
 private:
     // Slab test; reports the entry distance so drives can compete on
@@ -76,6 +77,13 @@ private:
     // an exact comparison would let the neighbor's abutting face steal
     // clicks that land squarely on a door.
     static constexpr float  kOcclusionSlackMm = 2.0f;
+
+    // Slack around the door's own geometry, so the target is the door and the
+    // reach for it rather than the door's silhouette to the millimeter. The
+    // front figure is deep because the door stands proud of the face and a
+    // click a little in front of it plainly means the door.
+    static constexpr float  kDoorHitPadMm      = 4.0f;
+    static constexpr float  kDoorHitFrontPadMm = 8.0f;
 
     static bool  RayHitsBox (const float   origin[3],
                              const float   dir[3],

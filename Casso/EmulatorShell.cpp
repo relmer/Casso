@@ -1648,17 +1648,19 @@ Error:
 
 SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 {
-    float  tiltWorld[16]  = {};
-    float  monLo[3]       = {};
-    float  monHi[3]       = {};
-    float  drvLo[3]       = {};
-    float  drvHi[3]       = {};
+    float          tiltWorld[16]                       = {};
+    float          monLo[3]                             = {};
+    float          monHi[3]                             = {};
+    float          drvLo[3]                             = {};
+    float          drvHi[3]                             = {};
+    DeskRegionBox  doorBoxes[s_kSceneDriveMax]         = {};
 
     m_deskScene.BuildTiltedMonitorWorld (m_deskScene.Composition(), tiltWorld);
     m_deskScene.MonitorModel().BoundsMin (monLo);
     m_deskScene.MonitorModel().BoundsMax (monHi);
     m_deskScene.DriveModel().BoundsMin (drvLo);
     m_deskScene.DriveModel().BoundsMax (drvHi);
+    BuildDriveDoorBoxes (doorBoxes);
 
     return DeskSceneHitTester::Classify (m_deskScene.Composition(),
                                          m_deskScene.MonitorModel().Surface(),
@@ -1670,7 +1672,45 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          CrtMonitorActive(),
                                          &m_deskScene.MonitorModel().TiltGrips(),
                                          tiltWorld,
-                                         monLo, monHi, drvLo, drvHi);
+                                         monLo, monHi, drvLo, drvHi,
+                                         doorBoxes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::BuildDriveDoorBoxes
+//
+//  THE DOOR IS THE ONE PART OF A DRIVE THAT MOVES, so its click target is
+//  built per frame from where the door actually is rather than read off the
+//  model's fixed region list. The //c's latch travels up clear of the lid
+//  when it opens, which put the very part a user is reaching for outside
+//  every box the case owns -- and the target was small to begin with, since
+//  the slot band alone is about seven millimeters tall.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const
+{
+    for (int drive = 0; drive < s_kSceneDriveMax; drive++)
+    {
+        float  lo[3] = {};
+        float  hi[3] = {};
+
+        out[drive]        = DeskRegionBox {};
+        out[drive].region = DriveWidgetRegion::Eject;
+
+        if (!m_deskScene.DoorHitBox (drive, lo, hi))
+        {
+            continue;
+        }
+
+        memcpy (out[drive].boxMin, lo, sizeof (lo));
+        memcpy (out[drive].boxMax, hi, sizeof (hi));
+    }
 }
 
 
@@ -1685,11 +1725,13 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 
 SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 {
-    float  drvLo[3] = {};
-    float  drvHi[3] = {};
+    float          drvLo[3]                     = {};
+    float          drvHi[3]                     = {};
+    DeskRegionBox  doorBoxes[s_kSceneDriveMax]  = {};
 
     m_deskScene.DriveModel().BoundsMin (drvLo);
     m_deskScene.DriveModel().BoundsMax (drvHi);
+    BuildDriveDoorBoxes (doorBoxes);
 
     return DeskSceneHitTester::Classify (m_stripComp,
                                          m_deskScene.MonitorModel().Surface(),
@@ -1700,7 +1742,8 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
                                          kFramebufferHeight,
                                          false,
                                          nullptr, nullptr, nullptr, nullptr,
-                                         drvLo, drvHi);
+                                         drvLo, drvHi,
+                                         doorBoxes);
 }
 
 

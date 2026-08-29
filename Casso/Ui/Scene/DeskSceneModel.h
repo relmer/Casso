@@ -272,6 +272,18 @@ public:
 
     DeskDoorMotion  DoorMotion () const { return m_doorMotion; }
 
+    // THE DOOR'S OWN BOX, WHERE THE DOOR CURRENTLY IS. The interactive
+    // regions below are fixed in model space, which is right for the slot and
+    // the notch -- they are holes in a case that does not move -- and wrong
+    // for the door, which travels. The //c's latch rises clear of the lid
+    // when it opens, so the part a user is plainly reaching for ends up
+    // outside every box on the drive.
+    //
+    // Posed through the SAME motion the vertices take, rather than by a
+    // second copy of the arithmetic, so a remodeled door or a changed
+    // mechanism moves the target with it. False when this model has no door.
+    bool  DoorBoundsAt (float progress, float outMin[3], float outMax[3]) const;
+
     // The door at `progress` (0 shut, 1 open), by whichever motion this drive
     // actually has. One call, so a caller cannot pose a sliding latch as a
     // turning one by reaching for the rotation because it is the one it knows.
@@ -564,6 +576,10 @@ private:
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
     CurvedDisplaySurface                 m_surface;
+    // The door assembly's extent with the door SHUT, which DoorBoundsAt
+    // poses to wherever the door has travelled.
+    float                                m_doorMin[3]  = {};
+    float                                m_doorMax[3]  = {};
     float                                m_doorPivotY  = 0.0f;
     float                                m_doorPivotZ  = 0.0f;
     float                                m_doorOpenRad = 0.0f;

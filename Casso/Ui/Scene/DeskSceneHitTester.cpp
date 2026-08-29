@@ -79,7 +79,8 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
                                              const float *                      monitorBoundsMin,
                                              const float *                      monitorBoundsMax,
                                              const float *                      driveBoundsMin,
-                                             const float *                      driveBoundsMax)
+                                             const float *                      driveBoundsMax,
+                                             const DeskRegionBox *              driveDoorBoxes)
 {
     SceneHitResult   result;
     float            invViewProj[16] = {};
@@ -246,6 +247,35 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         if (modelDir[1] <= 0.0f)
         {
             continue;
+        }
+
+        // THE DOOR FIRST, AND THE WHOLE DOOR. It is the one part of a drive
+        // that moves, so its target is handed in posed rather than read from
+        // the fixed list below -- and it is tested ahead of that list because
+        // where it travels to, on the //c, is out over the lid and past every
+        // box the case owns.
+        if (driveDoorBoxes != nullptr)
+        {
+            const DeskRegionBox &  door  = driveDoorBoxes[drive];
+            float                  tNear = 0.0f;
+            float                  lo[3] = { door.boxMin[0], door.boxMin[1], door.boxMin[2] };
+            float                  hi[3] = { door.boxMax[0], door.boxMax[1], door.boxMax[2] };
+
+            if (hi[0] > lo[0])
+            {
+                lo[0] -= kDoorHitPadMm;       hi[0] += kDoorHitPadMm;
+                lo[1] -= kDoorHitFrontPadMm;  hi[1] += kDoorHitPadMm;
+                lo[2] -= kDoorHitPadMm;       hi[2] += kDoorHitPadMm;
+
+                if (RayHitsBox (modelOrigin, modelDir, lo, hi, tNear) && tNear < bestT)
+                {
+                    bestT             = tNear;
+                    result.target     = SceneHitResult::Target::Drive;
+                    result.driveIndex = drive;
+                    result.region     = DriveWidgetRegion::Eject;
+                    continue;
+                }
+            }
         }
 
         for (const DeskRegionBox & box : driveRegions)
