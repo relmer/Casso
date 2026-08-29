@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
 
 
@@ -90,6 +91,17 @@ public:
     HRESULT       Mount             (int slot, int drive, const string & path);
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
                                      DiskFormat fmt, const vector<Byte> & bytes);
+
+    //  The same two mounts, reporting WHY a refusal happened as well as that
+    //  it did. A caller that has a user to answer to wants these; one that
+    //  only needs to know whether it worked keeps the shorter forms above.
+    //  The diagnosis is written on success too, as None, so a caller cannot
+    //  read a stale reason off a mount that worked.
+    HRESULT       Mount             (int slot, int drive, const string & path,
+                                     MountDiagnosis & outDiagnosis);
+    HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
+                                     DiskFormat fmt, const vector<Byte> & bytes,
+                                     MountDiagnosis & outDiagnosis);
     void          Eject             (int slot, int drive);
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
@@ -194,12 +206,21 @@ public:
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
 
-    //  Why a mount failed, in the user's terms. A name the extension routing
-    //  does not recognize gets the list of formats that are read; anything
-    //  else could not be read or is not a disk image inside. Pure -- no
-    //  filesystem access -- and public because the wording is the observable
-    //  half of a failed mount, and the only half worth testing on its own.
-    static wstring  FormatMountFailureMessage (const string & path);
+    //  Why a mount failed, in the user's terms: the file named, then the
+    //  diagnosis worded as a sentence about it. Pure -- no filesystem access
+    //  -- and public because the wording is the observable half of a failed
+    //  mount, and the only half worth testing on its own.
+    //
+    //  It takes the diagnosis rather than re-deriving one from the path. The
+    //  path can only ever answer "is this an extension we read", which left
+    //  every other refusal sharing one sentence that named none of them.
+    static wstring  FormatMountFailureMessage (const string & path,
+                                               const MountDiagnosis & diagnosis);
+
+    //  Why a load of these bytes was refused, from what the bytes and the
+    //  format alone can settle. Static and pure, so a test can ask it about a
+    //  buffer without mounting anything.
+    static MountDiagnosis  ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes);
 private:
     struct Entry
     {

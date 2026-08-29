@@ -866,9 +866,10 @@ HRESULT EmulatorShell::Initialize (
     // hang off it. Installed before the command-line disks go in so those
     // are covered too.
     m_diskManager->SetMountCompletedCallback (
-        [this] (int drive, const std::string & path, HRESULT mountResult)
+        [this] (int drive, const std::string & path, HRESULT mountResult,
+                const MountDiagnosis & diagnosis)
         {
-            OnMountCompleted (drive, path, mountResult);
+            OnMountCompleted (drive, path, mountResult, diagnosis);
         });
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
@@ -3009,7 +3010,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESULT mountResult)
+void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
+                                      const MountDiagnosis & diagnosis)
 {
     MountCompletion *  carried  = nullptr;
     MountCompletion    fallback;
@@ -3017,9 +3019,10 @@ void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESU
 
 
 
-    fallback.path   = path;
-    fallback.result = mountResult;
-    fallback.drive  = drive;
+    fallback.path      = path;
+    fallback.diagnosis = diagnosis;
+    fallback.result    = mountResult;
+    fallback.drive     = drive;
 
     if (m_hwnd != nullptr)
     {
@@ -3076,7 +3079,7 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    message = DiskImageStore::FormatMountFailureMessage (completion.path);
+    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
     EhmNotifyUser (message.c_str());
 }

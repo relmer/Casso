@@ -103,6 +103,25 @@ Entries before versioning was introduced use dates only.
   line recorded the path before the mount had happened, so a file the loader
   went on to refuse was offered by the disk picker from then on. Recording now
   waits for the mount's own result.
+- **A refused disk image now says which way it was refused.** The message could
+  tell an extension Casso does not read from everything else, and answered
+  everything else with one sentence: the file "could not be read, or its
+  contents are not a disk image this loader accepts". That covers a truncated
+  download, a file another program is holding, a zero-byte file and a `.woz`
+  renamed from something else, and helps with none of them. The loaders now
+  report which of those happened, and the message says so -- a wrong-sized
+  sector image is told its own size and the size it needed ("is 4,096 bytes,
+  but a .dsk image must be exactly 143,360 bytes"), a `.woz` with no WOZ header
+  is told it was probably renamed, and a `.woz` with one is told it is damaged.
+  The console's `disk` commands report the same reasons in the same words,
+  where they previously answered every one of them with "is not a disk image
+  this tool can read".
+- **A malformed `.dsk` raised an assertion dialog in a Debug build.** The
+  nibblizer treated a wrong-sized buffer as a caller's bug, which it was while
+  the only callers were internal; once a drive would mount whatever file was
+  dropped on it, a truncated image tripped the assert before anything could
+  report it. It is now an ordinary refusal that names the length, which is what
+  the message above reads.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
