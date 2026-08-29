@@ -1099,7 +1099,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"there is no block 280");
-        Assert::IsTrue (result.diagnostics.find ("0 to 279") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("0-279") != std::string::npos,
             L"and the refusal states the range");
 
         result = runner.Run (MakeBlockWrite ("raw.po.dsk", "block.bin", 279));

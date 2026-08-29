@@ -66,6 +66,13 @@ Entries before versioning was introduced use dates only.
   reported one invalid-argument failure, which asserted in Debug and printed
   all three rules whichever one had been broken. Each is now an ordinary
   refusal that reports only the rule that was broken.
+- **The `disk` command's error messages are rewritten.** Every message now
+  opens with a short label and states the rule in complete sentences. Wording
+  only; the same conditions are refused, and exit codes are unchanged.
+  Affected: image type, filesystem, volume number, `--bootable` with `--boot`,
+  `--boot` with `--format`, `init` with `--type`, the sector numbering flags,
+  the track, sector, and block range and count checks, and the filesystem
+  refusals `put`, `get`, `delete`, and `boot` report.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 

@@ -402,10 +402,10 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
         { HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
           "is locked on this volume. Unlock it on the disk before writing over it" },
         { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
-          "does not fit: the volume has no room left, either for the file's "
-          "contents or for another catalog entry" },
+          "does not fit. The volume has no room for the file's contents or "
+          "for another catalog entry" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
-          "is not a name this filesystem can store. It must be a single "
+          "is not a valid name for this filesystem. It must be a single "
           "component starting with a letter, short enough for the catalog, "
           "and free of commas and control characters" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
@@ -413,18 +413,17 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
         { HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE),
           "is larger than this filesystem can record for one file" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
-          "is a binary, which has to be told where it loads. Give %Lload $XXXX" },
+          "is a binary and requires a load address. Use %Lload $XXXX" },
         { HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED),
-          "is a directory, and this tool does not go inside one, so removing "
-          "it would strand everything beneath it" },
+          "is a directory. Removing it would strand the files beneath it" },
         { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
           "has a sector chain that cannot be followed to its end" },
         { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-          "cannot be made this volume's startup program: the image carries no "
-          "operating system on the tracks a boot reads, so nothing would run it" },
+          "cannot be the volume's startup program. The image has no operating "
+          "system on the boot tracks" },
         { HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
           "is not a program this volume's boot path launches. On ProDOS that "
-          "means a file of type SYS, and not the kernel itself" },
+          "requires a file of type SYS, not the kernel itself" },
     };
     const char *  sentence = "was refused by the filesystem on this volume";
 
@@ -1610,7 +1609,16 @@ std::string DiskCommandRunner::ContainerWordList (const char * prefix, const cha
     {
         if (i > 0)
         {
-            list += (i + 1 == count) ? std::string (" ") + conjunction + " " : ", ";
+            //  Serial comma before the last of three or more.
+            if (i + 1 < count)
+            {
+                list += ", ";
+            }
+            else
+            {
+                list += (count > 2) ? std::string (", ") + conjunction + " "
+                                    : std::string (" ") + conjunction + " ";
+            }
         }
 
         list += prefix;
@@ -1700,7 +1708,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
     bool         found      = false;
     std::string  asked      = options.disk.containerType;
     std::string  words      = ContainerWordList ("", "and");
-    std::string  extensions = ContainerWordList (".", "or");
+    std::string  extensions = ContainerWordList (".", "and");
 
 
 
@@ -1709,10 +1717,10 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         //  No --type, so the name decides. A name carrying no extension this
         //  tool knows is refused for the same reason an unknown --type is.
         hr = DiskImageStore::DetectFormatByExtension (options.disk.imagePath, outFormat);
-        CHRF (hr, (result.diagnostics    += "Error: cannot tell what kind of image "
-                                          + options.disk.imagePath + " should be\n"
-                                          + "       give it a " + extensions + " extension, "
-                                          + WithPrefix ("or say which with %Ltype\n"),
+        CHRF (hr, (result.diagnostics    += "Error: missing image type: "
+                                          + options.disk.imagePath + "\n"
+                                          + "       Valid extensions are " + extensions + ".\n"
+                                          + WithPrefix ("       Use %Ltype to specify the type.\n"),
                    result.exitStatus      = DiskCommandResult::kNoOutput,
                    result.badCommandLine  = true));
     }
@@ -1736,7 +1744,7 @@ HRESULT DiskCommandRunner::ResolveContainer (const CommandLineOptions & options,
         CBRFEx (found, E_INVALIDARG,
                 (result.diagnostics    += "Error: unknown image type: "
                                         + options.disk.containerType + "\n"
-                                          "       this tool writes " + words + "\n",
+                                          "       Valid types are " + words + ".\n",
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
     }
@@ -1798,7 +1806,7 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
 
     CBRFEx (recognized, E_INVALIDARG,
             (result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
-                                      "       this tool formats dos33, prodos, or none\n",
+                                      "       Valid formats are dos33, prodos, and none.\n",
              result.exitStatus      = DiskCommandResult::kNoOutput,
              result.badCommandLine  = true));
 
@@ -1873,9 +1881,10 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
 
         isVolumeNumber = number >= 1 && number <= 254;
         CBRFEx (isVolumeNumber, E_INVALIDARG,
-                (result.diagnostics    += "Error: " + asked + " is not a DOS 3.3 volume number\n"
-                                          "       give a number from 1 to 254, or format the disk "
-                                          "as prodos, which labels a volume with a word instead\n",
+                (result.diagnostics    += "Error: illegal volume number\n"
+                                          "       DOS 3.3 volume numbers are 1-254. Format the "
+                                          "disk as prodos for a\n"
+                                          "       volume with a name instead of a number.\n",
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
 
@@ -1929,9 +1938,9 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     bothWaysAsked = !options.disk.directBootFile.empty() && options.disk.bootable;
     CBRFEx (!bothWaysAsked, E_INVALIDARG,
             (result.diagnostics    += WithPrefix (
-                 "Error: %Lbootable and %Lboot ask for different disks\n"
-                 "       %Lbootable copies an operating system on; %Lboot starts a "
-                 "binary with no operating system at all\n"),
+                 "Error: %Lbootable and %Lboot are mutually exclusive\n"
+                 "       %Lbootable copies an operating system onto the disk.\n"
+                 "       %Lboot writes a binary that runs without one.\n"),
              result.exitStatus      = DiskCommandResult::kNoOutput,
              result.badCommandLine  = true));
 
@@ -1947,9 +1956,10 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
         CBRFEx (cached, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
                 (result.diagnostics    += std::string ("Error: the ")
                                         + (isProDos ? "ProDOS" : "DOS 3.3")
-                                        + " master has not been downloaded yet\n"
-                                        + WithPrefix ("       run the emulator once to fetch it, or"
-                                                      " supply a master with %Lbootable <image>\n"),
+                                        + " master has not been downloaded\n"
+                                        + WithPrefix ("       Run the emulator once to download it, "
+                                                      "or supply a master\n"
+                                                      "       image with %Lbootable <image>.\n"),
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
 
@@ -2192,9 +2202,9 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  together honored --boot and dropped --bootable without a word.
     CBRF (!options.disk.bootable,
           (result.diagnostics    += WithPrefix (
-               "Error: %Lbootable and %Lboot ask for different disks\n"
-               "       %Lbootable copies an operating system on; %Lboot starts a "
-               "binary with no operating system at all\n"),
+               "Error: %Lbootable and %Lboot are mutually exclusive\n"
+               "       %Lbootable copies an operating system onto the disk.\n"
+               "       %Lboot writes a binary that runs without one.\n"),
            result.exitStatus      = DiskCommandResult::kNoOutput,
            result.badCommandLine  = true));
 
@@ -2202,9 +2212,10 @@ void DiskCommandRunner::BuildDirectBoot (const CommandLineOptions & options,
     //  quietly dropping one of them.
     formatAgrees = options.disk.formatName.empty() || options.disk.formatName == "none";
     CBRF (formatAgrees,
-          (result.diagnostics    += WithPrefix ("Error: %Lboot writes no filesystem, so %Lformat ")
-                                  + options.disk.formatName + " cannot be honored\n"
-                                    "       a direct-boot disk holds the binary and nothing else\n",
+          (result.diagnostics    += WithPrefix ("Error: %Lboot and %Lformat are mutually exclusive\n"
+                                                "       %Lboot writes no filesystem. A direct-boot "
+                                                "disk contains the\n"
+                                                "       binary and nothing else.\n"),
            result.exitStatus      = DiskCommandResult::kNoOutput,
            result.badCommandLine  = true));
 
@@ -2283,9 +2294,9 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
 
     CBRF (untyped,
           (result.diagnostics    += WithPrefix (
-               "Error: init does not take %Ltype\n"
-               "       the image already has a container; create makes one with a "
-               "different container\n"),
+               "Error: init does not accept %Ltype\n"
+               "       The image already has a container type. Use create to make an\n"
+               "       image with a different type.\n"),
            result.exitStatus      = DiskCommandResult::kNoOutput,
            result.badCommandLine  = true));
 
@@ -2359,10 +2370,10 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
 
     CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
-            "Error: say --logical or --physical\n"
-            "       --logical speaks the numbering catalogs, DOS tools and reference\n"
-            "       books use; --physical speaks the address-field order a boot loader\n"
-            "       asking the drive sees\n"));
+            "Error: --logical or --physical is required\n"
+            "       --logical is the numbering used by catalogs, DOS tools, and\n"
+            "       reference books. --physical is the address-field order recorded\n"
+            "       on the track.\n"));
 
     how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
               ? "physical" : "logical";
@@ -2373,8 +2384,8 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: track %d sector %d is not on this disk\n"
-                  "       tracks run 0 to %d and sectors 0 to %d\n",
+                  "Error: track %d sector %d is out of range\n"
+                  "       Tracks are 0-%d and sectors are 0-%d.\n",
                   options.disk.track, options.disk.sector,
                   NibblizationLayer::kTrackCount - 1,
                   NibblizationLayer::kSectorsPerTrack - 1);
@@ -2387,8 +2398,8 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     if (!isARead)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: %d is not a number of sectors to read\n"
-                  "       a read is at least one sector\n",
+                  "Error: illegal sector count: %d\n"
+                  "       The sector count must be 1 or greater.\n",
                   options.disk.count);
     }
 
@@ -2402,8 +2413,8 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     if (!fits)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: %d sectors will not fit from track %d sector %d\n"
-                  "       the disk has %zu left there\n",
+                  "Error: sector range exceeds the disk\n"
+                  "       %d sectors requested from track %d sector %d. Only %zu available.\n",
                   options.disk.count, options.disk.track, options.disk.sector,
                   total - first);
     }
@@ -2530,10 +2541,10 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
 
     CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
-            "Error: say --logical or --physical\n"
-            "       --logical speaks the numbering catalogs, DOS tools and reference\n"
-            "       books use; --physical speaks the address-field order a boot loader\n"
-            "       asking the drive sees\n"));
+            "Error: --logical or --physical is required\n"
+            "       --logical is the numbering used by catalogs, DOS tools, and\n"
+            "       reference books. --physical is the address-field order recorded\n"
+            "       on the track.\n"));
 
     how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
               ? "physical" : "logical";
@@ -2544,8 +2555,8 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: track %d sector %d is not on this disk\n"
-                  "       tracks run 0 to %d and sectors 0 to %d\n",
+                  "Error: track %d sector %d is out of range\n"
+                  "       Tracks are 0-%d and sectors are 0-%d.\n",
                   options.disk.track, options.disk.sector,
                   NibblizationLayer::kTrackCount - 1,
                   NibblizationLayer::kSectorsPerTrack - 1);
@@ -2580,8 +2591,9 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
         if (!fits)
         {
             snprintf (summary, sizeof (summary),
-                      "Error: %zu bytes will not fit from track %d sector %d\n"
-                      "       that is %zu sectors and the disk has %zu left there\n",
+                      "Error: sector range exceeds the disk\n"
+                      "       %zu bytes from track %d sector %d requires %zu sectors. Only\n"
+                      "       %zu available.\n",
                       payload.size(), options.disk.track, options.disk.sector,
                       needed, total - first);
         }
@@ -2705,8 +2717,8 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: block %d is not on this disk\n"
-                  "       blocks run 0 to %d\n",
+                  "Error: block %d is out of range\n"
+                  "       Blocks are 0-%d.\n",
                   options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
     }
 
@@ -2717,8 +2729,8 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
     if (!isARead)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: %d is not a number of blocks to read\n"
-                  "       a read is at least one block\n",
+                  "Error: illegal block count: %d\n"
+                  "       The block count must be 1 or greater.\n",
                   options.disk.count);
     }
 
@@ -2729,8 +2741,8 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
     if (!fits)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: %d blocks will not fit from block %d\n"
-                  "       the disk has %d left there\n",
+                  "Error: block range exceeds the disk\n"
+                  "       %d blocks requested from block %d. Only %d available.\n",
                   options.disk.count, options.disk.block,
                   ProDosSkeleton::kTotalBlocks - options.disk.block);
     }
@@ -2846,8 +2858,8 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: block %d is not on this disk\n"
-                  "       blocks run 0 to %d\n",
+                  "Error: block %d is out of range\n"
+                  "       Blocks are 0-%d.\n",
                   options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
     }
 
@@ -2868,8 +2880,8 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     if (!fits)
     {
         snprintf (summary, sizeof (summary),
-                  "Error: %zu bytes will not fit from block %d\n"
-                  "       that is %zu blocks and the disk has %d left there\n",
+                  "Error: block range exceeds the disk\n"
+                  "       %zu bytes from block %d requires %zu blocks. Only %d available.\n",
                   payload.size(), options.disk.block,
                   needed, ProDosSkeleton::kTotalBlocks - options.disk.block);
     }

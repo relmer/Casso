@@ -2114,16 +2114,16 @@ namespace MerlinCorpusTests
 
 
 
-        //  An instruction SPELLING rather than a directive, which is the other
-        //  way a dialect can claim a word. BLT is a real instruction under
-        //  another name, so "invalid mnemonic" is true of the spelling and false
-        //  of the operation -- and the two categories must not read alike.
-        TEST_METHOD (AMerlinBranchAliasUnderAs65IsNamedAsASpelling)
+        //  An alternate instruction NAME rather than a directive, which is the
+        //  other way a dialect can claim a word. BLT is a real instruction under
+        //  another name, so "invalid mnemonic" is true of the text and false of
+        //  the operation -- and the two categories must not read alike.
+        TEST_METHOD (AMerlinBranchAliasUnderAs65IsReportedAsAnAlternateName)
         {
             AssemblyResult  result = AssembleAsAs65 ("  .org $800\nHERE: BLT HERE\n");
 
-            Assert::IsFalse (result.errors.empty(), L"as65 must not accept Merlin's branch spellings");
-            Assert::IsTrue (result.errors[0].message.find ("alternate instruction spelling") != std::string::npos,
+            Assert::IsFalse (result.errors.empty(), L"as65 must not accept Merlin's branch aliases");
+            Assert::IsTrue (result.errors[0].message.find ("alternate instruction name") != std::string::npos,
                             FirstError (result).c_str());
             Assert::IsTrue (result.errors[0].message.find ("belonging to the merlin dialect") != std::string::npos,
                             FirstError (result).c_str());
