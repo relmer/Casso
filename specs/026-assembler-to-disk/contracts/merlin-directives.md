@@ -117,6 +117,43 @@ nothing — and it would defeat FR-014 outright, since a directive that writes a
 it goes cannot promise a failed assembly leaves the image untouched. What is
 adopted is where the file boundaries fall.
 
+## What cuts a span
+
+Three things end the current span, and **two of them are directives that can
+each produce several outputs on their own**:
+
+| Cut by | Effect |
+|---|---|
+| `SAV <name>` | Ends the span, names it `<name>`, empties the accumulation |
+| `DSK <name>` | Ends the span if one was open, then opens a new one named `<name>` |
+| End of assembly | Ends whatever is open |
+
+So `DSK A … DSK B` produces **two files with no `SAV` anywhere**, and
+`SAV A … SAV B` produces two with no `DSK` anywhere. Neither directive needs the
+other, and the in-tree corpus shows both shapes: `PI.ADD.S` and `PI.START.S` each
+carry a lone `DSK`, while `CLOCK.S` names its outputs with `SAV` alone.
+
+**The `DSK` name persists until another `DSK` replaces it**, which is what its
+manual means by "already in effect". `SAV` overrides that name for the span it
+ends, and only for that span — a later span still belongs to the `DSK` in
+effect. That gives one rule for every combination, with no case needing to be
+refused as ambiguous:
+
+| Source | Outputs |
+|---|---|
+| `DSK A … DSK B` | `A`, then `B` |
+| `SAV A … SAV B` | `A`, then `B` |
+| `DSK A … SAV B … <more code>` | `B`, then `A` — `SAV` took that span's name, and the `DSK` still stands for the next |
+| `DSK A … SAV B` (nothing after) | `B` only — no bytes follow, so there is no second span |
+
+**Mixing them is not a documented Merlin pattern** and no source in the corpus
+does it. In real Merlin the two are separate subsystems — `DSK` streams to disk,
+`SAV` writes the in-memory buffer — so the rows above are Casso's composition
+rather than recovered behavior. They are specified rather than refused because
+the rule falls out of the two directives' own definitions without needing a
+special case, and refusing would be inventing a restriction Merlin does not
+have.
+
 ## How a save point gets its name
 
 `DSK` and `SAV` name in **opposite directions**, and both manual quotes say so

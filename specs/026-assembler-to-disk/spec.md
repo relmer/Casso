@@ -399,8 +399,18 @@ startup program.
   named and begin another, rather than renaming a single output. Merlin's
   manual is explicit that a `DSK` arriving while one is in effect closes the
   old file and begins a new one, so a source with two of them produces two
-  files. Today the tool keeps only the last name, which is indistinguishable
-  from Merlin for one occurrence and wrong for two.
+  files **with no `SAV` anywhere**. Today the tool keeps only the last name,
+  which is indistinguishable from Merlin for one occurrence and wrong for two.
+- **FR-043**: A span MUST be ended by `SAV`, by a `DSK` arriving while one is
+  open, or by the end of the assembly, and by nothing else. `SAV` and `DSK` are
+  therefore each able to produce several outputs without the other, and neither
+  is a prerequisite for the other.
+- **FR-044**: A `DSK` name MUST remain in effect until another `DSK` replaces
+  it, which is what its manual means by a `DSK` "already in effect". A `SAV`
+  MUST override that name for the span it ends and for no other, so a later span
+  still belongs to the `DSK` in effect. This gives one rule for every
+  combination of the two directives and leaves no case needing to be refused as
+  ambiguous.
 - **FR-009**: `TYP` MUST set the object's filesystem type when an image target is
   given.
 - **FR-041**: With no image target, `TYP` MUST be refused, naming the flag that
