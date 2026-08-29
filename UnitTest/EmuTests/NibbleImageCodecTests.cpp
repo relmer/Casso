@@ -435,6 +435,57 @@ public:
 
 
 
+    TEST_METHOD (Serialize_KeepsAnEditMadeByTheBulkRewriter)
+    {
+        //  THE SILENT WRITE LOSS, PINNED. `disk put` on a nibble image
+        //  reported success and changed nothing: the file went into the sector
+        //  buffer, RenibblizeTracks re-encoded the affected tracks through
+        //  GetTrackBitsForWrite -- which bypasses WriteBit and so recorded
+        //  nothing -- and this serializer, seeing every track clean, copied all
+        //  thirty-five back out of the original bytes over the top of the edit.
+        //
+        //  It was invisible for as long as the only bit-stream writer rebuilt
+        //  every track regardless of dirty state. Nothing about the WOZ path
+        //  exercises it, which is why no existing test caught it and a hand
+        //  round-trip through the command line did.
+        DiskImage           img;
+        DiskImage           reloaded;
+        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0x00);
+        vector<Byte>        edited;
+        vector<Byte>        original;
+        vector<Byte>        rewritten;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        vector<int>         changed;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (NibbleImageCodec::Build (img, NibbleImageCodec::kNibTrackSize, original));
+
+        //  Reload exactly as a command would, then edit one sector.
+        AssertSucceeded (NibbleImageCodec::Load (original, reloaded));
+
+        edited = sectors;
+        edited[3 * 16 * NibblizationLayer::kSectorByteSize] = 0x5A;
+        changed.push_back (3);
+
+        AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk,
+                                                              changed, reloaded));
+        AssertSucceeded (NibbleImageCodec::Serialize (reloaded, original, rewritten));
+
+        Assert::IsTrue (memcmp (original.data(), rewritten.data(), original.size()) != 0,
+            L"a re-encoded track must reach the file, not be copied over");
+
+        //  And the edit is the one that arrived, not merely some difference.
+        AssertSucceeded (NibbleImageCodec::Load (rewritten, img));
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        Assert::AreEqual ((int) 0x5A,
+                          (int) recovered[3 * 16 * NibblizationLayer::kSectorByteSize],
+            L"the edited byte must read back from the rewritten container");
+    }
+
+
+
     TEST_METHOD (Serialize_PadsAShortTrackWithSyncBytes)
     {
         DiskImage     img;

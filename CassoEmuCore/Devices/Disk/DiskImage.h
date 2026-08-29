@@ -93,6 +93,12 @@ public:
     void             SetSourceFormat     (DiskFormat fmt) { m_format = fmt; }
     bool             IsTrackDirty        (int track) const;
     void             ClearDirty          ();
+
+    //  Records that a track's bits were replaced wholesale, which the bulk
+    //  writers below must do because they bypass WriteBit and so bypass the
+    //  bookkeeping it does. A consumer that copies clean tracks and re-derives
+    //  dirty ones otherwise sees a rewritten track as untouched.
+    void             MarkTrackDirty      (int track);
     void             ResizeTrack         (int track, size_t bitCount);
 
     // Quarter-track addressing. The head physically steps in quarter-track

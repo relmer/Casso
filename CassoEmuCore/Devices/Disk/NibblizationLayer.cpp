@@ -455,6 +455,10 @@ HRESULT NibblizationLayer::RenibblizeTracks (
         }
 
         inOutImage.SetTrackBitCount (track, bitOffset);
+
+        //  This track's bits were just replaced. Saying so is what lets a
+        //  writer that copies untouched tracks tell them from rewritten ones.
+        inOutImage.MarkTrackDirty (track);
     }
 
 Error:
