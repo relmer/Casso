@@ -70,7 +70,7 @@ Mount, let it boot, eject, quit. Then:
 (Get-FileHash casso-rocks.nib).Hash -eq $before
 ```
 
-Expected: `True`. A mount that writes anything at all has failed FR-010.
+Expected: `True`. A mount that writes anything at all has failed FR-011.
 
 ## Scenario 3 -- guest writes survive
 
@@ -91,12 +91,21 @@ padding rule that eats a little more of the track each pass.
 
 ```powershell
 CassoCli disk list truncated.nib      # a file cut to 100,000 bytes
-CassoCli disk list renamed.nib        # 232,960 bytes of zeros, or a renamed archive
+CassoCli disk list zeros.nib          # exactly 232,960 bytes, all zero
 ```
 
 Expected: two different messages. One names the length found and the lengths
 accepted; the other says the size is right and the contents are not nibbles.
 Neither may raise an assertion dialog in a Debug build.
+
+**Do not expect a renamed archive of the right length to be refused.** It will not
+be, and that is the intended behavior: nibble images carry no signature, header or
+checksum, so a file of an accepted length offers nothing to check against. Only
+content in which no nibble assembles anywhere is caught -- all-zero data is, random
+data is not, since roughly half of random bytes have the high bit set and assemble
+as nibbles immediately. A renamed archive mounts as a disk that will not boot,
+which is the honest outcome rather than a heuristic that would also lock users out
+of odd but genuine images.
 
 ## Scenario 6 -- the console commands agree with the sector path
 

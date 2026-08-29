@@ -23,7 +23,12 @@ The whole file, and the only thing that identifies it.
   `WrongSizeForNibbleImage`, reported with the length found and both accepted
   lengths.
 - Content MUST yield at least one nibble on at least one track. A file of the right
-  length carrying no assemblable nibble anywhere is `NotANibbleStream`.
+  length carrying no assemblable nibble anywhere is `NotANibbleStream`. **This is a
+  deliberately weak test and cannot be strengthened usefully**: the format has no
+  signature, header or checksum, and roughly half of random bytes have the high bit
+  set, so random or archive data assembles nibbles immediately and is
+  indistinguishable from a real image by inspection. All-zero content is caught;
+  garbage is not, and mounts as a disk that will not boot.
 - Individual bytes are NOT validated. Bytes with the high bit clear are legal in
   the file, appear in real images, and MUST NOT cause refusal.
 

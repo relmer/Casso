@@ -58,8 +58,8 @@ coding error in this tree and always asserts, so wrong-length and
 not-a-nibble-stream both need real diagnoses.
 
 **Scale/Scope**: 35 tracks, 6,656 or 6,384 bytes each; 232,960 or 223,440 bytes per
-file. One new class pair, one new enumerator on a total enum switched across
-roughly a dozen files, two new refusal reasons.
+file. One new class pair, one new enumerator on a total enum referenced across
+eighteen non-test files (eight of them headers), two new refusal reasons.
 
 ## Constitution Check
 
@@ -108,6 +108,14 @@ answers from it, and the dialog renders what it returns. The executable loses a
 decision instead of gaining one, the duplication goes away, and the new container
 appears in both surfaces because there is only one place left to add it.
 
+**And the unit of that table is a catalog entry, not a `DiskFormat`.** This is the
+correction that finishing the thought forces. One enumerator covers two container
+words at two sizes, so a list of formats offers five choices where the console
+offers six -- the dialog could not name `nb2` at all, and the two surfaces would
+differ by construction while the requirement said they must not. So the catalog
+carries the word, the format and the track size, `s_kContainers` becomes a view of
+it rather than a second copy, and both surfaces read the same rows.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -138,13 +146,12 @@ CassoEmuCore/Devices/Disk/
 ├── MountDiagnosis.h/.cpp     # two new failure reasons + the extension lookup renamed to VerbNoun
 ├── VolumeImage.cpp           # Load / Save gain the nibble container
 ├── NibblizationLayer.h/.cpp  # ReadNibbleAt promoted to a shared entry point
-├── BlankDiskBuilder.cpp      # ValidateSpec / Build gain the Nib arm
-└── DiskCommandRunner.cpp     # s_kContainers gains nib and nb2
+├── BlankDiskBuilder.h/.cpp   # the container catalog moves here; Nib arm
+└── DiskCommandRunner.h/.cpp  # reads the catalog; create/init size rules
 
 UnitTest/EmuTests/
 ├── NibbleImageCodecTests.cpp     # NEW -- derivation, padding, round trip
 ├── CrossFormatWriteTests.cpp     # nibble write-back joins the matrix
-├── CrossFormatExtractionTests.cpp
 ├── DiskImageStoreTests.cpp       # routing, filter agreement, refusals
 ├── DiskFailureModeTests.cpp      # the malformed-image verdicts
 ├── DiskCommandRunnerTests.cpp    # all nine commands
@@ -153,7 +160,11 @@ UnitTest/EmuTests/
 └── BootDiskTests.cpp             # a created nibble image boots
 
 UnitTest/UiTests/
-└── DriveWidgetStateTests.cpp     # filter agrees with the router
+└── DriveWidgetStateTests.cpp     # agreement test extended; refusal test inverted
+
+Casso/Shell/DiskManager.cpp       # extension-router rename reaches here
+CassoEmuCore/CassoEmuCore.vcxproj # the new codec pair
+UnitTest/UnitTest.vcxproj         # the new test file
 
 Casso/Ui/Dialogs/CreateDiskDialog.cpp  # renders core's container list, decides nothing
 Casso/Ui/DriveWidgetState.h       # NOT CHANGED -- already asks the store
@@ -235,7 +246,7 @@ here; note spec 007's FR-022 and SC-004 satisfied. User Story 4.
 |---|---|
 | Padding lands inside a field and breaks a track that used to work. | The rotation rule (research D3) puts it in the largest sync run. The test is a write-eject-remount cycle on a real disk, not a synthetic buffer. |
 | A nibble image with high-bit-clear bytes does not re-derive byte-identically. | Untouched tracks are copied, never re-derived (research D4). A track the guest wrote is expected to change shape; a track it did not must not. |
-| A `DiskFormat` arm is missed in one of the ~13 files that switch on it. | Sweep the enum, not the tables. There is a live example of exactly this failure in the tree today. |
+| A `DiskFormat` arm is missed in one of the eighteen files that reference it. | Sweep the enum and a fresh grep, never a written list. This plan's own count of those files was wrong twice before it was measured, which is the argument. There is a live example of the failure in the tree today. |
 | The feature is oversold as preservation. | The spec, the README and the format documentation all state the self-sync loss. WOZ stays the recommendation for archiving. |
 | Sector-format behavior drifts. | SC-009: the existing suite passes unchanged, with counts reported. |
 
@@ -254,7 +265,7 @@ it when this branch merges, not before.
 It points at `specs/027-nibble-images` in this worktree so the speckit workflows
 resolve. Note it is a **tracked** file, not an untracked one, so the hazard is wider
 than it first appears: no `git add -A` is needed, and a plain `git commit -a` carries
-it in. T062 checks the branch diff for it.
+it in. A Phase 7 task checks the branch diff for it.
 
 **`CLAUDE.md` is stale in three other ways worth correcting at merge time**, none of
 them this feature's doing:
