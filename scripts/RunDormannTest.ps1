@@ -85,7 +85,10 @@ try {
     Write-Host "Assembling..."
     # The dialect is named, because assembling no longer guesses: an
     # unrecognized first argument is refused rather than taken as a source file.
-    $assembleArgs = @('as65', $sourceFile, '-z', '-o', $outputFile)
+    # --flat is required for the 64KB image this script checks for. The
+    # assembled span became the default in 1.20, matching what AS65 itself
+    # writes, so -z alone now yields only the bytes the source used.
+    $assembleArgs = @('as65', $sourceFile, '-z', '--flat', '-o', $outputFile)
     $proc = Start-Process -FilePath $cassoCli -ArgumentList $assembleArgs -NoNewWindow -Wait -PassThru -RedirectStandardError $stderrFile
 
     $stderrContent = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
@@ -104,7 +107,11 @@ try {
         }
     }
 
-    if ($proc.ExitCode -gt 1) {
+    # 0 is a clean assembly and 5 is one that warned; this source has four
+    # expected unused-label warnings. The old gate was `-gt 1`, written when a
+    # warning exited 1, and it silently stopped covering them when warnings
+    # moved to 5 -- leaving 1, which now means a bad command line, accepted.
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 5) {
         Write-Error "Assembly failed with exit code $($proc.ExitCode)"
         exit 1
     }
