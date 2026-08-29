@@ -85,8 +85,23 @@ All nine accept nibble images.
 | Command | Behavior |
 |---|---|
 | `list` `get` `put` `delete` `boot` `sectorread` `sectorwrite` | as on the equivalent `.dsk`; they decode to sectors, so a track that will not decode is refused with the surface named, and nothing is written |
-| `create` | `--type nib` and `--type nb2` write a new image; a `.nib` or `.nb2` name with no `--type` selects it too |
-| `init` | reformats an existing nibble image in place; the container is unchanged, and `init` still takes no `--type` |
+| `create` | `--type nib` or a `.nib` name writes 232,960 bytes; `--type nb2` or a `.nb2` name writes 223,440. The name fixes the size, because there is no file to measure |
+| `init` | reformats an existing nibble image in place; the container is unchanged, `init` still takes no `--type`, and the track size comes from the file's LENGTH, never its name |
+
+**Which side decides the track size**, since these are the two rules that look like
+they contradict and do not:
+
+| Situation | Decided by | Why |
+|---|---|---|
+| mounting a file | its length | the bytes are there to measure, and the name is known to lie |
+| a file-level command | its length | same |
+| `init` | its length | the file exists, and reformatting must not resize it |
+| `create` | its name | there is no file yet, so the name is the only thing that can say |
+
+The system never writes a `.nb2` holding 6,656-byte tracks, or a `.nib` holding
+6,384-byte tracks. Producing that mismatch is what the length-decides rule exists to
+cope with in files from elsewhere, and manufacturing more of it would be
+indefensible.
 
 `create`'s unknown-type refusal continues to name the types that exist, now
 including the two new ones. The list a user is shown and the list the tool accepts

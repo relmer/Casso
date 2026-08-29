@@ -13,7 +13,7 @@ The whole file, and the only thing that identifies it.
 |---|---|---|
 | Total length | 232,960 or 223,440 bytes | The only identifying property. Nothing else in the file distinguishes it from noise. |
 | Track count | 35, always | Not stored. Derived by dividing the length by the track size. |
-| Track size | 6,656 or 6,384 bytes | Determined by total length, never by extension. |
+| Track size | 6,656 or 6,384 bytes | For a file that exists, determined by total length and never by extension. For one being created, by the name -- see below. |
 | Header | none | |
 | Metadata | none | No title, creator, write-protect flag, or track map. |
 
@@ -26,6 +26,12 @@ The whole file, and the only thing that identifies it.
   length carrying no assemblable nibble anywhere is `NotANibbleStream`.
 - Individual bytes are NOT validated. Bytes with the high bit clear are legal in
   the file, appear in real images, and MUST NOT cause refusal.
+
+**Where the track size comes from**: the file's length, for any file that exists. A
+file being *created* has no length yet, so its name supplies it instead -- `.nib` and
+the `nib` container word mean 6,656, `.nb2` and `nb2` mean 6,384. `init` reformats an
+existing file and therefore measures rather than reading the name, so a reformat
+never changes a file's size.
 
 **Derived, not stored**: whether tracks decode to standard sectors. That question is
 never asked at mount and never asked on the emulator's write-back path. Only the

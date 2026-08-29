@@ -204,7 +204,7 @@ happens to sit at bit zero.
 
 **D4 -- Untouched tracks are copied, not re-derived.** The writer starts from the
 loaded file's own bytes and replaces only the tracks marked dirty. This is what
-makes FR-008 and FR-009 true by construction rather than by the derivation
+makes FR-009 and FR-010 true by construction rather than by the derivation
 happening to be exact. It also covers a case derivation cannot: a nibble image
 holding bytes with the high bit clear -- which real ones do, in gaps -- does not
 re-derive byte-identically, because such a byte is absorbed into the next byte's

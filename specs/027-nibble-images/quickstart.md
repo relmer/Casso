@@ -70,7 +70,7 @@ Mount, let it boot, eject, quit. Then:
 (Get-FileHash casso-rocks.nib).Hash -eq $before
 ```
 
-Expected: `True`. A mount that writes anything at all has failed FR-009.
+Expected: `True`. A mount that writes anything at all has failed FR-010.
 
 ## Scenario 3 -- guest writes survive
 

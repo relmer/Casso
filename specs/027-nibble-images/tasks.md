@@ -33,20 +33,21 @@ is simply absent from the count rather than failing.
 A separate session is fixing `BlankDiskBuilder::ValidateSpec`'s missing
 `DiskFormat::Do` arm, touching `CassoEmuCore/Devices/Disk/BlankDiskBuilder.cpp`,
 `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` and
-`UnitTest/EmuTests/DiskCommandRunnerTests.cpp`. Seven Phase 5 tasks land in those
-same three files -- T042, T043 and T044 in `BlankDiskBuilder.cpp`, T050 and T051 in
-`BlankDiskBuilderTests.cpp`, T049 and T053 in `DiskCommandRunnerTests.cpp`.
-**Rebase on that work before starting Phase 5**, not after.
+`UnitTest/EmuTests/DiskCommandRunnerTests.cpp`. Ten Phase 5 tasks land in those same
+three files. **Rebase on that work before starting Phase 5**, not after. Task IDs
+are deliberately not listed here -- they move whenever this file is edited, and a
+stale list is worse than none; the files are the durable identifier.
 
-T050 and T051 in particular will fail against `DiskFormat::Do` until that fix
-lands, because they sweep the containers the tool advertises against the arms the
-builder actually has -- which is exactly the defect the other session is fixing. A
-red sweep before the rebase is the test working, not a task blocked.
+The container-sweep tests in `BlankDiskBuilderTests.cpp` will fail against
+`DiskFormat::Do` until that fix lands, because they sweep the containers the tool
+advertises against the arms the builder actually has -- which is exactly the defect
+the other session is fixing. A red sweep before the rebase is the test working, not
+a task blocked.
 
-T043 rewrites `ValidateSpec` to answer from `ContainersFor`, so the two changes
-overlap in intent as well as in file. Take the other session's fix first and let
-T043 subsume it, rather than resolving a conflict between two versions of the same
-correction.
+The two changes overlap in intent as well as in file: this feature rewrites
+`ValidateSpec` to answer from `ContainersFor`, which subsumes the missing-arm fix.
+Take the other session's work first and let the rewrite absorb it, rather than
+resolving a conflict between two versions of the same correction.
 
 ---
 
@@ -100,7 +101,7 @@ boots and catalogs identically to the same disk as `.dsk` and as `.woz`.
 - [ ] T014 [US1] Run `scripts\RunTests.ps1 -Configuration Debug -Build -Filter DiskFormat` and confirm the T013 test in `UnitTest/EmuTests/DiskImageStoreTests.cpp` FAILS against the `Nib` enumerator before any arm exists — a totality test that passes here is testing nothing
 - [ ] T015 [US1] Add the two enumerators to `MountFailure` in `CassoEmuCore/Devices/Disk/MountDiagnosis.h`: `WrongSizeForNibbleImage` and `NotANibbleStream`, with the header comment explaining what each distinguishes, per the rule that every enumerator names something the load path can actually tell apart
 - [ ] T016 [US1] Add their clauses to `MountDiagnosis::Describe` in `CassoEmuCore/Devices/Disk/MountDiagnosis.cpp`. The wrong-size clause names the length found and BOTH accepted lengths with the 35-track arithmetic behind them; do not reuse `WrongSizeForFormat`, whose clause names one 143,360-byte size
-- [ ] T017 [US1] Add `.nib` and `.nb2` to `MountDiagnosis::ExtensionFor` in `CassoEmuCore/Devices/Disk/MountDiagnosis.cpp`
+- [ ] T017 [US1] Add the `Nib` arm to `MountDiagnosis::ExtensionFor` in `CassoEmuCore/Devices/Disk/MountDiagnosis.cpp`, returning `.nib` as the representative name. It CANNOT return both extensions -- it is keyed on `DiskFormat` alone and the two extensions share one enumerator -- so the nibble refusal clause written in T016 must say "a nibble image" rather than naming an extension, or it will describe a `.nb2` file as a `.nib`
 - [ ] T018 [US1] Map both extensions to `DiskFormat::Nib` in `DiskImageStore::DetectFormatByExtension` in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`
 - [ ] T019 [US1] Add the `Nib` arm to `DiskImage::LoadFromBytes` in `CassoEmuCore/Devices/Disk/DiskImage.cpp`, routing to `NibbleImageCodec::Load`
 - [ ] T020 [US1] Add the nibble arms to `DiskImageStore::ClassifyLoadFailure` in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, distinguishing a wrong length from a right length carrying no assemblable nibble
@@ -136,7 +137,7 @@ only the written tracks' blocks differ.
 - [ ] T036 [P] [US2] Test padding placement in `UnitTest/EmuTests/NibbleImageCodecTests.cpp`: on a track re-derived from `NibblizeDsk` output, all 16 address fields and 16 data fields survive the rotate-and-pad, and the padding sits in a sync run. Assert the field count is 16 rather than merely non-zero
 - [ ] T037 [P] [US2] Test the no-sync-run fallback and the all-zero track in `UnitTest/EmuTests/NibbleImageCodecTests.cpp`: both terminate, neither spins, and each produces a defined block
 - [ ] T038 [US2] Test the write-back on the live flush path in `UnitTest/EmuTests/DiskWritePathTests.cpp`: with a guest write on one track, the flushed bytes differ in exactly that track's block and are byte-identical everywhere else; with no dirty track, no write occurs at all
-- [ ] T039 [US2] Test the unpersisted-write report in `UnitTest/EmuTests/DiskWritePathTests.cpp`: a `FlushSink` that fails on a dirty nibble image produces the loss message naming the image, through the same notifier the sector formats use. This covers FR-013 and SC-006, whose mechanism is pre-existing and format-agnostic but is unverified for this container
+- [ ] T039 [US2] Test the unpersisted-write report in `UnitTest/EmuTests/DiskWritePathTests.cpp`: a `FlushSink` that fails on a dirty nibble image produces the loss message naming the image, through the same notifier the sector formats use. This covers FR-014 and SC-006, whose mechanism is pre-existing and format-agnostic but is unverified for this container
 - [ ] T040 [US2] Test the no-degrade property in `UnitTest/EmuTests/CrossFormatWriteTests.cpp`: write, flush, reload and write again several times, asserting the volume stays readable and the catalog correct on every pass. Assert the cycle count actually ran, so a loop over nothing cannot pass
 - [ ] T041 [US2] Confirm the write-protect attribution in `UnitTest/EmuTests/DiskImageStoreTests.cpp`: a nibble image reports protection from the host file's read-only attribute and from the user setting, and never from an image flag, since the format carries none. Inherited behavior, asserted rather than assumed
 
@@ -158,15 +159,21 @@ offer the container consistently.
 - [ ] T042 [US3] Add `BlankDiskBuilder::ContainersFor (BlankDiskContents)` to `CassoEmuCore/Devices/Disk/BlankDiskBuilder.h` and `.cpp`, returning which containers can hold a given contents type. This is the pairing rule that `ValidateSpec` and `Casso/Ui/Dialogs/CreateDiskDialog.cpp` currently encode separately — the same two-lists-that-disagree shape that caused the `.nib` filter bug, and the reason a missing `DiskFormat::Do` arm could go unnoticed
 - [ ] T043 [US3] Rewrite `BlankDiskBuilder::ValidateSpec` in `CassoEmuCore/Devices/Disk/BlankDiskBuilder.cpp` to answer from `ContainersFor` rather than its own switch, so the validator and the offered choices cannot disagree
 - [ ] T044 [US3] Add the `Nib` arm to `ContainersFor` and `BlankDiskBuilder::Build` in `CassoEmuCore/Devices/Disk/BlankDiskBuilder.cpp`
-- [ ] T045 [US3] Add `nib` and `nb2` to `s_kContainers` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`, and update the two refusal strings in `ResolveContainer` that list the types the tool writes — both come from the one table today and must continue to
-- [ ] T046 [US3] Add the nibble container to `VolumeImage::Load` in `CassoEmuCore/Devices/Disk/VolumeImage.cpp`, decoding through the codec and then through `NibblizationLayer::Denibblize` to sectors, as the WOZ path does
-- [ ] T047 [US3] Add the nibble container to `VolumeImage::Save` and `SaveBitStream` in `CassoEmuCore/Devices/Disk/VolumeImage.cpp`, re-encoding only changed tracks. The whole-operation refusal on an unwritable track stays exactly as it is — it is correct here and is the one place in this feature where a track that will not decode legitimately blocks a write
-- [ ] T048 [US3] Have `Casso/Ui/Dialogs/CreateDiskDialog.cpp` build `m_imageTypeChoices` from `BlankDiskBuilder::ContainersFor` and take its extension text from `MountDiagnosis::ExtensionFor`, deleting the dialog's own mappings. No new decision logic enters the executable: the dialog renders what core decides, which is what Principle VI requires of new code
-- [ ] T049 [P] [US3] Test all nine commands against a nibble image in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`, asserting each matches its `.dsk` counterpart, driven through `FakeDiskFileIo` so no file is touched
-- [ ] T050 [P] [US3] Test `ContainersFor` in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` by sweeping the `DiskFormat` enum against every `BlankDiskContents` value, so a container added without a pairing rule fails the test instead of asserting at runtime
-- [ ] T051 [P] [US3] Test `create` and `init` for both container words in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp`, sweeping the container list `s_kContainers` advertises rather than restating it
-- [ ] T052 [P] [US3] Test that a created nibble image is immediately usable in `UnitTest/EmuTests/BootDiskTests.cpp`: `create --bootable`, then mount and boot it
-- [ ] T053 [P] [US3] Test the sector-surface refusal in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`: a nibble image with a deliberately damaged track is refused by a file-level command with the surface named, and nothing is written
+- [ ] T045 [US3] Extend `ContainerName` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.h` with the track size a new image of that container gets, zero for the containers where it means nothing, so the word a disk is made as and the size it comes out cannot be set in two places
+- [ ] T046 [US3] Add `nib` (6,656) and `nb2` (6,384) to `s_kContainers` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`, and update the two refusal strings in `ResolveContainer` that list the types the tool writes — both come from the one table today and must continue to
+- [ ] T047 [US3] Rework `DiskCommandRunner::ResolveContainer` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` to resolve the no-`--type` case from `s_kContainers` by the file's extension rather than from `DiskImageStore::DetectFormatByExtension`, and to yield the track size alongside the format. The container word IS the extension for all six, so one table answers both branches; and the detector is the READ list, which is the wrong list to decide what a new file may be written as
+- [ ] T048 [US3] Add the nibble track size to `BlankDiskSpec` in `CassoEmuCore/Devices/Disk/BlankDiskBuilder.h` and honor it in `Build`, so `create` writes the size the name asked for and never a `.nb2` holding 6,656-byte tracks
+- [ ] T049 [US3] Make `DiskCommandRunner::RunInit` in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` take the track size from the existing file's length via `IDiskFileIo::Stat`, not from its name. `init` PRESERVES where `create` CHOOSES: an image on disk may carry either track size under either name, and reformatting must not change a file's size
+- [ ] T050 [US3] Add the nibble container to `VolumeImage::Load` in `CassoEmuCore/Devices/Disk/VolumeImage.cpp`, decoding through the codec and then through `NibblizationLayer::Denibblize` to sectors, as the WOZ path does
+- [ ] T051 [US3] Add the nibble container to `VolumeImage::Save` and `SaveBitStream` in `CassoEmuCore/Devices/Disk/VolumeImage.cpp`, re-encoding only changed tracks. The whole-operation refusal on an unwritable track stays exactly as it is — it is correct here and is the one place in this feature where a track that will not decode legitimately blocks a write
+- [ ] T052 [US3] Have `Casso/Ui/Dialogs/CreateDiskDialog.cpp` build `m_imageTypeChoices` from `BlankDiskBuilder::ContainersFor` and take its extension text from `MountDiagnosis::ExtensionFor`, deleting the dialog's own mappings. No new decision logic enters the executable: the dialog renders what core decides, which is what Principle VI requires of new code
+- [ ] T053 [P] [US3] Test all nine commands against a nibble image in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`, asserting each matches its `.dsk` counterpart, driven through `FakeDiskFileIo` so no file is touched
+- [ ] T054 [P] [US3] Test `ContainersFor` in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp` by sweeping the `DiskFormat` enum against every `BlankDiskContents` value, so a container added without a pairing rule fails the test instead of asserting at runtime
+- [ ] T055 [P] [US3] Test `create` and `init` for both container words in `UnitTest/EmuTests/BlankDiskBuilderTests.cpp`, sweeping the container list `s_kContainers` advertises rather than restating it
+- [ ] T056 [P] [US3] Test that a created nibble image is immediately usable in `UnitTest/EmuTests/BootDiskTests.cpp`: `create --bootable`, then mount and boot it
+- [ ] T057 [P] [US3] Test the create-size rule in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`: `--type nib` and a `.nib` name each produce exactly 232,960 bytes, `--type nb2` and a `.nb2` name each produce exactly 223,440, and every produced image mounts back at the track size its name implies. Sweep `s_kContainers` so a container with no size cannot be added silently
+- [ ] T058 [P] [US3] Test the init-preserves rule in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`: `init` on a 223,440-byte file named `.nib`, and on a 232,960-byte file named `.nb2`, each leave the file's length exactly as it was
+- [ ] T059 [P] [US3] Test the sector-surface refusal in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`: a nibble image with a deliberately damaged track is refused by a file-level command with the surface named, and nothing is written
 
 **Checkpoint**: User Story 3 is deliverable.
 
@@ -180,12 +187,12 @@ offer the container consistently.
 what can be read, written and modified, with the self-sync loss stated for nibble
 images.
 
-- [ ] T054 [P] [US4] Update the format list in `README.md` (the line naming `.woz`, `.dsk`, `.do` and `.po` around line 256, and the capability summary around line 41) to include nibble images, restoring the drag-and-drop claim that was removed for being false
-- [ ] T055 [P] [US4] Add a nibble-image section to `docs/disk-write-integrity.md` covering the derivation rule, the fixed-bit-length fact, the padding policy, and why the write-back does not pass through the sector decode
-- [ ] T056 [P] [US4] State the self-sync loss plainly wherever formats are compared, and point a user archiving a disk at WOZ, in both `README.md` and `docs/disk-write-integrity.md`
-- [ ] T057 [P] [US4] Add the `[Unreleased]` entry to `CHANGELOG.md` under Added, describing the user-visible capability and its limitation in the project's plain register
-- [ ] T058 [P] [US4] Mark User Story 2 and FR-003 delivered in `specs/022-disk-image-formats/spec.md`, pointing at this feature rather than leaving the requirement duplicated
-- [ ] T059 [P] [US4] Note FR-022 and SC-004 satisfied in `specs/007-ui-overhaul/spec.md`, which have never been satisfiable until now
+- [ ] T060 [P] [US4] Update the format list in `README.md` (the line naming `.woz`, `.dsk`, `.do` and `.po` around line 256, and the capability summary around line 41) to include nibble images, restoring the drag-and-drop claim that was removed for being false
+- [ ] T061 [P] [US4] Add a nibble-image section to `docs/disk-write-integrity.md` covering the derivation rule, the fixed-bit-length fact, the padding policy, and why the write-back does not pass through the sector decode
+- [ ] T062 [P] [US4] State the self-sync loss plainly wherever formats are compared, and point a user archiving a disk at WOZ, in both `README.md` and `docs/disk-write-integrity.md`
+- [ ] T063 [P] [US4] Add the `[Unreleased]` entry to `CHANGELOG.md` under Added, describing the user-visible capability and its limitation in the project's plain register
+- [ ] T064 [P] [US4] Mark User Story 2 and FR-003 delivered in `specs/022-disk-image-formats/spec.md`, pointing at this feature rather than leaving the requirement duplicated
+- [ ] T065 [P] [US4] Note FR-022 and SC-004 satisfied in `specs/007-ui-overhaul/spec.md`, which have never been satisfiable until now
 
 **Checkpoint**: User Story 4 is deliverable.
 
@@ -193,15 +200,15 @@ images.
 
 ## Phase 7: Polish and Gates
 
-- [ ] T060 Sweep every file that references `DiskFormat` for a missing arm — there are **15** non-test files, including the five headers, not only the ones carrying `case` labels. Drive the sweep from the enum in `CassoEmuCore/Devices/Disk/IDiskImage.h`, not from any list, since a list visits only the sites somebody remembered
-- [ ] T061 Confirm `Casso/Ui/DriveWidgetState.h` is unmodified in the branch diff via `git diff origin/master -- Casso/Ui/DriveWidgetState.h`. Any change means the second extension list has come back and must be reverted
-- [ ] T062 Confirm `.specify/feature.json` is not in the branch diff via `git diff origin/master -- .specify/feature.json`. It is a **tracked** file holding per-checkout state, so `git commit -a` sweeps it in without any `git add -A`
-- [ ] T063 Run `scripts\Build.ps1 -Configuration Debug` and `scripts\Build.ps1 -Configuration Release`, both with zero warnings
-- [ ] T064 Run `scripts\RunTests.ps1 -Configuration Debug -Build` and `scripts\RunTests.ps1 -Configuration Release -Build` in the background, reporting exact counts for each. The two run different test sets, so neither substitutes for the other
-- [ ] T065 Run `scripts\CheckStyle.ps1` clean, and `scripts\CheckStyle.ps1 -Mode Staged` before committing any new file — diff mode cannot see a file that has never been committed and will report OK over it
-- [ ] T066 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild, with zero warnings. A run over a stale Release build fakes a wall of LNK4020 noise
-- [ ] T067 Walk `specs/027-nibble-images/quickstart.md` end to end against a real build, including launching `x64\Debug\Casso.exe --machine Apple2e --disk1 <image>`. Kill only the process ID launched here; other Casso instances are running from other worktrees
-- [ ] T068 Remove any generated `.nib` and `.nb2` scratch files from the working tree. Do not add patterns to `.gitignore` — stray files are meant to surface in `git status`
+- [ ] T066 Sweep every file that references `DiskFormat` for a missing arm — there are **15** non-test files, including the five headers, not only the ones carrying `case` labels. Drive the sweep from the enum in `CassoEmuCore/Devices/Disk/IDiskImage.h`, not from any list, since a list visits only the sites somebody remembered
+- [ ] T067 Confirm `Casso/Ui/DriveWidgetState.h` is unmodified in the branch diff via `git diff origin/master -- Casso/Ui/DriveWidgetState.h`. Any change means the second extension list has come back and must be reverted
+- [ ] T068 Confirm `.specify/feature.json` is not in the branch diff via `git diff origin/master -- .specify/feature.json`. It is a **tracked** file holding per-checkout state, so `git commit -a` sweeps it in without any `git add -A`
+- [ ] T069 Run `scripts\Build.ps1 -Configuration Debug` and `scripts\Build.ps1 -Configuration Release`, both with zero warnings
+- [ ] T070 Run `scripts\RunTests.ps1 -Configuration Debug -Build` and `scripts\RunTests.ps1 -Configuration Release -Build` in the background, reporting exact counts for each. The two run different test sets, so neither substitutes for the other
+- [ ] T071 Run `scripts\CheckStyle.ps1` clean, and `scripts\CheckStyle.ps1 -Mode Staged` before committing any new file — diff mode cannot see a file that has never been committed and will report OK over it
+- [ ] T072 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild, with zero warnings. A run over a stale Release build fakes a wall of LNK4020 noise
+- [ ] T073 Walk `specs/027-nibble-images/quickstart.md` end to end against a real build, including launching `x64\Debug\Casso.exe --machine Apple2e --disk1 <image>`. Kill only the process ID launched here; other Casso instances are running from other worktrees
+- [ ] T074 Remove any generated `.nib` and `.nb2` scratch files from the working tree. Do not add patterns to `.gitignore` — stray files are meant to surface in `git status`
 
 Merge-time steps that are deliberately **not** tasks here, because this branch must
 not perform them, are recorded in [plan.md](plan.md) under "Notes on shared state".
@@ -249,14 +256,14 @@ Phase 7 (Polish and Gates)
   state — the widest parallel block in the feature.
 - **Phase 4**: T034 through T037 are independent of each other, though they share a
   file.
-- **Phase 5**: T049 through T053 are four separate test files.
+- **Phase 5**: the test tasks span `DiskCommandRunnerTests.cpp`, `BlankDiskBuilderTests.cpp` and `BootDiskTests.cpp`; the three files are independent, though several tasks share each.
 - **Phase 6**: every task is a different document; the whole phase is parallel.
 
 ## Implementation Strategy
 
 **MVP is Phase 1 + Phase 2 + Phase 3** — nibble images mount and boot. That is the
 capability users are missing, and it is honestly shippable on its own **only
-because** an unwritten image is never written back (FR-009). Stopping there is a
+because** an unwritten image is never written back (FR-010). Stopping there is a
 real increment rather than a half-feature.
 
 **Phase 4 is not optional and must not be deferred past a release.** The mount path
