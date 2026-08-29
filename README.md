@@ -49,6 +49,80 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
+### The skeuomorphic theme goes to 11 (v1.21.0)
+
+The skeuomorphic theme used to be a picture of a monitor drawn around the
+emulator's output. It is now a room: four period devices modeled in CAD at
+their real dimensions, standing on a desk, lit and shadowed, seen from a
+seated person's eye about thirty inches from the screen. The perspective is
+not a set of tuned constants -- it falls out of where the hardware actually
+is.
+
+![The Apple //e desk scene](Assets/feat-desk-scene.png)
+
+**Four devices, built from photographs.** An Apple Monitor II and Disk II
+drives for the //e and ][+; a Monitor //c over Disk IIc drives for the //c.
+Switching machines swaps the whole stack. Every part is a CAD solid rather
+than a mesh sculpted to look like one, so openings are boolean cuts through
+the case and every edge that should break over does. The marks are modeled
+too, not painted on: the embossed tilt and brightness icons on the bezel,
+the cassowary inlaid into its recess, DRIVE 1 and IN USE and the `disk ][`
+logotype, the raised ribs on a drive's lid.
+
+**The picture lies on the glass.** The emulator's output maps onto a
+spherical-sag surface with the same curvature a period tube has, with a
+rounded faceplate mask and a dark border where the raster stops short of
+the bezel. Input is inverse-projected back through that curvature, so a
+click on a curved, foreshortened, possibly tilted screen still lands on the
+exact emulated pixel underneath it.
+
+| | |
+|---|---|
+| ![Three-quarter view](Assets/feat-desk-angle.png) | ![The modeled rear](Assets/feat-desk-rear.png) |
+
+**You can walk around it.** Drag anywhere on the scene and the machines
+rotate to follow -- a press still means what it meant, and only travel past
+a few pixels turns it into a turn. A compass in the corner says so for
+anyone who would not have thought to try: its arrows step on press and keep
+stepping while held, dragging one turns freely along that axis, and the orb
+squares everything back up. Ctrl+0 does the same from the keyboard. On a
+touchpad, shift and two fingers rotate, two fingers alone pan, and a pinch
+zooms.
+
+This is why the backs are modeled at all. The Monitor II's rear is one
+piece of dark plastic running from the vent recess down over the control
+panel, with the bell emerging through it, the vents looking into an unlit
+interior, and the knobs, the AC receptacle and the video jacks where they
+belong. The Monitor //c's rear panel is modeled control for control. You
+will rarely look at either -- but the scene lets you, so they had to be
+right.
+
+**The monitor tilts.** The up and down marks molded into the Monitor II's
+bezel are handles: press one and drag, and the bezel and the tube behind it
+pivot together, stopping where the leading edge comes level with the frame
+it is set into -- the travel a real bezel has, measured off the assembly
+rather than guessed. The room's reflection moves across the face as the
+face turns. Where you leave it is remembered per monitor, so the same tube
+in front of another machine is still angled the way you left it.
+
+![The Apple //c stack](Assets/feat-desk-2c.png)
+
+**The monitor decides the phosphor.** Green, amber and white used to be a
+display setting with one answer for every machine, which meant an Apple //c
+came up in color -- something no //c ever did, since the Monitor //c it
+shipped with was a green tube. The phosphor now belongs to the monitor
+standing on the desk. It is still yours to change, and the change is
+remembered per machine.
+
+**Lit, shadowed, and cheap when nothing is happening.** Two lights, a
+specular highlight and per-pixel shading, with the power lamp acting as a
+real light rather than a glow painted on nearby faces; shadows cast across
+the desk and a contact shadow under each device. Drive doors animate on
+mount and eject -- the Disk II swings on its cantilever, the Disk IIc
+slides back and lifts clear of the lid. And when the screen is not
+changing, the scene costs nothing: it is cached into plates and the
+renderer stops presenting, so a still picture no longer burns the GPU.
+
 ### Disk file access from the command line (v1.20.0)
 
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk,

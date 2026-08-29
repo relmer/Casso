@@ -8,6 +8,8 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.21.0]: The one where the skeuomorphic theme goes to 11
+
 ### Added
 
 - Tilt the Monitor II by the marks on its bezel. Remembered per monitor.
