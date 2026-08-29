@@ -12,6 +12,80 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WritableContainers
+//
+//  In the order a chooser should offer them: WOZ first, being the one that
+//  carries any filesystem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
+{
+    static constexpr DiskFormat  kContainers[] =
+    {
+        DiskFormat::Woz,
+        DiskFormat::Dsk,
+        DiskFormat::Do,
+        DiskFormat::Po,
+    };
+
+
+
+    outCount = _countof (kContainers);
+
+    return kContainers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainersFor
+//
+//  Which containers can carry a filling.
+//
+//  IN CORE RATHER THAN IN THE DIALOG THAT ASKS. The create dialog used to
+//  hold this as a switch restating the pairing matrix by hand, where no test
+//  could reach it -- and it went stale the moment the builder learned a
+//  fourth container: `.do` could be written from the command line and was
+//  missing from the dropdown. Derived from CheckSpec, it cannot drift.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents contents)
+{
+    std::vector<DiskFormat>   usable;
+    const DiskFormat        * containers = nullptr;
+    size_t                    count      = 0;
+    size_t                    i          = 0;
+    BlankDiskSpec             spec;
+
+
+
+    containers    = WritableContainers (count);
+    spec.contents = contents;
+
+    for (i = 0; i < count; i++)
+    {
+        spec.format = containers[i];
+
+        if (CheckSpec (spec) == BlankDiskVerdict::Ok)
+        {
+            usable.push_back (containers[i]);
+        }
+    }
+
+    return usable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CheckSpec
 //
 //  Why a spec cannot be written, or Ok.

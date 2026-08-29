@@ -93,6 +93,22 @@ struct BootPayload
 class BlankDiskBuilder
 {
 public:
+    //
+    //  Every container Build can write.
+    //
+    //  THE ONE AUTHORITY ON WHAT CAN BE WRITTEN. Each surface presents these
+    //  its own way -- the command line has a word for each, the create dialog
+    //  a caption and a file extension -- but a LIST of them, restated
+    //  anywhere, is a list that goes stale. `.do` was offered by the command
+    //  line, refused by this validator, and missing from the dialog, all at
+    //  the same time.
+    //
+    static const DiskFormat *  WritableContainers (size_t & outCount);
+
+    //  Those of them that can hold `contents`, in the same order. A chooser
+    //  offers exactly these, so an illegal pairing is never listed.
+    static std::vector<DiskFormat>  ContainersFor (BlankDiskContents contents);
+
     //  Why the format / contents / bootable / volume-name combination
     //  cannot be written, or Ok. Does not assert: user input reaches it.
     static BlankDiskVerdict  CheckSpec (const BlankDiskSpec & spec);

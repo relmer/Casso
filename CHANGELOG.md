@@ -62,8 +62,9 @@ Entries before versioning was introduced use dates only.
   the machine came up at a bare text screen with no message. The `disk`
   subcommand gives the same reasons.
 - **A disk that never mounted no longer appears in the recent-disks list.**
-- **`disk create` failed on `.do` images.** It now writes a DOS-ordered image,
-  the same as `.dsk`.
+- **`.do` images could not be created.** The command line refused them and the
+  create dialog did not offer them. Both write a DOS-ordered image now, byte
+  for byte the same as `.dsk`.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
