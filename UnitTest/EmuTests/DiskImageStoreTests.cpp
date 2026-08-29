@@ -165,6 +165,44 @@ public:
         Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("noext")));
     }
 
+    TEST_METHOD (EveryDiskFormat_HasAnExtensionThatRoutesBackToIt)
+    {
+        //  THE SWEEP IS OVER THE ENUM, NOT OVER A LIST OF FORMATS. A list
+        //  visits only the rows its author remembered, so it cannot find the
+        //  arm they forgot -- which is the failure this guards. There is a
+        //  live example in the tree: BlankDiskBuilder::ValidateSpec has no
+        //  DiskFormat::Do arm and asserts on a container the tool advertises,
+        //  and no table-driven test noticed because no table lists it.
+        //
+        //  Both directions matter. A format with no extension arm answers the
+        //  "disk" fallback; one with no routing arm fails to come back.
+        int          count  = (int) DiskFormat::Count;
+        int          i      = 0;
+        DiskFormat   fmt    = DiskFormat::Dsk;
+        DiskFormat   routed = DiskFormat::Dsk;
+        const char * ext    = nullptr;
+        std::string  path;
+        HRESULT      hr     = S_OK;
+
+        Assert::IsTrue (count > 0, L"the enum must not be empty");
+
+        for (i = 0; i < count; i++)
+        {
+            fmt = (DiskFormat) i;
+            ext = MountDiagnosis::GetPrimaryExtension (fmt);
+
+            Assert::AreNotEqual ("disk", ext,
+                L"every format needs its own extension, not the fallback");
+
+            path = std::string ("image") + ext;
+            hr   = DiskImageStore::GetSourceFormatByExtension (path, routed);
+
+            AssertSucceeded (hr, L"a format's own primary extension must route");
+            Assert::AreEqual ((int) fmt, (int) routed,
+                L"and must route back to the format it came from");
+        }
+    }
+
     TEST_METHOD (IsMountableImageExtension_AcceptsNibbleImages)
     {
         // INVERTED, NOT DELETED. Mount now routes both nibble extensions, and
