@@ -6,45 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.21.0]: The one with nibble support
+## [1.22.0]: The one with nibble support
 
 ### Added
 - **Nibble disk images (`.nib`, `.nb2`) are supported.**
-- **The Harte vectors now check cycle timing and cover the undocumented
-  opcodes.** 77 of the 79 illegal NMOS opcodes had no vectors and passed on an
-  empty set; all 79 now run clean. Timing checks found three bugs on first run.
-- **An offline cycle reference at `docs/cycle-reference.md`**, generated from
-  the emulator's own instruction tables.
 
 ### Changed
 - **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
   ones, for every image format.
-- **`CassoCli run` requires `--as65` or `--merlin` for a source file.** It used
-  to assume as65. Binaries are unaffected.
-- **`as65 -x` performs AS65's `JMP`-to-`BRA` optimization**; `NOOPT` and `-n`
-  disable it. Labels below a shortened `JMP` move.
-- **Rebuilt the casso-rocks demo** with separate DHGR and HGR image sets,
-  dithered for mono and for color displays.
-
-### Removed
-- **`test-bands.hgr` and `lores-bars.lores`**, demo-disk only and regenerated
-  on demand by `scripts/HgrPreprocess.py`.
-
-### Fixed
-- **Instruction timing was wrong in three places. This changes emulated
-  timing.** `ASL`/`LSR`/`ROL`/`ROR` `abs,X` were billed seven and take six or
-  seven; zero-displacement branches were billed untaken and are taken;
-  `BBRn`/`BBSn` were billed a flat five and take five to seven.
-- **`-c` listings omitted the cycle count for 59 65C02 opcodes** and printed
-  the NMOS value for `JMP (abs)`. Counts now come off the instruction itself.
-- **Casso reports a disk image that fails to mount, and why**, instead of
-  coming up at a bare text screen. `disk` gives the same reasons.
-- **A disk that never mounted no longer appears in the recent-disks list.**
-- **`.do` images could not be created.** The command line and the create dialog
-  both offer them now, byte for byte the same as `.dsk`.
-- **`run` echoed flags back with a dash even on a `/`-style command line.**
-- **The casso-rocks demo signs off instead of vanishing**, stops the drive after
-  the last track, and no longer leaves ESC in the keyboard latch.
 
 ## [1.20.1]: The one with logical or physical sector addresses
 
