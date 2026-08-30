@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "StartupTrace.h"
 
 #include "Ui/Scene/DeskSceneModel.h"
 
@@ -483,8 +484,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
+    StartupTrace::Stamp ("            (model Load entry)");
+
     hr = ObjMeshParser::Parse (objText, mtlText, triangles, materialNames);
     CHRA (hr);
+
+    StartupTrace::Stamp ("            ObjMeshParser::Parse (text -> triangles)");
 
     // Move the room's ceiling lights into this model's own coordinates so
     // the per-face bake needs no transform: the model's x-center rests on
@@ -631,6 +636,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             AppendLitTri (m_opaque, tri);
         }
     }
+
+    StartupTrace::Stamp ("            classify + AppendLitTri (triangles -> vertex buffers)");
 
     // Glass tint is forced white: the picture must pass through unmodified,
     // whatever Kd identified the sheet.
