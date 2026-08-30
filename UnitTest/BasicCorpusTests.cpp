@@ -58,7 +58,7 @@ public:
 
     static std::string CorpusListing()
     {
-        std::string  listing = DemoAssets::Text (IDR_BASIC_CORPUS_SRC);
+        std::string  listing = DemoAssets::GetText (IDR_BASIC_CORPUS_SRC);
 
         Assert::IsTrue (listing.size() > 0,
             L"the corpus listing must be embedded, or everything below compares nothing");

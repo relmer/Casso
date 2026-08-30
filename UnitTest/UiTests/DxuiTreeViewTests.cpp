@@ -58,7 +58,7 @@ public:
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
         DxuiTreeView  tv = MakeFlatTree();
-        Assert::AreEqual (3, tv.VisibleCount());
+        Assert::AreEqual (3, tv.GetVisibleCount());
     }
 
     TEST_METHOD (IsInteractive_OnlyOptionalRowsInteractive)
@@ -90,7 +90,7 @@ public:
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
 
-        checkedAfter = tv.NodeAt (1)->checked;
+        checkedAfter = tv.GetNodeAt (1)->checked;
         Assert::IsTrue (checkedAfter,
             L"Optional row's checkbox click must toggle the underlying node.");
     }
@@ -100,12 +100,12 @@ public:
         DxuiTreeView  tv            = MakeFlatTree();
         int           x             = 20;
         int           y             = 5;
-        bool          beforeChecked = tv.NodeAt (0)->checked;
+        bool          beforeChecked = tv.GetNodeAt (0)->checked;
 
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
 
-        Assert::AreEqual (beforeChecked, tv.NodeAt (0)->checked,
+        Assert::AreEqual (beforeChecked, tv.GetNodeAt (0)->checked,
             L"Required row click must not flip the checked state.");
     }
 
@@ -118,7 +118,7 @@ public:
         Assert::IsTrue (tv.OnLButtonDown (x, y));
         Assert::IsTrue (tv.OnLButtonUp   (x, y));
 
-        Assert::IsTrue (tv.NodeAt (2)->checked,
+        Assert::IsTrue (tv.GetNodeAt (2)->checked,
             L"Platform-locked row must remain in its locked-checked state.");
     }
 
@@ -128,17 +128,17 @@ public:
         tv.SetFocused (true);
 
         Assert::IsTrue (tv.OnKey (VK_DOWN));
-        Assert::AreEqual (1, tv.Highlight());
+        Assert::AreEqual (1, tv.GetHighlight());
 
         Assert::IsTrue (tv.OnKey (VK_DOWN));
-        Assert::AreEqual (2, tv.Highlight());
+        Assert::AreEqual (2, tv.GetHighlight());
 
         Assert::IsTrue (tv.OnKey (VK_DOWN));
-        Assert::AreEqual (2, tv.Highlight(),
+        Assert::AreEqual (2, tv.GetHighlight(),
             L"Down at last row must not wrap or overshoot.");
 
         Assert::IsTrue (tv.OnKey (VK_UP));
-        Assert::AreEqual (1, tv.Highlight());
+        Assert::AreEqual (1, tv.GetHighlight());
     }
 
     TEST_METHOD (KeyboardToggle_OnlyAffectsInteractiveRow)
@@ -148,11 +148,11 @@ public:
 
         Assert::IsTrue (tv.OnKey (VK_DOWN));   // highlight = 1 (optional)
         Assert::IsTrue (tv.OnKey (VK_SPACE));
-        Assert::IsTrue (tv.NodeAt (1)->checked);
+        Assert::IsTrue (tv.GetNodeAt (1)->checked);
 
         Assert::IsTrue (tv.OnKey (VK_DOWN));   // highlight = 2 (platform-locked)
         Assert::IsTrue (tv.OnKey (VK_SPACE));
-        Assert::IsTrue (tv.NodeAt (2)->checked,
+        Assert::IsTrue (tv.GetNodeAt (2)->checked,
             L"Space on a platform-locked row must leave the lock intact.");
     }
 
@@ -175,16 +175,16 @@ public:
         tv.SetRowHeight (20);
         tv.SetNodes (std::move (nodes));
 
-        Assert::AreEqual (1, tv.VisibleCount(),
+        Assert::AreEqual (1, tv.GetVisibleCount(),
             L"Collapsed parent must hide its child.");
 
         tv.SetFocused (true);
         Assert::IsTrue (tv.OnKey (VK_RIGHT));
-        Assert::AreEqual (2, tv.VisibleCount(),
+        Assert::AreEqual (2, tv.GetVisibleCount(),
             L"Right-arrow on a collapsed parent must expand it.");
 
         Assert::IsTrue (tv.OnKey (VK_LEFT));
-        Assert::AreEqual (1, tv.VisibleCount(),
+        Assert::AreEqual (1, tv.GetVisibleCount(),
             L"Left-arrow on an expanded parent must collapse it.");
     }
 };

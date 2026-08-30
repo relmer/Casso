@@ -243,11 +243,11 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
     HRESULT  hr          = S_OK;
-    float    boxSize     = m_scaler.Pxf (s_kBoxSizeDip);
-    float    focusInset  = m_scaler.Pxf (s_kFocusInsetDip);
-    float    focusThick  = m_scaler.Pxf (s_kFocusThickDip);
-    float    labelGap    = m_scaler.Pxf (s_kLabelGapDip);
-    float    fontDip     = m_scaler.Pxf (s_kFontDip);
+    float    boxSize     = m_scaler.ToPxf (s_kBoxSizeDip);
+    float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
+    float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
+    float    labelGap    = m_scaler.ToPxf (s_kLabelGapDip);
+    float    fontDip     = m_scaler.ToPxf (s_kFontDip);
     float    boxLeft     = (float) m_boundsDip.left;
     float    boxTop      = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - boxSize) * 0.5f;
     uint32_t boxColor    = m_enabled
@@ -333,7 +333,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 

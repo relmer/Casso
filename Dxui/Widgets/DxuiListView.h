@@ -144,10 +144,13 @@ public:
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
 
-    int   GetRowCount              () const                 { return RowCount(); }
+    // Row count honoring virtual (provider) mode. All scroll math, hit-test,
+    // and paint bounds go through this so the two modes share one code path.
+    int   GetRowCount              () const { return m_virtual ? m_virtualCount : (int) m_rows.size(); }
+
     int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
-    int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0; }
+    int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0; }
     int   GetVisibleColumnCount    () const;
     int   GetNthVisibleColumnIndex (int n) const;
     int   GetVisibleIndexOfColumn  (size_t absCol) const;
@@ -181,7 +184,7 @@ public:
     // Paint clips to [m_topRow, m_topRow + capacity). "Sticky tail"
     // auto-pins the view to the bottom when new rows arrive while the
     // user is already parked at the tail.
-    int   GetScrollbarWidthPx   () const                 { return m_scaler.Px (s_kScrollbarWidthDip); }
+    int   GetScrollbarWidthPx   () const                 { return m_scaler.ToPx (s_kScrollbarWidthDip); }
     int   GetTopRow             () const                 { return m_topRow; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
@@ -207,7 +210,7 @@ public:
     bool             HitTestScrollbarTrack     (int xPx, int yPx) const;
     bool             HitTestScrollbarArrowUp   (int xPx, int yPx) const;
     bool             HitTestScrollbarArrowDown (int xPx, int yPx) const;
-    void             PageFromTrackClick        (int yPx);
+    void             GetPageFromTrackClick        (int yPx);
     void             BeginThumbDrag            (int grabYPx);
     void             UpdateThumbDrag           (int yPx);
     void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; }
@@ -235,7 +238,7 @@ public:
     bool              HitTestHorzScrollbarTrack      (int xPx, int yPx) const;
     bool              HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const;
     bool              HitTestHorzScrollbarArrowRight (int xPx, int yPx) const;
-    void              PageFromHorzTrackClick         (int xPx);
+    void              GetPageFromHorzTrackClick         (int xPx);
     void              BeginHorzThumbDrag             (int grabXPx);
     void              UpdateHorzThumbDrag            (int xPx);
     void              EndHorzThumbDrag               ()                          { m_horzDragging = false; m_horzDragGrab = 0.0f; }
@@ -305,10 +308,10 @@ public:
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    LPCWSTR             CursorForPoint (POINT clientPx) const       override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged (bool focused) override;
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::ListView; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
     static constexpr int    s_kRowHeightDip      = 30;
@@ -378,9 +381,6 @@ private:
         int   contentW  = 0;
     };
 
-    // Row count honoring virtual (provider) mode. All scroll math, hit-test,
-    // and paint bounds go through this so the two modes share one code path.
-    int          RowCount            () const { return m_virtual ? m_virtualCount : (int) m_rows.size(); }
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
     // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
     void         ProvideRow          (int r, std::vector<Cell> & out) const;
@@ -390,14 +390,14 @@ private:
     void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
     // The cell vector for row `r`: the provider scratch in virtual mode
     // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
-    const std::vector<Cell> & RowCells (int r) const;
+    const std::vector<Cell> & GetRowCells (int r) const;
     // Clamp m_topRow / sticky-tail after the row count changes (shared by
     // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
     void         ClampTopAfterCountChange (bool wasSticky);
 
     Palette      MakePalette         () const;
     ScrollLayout ComputeScrollLayout () const;
-    int          ColumnNaturalWidthPx (size_t c) const;
+    int          GetColumnNaturalWidthPx (size_t c) const;
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
     // Mouse-event dispatch helpers (lx / ly are widget-relative px).

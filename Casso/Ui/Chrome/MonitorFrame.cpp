@@ -141,7 +141,7 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
     m_hidden     = false;
-    m_dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    m_dpi        = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
     m_centerRect = boundsDip;
 
     // Size the glass to the display aspect, then wrap it in an even bezel to

@@ -90,11 +90,11 @@ public:
     void     Clear         ();
     void     SetLayout     (std::unique_ptr<IDxuiLayout> layout);
 
-    void  PropagateDpi  (const DxuiDpiScaler & scaler);
-    void  PropagateTheme();
+    void  PropagateDpi   (const DxuiDpiScaler & scaler);
+    void  PropagateTheme ();
 
-    bool  Dirty         () const { return m_dirty; }
-    void  ClearDirty    ()       { m_dirty = false; }
+    bool  IsDirty        () const { return m_dirty; }
+    void  ClearDirty     ()       { m_dirty = false; }
 
     void              Layout       (const RECT          & boundsDip,
                                     const DxuiDpiScaler & scaler) override;
@@ -102,15 +102,15 @@ public:
                                     IDxuiTextRenderer   & text,
                                     const IDxuiTheme    & theme) override;
     bool              OnMouse      (const DxuiMouseEvent & ev) override;
-    LPCWSTR           CursorForPoint (POINT clientPx) const     override;
+    LPCWSTR           GetCursorForPoint (POINT clientPx) const     override;
     bool              OnKey        (const DxuiKeyEvent   & ev) override;
     void              OnThemeChanged()                       override;
     void              Tick         (int64_t nowMs)            override;
 
     void              OnChildVisibilityChanged (IDxuiControl * child);
 
-    size_t            ChildCount   () const                   override { return m_children.size(); }
-    IDxuiControl *    Child        (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }
+    size_t            GetChildCount () const                   override { return m_children.size(); }
+    IDxuiControl *    GetChild      (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }
 
 protected:
     void              OnVisibilityChanged() override;

@@ -45,8 +45,8 @@ namespace DxuiInfoBannerTests
             DxuiInfoBanner  longBanner  (L"A considerably longer notice that has to wrap across several "
                                          L"lines when the banner is only a couple hundred pixels wide.");
 
-            hShort = shortBanner.PreferredHeightPx (220.0f, scaler);
-            hLong = longBanner.PreferredHeightPx  (220.0f, scaler);
+            hShort = shortBanner.GetPreferredHeightPx (220.0f, scaler);
+            hLong = longBanner.GetPreferredHeightPx  (220.0f, scaler);
 
             Assert::IsTrue (hShort > 0.0f, L"a one-line banner has a positive height");
             Assert::IsTrue (hLong > hShort, L"a longer message wraps to a taller banner");
@@ -61,8 +61,8 @@ namespace DxuiInfoBannerTests
             DxuiInfoBanner  banner (L"A considerably longer notice that has to wrap across several lines "
                                     L"when the banner is narrow, but fits far fewer when it is wide.");
 
-            hNarrow = banner.PreferredHeightPx (200.0f, scaler);
-            hWide = banner.PreferredHeightPx (700.0f, scaler);
+            hNarrow = banner.GetPreferredHeightPx (200.0f, scaler);
+            hWide = banner.GetPreferredHeightPx (700.0f, scaler);
 
             Assert::IsTrue (hWide <= hNarrow, L"a wider banner wraps to fewer-or-equal lines");
         }
@@ -75,7 +75,7 @@ namespace DxuiInfoBannerTests
 
             // Even with no text the banner is at least one icon tall plus padding,
             // so a blank message never collapses to nothing.
-            Assert::IsTrue (banner.PreferredHeightPx (300.0f, scaler) > 0.0f,
+            Assert::IsTrue (banner.GetPreferredHeightPx (300.0f, scaler) > 0.0f,
                             L"an empty banner keeps a positive, icon-clearing height");
         }
 
@@ -94,8 +94,8 @@ namespace DxuiInfoBannerTests
 
             text.SetCannedMetrics (L"a short warning", oneLine);
 
-            measured  = banner.MeasuredHeightPx (text, 400.0f, scaler);
-            estimated = banner.PreferredHeightPx (400.0f, scaler);
+            measured  = banner.GetMeasuredHeightPx (text, 400.0f, scaler);
+            estimated = banner.GetPreferredHeightPx (400.0f, scaler);
 
             Assert::IsTrue (measured > 0.0f, L"a measured height must be produced");
             Assert::IsTrue (measured <= estimated,
@@ -115,10 +115,10 @@ namespace DxuiInfoBannerTests
             float                 hThree = 0.0f;
 
             text.SetCannedMetrics (L"tall", one);
-            hOne = banner.MeasuredHeightPx (text, 400.0f, scaler);
+            hOne = banner.GetMeasuredHeightPx (text, 400.0f, scaler);
 
             text.SetCannedMetrics (L"tall", three);
-            hThree = banner.MeasuredHeightPx (text, 400.0f, scaler);
+            hThree = banner.GetMeasuredHeightPx (text, 400.0f, scaler);
 
             Assert::IsTrue (hThree > hOne, L"three lines of text need more height than one");
         }
@@ -136,8 +136,8 @@ namespace DxuiInfoBannerTests
 
             text.SetMeasureReturnsZero (true);
 
-            Assert::AreEqual (banner.PreferredHeightPx (200.0f, scaler),
-                              banner.MeasuredHeightPx (text, 200.0f, scaler),
+            Assert::AreEqual (banner.GetPreferredHeightPx (200.0f, scaler),
+                              banner.GetMeasuredHeightPx (text, 200.0f, scaler),
                               L"a zero measurement must fall back to the estimate");
         }
 

@@ -121,12 +121,12 @@ public:
 
     // Current eased overscroll offset (0 within bounds); the host maps it to a
     // whole-view translation. Sign follows the pan direction that spilled it.
-    float  OverscrollY () const { return (float) m_overscrollY.cur; }
+    float  GetOverscrollY () const { return (float) m_overscrollY.cur; }
 
     // Programmatic pan-Y (follow mode): moves the target WITHOUT counting as a
     // user pan, so it never trips OnUserPanY.
     void   SetPanYTarget (float y);
-    float  PanYTarget () const { return (float) m_panY.target; }
+    float  GetPanYTarget () const { return (float) m_panY.target; }
 
     // Programmatic USER pan (host-routed keys like arrows / page keys): moves
     // the pan target and DOES count as a user pan (fires OnUserPanY), so a
@@ -142,19 +142,19 @@ public:
     void   ResetZoom ();   // zoom target -> zoomMin
 
     // Eased current transform -- what the host renders this frame.
-    float  Zoom () const { return (float) m_zoom.cur; }
-    float  PanX () const { return (float) m_panX.cur; }
-    float  PanY () const { return (float) m_panY.cur; }
-    float  PanYCam () const { return (float) m_panYCam.cur; }   // camera vertical framing
+    float  Zoom    () const { return (float) m_zoom.cur; }
+    float  GetPanX () const { return (float) m_panX.cur; }
+    float  GetPanY () const { return (float) m_panY.cur; }
+    float  GetPanYCam () const { return (float) m_panYCam.cur; }   // camera vertical framing
     float  ZoomTarget () const { return (float) m_zoom.target; }
 
-    bool   Zoomed () const { return m_zoom.target > (double) m_cfg.zoomMin + 1e-3; }
+    bool   IsZoomedIn () const { return m_zoom.target > (double) m_cfg.zoomMin + 1e-3; }
 
     using Fn = std::function<void ()>;
-    void  SetOnChange   (Fn fn) { m_onChange   = std::move (fn); }
-    void  SetOnUserPanY (Fn fn) { m_onUserPanY = std::move (fn); }
+    void  SetOnChange      (Fn fn) { m_onChange   = std::move (fn); }
+    void  SetOnUserPanY    (Fn fn) { m_onUserPanY = std::move (fn); }
 
-    const Config &  Cfg () const { return m_cfg; }
+    const Config &  GetCfg () const { return m_cfg; }
 
 private:
     struct Eased
@@ -171,7 +171,7 @@ private:
     void  NudgePanX (double deltaContent);
     void  NudgePanY (double deltaContent, bool user);
     void  NudgePanYCam (double deltaContent);   // camera vertical framing (drag / zoom anchor)
-    void  SpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
+    void  GetSpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
     void  ClampTargets ();
 
     // Split out of OnMouse: the wheel arm carries three distinct gestures
@@ -180,7 +180,7 @@ private:
     bool  OnWheel (const DxuiMouseEvent & ev);
 
     bool  EaseToward (Eased & v, double dtSec, double tauSec);
-    void  Changed ();
+    void  NotifyChanged ();
 
     Config  m_cfg;
     Eased   m_zoom;

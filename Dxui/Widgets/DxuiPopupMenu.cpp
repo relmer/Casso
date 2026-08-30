@@ -55,15 +55,15 @@ void DxuiPopupMenu::Show (
     // explicit SetDpi push from the consumer into the show path.
     if (m_popupHost != nullptr)
     {
-        m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
+        m_scaler.SetDpi (m_popupHost->GetScaler().GetDpi());
     }
 
-    fontDip = (float) m_scaler.Pxf (kFontDip);
-    itemH   = m_scaler.Px (kItemHeightDip);
-    padL    = m_scaler.Px (kItemPadLeftDip);
-    padR    = m_scaler.Px (kItemPadRightDip);
-    border  = m_scaler.Px (kBorderDip);
-    minW    = m_scaler.Px (kMinWidthDip);
+    fontDip = (float) m_scaler.ToPxf (kFontDip);
+    itemH   = m_scaler.ToPx (kItemHeightDip);
+    padL    = m_scaler.ToPx (kItemPadLeftDip);
+    padR    = m_scaler.ToPx (kItemPadRightDip);
+    border  = m_scaler.ToPx (kBorderDip);
+    minW    = m_scaler.ToPx (kMinWidthDip);
 
     for (const auto & it : m_items)
     {
@@ -102,9 +102,9 @@ void DxuiPopupMenu::Show (
     {
         HRESULT                    hrShow      = S_OK;
         DxuiPopupHost::ShowParams  showParams;
-        HWND                       owner       = m_popupHost->Hwnd();
+        HWND                       owner       = m_popupHost->GetHwnd();
         POINT                      cursor      = { anchorX, anchorY };
-        UINT                       dpi         = m_scaler.Dpi();
+        UINT                       dpi         = m_scaler.GetDpi();
         uint32_t                   bgArgb      = (m_theme != nullptr)
                                                     ? m_theme->BackgroundElevated()
                                                     : DxuiPopupHost::kDefaultMenuBackgroundArgb;
@@ -200,8 +200,8 @@ bool DxuiPopupMenu::HitTest (int x, int y) const
 
 int DxuiPopupMenu::HitTestIndex (int x, int y) const
 {
-    int   border    = m_scaler.Px (kBorderDip);
-    int   itemH     = m_scaler.Px (kItemHeightDip);
+    int   border    = m_scaler.ToPx (kBorderDip);
+    int   itemH     = m_scaler.ToPx (kItemHeightDip);
     int   relY      = y - (m_boundsDip.top + border);
     int   idx       = -1;
     bool  isInItems = false;
@@ -460,12 +460,12 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
     HRESULT   hr       = S_OK;
-    int       border   = m_scaler.Px (kBorderDip);
-    int       itemH    = m_scaler.Px (kItemHeightDip);
-    int       padL     = m_scaler.Px (kItemPadLeftDip);
-    int       padR     = m_scaler.Px (kItemPadRightDip);
-    int       glyphX   = m_scaler.Px (kCheckGlyphOffDip);
-    float     fontDip  = (float) m_scaler.Pxf (kFontDip);
+    int       border   = m_scaler.ToPx (kBorderDip);
+    int       itemH    = m_scaler.ToPx (kItemHeightDip);
+    int       padL     = m_scaler.ToPx (kItemPadLeftDip);
+    int       padR     = m_scaler.ToPx (kItemPadRightDip);
+    int       glyphX   = m_scaler.ToPx (kCheckGlyphOffDip);
+    float     fontDip  = (float) m_scaler.ToPxf (kFontDip);
     uint32_t  bgArgb   = 0;
     uint32_t  bgHover  = 0;
     uint32_t  fgArgb   = 0;
@@ -564,8 +564,8 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 
 void DxuiPopupMenu::OnPopupMove (POINT localPx)
 {
-    int   border  = m_scaler.Px (kBorderDip);
-    int   itemH   = m_scaler.Px (kItemHeightDip);
+    int   border  = m_scaler.ToPx (kBorderDip);
+    int   itemH   = m_scaler.ToPx (kItemHeightDip);
     int   relY    = localPx.y - border;
     int   row     = -1;
     bool  isInRow = false;
@@ -606,8 +606,8 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
 void DxuiPopupMenu::OnPopupClick (POINT localPx)
 {
-    int       border  = m_scaler.Px (kBorderDip);
-    int       itemH   = m_scaler.Px (kItemHeightDip);
+    int       border  = m_scaler.ToPx (kBorderDip);
+    int       itemH   = m_scaler.ToPx (kItemHeightDip);
     int       relY    = localPx.y - border;
     int       row     = -1;
     SelectFn  cb      = m_onSelect;
@@ -643,7 +643,7 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
 //  DxuiPopupMenu::Layout  (IDxuiControl override)
 //
 //  The popup geometry is computed by Show(); the override only
-//  records the panel-supplied bounds for IDxuiControl::Bounds()
+//  records the panel-supplied bounds for IDxuiControl::GetBounds()
 //  consumers and updates the DPI scaler.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -651,7 +651,7 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
 void DxuiPopupMenu::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 

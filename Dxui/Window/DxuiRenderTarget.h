@@ -86,8 +86,8 @@ protected:
 
     //  The RTV the finished frame must land on (the swap-chain back buffer),
     //  and its pixel size. Null RTV => RenderFrame no-ops.
-    virtual ID3D11RenderTargetView *  BackBufferRtv     () const = 0;
-    virtual SIZE                      BackBufferSizePx  () const = 0;
+    virtual ID3D11RenderTargetView *  GetBackBufferRtv    () const = 0;
+    virtual SIZE                      GetBackBufferSizePx () const = 0;
 
     //  Paint the content tree (root panel, host caption, modal overlay) into
     //  `target` at the given pixel size, using the base painter / text renderer
@@ -103,8 +103,8 @@ protected:
     //  The back buffer as an IDXGISurface (for the Direct2D text target) and the
     //  target DPI. Used to (re)bind the text renderer's D2D target between the
     //  back buffer and the offscreen content texture on the compose path.
-    virtual ComPtr<IDXGISurface>  BackBufferSurface () const = 0;
-    virtual UINT                  TargetDpi         () const = 0;
+    virtual ComPtr<IDXGISurface>  GetBackBufferSurface () const = 0;
+    virtual UINT                  GetTargetDpi         () const = 0;
 
     //  Rebind the text renderer's Direct2D target to the offscreen content
     //  texture (offscreen == true, compose path) or the swap-chain back buffer

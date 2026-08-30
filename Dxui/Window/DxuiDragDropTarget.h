@@ -65,9 +65,9 @@ public:
     // IsDragAcceptedType: true iff the dragged payload passed the host
     //    filter (or there is no filter). False when not dragging.
     // HoveredTag: index of the widget under the cursor (-1 if none).
-    bool                 IsDragInProgress       () const { return m_fDragActive;            }
-    bool                 IsDragAcceptedType     () const { return m_fDragHasSupportedFile;  }
-    int                  HoveredTag             () const { return m_lastHitTag;             }
+    bool                 IsDragInProgress   () const { return m_fDragActive;            }
+    bool                 IsDragAcceptedType () const { return m_fDragHasSupportedFile;  }
+    int                  GetHoveredTag      () const { return m_lastHitTag;             }
 
     // Drop completion sets a one-shot flag so the next WM_LBUTTONUP
     // posted by the OS (the synthetic release at the end of an OLE drag)

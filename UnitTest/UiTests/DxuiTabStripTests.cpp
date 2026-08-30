@@ -72,7 +72,7 @@ public:
 
         Assert::IsTrue (ts.OnLButtonDown (100, 10));
         Assert::IsTrue (ts.OnLButtonUp   (100, 10));
-        Assert::AreEqual (1, ts.Selected());
+        Assert::AreEqual (1, ts.GetSelected());
         Assert::AreEqual (1, last);
     }
 
@@ -84,7 +84,7 @@ public:
 
         Assert::IsTrue  (ts.OnLButtonDown (100, 10));
         Assert::IsFalse (ts.OnLButtonUp   (500, 500));
-        Assert::AreEqual (0, ts.Selected());
+        Assert::AreEqual (0, ts.GetSelected());
     }
 
     TEST_METHOD (KeyRight_Wraps)
@@ -95,7 +95,7 @@ public:
         ts.SetSelected (2);
 
         Assert::IsTrue (ts.OnKey (VK_RIGHT));
-        Assert::AreEqual (0, ts.Selected());
+        Assert::AreEqual (0, ts.GetSelected());
     }
 
     TEST_METHOD (KeyLeft_Wraps)
@@ -106,7 +106,7 @@ public:
         ts.SetSelected (0);
 
         Assert::IsTrue (ts.OnKey (VK_LEFT));
-        Assert::AreEqual (2, ts.Selected());
+        Assert::AreEqual (2, ts.GetSelected());
     }
 
     TEST_METHOD (Key_UnfocusedNoOp)

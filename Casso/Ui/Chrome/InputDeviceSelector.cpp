@@ -20,7 +20,7 @@
 
 void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi     = scaler.Dpi();
+    UINT   dpi     = scaler.GetDpi();
     UINT   eDpi    = (dpi == 0) ? 96u : dpi;
     int    icon    = MulDiv (kIconDp,    (int) eDpi, 96);
     int    pad     = MulDiv (kPadDp,     (int) eDpi, 96);

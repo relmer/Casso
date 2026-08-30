@@ -76,7 +76,7 @@ protected:
                                    int                      commandId,
                                    DxuiButtonRow::Anchor    anchor = DxuiButtonRow::Anchor::Right);
 
-    DxuiPanel  *  DialogContent   () const { return m_content; }
+    DxuiPanel  *  GetDialogContent   () const { return m_content; }
 
     //
     //  Geometry: content fills the client (inset by pad, above the button

@@ -37,7 +37,7 @@ void DownloadContentPanel::Init (DxuiLabel * intro, DownloadBodyPanel * body, in
 
 void DownloadContentPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  ih = scaler.Px (m_introHeightDip);
+    int  ih = scaler.ToPx (m_introHeightDip);
 
 
 

@@ -68,15 +68,15 @@ public:
     void   SetOnDragEnd   (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
     void   SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
 
-    const RECT & Rect      () const { return m_boundsDip;     }
-    float        Min       () const { return m_min;      }
-    float        Max       () const { return m_max;      }
-    float        Step      () const { return m_step;     }
-    float        Value     () const { return m_value;    }
-    bool         Enabled   () const { return m_enabled;  }
-    bool         Focused   () const { return m_focused;  }
-    bool         Hover     () const { return m_hover;    }
-    bool         Dragging  () const { return m_dragging; }
+    const RECT & GetRect    () const { return m_boundsDip;     }
+    float        GetMin     () const { return m_min;      }
+    float        GetMax     () const { return m_max;      }
+    float        Step       () const { return m_step;     }
+    float        GetValue   () const { return m_value;    }
+    bool         IsEnabled  () const { return m_enabled;  }
+    bool         IsFocused  () const { return m_focused;  }
+    bool         IsHovered  () const { return m_hover;    }
+    bool         IsDragging () const { return m_dragging; }
 
     bool   HitTest        (int x, int y) const;
     void   SetMouseHover  (int x, int y);
@@ -88,12 +88,12 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
     static float  Clamp          (float v, float lo, float hi);

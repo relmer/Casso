@@ -48,7 +48,7 @@ namespace DxuiButtonRow
     //  runs without a text renderer. The estimate is generous, matching
     //  DxuiInfoBanner's, so a label is never cut off -- a button a little
     //  wide reads as deliberate, a clipped one reads as broken.
-    inline int  WidthForLabel (const std::wstring & label)
+    inline int  GetWidthForLabel (const std::wstring & label)
     {
         constexpr float  kFontDip     = 13.0f;
         constexpr float  kEstGlyphEm  = 0.58f;
@@ -67,7 +67,7 @@ namespace DxuiButtonRow
     //  in registration order, sitting between the affirmative buttons and
     //  Cancel -- which is exactly where an author-ordered dialog wants them.
     //
-    inline int  StandardRank (int commandId)
+    inline int  GetStandardRank (int commandId)
     {
         switch (commandId)
         {
@@ -98,9 +98,9 @@ namespace DxuiButtonRow
                                    std::span<const int>   widthsDip,
                                    std::span<RECT>        outRects)
     {
-        int     btnH  = scaler.Px (kButtonHeightDip);
-        int     gapPx = scaler.Px (kGapDip);
-        int     edge  = scaler.Px (kEdgePadDip);
+        int     btnH  = scaler.ToPx (kButtonHeightDip);
+        int     gapPx = scaler.ToPx (kGapDip);
+        int     edge  = scaler.ToPx (kEdgePadDip);
         int     y     = boundsPx.bottom - edge - btnH;
         int     total = 0;
         int     x     = 0;
@@ -109,7 +109,7 @@ namespace DxuiButtonRow
 
         for (int widthDip : widthsDip)
         {
-            total += scaler.Px (widthDip);
+            total += scaler.ToPx (widthDip);
         }
 
         if (!widthsDip.empty())
@@ -121,7 +121,7 @@ namespace DxuiButtonRow
 
         for (i = 0; i < widthsDip.size() && i < outRects.size(); ++i)
         {
-            int  w = scaler.Px (widthsDip[i]);
+            int  w = scaler.ToPx (widthsDip[i]);
 
             outRects[i] = { x, y, x + w, y + btnH };
             x += w + gapPx;
@@ -138,9 +138,9 @@ namespace DxuiButtonRow
                                   std::span<const int>   widthsDip,
                                   std::span<RECT>        outRects)
     {
-        int     btnH  = scaler.Px (kButtonHeightDip);
-        int     gapPx = scaler.Px (kGapDip);
-        int     edge  = scaler.Px (kEdgePadDip);
+        int     btnH  = scaler.ToPx (kButtonHeightDip);
+        int     gapPx = scaler.ToPx (kGapDip);
+        int     edge  = scaler.ToPx (kEdgePadDip);
         int     y     = boundsPx.bottom - edge - btnH;
         int     x     = boundsPx.left + edge;
         size_t  i     = 0;
@@ -148,7 +148,7 @@ namespace DxuiButtonRow
 
         for (i = 0; i < widthsDip.size() && i < outRects.size(); ++i)
         {
-            int  w = scaler.Px (widthsDip[i]);
+            int  w = scaler.ToPx (widthsDip[i]);
 
             outRects[i] = { x, y, x + w, y + btnH };
             x += w + gapPx;

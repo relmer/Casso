@@ -12,7 +12,7 @@
 //  DxuiViewport::SetSizePolicy
 //
 //  Selects how an enclosing layout decides this viewport's bounds.
-//  `Fixed` clamps to `PreferredSizeDip()`. `Preferred` offers the
+//  `Fixed` clamps to `GetPreferredSizeDip()`. `Preferred` offers the
 //  preferred size but allows the parent layout to stretch. `Fill` (the
 //  default) reports no preference and accepts whatever the parent
 //  assigns.
@@ -203,7 +203,7 @@ void DxuiViewport::Layout (
 //
 //  No-op. The external renderer (e.g. the Apple ][ framebuffer
 //  D3D pass) draws into the same swap chain at the rectangle reported
-//  by `Bounds()`. Chrome above the viewport paints on top through the
+//  by `GetBounds()`. Chrome above the viewport paints on top through the
 //  normal control-tree fanout.
 //
 ////////////////////////////////////////////////////////////////////////////////

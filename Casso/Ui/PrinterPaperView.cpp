@@ -65,7 +65,7 @@ void PrinterPaperView::Clear()
 void PrinterPaperView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     m_bounds = boundsDip;
-    m_dpi    = scaler.Dpi();
+    m_dpi    = scaler.GetDpi();
 
     SetBounds (boundsDip);
 }
@@ -112,7 +112,7 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
         if (HasImage())
         {
-            float  margin = scaler.Pxf (12.0f);
+            float  margin = scaler.ToPxf (12.0f);
             float  availW = w - margin * 2.0f;
             float  availH = h - margin * 2.0f;
             float  scale  = 0.0f;
@@ -136,7 +136,7 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                 dX = x + (w - dW) * 0.5f;
                 dY = y + (h - dH) * 0.5f;
 
-                painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, s_kShadow);
+                painter.FillRect    (dX + scaler.ToPxf (3.0f), dY + scaler.ToPxf (3.0f), dW, dH, s_kShadow);
                 painter.OutlineRect (dX, dY, dW, dH, 1.0f, s_kBorder);
 
                 hr = text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH);

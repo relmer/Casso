@@ -223,13 +223,13 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT    dpi        = scaler.Dpi();
-    int     pad        = scaler.Px (s_kPagePadDp);
-    int     labelWidth = scaler.Px (s_kInfoLabelWidthDp);
-    int     rowHeight  = scaler.Px (s_kInfoRowHeightDp);
-    int     valueGap   = scaler.Px (s_kInfoValueGapDp);
-    int     sectionGap = scaler.Px (s_kBigSectionGapDp);
-    int     dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    UINT    dpi        = scaler.GetDpi();
+    int     pad        = scaler.ToPx (s_kPagePadDp);
+    int     labelWidth = scaler.ToPx (s_kInfoLabelWidthDp);
+    int     rowHeight  = scaler.ToPx (s_kInfoRowHeightDp);
+    int     valueGap   = scaler.ToPx (s_kInfoValueGapDp);
+    int     sectionGap = scaler.ToPx (s_kBigSectionGapDp);
+    int     dropWidth  = scaler.ToPx (s_kDropdownWidthDp);
     int     x          = rect.left + pad;
     int     controlsX  = x + labelWidth;
     int     valueX     = x + labelWidth + valueGap;
@@ -276,9 +276,9 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             // ("RAM (main, bank-switched)") to stay on one line -- there is
             // ample dialog margin to the right, and the size/addr columns are
             // positioned relative to it.
-            int  nameW    = scaler.Px (200);
-            int  sizeW    = scaler.Px (55);
-            int  addrW    = scaler.Px (130);
+            int  nameW    = scaler.ToPx (200);
+            int  sizeW    = scaler.ToPx (55);
+            int  addrW    = scaler.ToPx (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
             int  rowY     = m_infoTop + ((int) s_kMemoryRow + 1 + subIndex) * rowHeight;
 

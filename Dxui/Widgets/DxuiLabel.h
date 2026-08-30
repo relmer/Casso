@@ -63,9 +63,9 @@ public:
     //
     void  SetColor       (DxuiArgb color) { m_argb = color; m_useThemeRole = false; }
 
-    const RECT         & Rect      () const { return m_boundsDip; }
-    const std::wstring & Text      () const { return m_text; }
-    float                FontSizeDip () const { return m_fontDip; }
+    const RECT         & GetRect () const { return m_boundsDip; }
+    const std::wstring & GetText () const { return m_text; }
+    float                GetFontSizeDip () const { return m_fontDip; }
 
     //
     //  Legacy theme-less paint. Draws with the pinned explicit color
@@ -86,7 +86,7 @@ public:
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
     {
         SetBounds (boundsDip);
-        m_scaler.SetDpi (scaler.Dpi());
+        m_scaler.SetDpi (scaler.GetDpi());
     }
 
     //
@@ -103,8 +103,8 @@ public:
         DrawResolved (painter, text, argb, dip);
     }
 
-    std::wstring        AccessibleName () const override { return m_text; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
+    std::wstring        GetAccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
     void  DrawResolved (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
@@ -119,7 +119,7 @@ private:
                               (float) (m_boundsDip.right  - m_boundsDip.left),
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               argb,
-                              m_scaler.Pxf (fontDip),
+                              m_scaler.ToPxf (fontDip),
                               m_fontFace.c_str(),
                               m_hAlign,
                               m_vAlign,

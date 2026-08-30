@@ -69,7 +69,7 @@ public:
 
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    LPCWSTR  CursorForPoint (POINT clientPx) const override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
     static constexpr int  kPathHeightDip     = 22;

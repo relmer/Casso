@@ -69,7 +69,7 @@ public:
         s.OnChar (L'a');
         s.OnChar (L'b');
 
-        Assert::AreEqual (std::wstring (L"ab"), s.Text());
+        Assert::AreEqual (std::wstring (L"ab"), s.GetText());
         Assert::AreEqual (std::wstring (L"ab"), last);
     }
 
@@ -83,7 +83,7 @@ public:
 
         s.SetText (L"hello");
 
-        Assert::AreEqual (std::wstring (L"hello"), s.Text());
+        Assert::AreEqual (std::wstring (L"hello"), s.GetText());
         Assert::IsFalse (fired);
     }
 
@@ -98,7 +98,7 @@ public:
 
         s.Clear();
 
-        Assert::IsTrue (s.Text().empty());
+        Assert::IsTrue (s.GetText().empty());
         Assert::AreEqual (std::wstring (L""), last);
     }
 
@@ -117,7 +117,7 @@ public:
         consumed = s.OnLButtonDown (pt.x, pt.y);
 
         Assert::IsTrue (consumed);
-        Assert::IsTrue (s.Text().empty());
+        Assert::IsTrue (s.GetText().empty());
         Assert::AreEqual (std::wstring (L""), last);
     }
 
@@ -135,7 +135,7 @@ public:
         // that region routes to the input rather than clearing.
         s.OnLButtonDown (pt.x, pt.y);
 
-        Assert::IsTrue (s.Text().empty());
+        Assert::IsTrue (s.GetText().empty());
         Assert::IsFalse (fired);
     }
 
@@ -151,6 +151,6 @@ public:
 
         // The clear glyph only shows while focused, so an unfocused click
         // must not wipe the text.
-        Assert::AreEqual (std::wstring (L"abc"), s.Text());
+        Assert::AreEqual (std::wstring (L"abc"), s.GetText());
     }
 };

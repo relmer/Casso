@@ -83,7 +83,7 @@ public:
     //  IDxuiControl::Layout — treats boundsDip.left / boundsDip.top as
     //  the widget's anchor and computes its own body / face / slot /
     //  eject / label rects from per-DPI metrics scaled off
-    //  scaler.Dpi(). boundsDip.right / bottom are ignored (the widget
+    //  scaler.GetDpi(). boundsDip.right / bottom are ignored (the widget
     //  has an intrinsic size; SetBounds is overwritten with the
     //  computed GetOuterRect at the end).
     //
@@ -187,9 +187,9 @@ private:
     static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
 
-    static bool  RectContains (const RECT & rect, int x, int y);
-    static int   Scale        (int value, UINT dpi);
-    static float Clamp01      (float v);
+    static bool  IsPointInRect (const RECT & rect, int x, int y);
+    static int   Scale         (int value, UINT dpi);
+    static float Clamp01       (float v);
 
     // Fills a trapezoid with parallel horizontal front and back edges
     // by stacking 1-px horizontal scanlines whose widths interpolate

@@ -34,7 +34,7 @@ public:
                          const std::wstring     &  destName,
                          const SalvageAssessment & assessment);
 
-    int   PreferredHeightDip () const { return m_preferredHeightDip; }
+    int   GetPreferredHeightDip () const { return m_preferredHeightDip; }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
 

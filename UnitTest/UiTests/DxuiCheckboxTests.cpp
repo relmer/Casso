@@ -71,11 +71,11 @@ public:
         cb.SetOnChange ([&] (bool v) { observed = v; });
 
         Assert::IsTrue (cb.OnLButtonDown (10, 10));
-        Assert::IsTrue (cb.Pressed());
+        Assert::IsTrue (cb.IsPressed());
         Assert::IsTrue (cb.OnLButtonUp   (10, 10));
-        Assert::IsTrue (cb.Checked());
+        Assert::IsTrue (cb.IsChecked());
         Assert::IsTrue (observed);
-        Assert::IsFalse (cb.Pressed());
+        Assert::IsFalse (cb.IsPressed());
     }
 
     TEST_METHOD (MouseDownInsideThenUpOutside_CancelsToggle)
@@ -85,7 +85,7 @@ public:
 
         Assert::IsTrue (cb.OnLButtonDown (10, 10));
         Assert::IsFalse (cb.OnLButtonUp (200, 10));
-        Assert::IsFalse (cb.Checked());
+        Assert::IsFalse (cb.IsChecked());
     }
 
     TEST_METHOD (Disabled_RejectsMouseInput)
@@ -96,7 +96,7 @@ public:
 
         Assert::IsFalse (cb.OnLButtonDown (10, 10));
         Assert::IsFalse (cb.OnLButtonUp   (10, 10));
-        Assert::IsFalse (cb.Checked());
+        Assert::IsFalse (cb.IsChecked());
     }
 
     TEST_METHOD (KeySpace_FocusedAndEnabled_Toggles)
@@ -106,9 +106,9 @@ public:
         cb.SetFocused (true);
 
         Assert::IsTrue (cb.OnKey (VK_SPACE));
-        Assert::IsTrue (cb.Checked());
+        Assert::IsTrue (cb.IsChecked());
         Assert::IsTrue (cb.OnKey (VK_RETURN));
-        Assert::IsFalse (cb.Checked());
+        Assert::IsFalse (cb.IsChecked());
     }
 
     TEST_METHOD (Key_WithoutFocus_NoOp)
@@ -116,7 +116,7 @@ public:
         DxuiCheckbox  cb;
         cb.SetRect (MakeRect (0, 0, 100, 20));
         Assert::IsFalse (cb.OnKey (VK_SPACE));
-        Assert::IsFalse (cb.Checked());
+        Assert::IsFalse (cb.IsChecked());
     }
 
     TEST_METHOD (HoverStateFollowsMouseMove)
@@ -125,10 +125,10 @@ public:
         cb.SetRect (MakeRect (0, 0, 100, 20));
 
         cb.SetMouseHover (10, 10);
-        Assert::IsTrue (cb.Hover());
+        Assert::IsTrue (cb.IsHovered());
 
         cb.SetMouseHover (200, 200);
-        Assert::IsFalse (cb.Hover());
+        Assert::IsFalse (cb.IsHovered());
     }
 
     TEST_METHOD (DisableClearsTransientState)
@@ -138,12 +138,12 @@ public:
 
         Assert::IsTrue (cb.OnLButtonDown (10, 10));
         cb.SetMouseHover (10, 10);
-        Assert::IsTrue (cb.Pressed());
-        Assert::IsTrue (cb.Hover());
+        Assert::IsTrue (cb.IsPressed());
+        Assert::IsTrue (cb.IsHovered());
 
         cb.SetEnabled (false);
-        Assert::IsFalse (cb.Pressed());
-        Assert::IsFalse (cb.Hover());
+        Assert::IsFalse (cb.IsPressed());
+        Assert::IsFalse (cb.IsHovered());
     }
 };
 

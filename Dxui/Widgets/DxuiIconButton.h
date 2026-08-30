@@ -31,22 +31,22 @@ public:
     void  SetDpi            (UINT dpi)                  { m_scaler.SetDpi (dpi); }
     void  SetAccessibleName (const std::wstring & name) { m_a11yName = name; }
     void  SetEnabled        (bool enabled)              { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    bool  Enabled           () const                    { return m_enabled; }
+    bool  IsEnabled         () const                    { return m_enabled; }
     void  SetVisible        (bool visible)              { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; } }
-    bool  Visible           () const                    { return m_visible; }
+    bool  IsVisible         () const                    { return m_visible; }
     bool  HitTest           (int x, int y) const;
     void  Click             ();
 
     //
     //  IDxuiControl overrides so DxuiIconButton slots into DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { m_focused = focused; }
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    std::wstring        AccessibleName () const override { return m_a11yName; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Button; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { m_focused = focused; }
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    std::wstring        GetAccessibleName () const override { return m_a11yName; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
     void  SetMouse (int x, int y, bool down);

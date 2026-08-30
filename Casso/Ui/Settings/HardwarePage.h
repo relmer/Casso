@@ -84,8 +84,8 @@ public:
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
     std::wstring GetSelectedMachineDisplayName () const
     {
-        int                                idx   = m_machineDropdown.SelectedIndex();
-        const std::vector<std::wstring>  & items = m_machineDropdown.Items();
+        int                                idx   = m_machineDropdown.GetSelectedIndex();
+        const std::vector<std::wstring>  & items = m_machineDropdown.GetItems();
         return (idx >= 0 && idx < (int) items.size()) ? items[(size_t) idx] : std::wstring();
     }
 

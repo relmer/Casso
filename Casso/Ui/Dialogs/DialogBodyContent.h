@@ -46,7 +46,7 @@ public:
 
     // Estimated stacked height in DIP, used by the caller to size the
     // hosting dialog.
-    int   PreferredHeightDip () const;
+    int   GetPreferredHeightDip () const;
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

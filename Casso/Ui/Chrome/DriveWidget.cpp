@@ -12,11 +12,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RectContains
+//  IsPointInRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DriveWidget::RectContains (const RECT & rect, int x, int y)
+bool DriveWidget::IsPointInRect (const RECT & rect, int x, int y)
 {
     return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 }
@@ -262,7 +262,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // framing is active (EmulatorShell folds SceneScale * kDeskDriveScale
     // into the effective DPI it hands LayoutDriveWidgetsInCommandBar), so
     // geometry, fonts, and the probe-based band layout all scale together.
-    m_dpi = (scaler.Dpi() == 0) ? (UINT) kBaseDpi : scaler.Dpi();
+    m_dpi = (scaler.GetDpi() == 0) ? (UINT) kBaseDpi : scaler.GetDpi();
 
     dpi = m_dpi;
     bodyW = Scale (kBodyWidthPx, dpi);
@@ -1148,8 +1148,8 @@ DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
 
 
 
-    if      (RectContains (m_ejectRect, x, y)) { region = DriveWidgetRegion::Eject; }
-    else if (RectContains (m_bodyRect,  x, y)) { region = DriveWidgetRegion::Body;  }
+    if      (IsPointInRect (m_ejectRect, x, y)) { region = DriveWidgetRegion::Eject; }
+    else if (IsPointInRect (m_bodyRect,  x, y)) { region = DriveWidgetRegion::Body;  }
 
     return region;
 }

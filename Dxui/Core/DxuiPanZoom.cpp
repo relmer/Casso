@@ -243,7 +243,7 @@ bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
 //  that settles at the pan rate reads as sluggish while a pan at the zoom rate
 //  reads as twitchy.
 //
-//  Changed() fires once per tick rather than once per axis, so a frame that
+//  NotifyChanged() fires once per tick rather than once per axis, so a frame that
 //  moves all five axes still produces a single notification.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,7 +276,7 @@ bool DxuiPanZoom::Tick (double nowSec)
 
         if (moving)
         {
-            Changed();
+            NotifyChanged();
         }
     }
 
@@ -381,7 +381,7 @@ void DxuiPanZoom::SetPanYTarget (float y)
 
     if (changed)
     {
-        Changed();
+        NotifyChanged();
     }
 }
 
@@ -425,7 +425,7 @@ void DxuiPanZoom::SnapPanY (float y)
     m_overscrollY.cur    = 0.0;   // torn / replaced content: world back to home
     m_overscrollY.target = 0.0;
     ClampTargets();
-    Changed();
+    NotifyChanged();
 }
 
 
@@ -473,7 +473,7 @@ void DxuiPanZoom::ResetZoom()
     if (m_zoom.target != (double) m_cfg.zoomMin)
     {
         m_zoom.target = m_cfg.zoomMin;
-        Changed();
+        NotifyChanged();
     }
 }
 
@@ -548,7 +548,7 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
         }
     }
 
-    Changed();
+    NotifyChanged();
 }
 
 
@@ -582,7 +582,7 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
             m_panX.cur = target;   // horizontal nudges are always user input
         }
 
-        Changed();
+        NotifyChanged();
     }
 }
 
@@ -621,7 +621,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
 
 
-    SpillPanY (deltaContent);
+    GetSpillPanY (deltaContent);
 
     changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
 
@@ -640,7 +640,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
     if (changed)
     {
-        Changed();
+        NotifyChanged();
     }
 }
 
@@ -650,7 +650,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPanZoom::SpillPanY
+//  DxuiPanZoom::GetSpillPanY
 //
 //  Apply a content delta to the panY target, spilling anything past the bounds
 //  into the bounded overscroll offset. panY + overscroll behave as one extended
@@ -661,7 +661,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanZoom::SpillPanY (double deltaContent)
+void DxuiPanZoom::GetSpillPanY (double deltaContent)
 {
     double  base  = m_panY.target + m_overscrollY.target;
     double  extLo = 0.0;
@@ -719,7 +719,7 @@ void DxuiPanZoom::NudgePanYCam (double deltaContent)
             m_panYCam.cur = target;
         }
 
-        Changed();
+        NotifyChanged();
     }
 }
 
@@ -822,11 +822,11 @@ bool DxuiPanZoom::EaseToward (Eased & v, double dtSec, double tauSec)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPanZoom::Changed
+//  DxuiPanZoom::NotifyChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanZoom::Changed()
+void DxuiPanZoom::NotifyChanged()
 {
     if (m_onChange)
     {
