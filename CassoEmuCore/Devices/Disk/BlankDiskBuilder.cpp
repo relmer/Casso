@@ -12,75 +12,102 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DescribeSpecProblem
+//
+//  Why a spec cannot be built, in the words a reader sees. Empty when it can.
+//
+//  ONE REASON PER PROBLEM, which is the whole point of it being here rather
+//  than folded into the yes-or-no check below. A single catch-all sentence told
+//  somebody whose ProDOS volume name began with a digit that dsk carries
+//  DOS 3.3 and po carries ProDOS, which is true, unrelated, and no help at all.
+//
+//  NON-ASSERTING, because every condition here is reachable by typing. The
+//  check below keeps its assertions for a caller that skipped this.
+//
+//  THE CONTAINER NO LONGER CONSTRAINS THE FILESYSTEM. It used to: dsk accepted
+//  only DOS 3.3, po only ProDOS, and do nothing at all. Sector order and
+//  filesystem are independent -- a ProDOS volume in DOS order is an ordinary
+//  thing, this builder already lays every skeleton down in DOS logical order
+//  and orders it per container afterwards, and the reader identifies the
+//  filesystem from the decoded bytes without consulting the extension. The dsk
+//  and do restriction was doubly arbitrary: the two produce byte-identical
+//  output, so refusing to create one while creating the other was a rule a
+//  rename defeated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BlankDiskBuilder::DescribeSpecProblem (const BlankDiskSpec & spec)
+{
+    constexpr size_t  kMaxProDosNameLength = 15;
+    bool              known                = spec.format == DiskFormat::Woz || spec.format == DiskFormat::Dsk
+                                          || spec.format == DiskFormat::Do  || spec.format == DiskFormat::Po;
+    bool              nameOk               = true;
+    size_t            i                    = 0;
+
+
+
+    if (!known)
+    {
+        return "that container type cannot be created: dsk, do, po and woz can";
+    }
+
+    if (spec.bootable && spec.contents == BlankDiskContents::Unformatted)
+    {
+        return "an unformatted disk cannot be made bootable: there is no filesystem "
+               "for an operating system to be installed into";
+    }
+
+    if (spec.contents != BlankDiskContents::ProDos)
+    {
+        return std::string();
+    }
+
+    nameOk = !spec.volumeName.empty()
+          && spec.volumeName.size() <= kMaxProDosNameLength
+          && isalpha ((unsigned char) spec.volumeName[0]) != 0;
+
+    for (i = 1; nameOk && i < spec.volumeName.size(); i++)
+    {
+        unsigned char  c = (unsigned char) spec.volumeName[i];
+
+        nameOk = isalnum (c) != 0 || c == '.';
+    }
+
+    if (!nameOk)
+    {
+        return "a ProDOS volume name is 1 to 15 characters, begins with a letter, "
+               "and holds only letters, digits and periods";
+    }
+
+    return std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ValidateSpec
 //
-//  The pairing matrix:
+//  The same rules as a yes or no, for the build path itself.
 //
-//      Woz  pairs with anything (order-agnostic bit stream)
-//      Dsk  pairs with DOS 3.3 or unformatted (DOS sector order)
-//      Po   pairs with ProDOS or unformatted (ProDOS sector order)
-//      Do   is not offered for creation (mountable, never created)
-//
-//  Bootable requires formatted contents -- there is no OS to install on raw
-//  media. A ProDOS spec also needs a legal volume name (1-15 chars, leading
-//  letter, letters / digits / periods) since it lands in the directory
-//  header verbatim.
+//  Asserting variants on purpose: every caller is expected to have asked the
+//  routine above first, so a spec arriving here invalid is a caller that
+//  skipped it rather than a user outcome. That was already the intent; what
+//  changed is that there is now something for a caller to ask.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
 {
-    HRESULT  hr        = S_OK;
-    bool     formatOk  = false;
-    bool     nameOk    = true;
-    size_t   i         = 0;
+    HRESULT      hr      = S_OK;
+    std::string  problem = DescribeSpecProblem (spec);
+    bool         valid   = problem.empty();
 
 
 
-    switch (spec.format)
-    {
-        case DiskFormat::Woz:
-            formatOk = true;
-            break;
-
-        case DiskFormat::Dsk:
-            formatOk = (spec.contents == BlankDiskContents::Dos33 ||
-                        spec.contents == BlankDiskContents::Unformatted);
-            break;
-
-        case DiskFormat::Po:
-            formatOk = (spec.contents == BlankDiskContents::ProDos ||
-                        spec.contents == BlankDiskContents::Unformatted);
-            break;
-
-        default:
-            formatOk = false;
-            break;
-    }
-
-    // Asserting variants on purpose: the dialog gates every illegal pairing
-    // before the builder is ever called, so an invalid spec arriving here is
-    // a caller bug, not a user outcome.
-    CBRAEx (formatOk, E_INVALIDARG);
-    CBRAEx (!spec.bootable || spec.contents != BlankDiskContents::Unformatted, E_INVALIDARG);
-
-    if (spec.contents == BlankDiskContents::ProDos)
-    {
-        constexpr size_t  kMaxProDosNameLength = 15;
-
-        nameOk = !spec.volumeName.empty()
-              && spec.volumeName.size() <= kMaxProDosNameLength
-              && isalpha ((unsigned char) spec.volumeName[0]) != 0;
-
-        for (i = 1; nameOk && i < spec.volumeName.size(); i++)
-        {
-            unsigned char  c = (unsigned char) spec.volumeName[i];
-
-            nameOk = isalnum (c) != 0 || c == '.';
-        }
-
-        CBRAEx (nameOk, E_INVALIDARG);
-    }
+    CBRAEx (valid, E_INVALIDARG);
 
 Error:
     return hr;

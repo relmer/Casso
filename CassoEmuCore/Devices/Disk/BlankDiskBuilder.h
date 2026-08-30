@@ -71,6 +71,12 @@ class BlankDiskBuilder
 {
 public:
     //  Validates the format/contents/bootable pairing.
+    //  Why a spec cannot be built, in the words a reader sees, or empty when it
+    //  can. Every condition it reports is reachable by typing, so a caller that
+    //  takes user input asks this and repeats the answer rather than letting
+    //  the assertion below stand in for a diagnostic.
+    static std::string  DescribeSpecProblem (const BlankDiskSpec & spec);
+
     static HRESULT  ValidateSpec (const BlankDiskSpec & spec);
 
     //  Produces the complete image bytes for the spec. All-or-nothing.

@@ -60,39 +60,58 @@ public:
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted)));
     }
 
-    TEST_METHOD (ValidateSpec_DskPairsWithDosOrRaw)
+    //  The container no longer constrains the filesystem.
+    //
+    //  IT USED TO, AND THE RESTRICTION WAS ARBITRARY. Sector order and
+    //  filesystem are independent: the builder lays every skeleton down in DOS
+    //  logical order and orders it per container afterwards, and the reader
+    //  identifies the filesystem from the decoded bytes without consulting the
+    //  extension. A ProDOS volume in DOS order is an ordinary artifact.
+    TEST_METHOD (ValidateSpec_AnySectorContainerTakesAnyFilesystem)
     {
-        UnitTestHelpers::ExpectedEhmAssert  expect;
-
-
-
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::ProDos)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted)));
-        AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::ProDos)));
-        expect.RequireCount (1);
+
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::ProDos)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::Dos33)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::Unformatted)));
     }
 
-    TEST_METHOD (ValidateSpec_PoPairsWithProDosOrRaw)
+    //  A container that WAS refused outright, for no reason its own comment
+    //  gave. It produces byte-identical output to the one beside it, so the
+    //  rule was one a rename defeated.
+    TEST_METHOD (ValidateSpec_DoIsCreatableLikeDsk)
     {
-        UnitTestHelpers::ExpectedEhmAssert  expect;
-
-
-
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos)));
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Unformatted)));
-        AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Dos33)));
-        expect.RequireCount (1);
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Dos33)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::ProDos)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Unformatted)));
     }
 
-    TEST_METHOD (ValidateSpec_DoIsNeverCreatable)
+    //  Each refusal says its OWN reason. One catch-all sentence answered a bad
+    //  ProDOS volume name with a paragraph about container pairings.
+    TEST_METHOD (DescribeSpecProblem_NamesTheReasonItFound)
     {
-        UnitTestHelpers::ExpectedEhmAssert  expect;
+        BlankDiskSpec  badName = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
+        BlankDiskSpec  raw     = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted);
+        std::string    nameProblem;
+        std::string    bootProblem;
 
+        badName.volumeName = "9BAD";
+        raw.bootable       = true;
 
+        nameProblem = BlankDiskBuilder::DescribeSpecProblem (badName);
+        bootProblem = BlankDiskBuilder::DescribeSpecProblem (raw);
 
-        AssertFailed (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Dos33)));
-        AssertFailed (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Unformatted)));
-        expect.RequireCount (2);
+        Assert::IsTrue (nameProblem.find ("volume name") != std::string::npos,
+                        L"a bad name is answered with the name rule");
+        Assert::IsTrue (bootProblem.find ("bootable") != std::string::npos,
+                        L"and an unbootable spec with the bootable rule");
+        Assert::IsTrue (nameProblem != bootProblem, L"two problems, two answers");
+
+        Assert::IsTrue (BlankDiskBuilder::DescribeSpecProblem (
+                            MakeSpec (DiskFormat::Do, BlankDiskContents::ProDos)).empty(),
+                        L"and a buildable spec reports nothing");
     }
 
     TEST_METHOD (ValidateSpec_BootableRequiresFormattedContents)

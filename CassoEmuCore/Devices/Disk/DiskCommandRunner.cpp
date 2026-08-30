@@ -1905,6 +1905,8 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
                                        DiskCommandResult        & result)
 {
     HRESULT                        hr         = S_OK;
+    bool                           buildable  = false;
+    std::string                    problem;
     BlankDiskSpec                  spec;
     BootPayload                    payload;
     vector<Byte>                   imageBytes;
@@ -1923,16 +1925,17 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     hr = ResolveBoot (options, spec, payload, result);
     CHR (hr);
 
-    //  The pairing rules are the builder's: a DOS 3.3 catalog cannot go in
-    //  a .po, a ProDOS directory cannot go in a .dsk, and a bootable spec
-    //  needs the master its own format calls for.
-    hr = BlankDiskBuilder::ValidateSpec (spec);
-    CHRF (hr, (result.diagnostics    += "Error: that combination cannot be written\n"
-                                        "       dsk and do carry DOS 3.3, po carries ProDOS, and woz "
-                                        "carries either; a bootable disk needs the master for its "
-                                        "own format\n",
-               result.exitStatus      = DiskCommandResult::kNoOutput,
-               result.badCommandLine  = true));
+    //  The rules are the builder's, and it is asked for the REASON rather than
+    //  a yes or no. One catch-all sentence covered four different mistakes, so
+    //  a ProDOS volume name beginning with a digit was answered with a
+    //  paragraph about which container carries which filesystem.
+    problem  = BlankDiskBuilder::DescribeSpecProblem (spec);
+    buildable = problem.empty();
+
+    CBRFEx (buildable, E_INVALIDARG,
+            (result.diagnostics    += "Error: " + problem + "\n",
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
 
     hr = BlankDiskBuilder::Build (spec, payload, imageBytes);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
