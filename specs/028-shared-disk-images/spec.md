@@ -190,9 +190,12 @@ result is one whole version, neither mixed nor silently replaced.
 - Two emulator instances mount the same image and both flush it.
 - The user answers the conflict question by ejecting the disk instead.
 - The guest has a file OPEN on the disk when the contents are replaced, so its
-  cached structure describes bytes that are no longer there.
+  cached structure describes bytes that are no longer there. **Accepted and
+  unhandled**: invisible from the disk layer, mitigated only by the restart being
+  always available. No task addresses it and none can.
 - The guest writes to the disk shortly after a pick-up, allocating against the
-  structure it cached from the previous contents.
+  structure it cached from the previous contents. **Accepted and unhandled**, for
+  the same reason.
 - Two conflicts on the same image within the resolution of the backup timestamp.
 - The image is write-protected, or the directory holding it is not writable, so
   no backup can be placed beside it.
@@ -414,10 +417,11 @@ configuration: each write carries its own answer.
   and part another's, and never let one writer commit another's bytes as its own.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
-  detection, measured against a build without this feature rather than against
-  a switch that turns it off. **No off-switch is being added**, so a criterion
-  written as "the same session with it disabled" would describe a measurement
-  nobody can perform.
+  detection, measured IN ONE BUILD by comparing a session with a watched image
+  mounted against one with no image mounted. **No off-switch is being added**, so
+  a criterion written as "the same session with it disabled" would describe a
+  measurement nobody can perform -- and a cross-build comparison is worse still
+  on this hardware, where clock variation between runs swamps the signal.
 
 ## Assumptions
 
