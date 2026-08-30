@@ -3880,7 +3880,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         band     = m_driveBand.GetBounds();
         driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
                      std::max (band.bottom - pad - m_scaler.ToPx (s_kSceneDriveLabelStripDp +
-                                                                s_kSceneDriveLabelGapDp),
+                                                                  s_kSceneDriveLabelGapDp),
                                (LONG) (band.top + joyH)) };
 
         // A machine with no Disk ][ controller composes no row at all, and a
