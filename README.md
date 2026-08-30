@@ -122,7 +122,7 @@ front of them. It's the little things....
 
 ![The Apple //c stack](Assets/feat-desk-2c.png)
 
-**The monitor decides the phosphor.** Green, amber and white used to be a
+**The monitor decides the phosphor.** Green, amber, and white used to be a
 display setting applied across every machine. Monitors are now the owners of
 that setting, and machines are assigned period-accurate monitors by default.
 Phosphor color and full color are still yours to change, and that change is
@@ -133,9 +133,8 @@ per-pixel shading, with the power and drive LEDs acting as real lights rather
 than a glow painted on nearby faces; shadows cast across the desk and a
 contact shadow under each device. Drive doors animate on mount and eject, the
 Disk II swings on its cantilever, the Disk IIc slides back and lifts clear of
-the lid. To keep GPU use low the scene is cached, so the machines cost almost
-nothing to redraw, and when the picture stops changing Casso stops presenting
-at all.
+the slot. To keep GPU use low the scene is cached, and when the screen stops
+changing Casso stops drawing altogether.
 
 ### Disk file access from the command line (1.20)
 
