@@ -23,6 +23,12 @@ so; this is that idiom, not a new one.
 **Rules**
 
 - Two identities compare equal only when both are recorded and both fields match.
+- **A same-size overwrite inside the filesystem timestamp resolution is invisible**
+  to the watcher AND to the re-check, since both rest on this comparison. A
+  content hash would close it and is declined: it costs a full read of every
+  mounted image on every commit, to catch a case that needs a writer to preserve
+  the byte count and land within the same timestamp tick. Recorded so the residual
+  is known rather than discovered.
 - An identity recorded from a write the emulator itself performed replaces the
   mounted one, so the emulator's own commit is never seen as an external change
   (FR-004).

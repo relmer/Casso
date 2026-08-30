@@ -409,8 +409,12 @@ configuration: each write carries its own answer.
 
 - **SC-001**: A developer can assemble onto a mounted disk and have the guest
   run the new program without ejecting and re-inserting it by hand.
-- **SC-002**: No sequence of guest writes and external changes results in work
-  being lost without the user having chosen to lose it.
+- **SC-002**: No version of an image FILE is discarded without the user having
+  chosen to discard it. **Scoped to what the disk layer controls**: a guest that
+  allocates against structure it cached from contents now gone can still corrupt
+  its own disk, and the Edge Cases mark that accepted and unhandled. A criterion
+  written as "no work is ever lost" would be one this feature cannot pass and
+  does not claim.
 - **SC-003**: A session with no external change produces byte-for-byte the same
   image file it produces today.
 - **SC-004**: Concurrent writes never produce an image that is part one writer's
