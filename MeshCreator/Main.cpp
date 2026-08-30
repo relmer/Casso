@@ -9,7 +9,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeshBake
+//  MeshCreator
 //
 //  Turns a model's OBJ/MTL pair into the baked blob the desk scene loads.
 //
@@ -111,13 +111,13 @@ int main (int argc, char ** argv)
 
     if (argc != 4)
     {
-        std::cerr << "usage: MeshBake <model.mesh> <model.mtl> <model.dmesh>\n";
+        std::cerr << "usage: MeshCreator <model.mesh> <model.mtl> <model.dmesh>\n";
         return 1;
     }
 
     if (!ReadWholeFile (argv[1], objText))
     {
-        std::cerr << "MeshBake: cannot read " << argv[1] << "\n";
+        std::cerr << "MeshCreator: cannot read " << argv[1] << "\n";
         return 1;
     }
 
@@ -132,7 +132,7 @@ int main (int argc, char ** argv)
 
     if (FAILED (hr))
     {
-        std::cerr << "MeshBake: no geometry in " << argv[1] << "\n";
+        std::cerr << "MeshCreator: no geometry in " << argv[1] << "\n";
         return 1;
     }
 
@@ -140,17 +140,17 @@ int main (int argc, char ** argv)
 
     if (FAILED (hr))
     {
-        std::cerr << "MeshBake: cannot pack " << argv[1] << "\n";
+        std::cerr << "MeshCreator: cannot pack " << argv[1] << "\n";
         return 1;
     }
 
     if (!WriteWholeFile (argv[3], blob))
     {
-        std::cerr << "MeshBake: cannot write " << argv[3] << "\n";
+        std::cerr << "MeshCreator: cannot write " << argv[3] << "\n";
         return 1;
     }
 
-    std::cout << "MeshBake: " << argv[1]
+    std::cout << "MeshCreator: " << argv[1]
               << " -- " << triangles.size() << " triangles, "
               << materialNames.size() << " parts, "
               << objText.size() << " -> " << blob.size() << " bytes\n";

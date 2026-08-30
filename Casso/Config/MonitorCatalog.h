@@ -40,7 +40,7 @@ struct MonitorSpec
 {
     std::string_view  configName;      // as written in a machine's `monitor` key
     DeskDeviceKind    sceneKind;
-    int               meshResourceId;  // the baked mesh, built by MeshBake
+    int               meshResourceId;  // the baked mesh, built by MeshCreator
     ColorMode         phosphor;        // what this tube actually glows
 };
 

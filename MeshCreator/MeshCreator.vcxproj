@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
-  MeshBake: the build-time model baker.
+  MeshCreator: the build-time model baker.
 
   x64 ONLY, deliberately. This tool runs during the build rather than
   shipping in it, so it has to match the machine doing the building. The
@@ -23,7 +23,7 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}</ProjectGuid>
-    <RootNamespace>MeshBake</RootNamespace>
+    <RootNamespace>MeshCreator</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

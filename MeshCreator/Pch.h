@@ -6,7 +6,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeshBake's precompiled header.
+//  MeshCreator's precompiled header.
 //
 //  The baker compiles ObjMeshParser.cpp and MeshBlob.cpp straight out of the
 //  emulator core's tree rather than linking the library that holds them.
@@ -15,7 +15,7 @@
 //  and a project reference would drag the target's architecture in with it.
 //
 //  Those two files open with `#include "Pch.h"`. Their own directory holds
-//  no such header, so the search falls through to MeshBake's directory and
+//  no such header, so the search falls through to MeshCreator's directory and
 //  reaches this one, which forwards to the header they were written against.
 //  Ehm.cpp is compiled in too and resolves the same line to CassoCore's own
 //  Pch.h, which sits beside it and therefore wins before the include path is
