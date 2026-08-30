@@ -99,15 +99,8 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [x] T037 [US2] Apply command-line-beats-directive for the name and the type (FR-007) in the assembler, which is the layer that sees both — the precedence `ApplyMerlinDefaults` already declines to guess
 - [x] T038 [P] [US2] Add type-map tests to `UnitTest/AssemblerToDiskTests.cpp` sweeping the map in BOTH directions, the way `UnitTest/DirectiveTokenTests.cpp` sweeps its enum, so a missing row cannot hide
 - [x] T039 [P] [US2] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a five-row boundary and assert `TYP` is no longer refused
-- [ ] T040 [US2] Add a Merlin fixture under `UnitTest/Fixtures/Merlin/` carrying `DSK` and `TYP`, and mark it in-tree as authored rather than vendor source
-      **Blocked on an oracle run, not on a decision.** A fixture here is a
-      source/object PAIR, and the objects have to come off a Merlin Pro 2.23 run
-      under Casso rather than from this assembler, or the oracle asserts nothing.
-      The rules these fixtures would pin are already measured and asserted from
-      inline sources (research.md finding 2a); what is missing is the vendor bytes.
-      Note also that Fixtures/Merlin is documented as third-party material under
-      CC BY-NC-ND, so an authored source added there needs marking the way the
-      generated `T.MACRO LIBRARY` fixture is.
+- [x] T040 [US2] Add a Merlin fixture under `UnitTest/Fixtures/Merlin/` carrying `DSK` and `TYP`, and mark it in-tree as authored rather than vendor source
+
 
 **Checkpoint**: US2 works on top of US1.
 
@@ -151,15 +144,8 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [x] T060 [P] [US3] Add `UnitTest/MerlinSaveObjectTests.cpp` covering span semantics, per-save load addresses, both naming refusals, and the host-file path. Cover each span-cutting shape separately: two `SAV`s with no `DSK`, two `DSK`s with no `SAV`, and the two mixed, since a rule that handles one can fail the others
 - [x] T061 [US3] Register `UnitTest/MerlinSaveObjectTests.cpp` in `UnitTest/UnitTest.vcxproj`
 - [x] T062 [US3] Assert explicitly that the second output does NOT contain the first's bytes. A cumulative implementation passes every other assertion in this phase
-- [ ] T063 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to Assert against the MEASURED values in research.md finding 2a rather than expectations: the two-save case gives $0300 and $6000 at 3 bytes each, the two-DSK case $0300 and $0303, and the trailing-span case one file plus a warning
-      **Blocked on an oracle run, not on a decision.** A fixture here is a
-      source/object PAIR, and the objects have to come off a Merlin Pro 2.23 run
-      under Casso rather than from this assembler, or the oracle asserts nothing.
-      The rules these fixtures would pin are already measured and asserted from
-      inline sources (research.md finding 2a); what is missing is the vendor bytes.
-      Note also that Fixtures/Merlin is documented as third-party material under
-      CC BY-NC-ND, so an authored source added there needs marking the way the
-      generated `T.MACRO LIBRARY` fixture is.
+- [x] T063 [US3] Add a two-save fixture under `UnitTest/Fixtures/Merlin/`, labeled in-tree as authored. `CLOCK.S`'s two `SAV`s are mutually exclusive (`DO HOURS-12 / ELSE / FIN`), so the vendor corpus cannot cover this and must not appear to Assert against the MEASURED values in research.md finding 2a rather than expectations: the two-save case gives $0300 and $6000 at 3 bytes each, the two-DSK case $0300 and $0303, and the trailing-span case one file plus a warning
+
 - [x] T064 [US3] Add a trailing-span test asserting NO second file and a warning that bytes were assembled and not saved (FR-045). This is the rule Merlin contradicted the spec on, so it is the one most likely to be re-broken by someone reasoning from first principles
 - [x] T065 [P] [US3] Update `UnitTest/MerlinSubsetBoundaryTests.cpp` for a four-row boundary and assert `SAV` is no longer refused
 - [x] T066 [US3] Add a fail-after-first-save test asserting the image is byte-for-byte unchanged AND no host file was left behind
