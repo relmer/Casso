@@ -49,76 +49,62 @@ Entries before versioning was introduced use dates only.
 ## [1.20.0]: The one where the command line touches disks
 
 ### Added
-- **A `disk` subcommand.** `list`, `get`, `put`, `delete`, `boot`, `create`, `init`,
-  `sectorread` and `sectorwrite`, on DOS 3.3 and ProDOS, in `.dsk`, `.do`, `.po`
-  and `.woz`. Writes are atomic, so a locked file, a full volume or an image
-  that changed underneath leaves the original byte for byte intact. Period and
-  host-shell aliases both work: `cat`, `catalog`, `dir`, `ls`, `rm`, `read`, `write`.
-- **`disk list` describes an image carrying no filesystem**: WOZ provenance and
-  write-protection, the boot-sector format claimed, how many quarter-tracks
-  hold data, title and publisher, geometry, how the tracks decoded, and
-  whether track 0 sector 0 holds anything a boot would run.
+- **A `disk` subcommand.** `list`, `get`, `put`, `delete`, `boot`, `create`,
+  `init`, `sectorread` and `sectorwrite`, on DOS 3.3 and ProDOS, in `.dsk`,
+  `.do`, `.po` and `.woz`. Writes are atomic, so a locked file, a full volume
+  or an image that changed underneath leaves the original intact. The DOS 3.3
+  and ProDOS words work, and so do host-shell habits: `cat`, `catalog`, `dir`,
+  `ls`, `rm`, `read`, `write`.
 - **`--basic` converts between an Applesoft listing and a tokenized program.**
   Program to program is byte-exact; listing to listing is not, since Applesoft
   normalizes on entry.
-- **`--bootable` copies an operating system on**, finding the matching master
-  in the emulator's cache by itself, or taking one you name.
-- **`disk create --boot <binary>` builds a disk that starts a program with no
-  operating system on it**, `--load` placing it and `--exec` entering it.
+- **`--bootable` copies an operating system onto the disk**, finding the right
+  master in the emulator's cache, or using the one you point it at.
+- **A program can boot with no operating system on the disk.** See
+  `disk create --boot` or `disk boot`.
 - **Unpadded and DOS 3.3 assembler output.** The assembled span is the default
-  now; `--dos-bin` puts it behind the 4-byte `BLOAD` header.
-- **PowerShell affordances**: an address as ` or `0x6000`, `-o` with a
+  now, and `--dos-bin` adds the BLOAD header.
+- **PowerShell affordances**: an address as `$6000` or `0x6000`, `-o` with a
   separated filename, and a command line PowerShell cut at a dot rejoined
   before parsing.
-- **A bare `?` shows usage**, a listing gets `.lst` when you give no extension,
-  and the `disk` page carries a worked example of the whole loop.
 
 ### Changed
-- **Casso.exe parses its command line through CassoCli's grammar**, so
-  `/machine`, `/disk1`, `/disk2` and `/trace` work at the emulator.
-- **The executable is a 57-line shim.** The other 3,639 lines of parsing,
-  dispatch and exit-code decisions moved to the library where the tests link
-  them, the Win32 file layer included (GH #85).
-- **`--help` is one screen, each mode's flags and exit codes on its own page.**
-  It was 180 lines. `run --help` now exists at all.
-- **A bad command line is answered with the mode's grammar**, the reason last.
-- **An explicit output-format flag beats the filename's extension**, which
-  silently won before.
+- **Command-line parsing moved to the core library**, shared by Casso and
+  CassoCli, so `/machine`, `/disk1`, `/disk2` and `/trace` work at the
+  emulator too.
+- **All of the CLI moved to the core library**, where the unit tests reach it
+  (GH #85).
 
 ### Removed
-- **BREAKING: `--raw` is gone.** It selected the assembled bytes, which giving
-  no format flag already does. Delete it; the result is identical.
+- **`--raw` is gone.** It selected the assembled bytes, which giving no format
+  flag already does. Delete it; the result is identical.
 
 ### Fixed
-- **A damaged track no longer silently truncates a disk image on eject**
-  (GH #115). The decoder stopped at the first unreadable sector and returned
-  zeros for it and every later one while reporting success. It reports what it
-  recovered now, refuses a flush that would write a hole, and saves the
-  pending writes as `<name>.recovered.woz`.
-- **BREAKING: the assembler's exit codes are AS65's.** 1 is a bad command line,
-  2 a file it cannot open, 3 an assembly with errors, and warnings report 5.
-  **A script testing 2 for "the assembly failed" must change to 3.**
-- **BREAKING: assembling writes the assembled bytes, not a 64KB image.** A
-  200-byte routine came out as 65,536 bytes. The padded image is `--flat`.
-- **Pasting into the guest no longer garbles the text.** Ctrl+V leaked a `^V`
-  ahead of the paste and characters outran the guest; feeding is paced in
-  emulated cycles against the keyboard strobe.
-- **Assembler flag values attach, as AS65 requires**: `-lout.lst`, `-dNAME`,
-  `-w100`, `-h60`, with `-o` taking both forms. `-h80t` no longer swallows the
-  `t`, bare `-w` selects its documented 133 columns, bare `-h` is refused in
-  favor of `-h0`, bare `-d` defines `DEBUG` without eating the next argument,
-  and `-g` takes no filename.
-- **A refused command line no longer assembles, runs or writes anyway**, an
-  unrecognized flag refuses the whole line rather than building from the flags
-  that survived, and a surplus argument is an error rather than discarded.
-- **A trailing `-o` no longer hangs forever**, a mistyped `run` option no longer
-  exits 0, and a value that cannot be read is refused rather than replaced.
-- **`-h<lines>` actually paginates the listing**, whose default width is 79.
-- **The help fills the terminal**, asked through `CONOUT$` rather than a
-  redirected `stdout`, and a refusal no longer prints inside the page it
-  interrupts.
-- **A bare `CassoCli` exits 1**, and an unreadable source no longer follows its
-  error with `Assembly failed with 0 error(s)`.
+- A damaged track silently truncated the image on eject (GH #115). The decoder
+  reports what it recovered now, refuses a flush that would leave a hole, and
+  saves the pending writes to `.recovered.woz` beside the target.
+- Assembler exit codes now match AS65: 1 bad command line, 2 unreadable file,
+  3 assembly errors, 5 warnings. A script testing 2 for failure wants 3.
+- Assembling a 200-byte routine wrote a 65,536-byte file. It writes the
+  assembled bytes now, and `--flat` still pads.
+- Pasting into the guest garbled the text. Ctrl+V leaked a `^V` ahead of it,
+  and characters outran the guest; feeding is paced now.
+- Assembler flag values have to attach, as AS65 wants: `-lout.lst`, `-dDEBUG`,
+  `-w100`, `-h60`. `-o` takes either form.
+- `-h80t` swallowed the `t`. Bare `-w` ignored its 133 columns, bare `-h` did
+  nothing, bare `-d` ate the next argument, and `-g` took a filename.
+- A refused command line assembled, ran and wrote anyway.
+- An unrecognized flag built from whatever flags survived.
+- A surplus argument was thrown away without a word.
+- A trailing `-o` hung forever.
+- A mistyped `run` option exited 0.
+- A value that could not be read was replaced instead of refused.
+- `-h<lines>` never paginated, and the default listing width is 79, not 80.
+- The help did not fill the terminal. It asks `CONOUT$` now, rather than a
+  redirected `stdout`.
+- A refusal printed in the middle of the page it interrupted.
+- A bare `CassoCli` exited 0.
+- An unreadable source still reported `Assembly failed with 0 error(s)`.
 
 ## [1.19.0]: The one where the Mockingboard speaks
 
