@@ -7,6 +7,25 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
+**Active spec on THIS branch: `specs/028-shared-disk-images`** (PLANNED, not
+started) — coordinating a disk image between `CassoCli` and a running `Casso`.
+See [`specs/028-shared-disk-images/plan.md`](specs/028-shared-disk-images/plan.md).
+
+Measured: the emulator holds no OS handle on a mounted image, so an assembly
+onto it succeeds, the guest never sees it, and a later flush of the guest's own
+copy destroys it. The plan is smaller than the spec's three stories imply,
+because reading the code showed **the corruption case is already closed** — both
+sides commit through a temporary and an atomic rename. What is left is an
+identity recorded at mount, a directory watcher, a best-effort `WM_COPYDATA`
+channel carrying the writer's stated intent (`--on-change reload|restart`), and
+two narrow defects: the emulator derives a FIXED `.casso-tmp` name so two
+instances overwrite each other, and it never re-checks before writing.
+
+**A pick-up is a disk swap and cannot be made safe.** The guest caches structure
+in its own RAM (DOS 3.3's VTOC, ProDOS's volume control block), invisible from
+the disk layer, so a restart is always offered and nothing may claim a swap has
+been verified safe.
+
 **Active spec: `specs/024-mockingboard-speech`** (IMPLEMENTED, GH #123) — the
 Mockingboard's SSI-263 voice chip shipped on branch `024-mockingboard-speech`:
 clean-room `Ssi263` core + formant synthesis, the A/C variant split
