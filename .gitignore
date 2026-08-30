@@ -76,9 +76,14 @@ StyleCopReport.xml
 *.ilk
 *.meta
 *.obj
-# ...but Wavefront OBJ 3D models under Resources are source assets, not
-# compiler output (e.g. the printer panel's embedded ImageWriter model).
-!Resources/**/*.obj
+# 3D models ship as .mesh (Wavefront OBJ inside) precisely so they can
+# never collide with compiled-object *.obj -- no carve-out needed.
+# The generators write their MESH/MTL pair beside themselves before it is
+# copied over the checked-in asset; that scratch pair is not source.
+scripts/modelgen/*.mesh
+scripts/modelgen/*.mtl
+# preview.py renders are for looking at, never for keeping
+scripts/modelgen/*.png
 *.iobj
 *.pch
 *.pdb

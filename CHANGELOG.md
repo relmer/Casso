@@ -8,7 +8,69 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.21.0]: The one where the skeuomorphic theme goes to 11
+
+### Added
+
+- Tilt the Monitor II by the marks on its bezel. Remembered per monitor.
+- Drag the scene to rotate it.
+- Corner compass: arrows rotate (hold to repeat), drag to turn, orb resets.
+  Shift+two-finger drag on touchpad. Ctrl-0 to reset.
+- The //c comes up green, from the Monitor //c it shipped with. Still
+  overridable per machine.
+- Restore window placement on launch, maximized included.
+- Settings > Theme: scene antialiasing (off / 2x / 4x). Preview shows the
+  real scene.
+- Drive 2 on any machine with a Disk ][ interface; drive count comes from
+  the card's ports.
+- A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.
+  The picture maps onto spherical-sag glass, and input is inverse-projected
+  through the curvature so a click lands on the right emulated pixel.
+- Four new device models (Monitor II, Monitor //c, Disk II, Disk IIc),
+  CAD-built from photographs at true dimensions. Openings are boolean cuts
+  and edges are real fillets.
+- Each machine gets the hardware it shipped with: a Monitor II over Disk IIs
+  for the //e and ][+, a Monitor //c over Disk IIcs for the //c. Switching
+  machines swaps the stack.
+- Case marks are modeled, not painted: embossed bezel icons, inlaid
+  cassowary, drive numbers, IN USE, the disk ][ logotype.
+- Drive doors animate on mount and eject. The Disk II swings on its
+  cantilever; the Disk IIc slides back and lifts.
+- Everything the 2D drive band did carries over: activity lights, write-
+  protect padlock and tooltips, drag-and-drop, slot click ejects and
+  browses, body click browses.
+- Alt+Enter fills the monitor with the picture alone; the drives live in a
+  slide-up strip revealed by pointer dwell or Ctrl+D.
+- Settings > Theme can drop the CRT monitor and put the picture back on a
+  flat rect. The 3D drives stay either way.
+- Compact themes (DarkModern, RetroTerminal) keep their 2D widgets.
+- Per-pixel shading from two lights plus a specular highlight, with the
+  power lamp as a real light in the same pass.
+- Shadows are cast across the desk, and each device has a contact shadow
+  under it.
+- Lamps are lit lenses in a recess rather than painted marks.
+
+- **The Harte vectors now check instruction timing, not just results.** The
+  packed fixtures had discarded the per-cycle trace, so no depth of vectors
+  could catch a timing error. It found three timing bugs on its first run.
+- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
+  illegal NMOS opcodes had no vectors at all, so their tests loaded nothing
+  and passed. All 79 now run at full depth and came out clean.
+- **An offline cycle reference at `docs/cycle-reference.md`.** Every opcode's
+  mnemonic, addressing mode, length, and base cycle count for the 6502 and
+  65C02, generated from the emulator's own instruction tables.
+
 ### Changed
+
+- Monitor II rear rebuilt as one dark molding, plus contrast wheel, power
+  notch and rounded edges.
+- Monitor //c rear panel modeled control for control; tube runs through the
+  bezel opening.
+- The //c ships a Disk IIc, not a rebadged Disk II.
+- Fullscreen no longer resizes the window; its toolbar can be summoned.
+- internal: builds and checks run at BelowNormal (`-NormalPriority` opts
+  out), with MSBuild node reuse off so the priority reaches the compiler.
+
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving
   clarity on mono. Replaced the color bars with a spiffy Beagle Bros. HGR
@@ -23,22 +85,19 @@ Entries before versioning was introduced use dates only.
   disable it.** A backward, in-range `JMP` assembles to two bytes instead of
   three, so every label below it moves.
 
-### Added
-- **The Harte vectors now check instruction timing, not just results.** The
-  packed fixtures had discarded the per-cycle trace, so no depth of vectors
-  could catch a timing error. It found three timing bugs on its first run.
-- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
-  illegal NMOS opcodes had no vectors at all, so their tests loaded nothing
-  and passed. All 79 now run at full depth and came out clean.
-- **An offline cycle reference at `docs/cycle-reference.md`.** Every opcode's
-  mnemonic, addressing mode, length, and base cycle count for the 6502 and
-  65C02, generated from the emulator's own instruction tables.
-
-### Removed
-- **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
-  disk, and `scripts/HgrPreprocess.py` still generates either on demand.
-
 ### Fixed
+
+- Clicks no longer pass through the monitor to a drive behind it; back faces
+  are not clickable.
+- The drive door's click target follows the door.
+- Switching machines no longer leaves the previous monitor's bezel behind.
+- Command toolbar clicks are no longer swallowed by the scene.
+- Reduce GPU use when idle.
+- Losing the audio endpoint (undocking, switching the default output
+  device) no longer trips an assertion; audio reopens the new default.
+- Eject and mount take effect while the machine is paused. The CPU thread
+  now services the command queue without stepping the emulation.
+
 - **The casso-rocks demo signs off instead of just vanishing** -- a thank-you
   line that stays on screen with the BASIC prompt under it. It also wipes the
   monitor question the moment it is answered, so a reset partway through no

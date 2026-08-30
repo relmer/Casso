@@ -113,6 +113,24 @@ RECT       ComputeAspectFitRectInRect (const RECT & contentRect,
                                        int          aspectH);
 
 
+//
+//  Where a fitted rect lands in a texture's UV space -- the desk scene samples
+//  the CRT chain's offscreen output on the monitor glass through this subrect,
+//  so the fit arithmetic stays shared between the direct-to-backbuffer path
+//  and the texture path. Free function for the same reason as the fits above:
+//  unit-testable with no GPU.
+//
+struct CrtUvRect
+{
+    float  u0 = 0.0f;
+    float  v0 = 0.0f;
+    float  u1 = 1.0f;
+    float  v1 = 1.0f;
+};
+
+CrtUvRect  ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textureH);
+
+
 
 
 

@@ -3,6 +3,7 @@
 #include "WindowCommandManager.h"
 
 #include "../AssetBootstrap.h"
+#include "../Config/WindowPlacementProfile.h"
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -418,6 +419,12 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
+    // The View range above stops at IDM_VIEW_SETTINGS, so every View command
+    // added since needs naming here. A new id that falls outside every branch
+    // is dropped in SILENCE -- the menu item paints, the accelerator fires,
+    // and nothing happens -- so these one-offs are load-bearing, not clutter.
+    else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
+    else if (id == IDM_VIEW_RESET_SCENE)                                   { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -499,14 +506,41 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {
     bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+    bool  fChanged  = false;
 
 
 
     if (connected != m_shell.m_externalDriveConnected)
     {
         m_shell.m_externalDriveConnected = connected;
-        m_shell.ReflowChromeForMachineChange();
+        fChanged = true;
     }
+
+    // A carded machine's answer lives in the card's second connector, so the
+    // RUNNING config has to move too -- ShouldShowExternalDrive reads the
+    // attached count from there for anything that is not a //c, and would
+    // otherwise keep reporting the old one however the flag above is set.
+    if (m_shell.m_config.SetDiskIiPortAttached (1, connected))
+    {
+        fChanged = true;
+    }
+
+    if (!fChanged)
+    {
+        return;
+    }
+
+    // A detached drive cannot still be holding a disk. Ejecting flushes it
+    // through DiskImageStore, so pulling the drive does not quietly strand
+    // unwritten changes in an image the user can no longer reach -- and it
+    // routes through the CPU command queue like every other eject, rather
+    // than tearing state out from under the running machine.
+    if (!connected && m_shell.m_diskManager != nullptr)
+    {
+        m_shell.m_diskManager->Eject (6, 1);
+    }
+
+    m_shell.ReflowChromeForMachineChange();
 }
 
 
@@ -766,7 +800,28 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_FULLSCREEN:
         {
+            RECT  rcClient = {};
+
             m_shell.m_d3dRenderer.ToggleFullscreen (m_shell.m_hwnd);
+
+            // The transition's WM_SIZE runs while the fullscreen flag is
+            // deliberately still held (placement persistence), so the layout
+            // it triggered used the OLD presentation. Re-run it now that the
+            // flag reflects the final state -- the desk scene's fullscreen
+            // branch keys off it.
+            if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+            {
+                (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
+                                       (UINT) (rcClient.bottom - rcClient.top));
+                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            break;
+        }
+
+        case IDM_VIEW_RESET_SCENE:
+        {
+            m_shell.ResetSceneView();
             break;
         }
 
@@ -781,6 +836,18 @@ void WindowCommandManager::OnViewCommand (int id)
                 int   ncOverheadW     = 0;
                 int   ncOverheadH     = 0;
 
+
+                // Leave the maximized state before sizing. SetWindowPos on a
+                // zoomed window moves and resizes it but leaves WS_MAXIMIZE
+                // set, so the window keeps claiming to be maximized: the
+                // caption still offers Restore, and the next Restore snaps
+                // back to a stale rect. Restoring first also makes the
+                // non-client measurement below describe the presentation the
+                // window is about to have.
+                if (IsZoomed (m_shell.m_hwnd))
+                {
+                    ShowWindow (m_shell.m_hwnd, SW_RESTORE);
+                }
 
                 // Target client area: framebuffer at the current DPI
                 // (linear scale), with the chrome band insets summed by
@@ -817,13 +884,27 @@ void WindowCommandManager::OnViewCommand (int id)
                 w = desiredClientW + ncOverheadW;
                 h = desiredClientH + ncOverheadH;
 
+                // The 100%-emulator framing can ask for a window larger than
+                // the display -- more so now that the scene is a full desk
+                // rather than a bare framebuffer. Fit it to the work area
+                // and let the placement rule hold the caption's top-left on
+                // screen; centering is what gives way, not reachability.
+                // Without this the oversized window was centered on the work
+                // area, which put its top-left off the top-left of it: a
+                // window the pointer could no longer grab.
                 hMon = MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
-                GetMonitorInfo (hMon, &mi);
 
-                x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - w) / 2;
-                y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - h) / 2;
+                if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+                {
+                    RECT  placed = WindowPlacementProfile::FitToWorkArea (mi.rcWork, w, h);
 
-                SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+                    x = (int) placed.left;
+                    y = (int) placed.top;
+                    w = (int) (placed.right  - placed.left);
+                    h = (int) (placed.bottom - placed.top);
+
+                    SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+                }
             }
 
             break;
@@ -844,6 +925,20 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_SETTINGS:
         {
             m_shell.OpenSettings();
+            break;
+        }
+
+        case IDM_VIEW_DRIVE_STRIP:
+        {
+            // Only meaningful in the fullscreen desk scene; the FSM consumes
+            // the edge on its next tick (releasing a guest capture if one is
+            // held). Elsewhere the drives are already on screen.
+            if (m_shell.DeskSceneActive() && m_shell.m_d3dRenderer.IsFullscreen())
+            {
+                m_shell.m_stripHotkeyPending = true;
+                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+            }
+
             break;
         }
     }

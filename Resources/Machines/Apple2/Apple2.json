@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 8,
+    "$cassoMachineVersion": 9,
     "name": "Apple ][",
     "releaseYear": 1977,
     "cpu": "6502",
@@ -31,7 +31,11 @@
     ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
-        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+        // The Disk ][ Interface has two drive connectors whether or not both
+        // are used, so the card always declares two ports. An empty string
+        // detaches that drive without changing the card.
+        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
+          "ports": ["disk-ii-drive", "disk-ii-drive"] }
     ],
     "video": {
         "modes": ["apple2-text40", "apple2-lores", "apple2-hires"]

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Fails if changed code violates the mechanically-checkable subset of the
     Casso coding standards in .github/copilot-instructions.md.
@@ -82,8 +82,32 @@ param(
     # tree-wide, since a gate that fails on pre-existing violations is one
     # people switch off. That backlog is now zero over all tracked files, so
     # the switch inverts: `-NoStructural` opts out.
-    [switch]$NoStructural
+    [switch]$NoStructural,
+
+    [switch]$NormalPriority,
+
+    [switch]$LowPriority
 )
+
+#
+#  OFF THE FOREGROUND'S BACK. This saturates every core and the disk with
+#  it, and nothing about it is latency-sensitive -- nobody watches a build.
+#  Lowered here rather than around the tool because Windows hands a child
+#  its parent's priority class, so this reaches MSBuild, every cl.exe it
+#  fans out, and vstest and its hosts. See scripts/HostLoad.ps1.
+#
+. (Join-Path $PSScriptRoot 'HostLoad.ps1')
+
+$priorityWas = $null
+
+if (-not $NormalPriority) {
+    $priorityWas = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
+}
+
+#  Put it back on the way out however this ends -- these are run from an
+#  interactive shell as often as from a fresh one, and a session left at
+#  BelowNormal for the rest of the day is a slow shell nobody can explain.
+trap { Restore-CassoHostLoad -Priority $priorityWas; break }
 
 $Structural = -not $NoStructural
 
@@ -1304,6 +1328,8 @@ if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 }
 
 $violations = $sink
+
+Restore-CassoHostLoad -Priority $priorityWas
 
 if ($violations.Count -gt 0)
 {

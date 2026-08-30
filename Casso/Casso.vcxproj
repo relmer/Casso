@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -250,7 +250,6 @@
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
     <ClCompile Include="Ui\Chrome\CommandToolbar.cpp" />
-    <ClCompile Include="Ui\Chrome\MonitorFrame.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceSelector.cpp" />
     <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
@@ -297,6 +296,11 @@
     <ClCompile Include="InputDebugDialogState.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\Printer3DScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneHitTester.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneLayout.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneModel.cpp" />
+    <ClCompile Include="Ui\Scene\FullscreenStripState.cpp" />
     <ClCompile Include="Ui\PrinterPanel.cpp" />
     <ClCompile Include="Ui\PrinterPaperView.cpp" />
     <ClCompile Include="Ui\InputDebugPanel.cpp" />
@@ -324,6 +328,7 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
@@ -348,7 +353,6 @@
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
     <ClInclude Include="Ui\Chrome\CommandToolbar.h" />
-    <ClInclude Include="Ui\Chrome\MonitorFrame.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceSelector.h" />
     <ClInclude Include="Ui\Chrome\Apple2cSwitchBar.h" />
@@ -386,6 +390,12 @@
     <ClInclude Include="InputDebugDialogState.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\Printer3DScene.h" />
+    <ClInclude Include="Ui\Scene\DeskScene.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneHitTester.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneFaceLabels.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneLayout.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneModel.h" />
+    <ClInclude Include="Ui\Scene\FullscreenStripState.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Ui\InputDebugPanel.h" />

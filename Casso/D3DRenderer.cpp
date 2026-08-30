@@ -450,7 +450,7 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
         contentRect.bottom = m_backBufferH;
     }
 
-    hr = RenderCrtFrame (dstRtv, contentRect);
+    hr = RenderCrtFrame (dstRtv, contentRect, m_backBufferW, m_backBufferH);
     CHRA (hr);
 
     m_redrawForced        = false;
@@ -475,6 +475,142 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UploadAndCompositeOffscreen
+//
+//  The desk-scene variant of UploadAndComposite: the CRT chain's output lands
+//  in this renderer's own offscreen target for the scene to sample on the
+//  monitor glass, instead of the host's back buffer. The target is cleared to
+//  opaque black first -- unlike the back buffer, no host clear ever covers it,
+//  and the letterbox margins around the fitted rect must read as black glass
+//  rather than stale frames.
+//
+//  The target is exactly the PICTURE's size, not the window's. It used to be
+//  window-sized with the picture in one corner, which meant all nine of the
+//  chain's passes swept the whole window to produce an image occupying about
+//  a twentieth of it -- measured at 93% of the process's entire GPU cost, and
+//  essentially all of it spent filtering black pixels the glass never samples.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, const RECT & pictureRect)
+{
+    HRESULT                    hr       = S_OK;
+    float                      black[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    D3D11_MAPPED_SUBRESOURCE   mapped   = {};
+    const uint32_t           * src      = nullptr;
+    Byte                     * dst      = nullptr;
+    int                        pictureW = (int) (pictureRect.right  - pictureRect.left);
+    int                        pictureH = (int) (pictureRect.bottom - pictureRect.top);
+
+
+
+    BAIL_OUT_IF (m_context == nullptr,                     S_OK);
+    BAIL_OUT_IF (m_deviceRemoved,                          S_OK);
+    BAIL_OUT_IF (m_backBufferW <= 0 || m_backBufferH <= 0, S_OK);
+    BAIL_OUT_IF (pictureW <= 0 || pictureH <= 0,           S_OK);
+
+    hr = EnsureSceneContentTarget (pictureW, pictureH);
+    CHRA (hr);
+
+    m_context->ClearRenderTargetView (m_sceneRtv.Get(), black);
+
+    if (m_texture != nullptr && framebuffer != nullptr)
+    {
+        hr = m_context->Map (m_texture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        CHRA (hr);
+
+        src = framebuffer;
+        dst = static_cast<Byte *> (mapped.pData);
+
+        for (int y = 0; y < m_texHeight; y++)
+        {
+            memcpy (dst, src, static_cast<size_t> (m_texWidth) * 4);
+            src += m_texWidth;
+            dst += mapped.RowPitch;
+        }
+
+        m_context->Unmap (m_texture.Get(), 0);
+    }
+
+    hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect, pictureW, pictureH);
+    CHRA (hr);
+
+    m_redrawForced        = false;
+    m_lastPresentedParams = m_crtParams;
+
+    if (framebuffer != nullptr)
+    {
+        m_idleFramesSinceFbChange = 0;
+    }
+    else
+    {
+        m_idleFramesSinceFbChange++;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureSceneContentTarget
+//
+//  Sized to the PICTURE, so the chain's passes cover exactly the pixels the
+//  glass will sample and the scene's UVs span the whole texture. See
+//  UploadAndCompositeOffscreen for what a window-sized target cost.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::EnsureSceneContentTarget (int width, int height)
+{
+    HRESULT               hr   = S_OK;
+    D3D11_TEXTURE2D_DESC  desc = {};
+
+
+
+    CBRAEx (width > 0 && height > 0, E_INVALIDARG);
+
+    BAIL_OUT_IF (m_sceneTex != nullptr && m_sceneTexW == width && m_sceneTexH == height, S_OK);
+
+    m_sceneTex.Reset();
+    m_sceneRtv.Reset();
+    m_sceneSrv.Reset();
+
+    desc.Width            = (UINT) width;
+    desc.Height           = (UINT) height;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 1;
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_DEFAULT;
+    desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, m_sceneTex.GetAddressOf());
+    CHRA (hr);
+
+    hr = m_device->CreateRenderTargetView (m_sceneTex.Get(), nullptr, m_sceneRtv.GetAddressOf());
+    CHRA (hr);
+
+    hr = m_device->CreateShaderResourceView (m_sceneTex.Get(), nullptr, m_sceneSrv.GetAddressOf());
+    CHRA (hr);
+
+    m_sceneTexW = width;
+    m_sceneTexH = height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderCrtFrame
 //
 //  Aspect-fits the emulator content into `contentRect`, caches the
@@ -484,7 +620,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect)
+HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
+                                     const RECT             & contentRect,
+                                     int                      targetW,
+                                     int                      targetH)
 {
     HRESULT          hr         = S_OK;
     RECT             fittedRect = {};
@@ -492,7 +631,7 @@ HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT
 
 
 
-    if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
+    if (m_texWidth > 0 && m_texHeight > 0 && targetW > 0 && targetH > 0)
     {
         fittedRect = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
     }
@@ -503,8 +642,8 @@ HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT
                             dstRtv,
                             m_crtParams,
                             fittedRect,
-                            m_backBufferW,
-                            m_backBufferH);
+                            targetW,
+                            targetH);
     CHRA (hr);
 
 Error:
@@ -751,10 +890,15 @@ void D3DRenderer::Shutdown()
     m_sampler.Reset();
     m_srv.Reset();
     m_texture.Reset();
+    m_sceneTex.Reset();
+    m_sceneRtv.Reset();
+    m_sceneSrv.Reset();
     m_swapChain.Reset();
     m_context.Reset();
     m_device.Reset();
 
+    m_sceneTexW                  = 0;
+    m_sceneTexH                  = 0;
     m_emulatorContentScreenRect  = {};
 }
 

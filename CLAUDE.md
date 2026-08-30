@@ -7,6 +7,17 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
+Active spec on THIS branch: **018-3d-desk-scene** (`desk-scene-models`) - the
+3D desk scene. Artifacts: `specs/018-3d-desk-scene/` (spec.md, plan.md,
+research.md, data-model.md, contracts/, quickstart.md). Scripts need
+`$env:SPECIFY_FEATURE = "018-3d-desk-scene"` since the branch name is
+unnumbered.
+
+Still open on 018: Disk II realism tweaks, //e monitor (A2M2010) refinement,
+and drive repositioning. The merge gate (ARM64 build, Code Analysis,
+CHANGELOG) is separate from that remaining feature work. This branch carries
+master merged in as of 1.20.1.
+
 **Active spec: `specs/024-mockingboard-speech`** (IMPLEMENTED, GH #123) — the
 Mockingboard's SSI-263 voice chip shipped on branch `024-mockingboard-speech`:
 clean-room `Ssi263` core + formant synthesis, the A/C variant split

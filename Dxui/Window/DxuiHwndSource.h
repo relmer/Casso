@@ -267,6 +267,19 @@ public:
     void          SetCaptionIcon  (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int           GetCaptionHeightPx () const;
 
+    // Hides the host-owned caption strip outright (fullscreen
+    // presentations): it stops painting, reserves no height, and routes no
+    // NC mouse. No-op on a window without a host caption; the consumer's
+    // next layout pass picks up the height change.
+    void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
+
+    // Turns the resize borders off and on at runtime. A window that has gone
+    // borderless-fullscreen fills the monitor and has nothing to resize TO:
+    // its edges are screen edges, and the classifier would still hand back
+    // HTBOTTOMRIGHT there, letting a drag at the corner pull the window down
+    // to a fraction of the screen with no caption left to fix it with.
+    void          SetResizable (bool resizable) { m_params.resizable = resizable; }
+
     //
     //  Adopt-mode caption hooks. A full-ownership host paints + lays out
     //  + routes the caption itself; an adopt-mode host owns no paint pump
@@ -517,6 +530,21 @@ public:
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
 
+    //
+    //  Whether an NC mouse message may be claimed by a caption system
+    //  button, or has to be left to the window manager. The message's
+    //  wParam is the hit code the OS derived from our own WM_NCHITTEST
+    //  answer, so a resize code means "the user is starting a resize"
+    //  EVEN THOUGH the point may sit on a button -- the corner grab zones
+    //  deliberately reach under them.
+    //
+    //  Public because this predicate IS the top-right-corner contract, and
+    //  it is the only part of the NC-mouse path reachable without a real
+    //  window: everything around it in HandleNcMouse is HWND bookkeeping
+    //  that bails out before the decision in a synthetic host.
+    //
+    static bool  NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest);
+
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
@@ -640,6 +668,7 @@ private:
     std::unique_ptr<DxuiPanel>        m_root;
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
+    bool                              m_captionVisible     = true;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 

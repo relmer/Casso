@@ -244,6 +244,24 @@ public:
     // ``Handled`` if your override fully processed the press;
     // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
+    // WM_GESTURE: a TOUCH gesture Windows has already recognized -- pinch,
+    // pan, rotate -- rather than raw contacts. wParam is the gesture id and
+    // lParam the HGESTUREINFO to read with GetGestureInfo.
+    //
+    // The handle is the host's to close, not the client's: returning Handled
+    // means "I acted on it", and the source calls CloseGestureInfoHandle
+    // either way. A client that closed it itself would double-close whenever
+    // it also let the gesture fall through.
+    //
+    // Returning NotHandled sends the gesture to DefWindowProc, which is what
+    // keeps the ones nobody handles working normally.
+    virtual DxuiMessageResult  OnGesture        (WPARAM wParam, LPARAM lParam)
+    {
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return DxuiMessageResult::NotHandled;
+    }
+
     virtual DxuiMessageResult  OnLButtonDown    (WPARAM wParam, LPARAM lParam)
     {
         UNREFERENCED_PARAMETER (wParam);

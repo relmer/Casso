@@ -124,6 +124,18 @@ public:
     // theme changes.
     LoadedTheme                      GetActiveResolvedTheme    () const;
 
+    // The active theme's CRT defaults with the machine overrides already
+    // merged -- the same values GetActiveResolvedTheme carries, held as a
+    // plain snapshot so a per-frame caller can read them without deep-copying
+    // the theme (JSON and all) every frame. It is refreshed wherever the
+    // resolution can change, all of which already notify listeners.
+    //
+    // Every consumer must read the CRT defaults from HERE. A caller that
+    // reaches for GetActiveTheme()->crtDefaults instead silently drops the
+    // machine overrides, and when only some of the callers do that the
+    // picture changes brightness depending on which one ran last.
+    const ThemeCrtDefaults         & ActiveCrtDefaults         () const { return m_activeCrtDefaults; }
+
     void                             AddChangeListener         (ChangeListener listener);
 
 private:
@@ -138,6 +150,7 @@ private:
     std::string                  m_activeFamilyId;
     std::string                  m_activeVariantId;
     std::string                  m_activeMachine;            // display name, e.g. "Apple //e"
+    ThemeCrtDefaults             m_activeCrtDefaults;        // resolved; see ActiveCrtDefaults
 
     std::vector<ChangeListener>  m_listeners;
 };
