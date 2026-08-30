@@ -224,49 +224,87 @@ Error:
 //  Turn the derived sequence so its longest run of sync bytes finishes it.
 //
 //  THE PADDING HAS TO LAND SOMEWHERE, and anywhere inside an address or data
-//  field destroys it. The longest run of $FF is the widest gap on the track,
-//  which is where a real drive's slack sits and the only place bytes can be
-//  inserted harmlessly. Rotating is free: the track is a circle and the Disk II
+//  field destroys it. Rotating is free: the track is a circle and the Disk II
 //  controller has no index sensor, so no guest can tell where the file's copy
 //  of it begins.
 //
-//  A track with no sync run at all keeps the rotation it came with. There is no
-//  safe place on such a track, so the padding goes to the seam the derivation
-//  already made by breaking the circle at bit zero.
+//  A GAP IS NOT MERELY THE LONGEST RUN OF $FF. That was the first rule here and
+//  it silently destroyed sectors: $FF is a legal 6-and-2 nibble, so DATA encodes
+//  to runs of it, and a sector's own data can carry a longer one than the gap
+//  between sectors. Alternating $AA/$55 source bytes produce a 255-byte run
+//  inside the first data field where the real address gap is twenty -- so the
+//  padding went into the middle of a sector and took it out. A uniform fill
+//  never shows this; it took a walking-bit pattern to surface it.
+//
+//  So a gap is identified by what FOLLOWS it: a run of sync immediately before
+//  a field's prologue is, by definition, the space between fields. The longest
+//  such run wins.
+//
+//  A track with no qualifying run keeps the longest sync run it has, and one
+//  with no sync at all keeps the rotation it came with. Neither is a standard
+//  track, so there is no structural answer to find -- but the padding still has
+//  to go somewhere, and the widest quiet stretch remains the best guess.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
 {
-    size_t  count     = nibbles.size();
-    size_t  runStart  = 0;
-    size_t  runLength = 0;
-    size_t  bestEnd   = 0;
-    size_t  bestLen   = 0;
-    size_t  i         = 0;
+    size_t  count       = nibbles.size();
+    size_t  runStart    = 0;
+    size_t  runLength   = 0;
+    size_t  bestEnd     = 0;
+    size_t  bestLen     = 0;
+    size_t  fallbackEnd = 0;
+    size_t  fallbackLen = 0;
+    size_t  end         = 0;
+    size_t  i           = 0;
+    bool    beforeField = false;
 
 
 
-    for (i = 0; i < count; i++)
+    for (i = 0; i <= count; i++)
     {
-        if (nibbles[i] != kSyncNibble)
+        bool  isSync = (i < count) && (nibbles[i] == kSyncNibble);
+
+        if (isSync)
         {
-            runLength = 0;
+            if (runLength == 0)
+            {
+                runStart = i;
+            }
+
+            runLength++;
             continue;
         }
 
-        if (runLength == 0)
-        {
-            runStart = i;
-        }
+        //  The run just ended at i. Whether it was a gap depends on what
+        //  starts here.
+        end         = runStart + runLength;
+        beforeField = (runLength != 0) && (i + 2 < count) &&
+                      (nibbles[i]     == NibblizationLayer::kProlog0) &&
+                      (nibbles[i + 1] == NibblizationLayer::kProlog1) &&
+                      (nibbles[i + 2] == NibblizationLayer::kAddressProlog2 ||
+                       nibbles[i + 2] == NibblizationLayer::kDataProlog2);
 
-        runLength++;
-
-        if (runLength > bestLen)
+        if (beforeField && runLength > bestLen)
         {
             bestLen = runLength;
-            bestEnd = runStart + runLength;
+            bestEnd = end;
         }
+
+        if (runLength > fallbackLen)
+        {
+            fallbackLen = runLength;
+            fallbackEnd = end;
+        }
+
+        runLength = 0;
+    }
+
+    if (bestLen == 0)
+    {
+        bestLen = fallbackLen;
+        bestEnd = fallbackEnd;
     }
 
     if (bestLen != 0 && bestEnd < count)

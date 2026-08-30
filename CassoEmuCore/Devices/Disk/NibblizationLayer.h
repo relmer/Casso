@@ -99,6 +99,14 @@ public:
     static constexpr Byte   kDefaultVolume     = 254;
     static constexpr size_t kTrackBitCapacity  = 6400 * 8;
 
+    //  The marks that begin a field. Public because finding a real gap means
+    //  finding what FOLLOWS one, and a second copy of these bytes elsewhere is
+    //  a second answer waiting to disagree with the encoder's.
+    static constexpr Byte   kProlog0           = 0xD5;
+    static constexpr Byte   kProlog1           = 0xAA;
+    static constexpr Byte   kAddressProlog2    = 0x96;
+    static constexpr Byte   kDataProlog2       = 0xAD;
+
     static HRESULT  Nibblize    (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out);
     static HRESULT  NibblizeDsk (const vector<Byte> & raw, DiskImage & out);
     static HRESULT  NibblizeDo  (const vector<Byte> & raw, DiskImage & out);
