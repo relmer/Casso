@@ -97,8 +97,12 @@ UIPI silently drops the messages OLE uses" and the drop "simply does nothing
 with no error anywhere".
 
 That is the identical hazard the intent channel would face: an elevated Casso
-and a normal-integrity `CassoCli` would see the message vanish silently. The
-mitigation is already installed on the window that would receive it.
+and a normal-integrity `CassoCli` would see the message vanish silently.
+
+**The mitigation is NOT unconditional, and an earlier draft of this finding said
+it was.** `InstallDragDropTarget` runs only inside `if (m_fOleInitialized)`, so
+where OLE initialization failed there is no filter at all. This feature installs
+its own rather than inheriting one.
 
 **Read.** The window class is `CassoWindow`, registered once, so enumerating
 top-level windows by class finds every running emulator.

@@ -106,10 +106,21 @@ after the last access. Its own comment calls it "a naturally debounced,
 race-free point to persist dirty images". It is the same point FR-014 asks for,
 and it is already wired to `DiskImageStore::FlushAll`.
 
-**Decision**: apply a pending pick-up from that callback.
-**Rationale**: no new thread, no new synchronization, and the debouncing FR-013
-wants is partly free. **Alternatives**: applying from the watcher's own thread
-would need locking against the CPU thread and could land mid-operation.
+**Decision**: apply a pending pick-up from that callback **OR from an idle tick
+on the same thread**, whichever comes first, both gated on no operation being in
+flight.
+
+**The callback alone is not enough, and an earlier draft of this decision said
+it was.** It fires only after a motor-on to motor-off transition with the
+spindown timer expiring, so a guest sitting at a BASIC prompt -- the way the
+build loop is actually used -- never reaches it. The headline scenario would
+never have fired. FR-014 asks only that no operation be in flight; spindown
+satisfies that but is not the only thing that can.
+
+**Rationale**: no new thread and no new synchronization either way; the thread
+that owns disk writes is the thread that applies the swap. **Alternatives**:
+applying from the watcher's own thread would need locking against the CPU thread
+and could land mid-operation.
 
 ### What is NOT being built
 
@@ -162,9 +173,25 @@ CassoCore/
 └── CommandLineOptions.h        # NEW field: the stated intent
     CommandLineParser.cpp       # NEW flag row, both dialects + `disk`
 
+Dxui/Widgets/
+└── DxuiActionBanner.h/.cpp     # NEW: banner text plus an action, since
+                                # DxuiInfoBanner is documented as not clickable
+
 Casso/Shell/
-├── DiskManager.cpp             # wires watcher to store; owns the banner
-└── MachineManager.cpp          # motor-spindown callback also applies pick-ups
+├── DiskManager.cpp             # registers the watcher, forwards raw paths
+└── MachineManager.cpp          # spindown callback and idle tick apply pick-ups
+
+Casso/EmulatorShell.cpp         # hosts the banner and every question; the
+                                # salvage machinery already lives here
+
+Casso/Ui/                       # the fallback answer's Settings surface
+
+UnitTest/Dxui/
+└── DxuiActionBannerTests.cpp   # NEW
+
+UnitTest/                       # also touched: CliSwitchCoverageTests.cpp,
+                                # EmuTests/DiskImageStoreTests.cpp (the three
+                                # hardcoded .casso-tmp assertions)
 
 Casso/Config/
 └── GlobalUserPrefs.h/.cpp      # NEW: the fallback answer (FR-007)

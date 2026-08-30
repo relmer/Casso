@@ -43,7 +43,7 @@ stated.
 
 ## The Win32 shim
 
-Broadcast `WM_COPYDATA` to every top-level window of class `CassoWindow`.
+Send `WM_COPYDATA` to every top-level window of class `CassoWindow`, found by enumeration. **Not `HWND_BROADCAST`** -- `WM_COPYDATA` may not be sent that way, because the receiver must be able to read memory the message points at.
 
 | Part | Value |
 |---|---|
@@ -60,12 +60,17 @@ what makes multi-instance need no discovery protocol.
 
 ### Two Win32 facts this depends on
 
-- **`WM_COPYDATA` is already allowed through the integrity filter.**
+- **`WM_COPYDATA` is allowed through the integrity filter, but CONDITIONALLY.**
   `EmulatorShell::InstallDragDropTarget` calls `ChangeWindowMessageFilterEx` for
   it, because an elevated Casso would otherwise see messages from a
-  normal-integrity sender silently dropped. That is precisely the hazard here —
-  an elevated Casso and an ordinary `CassoCli` — and the mitigation is already
-  installed on the receiving window.
+  normal-integrity sender silently dropped — precisely the hazard here. **But
+  that function runs only inside `if (m_fOleInitialized)`**, so where OLE
+  initialization failed there is no filter and every intent vanishes without a
+  word. This feature installs the filter itself rather than inheriting it.
+
+  The filter takes a WINDOW MESSAGE, so it is installed for `WM_COPYDATA`. The
+  registered id lives in `dwData`, which the filter cannot see, and is checked in
+  the handler instead.
 - **`SendMessage`, not `PostMessage`.** `WM_COPYDATA` requires the sender's
   buffer to stay alive for the duration, which posting cannot promise. The
   sender must use a timeout so a hung emulator cannot hang a build.
