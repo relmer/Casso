@@ -1365,6 +1365,8 @@ HRESULT SettingsPanelState::ExtractMachinePorts (
         return S_OK;
     }
 
+    _Analysis_assume_ (portsArr != nullptr);
+
     for (i = 0; i < portsArr->GetArraySize(); ++i)
     {
         const JsonValue      & entry = portsArr->GetArrayElement (i);
