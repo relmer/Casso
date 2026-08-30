@@ -64,7 +64,7 @@ what makes multi-instance need no discovery protocol.
   `EmulatorShell::InstallDragDropTarget` calls `ChangeWindowMessageFilterEx` for
   it, because an elevated Casso would otherwise see messages from a
   normal-integrity sender silently dropped — precisely the hazard here. **But
-  that function runs only inside `if (m_fOleInitialized)`**, so where OLE
+  that function is CALLED only inside `if (m_fOleInitialized)` -- the guard is at the call site, not inside the function**, so where OLE
   initialization failed there is no filter and every intent vanishes without a
   word. This feature installs the filter itself rather than inheriting it.
 

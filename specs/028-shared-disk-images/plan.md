@@ -156,6 +156,8 @@ CassoEmuCore/Devices/Disk/
 ├── IImageWatcher.h             # NEW: seam, notice a file changing
 ├── MountedImageState.h/.cpp    # NEW: per-mount identity + pending change
 ├── ExternalChangePolicy.h/.cpp # NEW: intent, fallback, what to do
+├── PreservedCopy.h/.cpp        # NEW: backup naming and writing, kept out
+│                               # of MountedImageState so it stays one job
 ├── Win32ImageWatcher.h/.cpp    # NEW: ReadDirectoryChangesW shim, IN CORE
 ├── DiskImageStore.h/.cpp       # records identity at mount; re-checks before
 │                               # write; unique temp name (FR-026); stamp (FR-027)
@@ -173,7 +175,7 @@ CassoCore/
 └── CommandLineOptions.h        # NEW field: the stated intent
     CommandLineParser.cpp       # NEW flag row, both dialects + `disk`
 
-Dxui/Window/                    # beside DxuiButtonRow, which it composes
+Dxui/Widgets/                   # beside DxuiInfoBanner, which it composes
 └── DxuiActionBanner.h/.cpp     # NEW: banner text plus an action, since
                                 # DxuiInfoBanner is documented as not clickable
 
@@ -194,7 +196,8 @@ UnitTest/                       # also touched: CliSwitchCoverageTests.cpp,
                                 # hardcoded .casso-tmp assertions)
 
 Casso/Config/
-└── GlobalUserPrefs.h/.cpp      # NEW: the fallback answer (FR-007)
+└── GlobalUserPrefs.h/.cpp      # EXISTS -- gains one field, beside
+                                # audioDownloadConsent, its precedent
 
 UnitTest/EmuTests/              # with every other disk test
 ├── ImageIdentityTests.cpp      # NEW

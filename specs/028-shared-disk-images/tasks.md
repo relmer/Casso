@@ -71,15 +71,15 @@
 - [ ] T020 [US1] Handle a change arriving while an earlier one is still being applied, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`: it updates the pending record rather than being dropped because something was in progress
 - [ ] T021 [US1] Defer the pick-up while the image is held by another process, using the existing `IDiskFileIo::IsHeldByAnotherProcess`. The quiet period alone does not cover a text editor or copy tool still writing; both writers here commit atomically, but a third-party writer need not
 - [ ] T022 [US1] Add `ApplyPendingPickUp` to `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, taking up the newest contents at a moment with no disk operation in flight (FR-014). **The decision and the work are core's**; the shell only says when
-- [ ] T023 [US1] Perform the restart when that is what was decided (FR-005, US1 acceptance scenario 2) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, routed through the existing machine-reset path rather than a second way to reset a machine
-- [ ] T024 [US1] Give `ApplyPendingPickUp` a trigger for the IDLE machine, wired from `Casso/Shell/MachineManager.cpp` on the CPU thread's existing tick path, gated on no disk operation being in flight. **The spindown callback alone is not enough and this is the headline scenario**: it fires only after a motor-on to motor-off transition with the spindown timer expiring, so a guest sitting at a BASIC prompt -- which is exactly how the build loop is used -- never reaches it and never sees the change. FR-014 asks only that no operation be in flight; spindown is sufficient, not necessary
+- [ ] T023 [US1] Decide the restart in core and PERFORM it in the shell, through a machine-reset callback on `DiskImageStore` mirroring `SetMotorOffFlushCallback` (FR-005). **A device-layer image store must not reach machine lifecycle directly** -- that is a layering inversion, and the callback is what keeps the decision core-side and the action shell-side
+- [ ] T024 [US1] Add an idle callback to `CassoEmuCore/Devices/Disk2Controller.h`/`.cpp`, mirroring `SetMotorOffFlushCallback`: fired from `Tick` on the CPU thread when no disk operation is in flight. **This seam does not exist** -- `MachineManager` has no tick entry point, only the motor-off callback -- so it is new design work rather than wiring, and the MVP has no delivery path without it. **The spindown callback alone is not enough and this is the headline scenario**: it fires only after a motor-on to motor-off transition with the spindown timer expiring, so a guest sitting at a BASIC prompt -- which is exactly how the build loop is used -- never reaches it and never sees the change. FR-014 asks only that no operation be in flight; spindown is sufficient, not necessary
 - [ ] T025 [US1] Add a test asserting a pick-up reaches an IDLE machine that has never spun its motor. Without it the MVP fails its own acceptance scenario and looks like a wiring bug
 - [ ] T026 [US1] Call `ApplyPendingPickUp` from the motor-spindown callback in `Casso/Shell/MachineManager.cpp`, alongside the existing `FlushAll` wiring. **One line and no decisions** — the callback is documented as "a naturally debounced, race-free point" on the thread that owns disk writes
 - [ ] T027 [P] [US1] Add `Win32ImageWatcher` in `CassoEmuCore/Devices/Disk/Win32ImageWatcher.h`/`.cpp` over `ReadDirectoryChangesW`. **Watch the DIRECTORY, not the file**: both writers commit by renaming a temporary over the target, so a handle on the image sees its own replacement as a delete
 - [ ] T028 [US1] Wire the watcher to the store in `Casso/Shell/DiskManager.cpp`, forwarding raw changed paths to core. It registers a watch at mount and drops it at eject; it forwards and does not decide which bay a path belongs to
-- [ ] T029 [US1] Treat a directory that cannot be watched as `watching = false` rather than an error (FR-032) in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`, leaving the write-time re-check as the guarantee
-- [ ] T030 [US1] Show the pick-up banner using the existing `DxuiInfoBanner`, carrying a Restart action that remains available afterward (FR-009, FR-010), as a new composite widget in `Dxui/Window/DxuiActionBanner.h`/`.cpp`, beside `DxuiButtonRow` which it composes, with `Casso/EmulatorShell.cpp` holding only its instantiation. **A host inside the exe could not satisfy the Dxui test this phase also requires**, and Principle VI is the rule that has already been broken twice here. `DxuiInfoBanner` cannot carry the action alone: its own header says "not clickable, no raised surface". **Presentation only** — the text and the available actions come from `ExternalChangePolicy`.
-- [ ] T031 [US1] **`DxuiInfoBanner` is not clickable** -- its own header says "not clickable, no raised surface" -- so the new widget composes it with a `DxuiButtonRow`. Nothing in the tree hosts a non-modal banner over the running machine yet, so the host is new work rather than a wiring task
+- [ ] T029 [US1] Treat a directory that cannot be watched as `watching = false` rather than an error (FR-032) in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`, leaving the write-time re-check as the guarantee. **A watchable but untrustworthy location -- a network share, a synchronizing folder -- needs no detection rule of its own**: the re-check is the answer there too, and the only cost is promptness
+- [ ] T030 [US1] Show the pick-up banner using the existing `DxuiInfoBanner`, carrying a Restart action that remains available afterward (FR-009, FR-010), as a new composite widget in `Dxui/Widgets/DxuiActionBanner.h`/`.cpp`, beside `DxuiInfoBanner` which it composes, using `DxuiButton` for the action -- **not the `DxuiButtonRow` in `Dxui/Window/`, which is dialog chrome** -- with `Casso/EmulatorShell.cpp` holding only its instantiation. **A host inside the exe could not satisfy the Dxui test this phase also requires**, and Principle VI is the rule that has already been broken twice here. `DxuiInfoBanner` cannot carry the action alone: its own header says "not clickable, no raised surface". **Presentation only** — the text and the available actions come from `ExternalChangePolicy`.
+- [ ] T031 [US1] Host that banner non-modally over the running machine in `Casso/EmulatorShell.cpp`. **Nothing in the tree does this today** -- the banner appears only inside dialogs and a settings page -- so the host is genuinely new work rather than a wiring task. Nothing in the tree hosts a non-modal banner over the running machine yet, so the host is new work rather than a wiring task
 - [ ] T032 [US1] Make a standing report absorb further changes rather than stack (FR-011) in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`, and make acting on it read the image fresh so it takes the MOST RECENT contents (FR-012)
 - [ ] T033 [US1] Present the *ask* prompt in `Casso/EmulatorShell.cpp`, taking its text and its available answers from `ExternalChangePolicy`, **which names the image it is about** (FR-033). **Asking is the default fallback, so this phase does not ship without it** -- core composes the question and nothing draws it today
 - [ ] T034 [US1] Store the fallback answer in `Casso/Config/GlobalUserPrefs.h`/`.cpp` and read it into `ExternalChangePolicy` as an injected value (FR-007). Default to ask, persist across sessions. **The value lives in the exe's prefs struct and the DECISION does not** -- parsing and meaning stay in `ExternalChangePolicy`, which is what keeps this inside Principle VI. Recorded here so it is not re-litigated. Spell the values the way `audioDownloadConsent` does, and parse them in `ExternalChangePolicy` where an unrecognized stored value falls back to ask
@@ -96,7 +96,7 @@
 - [ ] T045 [US1] Add a test asserting the deferral: a dirty image plus an external change picks up NOTHING and loses NOTHING in this phase
 - [ ] T046 [US1] Walk [quickstart.md](quickstart.md) Scenario 1 against a real build, including the control: confirm eject-and-re-insert is no longer required
 
-**Checkpoint**: The build loop works, with the ask prompt as its default. Shippable on its own.
+**Checkpoint**: The build loop works, with the ask prompt as its default. Shippable on its own -- **but the loop goes quiet the moment the guest first writes to the disk**, because the dirty-image guard defers every pick-up from then on. That is the strongest argument for shipping the next phase immediately rather than the one after it.
 
 ---
 
@@ -110,11 +110,11 @@
 - [ ] T048 [US2] Detect the conflict in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`: an external change AND a dirty image. Either alone is not a conflict, and treating it as one would put a dialog in the build loop
 - [ ] T049 [US2] Refuse to write an image back over an unresolved external change (FR-022) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, returning through the existing flush-error path so the loss is surfaced rather than dropped
 - [ ] T050 [P] [US2] Put backup naming, writing and preservation in their own `CassoEmuCore/Devices/Disk/PreservedCopy.h`/`.cpp` rather than growing `MountedImageState`, which would otherwise carry path matching, coalescing, watch-degrade, the pending record AND all of this. Principle V
-- [ ] T051 [P] [US2] Name the preserved copy in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`: beside the original, timestamped, **disambiguated by a counter suffix where a backup with that timestamp already exists** -- `PROG.20260830-014233.dsk`, then `-2`, then `-3` (FR-021). One-second resolution cannot keep the accumulate-rather-than-overwrite promise alone
-- [ ] T052 [US2] Write the preserved copy through the `IDiskFileIo` seam using that name, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`, so a test writes no real file
+- [ ] T051 [P] [US2] Name the preserved copy in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`: beside the original, timestamped, **disambiguated by a counter suffix where a backup with that timestamp already exists** -- `PROG.20260830-014233.dsk`, then `-2`, then `-3` (FR-021). One-second resolution cannot keep the accumulate-rather-than-overwrite promise alone
+- [ ] T052 [US2] Write the preserved copy through the `IDiskFileIo` seam using that name, in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`, so a test writes no real file
 - [ ] T053 [US2] Present the conflict question and the alternate-location picker in `Casso/EmulatorShell.cpp`, both taking their text and answers from core. Phase 4 otherwise composes three questions and draws none of them
 - [ ] T054 [US2] Compose the conflict question in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`, **naming the image** (FR-033) and stating what is at stake on BOTH sides — that the guest has written, and that something else changed the file (FR-034) — rather than two unlabeled options
-- [ ] T055 [US2] Preserve whichever version the user does not keep and report where it went (FR-020), in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`
+- [ ] T055 [US2] Preserve whichever version the user does not keep and report where it went (FR-020), in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`
 - [ ] T056 [US2] Where the preserved copy cannot be written, refuse the discarding action and keep both versions live (FR-024) in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`; the shell offers a location picker. **This is the decision most worth asserting, so it must be reachable from `UnitTest`**
 - [ ] T057 [US2] Handle the two ways that offer itself fails — the user cancels rather than choosing, and the location chosen is also unwritable (FR-024) — in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. Both leave the conflict unresolved with both versions live
 - [ ] T058 [US2] Resolve an unresolved conflict by ejecting as "keep what is on disk", preserving the guest's copy (FR-023), in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. An eject is a plausible answer to being asked a question and must not become the one path that loses work
@@ -134,6 +134,8 @@
 
 - [ ] T072 [US2] Add tests to `UnitTest/EmuTests/SharedImageTests.cpp` for four behaviors built in this phase that nothing asserts yet: eject resolves a conflict without discarding either version; declining the rescue leaves the machine running and mounted; an image going unusable while a report stands; and the file reappearing after a declined rescue
 
+- [ ] T073 [US2] Register this phase's new files -- `PreservedCopy.h`/`.cpp` and any test additions -- in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
+
 **Checkpoint**: Nothing is lost without the user choosing it, including when the file itself goes away.
 
 ---
@@ -148,26 +150,27 @@
 
 ### Buildable now — the `disk` grammar
 
-- [ ] T073 [US1] Add `pickUpIntent` to `CommandLineOptions` in `CassoCore/CommandLineOptions.h` (FR-005), beside the nested `disk` group until 026 provides the flat fields
-- [ ] T074 [US1] Add the `--on-change` row to the `disk` grammar in `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](contracts/cli.md), plus the long-option entry so `/on-change` is not shredded into single characters. Document that `reload` is the surface spelling of `TakeUpInPlace`
-- [ ] T075 [US1] Refuse an unrecognized value naming the value and listing the two accepted, in `CassoCore/CommandLineParser.cpp`
-- [ ] T076 [P] [US1] Add `Win32IntentChannel` in `CassoEmuCore/Cli/Win32IntentChannel.h`/`.cpp`: send `WM_COPYDATA` to every top-level `CassoWindow` found by enumeration -- **not `HWND_BROADCAST`**, which `WM_COPYDATA` may not be sent to. **In core beside `Win32DiskFileIo`, and not negotiable** — this is the sender, its callers run inside `CassoCli.exe`, and `CassoCli` cannot link `Casso.exe`. Install the UIPI filter for `WM_COPYDATA` -- the filter takes a WINDOW MESSAGE and cannot see `dwData` -- independently of `InstallDragDropTarget`, which runs only when OLE initialization succeeded -- otherwise an elevated Casso silently drops every intent. Validate `dwData` against the registered message id so an unrelated `WM_COPYDATA` is ignored. Use `SendMessage` with a timeout, never `PostMessage`: the payload must outlive the call, and a hung emulator must not hang a build
-- [ ] T077 [US1] State the intent AFTER a successful commit in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`. Before the commit would describe contents not yet on disk
-- [ ] T078 [US1] Receive the message in `Casso/EmulatorShell.cpp` and hand the raw payload to core, which matches it to a bay and records a pending change (FR-006). The shell does no matching
-- [ ] T079 [US1] Discard a stated intent whose image did not actually change, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`. The channel is a hint about a change, not a substitute for observing one
-- [ ] T080 [US1] Make stating an intent with no emulator running a no-op rather than an error (FR-015), with the rule in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp` so `UnitTest` can assert it
-- [ ] T081 [P] [US1] Add channel tests to `UnitTest/EmuTests/SharedImageTests.cpp` using `FakeIntentChannel`: the intent reaches the policy, an unstated one falls back, and a stated intent for an unchanged image is discarded
-- [ ] T082 [US1] Add a switch-coverage row for `--on-change` in `UnitTest/CliSwitchCoverageTests.cpp` for the `disk` grammar and both flag prefixes, so the flag cannot be documented without working
-- [ ] T083 [US1] Add a test asserting that stating an intent with no emulator running is a no-op rather than an error (FR-015), which the task building it asks for and nothing does. Then confirm `disk put --on-change` writes byte-for-byte what `disk put` alone writes, so the guarantee is verified on this branch rather than only in the gated half
-- [ ] T084 [US1] Register this phase's new files in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
+- [ ] T074 [US1] Add `pickUpIntent` to `CommandLineOptions` in `CassoCore/CommandLineOptions.h` (FR-005), beside the nested `disk` group until 026 provides the flat fields
+- [ ] T075 [US1] Add the `--on-change` row to the `disk` grammar in `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](contracts/cli.md), plus the long-option entry so `/on-change` is not shredded into single characters. Document that `reload` is the surface spelling of `TakeUpInPlace`
+- [ ] T076 [US1] Refuse an unrecognized value naming the value and listing the two accepted, in `CassoCore/CommandLineParser.cpp`
+- [ ] T077 [P] [US1] Add `Win32IntentChannel` in `CassoEmuCore/Cli/Win32IntentChannel.h`/`.cpp`: send `WM_COPYDATA` to every top-level `CassoWindow` found by enumeration -- **not `HWND_BROADCAST`**, which `WM_COPYDATA` may not be sent to. **In core beside `Win32DiskFileIo`, and not negotiable** — this is the sender, its callers run inside `CassoCli.exe`, and `CassoCli` cannot link `Casso.exe`. Install the UIPI filter for `WM_COPYDATA` -- the filter takes a WINDOW MESSAGE and cannot see `dwData` -- independently of `InstallDragDropTarget`, which runs only when OLE initialization succeeded -- otherwise an elevated Casso silently drops every intent. Validate `dwData` against the registered message id so an unrelated `WM_COPYDATA` is ignored. Use `SendMessage` with a timeout, never `PostMessage`: the payload must outlive the call, and a hung emulator must not hang a build
+- [ ] T078 [US1] State the intent AFTER a successful commit in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`. Before the commit would describe contents not yet on disk
+- [ ] T079 [US1] Decode the `WM_COPYDATA` payload in `CassoEmuCore/Cli/Win32IntentChannel.cpp` -- intent byte, UTF-8 path, `cbData` bounds and `dwData` validation -- as a function a test can call. **A truncated or malformed payload is assertable logic** and must not end up inline in the shell
+- [ ] T080 [US1] Receive the message in `Casso/EmulatorShell.cpp` and hand the raw payload to core, which matches it to a bay and records a pending change (FR-006). The shell does no matching
+- [ ] T081 [US1] Discard a stated intent whose image did not actually change, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`. The channel is a hint about a change, not a substitute for observing one
+- [ ] T082 [US1] Make stating an intent with no emulator running a no-op rather than an error (FR-015), with the rule in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp` so `UnitTest` can assert it
+- [ ] T083 [P] [US1] Add channel tests to `UnitTest/EmuTests/SharedImageTests.cpp` using `FakeIntentChannel`: the intent reaches the policy, an unstated one falls back, and a stated intent for an unchanged image is discarded. Add payload-decode tests too: truncated, oversized, and a wrong `dwData`
+- [ ] T084 [US1] Add a switch-coverage row for `--on-change` in `UnitTest/CliSwitchCoverageTests.cpp` for the `disk` grammar and both flag prefixes, so the flag cannot be documented without working
+- [ ] T085 [US1] Add a test asserting that stating an intent with no emulator running is a no-op rather than an error (FR-015), which the task building it asks for and nothing does. Then confirm `disk put --on-change` writes byte-for-byte what `disk put` alone writes, so the guarantee is verified on this branch rather than only in the gated half
+- [ ] T086 [US1] Register this phase's new files in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
 
 ### Gated on spec 026 — the assembler grammar
 
-- [ ] T085 [US1] Add the `--on-change` row to both assembler grammars in `CassoCore/CommandLineParser.cpp`, and move `pickUpIntent` beside 026's flat image-target fields
-- [ ] T086 [US1] Refuse `--on-change` without `--disk` in `CassoCore/CommandLineParser.cpp`, sharing 026's wording for image options given with no image target rather than inventing a second phrasing
-- [ ] T087 [US1] State the intent after a successful commit in `CassoEmuCore/Cli/ImageArtifactSink.cpp`
-- [ ] T088 [US1] Extend the switch-coverage row in `UnitTest/CliSwitchCoverageTests.cpp` to both assembler grammars
-- [ ] T089 [US1] Confirm `--on-change` changes no assembled byte: the same source with and without it produces identical images
+- [ ] T087 [US1] Add the `--on-change` row to both assembler grammars in `CassoCore/CommandLineParser.cpp`, and move `pickUpIntent` beside 026's flat image-target fields
+- [ ] T088 [US1] Refuse `--on-change` without `--disk` in `CassoCore/CommandLineParser.cpp`, sharing 026's wording for image options given with no image target rather than inventing a second phrasing
+- [ ] T089 [US1] State the intent after a successful commit in `CassoEmuCore/Cli/ImageArtifactSink.cpp`
+- [ ] T090 [US1] Extend the switch-coverage row in `UnitTest/CliSwitchCoverageTests.cpp` to both assembler grammars
+- [ ] T091 [US1] Confirm `--on-change` changes no assembled byte: the same source with and without it produces identical images
 
 **Checkpoint**: Intent comes from the writer, for whichever grammars are available.
 
@@ -181,13 +184,13 @@
 
 **The temp-name half needs nothing from any earlier phase.** The stale-detection half is already built in Phase 2 and only needs its tests here.
 
-- [ ] T090 [US3] Give `DiskImageStore::WriteFileAtomically` a temporary name that cannot collide between processes (FR-026) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, **trying `CommitPlan::GetTemporaryPath` first** — it already solves this exact problem for the command line, with an invocation tag and an existence check, and its comment states the failure the emulator still has. Record in a comment why a second scheme was or was not needed
-- [ ] T091 [US3] Ensure a temporary left behind by a killed writer is not adopted by another writer as its own (FR-028), in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`
-- [ ] T092 [P] [US3] Add two-writer tests to `UnitTest/EmuTests/SharedImageTests.cpp`: two stores committing the same path derive different temporaries (SC-004), and a commit over an unseen change is detected
-- [ ] T093 [US3] Add a failure-injection test to `UnitTest/EmuTests/SharedImageTests.cpp` asserting a FAILED write leaves the image byte-for-byte unchanged (FR-029). The temp-path and cleanup changes above are what this invariant rests on
-- [ ] T094 [US3] Add a test to `UnitTest/EmuTests/SharedImageTests.cpp` asserting the atomic-rename guarantee itself (FR-025), so a later refactor that writes in place becomes a failure rather than a silent regression
-- [ ] T095 [US3] Update the three assertions in `UnitTest/EmuTests/DiskImageStoreTests.cpp` that hardcode `target + ".casso-tmp"` to ask the temp-path helper instead. **Without this, Phase 6 goes red for a reason unrelated to the defect** and the discrimination check below is confounded
-- [ ] T096 [US3] Verify the collision test discriminates: restore the fixed `.casso-tmp` suffix, confirm it goes red, restore the fix
+- [ ] T092 [US3] Give `DiskImageStore::WriteFileAtomically` a temporary name that cannot collide between processes (FR-026) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, **trying `CommitPlan::GetTemporaryPath` first** — it already solves this exact problem for the command line, with an invocation tag and an existence check, and its comment states the failure the emulator still has. Record in a comment why a second scheme was or was not needed
+- [ ] T093 [US3] Ensure a temporary left behind by a killed writer is not adopted by another writer as its own (FR-028), in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`
+- [ ] T094 [P] [US3] Add two-writer tests to `UnitTest/EmuTests/SharedImageTests.cpp`: two stores committing the same path derive different temporaries (SC-004), and a commit over an unseen change is detected
+- [ ] T095 [US3] Add a failure-injection test to `UnitTest/EmuTests/SharedImageTests.cpp` asserting a FAILED write leaves the image byte-for-byte unchanged (FR-029). The temp-path and cleanup changes above are what this invariant rests on
+- [ ] T096 [US3] Add a test to `UnitTest/EmuTests/SharedImageTests.cpp` asserting the atomic-rename guarantee itself (FR-025), so a later refactor that writes in place becomes a failure rather than a silent regression
+- [ ] T097 [US3] Update the three assertions in `UnitTest/EmuTests/DiskImageStoreTests.cpp` that hardcode `target + ".casso-tmp"` to ask the temp-path helper instead. **Without this, Phase 6 goes red for a reason unrelated to the defect** and the discrimination check below is confounded
+- [ ] T098 [US3] Verify the collision test discriminates: restore the fixed `.casso-tmp` suffix, confirm it goes red, restore the fix
 
 **Checkpoint**: Two writers are safe from each other.
 
@@ -195,16 +198,16 @@
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T097 [P] Update `docs/Assembler.md` and `docs/disk-write-integrity.md` with the `--on-change` flag and the shared-image behavior, including that a pick-up is a disk swap and cannot be verified safe
-- [ ] T098 [P] Add `CHANGELOG.md` entries under `[Unreleased]`: the build loop, the conflict handling, and the two defects fixed — the temp-name collision stated as a data-loss fix
-- [ ] T099 Confirm every refusal and conflict names the image it concerns (FR-033, SC-005). A user with two disks mounted cannot act on a message that does not say which
-- [ ] T100 Measure the idle cost (FR-031, SC-006) by comparing a session with a watched image mounted against one with no image mounted, **in the SAME build**. A cross-build A/B is untrustworthy here -- clocks move between runs and swamp the signal. Threshold, in **Release** over three runs of five minutes each: p99 frame time within 2% of the unmounted session, and audio underruns per minute no higher. Debug builds underrun on this hardware regardless, so Debug numbers prove nothing
-- [ ] T101 Confirm a session with no external change writes byte-for-byte what today's build writes, and at the same moments (FR-030, SC-003)
-- [ ] T102 Run `scripts\CheckStyle.ps1` before the first commit containing a new file, since diff mode cannot see a file that has never been committed
-- [ ] T103 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild and resolve to zero warnings. Analysis over a stale Release build fabricates LNK4020 noise
-- [ ] T104 Run the full suite in Debug and compare against the Phase 1 baseline
-- [ ] T105 Run the full suite in **Release** and compile for **ARM64**. Quality Gates 1 and 4 require both, and this feature adds two Win32 components
-- [ ] T106 Walk [quickstart.md](quickstart.md) end to end, including the two-emulator case that fails on today's build
+- [ ] T099 [P] Update `docs/Assembler.md` and `docs/disk-write-integrity.md` with the `--on-change` flag and the shared-image behavior, including that a pick-up is a disk swap and cannot be verified safe
+- [ ] T100 [P] Add `CHANGELOG.md` entries under `[Unreleased]`: the build loop, the conflict handling, and the two defects fixed — the temp-name collision stated as a data-loss fix
+- [ ] T101 Confirm every refusal and conflict names the image it concerns (FR-033, SC-005). A user with two disks mounted cannot act on a message that does not say which
+- [ ] T102 Measure the idle cost (FR-031, SC-006) by comparing a watched session against one with the same image mounted and watching disabled, **in the SAME build**. Comparing against NO image mounted would differ by drive emulation and the drive widget too, and would not isolate the watcher. A cross-build A/B is untrustworthy here -- clocks move between runs and swamp the signal. Threshold, in **Release** over three runs of five minutes each: p99 frame time within 2% of the unmounted session, and audio underruns per minute no higher. Debug builds underrun on this hardware regardless, so Debug numbers prove nothing
+- [ ] T103 Confirm a session with no external change writes byte-for-byte what today's build writes, and at the same moments (FR-030, SC-003)
+- [ ] T104 Run `scripts\CheckStyle.ps1` before the first commit containing a new file, since diff mode cannot see a file that has never been committed
+- [ ] T105 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild and resolve to zero warnings. Analysis over a stale Release build fabricates LNK4020 noise
+- [ ] T106 Run the full suite in Debug and compare against the Phase 1 baseline
+- [ ] T107 Run the full suite in **Release** and compile for **ARM64**. Quality Gates 1 and 4 require both, and this feature adds two Win32 components
+- [ ] T108 Walk [quickstart.md](quickstart.md) end to end, including the two-emulator case that fails on today's build
 
 ---
 
