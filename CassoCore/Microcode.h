@@ -144,4 +144,16 @@ public:
     // the only NOP the assembler should ever emit is the canonical $EA -- so these
     // filler entries must not shadow it. Defaults false; set only by the fill.
     bool                                   assemblerHidden = false;
+
+    // Overrides StepOne's operation-based rule about the indexed page-crossing
+    // cycle, for the one family where the two cores disagree at the same opcode.
+    //
+    // StepOne decides by OPERATION: a read pays the extra cycle only when the
+    // page actually crosses, while a store or a read-modify-write pays it every
+    // time, so its cost is baked into baseCycles instead. That is right for the
+    // NMOS part, where ASL/LSR/ROL/ROR in abs,X always spend seven cycles. The
+    // 65C02 spends six unless the page crosses, which no rule keyed on the
+    // operation can express -- the operation is identical on both cores and only
+    // the timing differs. Defaults false; set only by the CMOS retiming pass.
+    bool                                   crossingAPageCostsACycle = false;
 };

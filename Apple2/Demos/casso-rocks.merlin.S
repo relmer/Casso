@@ -6,32 +6,42 @@
 ;  and JMPs to $0801. Stage 1 (this file) takes over from there:
 ;
 ;    1. Steps the head to track 1 + 2 and reads them into main $6000-$7FFF
-;       (DHGR aux pattern, staged in main RAM because RAMWRT-on conflicts
-;       with the RWTS scratch buffer in pages $02-$03; stage 2 will copy
-;       to aux later via the copy_block routine).
+;       (the MONOCHROME DHGR aux half, staged in main RAM because RAMWRT-on
+;       conflicts with the RWTS scratch buffer in pages $02-$03; stage 2
+;       will copy to aux later via the copy_block routine).
 ;    2. Steps to track 3 and reads all 16 sectors with DBASE=$10 into
-;       $1000-$1FFF. Track 3 holds 16 identical copies of the stage 2
-;       code at sector 0 (lands at $1000) plus the LoRes test pattern
-;       at sectors 1-4 (lands at $1100-$14FF).
+;       $1000-$1FFF. Track 3 holds the stage 2 code at sectors 0-1
+;       (lands at $1000-$11FF) plus the LoRes test pattern at sectors
+;       2-5 (lands at $1200-$15FF).
 ;    3. JMPs to stage 2 at $1000.
 ;
 ;  Stage 2 (assembled and shipped as a separate sector ? see
 ;  casso-rocks-stage2.a65 alongside this file) then:
 ;
-;    4. Loads tracks 4+5 -> main $8000-$9FFF (DHGR main pattern), copies
-;       both halves into the aux+main framebuffer at $2000-$3FFF, and
-;       flips the //e DHGR soft switches so the cassowary appears as
-;       fast as possible (mode 0 of the cycle).
-;    5. With DHGR on screen, lazily loads the remaining demo content
-;       in the background: tracks 6+7 -> $A000-$BFFF (HGR1 cassowary
-;       loaded directly to its stash location), tracks 8+9 -> $4000
-;       (HGR2 bands at their final destination).
-;    6. Polls the keyboard for cycle / exit keystrokes.
+;    4. Puts the monitor question on the text screen, because nothing
+;       can detect the monitor -- no Apple II can, every video connector
+;       it has is output only. TEXT reads equally well on either kind,
+;       so the question is safe to show before the answer is known.
+;    5. Loads tracks 4+5 -> main $8000-$9FFF (the monochrome DHGR main
+;       half) and copies both halves into the aux+main framebuffer at
+;       $2000-$3FFF. Copies only: the display stays on the question.
+;       This has to happen before step 6 lands the color halves on the
+;       same staging.
+;    6. Loads the rest behind the question, in the order the modes will
+;       ask for it: tracks 6+7 -> $4000, which IS HGR page 2, so the
+;       monochrome HGR cassowary needs no stash and no copy; tracks 8+9
+;       and 10+11 -> $6000 and $8000, the staging step 5 has just
+;       emptied, which is where the COLOR DHGR halves go; tracks 12+13
+;       -> $A000 (the color HGR cassowary, loaded directly to its stash
+;       location).
+;    7. Waits for C or M and starts the cycle on that pair, then polls
+;       the keyboard for cycle / exit keystrokes.
 ;
-;  Disk layout reorder (tracks 1-9 instead of "cassowary first") puts
-;  the DHGR data physically earliest on disk so it loads first; cuts
-;  first-frame latency from ~9 tracks (~2.25s) down to ~5 tracks
-;  (~1.25s) by deferring HGR1+HGR2 loads until after DHGR is on screen.
+;  ALL THIRTEEN TRACKS LOAD BEHIND THE QUESTION, which is why asking
+;  costs nothing: the ~2.2 seconds of disk work happen while the user is
+;  reading it, and a key pressed during the loads is still latched when
+;  the loader gets around to looking. Disk order matches cycle order, so
+;  whatever the user reaches next is whatever finished loading last.
 ;
 ;  Stage 2 calls back into stage 1's still-resident subroutines
 ;  (load_a, load_b, read_track, read_sector, chk, wait_d5_aa). The
@@ -39,10 +49,16 @@
 ;  via the labels exported below, so the two assemblies must move
 ;  together if either is edited.
 ;
-;  Self-contained: doesn't rely on any //e firmware ROM entry points
-;  beyond the disk2.rom boot firmware. The only piece of disk2.rom we
+;  Self-contained while it is RUNNING: loading, decoding and displaying
+;  use no firmware entry points at all. The only piece of disk2.rom we
 ;  re-use is the inverse 6-and-2 nibble decode table the boot PROM
 ;  builds at $02D6 (= $0356 - $80) during cold boot.
+;
+;  Handing control BACK is the exception. Quitting calls INIT, SETKBD
+;  and SETVID and then Applesoft's cold start, because going through
+;  the reset vector lets the //e RESET.MGR re-run the video firmware
+;  init and turn 80COL back on, which drops the user into Applesoft in
+;  80 columns. See do_exit in casso-rocks-stage2.a65.
 ;
 ;  Tested by BootDiskTests::CassoRocks_DemoDisk_DisplaysHgrCassowary.
 ; ============================================================================

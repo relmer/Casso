@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/IDiskImage.h"    // WriteProtectInfo
+#include "Devices/Disk/DiskImageStore.h"    // IsMountableImageExtension
+#include "Devices/Disk/IDiskImage.h"        // WriteProtectInfo
 
 
 
@@ -159,40 +160,19 @@ struct DriveWidgetState
 //
 //  IsSupportedDiskImageExtension
 //
-//  Case-insensitive check for the five supported disk image extensions.
+//  Case-insensitive check for the disk image extensions this build mounts,
+//  used by the drag-and-drop filter and the disk picker's file scan.
+//
+//  It keeps no list of its own. It used to, and the list said `.nib` while
+//  the loader never has, so a dropped nibble image passed the filter and then
+//  vanished without a word. The answer now comes from the routing table
+//  itself, which is the only way the two cannot disagree again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 {
-    static const wchar_t * const  kExts[] = { L".dsk", L".do", L".nib", L".woz", L".po" };
-
-    size_t  dot = path.find_last_of (L'.');
-
-    if (dot == std::wstring::npos)
-    {
-        return false;
-    }
-
-    std::wstring  ext = path.substr (dot);
-
-    for (wchar_t & c : ext)
-    {
-        if (c >= L'A' && c <= L'Z')
-        {
-            c = static_cast<wchar_t> (c + (L'a' - L'A'));
-        }
-    }
-
-    for (const wchar_t * candidate : kExts)
-    {
-        if (ext == candidate)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return DiskImageStore::IsMountableImageExtension (path);
 }
 
 

@@ -30,7 +30,7 @@ would pass with the guard deleted. Run Debug before merging.
 | `HeadlessHost` integration | Cold boot, disk boot, framebuffer hashing, reset semantics, the emulator with no Win32 window |
 | Scenario suite (`ScenarioTests.dll`) | What a real guest makes of what we wrote, against material we do not own |
 | Dormann functional suite | That whole *programs* behave correctly on the CPU |
-| Harte SingleStepTests | That each *instruction* is correct in isolation, against real hardware |
+| Harte SingleStepTests | That each *instruction* is correct in isolation: what it computes and what it costs |
 
 Dormann and Harte cover what neither does alone. Dormann runs real 6502 code
 and catches errors that compound into wrong behavior. Harte catches a single
@@ -59,40 +59,144 @@ committed listing into a booted master, never from the tokenizer's own
 output. The circularity guard is spelled out in the inventory beside the
 fixture.
 
+## The generated cycle reference
+
+`docs/cycle-reference.md` is not written, it is generated: `CycleReference` in
+`CassoCore` renders both instruction tables, and `CycleReferenceTests`
+regenerates the document in memory and compares it against the committed copy.
+Change a cycle count, an addressing mode or a mnemonic and that test goes red,
+naming the first differing line and the command that fixes it.
+
+```powershell
+.\scripts\UpdateCycleReference.ps1          # regenerate and rewrite docs/
+.\scripts\UpdateCycleReference.ps1 -Check   # report staleness, change nothing
+```
+
+The test writes its freshly generated copy to `%TEMP%\Casso\cycle-reference.md`
+on every run, and the script copies that into `docs/`. Deliberately outside the
+repository: a test that wrote the document it then compares against would be
+checking its own output against itself, and `RunTests.ps1` fails any run that
+touches a tracked file.
+
+What this guard proves is only that the document and the tables agree. Whether
+the tables are *right* is the Harte vectors' job, below: they carry the recorded
+cycle count, so the numbers the document publishes are the numbers real hardware
+produced.
+
 ## The Harte vectors
 
 Upstream ([SingleStepTests/65x02](https://github.com/SingleStepTests/65x02))
-publishes, per opcode, a set of test vectors generated **against real
-hardware**. Each vector is one instruction executed from a completely
-randomized machine state:
+publishes, per opcode, a set of randomly generated test vectors. Each is one
+instruction executed from a completely randomized machine state:
 
 ```
 name=a9 cc 21   pc=B36A a=43 x=91 y=96 s=AC p=ED   ram=B36A:A9 B36B:CC B36C:21
+cycles=2
 ```
 
 Set the CPU to that exact state, execute one instruction, compare every field
 of the result (registers, flags, and touched memory) against the recorded
-final state.
+final state, and compare what the instruction cost against the recorded cycle
+count.
 
-The randomness is in the *input*. Nobody computed the expected output; it was
-measured. That is what makes these an independent oracle rather than a
-restatement of this implementation's assumptions: a hand-written CPU test
-encodes its author's belief about the chip and can only catch disagreements
-with that belief, so a misreading of the datasheet gets enshrined rather than
-caught. Harte's vectors contain no belief at all.
+The randomness is in the *input*, and the expected output comes from
+somewhere other than this codebase. That is what makes these an independent
+oracle rather than a restatement of this implementation's assumptions: a
+hand-written CPU test encodes its author's belief about the chip and can only
+catch disagreements with that belief, so a misreading of the datasheet gets
+enshrined rather than caught.
+
+Upstream states its provenance carefully, and so should we: the sets are
+produced by "an implementation ... that conforms to all available
+documentation, official and third-party; passes all other published test
+sets; and has been verified by usage in an emulated machine." That is a very
+good oracle for documented behavior and a merely *pretty good* one for
+undefined opcodes, where the documentation it conformed to is the same
+documentation everyone else is arguing about. See the disputed slots below.
 
 Across a full 10,000-vector file the initial state covers all 256 values of
 A, X, Y and S, all 64 reachable status-flag combinations, and ~9,280 distinct
 PC values.
 
-**What they do not cover.** `GenerateHarteTests.py` keeps only the initial and
-final states, so this suite proves each instruction's *effect*. It says
-nothing about cycle-by-cycle bus behavior or timing; that ground belongs to
-the Dormann tests and the disk-timing tests.
+### Cycle counts
+
+Upstream ships a per-cycle bus trace with every vector. Casso's packed
+fixtures keep its **length** -- the instruction's total cycle cost -- and
+discard the individual accesses. That is what makes the suite a timing oracle
+as well as a behavioral one, and it is cheap: one byte per vector, 2.0% of the
+checked-in set. Keeping the trace itself would cost about 30% more, since an
+instruction averages 3.9 cycles and each needs an address, a value and a
+direction.
+
+The recorded length is what the instruction actually took *for that vector's
+operands*, so every conditional cycle is already in it and none of it is
+reconstructed on load: an indexed read that crossed a page, a branch that was
+taken, a branch that was taken across a page, the 65C02's extra cycle for
+decimal `ADC`/`SBC`. Casso's own count comes from `Cpu::StepOne`, the number
+the emulator really bills, rather than from anything the harness computes.
+
+**What they still do not cover.** Only the total is kept, so the suite says
+nothing about *which* cycle a given bus access lands on. Sub-instruction
+timing -- the ground where a disk read sees rotational position -- belongs to
+the Dormann and disk-timing tests.
+
+**Fixture format version.** The header carries one, and the loader refuses
+anything else. Version 2 added the cycle byte, so a version 1 file read as
+version 2 would put every field after each vector's name one byte out of
+place -- which surfaces as several hundred nonsense CPU errors rather than as
+the one real complaint. A stale set is now named, with its version, and
+pointed at the generator.
+
+### Disputed slots
+
+Three undefined 65C02 opcodes where the upstream corpus and the published
+per-opcode tables disagree. Casso follows the tables and the tests carry the
+exemption explicitly, in `HarteTestRunner.cpp`:
+
+| Opcode | Casso | Upstream | Why |
+|---|---|---|---|
+| `$DB` | 1-byte NOP | 2-byte NOP | Klaus Dormann's functional test asserts 1 byte; the whole opcode is skipped |
+| `$5C` | 3 bytes, 8 cycles | 3 bytes, 4 cycles | Bruce Clark's "65C02 Opcodes" and the oxyron.de 65C02 matrix both say 8; only the cycle comparison is skipped |
+| `$CB` | 1 byte, 1 cycle | 1 byte, 2 cycles | Both references put every one-byte NOP at 1 cycle; $CB is only special on WDC parts, where it is `WAI`; only the cycle comparison is skipped |
+
+Everything else about `$5C` and `$CB` -- registers, flags, memory, and how
+many bytes the opcode swallows -- is still compared.
+
+### The undocumented tier
+
+The `6502` set holds 230 opcodes: the 151 legal ones plus all 79 undocumented
+opcodes `Cpu::InitializeUndocumented` installs. Every `SLO`, `RLA`, `SRE`,
+`RRA`, `SAX`, `LAX`, `DCP` and `ISC` addressing mode, and the whole `NOP`
+family, is checked against the corpus for final state and cycle count, at the
+same depth as the documented set.
+
+It used to hold 153: the legal opcodes plus `$04` and `$CF`. The other 77
+`TEST_METHOD`s found no file, skipped, and passed. That is the correct
+per-opcode behavior -- upstream publishes all 256 bytes and Casso models a
+subset -- but its effect was that the one tier verified only by tests written
+against the implementation's own understanding was also the one tier no
+external oracle had ever seen. It came out clean: 2,300,000 vectors at full
+depth, no disagreement in state or timing.
+
+Which opcodes to fetch is **read out of `CassoCore/Cpu.cpp`** by
+`GenerateHarteTests.py`, which parses the `s_kUndocumentedOpcodes` table
+rather than keeping its own copy of it. A 79-entry list written down twice is
+a second list to get wrong; the two were previously kept in step by a comment
+asking the next person to update both. Anything that stops the table being
+found is an error, not a warning, because a short list would silently generate
+fewer opcodes than Casso implements and the missing ones would go back to
+passing on an absent file.
+
+Casso deliberately does not implement the unstable opcodes -- `ANE` (`$8B`),
+`LXA` (`$AB`), `SHA`, `SHX`, `SHY`, `TAS` -- whose results on real silicon
+depend on the part, the temperature and what was last on the bus. Upstream
+publishes vectors for them, encoding one defensible model of a thing hardware
+does not do consistently. They are not generated, and there is nothing here
+to exempt.
 
 ## Vector depth: 200 by default, 10,000 available
 
-**The checked-in set is 200 vectors per opcode.** 409 opcode files, ~4 MB,
+**The checked-in set is 200 vectors per opcode.** 486 opcode files, ~4.9 MB,
 under `UnitTest/HarteVectors/`. Every clone, every worktree, and CI get real
 opcode coverage with no setup.
 
@@ -191,6 +295,11 @@ It lands in `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`, which is shared by every
 checkout on the machine, so this is once per machine and not once per
 worktree. Budget about four minutes and 1.7 GB.
 
+A cached set generated before the cycle counts landed is format version 1 and
+is refused: `HarteVectorDepth` names the first stale file and the version it
+found. Regenerate it; there is no upgrade path, because the cycle counts were
+never in those files to begin with.
+
 If you already have a full set and want to refresh the checked-in reduced one:
 
 ```powershell
@@ -215,17 +324,18 @@ deleting it falls back to the reduced set.
 **`HarteVectorDepth` reports which one ran, on every run:**
 
 ```
-Harte 6502: 153 opcodes, 200 vectors each (30600 total) -- REDUCED set.
-Harte 6502: 153 opcodes, 10000 vectors each (1530000 total) -- FULL depth.
+Harte 6502: 230 opcodes, 200 vectors each (46000 total, final state and cycle count) -- REDUCED set.
+Harte 6502: 230 opcodes, 10000 vectors each (2300000 total, final state and cycle count) -- FULL depth.
 ```
 
 The numbers are read out of the file headers, never hardcoded, so the message
 cannot drift out of step with the data. The same test **fails** when the
 directory is empty; that is the guard against the silent-pass mode returning.
 
-A note on `rockwell65c02`: upstream depth is not uniform there, ranging from
-1,000 to 10,000 vectors per opcode, which is why the report shows a range
-rather than a single number.
+The report shows a range rather than a single number when depth is not uniform
+across a set. Upstream has been uniform at 10,000 for both `6502` and
+`rockwell65c02` since the August 2026 regeneration; it was not always, so the
+range is kept.
 
 ### Pinning
 

@@ -40,6 +40,7 @@ private:
     // InitializeGroup00...).
     void        InitializeCmos          ();
     void        InitializeArithmetic    ();
+    void        RetimeIndexedShifts     ();
     void        ReclaimUndocumented     ();
     void        InitializeCmosLeftovers();
     void        InstallBitOps           ();

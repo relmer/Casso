@@ -358,11 +358,12 @@ HRESULT DiskImageSession::OpenImage (
     DiskCommandResult  & result,
     bool                 requireFilesystem)
 {
-    HRESULT       hr         = S_OK;
-    bool          named      = !imagePath.empty();
-    bool          identified = false;
-    HRESULT       statHr     = S_OK;
-    vector<Byte>  fileBytes;
+    HRESULT         hr         = S_OK;
+    bool            named      = !imagePath.empty();
+    bool            identified = false;
+    HRESULT         statHr     = S_OK;
+    MountDiagnosis  diagnosis;
+    vector<Byte>    fileBytes;
 
 
 
@@ -375,15 +376,20 @@ HRESULT DiskImageSession::OpenImage (
             (result.diagnostics += "Error: required parameter <image> missing\n",
              result.exitStatus   = DiskCommandResult::kNoOutput));
 
+    //  The reason clause comes from the shared diagnosis rather than being
+    //  written here, so the console and the emulator refuse the same file with
+    //  the same sentence. The read failure is the one this function diagnoses
+    //  itself: it owns the file I/O, and nothing further in ever sees it.
     hr = m_fileIo.ReadAllBytes (imagePath, fileBytes);
-    CHRF (hr, result.Fail (imagePath, "", "cannot be read"));
+    CHRF (hr, (diagnosis.failure = MountFailure::FileUnreadable,
+               result.Fail (imagePath, "", diagnosis.Describe())));
 
     statHr                    = m_fileIo.Stat (imagePath, outOpened.stamp);
     outOpened.stampRecorded   = SUCCEEDED (statHr);
     outOpened.fileBytes       = fileBytes;
 
-    hr = VolumeImage::Load (fileBytes, imagePath, outOpened.sectors, outOpened.report);
-    CHRF (hr, result.Fail (imagePath, "", "is not a disk image this tool can read"));
+    hr = VolumeImage::Load (fileBytes, imagePath, outOpened.sectors, outOpened.report, diagnosis);
+    CHRF (hr, result.Fail (imagePath, "", diagnosis.Describe()));
 
     outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
 

@@ -27,12 +27,21 @@ import struct
 import sys
 
 
-HEADER = struct.Struct('<HBB')          # vector_count, opcode, reserved
+HEADER = struct.Struct('<HBB')          # vector_count, opcode, format_version
 STATE  = struct.Struct('<HBBBBBB')      # pc, s, a, x, y, p, ram_count
 RAM    = struct.Struct('<HB')           # address, value
 
+# Must match FORMAT_VERSION in GenerateHarteTests.py. This script walks the
+# per-vector layout to find the truncation point, so it can only cut a set whose
+# layout it knows; a version it does not recognize is an error, not a warning.
+FORMAT_VERSION = 2
+
 
 class TruncationError(Exception):
+    pass
+
+
+class FormatVersionError(Exception):
     pass
 
 
@@ -58,6 +67,7 @@ def skip_vector(data, offset):
 
     name_length = data[offset]
     offset += 1 + name_length
+    offset += 1                             # cycle count
     offset = skip_state(data, offset)       # initial
     offset = skip_state(data, offset)       # final
 
@@ -76,7 +86,13 @@ def reduce_file(src_path, out_path, keep):
     if len(data) < HEADER.size:
         raise TruncationError('file is too short to hold a header')
 
-    count, opcode, _ = HEADER.unpack_from(data, 0)
+    count, opcode, version = HEADER.unpack_from(data, 0)
+
+    if version != FORMAT_VERSION:
+        raise FormatVersionError(
+            '%s is format version %d, expected %d -- regenerate it with '
+            'GenerateHarteTests.py' % (src_path, version, FORMAT_VERSION))
+
     written = min(count, keep)
 
     offset = HEADER.size
@@ -84,7 +100,7 @@ def reduce_file(src_path, out_path, keep):
         offset = skip_vector(data, offset)
 
     with open(out_path, 'wb') as f:
-        f.write(HEADER.pack(written, opcode, 0))
+        f.write(HEADER.pack(written, opcode, FORMAT_VERSION))
         f.write(data[HEADER.size:offset])
 
     return count, written
@@ -134,6 +150,7 @@ def main():
 
     manifest = {
         'cpu': args.cpu,
+        'formatVersion': FORMAT_VERSION,
         'vectorsPerOpcode': args.vectors,
         'actualDepths': sorted(depths),
         'opcodeCount': len(opcodes),

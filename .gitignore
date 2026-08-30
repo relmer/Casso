@@ -407,11 +407,10 @@ build/
 *.exe
 *.dll
 
-# Per-user Claude Code settings and a stray exported chat transcript (not for VCS)
+# Per-user Claude Code settings (not for VCS)
 .claude/settings.local.json
 # Git worktrees created under the repo (linked working trees; never committed)
 .claude/worktrees/
-/Casso Dxui refactor - spec 013.md
 
 # Copyrighted machine ROMs provisioned on demand; tests skip when absent
 UnitTest/Fixtures/*.rom

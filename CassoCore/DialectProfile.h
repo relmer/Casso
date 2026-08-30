@@ -296,6 +296,14 @@ public:
     // has no implied encoding.
     virtual OperandlessForm     GetOperandlessForm () const { return OperandlessForm::ImpliedOnly; }
 
+    // Whether this dialect emits an already-defined, in-range `JMP` as a `BRA`
+    // where the instruction set has one, and takes OPT / NOOPT to steer it.
+    //
+    // A dialect PROPERTY rather than the engine's own behavior, and false by
+    // default, because it changes the bytes: a dialect whose assembler never did
+    // this must not acquire it by sharing the engine with one that did.
+    virtual bool                HasJumpToBranchOptimization () const { return false; }
+
     // The delimiter that spells a HIGH-ASCII character constant, or 0 for a
     // dialect with none. The apostrophe form always yields the plain character;
     // Merlin additionally writes `"A"` for the same character with bit 7 set,

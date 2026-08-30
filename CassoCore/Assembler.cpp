@@ -242,9 +242,14 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
 
     // Cycle counts column (optional, between bytes and prefix)
 
+    // Right-aligned in two digits, which is AS65's own width: its manual says
+    // -c "decreases the number of columns available for listing by 5", and five
+    // is the bracket pair, two digits and the trailing space. A single-digit
+    // count therefore reads `[ 6]`, not `[6]`, and the source column lines up
+    // whatever the counts are.
     if (showCycleCounts && line.cycleCounts > 0)
     {
-        cycleStr = std::format ("[{}] ", line.cycleCounts);
+        cycleStr = std::format ("[{:2}] ", line.cycleCounts);
     }
 
     // Macro expansion prefix (col 23)

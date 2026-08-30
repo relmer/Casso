@@ -224,6 +224,7 @@ const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
     switch (format)
     {
         case DiskFormat::Dsk: return L".dsk";
+        case DiskFormat::Do:  return L".do";
         case DiskFormat::Po:  return L".po";
         default:              return L".woz";
     }
@@ -244,6 +245,7 @@ const wchar_t * CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
     switch (imageType)
     {
         case DiskFormat::Dsk: return L"DSK";
+        case DiskFormat::Do:  return L"DO";
         case DiskFormat::Po:  return L"PO";
         default:              return L"WOZ";
     }
@@ -297,10 +299,9 @@ std::wstring CreateDiskDialog::ReplaceExtension (const std::wstring & name, cons
 //  RebuildImageTypeChoices
 //
 //  The Format choice (the primary pick) drives which image types can carry
-//  it: DOS 3.3 fits WOZ or DSK, ProDOS fits WOZ or PO, and unformatted
-//  media fits anything -- so an illegal pairing is never even listed. The
-//  current image type is preserved by value when it stays legal and snaps
-//  to WOZ when not; a snap re-applies the name extension and filter.
+//  it, so an illegal pairing is never even listed. The current image type is
+//  preserved by value when it stays legal and snaps to the first offered when
+//  not; a snap re-applies the name extension and filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,20 +314,7 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 
 
-    switch (m_contents)
-    {
-        case BlankDiskContents::Dos33:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk };
-            break;
-
-        case BlankDiskContents::ProDos:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Po };
-            break;
-
-        default:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk, DiskFormat::Po };
-            break;
-    }
+    m_imageTypeChoices = BlankDiskBuilder::ContainersFor (m_contents);
 
     for (i = 0; i < m_imageTypeChoices.size(); i++)
     {

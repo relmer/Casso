@@ -62,6 +62,31 @@ void DiskMru::RecordMount (const std::filesystem::path & path, std::int64_t last
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RecordMountResult
+//
+//  Move-to-front, but only for a mount that succeeded. A failed mount is
+//  dropped on the floor: the picker reads this list, and a file that never
+//  loaded has no business being offered back as one that did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMru::RecordMountResult (
+    HRESULT                       mountResult,
+    const std::filesystem::path & path,
+    std::int64_t                  lastLoadedUnix)
+{
+    if (SUCCEEDED (mountResult))
+    {
+        RecordMount (path, lastLoadedUnix);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Snapshot
 //
 ////////////////////////////////////////////////////////////////////////////////

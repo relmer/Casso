@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ProDosVolume.h"
+#include "CountedNoun.h"
 #include "ProDosSkeleton.h"
 #include "NibblizationLayer.h"
 
@@ -1464,8 +1465,8 @@ void ProDosVolume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (leaked > 0)
     {
         inOutOutcome.warnings.push_back (
-            std::to_string (leaked)
-          + " block(s) this file referenced are claimed by another directory entry"
+            CountedNoun::Of ((long long) leaked, "block")
+          + " this file referenced are claimed by another directory entry"
             " as well, and were left allocated rather than freed");
     }
 

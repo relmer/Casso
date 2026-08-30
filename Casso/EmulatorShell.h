@@ -942,6 +942,35 @@ private:
     // carries a string and nothing else.
     void    ReportDamagedMount (int drive);
 
+    // One attempted mount's outcome, carried from the thread that ran the
+    // mount to the UI thread that reacts to it. Plain data, and used only as
+    // a parameter, so it rides along in this header.
+    //
+    // The path stays in the narrow form the store and the DiskManager use.
+    // Widening it here and narrowing it again for the message would be a
+    // round-trip through the platform encoding for no gain, and that is the
+    // trip that mangles a non-ASCII filename.
+    struct MountCompletion
+    {
+        std::string     path;
+        MountDiagnosis  diagnosis;
+        HRESULT         result = S_OK;
+        int             drive  = 0;
+    };
+
+    // The DiskManager mount-completion hook. Runs on whichever thread ran the
+    // mount -- the CPU thread for anything the user started, the UI thread for
+    // the command-line disks -- and does nothing but get the outcome onto the
+    // UI thread, where the MRU and the dialogs live.
+    void    OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
+                              const MountDiagnosis & diagnosis);
+
+    // The UI-thread half: a successful mount enters the recent-disks list and
+    // is checked for damage, a failed one is reported to the user. Posting to
+    // get here is also what keeps a failed --disk1 from raising a modal inside
+    // Initialize, before the message loop that would service it is running.
+    void    HandleMountCompletion (const MountCompletion & completion);
+
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
@@ -973,8 +1002,9 @@ private:
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
-    // back into the mount path.
-    void    RecordRecentDisk     (const std::wstring & path);
+    // back into the mount path. Takes the mount's own HRESULT and hands
+    // it to DiskMru, which drops anything that did not actually mount.
+    void    RecordRecentDisk     (const std::wstring & path, HRESULT mountResult);
 
     // MachineManager and WindowCommandManager touch enough shell
     // state during construction and command dispatch that friend

@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/MountDiagnosis.h"
+
 
 class CpuManager;
 class Disk2AudioSource;
@@ -63,14 +65,25 @@ public:
 
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
 
-    //  Called after any successful mount, whatever started it: the command
+    //  Called after any attempted mount, whatever started it: the command
     //  line, the picker, a machine switch, session restore. Every mount funnels
     //  through MountDiskInSlot6, so hooking it here is what makes "report a
     //  damaged image" cover all of them rather than the one path someone
     //  remembered. DiskManager owns no UI, so the shell supplies the reaction.
-    void     SetMountedCallback     (std::function<void (int)> cb)
+    //
+    //  The mount's own HRESULT rides along, because the mount runs on the CPU
+    //  thread and this callback is the only way its outcome gets back to the
+    //  shell that asked for it. Fires on failure too: a mount that could not
+    //  happen is exactly what the user needs told about.
+    //
+    //  The diagnosis rides with it for the same reason and one more: by the
+    //  time the shell has the outcome, the bytes and the loader that judged
+    //  them are gone, so a reason not carried here is a reason nothing can
+    //  reconstruct.
+    void     SetMountCompletedCallback (
+                 std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)> cb)
     {
-        m_onMounted = std::move (cb);
+        m_onMountCompleted = std::move (cb);
     }
 
     void     EjectDiskInSlot6       (int drive);
@@ -108,7 +121,7 @@ public:
     // whether the change stuck or failed.
     HRESULT  ToggleImageWriteProtect (int drive);
 
-    std::function<void (int)>  m_onMounted;
+    std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)>  m_onMountCompleted;
 
     // Probes whether the host file at `path` can be written back. Sets
     // outReadOnly when the file carries the read-only attribute and

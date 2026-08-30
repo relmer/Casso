@@ -198,15 +198,67 @@ namespace MerlinCommandLineTests
         }
 
         //  The other half of the provenance pair. Without this, "Stated" above is
-        //  satisfied by a parser that says Stated always, and the reporting rule
-        //  that turns on the difference is never exercised.
-        TEST_METHOD (RunSubcommand_StatesNoDialectAndLeavesTheDefault)
+        //  satisfied by a parser that says Stated always, and the distinction
+        //  the refusal below turns on is never exercised.
+        //
+        //  `run` used to default a source to as65 here. It does not any more:
+        //  which assembler reads a file decides what the file means, so the
+        //  guess is refused rather than made.
+        TEST_METHOD (RunSubcommand_NamingNoDialectForASourceIsRefused)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
-            Assert::IsTrue (opts.dialect          == DialectId::As65);
             Assert::IsTrue (opts.dialectSelection == DialectSelection::Defaulted,
-                            L"running a source names no dialect, and that is what makes it reportable");
+                            L"nothing named a dialect, and that is what the refusal turns on");
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"and a source with no assembler named must not be assembled by guess");
+        }
+
+        //  A BINARY NAMES NO ASSEMBLER BECAUSE NONE READS IT. Without this, the
+        //  refusal above is satisfied by a parser that refuses every `run`
+        //  which omitted the flag, which would take away the one form that
+        //  never needed it.
+        TEST_METHOD (RunSubcommand_ABinaryNeedsNoDialect)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "prog.bin" });
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"a binary is loaded, not assembled, so there is nothing to name");
+            Assert::AreEqual (std::string ("prog.bin"), opts.inputFile);
+        }
+
+        //  The refusal NAMES BOTH FLAGS. A diagnostic that says only "pick one"
+        //  sends the reader to `run --help` to learn what this sentence could
+        //  have told them.
+        TEST_METHOD (RunSubcommand_TheRefusalNamesBothAssemblers)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
+
+            Assert::IsTrue (opts.refusalMessage.find ("--as65")  != std::string::npos,
+                            L"the refusal must name as65");
+            Assert::IsTrue (opts.refusalMessage.find ("--merlin") != std::string::npos,
+                            L"and Merlin, since the reader is choosing between them");
+        }
+
+        //  AND IT NAMES THEM IN THE CONVENTION THE READER TYPED. `run`
+        //  canonicalizes `/max-cycles` to `--max-cycles` before the flag is
+        //  matched, so the prefix has to be taken from the argument as typed;
+        //  read afterwards it is always a dash, and a reader on a slash command
+        //  line is told to type a form they are not using.
+        TEST_METHOD (RunSubcommand_TheRefusalUsesThePrefixTheReaderTyped)
+        {
+            CommandLineOptions  slashed = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "/max-cycles", "50" });
+            CommandLineOptions  dashed  = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--max-cycles", "50" });
+
+            Assert::IsTrue (slashed.refusalMessage.find ("/as65")   != std::string::npos &&
+                            slashed.refusalMessage.find ("/merlin") != std::string::npos,
+                            L"a slash command line must be answered in slashes");
+            Assert::IsTrue (slashed.refusalMessage.find ("--as65")  == std::string::npos,
+                            L"and not in the dashed form the reader did not type");
+
+            Assert::IsTrue (dashed.refusalMessage.find ("--as65")   != std::string::npos &&
+                            dashed.refusalMessage.find ("--merlin") != std::string::npos,
+                            L"and a dashed one in dashes");
         }
 
         TEST_METHOD (OutputFlag_TakesAnAttachedName)
@@ -564,7 +616,6 @@ namespace MerlinCommandLineTests
         {
             CommandLineOptions  merlin    = Fixture::Parse ({ "CassoCli", "run", "demo.s", "--merlin" });
             CommandLineOptions  as65      = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--as65" });
-            CommandLineOptions  unstated  = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
             CommandLineOptions  slashed   = Fixture::Parse ({ "CassoCli", "run", "demo.s", "/merlin" });
 
             Assert::IsTrue (merlin.dialect == DialectId::Merlin, L"--merlin selects the Merlin assembler");
@@ -576,12 +627,11 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (slashed.dialect == DialectId::Merlin, L"the slash form selects it too");
 
-            //  The default is unchanged, so every `run` written before this
-            //  keeps assembling what it always did.
-            Assert::IsTrue (unstated.dialect == DialectId::As65,
-                            L"naming no assembler still means as65");
-            Assert::IsTrue (unstated.dialectSelection == DialectSelection::Defaulted,
-                            L"and that is reportable, because nobody asked for it");
+            //  Both spellings PARSE CLEANLY, which is the half that would go
+            //  unnoticed: a parser that refused every source would satisfy
+            //  every assertion above and accept nothing.
+            Assert::IsTrue (merlin.parseVerdict == CommandLineOptions::ParseVerdict::Clean);
+            Assert::IsTrue (as65.parseVerdict   == CommandLineOptions::ParseVerdict::Clean);
         }
 
         //  `run` also takes the CPU, in both spellings the assembler subcommands
@@ -594,9 +644,9 @@ namespace MerlinCommandLineTests
         //  written.
         TEST_METHOD (RunTakesTheCpuTheSourceNeeds)
         {
-            CommandLineOptions  viaX    = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "-x" });
-            CommandLineOptions  viaSlash = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "/x" });
-            CommandLineOptions  plain   = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
+            CommandLineOptions  viaX    = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--as65", "-x" });
+            CommandLineOptions  viaSlash = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--as65", "/x" });
+            CommandLineOptions  plain   = Fixture::Parse ({ "CassoCli", "run", "demo.a65", "--as65" });
 
             Assert::IsTrue (viaX.cpuTarget   == CommandLineOptions::CpuTarget::M65C02,
                             L"-x must reach the assembler run uses");

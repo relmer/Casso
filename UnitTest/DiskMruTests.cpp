@@ -252,6 +252,68 @@ namespace DiskMruTests
         }
 
 
+        //////////////////////////////////////////////////////////////////////
+        //
+        //  RecordMountResult
+        //
+        //  The list feeds the disk picker, so only a mount that actually
+        //  happened may enter it. A file the loader refused would otherwise
+        //  be offered back as a recently used disk, sending the user into
+        //  the same failure and making a mount that never happened look
+        //  exactly like one that did.
+        //
+        //////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (RecordMountResult_Succeeded_EntersTheList)
+        {
+            constexpr std::int64_t       kWhen = 1700000000;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
+
+            m.RecordMountResult (S_OK, L"C:\\Disks\\Good.dsk", kWhen);
+
+            snap = m.Snapshot();
+            Assert::AreEqual ((size_t) 1, snap.size());
+            Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\Good.dsk"));
+            Assert::AreEqual (kWhen, snap[0].lastLoadedUnix);
+        }
+
+
+        TEST_METHOD (RecordMountResult_Failed_StaysOutOfTheList)
+        {
+            DiskMru  m;
+
+            m.RecordMountResult (E_FAIL, L"C:\\Disks\\Unreadable.dsk", 1700000000);
+
+            Assert::IsTrue (m.Empty(),
+                L"a disk that never mounted must not be offered as a recent one");
+        }
+
+
+        TEST_METHOD (RecordMountResult_FailedRemount_LeavesTheEarlierEntryAlone)
+        {
+            constexpr std::int64_t       kFirst  = 1700000000;
+            constexpr std::int64_t       kSecond = 1700009999;
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
+
+            m.RecordMountResult (S_OK,   L"C:\\Disks\\A.dsk", kFirst);
+            m.RecordMountResult (S_OK,   L"C:\\Disks\\B.dsk", kSecond);
+
+            // The file went bad since it was last loaded. That is not a new
+            // load, so it must neither move to the front nor take a fresh
+            // timestamp -- both would claim it was just read successfully.
+            m.RecordMountResult (E_FAIL, L"C:\\Disks\\A.dsk", kSecond);
+
+            snap = m.Snapshot();
+            Assert::AreEqual ((size_t) 2, snap.size());
+            Assert::IsTrue (snap[0].path == std::filesystem::path (L"C:\\Disks\\B.dsk"));
+            Assert::IsTrue (snap[1].path == std::filesystem::path (L"C:\\Disks\\A.dsk"));
+            Assert::AreEqual (kFirst, snap[1].lastLoadedUnix,
+                L"a failed remount must not refresh the entry's load time");
+        }
+
+
         TEST_METHOD (RecordMount_DefaultLoadTimeIsUnknownZero)
         {
             DiskMru                      m;

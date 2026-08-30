@@ -141,7 +141,7 @@ public:
         "    1  Bad command line\n"
         "    2  Error opening source or output file\n"
         "    3  Error assembling source file\n"
-        "    4  Out of memory, says AS65\n"
+        "    4  Out of memory, according to AS65\n"
         "    5  Assembled with warnings";
 
     //  The same table with 4 told properly, which needs a number this library
@@ -528,6 +528,7 @@ private:
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
+    static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);
     static void  RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options);
 
     static bool  ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options);

@@ -3,6 +3,7 @@
 #include "DiskImageStore.h"
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -104,6 +105,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsMountableImageExtension
+//
+//  The question every file filter in the product should be asking, answered
+//  by the same code that routes the mount.
+//
+//  There used to be a second list. `Casso/Ui/DriveWidgetState.h` carried its
+//  own array of extensions for the drag-and-drop filter and the disk picker,
+//  and it held one -- `.nib` -- that the routing below has never handled. A
+//  file that passed the filter and then failed to load produced no message at
+//  all: the mount runs on the CPU thread and its result is dropped, so the
+//  disk simply never appeared. Asking the router directly is what makes that
+//  class of disagreement unrepresentable rather than merely fixed.
+//
+//  A rejected extension is an ordinary answer here, not a failure, so the
+//  detector's E_FAIL is read as `false` and goes no further.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsMountableImageExtension (const string & path)
+{
+    HRESULT     hr  = S_OK;
+    DiskFormat  fmt = DiskFormat::Dsk;
+
+
+
+    hr = DetectFormatByExtension (path, fmt);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMountableImageExtension  (wide)
+//
+//  The overload the interface actually calls. Narrowing happens here, once,
+//  rather than at each filter -- a per-call-site conversion is the seam the
+//  two answers would drift apart through next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsMountableImageExtension (const wstring & path)
+{
+    string  narrowed = fs::path (path).string();
+
+
+
+    return IsMountableImageExtension (narrowed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MountFromBytes
 //
 //  Test-friendly mount path that bypasses the host filesystem. The
@@ -119,9 +179,43 @@ HRESULT DiskImageStore::MountFromBytes (
     DiskFormat             fmt,
     const vector<Byte>  &  bytes)
 {
+    MountDiagnosis  ignored;
+
+
+
+    return MountFromBytes (slot, drive, virtualPath, fmt, bytes, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountFromBytes
+//
+//  The same mount, saying why it refused. A load that fails is classified from
+//  the bytes it was given, which is where the answer is: the store knows how
+//  many bytes arrived and which container the name promised, and the WOZ
+//  loader knows whether its header was ever there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::MountFromBytes (
+    int                    slot,
+    int                    drive,
+    const string        &  virtualPath,
+    DiskFormat             fmt,
+    const vector<Byte>  &  bytes,
+    MountDiagnosis      &  outDiagnosis)
+{
     HRESULT   hr = S_OK;
 
 
+
+    outDiagnosis              = MountDiagnosis();
+    outDiagnosis.format       = fmt;
+    outDiagnosis.fileByteSize = bytes.size();
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
@@ -149,6 +243,7 @@ HRESULT DiskImageStore::MountFromBytes (
             entry.path.clear();
             entry.mounted        = false;
             entry.salvageOffered = false;
+            outDiagnosis         = ClassifyLoadFailure (fmt, bytes);
             hr = E_FAIL;
         }
         else
@@ -183,22 +278,145 @@ Error:
 
 HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 {
+    MountDiagnosis  ignored;
+
+
+
+    return Mount (slot, drive, path, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Mount
+//
+//  The same mount, saying why it refused. The two failures BEFORE any loader
+//  runs are settled here and nowhere else: a name no loader claims, and bytes
+//  that never arrived. Neither is visible further in -- the loaders are handed
+//  a buffer and a format, and by then the file name and the read are history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
+                               MountDiagnosis & outDiagnosis)
+{
     HRESULT       hr   = S_OK;
     DiskFormat    fmt  = DiskFormat::Dsk;
     vector<Byte>  bytes;
 
 
 
+    outDiagnosis = MountDiagnosis();
+
     hr = DetectFormatByExtension (path, fmt);
-    CHR (hr);
+    CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
+
+    outDiagnosis.format = fmt;
 
     hr = ReadImageFile (path, bytes);
-    CHR (hr);
+    CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
-    hr = MountFromBytes (slot, drive, path, fmt, bytes);
+    hr = MountFromBytes (slot, drive, path, fmt, bytes, outDiagnosis);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClassifyLoadFailure
+//
+//  What a refused load was, from the bytes and the format alone.
+//
+//  THE FALLBACK IS Unrecognized RATHER THAN None. A load that failed for a
+//  reason none of the tests below names must not report "nothing went wrong":
+//  that is the degraded state that reads as a healthy one, and it would surface
+//  as a mount failure whose message says no failure occurred. Today nothing
+//  reaches it -- the sector path fails only on length and the WOZ path is
+//  classified by its own loader -- and it is here so that a future loader with
+//  a new refusal is reported generically instead of falsely.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes)
+{
+    MountDiagnosis  diagnosis;
+    size_t          size      = bytes.size();
+    bool            isSized   = size == (size_t) NibblizationLayer::kImageByteSize;
+
+
+
+    diagnosis.format       = fmt;
+    diagnosis.fileByteSize = size;
+    diagnosis.failure      = MountFailure::Unrecognized;
+
+    // Emptiness outranks everything: a zero-byte file is the wrong size for
+    // every container, and "there is nothing in it" is the more useful thing
+    // to say than an arithmetic comparison against 143,360.
+    if (size == 0)
+    {
+        diagnosis.failure = MountFailure::EmptyFile;
+    }
+    else if (fmt == DiskFormat::Woz)
+    {
+        diagnosis.failure = WozLoader::ClassifyLoadFailure (bytes);
+    }
+    else if (!isSized)
+    {
+        diagnosis.failure = MountFailure::WrongSizeForFormat;
+    }
+
+    return diagnosis;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatMountFailureMessage
+//
+//  User-facing message for a mount that did not happen: the file named, then
+//  the diagnosis worded as a sentence about it.
+//
+//  IT USED TO GUESS. The mount reported every refusal as one generic HRESULT,
+//  so this re-derived what it could from the path -- an extension no loader
+//  claims, versus everything else -- and told everyone in the second group
+//  that their file "could not be read, or its contents are not a disk image
+//  this loader accepts", which is four different problems in one sentence and
+//  actionable for none of them. The reason now travels here, and the wording
+//  is the diagnosis's to give.
+//
+//  Deliberately says nothing about what happened to the drive. A rejected
+//  file leaves the bay empty, while a file that could not be read at all
+//  leaves the previous disk in place, and a message that guessed wrong about
+//  that is worse than one that stays quiet on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatMountFailureMessage (const string & path,
+                                                   const MountDiagnosis & diagnosis)
+{
+    wstring  widePath = fs::path (path).wstring();
+    wstring  reason   = TextEncoding::NarrowToWide (diagnosis.Describe());
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not open this file as a disk image:\n\n" + widePath +
+           L"\n\nThis file " + reason + L".";
 }
 
 

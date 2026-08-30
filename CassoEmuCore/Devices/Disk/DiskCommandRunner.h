@@ -91,6 +91,17 @@ public:
         DiskFormat     format;
     };
 
+    //
+    //  Every container `create` advertises, as one list.
+    //
+    //  READABLE FROM OUTSIDE so that nothing has to restate it. The refusals
+    //  print this list rather than a sentence of their own, and a test sweeps
+    //  it, so a row added here reaches both without either being edited --
+    //  which is how `do` came to be offered by the command line and refused
+    //  by the builder.
+    //
+    static const ContainerName *  AdvertisedContainers (size_t & outCount);
+
     //  What was just written, in the words the flags asked for it with.
     static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
 
@@ -137,6 +148,14 @@ public:
     HRESULT  ResolveContainer (const CommandLineOptions & options,
                                DiskFormat               & outFormat,
                                DiskCommandResult        & result);
+
+    //  The advertised container words as a list in a sentence, each carrying
+    //  `prefix` (a dot when they are being described as extensions) and joined
+    //  by `conjunction` before the last.
+    static std::string  ContainerWordList (const char * prefix, const char * conjunction);
+
+    //  Why a settled spec cannot be written, in words, or empty if it can.
+    static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
 
     //  What goes INSIDE it: a DOS 3.3 catalog, a ProDOS directory, or nothing.
     HRESULT  ResolveContents (const CommandLineOptions & options,

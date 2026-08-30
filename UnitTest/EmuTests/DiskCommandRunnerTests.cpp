@@ -363,6 +363,75 @@ public:
             L"in the words a person would use");
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  The console shares the emulator's reasons
+    //
+    //  Both arrive at a refusal through the same loaders, so a reason only one
+    //  of them could give would be a reason the other went looking for and did
+    //  not find. These assert on the shared clause, which is what makes the
+    //  sharing real rather than coincidental.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (TruncatedImage_IsRefusedWithItsLength)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       truncated (4096, 0);
+
+        io.files[kImage]  = truncated;
+        io.stamps[kImage] = FileStamp { truncated.size(), 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("4,096 bytes") != std::string::npos,
+            L"the refusal says how big the file is");
+        Assert::IsTrue (result.diagnostics.find ("143,360 bytes") != std::string::npos,
+            L"and how big a .dsk has to be, which is what identifies a bad download");
+    }
+
+
+    TEST_METHOD (RenamedWozImage_IsRefusedAsNotAWoz)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       renamed (600, 0x41);
+        const char *       wozPath = "C:\\disks\\notreally.woz";
+
+        io.files[wozPath]  = renamed;
+        io.stamps[wozPath] = FileStamp { renamed.size(), 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List,
+                                          wozPath));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("WOZ file header") != std::string::npos,
+            L"a .woz with no WOZ header is told exactly that, not 'not a disk image'");
+    }
+
+
+    TEST_METHOD (EmptyImageFile_IsRefusedAsEmpty)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       nothing;
+
+        io.files[kImage]  = nothing;
+        io.stamps[kImage] = FileStamp { 0, 1 };
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("is empty") != std::string::npos,
+            L"a zero-byte file is empty, and saying so beats an arithmetic complaint");
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  sectorwrite: bytes at a track and a sector, no filesystem involved.
@@ -1030,7 +1099,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"there is no block 280");
-        Assert::IsTrue (result.diagnostics.find ("0 to 279") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("0-279") != std::string::npos,
             L"and the refusal states the range");
 
         result = runner.Run (MakeBlockWrite ("raw.po.dsk", "block.bin", 279));
@@ -1295,6 +1364,149 @@ public:
         Assert::IsTrue (result.diagnostics.find ("2mg") != std::string::npos,
                         L"and the word they typed is quoted back");
         Assert::IsFalse (io.Exists ("new.2mg"), L"and nothing was written");
+    }
+
+    //
+    //  EVERY WORD THE TOOL ADVERTISES MUST MAKE A DISK. The list is swept
+    //  rather than typed out again, so a container added to the table without
+    //  a matching arm in the builder fails here instead of raising an
+    //  assertion dialog in front of whoever typed the new word -- which is
+    //  exactly what `disk create foo.do` did, in both spellings, while the
+    //  tool's own error text offered it.
+    //
+    //  Raw contents for the sweep, because that is the one filling every
+    //  container takes; asking each for its own filesystem would mean
+    //  restating the pairing matrix here, which is the thing that went stale.
+    //
+    TEST_METHOD (Create_WritesEveryContainerItAdvertises)
+    {
+        const DiskCommandRunner::ContainerName *  containers = nullptr;
+        size_t                                    count      = 0;
+        size_t                                    i          = 0;
+
+
+
+        containers = DiskCommandRunner::AdvertisedContainers (count);
+
+        Assert::IsTrue (count > 0, L"the tool advertises at least one container");
+
+        for (i = 0; i < count; i++)
+        {
+            FakeDiskFileIo      io;
+            DiskCommandRunner   runner (io);
+            std::string         word    = containers[i].name;
+            std::string         byName  = "byname." + word;
+            std::string         byType  = "bytype." + word;
+            std::wstring        which   = std::wstring (word.begin(), word.end());
+            CommandLineOptions  options = MakeCreate (byName.c_str());
+            DiskCommandResult   result;
+
+            //  The name decides the container.
+            options.disk.formatName = "none";
+            result                  = runner.Run (options);
+
+            Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
+                (L"an advertised extension must write a disk: ." + which).c_str());
+            Assert::IsTrue (io.Exists (byName), L"and leave the image behind");
+
+            //  And so does the word, said outright.
+            options                    = MakeCreate (byType.c_str());
+            options.disk.formatName    = "none";
+            options.disk.containerType = word;
+            result                     = runner.Run (options);
+
+            Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
+                (L"and so must the same word given to the type flag: " + which).c_str());
+            Assert::IsTrue (io.Exists (byType), L"and leave that image behind too");
+        }
+    }
+
+    //
+    //  AN ADVERTISED CONTAINER ASKED FOR THE WRONG FILESYSTEM IS REFUSED, NOT
+    //  ASSERTED. The builder's rules answer in verdicts for this reason: every
+    //  one of them is reachable by typing, so E_INVALIDARG -- which means a
+    //  caller has a bug, and asserts to say so -- is the wrong verdict here.
+    //
+    //  No ExpectedEhmAssert guard on purpose. An assertion inside this call
+    //  routes to Assert::Fail, so the test fails if one fires.
+    //
+    TEST_METHOD (Create_RefusesTheWrongFilesystemForAContainerWithoutAsserting)
+    {
+        const DiskCommandRunner::ContainerName *  containers = nullptr;
+        size_t                                    count      = 0;
+        size_t                                    i          = 0;
+
+
+
+        containers = DiskCommandRunner::AdvertisedContainers (count);
+
+        for (i = 0; i < count; i++)
+        {
+            FakeDiskFileIo      io;
+            DiskCommandRunner   runner (io);
+            std::string         word     = containers[i].name;
+            std::string         dosPath  = "dos." + word;
+            std::string         proPath  = "prodos." + word;
+            std::wstring        which    = std::wstring (word.begin(), word.end());
+            CommandLineOptions  options  = MakeCreate (dosPath.c_str());
+            DiskCommandResult   dos;
+            DiskCommandResult   proDos;
+
+            options.disk.formatName = "dos33";
+            dos                     = runner.Run (options);
+
+            options                 = MakeCreate (proPath.c_str());
+            options.disk.formatName = "prodos";
+            proDos                  = runner.Run (options);
+
+            //  One of the two is refused for every container but woz, and the
+            //  refusal is an ordinary exit rather than a broken invariant.
+            Assert::IsTrue (dos.exitStatus    == DiskCommandResult::kClean
+                         || dos.exitStatus    == DiskCommandResult::kNoOutput,
+                (L"a DOS 3.3 disk is written or refused, never anything else: " + which).c_str());
+
+            Assert::IsTrue (proDos.exitStatus == DiskCommandResult::kClean
+                         || proDos.exitStatus == DiskCommandResult::kNoOutput,
+                (L"and so is a ProDOS one: " + which).c_str());
+        }
+    }
+
+    //  THE REFUSAL REPORTS THE RULE THAT WAS BROKEN, AND ONLY THAT ONE. The
+    //  message this replaced recited the whole pairing matrix and the boot
+    //  rule together, so it read the same whichever one had been tripped.
+    TEST_METHOD (Create_RefusalReportsOnlyTheRuleThatWasBroken)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("wrong.po");
+        DiskCommandResult   pairing;
+        DiskCommandResult   badName;
+
+        options.disk.formatName = "dos33";
+        pairing                 = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, pairing.exitStatus);
+        Assert::IsTrue (pairing.diagnostics.find ("illegal container and filesystem") != std::string::npos,
+                        L"the broken rule is the one reported");
+        Assert::IsTrue (pairing.diagnostics.find (".po holds ProDOS") != std::string::npos,
+                        L"and the rule is spelled out");
+        Assert::IsFalse (io.Exists ("wrong.po"), L"and nothing was written");
+
+        options                 = MakeCreate ("badname.po");
+        options.disk.formatName = "prodos";
+        options.disk.volumeName = "1LEADINGDIGIT";
+        badName                 = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, badName.exitStatus);
+        Assert::IsTrue (badName.diagnostics.find ("illegal volume name") != std::string::npos,
+                        L"the volume-name rule is the one reported");
+        Assert::IsTrue (badName.diagnostics.find ("holds DOS 3.3") == std::string::npos,
+                        L"and the pairing rule, which they did not break, stays out of it");
+
+        //  A REFUSAL IS READ IN THE SAME TERMINAL A LISTING IS. A line that
+        //  wraps loses the indent that marks it as the explanation.
+        AssertEveryLineFitsEightyColumns (pairing.diagnostics);
+        AssertEveryLineFitsEightyColumns (badName.diagnostics);
     }
 
     //  WHAT IS REPORTED IS WHAT IS ON THE DISK. ProDOS holds a volume name in

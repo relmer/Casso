@@ -393,14 +393,19 @@ Error:
 //  so their cost is already baked into baseCycles and adding it here would
 //  double-count. That is what the long isReadOp exclusion list is for.
 //
+//  The 65C02's abs,X shifts and rotates are the one exception, and they carry
+//  it per instruction rather than by operation: the CMOS part made that write
+//  conditional, so those four pay the cycle only on a real crossing while their
+//  NMOS twins pay it always. Same opcode, same operation, different timing.
+//
 //  ZeroPageIndirectY needs its base recovered as effectiveAddress - Y, because
 //  unlike AbsoluteX/Y the base was never a literal in the instruction; it came
 //  from the zero-page pointer.
 //
-//  Branches (+1 taken, +1 more crossing a page) are detected by comparing PC
-//  against its value after operand fetch, which is simply whether the branch
-//  moved it -- no separate "was it taken" flag to keep in step. BRA counts as
-//  always taken.
+//  Branch penalties (+1 taken, +1 more crossing a page) are NOT charged here.
+//  They belong to the branch operations, which are the only code that knows
+//  whether the branch was taken: this used to infer it from PC having moved,
+//  and a taken branch with a zero displacement moves PC nowhere.
 //
 //  An illegal opcode is a 2-cycle NOP that keeps running rather than an
 //  assert: real software executes undocumented NMOS ops this table does not
@@ -410,10 +415,9 @@ Error:
 void Cpu::StepOne()
 {
 
-    Byte               opcode       = ReadByte (PC);
-    const Microcode  & microcode    = instructionSet[opcode];
-    OperandInfo        operandInfo  = { 0 };
-    Word               pcAfterFetch = 0;
+    Byte               opcode      = ReadByte (PC);
+    const Microcode  & microcode   = instructionSet[opcode];
+    OperandInfo        operandInfo = { 0 };
 
 
 
@@ -473,7 +477,10 @@ void Cpu::StepOne()
         microcode.operation != Microcode::ResetMemoryBit     &&
         microcode.operation != Microcode::SetMemoryBit;
 
-    if (isReadOp)
+    // The 65C02's abs,X shifts and rotates are read-modify-writes that pay the
+    // crossing cycle only when the page actually crosses, so the operation-based
+    // answer above is wrong for them and they say so per instruction.
+    if (isReadOp || microcode.crossingAPageCostsACycle)
     {
         if (microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteX  ||
             microcode.globalAddressingMode == GlobalAddressingMode::AbsoluteY  ||
@@ -493,22 +500,7 @@ void Cpu::StepOne()
         }
     }
 
-    pcAfterFetch = PC;
-
     ExecuteInstruction (microcode, operandInfo);
-
-    // Branch penalty: +1 when taken, +1 more when crossing a page. BRA is
-    // unconditional so it always pays the taken penalty.
-    if ((microcode.operation == Microcode::Branch ||
-         microcode.operation == Microcode::BranchAlways) && PC != pcAfterFetch)
-    {
-        m_lastCycles++;
-
-        if ((pcAfterFetch & 0xFF00) != (PC & 0xFF00))
-        {
-            m_lastCycles++;
-        }
-    }
 }
 
 

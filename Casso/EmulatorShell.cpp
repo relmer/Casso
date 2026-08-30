@@ -77,9 +77,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#define WM_APP_NOTIFY_USER   (WM_APP + 0x22)
-#define WM_APP_REPORT_DAMAGE (WM_APP + 0x23)
-#define WM_APP_RUN_SALVAGE   (WM_APP + 0x24)
+#define WM_APP_NOTIFY_USER     (WM_APP + 0x22)
+#define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
+#define WM_APP_RUN_SALVAGE     (WM_APP + 0x24)
+#define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
 
 // The shell the EHM notification sink forwards to. One shell per process;
 // cleared in the destructor so a late report cannot touch a dead object.
@@ -795,8 +796,11 @@ EmulatorShell::~EmulatorShell()
 //  cycling second silently discards the user's image: the engine keeps
 //  ticking but AdvanceOneBit exits immediately on an empty track.
 //
-//  Startup disks are recorded in the MRU with disk 2 first, so the primary
-//  boot disk ends up the most-recent entry in the picker.
+//  Startup disks reach the MRU the same way every other mount does, through
+//  the mount-completion hook, so a --disk1 the loader refuses is reported and
+//  is not offered back by the picker next launch. Both the report and the MRU
+//  write are posted rather than run here: this is before the message loop, and
+//  a modal raised from it would sit in front of a machine nothing is running.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -901,19 +905,18 @@ HRESULT EmulatorShell::Initialize (
     // exits early because trackBits[0] == 0).
     PowerCycle();
 
-    // Every mount reports a damaged image, not just this one. Installed before
-    // the command-line disks go in so those are covered too.
-    m_diskManager->SetMountedCallback ([this] (int drive) { ReportDamagedMount (drive); });
+    // Every mount reports its outcome through here, not just this one:
+    // the recent-disks entry, the damage check, and the failure report all
+    // hang off it. Installed before the command-line disks go in so those
+    // are covered too.
+    m_diskManager->SetMountCompletedCallback (
+        [this] (int drive, const std::string & path, HRESULT mountResult,
+                const MountDiagnosis & diagnosis)
+        {
+            OnMountCompleted (drive, path, mountResult, diagnosis);
+        });
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
-
-    // A disk mounted at startup (boot-disk picker result or --disk1 /
-    // --disk2) belongs in the recent-disks MRU just like one mounted via
-    // the chrome, so it surfaces in the disk picker on the next launch.
-    // Record disk 2 first so the primary boot disk (drive 1) ends up the
-    // most-recent entry.
-    RecordRecentDisk (std::filesystem::path (disk2Path).wstring());
-    RecordRecentDisk (std::filesystem::path (disk1Path).wstring());
 
     ApplyPersistedAudioPrefs();
 
@@ -4430,6 +4433,12 @@ DxuiMessageResult EmulatorShell::OnNotify (WPARAM wParam, LPARAM lParam)
 //  DiskManager so the chrome / drag-drop entry points and the manager
 //  share a single mount path.
 //
+//  The HRESULT it returns says only that the mount was queued, never that it
+//  worked: the mount itself runs later, on the CPU thread. Recording the disk
+//  here used to read that as success and put a file the loader would go on to
+//  refuse into the picker's recent list. The recording moved to the mount's
+//  own completion, which is the first place the answer is known.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
@@ -4440,8 +4449,6 @@ HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
 
     hr = m_diskManager->Mount (slot, drive, path);
     CHR (hr);
-
-    RecordRecentDisk (path);
 
 Error:
     return hr;
@@ -4459,9 +4466,13 @@ Error:
 //  and persist the updated prefs. Best-effort; failures are swallowed
 //  so an MRU write hiccup never blocks a successful mount.
 //
+//  The mount's own HRESULT goes to DiskMru rather than being tested here,
+//  so the "only a mount that happened counts" rule lives with the list it
+//  protects instead of with whoever remembered to check.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RecordRecentDisk (const std::wstring & path)
+void EmulatorShell::RecordRecentDisk (const std::wstring & path, HRESULT mountResult)
 {
     HRESULT                    hr         = S_OK;
     DiskMru                    mru;
@@ -4479,7 +4490,7 @@ void EmulatorShell::RecordRecentDisk (const std::wstring & path)
 
     fsPath = std::filesystem::path (path);
     mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks, m_globalPrefs.recentDiskLoadedAt);
-    mru.RecordMount (fsPath, nowUnix);
+    mru.RecordMountResult (mountResult, fsPath, nowUnix);
     mru.ToUtf8 (serialized, loadedAt);
     m_globalPrefs.recentDisks        = std::move (serialized);
     m_globalPrefs.recentDiskLoadedAt = std::move (loadedAt);
@@ -4488,6 +4499,105 @@ void EmulatorShell::RecordRecentDisk (const std::wstring & path)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnMountCompleted
+//
+//  Every attempted mount ends here with its own HRESULT, and the only job
+//  this half has is getting that onto the UI thread.
+//
+//  It posts rather than acting, in both directions. A mount the user started
+//  ran on the CPU thread, and the reaction raises Dxui modals, which assert
+//  UI-thread affinity. A command-line mount ran on the UI thread but did so
+//  inside Initialize, before the message loop exists to service a modal, so
+//  acting there would park startup behind a dialog with nothing running
+//  behind it. Posting covers both, and the posted messages arrive in mount
+//  order, which is what puts the boot disk at the top of the recent list.
+//
+//  With no window, or with the post refused, the fallback is to handle it
+//  inline: ShowNotification queues rather than shows when there is nothing to
+//  parent a dialog to, so the report survives either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
+                                      const MountDiagnosis & diagnosis)
+{
+    MountCompletion *  carried  = nullptr;
+    MountCompletion    fallback;
+    bool               isPosted = false;
+
+
+
+    fallback.path      = path;
+    fallback.diagnosis = diagnosis;
+    fallback.result    = mountResult;
+    fallback.drive     = drive;
+
+    if (m_hwnd != nullptr)
+    {
+        carried = new (std::nothrow) MountCompletion (fallback);
+    }
+
+    if (carried != nullptr)
+    {
+        isPosted = (PostMessageW (m_hwnd, WM_APP_MOUNT_COMPLETED, 0,
+                                  reinterpret_cast<LPARAM> (carried)) != FALSE);
+
+        if (!isPosted)
+        {
+            delete carried;
+        }
+    }
+
+    if (!isPosted)
+    {
+        HandleMountCompletion (fallback);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HandleMountCompletion
+//
+//  The UI-thread half. A mount that worked joins the recent-disks list and is
+//  checked for a damaged image; a mount that did not is reported to the user
+//  and joins nothing.
+//
+//  The failure report goes through EhmNotifyUser like every other user-facing
+//  refusal in the tree, and for the same reason: an image the loader will not
+//  take is bad input, not a bug in Casso, so it earns a sentence and not an
+//  assert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
+{
+    std::wstring  message;
+
+
+
+    RecordRecentDisk (fs::path (completion.path).wstring(), completion.result);
+
+    if (SUCCEEDED (completion.result))
+    {
+        ReportDamagedMount (completion.drive);
+        return;
+    }
+
+    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
+
+    EhmNotifyUser (message.c_str());
 }
 
 
@@ -6639,6 +6749,23 @@ int EmulatorShell::RunMessageLoop()
             if (msg.message == WM_APP_RUN_SALVAGE)
             {
                 RunSalvageFlow ((int) msg.wParam);
+                continue;
+            }
+
+            // One mount's outcome, from whichever thread ran it. lParam owns a
+            // heap-allocated copy, handed over by OnMountCompleted. Startup
+            // mounts land here too, which is what keeps a bad --disk1 from
+            // raising a dialog before this loop existed to run it.
+            if (msg.message == WM_APP_MOUNT_COMPLETED)
+            {
+                MountCompletion *  carried = reinterpret_cast<MountCompletion *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    HandleMountCompletion (*carried);
+                    delete carried;
+                }
+
                 continue;
             }
 

@@ -333,7 +333,19 @@ static HRESULT NibblizeWithMap (
 
 
     rawSize = raw.size();
-    CBRAEx (rawSize == NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    // A WRONG-SIZED BUFFER IS USER INPUT HERE, not a caller bug. This guard
+    // asserted for as long as the only callers were trusted; then the live
+    // mount path started handing it whatever file was dropped on a drive, and
+    // a 4 KB .dsk raised an assertion dialog in a Debug build before anything
+    // could report it. E_INVALIDARG marks a coding error in this tree and
+    // always asserts, so it is the wrong verdict for a file somebody
+    // downloaded.
+    //
+    // ERROR_BAD_LENGTH rather than a bare failure: the caller has to be able
+    // to tell a wrong size from every other way a load can go wrong, or the
+    // message it writes cannot say which one happened.
+    CBREx (rawSize == NibblizationLayer::kImageByteSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
