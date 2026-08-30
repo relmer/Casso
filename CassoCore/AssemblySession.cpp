@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
-#include "CountedNoun.h"
+#include "Utils.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 #include "ExpressionEvaluator.h"
@@ -5674,7 +5674,8 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
             RecordError (current.sourceLineNumber,
                 name + " refers to parameter " + std::string (1, syntax.parameterSigil) +
                 std::to_string (highest) + " but the invocation supplies " +
-                CountedNoun::Of (supplied, "argument") +
+                std::to_string (supplied) + " " +
+                Utils::GetSingularOrPluralForm (supplied, "argument", "arguments") +
                 ". Arguments are separated by '" + std::string (1, syntax.argumentSeparator) + "'.");
             handled = true);
 

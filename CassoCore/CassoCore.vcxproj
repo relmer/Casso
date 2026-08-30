@@ -199,7 +199,6 @@
     <ClCompile Include="DialectHelp.cpp" />
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
-    <ClCompile Include="CountedNoun.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Directive.cpp" />
@@ -254,7 +253,6 @@
     <ClInclude Include="DialectHelp.h" />
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
-    <ClInclude Include="CountedNoun.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Directive.h" />
