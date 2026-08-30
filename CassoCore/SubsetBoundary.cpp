@@ -111,7 +111,7 @@ std::string SubsetBoundary::ComposeHelpText (std::span<const SubsetBoundaryRow> 
     for (const SubsetBoundaryRow & row : rows)
     {
         text += std::string ("  ") + row.spelling + ": " + row.construct
-              + " [" + ReasonLabel (row.reason) + "]. " + row.explanation
+              + " [" + GetReasonLabel (row.reason) + "]. " + row.explanation
               + ". Widens with " + row.widensWith + ".\n";
     }
 
@@ -124,7 +124,7 @@ std::string SubsetBoundary::ComposeHelpText (std::span<const SubsetBoundaryRow> 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SubsetBoundary::ReasonLabel
+//  SubsetBoundary::GetReasonLabel
 //
 //  The reason class as the few words a help listing shows.
 //
@@ -135,7 +135,7 @@ std::string SubsetBoundary::ComposeHelpText (std::span<const SubsetBoundaryRow> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * SubsetBoundary::ReasonLabel (SubsetBoundaryReason reason)
+const char * SubsetBoundary::GetReasonLabel (SubsetBoundaryReason reason)
 {
     const char *  label = "";
 

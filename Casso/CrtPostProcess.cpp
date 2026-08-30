@@ -114,7 +114,7 @@ Error:
 //
 //    1. User override (prefsCrt.userOverride == true) -> prefsCrt verbatim
 //    2. Theme variant override (themeDefaults != nullptr) -> theme values
-//    3. Monitor-type preset (CrtPresets::ForMode(modeIndex)) -> preset values
+//    3. Monitor-type preset (CrtPresets::GetPreset(modeIndex)) -> preset values
 //    4. (Implicit) struct defaults of GlobalUserPrefs::Crt -- fallback
 //       if everything above is somehow unset
 //
@@ -132,7 +132,7 @@ CrtParams MakeCrtParams (
     float                         outputH)
 {
     CrtParams                    params;
-    const GlobalUserPrefs::Crt & preset = CrtPresets::ForMode (modeIndex);
+    const GlobalUserPrefs::Crt & preset = CrtPresets::GetPreset (modeIndex);
 
 
 

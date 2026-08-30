@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Dos33Volume.h"
-#include "CountedNoun.h"
+#include "Utils.h"
 #include "Dos33Skeleton.h"
 #include "NibblizationLayer.h"
 
@@ -44,11 +44,11 @@ uint32_t Dos33Volume::ToUnit (int track, int sector)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::TrackOf
+//  Dos33Volume::GetTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::TrackOf (uint32_t unit)
+int Dos33Volume::GetTrack (uint32_t unit)
 {
     return (int) (unit / (uint32_t) NibblizationLayer::kSectorsPerTrack);
 }
@@ -59,11 +59,11 @@ int Dos33Volume::TrackOf (uint32_t unit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::SectorOf
+//  Dos33Volume::GetSector
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::SectorOf (uint32_t unit)
+int Dos33Volume::GetSector (uint32_t unit)
 {
     return (int) (unit % (uint32_t) NibblizationLayer::kSectorsPerTrack);
 }
@@ -74,7 +74,7 @@ int Dos33Volume::SectorOf (uint32_t unit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::AllocationTrackAt
+//  Dos33Volume::GetAllocationTrack
 //
 //  The order free sectors are handed out in: track 18 outward to the rim, then
 //  track 16 inward to track 0. That is what the VTOC's own allocation hint and
@@ -85,7 +85,7 @@ int Dos33Volume::SectorOf (uint32_t unit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::AllocationTrackAt (int index)
+int Dos33Volume::GetAllocationTrack (int index)
 {
     constexpr int  kOutwardCount = NibblizationLayer::kTrackCount - Dos33Skeleton::kVtocTrack - 1;
 
@@ -664,8 +664,8 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     for (uint32_t unit : units)
     {
-        int     track  = TrackOf (unit);
-        int     sector = SectorOf (unit);
+        int     track  = GetTrack (unit);
+        int     sector = GetSector (unit);
         size_t  i      = 0;
 
         for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
@@ -1070,7 +1070,7 @@ bool Dos33Volume::TryAllocateUnits (
 
     for (slot = 0; slot < kAllocatableTracks && taken < count; slot++)
     {
-        int  track  = AllocationTrackAt (slot);
+        int  track  = GetAllocationTrack (slot);
         int  sector = 0;
 
         for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
@@ -1109,7 +1109,7 @@ void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & uni
 {
     for (uint32_t unit : units)
     {
-        size_t  at = Dos33Skeleton::SectorOffset (TrackOf (unit), SectorOf (unit));
+        size_t  at = Dos33Skeleton::SectorOffset (GetTrack (unit), GetSector (unit));
 
         if (at + (size_t) NibblizationLayer::kSectorByteSize <= buffer.size())
         {
@@ -1154,8 +1154,8 @@ void Dos33Volume::PlaceFile (
     while (cursor < unitCount)
     {
         uint32_t  listUnit   = units[cursor];
-        int       listTrack  = TrackOf (listUnit);
-        int       listSec    = SectorOf (listUnit);
+        int       listTrack  = GetTrack (listUnit);
+        int       listSec    = GetSector (listUnit);
         size_t    remaining  = dataSectorCount - placed;
         size_t    inThisList = std::min ((size_t) kTsPairsPerList, remaining);
         size_t    k          = 0;
@@ -1170,12 +1170,12 @@ void Dos33Volume::PlaceFile (
             uint32_t  dataUnit = units[cursor + k];
             size_t    pairAt   = kTsOffFirstPair + k * 2;
             size_t    from     = (placed + k) * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t    to       = Dos33Skeleton::SectorOffset (TrackOf (dataUnit), SectorOf (dataUnit));
+            size_t    to       = Dos33Skeleton::SectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
             size_t    left     = (from < storedSize) ? storedSize - from : 0;
             size_t    copyable = std::min ((size_t) NibblizationLayer::kSectorByteSize, left);
 
-            WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) TrackOf (dataUnit));
-            WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) SectorOf (dataUnit));
+            WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) GetTrack (dataUnit));
+            WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) GetSector (dataUnit));
 
             std::copy (stored.begin() + (ptrdiff_t) from,
                        stored.begin() + (ptrdiff_t) (from + copyable),
@@ -1187,8 +1187,8 @@ void Dos33Volume::PlaceFile (
 
         if (cursor < unitCount)
         {
-            WriteByteAt (buffer, listTrack, listSec, kTsOffNextTrack,  (Byte) TrackOf (units[cursor]));
-            WriteByteAt (buffer, listTrack, listSec, kTsOffNextSector, (Byte) SectorOf (units[cursor]));
+            WriteByteAt (buffer, listTrack, listSec, kTsOffNextTrack,  (Byte) GetTrack (units[cursor]));
+            WriteByteAt (buffer, listTrack, listSec, kTsOffNextSector, (Byte) GetSector (units[cursor]));
         }
     }
 }
@@ -1218,9 +1218,9 @@ void Dos33Volume::WriteCatalogEntry (
 
 
     WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsTrack,
-                 (Byte) TrackOf (listUnit));
+                 (Byte) GetTrack (listUnit));
     WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsSector,
-                 (Byte) SectorOf (listUnit));
+                 (Byte) GetSector (listUnit));
     WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffType, typeByte);
 
     for (i = 0; i < kNameBytes; i++)
@@ -1349,7 +1349,7 @@ HRESULT Dos33Volume::AddFile (
 
     for (uint32_t unit : units)
     {
-        SetFreeInBitmap (result, TrackOf (unit), SectorOf (unit), false);
+        SetFreeInBitmap (result, GetTrack (unit), GetSector (unit), false);
     }
 
     WriteCatalogEntry (result,
@@ -1476,7 +1476,8 @@ void Dos33Volume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (leaked > 0)
     {
         inOutOutcome.warnings.push_back (
-            CountedNoun::Of ((long long) leaked, "sector")
+            std::to_string (leaked) + " "
+          + Utils::GetSingularOrPluralForm ((long long) leaked, "sector", "sectors")
           + " this file referenced are claimed by another catalog entry"
             " as well, and were left allocated rather than freed");
     }
@@ -1597,7 +1598,7 @@ HRESULT Dos33Volume::Delete (
 
         if (mineAlone)
         {
-            SetFreeInBitmap (result, TrackOf (unit), SectorOf (unit), true);
+            SetFreeInBitmap (result, GetTrack (unit), GetSector (unit), true);
             outOutcome.freedUnits.push_back (unit);
         }
         else

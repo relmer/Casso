@@ -51,20 +51,20 @@ public:
     // [spanFirstRow, spanLastRow]. When it does, a span-sampled ink gate reads
     // blank paper (the eased viewport pan lags a fast print), so the caller keeps
     // the worker-raster ink gate instead -- the missing CATALOG buzz fix.
-    static bool        LiveBandOutsideSpan (int platenRow, int spanFirstRow, int spanLastRow);
+    static bool        IsLiveBandOutsideSpan (int platenRow, int spanFirstRow, int spanLastRow);
 
     // The absolute row from which the presented layer must be re-rendered. From
     // the last-rendered platen (not just a fixed window at the current platen) so
     // rows painted while the UI was frozen -- a modal disk picker blocks
     // compositing while the worker keeps printing -- are refreshed, not left with
     // stale pixels. -1 on the first render (mark everything dirty).
-    static int         DirtyFromRow (bool hasRendered, int platenRow, int renderedPlaten);
+    static int         GetDirtyFromRow (bool hasRendered, int platenRow, int renderedPlaten);
 
     // Change detection so an idle panel does zero render work: whether the visible
     // span or the reveal (frontier row + carriage column) moved since the last
     // render.
-    static bool        SpanMoved   (int firstRow, int lastRow, int renderedFirstRow, int renderedLastRow);
-    static bool        RevealMoved (int revealRow, int revealCol, int renderedRevealRow, int renderedRevealCol);
+    static bool        HasSpanMoved (int firstRow, int lastRow, int renderedFirstRow, int renderedLastRow);
+    static bool        RevealMoved  (int revealRow, int revealCol, int renderedRevealRow, int renderedRevealCol);
 
     // The column window to sample for the audio buzz gate. A line wrap (the row
     // changed, no previous column, or a margin-to-margin jump) samples the whole
@@ -72,13 +72,13 @@ public:
     // head swept since the last frame, with a small bridge behind the leading edge
     // so a word keeps buzzing across the blank gaps between its glyphs. Clamped to
     // [0, kDotsPerRow - 1].
-    static InkSample   AudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
+    static InkSample   GetAudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
                                           int revealRow, int renderedRevealRow);
 
     // Whether the pin band at absolute `revealRow` carries any ink in columns
     // [loCol, hiCol], sampled from a span raster whose row 0 is absolute
     // `spanFirstRow`. Drives the audio buzz gate -- inked rows buzz, blank feed /
     // form-feed rows stay silent.
-    static bool        BandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
+    static bool        HasBandInk (const PrintRaster & spanRaster, int spanFirstRow,
                                    int revealRow, int loCol, int hiCol);
 };

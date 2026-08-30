@@ -79,13 +79,13 @@ static std::FILE *  s_pSpokenOn = nullptr;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::UsageStream
+//  CommandLine::GetUsageStream
 //
 //  Where usage is going right now.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::FILE * CommandLine::UsageStream()
+std::FILE * CommandLine::GetUsageStream()
 {
     return s_pUsageStream;
 }
@@ -180,7 +180,7 @@ void CommandLine::FlushOutput()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::UsageWidth
+//  CommandLine::GetUsageWidth
 //
 //  How wide the reader's terminal is, or 80 when there is no terminal to ask.
 //
@@ -191,7 +191,7 @@ void CommandLine::FlushOutput()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t CommandLine::UsageWidth()
+size_t CommandLine::GetUsageWidth()
 {
     CONSOLE_SCREEN_BUFFER_INFO  info       = {};
     HANDLE                      out        = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -202,7 +202,7 @@ size_t CommandLine::UsageWidth()
 
 
     //  THE PLATFORM CALL IS ALL THIS DOES. What the numbers MEAN is decided in
-    //  the library, where a test can reach it -- see UsageText::WidthFrom. This
+    //  the library, where a test can reach it -- see UsageText::ResolveWidth. This
     //  used to hold both, so "is the help folding to my terminal?" could only be
     //  answered by a person looking at one.
     //
@@ -261,7 +261,7 @@ size_t CommandLine::UsageWidth()
     size_t    width      = 0;
 
     _dupenv_s (&columnsEnv, &envSize, "COLUMNS");
-    width = UsageText::WidthFrom (columnsEnv, hasConsole, columns);
+    width = UsageText::ResolveWidth (columnsEnv, hasConsole, columns);
     free (columnsEnv);
 
     return width;
@@ -285,7 +285,7 @@ void CommandLine::PrintUsageLine (const std::string & line)
 {
     s_pSpokenOn = s_pUsageStream;
 
-    for (const std::string & row : UsageText::Wrap (line, UsageWidth()))
+    for (const std::string & row : UsageText::Wrap (line, GetUsageWidth()))
     {
         std::println (s_pUsageStream, "{}", row);
     }
@@ -375,7 +375,7 @@ void CommandLine::PrintPageBanner (CommandLineOptions::Subcommand mode)
     std::print (s_pUsageStream, "{}", BuildBanner());
     std::println (s_pUsageStream, "");
     std::println (s_pUsageStream, "Usage:");
-    PrintUsageLine (CommandLineHelp::UsageLineFor (mode));
+    PrintUsageLine (CommandLineHelp::GetUsageLine (mode));
 }
 
 
@@ -434,7 +434,7 @@ void CommandLine::PrintExitCodes (const std::string & codes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLine::InstalledGigabytes
+//  CommandLine::GetInstalledGigabytes
 //
 //  How much memory is fitted, for the one help line that mentions it.
 //
@@ -449,7 +449,7 @@ void CommandLine::PrintExitCodes (const std::string & codes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-unsigned CommandLine::InstalledGigabytes()
+unsigned CommandLine::GetInstalledGigabytes()
 {
     ULONGLONG        kilobytes = 0;
     MEMORYSTATUSEX   status    = { sizeof (MEMORYSTATUSEX) };
@@ -524,7 +524,7 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}lprog.lst {0}c {0}t", sp));
     PrintUsageLine ("      Writes prog.lst alongside prog.bin: each source line with the bytes it generated and the cycles it costs, then the symbol table at the end.");
 
-    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes()));
+    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (GetInstalledGigabytes()));
 }
 
 
@@ -571,7 +571,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintSectionHeading ("Supported subset");
     PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused explicitly, with what it would take to support it. See docs\\merlin-subset.md.");
 
-    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (InstalledGigabytes(), false));
+    PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (GetInstalledGigabytes(), false));
 }
 
 
@@ -895,7 +895,7 @@ void CommandLine::PrintUnrecognizedFlag (const std::string & flag, CommandLineOp
 //  commandline", which is what both callers of this have. An unknown flag
 //  already exited 1 while a rejected flag COMBINATION exited 2, so the tool
 //  disagreed with itself about the same class of mistake. The caller now maps
-//  the code through ExitCodeForRefusal like every other refusal does.
+//  the code through GetExitCodeForRefusal like every other refusal does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -237,7 +237,7 @@ HRESULT SettingsSheet::OpenModeless (
     // for OK; a later Cancel reverts to the theme active at open).
     m_themePage->SetOnApplyThemeNow ([this] ()
     {
-        m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
+        m_apply.ApplyThemeLive (m_themePage->GetSelectedThemeId());
     });
 
     // Skeuo desk-scene opt-in: applies + persists immediately (the monitor
@@ -348,15 +348,15 @@ HRESULT SettingsSheet::OpenModeless (
     {
         outW = ChromeMetrics::kFramebufferWidthPx;
         outH = ChromeMetrics::kFramebufferHeightPx;
-        return m_emuShell->UiFramebufferPixels();
+        return m_emuShell->GetUiFramebufferPixels();
     });
     m_themePage->SetMountedPathSource ([this] (int driveIndex) -> std::wstring
     {
-        return m_emuShell->MountedImagePath (driveIndex);
+        return m_emuShell->GetMountedImagePath (driveIndex);
     });
     m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
     {
-        return m_emuShell->DriveWriteProtect (driveIndex);
+        return m_emuShell->GetDriveWriteProtect (driveIndex);
     });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
@@ -379,7 +379,7 @@ HRESULT SettingsSheet::OpenModeless (
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->PrinterBannerMessage());
+    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
@@ -517,7 +517,7 @@ void SettingsSheet::UpdatePreviewCompose()
         // client pixels. No overlap => empty rect => blur + dim only (still
         // focuses attention on the control), no see-through zone.
         RECT  winRect   = {};
-        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->EmulatorContentScreenRect() : RECT{};
+        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetEmulatorContentScreenRect() : RECT{};
         RECT  inter     = {};
         if (GetWindowRect (hwnd, &winRect) && IntersectRect (&inter, &winRect, &emuScreen))
         {
@@ -529,7 +529,7 @@ void SettingsSheet::UpdatePreviewCompose()
 
         if (m_displayPage != nullptr)
         {
-            focusClient = m_displayPage->FocusedControlRect (m_previewFocusId);
+            focusClient = m_displayPage->GetFocusedControlRect (m_previewFocusId);
         }
     }
 
@@ -662,7 +662,7 @@ void SettingsSheet::UpdateRestartNotice()
 
     if (m_apply.WillMachineChange())
     {
-        std::wstring  name = (m_hardwarePage != nullptr) ? m_hardwarePage->SelectedMachineDisplayName()
+        std::wstring  name = (m_hardwarePage != nullptr) ? m_hardwarePage->GetSelectedMachineDisplayName()
                                                          : std::wstring();
 
         notice  = L"Pending. Press OK to boot ";
@@ -849,7 +849,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
     char                     test[16] = {};
     float                    pan0     = 0.0f;
     float                    pan1     = 0.0f;
-    const SettingsUiPrefs  & prefs    = m_state.Prefs();
+    const SettingsUiPrefs  & prefs    = m_state.GetPrefs();
 
 
 
@@ -899,7 +899,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 
 void SettingsSheet::SnapshotDriveAudioBaseline()
 {
-    const SettingsUiPrefs &  prefs = m_state.Prefs();
+    const SettingsUiPrefs &  prefs = m_state.GetPrefs();
 
 
 

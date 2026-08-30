@@ -51,7 +51,7 @@ public:
         bool  replaceSucceeded  = false;
     };
 
-    static std::string  TemporaryPathFor (const std::string & targetPath,
+    static std::string  GetTemporaryPath (const std::string & targetPath,
                                           uint64_t            invocationTag,
                                           unsigned            attempt);
 

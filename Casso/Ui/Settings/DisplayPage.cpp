@@ -452,7 +452,7 @@ void DisplayPage::Rebuild()
         return;
     }
 
-    m_monitor.SetSelected ((int) state->Prefs().colorMode);
+    m_monitor.SetSelected ((int) state->GetPrefs().colorMode);
     m_monitor.SetSelect ([this, state] (int idx)
     {
         state->SetColorMode ((SettingsColorMode) idx);
@@ -594,7 +594,7 @@ void DisplayPage::Rebuild()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisplayPage::FocusedControlRect
+//  DisplayPage::GetFocusedControlRect
 //
 //  The screen rect a focused control occupies, used by the live-preview pass
 //  to keep it sharp while the rest of the page is blurred.
@@ -612,7 +612,7 @@ void DisplayPage::Rebuild()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DisplayPage::FocusedControlRect (int controlId) const
+RECT DisplayPage::GetFocusedControlRect (int controlId) const
 {
     RECT  rect      = {};
     RECT  menuRect  = {};
@@ -671,16 +671,16 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisplayPage::TextColorActive
+//  DisplayPage::IsTextColorActive
 //
 //  True iff the active monitor is Color -- the only mode where a custom
 //  //e text color has any visible effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DisplayPage::TextColorActive() const
+bool DisplayPage::IsTextColorActive() const
 {
-    return m_state != nullptr && m_state->Prefs().colorMode == SettingsColorMode::Color;
+    return m_state != nullptr && m_state->GetPrefs().colorMode == SettingsColorMode::Color;
 }
 
 
@@ -695,7 +695,7 @@ bool DisplayPage::TextColorActive() const
 
 void DisplayPage::RefreshTextColorEnabled()
 {
-    m_textColor.SetEnabled (TextColorActive());
+    m_textColor.SetEnabled (IsTextColorActive());
 }
 
 
@@ -721,7 +721,7 @@ bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
 
 
     if (ev.kind == DxuiMouseEventKind::Down &&
-        TextColorActive() &&
+        IsTextColorActive() &&
         m_textColorMode == ColorMonitorTextMode::Custom &&
         x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
         y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom)

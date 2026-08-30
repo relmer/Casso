@@ -123,7 +123,7 @@ public:
     static Byte QwertyToDvorak (Byte ascii);
 
     // Override key press to allow lowercase
-    void KeyPressRaw (Byte asciiChar);
+    void PressKeyRaw (Byte asciiChar);
 
     // Phase 6 / FR-013 read-only modifier accessors used by the soft-switch
     // bank when sourcing bit 7 of $C061/$C062/$C063 status reads.

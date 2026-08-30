@@ -40,7 +40,7 @@ public:
                 DisplayPage        * displayPage,
                 EmulatorShell      * emuShell);
 
-    int   ActiveModeIdx           () const;
+    int   GetActiveModeIdx        () const;
     void  ReseedFromActiveMode    ();
     void  PublishDefaultsHint     ();
     void  PromoteActiveToOverride ();

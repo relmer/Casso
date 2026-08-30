@@ -55,14 +55,14 @@ public:
     {
         PrinterAudioSource  src;
 
-        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanLeft(),  0.0001f);
-        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanRight(), 0.0001f);
+        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.GetPanLeft(),  0.0001f);
+        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.GetPanRight(), 0.0001f);
         Assert::IsFalse  (src.IsPrinting());
         Assert::IsFalse  (src.IsFeedPlaying());
         Assert::IsFalse  (src.IsActionPlaying());
 
         // Default loop matches the head, which is paced at real draft speed.
-        Assert::IsTrue (Quality::Draft == src.CurrentQuality());
+        Assert::IsTrue (Quality::Draft == src.GetCurrentQuality());
 
         // No grains loaded: even with the head advancing, output is silent.
         src.PublishReveal (1000, 0);
@@ -382,7 +382,7 @@ public:
     {
         PrinterAudioSource  src;
         src.SetPan (0.3f, 0.9f);
-        Assert::AreEqual (0.3f, src.PanLeft(),  0.0001f);
-        Assert::AreEqual (0.9f, src.PanRight(), 0.0001f);
+        Assert::AreEqual (0.3f, src.GetPanLeft(),  0.0001f);
+        Assert::AreEqual (0.9f, src.GetPanRight(), 0.0001f);
     }
 };

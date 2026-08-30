@@ -204,7 +204,7 @@ public:
         ProDosUsersDisk,
     };
 
-    static fs::path  StockBootDiskPath     (StockBootDisk disk);
+    static fs::path  GetStockBootDiskPath  (StockBootDisk disk);
     static bool      IsStockBootDiskCached (StockBootDisk disk);
     static HRESULT   EnsureStockBootDisk   (StockBootDisk disk,
                                             wstring     & outDiskPath,

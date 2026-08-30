@@ -69,10 +69,10 @@ namespace PrinterPipelineTests
             interp.Consume (stream.data(), stream.size(), raster, events);
 
             // First band occupies rows 0..7, columns 0..19.
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (19, 7));
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (20, 0));
-            Assert::IsTrue (raster.RowsUsed() > 0);
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (19, 7));
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (20, 0));
+            Assert::IsTrue (raster.GetRowsUsed() > 0);
 
             // Render the whole strip and confirm ink actually landed.
             {
@@ -83,13 +83,13 @@ namespace PrinterPipelineTests
                 int                     x        = 0, y = 0;
 
                 opt.outputDpi = 288;
-                AssertSucceeded (renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img));
+                AssertSucceeded (renderer.Render (raster, 0, raster.GetRowsUsed() - 1, opt, img));
 
                 for (y = 0; y < img.height; y++)
                 {
                     for (x = 0; x < img.width; x++)
                     {
-                        const Byte *   p = img.PixelAt (x, y);
+                        const Byte *   p = img.GetPixel (x, y);
                         if (p[0] < 250 || p[1] < 250 || p[2] < 250) inked++;
                     }
                 }
@@ -120,9 +120,9 @@ namespace PrinterPipelineTests
             AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
             AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, plane, meta, reloaded));
 
-            Assert::AreEqual (original.RowsUsed(),        reloaded.RowsUsed());
-            Assert::AreEqual (original.CellAt (0, 0),      reloaded.CellAt (0, 0));
-            Assert::AreEqual (original.CellAt (19, 7),     reloaded.CellAt (19, 7));
+            Assert::AreEqual (original.GetRowsUsed(),        reloaded.GetRowsUsed());
+            Assert::AreEqual (original.GetCell (0, 0),      reloaded.GetCell (0, 0));
+            Assert::AreEqual (original.GetCell (19, 7),     reloaded.GetCell (19, 7));
         }
     };
 }

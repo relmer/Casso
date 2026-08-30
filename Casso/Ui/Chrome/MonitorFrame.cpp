@@ -190,7 +190,7 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CenterSizeForScreenPx
+//  GetCenterSizeForScreenPx
 //
 //  Inverse of the Layout fit: given a target screen (recess) size, return the
 //  center size that Layout would inset back down to it. The +2px on width keeps
@@ -198,7 +198,7 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE MonitorFrame::CenterSizeForScreenPx (int screenWpx, int screenHpx)
+SIZE MonitorFrame::GetCenterSizeForScreenPx (int screenWpx, int screenHpx)
 {
     float  sh       = (float) screenHpx;
     float  sw       = (float) screenWpx;
@@ -324,7 +324,7 @@ void MonitorFrame::Paint (
             {
                 float     y        = (float) yy + 0.5f;
                 float     yf       = (float) yy;
-                float     hIn      = EdgeInset (y, ht, hb, hRad, hBarrel);
+                float     hIn      = GetEdgeInset (y, ht, hb, hRad, hBarrel);
                 float     hxl      = hl + hIn;
                 float     hxr      = hr - hIn;
                 float     t        = (y - ht) / std::max (1.0f, hb - ht);
@@ -346,7 +346,7 @@ void MonitorFrame::Paint (
                     continue;
                 }
 
-                vIn = EdgeInset (y, voT, voB, vRad, vBarrel);
+                vIn = GetEdgeInset (y, voT, voB, vRad, vBarrel);
                 vxl = voL + vIn;
                 vxr = voR - vIn;
                 bevelCol = LerpArgb (col, s_kBevelShade, s_kBevelBlend);
@@ -362,7 +362,7 @@ void MonitorFrame::Paint (
                     continue;
                 }
 
-                bIn = EdgeInset (y, boT, boB, bRad, bBarrel);
+                bIn = GetEdgeInset (y, boT, boB, bRad, bBarrel);
                 bxl = boL + bIn;
                 bxr = boR - bIn;
 
@@ -468,7 +468,7 @@ uint32_t MonitorFrame::LerpArgb (uint32_t a, uint32_t b, float t)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MonitorFrame::EdgeInset
+//  MonitorFrame::GetEdgeInset
 //
 //  Inset of a rounded-rect-with-slight-barrel edge from the straight side at
 //  scanline y. Positive pulls in (rounded corner); the barrel term pushes out
@@ -476,7 +476,7 @@ uint32_t MonitorFrame::LerpArgb (uint32_t a, uint32_t b, float t)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float MonitorFrame::EdgeInset (float y, float top, float bottom, float radius, float barrel)
+float MonitorFrame::GetEdgeInset (float y, float top, float bottom, float radius, float barrel)
 {
     float  roundIn = 0.0f;
     float  dTop    = y - top;

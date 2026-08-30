@@ -422,7 +422,7 @@ public:
         // rows (20..23). Aux supplies even columns, main supplies odd.
         for (row = kMixedTextStartRow; row < TextScreenScraper::kRows; row++)
         {
-            rowBase = TextScreenScraper::RowBaseAddress (
+            rowBase = TextScreenScraper::GetRowBaseAddress (
                 TextScreenScraper::kTextPage1, row);
 
             for (col = 0; col < TextScreenScraper::kCols40; col++)
@@ -437,7 +437,7 @@ public:
         // Stamp a deterministic hi-res pattern into page 1 ($2000-$3FFF).
         for (row = 0; row < kHiresRowsTopRegion; row++)
         {
-            hiresAddr = AppleHiResMode::ScanlineAddress (row, 0x2000);
+            hiresAddr = AppleHiResMode::GetScanlineAddress (row, 0x2000);
 
             for (col = 0; col < 40; col++)
             {

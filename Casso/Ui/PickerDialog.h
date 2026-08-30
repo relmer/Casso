@@ -40,7 +40,7 @@ public:
                            const std::vector<DialogButton> &  buttons,
                            int                                closeBoxResult);
 
-    int   DefaultCommandId() const { return m_defaultCommandId; }
+    int   GetDefaultCommandId() const { return m_defaultCommandId; }
 
     // Translate a raw modal result into the caller's result code: un-offset
     // a row activation, map IDCANCEL onto the cancel button's real code, and

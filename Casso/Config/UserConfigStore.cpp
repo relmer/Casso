@@ -92,11 +92,11 @@ std::wstring UserConfigStore::JoinPath (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::UserPrefsFilename
+//  UserConfigStore::GetUserPrefsFilename
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UserConfigStore::UserPrefsFilename()
+std::wstring UserConfigStore::GetUserPrefsFilename()
 {
     return std::wstring (L"User") + L"Prefs" + L".json";
 }
@@ -107,11 +107,11 @@ std::wstring UserConfigStore::UserPrefsFilename()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::LegacyGlobalPrefsFilename
+//  UserConfigStore::GetLegacyGlobalPrefsFilename
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UserConfigStore::LegacyGlobalPrefsFilename()
+std::wstring UserConfigStore::GetLegacyGlobalPrefsFilename()
 {
     return std::wstring (L"Global") + L"User" + L"Prefs" + L".json";
 }
@@ -122,11 +122,11 @@ std::wstring UserConfigStore::LegacyGlobalPrefsFilename()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::LegacyUserSuffix
+//  UserConfigStore::GetLegacyUserSuffix
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UserConfigStore::LegacyUserSuffix()
+std::wstring UserConfigStore::GetLegacyUserSuffix()
 {
     return std::wstring (L"_") + L"user" + L".json";
 }
@@ -539,9 +539,9 @@ int UserConfigStore::FindInternalByType (
 
     if (arr.GetType() == JsonType::Array)
     {
-        for (i = 0; i < arr.ArraySize() && found < 0; ++i)
+        for (i = 0; i < arr.GetArraySize() && found < 0; ++i)
         {
-            const JsonValue & e = arr.ArrayAt (i);
+            const JsonValue & e = arr.GetArrayElement (i);
 
             if (e.GetType() == JsonType::Object)
             {
@@ -580,9 +580,9 @@ int UserConfigStore::FindSlotByNumber (
 
     if (arr.GetType() == JsonType::Array)
     {
-        for (i = 0; i < arr.ArraySize() && found < 0; ++i)
+        for (i = 0; i < arr.GetArraySize() && found < 0; ++i)
         {
-            const JsonValue & e = arr.ArrayAt (i);
+            const JsonValue & e = arr.GetArrayElement (i);
 
             if (e.GetType() == JsonType::Object)
             {
@@ -627,12 +627,12 @@ JsonValue UserConfigStore::MergeHardwareArray (
     // wins unchanged.
     BAIL_OUT_IF (!bothArrays, S_OK);
 
-    userMatched.resize (userArr.ArraySize(), false);
-    merged.reserve (defaultArr.ArraySize() + userArr.ArraySize());
+    userMatched.resize (userArr.GetArraySize(), false);
+    merged.reserve (defaultArr.GetArraySize() + userArr.GetArraySize());
 
-    for (size_t i = 0; i < defaultArr.ArraySize(); ++i)
+    for (size_t i = 0; i < defaultArr.GetArraySize(); ++i)
     {
-        const JsonValue & defEntry = defaultArr.ArrayAt (i);
+        const JsonValue & defEntry = defaultArr.GetArrayElement (i);
         int               userIdx  = -1;
         bool              enabled  = true;
 
@@ -658,7 +658,7 @@ JsonValue UserConfigStore::MergeHardwareArray (
 
         if (userIdx >= 0)
         {
-            const JsonValue & userEntry = userArr.ArrayAt ((size_t) userIdx);
+            const JsonValue & userEntry = userArr.GetArrayElement ((size_t) userIdx);
             userMatched[(size_t) userIdx] = true;
 
             if (TryGetBoolField (userEntry, "enabled", enabled) &&
@@ -677,11 +677,11 @@ JsonValue UserConfigStore::MergeHardwareArray (
         }
     }
 
-    for (size_t i = 0; i < userArr.ArraySize(); ++i)
+    for (size_t i = 0; i < userArr.GetArraySize(); ++i)
     {
         if (!userMatched[i])
         {
-            merged.emplace_back (userArr.ArrayAt (i));
+            merged.emplace_back (userArr.GetArrayElement (i));
         }
     }
 
@@ -718,9 +718,9 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
     // stands as its own delta.
     BAIL_OUT_IF (!bothArrays, S_OK);
 
-    for (size_t i = 0; i < currentArr.ArraySize(); ++i)
+    for (size_t i = 0; i < currentArr.GetArraySize(); ++i)
     {
-        const JsonValue & curEntry = currentArr.ArrayAt (i);
+        const JsonValue & curEntry = currentArr.GetArrayElement (i);
         int               defIdx   = -1;
         bool              curEn    = true;
         bool              defEn    = true;
@@ -748,9 +748,9 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         }
 
         (void) TryGetBoolField (curEntry, "enabled", curEn);
-        if (defIdx >= 0 && defaultArr.ArrayAt ((size_t) defIdx).GetType() == JsonType::Object)
+        if (defIdx >= 0 && defaultArr.GetArrayElement ((size_t) defIdx).GetType() == JsonType::Object)
         {
-            (void) TryGetBoolField (defaultArr.ArrayAt ((size_t) defIdx), "enabled", defEn);
+            (void) TryGetBoolField (defaultArr.GetArrayElement ((size_t) defIdx), "enabled", defEn);
         }
 
         if (curEn != defEn)
@@ -802,9 +802,9 @@ bool UserConfigStore::IsObjectArray (const JsonValue & v)
 
 
 
-    for (i = 0; allAreObj && i < v.ArraySize(); ++i)
+    for (i = 0; allAreObj && i < v.GetArraySize(); ++i)
     {
-        allAreObj = v.ArrayAt (i).GetType() == JsonType::Object;
+        allAreObj = v.GetArrayElement (i).GetType() == JsonType::Object;
     }
 
     return allAreObj;
@@ -831,13 +831,13 @@ UserConfigStore::UserConfigStore (const std::wstring & userDir)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::UserPrefsFilePath
+//  UserConfigStore::GetUserPrefsFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UserConfigStore::UserPrefsFilePath() const
+std::wstring UserConfigStore::GetUserPrefsFilePath() const
 {
-    return JoinPath (m_userDir, UserPrefsFilename());
+    return JoinPath (m_userDir, GetUserPrefsFilename());
 }
 
 
@@ -846,14 +846,14 @@ std::wstring UserConfigStore::UserPrefsFilePath() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::UserFilePath
+//  UserConfigStore::GetUserFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring UserConfigStore::UserFilePath (const std::string & machineName) const
+std::wstring UserConfigStore::GetUserFilePath (const std::string & machineName) const
 {
     UNREFERENCED_PARAMETER (machineName);
-    return UserPrefsFilePath();
+    return GetUserPrefsFilePath();
 }
 
 
@@ -887,7 +887,7 @@ HRESULT UserConfigStore::LoadAll (
     std::wstring     & outParseDetail)
 {
     HRESULT          hr     = S_OK;
-    std::wstring     path   = UserPrefsFilePath();
+    std::wstring     path   = GetUserPrefsFilePath();
     std::string      text;
     JsonValue        root;
     JsonParseError   err;
@@ -1014,13 +1014,13 @@ HRESULT UserConfigStore::Load (
 
 
 
-    if (found == m_machinePrefs.end() && m_machinePrefs.empty() && fs.Exists (UserPrefsFilePath()))
+    if (found == m_machinePrefs.end() && m_machinePrefs.empty() && fs.Exists (GetUserPrefsFilePath()))
     {
         GlobalUserPrefs  fallbackPrefs;
         JsonValue        root;
 
 
-        hr = fs.ReadAllText (UserPrefsFilePath(), userContent);
+        hr = fs.ReadAllText (GetUserPrefsFilePath(), userContent);
         CHR (hr);
 
         hr = JsonParser::Parse (userContent, root, parseErr);
@@ -1226,9 +1226,9 @@ JsonValue UserConfigStore::BuildCombinedJson (
     // touched in this process. m_machinePrefs is populated lazily; if a
     // save fires before a given machine has been Load'd, that machine
     // would otherwise be wiped from disk on the next write.
-    if (fs.Exists (UserPrefsFilePath()))
+    if (fs.Exists (GetUserPrefsFilePath()))
     {
-        hr = fs.ReadAllText (UserPrefsFilePath(), existingText);
+        hr = fs.ReadAllText (GetUserPrefsFilePath(), existingText);
         if (SUCCEEDED (hr))
         {
             hr = JsonParser::Parse (existingText, existing, err);
@@ -1359,7 +1359,7 @@ HRESULT UserConfigStore::SaveCombinedJson (
     hr = JsonWriter::Write (root, opts, text);
     CHR (hr);
 
-    hr = fs.WriteAllText (UserPrefsFilePath(), text);
+    hr = fs.WriteAllText (GetUserPrefsFilePath(), text);
     CHR (hr);
 
 Error:
@@ -1408,8 +1408,8 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     bool            & outFoundLegacy) const
 {
     HRESULT                   hr                = S_OK;
-    std::wstring              legacyGlobalPath  = JoinPath (m_userDir, LegacyGlobalPrefsFilename());
-    std::wstring              legacySuffix      = LegacyUserSuffix();
+    std::wstring              legacyGlobalPath  = JoinPath (m_userDir, GetLegacyGlobalPrefsFilename());
+    std::wstring              legacySuffix      = GetLegacyUserSuffix();
     std::vector<std::wstring> filenames;
     std::vector<std::wstring> legacyUserFiles;
     std::string               text;
@@ -1503,7 +1503,7 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     hr = JsonWriter::Write (JsonValue (std::move (rootEntries)), opts, combinedText);
     CHR (hr);
 
-    hr = fs.WriteAllText (UserPrefsFilePath(), combinedText);
+    hr = fs.WriteAllText (GetUserPrefsFilePath(), combinedText);
     CHR (hr);
 
     if (fHaveLegacyGlobal)
@@ -1750,7 +1750,7 @@ void UserConfigStore::DiffMatchedKey (
     {
         JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, false);
 
-        if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
+        if (hwDelta.GetType() == JsonType::Array && hwDelta.GetArraySize() > 0)
         {
             diff.emplace_back (key, std::move (hwDelta));
         }
@@ -1759,7 +1759,7 @@ void UserConfigStore::DiffMatchedKey (
     {
         JsonValue hwDelta = BuildHardwareDeltaArray (cv, dv, true);
 
-        if (hwDelta.GetType() == JsonType::Array && hwDelta.ArraySize() > 0)
+        if (hwDelta.GetType() == JsonType::Array && hwDelta.GetArraySize() > 0)
         {
             diff.emplace_back (key, std::move (hwDelta));
         }
@@ -1782,7 +1782,7 @@ void UserConfigStore::DiffMatchedKey (
             diff.emplace_back (key, std::move (nested));
         }
     }
-    else if (!JsonEqual (cv, dv))
+    else if (!AreJsonEqual (cv, dv))
     {
         diff.emplace_back (key, cv);
     }
@@ -1794,13 +1794,13 @@ void UserConfigStore::DiffMatchedKey (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::JsonEqual
+//  UserConfigStore::AreJsonEqual
 //
 //  Structural equality. Object key order is ignored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UserConfigStore::JsonEqual (
+bool UserConfigStore::AreJsonEqual (
     const JsonValue & a,
     const JsonValue & b)
 {
@@ -1832,11 +1832,11 @@ bool UserConfigStore::JsonEqual (
                 break;
 
             case JsonType::Array:
-                equal = a.ArraySize() == b.ArraySize();
+                equal = a.GetArraySize() == b.GetArraySize();
 
-                for (i = 0; equal && i < a.ArraySize(); ++i)
+                for (i = 0; equal && i < a.GetArraySize(); ++i)
                 {
-                    equal = JsonEqual (a.ArrayAt (i), b.ArrayAt (i));
+                    equal = AreJsonEqual (a.GetArrayElement (i), b.GetArrayElement (i));
                 }
 
                 break;
@@ -1853,7 +1853,7 @@ bool UserConfigStore::JsonEqual (
                 for (i = 0; equal && i < ae.size(); ++i)
                 {
                     idx   = FindObjectKey (be, ae[i].first);
-                    equal = idx >= 0 && JsonEqual (ae[i].second, be[(size_t) idx].second);
+                    equal = idx >= 0 && AreJsonEqual (ae[i].second, be[(size_t) idx].second);
                 }
 
                 break;

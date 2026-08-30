@@ -16,13 +16,13 @@ static constexpr int    s_kHexDigitCount = 6;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ColorUtil::HexValue
+//  ColorUtil::GetHexValue
 //
 //  Returns the 0..15 value of a single hex digit, or -1 if not hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ColorUtil::HexValue (wchar_t ch)
+int ColorUtil::GetHexValue (wchar_t ch)
 {
     int  result = -1;
 
@@ -195,7 +195,7 @@ bool ColorUtil::TryParseHexColor (const std::wstring & text, uint32_t & outArgb)
 
     for (i = 0; i < s_kHexDigitCount; i++)
     {
-        int  nibble = ColorUtil::HexValue (body[(size_t) i]);
+        int  nibble = ColorUtil::GetHexValue (body[(size_t) i]);
 
         CBR (nibble >= 0);
         rgb = (rgb << 4) | (uint32_t) nibble;

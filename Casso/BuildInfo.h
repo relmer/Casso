@@ -8,4 +8,4 @@
 // only on a _DEBUG build, so its presence already says Debug.
 
 // e.g. "v1.10.0 x64 (Jul 19 2026 08:41:02)"
-const wchar_t *  CassoBuildInfo ();
+const wchar_t *  GetCassoBuildInfo ();

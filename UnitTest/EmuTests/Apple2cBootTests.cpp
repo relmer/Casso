@@ -116,7 +116,7 @@ public:
         AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
         core.PowerCycle();
 
-        Assert::AreEqual (0, core.romBank->CurrentBank(), L"reset selects bank 0");
+        Assert::AreEqual (0, core.romBank->GetCurrentBank(), L"reset selects bank 0");
 
         auto execAt = [&] (Word at, std::initializer_list<Byte> bytes)
         {
@@ -127,13 +127,13 @@ public:
         };
 
         execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028
-        Assert::AreEqual (1, core.romBank->CurrentBank(), L"STA $C028 toggles once");
+        Assert::AreEqual (1, core.romBank->GetCurrentBank(), L"STA $C028 toggles once");
 
         execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028 again
-        Assert::AreEqual (0, core.romBank->CurrentBank(), L"second STA toggles back");
+        Assert::AreEqual (0, core.romBank->GetCurrentBank(), L"second STA toggles back");
 
         execAt (0x0300, { 0xAD, 0x28, 0xC0 });   // LDA $C028 (any access flips it)
-        Assert::AreEqual (1, core.romBank->CurrentBank(), L"LDA $C028 toggles once");
+        Assert::AreEqual (1, core.romBank->GetCurrentBank(), L"LDA $C028 toggles once");
     }
 
     // The //c boots from its built-in slot-6 drive through

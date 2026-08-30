@@ -60,9 +60,9 @@ namespace UsageTextTests
 
         TEST_METHOD(TheIndentComesFromTheLastGutterNotTheFirst)
         {
-            Assert::AreEqual ((size_t) 25, UsageText::ContinuationIndent ("    -o <file>            Rename it"),
+            Assert::AreEqual ((size_t) 25, UsageText::GetContinuationIndent ("    -o <file>            Rename it"),
                               L"the gutter between a flag and its description sets the column");
-            Assert::AreEqual ((size_t) 17, UsageText::ContinuationIndent ("  -o file  then  again"),
+            Assert::AreEqual ((size_t) 17, UsageText::GetContinuationIndent ("  -o file  then  again"),
                               L"the last gutter wins, not the first");
         }
 
@@ -82,7 +82,7 @@ namespace UsageTextTests
             std::string               line = "    This is a sentence of ordinary prose with no gutter anywhere in it";
             std::vector<std::string>  rows = UsageText::Wrap (line, 30);
 
-            Assert::AreEqual ((size_t) 4, UsageText::ContinuationIndent (line));
+            Assert::AreEqual ((size_t) 4, UsageText::GetContinuationIndent (line));
             Assert::IsTrue (rows.size() > 1, L"a line wider than the width must produce continuations");
 
             for (size_t i = 1; i < rows.size(); i++)
@@ -179,7 +179,7 @@ namespace UsageTextTests
 
             Assert::AreEqual ((size_t) 1, rows.size());
             Assert::AreEqual (std::string (""), rows[0]);
-            Assert::AreEqual ((size_t) 0, UsageText::ContinuationIndent (""));
+            Assert::AreEqual ((size_t) 0, UsageText::GetContinuationIndent (""));
         }
 
 
@@ -276,32 +276,32 @@ namespace UsageTextTests
         //  redirected page is read in an editor rather than a terminal.
         TEST_METHOD (NoConsoleAndNoOverride_FallsBackTo80)
         {
-            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom (nullptr, false, 0));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::ResolveWidth (nullptr, false, 0));
         }
 
         //  The console, less one column: writing INTO the last one makes some
         //  terminals wrap on their own and put a blank line between every row.
         TEST_METHOD (AConsole_FoldsOneColumnInsideIt)
         {
-            Assert::AreEqual ((size_t) 199, UsageText::WidthFrom (nullptr, true, 200));
-            Assert::AreEqual ((size_t) 111, UsageText::WidthFrom (nullptr, true, 112));
+            Assert::AreEqual ((size_t) 199, UsageText::ResolveWidth (nullptr, true, 200));
+            Assert::AreEqual ((size_t) 111, UsageText::ResolveWidth (nullptr, true, 112));
         }
 
         //  COLUMNS wins outright, and is taken as written rather than reduced:
         //  a reader who names a width means that width.
         TEST_METHOD (ColumnsOverridesTheConsole)
         {
-            Assert::AreEqual ((size_t) 200, UsageText::WidthFrom ("200", true, 80));
-            Assert::AreEqual ((size_t) 200, UsageText::WidthFrom ("200", false, 0));
+            Assert::AreEqual ((size_t) 200, UsageText::ResolveWidth ("200", true, 80));
+            Assert::AreEqual ((size_t) 200, UsageText::ResolveWidth ("200", false, 0));
         }
 
         //  A value that is not a number is not a width. Read by hand rather
         //  than with atoi, which would call "wide" zero and fold to nothing.
         TEST_METHOD (ANonNumericOverride_IsIgnoredRatherThanReadAsZero)
         {
-            Assert::AreEqual ((size_t) 119, UsageText::WidthFrom ("wide", true, 120));
-            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("80x24", false, 0));
-            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("", false, 0));
+            Assert::AreEqual ((size_t) 119, UsageText::ResolveWidth ("wide", true, 120));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::ResolveWidth ("80x24", false, 0));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::ResolveWidth ("", false, 0));
         }
 
         //  A TERMINAL NARROWER THAN THE GUTTER IS IGNORED. The flag table's own
@@ -309,10 +309,10 @@ namespace UsageTextTests
         //  a page nobody can read; overhanging is the better failure.
         TEST_METHOD (AWidthInsideTheGutter_IsRefusedInFavorOfTheFallback)
         {
-            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom (nullptr, true, 20));
-            Assert::AreEqual (UsageText::kNoTerminal, UsageText::WidthFrom ("20", true, 20));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::ResolveWidth (nullptr, true, 20));
+            Assert::AreEqual (UsageText::kNoTerminal, UsageText::ResolveWidth ("20", true, 20));
             Assert::AreEqual (UsageText::kNoTerminal,
-                              UsageText::WidthFrom (nullptr, true, (int) UsageText::kNarrowestTerminal),
+                              UsageText::ResolveWidth (nullptr, true, (int) UsageText::kNarrowestTerminal),
                               L"and the boundary itself is inside it");
         }
     };

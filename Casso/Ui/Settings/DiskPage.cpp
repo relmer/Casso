@@ -282,17 +282,17 @@ void DiskPage::Rebuild()
         return;
     }
 
-    m_writeMode.SetSelected ((int) state->Prefs().writeMode);
-    m_mechanism.SetSelected (state->Prefs().floppyMechanism == "alps" ? 1 : 0);
-    m_driveAudio.SetChecked (state->Prefs().floppySoundEnabled);
-    m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
-    m_writeProtect[1].SetChecked (state->Prefs().writeProtect[1]);
-    m_motorVol.SetValue     (state->Prefs().driveMotorVolume * 100.0f);
-    m_headVol.SetValue      (state->Prefs().driveHeadVolume  * 100.0f);
-    m_doorVol.SetValue      (state->Prefs().driveDoorVolume  * 100.0f);
-    m_panOne.SetValue       (state->Prefs().driveOnePan * 100.0f);
-    m_panTwo.SetValue       (state->Prefs().driveTwoPan * 100.0f);
-    ApplyDriveAudioChildEnabled (state->Prefs().floppySoundEnabled);
+    m_writeMode.SetSelected ((int) state->GetPrefs().writeMode);
+    m_mechanism.SetSelected (state->GetPrefs().floppyMechanism == "alps" ? 1 : 0);
+    m_driveAudio.SetChecked (state->GetPrefs().floppySoundEnabled);
+    m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
+    m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
+    m_motorVol.SetValue     (state->GetPrefs().driveMotorVolume * 100.0f);
+    m_headVol.SetValue      (state->GetPrefs().driveHeadVolume  * 100.0f);
+    m_doorVol.SetValue      (state->GetPrefs().driveDoorVolume  * 100.0f);
+    m_panOne.SetValue       (state->GetPrefs().driveOnePan * 100.0f);
+    m_panTwo.SetValue       (state->GetPrefs().driveTwoPan * 100.0f);
+    ApplyDriveAudioChildEnabled (state->GetPrefs().floppySoundEnabled);
 
     m_writeMode.SetSelect    ([state] (int idx) { state->SetWriteMode ((SettingsWriteMode) idx); });
     m_mechanism.SetSelect    ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });

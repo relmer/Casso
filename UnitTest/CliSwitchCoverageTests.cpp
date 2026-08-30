@@ -686,7 +686,7 @@ namespace CliSwitchCoverageTests
     //  The statuses an assembly earns, asserted against the assembler rather
     //  than against the function that maps them.
     //
-    //  As65ExitStatus::ForAssembly is tested for all five values and always
+    //  As65ExitStatus::GetAssemblyStatus is tested for all five values and always
     //  was. So was the mapper it replaced, which is the whole problem: two
     //  mappers, two green suites, and nothing showing which one the tool
     //  reached for. It reached for the wrong one, and every page of the help
@@ -938,8 +938,8 @@ namespace CliSwitchCoverageTests
 
             for (CommandLineOptions::Subcommand mode : kModes)
             {
-                std::string               usage    = CommandLineHelp::UsageLineFor (mode);
-                std::vector<std::string>  required = CommandLineHelp::RequiredOperandsIn (usage);
+                std::string               usage    = CommandLineHelp::GetUsageLine (mode);
+                std::vector<std::string>  required = CommandLineHelp::GetRequiredOperands (usage);
 
                 Assert::AreEqual (size_t (1), required.size(),
                                   Widen ("one required operand in: " + usage).c_str());
@@ -957,8 +957,8 @@ namespace CliSwitchCoverageTests
         //  and disk's own line requires two.
         TEST_METHOD (RequiredOperands_SkipOptionalGroupsAndOptionValues)
         {
-            std::vector<std::string>  disk = CommandLineHelp::RequiredOperandsIn (
-                CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk));
+            std::vector<std::string>  disk = CommandLineHelp::GetRequiredOperands (
+                CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand::Disk));
 
             Assert::AreEqual (size_t (2), disk.size(), L"disk takes a command and an image");
             Assert::AreEqual (std::string ("<command>"), disk[0]);
@@ -966,7 +966,7 @@ namespace CliSwitchCoverageTests
 
             //  An option's value is not an operand, and `<binary | source>` is
             //  ONE operand: the angle brackets bound it, not the spaces.
-            std::vector<std::string>  contrived = CommandLineHelp::RequiredOperandsIn (
+            std::vector<std::string>  contrived = CommandLineHelp::GetRequiredOperands (
                 "CassoCli x <binary | source> --track <n> [--out <file>]");
 
             Assert::AreEqual (size_t (1), contrived.size(),
@@ -991,17 +991,17 @@ namespace CliSwitchCoverageTests
         //  one of these guards as their first statement.
         TEST_METHOD (TheUsageStreamFollowsTheGuard_AndIsRestored)
         {
-            Assert::IsTrue (CommandLine::UsageStream() == stdout,
+            Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
                             L"usage is ordinary output by default");
 
             {
                 CommandLine::UsageOnErrorStream  toTheErrorStream;
 
-                Assert::IsTrue (CommandLine::UsageStream() == stderr,
+                Assert::IsTrue (CommandLine::GetUsageStream() == stderr,
                                 L"and goes where the reason goes while a refusal is printing");
             }
 
-            Assert::IsTrue (CommandLine::UsageStream() == stdout,
+            Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
                             L"and is put back, so an asked-for page stays pipeable");
         }
 

@@ -151,48 +151,48 @@ public:
                  const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    RECT  FocusedControlRect (int controlId) const;
+    RECT  GetFocusedControlRect (int controlId) const;
 
     // Test accessors.
-    const DxuiDropdown & MonitorDropdown    () const { return m_monitor;          }
-    const DxuiDropdown & TextColorDropdown  () const { return m_textColor;        }
-    const DxuiSlider   & BrightnessSlider   () const { return m_brightness;       }
-    const DxuiSlider   & ContrastSlider     () const { return m_contrast;         }
-    const DxuiSlider   & GammaSlider        () const { return m_gamma;            }
-    const DxuiSlider   & PersistenceSlider  () const { return m_persistence;      }
-    const DxuiToggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
-    const DxuiSlider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
-    const DxuiToggle   & BloomToggle        () const { return m_bloomEn;          }
-    const DxuiSlider   & BloomRadiusSlider  () const { return m_bloomRadius;      }
-    const DxuiSlider   & BloomStrengthSlider() const { return m_bloomStrength;    }
-    const DxuiToggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
-    const DxuiSlider   & ColorBleedSlider   () const { return m_colorBleedW;      }
-    const DxuiButton   & RestoreButton      () const { return m_restore;          }
+    const DxuiDropdown & GetMonitorDropdown     () const { return m_monitor;          }
+    const DxuiDropdown & GetTextColorDropdown   () const { return m_textColor;        }
+    const DxuiSlider   & GetBrightnessSlider    () const { return m_brightness;       }
+    const DxuiSlider   & GetContrastSlider      () const { return m_contrast;         }
+    const DxuiSlider   & GetGammaSlider         () const { return m_gamma;            }
+    const DxuiSlider   & GetPersistenceSlider   () const { return m_persistence;      }
+    const DxuiToggle   & GetScanlinesToggle     () const { return m_scanlinesEn;      }
+    const DxuiSlider   & GetScanlinesSlider     () const { return m_scanlinesInt;     }
+    const DxuiToggle   & GetBloomToggle         () const { return m_bloomEn;          }
+    const DxuiSlider   & GetBloomRadiusSlider   () const { return m_bloomRadius;      }
+    const DxuiSlider   & GetBloomStrengthSlider () const { return m_bloomStrength;    }
+    const DxuiToggle   & GetColorBleedToggle    () const { return m_colorBleedEn;     }
+    const DxuiSlider   & GetColorBleedSlider    () const { return m_colorBleedW;      }
+    const DxuiButton   & GetRestoreButton       () const { return m_restore;          }
 
     // Mutable accessors so SettingsPanel can inline focus-setter
     // lambdas that previously lived in the bespoke CollectFocusables
     // shim, and so it can query open-popup state without going through
     // a page-level AnyDropdownOpen() helper.
-    DxuiDropdown & MonitorDropdown    () { return m_monitor;          }
-    DxuiDropdown & TextColorDropdown  () { return m_textColor;        }
-    DxuiSlider   & BrightnessSlider   () { return m_brightness;       }
-    DxuiSlider   & ContrastSlider     () { return m_contrast;         }
-    DxuiSlider   & GammaSlider        () { return m_gamma;            }
-    DxuiSlider   & PersistenceSlider  () { return m_persistence;      }
-    DxuiToggle   & ScanlinesToggle    () { return m_scanlinesEn;      }
-    DxuiSlider   & ScanlinesSlider    () { return m_scanlinesInt;     }
-    DxuiToggle   & BloomToggle        () { return m_bloomEn;          }
-    DxuiSlider   & BloomRadiusSlider  () { return m_bloomRadius;      }
-    DxuiSlider   & BloomStrengthSlider() { return m_bloomStrength;    }
-    DxuiToggle   & ColorBleedToggle   () { return m_colorBleedEn;     }
-    DxuiSlider   & ColorBleedSlider   () { return m_colorBleedW;      }
-    DxuiButton   & RestoreButton      () { return m_restore;          }
+    DxuiDropdown & GetMonitorDropdown     () { return m_monitor;          }
+    DxuiDropdown & GetTextColorDropdown   () { return m_textColor;        }
+    DxuiSlider   & GetBrightnessSlider    () { return m_brightness;       }
+    DxuiSlider   & GetContrastSlider      () { return m_contrast;         }
+    DxuiSlider   & GetGammaSlider         () { return m_gamma;            }
+    DxuiSlider   & GetPersistenceSlider   () { return m_persistence;      }
+    DxuiToggle   & GetScanlinesToggle     () { return m_scanlinesEn;      }
+    DxuiSlider   & GetScanlinesSlider     () { return m_scanlinesInt;     }
+    DxuiToggle   & GetBloomToggle         () { return m_bloomEn;          }
+    DxuiSlider   & GetBloomRadiusSlider   () { return m_bloomRadius;      }
+    DxuiSlider   & GetBloomStrengthSlider () { return m_bloomStrength;    }
+    DxuiToggle   & GetColorBleedToggle    () { return m_colorBleedEn;     }
+    DxuiSlider   & GetColorBleedSlider    () { return m_colorBleedW;      }
+    DxuiButton   & GetRestoreButton       () { return m_restore;          }
 
 private:
     static RECT  MakeRect (int l, int t, int w, int h);
 
     void  RefreshTextColorEnabled ();
-    bool  TextColorActive () const;
+    bool  IsTextColorActive () const;
 
     SettingsPanelState   * m_state             = nullptr;
     DisplayDefaultsHint    m_hint              = {};

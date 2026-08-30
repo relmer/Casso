@@ -44,8 +44,8 @@ public:
 
     // Records a mount: move-to-front and stamp the load time (Unix
     // seconds; pass 0 when the time is unknown). Empty paths are ignored.
-    void                 RecordMount  (const std::filesystem::path & path, std::int64_t lastLoadedUnix = 0);
-    std::vector<Entry>   Snapshot     () const;
+    void                 RecordMount (const std::filesystem::path & path, std::int64_t lastLoadedUnix = 0);
+    std::vector<Entry>   GetSnapshot () const;
 
     // Records a mount only if it actually happened. The list feeds the disk
     // picker, so an image the loader has just refused must never reach it --
@@ -76,8 +76,8 @@ public:
     static std::vector<std::filesystem::path>
                          DistinctFolders (const std::vector<Entry> & entries);
 
-    size_t               Size         () const { return m_entries.size(); }
-    bool                 Empty        () const { return m_entries.empty(); }
+    size_t               GetSize () const { return m_entries.size(); }
+    bool                 IsEmpty () const { return m_entries.empty(); }
 
     // Bridge helpers between DiskMru and the GlobalUserPrefs JSON schema
     // (parallel arrays: `recentDisks` UTF-8 paths + `recentDiskLoadedAt`

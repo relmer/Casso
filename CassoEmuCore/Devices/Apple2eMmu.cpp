@@ -391,7 +391,7 @@ void Apple2eMmu::RebindCxxxInternalRom()
 
     for (int page = 0xC1; page <= 0xCF; page++)
     {
-        m_bus->SetReadPage (page, m_cxxxRouter.FastMapReadPtr (page));
+        m_bus->SetReadPage (page, m_cxxxRouter.GetFastMapReadPtr (page));
     }
 }
 

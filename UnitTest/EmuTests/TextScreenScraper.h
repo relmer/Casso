@@ -41,7 +41,7 @@ public:
 
     // Address of the first byte of `row` in a 40-column text page based
     // at `pageBase` ($0400 or $0800). Standard Apple ][ interleave.
-    static Word  RowBaseAddress (Word pageBase, int row);
+    static Word  GetRowBaseAddress (Word pageBase, int row);
 
     // Convert a screen byte (which may be inverse, flashing, or normal
     // ASCII with bit-7 set) to a printable 7-bit character.

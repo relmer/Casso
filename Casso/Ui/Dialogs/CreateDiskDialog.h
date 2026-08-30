@@ -66,7 +66,7 @@ public:
     void  Configure (FileBrowseModel * model, const IDxuiTheme * theme,
                      AvailableFn payloadAvailable, DownloadFn downloadPayload);
 
-    const Result &  Outcome () const { return m_result; }
+    const Result &  GetOutcome () const { return m_result; }
 
 protected:
     void  OnCreate () override;
@@ -83,12 +83,12 @@ private:
     void  ApplyImageTypeExtension ();
     void  UpdateBootableRow    ();
 
-    static std::wstring    FormatSize       (const FileBrowseEntry & entry);
-    static std::wstring    FormatModified   (int64_t modifiedUnix);
-    static const wchar_t * FormatExtension  (DiskFormat imageType);
-    static const wchar_t * ImageTypeCaption (DiskFormat imageType);
-    static std::wstring    FormatCaption    (BlankDiskContents contents);
-    static std::wstring    ReplaceExtension (const std::wstring & name, const wchar_t * ext);
+    static std::wstring    FormatSize          (const FileBrowseEntry & entry);
+    static std::wstring    FormatModified      (int64_t modifiedUnix);
+    static const wchar_t * FormatExtension     (DiskFormat imageType);
+    static const wchar_t * GetImageTypeCaption (DiskFormat imageType);
+    static std::wstring    FormatCaption       (BlankDiskContents contents);
+    static std::wstring    ReplaceExtension    (const std::wstring & name, const wchar_t * ext);
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
     const IDxuiTheme    * m_theme = nullptr;   // non-owning

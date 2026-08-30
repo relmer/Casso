@@ -234,11 +234,11 @@ public:
 
     // Live (current) accessors / mutators
 
-    const std::string                & MachineName () const { return m_machineName; }
-    const SettingsMachineInfo        & MachineInfo() const { return m_machineInfo; }
-    const SettingsUiPrefs            & Prefs       () const { return m_current.prefs; }
-    const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
-    const JsonValue                  & DefaultJson () const { return m_defaultJson; }
+    const std::string                & GetMachineName () const { return m_machineName; }
+    const SettingsMachineInfo        & GetMachineInfo() const { return m_machineInfo; }
+    const SettingsUiPrefs            & GetPrefs       () const { return m_current.prefs; }
+    const std::vector<HardwareEntry> & GetHardware    () const { return m_current.hardware; }
+    const JsonValue                  & GetDefaultJson () const { return m_defaultJson; }
 
     // True when the (staged) hardware config includes an enabled Disk ][
     // controller (a slot whose device is "disk-ii"). Drives the settings
@@ -302,8 +302,8 @@ private:
         std::vector<HardwareEntry> hardware;
     };
 
-    static bool PrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
-    static bool HardwareEqual (const std::vector<HardwareEntry> & a,
+    static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
+    static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
                                const std::vector<HardwareEntry> & b);
 
     // JSON accessors and enum<->string mapping for the settings document.

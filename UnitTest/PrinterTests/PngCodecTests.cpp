@@ -126,7 +126,7 @@ namespace PngCodecTests
 
         static void SetPixel (RgbaImage & img, int x, int y, Byte r, Byte g, Byte b, Byte a)
         {
-            Byte *   p = img.PixelAt (x, y);
+            Byte *   p = img.GetPixel (x, y);
             p[0] = r;
             p[1] = g;
             p[2] = b;

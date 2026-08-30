@@ -107,15 +107,15 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    void    ResetState      (bool hardware);
-    void    ProgrammedReset ();
-    Byte    ReadData        ();
-    Byte    ReadStatus      ();
-    void    WriteData       (Byte value);
-    void    RaiseIrq        ();
-    void    LowerIrq        ();
-    bool    RxIrqEnabled    () const;
-    bool    TxIrqEnabled    () const;
+    void    ResetState           (bool hardware);
+    void    ApplyProgrammedReset ();
+    Byte    ReadData             ();
+    Byte    ReadStatus           ();
+    void    WriteData            (Byte value);
+    void    RaiseIrq             ();
+    void    LowerIrq             ();
+    bool    IsRxIrqEnabled       () const;
+    bool    IsTxIrqEnabled       () const;
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;

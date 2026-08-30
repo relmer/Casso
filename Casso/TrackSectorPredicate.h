@@ -89,8 +89,8 @@ public:
     bool                            Matches (int value) const noexcept;
     bool                            MatchesQuarterTrack (int qt) const noexcept;
 
-    const std::vector<RejectedSpan> & RejectedSpans() const noexcept   { return m_rejected; }
-    const std::vector<Range> &        Ranges() const noexcept   { return m_ranges; }
+    const std::vector<RejectedSpan> & GetRejectedSpans() const noexcept   { return m_rejected; }
+    const std::vector<Range> &        GetRanges() const noexcept   { return m_ranges; }
     bool                              IsMatchAll() const noexcept   { return m_matchAll; }
 
 private:
@@ -122,7 +122,7 @@ private:
     // surrounding whitespace or comma separators).
     static std::wstring_view  TrimSpan (std::wstring_view expr, int & ioBegin, int & ioEnd);
 
-    static int   ValueCap (Mode mode, bool isQt) noexcept;
+    static int   GetValueCap (Mode mode, bool isQt) noexcept;
 
     std::vector<Range>          m_ranges;
     std::vector<RejectedSpan>   m_rejected;

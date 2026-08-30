@@ -80,7 +80,7 @@ public:
         CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
 
         // With userOverride=false and no theme override, MakeCrtParams
-        // pulls from the Color monitor preset (CrtPresets::ForMode(0)).
+        // pulls from the Color monitor preset (CrtPresets::GetPreset(0)).
         // That preset has bloom on (radius 2 / strength 0.30) and color
         // bleed on (width 3) by design -- those are the defining color
         // CRT looks. Scanlines on at 0.20 for subtle TV-line texture;

@@ -19,7 +19,7 @@
 //  layered over a color-tuned default.
 //
 //  Layering: when GlobalUserPrefs::crtByMode[N].userOverride is false,
-//  CrtPostProcess::MakeCrtParams seeds from CrtPresets::ForMode(N)
+//  CrtPostProcess::MakeCrtParams seeds from CrtPresets::GetPreset(N)
 //  before applying any theme variant overrides on top.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +29,7 @@ namespace CrtPresets
     // Index by SettingsColorMode (Color=0, Green=1, Amber=2, White=3).
     // Each entry mirrors GlobalUserPrefs::Crt minus the userOverride
     // flag (presets are by definition NOT user-overridden).
-    inline const GlobalUserPrefs::Crt &  ForMode (size_t modeIndex)
+    inline const GlobalUserPrefs::Crt &  GetPreset (size_t modeIndex)
     {
         // Color: NTSC composite color, modest bloom + the chroma bleed
         //   that defines the Apple II color-mode look. No scanlines /

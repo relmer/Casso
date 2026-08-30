@@ -67,7 +67,7 @@ private:
     // True if the 40+40 interleaved bytes hold a glyph that flashes with the
     // flash clock ($40-$7F, only when ALTCHARSET is off). Such rows re-raster
     // on a flash-phase flip even if no byte changed.
-    bool RowHasFlashChar (const Byte * rowBytes) const;
+    bool HasFlashChar (const Byte * rowBytes) const;
 
     static constexpr int     kGridCols = 80;
     static constexpr int     kGridRows = 24;

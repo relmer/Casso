@@ -28,7 +28,7 @@
 
 namespace Casso::Video
 {
-    inline uint8_t Luminance (uint32_t pixel)
+    inline uint8_t ComputeLuminance (uint32_t pixel)
     {
         return static_cast<uint8_t> (
             0.299f * ExtractR (pixel) +
@@ -38,7 +38,7 @@ namespace Casso::Video
 
     inline uint32_t TintGreenMono (uint32_t pixel)
     {
-        uint8_t  l = Luminance (pixel);
+        uint8_t  l = ComputeLuminance (pixel);
         return MakePixel (0, l, 0);
     }
 
@@ -50,13 +50,13 @@ namespace Casso::Video
         // Monitor //e Amber and Monitor //c, mapped into sRGB. Reads more
         // orange on a modern LCD than it did against a dark CRT in dim
         // lighting, but that's the actual phosphor color.
-        uint8_t  l = Luminance (pixel);
+        uint8_t  l = ComputeLuminance (pixel);
         return MakePixel (l, static_cast<uint8_t> (l * 0.627f), 0);
     }
 
     inline uint32_t TintWhiteMono (uint32_t pixel)
     {
-        uint8_t  l = Luminance (pixel);
+        uint8_t  l = ComputeLuminance (pixel);
         return MakePixel (l, l, l);
     }
 }

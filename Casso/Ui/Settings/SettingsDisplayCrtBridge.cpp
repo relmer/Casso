@@ -38,7 +38,7 @@ void SettingsDisplayCrtBridge::Bind (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ActiveModeIdx
+//  GetActiveModeIdx
 //
 //  Returns the currently-selected monitor type as an index into
 //  GlobalUserPrefs::crtByMode. Reads SettingsPanelState because the
@@ -47,9 +47,9 @@ void SettingsDisplayCrtBridge::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SettingsDisplayCrtBridge::ActiveModeIdx() const
+int SettingsDisplayCrtBridge::GetActiveModeIdx() const
 {
-    int  idx = (m_state != nullptr) ? (int) m_state->Prefs().colorMode : 0;
+    int  idx = (m_state != nullptr) ? (int) m_state->GetPrefs().colorMode : 0;
 
 
 
@@ -77,7 +77,7 @@ int SettingsDisplayCrtBridge::ActiveModeIdx() const
 //  MakeCrtParams will produce on the next frame.
 //
 //  When the active block has userOverride=false we read the resolved
-//  preset values (CrtPresets::ForMode) so the user sees "what the
+//  preset values (CrtPresets::GetPreset) so the user sees "what the
 //  defaults are" rather than the still-zero in-struct defaults.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ int SettingsDisplayCrtBridge::ActiveModeIdx() const
 void SettingsDisplayCrtBridge::ReseedFromActiveMode()
 {
     GlobalUserPrefsCrtSnapshot  snap;
-    int                         idx = ActiveModeIdx();
+    int                         idx = GetActiveModeIdx();
 
 
 
@@ -98,7 +98,7 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode()
     else if (m_displayPage != nullptr)
     {
         const auto &              blk           = m_prefs->crtByMode[idx];
-        const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+        const auto &              preset        = CrtPresets::GetPreset ((size_t) idx);
         const ThemeCrtDefaults *  themeDefaults = nullptr;
         if (m_themes != nullptr)
         {
@@ -204,8 +204,8 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
     }
     else if (m_displayPage != nullptr)
     {
-        int                       idx           = ActiveModeIdx();
-        const auto &              preset        = CrtPresets::ForMode ((size_t) idx);
+        int                       idx           = GetActiveModeIdx();
+        const auto &              preset        = CrtPresets::GetPreset ((size_t) idx);
         const ThemeCrtDefaults *  themeDefaults = nullptr;
         if (m_themes != nullptr)
         {
@@ -297,7 +297,7 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride()
     // Already-overridden blocks are left alone -- re-seeding them would throw
     // away the user's edits, which is exactly what this is meant to preserve.
     bool  promotes = m_prefs != nullptr
-                     && !m_prefs->crtByMode[ActiveModeIdx()].userOverride;
+                     && !m_prefs->crtByMode[GetActiveModeIdx()].userOverride;
 
 
 
@@ -348,8 +348,8 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 void SettingsDisplayCrtBridge::ApplyActiveDefaults (GlobalUserPrefs & prefs)
 {
     const ThemeCrtDefaults *  themeDefaults = nullptr;
-    auto &                    blk           = prefs.crtByMode[ActiveModeIdx()];
-    const auto &              preset        = CrtPresets::ForMode ((size_t) ActiveModeIdx());
+    auto &                    blk           = prefs.crtByMode[GetActiveModeIdx()];
+    const auto &              preset        = CrtPresets::GetPreset ((size_t) GetActiveModeIdx());
 
 
 
@@ -421,7 +421,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
     }
 
     // Brightness / contrast / gamma / persistence sliders write LIVE
-    // to the currently-active monitor's CRT block. ActiveModeIdx()
+    // to the currently-active monitor's CRT block. GetActiveModeIdx()
     // reads from SettingsPanelState so every edit lands on whichever
     // monitor type the user has selected in the dropdown.
     m_displayPage->SetOnBrightnessChange ([this] (float pct)
@@ -429,7 +429,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         if (m_prefs != nullptr)
         {
             PromoteActiveToOverride();
-            m_prefs->crtByMode[ActiveModeIdx()].brightness = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
+            m_prefs->crtByMode[GetActiveModeIdx()].brightness = pct / 100.0f;     // slider 0..200% -> shader 0..2.0
         }
     });
     m_displayPage->SetOnContrastChange ([this] (float pct)
@@ -437,7 +437,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         if (m_prefs != nullptr)
         {
             PromoteActiveToOverride();
-            m_prefs->crtByMode[ActiveModeIdx()].contrast = pct / 100.0f;
+            m_prefs->crtByMode[GetActiveModeIdx()].contrast = pct / 100.0f;
         }
     });
     m_displayPage->SetOnGammaChange ([this] (float g)
@@ -445,7 +445,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         if (m_prefs != nullptr)
         {
             PromoteActiveToOverride();
-            m_prefs->crtByMode[ActiveModeIdx()].gamma = g;
+            m_prefs->crtByMode[GetActiveModeIdx()].gamma = g;
         }
     });
     m_displayPage->SetOnPersistenceChange ([this] (float pct)
@@ -453,7 +453,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         if (m_prefs != nullptr)
         {
             PromoteActiveToOverride();
-            m_prefs->crtByMode[ActiveModeIdx()].persistence = pct / 100.0f;
+            m_prefs->crtByMode[GetActiveModeIdx()].persistence = pct / 100.0f;
         }
     });
 
@@ -481,31 +481,31 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
     // monitor's CRT block.
     m_displayPage->SetOnScanlinesEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesEnabled  = on; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].scanlinesEnabled  = on; }
     });
     m_displayPage->SetOnScanlinesIntChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].scanlinesIntensity = pct / 100.0f; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].scanlinesIntensity = pct / 100.0f; }
     });
     m_displayPage->SetOnBloomEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomEnabled       = on; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].bloomEnabled       = on; }
     });
     m_displayPage->SetOnBloomRadiusChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomRadius        = px; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].bloomRadius        = px; }
     });
     m_displayPage->SetOnBloomStrengthChange ([this] (float pct)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].bloomStrength      = pct / 100.0f; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].bloomStrength      = pct / 100.0f; }
     });
     m_displayPage->SetOnColorBleedEnChange ([this] (bool on)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedEnabled  = on; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].colorBleedEnabled  = on; }
     });
     m_displayPage->SetOnColorBleedWChange ([this] (float px)
     {
-        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[ActiveModeIdx()].colorBleedWidth    = px; }
+        if (m_prefs != nullptr) { PromoteActiveToOverride(); m_prefs->crtByMode[GetActiveModeIdx()].colorBleedWidth    = px; }
     });
 
     // Restore Defaults gives the user the RESOLVED defaults (theme

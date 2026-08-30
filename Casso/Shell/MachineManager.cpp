@@ -675,10 +675,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (m_shell.m_refs.printerCard != nullptr)
     {
         PrintRaster   pending;
-        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir(), pending);
+        HRESULT       hrLoad = PrintJobStore::Load (m_shell.GetPendingPrintDir(), pending);
 
         m_shell.m_printerWorker.Start (
-            m_shell.m_refs.printerCard->ByteRing(),
+            m_shell.m_refs.printerCard->GetByteRing(),
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
         // Pace the drain off the guest clock so the card applies real
@@ -693,7 +693,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // Prime the live-preview auto-open baseline to the worker's current
         // activity so a page carried over from a previous session does not read as
         // a fresh print and auto-open the preview on boot -- only new printing does.
-        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount();
+        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.GetActivityCount();
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -1730,16 +1730,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // strip clears any stale sidecar.
     if (!m_shell.m_currentMachineName.empty())
     {
-        PrinterJob *   printJob = m_shell.m_printerWorker.Job();
+        PrinterJob *   printJob = m_shell.m_printerWorker.GetJob();
 
         if (printJob != nullptr && printJob->HasContent())
         {
-            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir(), printJob->Raster());
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.GetPendingPrintDir(), printJob->GetRaster());
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
         else
         {
-            PrintJobStore::Clear (m_shell.PendingPrintDir());
+            PrintJobStore::Clear (m_shell.GetPendingPrintDir());
         }
     }
 

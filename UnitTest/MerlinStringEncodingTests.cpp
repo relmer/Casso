@@ -50,9 +50,9 @@ namespace MerlinStringEncodingTests
 
         if (usable)
         {
-            outMode    = MerlinDirectiveTable::EncodingModeForSpelling (upper);
+            outMode    = MerlinDirectiveTable::GetEncodingModeForSpelling (upper);
             outText    = parsed.operand.substr (1, closing - 1);
-            outHighBit = StringEncoding::HighBitFromDelimiter (delimiter);
+            outHighBit = StringEncoding::IsHighBitDelimiter (delimiter);
         }
 
         return usable;
@@ -242,9 +242,9 @@ namespace MerlinStringEncodingTests
         //  ($27) and would have to give low ASCII under one.
         TEST_METHOD (EveryDelimiterTheCorpusUsesSelectsHighAscii)
         {
-            Assert::IsTrue (StringEncoding::HighBitFromDelimiter ('"'), L"the quote delimiter gives high ASCII");
-            Assert::IsTrue (StringEncoding::HighBitFromDelimiter ('!'), L"and so does the bang, at a LOWER ASCII value");
-            Assert::IsFalse (StringEncoding::HighBitFromDelimiter ('\''), L"the apostrophe is the documented low-ASCII case");
+            Assert::IsTrue (StringEncoding::IsHighBitDelimiter ('"'), L"the quote delimiter gives high ASCII");
+            Assert::IsTrue (StringEncoding::IsHighBitDelimiter ('!'), L"and so does the bang, at a LOWER ASCII value");
+            Assert::IsFalse (StringEncoding::IsHighBitDelimiter ('\''), L"the apostrophe is the documented low-ASCII case");
         }
     };
 }

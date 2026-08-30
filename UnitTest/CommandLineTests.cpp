@@ -415,7 +415,7 @@ namespace CommandLineTests
             //  Narrow enough that the description cannot fit beside the route,
             //  so the row has to wrap and the indent is what is being asserted.
             std::vector<std::string>  folded = UsageText::Wrap (row, 44);
-            size_t                    column = UsageText::ContinuationIndent (row);
+            size_t                    column = UsageText::GetContinuationIndent (row);
 
             Assert::IsTrue (folded.size() > 1, L"44 columns is narrower than this row");
 
@@ -785,13 +785,13 @@ namespace CommandLineTests
 
             for (const CommandLineParser::SubcommandName & entry : CommandLineParser::GetAllSubcommands())
             {
-                std::string  line = CommandLineHelp::UsageLineFor (entry.token);
+                std::string  line = CommandLineHelp::GetUsageLine (entry.token);
 
                 Assert::IsTrue (page.find (line) != std::string::npos,
                     (L"the general page does not list: " + Widen (entry.name)).c_str());
             }
 
-            Assert::IsTrue (page.find (CommandLineHelp::UsageLineFor (
+            Assert::IsTrue (page.find (CommandLineHelp::GetUsageLine (
                                 CommandLineOptions::Subcommand::As65)) != std::string::npos,
                             L"nor the assembler, which is the fallback rather than a named mode");
         }
@@ -1757,13 +1757,13 @@ namespace CommandLineTests
             Assert::IsFalse (CommandLineParser::IsPlainDecimal ("60t"), L"and this is not a number");
             Assert::IsFalse (CommandLineParser::IsPlainDecimal (""),    L"nor is nothing");
 
-            Assert::AreEqual ((int) 'l', (int) CommandLineParser::TrailingParameterFlag ("-l"),
+            Assert::AreEqual ((int) 'l', (int) CommandLineParser::GetTrailingParameterFlag ("-l"),
                               L"-l takes a filename, so what follows it may have been meant as one");
-            Assert::AreEqual ((int) 'd', (int) CommandLineParser::TrailingParameterFlag ("-td"),
+            Assert::AreEqual ((int) 'd', (int) CommandLineParser::GetTrailingParameterFlag ("-td"),
                               L"read from the END of a group, which is where a value would attach");
-            Assert::AreEqual (0, (int) CommandLineParser::TrailingParameterFlag ("-t"),
+            Assert::AreEqual (0, (int) CommandLineParser::GetTrailingParameterFlag ("-t"),
                               L"-t takes nothing, so nothing follows from it");
-            Assert::AreEqual (0, (int) CommandLineParser::TrailingParameterFlag ("prog.a65"),
+            Assert::AreEqual (0, (int) CommandLineParser::GetTrailingParameterFlag ("prog.a65"),
                               L"and a filename is not a flag at all");
         }
 
@@ -1785,7 +1785,7 @@ namespace CommandLineTests
         //  These pin the RULE rather than the sentence. The message goes to the
         //  error stream, which the parser writes and does not keep, so the only
         //  place a test can hold the decision is the predicate that makes it --
-        //  the same reason IsPlainDecimal and TrailingParameterFlag are public.
+        //  the same reason IsPlainDecimal and GetTrailingParameterFlag are public.
         //
         TEST_METHOD (TheShellSplitSignature_IsTheHalvesAndNotTheShell)
         {
