@@ -198,7 +198,7 @@ images.
 - [X] T065 [P] [US4] State the self-sync loss plainly wherever formats are compared, and point a user archiving a disk at WOZ, in both `README.md` and `docs/disk-write-integrity.md`
 - [X] T066 [P] [US4] Add the `[Unreleased]` entry to `CHANGELOG.md` under Added, describing the user-visible capability and its limitation in the project's plain register
 - [X] T067 [P] [US4] Mark User Story 2 and FR-003 delivered in `specs/022-disk-image-formats/spec.md`, pointing at this feature rather than leaving the requirement duplicated
-- [ ] T068 [P] [US4] Note FR-022 and SC-004 satisfied in `specs/007-ui-overhaul/spec.md`, which have never been satisfiable until now
+- [X] T068 [P] [US4] Note FR-022 and SC-004 satisfied in `specs/007-ui-overhaul/spec.md`, which have never been satisfiable until now
 
 **Checkpoint**: User Story 4 is deliverable.
 
@@ -206,15 +206,15 @@ images.
 
 ## Phase 7: Polish and Gates
 
-- [ ] T069 Sweep every file that references `DiskFormat` for a missing arm, driving the sweep from the enum in `CassoEmuCore/Devices/Disk/IDiskImage.h` and from a fresh `grep -rl DiskFormat` over `CassoEmuCore`, `CassoCore`, `Casso` and `CassoCli`. No count is quoted here on purpose: this task's own count has been wrong twice (ten, then fifteen; it is eighteen files today, eight of them headers), and a stale number in the safety net is worse than none
-- [ ] T070 Confirm `Casso/Ui/DriveWidgetState.h` is unmodified in the branch diff via `git diff origin/master -- Casso/Ui/DriveWidgetState.h`. Any change means the second extension list has come back and must be reverted
-- [ ] T071 Confirm `.specify/feature.json` is not in the branch diff via `git diff origin/master -- .specify/feature.json`. It is a **tracked** file holding per-checkout state, so `git commit -a` sweeps it in without any `git add -A`
-- [ ] T072 Run `scripts\Build.ps1 -Configuration Debug` and `scripts\Build.ps1 -Configuration Release`, both with zero warnings
-- [ ] T073 Run `scripts\RunTests.ps1 -Configuration Debug -Build` and `scripts\RunTests.ps1 -Configuration Release -Build` in the background, reporting exact counts for each. The two run different test sets, so neither substitutes for the other
-- [ ] T074 Run `scripts\CheckStyle.ps1` clean, and `scripts\CheckStyle.ps1 -Mode Staged` before committing any new file — diff mode cannot see a file that has never been committed and will report OK over it
+- [X] T069 Sweep every file that references `DiskFormat` for a missing arm, driving the sweep from the enum in `CassoEmuCore/Devices/Disk/IDiskImage.h` and from a fresh `grep -rl DiskFormat` over `CassoEmuCore`, `CassoCore`, `Casso` and `CassoCli`. No count is quoted here on purpose: this task's own count has been wrong twice (ten, then fifteen; it is eighteen files today, eight of them headers), and a stale number in the safety net is worse than none
+- [X] T070 Confirm `Casso/Ui/DriveWidgetState.h` is unmodified in the branch diff via `git diff origin/master -- Casso/Ui/DriveWidgetState.h`. Any change means the second extension list has come back and must be reverted
+- [X] T071 Confirm `.specify/feature.json` is not in the branch diff via `git diff origin/master -- .specify/feature.json`. It is a **tracked** file holding per-checkout state, so `git commit -a` sweeps it in without any `git add -A`
+- [X] T072 Run `scripts\Build.ps1 -Configuration Debug` and `scripts\Build.ps1 -Configuration Release`, both with zero warnings
+- [X] T073 Run `scripts\RunTests.ps1 -Configuration Debug -Build` and `scripts\RunTests.ps1 -Configuration Release -Build` in the background, reporting exact counts for each. The two run different test sets, so neither substitutes for the other
+- [X] T074 Run `scripts\CheckStyle.ps1` clean, and `scripts\CheckStyle.ps1 -Mode Staged` before committing any new file — diff mode cannot see a file that has never been committed and will report OK over it
 - [ ] T075 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild, with zero warnings. A run over a stale Release build fakes a wall of LNK4020 noise
-- [ ] T076 Walk `specs/027-nibble-images/quickstart.md` end to end against a real build, including launching `x64\Debug\Casso.exe --machine Apple2e --disk1 <image>`. Kill only the process ID launched here; other Casso instances are running from other worktrees
-- [ ] T077 Remove any generated `.nib` and `.nb2` scratch files from the working tree. Do not add patterns to `.gitignore` — stray files are meant to surface in `git status`
+- [X] T076 Walk `specs/027-nibble-images/quickstart.md` end to end against a real build, including launching `x64\Debug\Casso.exe --machine Apple2e --disk1 <image>`. Kill only the process ID launched here; other Casso instances are running from other worktrees
+- [X] T077 Remove any generated `.nib` and `.nb2` scratch files from the working tree. Do not add patterns to `.gitignore` — stray files are meant to surface in `git status`
 
 Merge-time steps that are deliberately **not** tasks here, because this branch must
 not perform them, are recorded in [plan.md](plan.md) under "Notes on shared state".

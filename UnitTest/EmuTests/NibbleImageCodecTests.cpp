@@ -3,7 +3,12 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk/DirectBootBuilder.h"
 #include "Devices/Disk/SectorDecodeReport.h"
+#include "GuestSession.h"
+#include "HeadlessHost.h"
+#include "MachineIdle.h"
+#include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -92,6 +97,107 @@ public:
         img.ResizeTrack (track, bits);
         memcpy (img.GetTrackBitsForWrite (track).data(), turned.data(), turned.size());
         img.SetTrackBitCount (track, bits);
+    }
+
+
+
+    static constexpr Word      kBootRomEntry = 0xC600;
+    static constexpr Word      kIntCxRomOff  = 0xC006;
+    static constexpr int       kSlot6        = 6;
+    static constexpr int       kDrive1       = 0;
+
+    //  A ceiling, not a budget: RunUntilIdle stops as soon as the machine
+    //  settles. A DOS 3.3 cold boot settles in about 12M and this does far
+    //  less, so reaching this number means the boot never happened.
+    static constexpr uint64_t  kBootCeiling  = 30'000'000ULL;
+
+    TEST_METHOD (Boot_ARealMachineReadsTheContainerOffTheDrive)
+    {
+        //  THE CLAIM A USER WOULD MAKE, checked by a 6502 rather than by this
+        //  code's own opinion of itself. Everything else here compares the
+        //  codec against itself; this boots the container through the Disk II
+        //  the way the machine does, so the bit stream has to be right in a
+        //  way no round trip can establish.
+        //
+        //  A direct-boot payload rather than a DOS 3.3 disk: it needs no
+        //  master image, so the test runs the same everywhere instead of
+        //  skipping on a checkout that has none.
+        HeadlessHost              host;
+        EmulatorCore              core;
+        DiskImage                 built;
+        DiskImage               * mounted = nullptr;
+        vector<Byte>              payload;
+        vector<Byte>              sectors;
+        vector<Byte>              nibFile;
+        std::string               refusal;
+        DirectBootSpec            spec;
+        std::vector<std::string>  rows;
+        bool                      printed = false;
+        int                       i       = 0;
+
+        //  Writes NIBOK across the top-left of the text page, then spins.
+        //
+        //  FIVE DISTINCT GLYPHS AND NOT ONE. The first version of this stored a
+        //  single 'X' and looked for that letter anywhere on a 40x24 screen --
+        //  which passed even with the codec deliberately broken, because some
+        //  X is on the screen either way. A word that nothing else writes is
+        //  what makes the assertion about this payload.
+        //
+        //      LDA #ch / STA $0400+n, five times, then JMP to itself.
+        {
+            static const Byte  kGlyphs[] = { 0xCE, 0xC9, 0xC2, 0xCF, 0xCB };   // N I B O K
+            Byte               column    = 0;
+
+            for (column = 0; column < (Byte) _countof (kGlyphs); column++)
+            {
+                payload.push_back (0xA9);  payload.push_back (kGlyphs[column]);
+                payload.push_back (0x8D);  payload.push_back (column);  payload.push_back (0x04);
+            }
+
+            //  JMP to the JMP: the payload loads at $0900 and this is its 26th byte.
+            payload.push_back (0x4C);  payload.push_back (0x19);  payload.push_back (0x09);
+        }
+
+        spec.loadAddress  = 0x0900;
+        spec.entryAddress = 0x0900;
+
+        AssertSucceeded (DirectBootBuilder::Build (payload, spec, sectors, refusal));
+        Assert::AreEqual (std::string(), refusal);
+
+        //  Through the nibble container, not around it.
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (NibbleImageCodec::Build (built, NibbleImageCodec::kNibTrackSize, nibFile));
+        Assert::AreEqual (NibbleImageCodec::kNibImageSize, nibFile.size());
+
+        AssertSucceeded (host.BuildApple2eWithDisk2 (core));
+        core.PowerCycle();
+
+        //  Drive 1 is index 0 and INTCXROM-off is $C006. Getting either wrong
+        //  leaves the boot ROM seeking an empty drive forever, which does not
+        //  fail -- it just never goes idle and spends the whole ceiling.
+        AssertSucceeded (core.diskStore->MountFromBytes (kSlot6, kDrive1, "boot.nib",
+                                                         DiskFormat::Nib, nibFile));
+
+        mounted = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (mounted, L"the nibble image must mount");
+        core.diskController->SetExternalDisk (kDrive1, mounted);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        MachineIdle::RunUntilIdle (core, kBootCeiling);
+
+        rows = TextScreenScraper::Scrape40 (*core.bus, TextScreenScraper::kTextPage1);
+
+        Assert::IsTrue (rows.size() > 0, L"the text page must have been scraped");
+
+        for (i = 0; i < (int) rows.size() && !printed; i++)
+        {
+            printed = rows[i].find ("NIBOK") != std::string::npos;
+        }
+
+        Assert::IsTrue (printed,
+            L"the boot ROM must have read the payload off the nibble image and run it");
     }
 
 
