@@ -28,9 +28,18 @@ which is correct behavior; there is no caller who could do anything useful with
 an error, and one that failed a build over it would be worse than the bug this
 feature fixes.
 
-Core owns the interface. `Casso`/`CassoCli` own the Win32 implementation,
-mirroring `IDiskFileIo` / `Win32DiskFileIo`, so `UnitTest` drives the whole
-decision path with a fake that records what was stated.
+**Core owns the interface AND the Win32 implementation**, beside
+`CassoEmuCore/Cli/Win32DiskFileIo.cpp`. Only the window handle and the message
+pump belong to an executable.
+
+Two reasons, and the second is not negotiable by taste. The constitution says
+calling Win32 is not a reason to live in an exe, and names "does this call a
+platform API?" as the wrong question. And this is the SENDER: its callers run
+inside `CassoCli.exe`, which cannot link `Casso.exe`, so a shim in the shell
+would not link at all.
+
+`UnitTest` drives the whole decision path with a fake that records what was
+stated.
 
 ## The Win32 shim
 

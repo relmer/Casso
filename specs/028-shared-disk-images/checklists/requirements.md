@@ -33,15 +33,15 @@
 
 The requirements are grouped, and the groups are the shape of the feature:
 
-| Group | Requirements | What it settles |
-|---|---|---|
-| Noticing a change | FR-001 – FR-004 | That an external change is seen at all |
-| How the guest takes up the new contents | FR-005 – FR-015 | Stated intent, the fallback, coalescing, reporting |
-| When the new contents cannot be used | FR-016 – FR-018 | Deleted, corrupt, wrong geometry |
-| What happens to the two versions | FR-019 – FR-023 | The data-loss question and the preserved copy |
-| Writing safely | FR-024 – FR-027 | Two writers cannot interleave |
-| Not making things worse | FR-028 – FR-030 | No regression, no felt cost |
-| Saying so | FR-031 – FR-032 | Every message names its image |
+| Group | Requirements |
+|---|---|
+| Noticing a change | FR-001 – FR-004 |
+| How the guest takes up the new contents | FR-005 – FR-015 |
+| When the new contents cannot be used | FR-016 – FR-018 |
+| What happens to the two versions | FR-019 – FR-024 |
+| Writing safely | FR-025 – FR-029 |
+| Not making things worse | FR-030 – FR-032 |
+| Saying so | FR-033 – FR-034 |
 
 ### Where the line was drawn on implementation detail
 
@@ -53,7 +53,7 @@ requirements themselves name no file, no class and no mechanism.
 The owner's desired shape — a lock held during the write, a mount-time timestamp,
 a change notification — is deliberately NOT written into the requirements as
 those mechanisms. FR-001 asks for "enough to decide whether it has changed",
-FR-002 for prompt detection, FR-024 for non-interleaving. Those are the outcomes
+FR-002 for prompt detection, FR-025 for non-interleaving. Those are the outcomes
 the owner's design achieves, and stating them as outcomes leaves the plan free to
 confirm that design or find the platform makes a different one better, while
 still being testable.
@@ -83,7 +83,7 @@ why there is no per-drive setting to design. The emulator keeps only a fallback
 
 That separation also untangled two questions the early drafts had confused: how
 the guest takes up new contents (FR-005 – FR-015) arises on every pick-up, while
-what happens to the two versions (FR-019 – FR-023) arises only when the guest has
+what happens to the two versions (FR-019 – FR-024) arises only when the guest has
 written AND the file changed. FR-019 states that no setting turns the second off,
 so an intent of "take changes up in place" can never be read as permission to
 discard the guest's work.
@@ -106,19 +106,36 @@ Five questions, all answered, all integrated:
    it stands and act on the MOST RECENT contents: a developer may run three
    builds before turning back to the emulator.
 5. **Backup cannot be written** — refuse the discarding action, keep both live,
-   offer another location (FR-023). A backup that silently did not happen breaks
+   offer another location (FR-024). A backup that silently did not happen breaks
    the promise exactly where it matters most.
 
-### Left for `/speckit-plan`
+### What the plan settled
 
-- **The channel from a writing tool to a running emulator does not exist today.**
-  FR-005 requires the intent to be stated and FR-024 requires a writer to hold the
-  image; if the hold turns out to be a file beside the image, that file is the
-  obvious place to carry the intent. One mechanism serving both would be
-  considerably smaller than two, and the plan should say whether it does.
-- **How long the quiet period of FR-013 is**, and whether it is fixed or derived
-  from how long writers actually hold the image.
-- **Whether the hold of FR-024 is taken for the whole mount or around each
-  write.** The spec requires only that writers not interleave. It must be around
-  each write in practice, or nothing could ever write a mounted image, but the
-  spec deliberately does not encode that.
+- **The channel is a broadcast `WM_COPYDATA`**, and it is allowed to be lossy:
+  a change is found by watching regardless, so a dropped message degrades to the
+  fallback rather than failing. That removed any need for delivery guarantees,
+  discovery or cleanup, and it is why a sidecar file was not needed.
+- **No lock is being built.** Both writers already commit through a temporary
+  and an atomic rename, so the corruption the spec first asked to prevent cannot
+  happen. What was left were two defects: a fixed temporary name that two
+  emulator instances collide on, and a missing re-check before writing.
+- **The quiet period starts at 1 second**, matching the spindown debounce the
+  controller already applies, as a named constant.
+
+### What three analysis passes caught
+
+Recorded because the pattern matters more than the individual fixes.
+
+1. The task list put seven decisions inside `Casso.exe` while this checklist and
+   the plan both recorded Principle VI as satisfied.
+2. The correction for that stopped at the decisions and left the Win32 shims in
+   the shell on platform-boundary reasoning — which the constitution deletes in
+   as many words, and which would not have linked, since the intent channel is
+   the sender and its callers live in `CassoCli.exe`.
+3. Renumbering broke cross-references three times, once instructing a reader to
+   revert work unrelated to what was being verified. Task numbers are now absent
+   from prose and from task bodies alike.
+
+A Constitution Check written from a plan's intentions is not a check. It has to
+be read against the tasks that will actually be written, and against the tree's
+own precedent rather than a plausible-sounding rule.

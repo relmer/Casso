@@ -40,9 +40,14 @@ What the emulator knows about one mounted image beyond its bytes.
 **Rules**
 
 - Set at mount, cleared at eject.
-- `watching` false is not an error. FR-022 requires the feature to degrade to
+- `watching` false is not an error. FR-032 requires the feature to degrade to
   the write-time re-check where notification cannot be trusted, and a network
   share is the case that produces it.
+- **A change arriving while an earlier one is being acted on updates this record
+  rather than being lost.** The apply reads the image fresh, so a change landing
+  mid-apply is either already included or is still pending when the apply
+  finishes; it must never be dropped on the grounds that something was in
+  progress.
 
 ## PendingChange (new)
 
@@ -96,7 +101,7 @@ the user resolves it.
 - **No stated intent and no preference resolves it** (FR-019). The intent says
   how the guest continues, not whether work may be discarded.
 - Where the backup cannot be written, the conflict stays unresolved and both
-  versions stay live (FR-023).
+  versions stay live (FR-024).
 
 ## CommandLineOptions (existing, gains one field)
 
@@ -104,9 +109,10 @@ the user resolves it.
 |---|---|---|
 | `pickUpIntent` | `PickUpIntent` | Defaults to `Unstated` |
 
-Lives beside `imagePath`, `onDiskName` and `imageTypeName`, which spec 026 added
-for the same reason: they are assembler-and-disk options rather than anything
-nested under a subcommand.
+**Spec 026 adds `imagePath`, `onDiskName` and `imageTypeName` as flat fields for
+the same reason, and they are NOT on this branch yet** — today `imagePath` exists
+only inside the nested `disk` subcommand group. Until 026 lands, this field lives
+beside the nested group and the assembler half of the flag waits.
 
 ## DiskImageStore::Entry (existing, gains one field)
 
