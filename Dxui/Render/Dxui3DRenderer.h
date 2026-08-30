@@ -36,11 +36,16 @@ class Dxui3DRenderer
 public:
     struct Vertex
     {
-        float  x, y, z;         // position, in whatever space the mvp expects
-        float  u, v;            // content-texture coordinates (ignored when tinted-only)
-        float  r, g, b, a;      // material tint, multiplied with the texture
-        float  nx, ny, nz;      // normal, same space as the position
-        float  er, eg, eb;      // emissive, ADDED after shading
+        // EVERY MEMBER CARRIES ITS ZERO. The struct already had one default
+        // (pebble), so it was never trivially constructible and these cost
+        // nothing more -- and the contract below, that a value-initialized
+        // Vertex is unlit, is now true by construction rather than by each
+        // caller remembering to write `= {}`.
+        float  x = 0.0f, y = 0.0f, z = 0.0f;      // position, in whatever space the mvp expects
+        float  u = 0.0f, v = 0.0f;                // content-texture coordinates (ignored when tinted-only)
+        float  r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;   // material tint, multiplied with the texture
+        float  nx = 0.0f, ny = 0.0f, nz = 0.0f;   // normal, same space as the position
+        float  er = 0.0f, eg = 0.0f, eb = 0.0f;   // emissive, ADDED after shading
 
         // Surface finish, 0 smooth .. 1 fully pebbled. Perturbs the normal
         // with position-hashed noise before shading, so a molded-in texture
