@@ -107,8 +107,8 @@ public:
                   IDxuiTextRenderer & text,
                   const IDxuiTheme  & theme) override;
 
-    std::wstring        AccessibleName () const override { return L"Rotate scene"; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Generic; }
+    std::wstring        GetAccessibleName () const override { return L"Rotate scene"; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Generic; }
 
     // How far a press may travel and still be a click. Generous, because
     // the compass sits over a scene where a stray pixel of motion is

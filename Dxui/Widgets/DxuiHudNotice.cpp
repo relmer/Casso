@@ -18,7 +18,7 @@
 
 void DxuiHudNotice::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    m_dpi = scaler.Dpi();
+    m_dpi = scaler.GetDpi();
     SetBounds (boundsDip);
 }
 
@@ -64,14 +64,14 @@ void DxuiHudNotice::Paint (IDxuiPainter      & painter,
     float            bw     = 0.0f;
     float            bh     = 0.0f;
     HRESULT          hr     = S_OK;
-    RECT             bounds = Bounds();
+    RECT             bounds = GetBounds();
 
 
 
     UNREFERENCED_PARAMETER (painter);
     UNREFERENCED_PARAMETER (theme);
 
-    if (!Visible() || m_text.empty() || bounds.right <= bounds.left)
+    if (!IsVisible() || m_text.empty() || bounds.right <= bounds.left)
     {
         return;
     }

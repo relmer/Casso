@@ -75,7 +75,7 @@ public:
 
         bar.SetItems (std::move (items));
 
-        Assert::AreEqual (3, bar.MenuCount());
+        Assert::AreEqual (3, bar.GetMenuCount());
         Assert::IsFalse (bar.IsOpen());
         Assert::AreEqual (-1, bar.OpenIndex());
     }
@@ -130,8 +130,8 @@ public:
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        fileTitle = bar.MenuRect (0);
-        editTitle = bar.MenuRect (1);
+        fileTitle = bar.GetMenuRect (0);
+        editTitle = bar.GetMenuRect (1);
 
         // First click opens File.
         Assert::IsTrue (bar.HandleMouseDown ((fileTitle.left + fileTitle.right) / 2,
@@ -156,12 +156,12 @@ public:
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
 
-        fileTitle = bar.MenuRect (0);
+        fileTitle = bar.GetMenuRect (0);
 
         bar.HandleMouseMove ((fileTitle.left + fileTitle.right) / 2,
                              (fileTitle.top  + fileTitle.bottom) / 2);
 
-        Assert::AreEqual (0, bar.HoverIndex());
+        Assert::AreEqual (0, bar.GetHoverIndex());
         Assert::IsFalse (bar.IsOpen());
     }
 
@@ -176,15 +176,15 @@ public:
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        fileTitle = bar.MenuRect (0);
+        fileTitle = bar.GetMenuRect (0);
 
         bar.HandleMouseMove ((fileTitle.left + fileTitle.right) / 2,
                              (fileTitle.top  + fileTitle.bottom) / 2);
-        Assert::AreEqual (0, bar.HoverIndex());
+        Assert::AreEqual (0, bar.GetHoverIndex());
 
         bar.ClearHover();
 
-        Assert::AreEqual (-1, bar.HoverIndex());
+        Assert::AreEqual (-1, bar.GetHoverIndex());
     }
 
 
@@ -208,15 +208,15 @@ public:
         text.SetCannedMetrics (L"File", { 64, 16 });
         text.SetCannedMetrics (L"Edit", { 52, 16 });
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
-        firstFile = bar.MenuRect (0);
-        firstEdit = bar.MenuRect (1);
+        firstFile = bar.GetMenuRect (0);
+        firstEdit = bar.GetMenuRect (1);
         firstGap = firstEdit.left - firstFile.right;
         firstAdvance = firstEdit.left - firstFile.left;
 
         scaler.SetDpi (s_kTestDpi);
         bar.Layout (resizedBounds, scaler);
-        secondFile = bar.MenuRect (0);
-        secondEdit = bar.MenuRect (1);
+        secondFile = bar.GetMenuRect (0);
+        secondEdit = bar.GetMenuRect (1);
         secondGap = secondEdit.left - secondFile.right;
         secondAdvance = secondEdit.left - secondFile.left;
 
@@ -236,15 +236,15 @@ public:
 
         // Nothing is laid out yet, so there is no strip content to keep on
         // the strip.
-        Assert::AreEqual (0, bar.MenuStripContentWidthPx());
+        Assert::AreEqual (0, bar.GetMenuStripContentWidthPx());
 
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, s_kTestDpi, &text);
 
         // The reported width is the right edge of the last title -- the
         // minimum client width that keeps every title on the strip.
-        lastRight = bar.MenuRect (bar.MenuCount() - 1).right;
+        lastRight = bar.GetMenuRect (bar.GetMenuCount() - 1).right;
         Assert::IsTrue   (lastRight > 0);
-        Assert::AreEqual (lastRight, bar.MenuStripContentWidthPx());
+        Assert::AreEqual (lastRight, bar.GetMenuStripContentWidthPx());
     }
 
 
@@ -265,9 +265,9 @@ public:
         menu.SetTextRendererForMeasure (&text);
 
         menu.Layout (resizeBounds, scaler);
-        fileRect = menu.MenuRect ((int) MainMenuId::File);
-        editRect = menu.MenuRect ((int) MainMenuId::Edit);
-        bounds   = menu.Bounds();
+        fileRect = menu.GetMenuRect ((int) MainMenuId::File);
+        editRect = menu.GetMenuRect ((int) MainMenuId::Edit);
+        bounds   = menu.GetBounds();
 
         Assert::AreEqual (fileRect.bottom, bounds.bottom);
         Assert::AreEqual (fileRect.top,    bounds.top);
@@ -319,17 +319,17 @@ public:
         bar.Open (0, true);
 
         // File has rows: New (0), Open (1), [separator], Exit (2). Highlight starts at 0.
-        Assert::AreEqual (0, bar.HighlightIndex());
+        Assert::AreEqual (0, bar.GetHighlightIndex());
         Assert::IsTrue   (bar.HandleKey (VK_DOWN));
-        Assert::AreEqual (1, bar.HighlightIndex());
+        Assert::AreEqual (1, bar.GetHighlightIndex());
         Assert::IsTrue   (bar.HandleKey (VK_DOWN));
-        Assert::AreEqual (2, bar.HighlightIndex());
+        Assert::AreEqual (2, bar.GetHighlightIndex());
         // Down again wraps to row 0.
         Assert::IsTrue   (bar.HandleKey (VK_DOWN));
-        Assert::AreEqual (0, bar.HighlightIndex());
+        Assert::AreEqual (0, bar.GetHighlightIndex());
         // Up wraps backwards.
         Assert::IsTrue   (bar.HandleKey (VK_UP));
-        Assert::AreEqual (2, bar.HighlightIndex());
+        Assert::AreEqual (2, bar.GetHighlightIndex());
     }
 
 
@@ -341,12 +341,12 @@ public:
         bar.SetItems (MakeTestItems());
         bar.Open (1, true);    // Edit menu: Cut(0), Copy(1), Paste(2 disabled)
 
-        Assert::AreEqual (0, bar.HighlightIndex());
+        Assert::AreEqual (0, bar.GetHighlightIndex());
         Assert::IsTrue   (bar.HandleKey (VK_DOWN));
-        Assert::AreEqual (1, bar.HighlightIndex());
+        Assert::AreEqual (1, bar.GetHighlightIndex());
         // Skip disabled Paste and wrap to Cut.
         Assert::IsTrue   (bar.HandleKey (VK_DOWN));
-        Assert::AreEqual (0, bar.HighlightIndex());
+        Assert::AreEqual (0, bar.GetHighlightIndex());
     }
 
 
@@ -367,7 +367,7 @@ public:
         // verify that the menu bar accepts a focus-only state without re-opening.
         bar.SetFocusedMenu (1);
         Assert::IsTrue  (bar.HasFocus());
-        Assert::AreEqual (1, bar.FocusedMenu());
+        Assert::AreEqual (1, bar.GetFocusedMenu());
         Assert::IsFalse (bar.IsOpen());
     }
 
@@ -475,7 +475,7 @@ public:
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
         bar.Open (0, true);
 
-        dd = bar.DropdownRect();
+        dd = bar.GetDropdownRect();
 
         // The separator occupies the band between New and Exit. Compute roughly:
         // New row at y=0 of dropdown, separator next (10 dip), Exit after that.
@@ -544,8 +544,8 @@ public:
         bar.SetItems (std::move (items));
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        shortTitle = bar.MenuRect (0);
-        longTitle = bar.MenuRect (1);
+        shortTitle = bar.GetMenuRect (0);
+        longTitle = bar.GetMenuRect (1);
 
         Assert::IsTrue ((longTitle.right - longTitle.left) > (shortTitle.right - shortTitle.left));
         Assert::AreEqual ((LONG) 4, longTitle.left - shortTitle.right);
@@ -581,16 +581,16 @@ public:
         // First pass measures successfully and caches the widths.
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        shortFirst = bar.MenuRect (0);
-        longFirst = bar.MenuRect (1);
+        shortFirst = bar.GetMenuRect (0);
+        longFirst = bar.GetMenuRect (1);
 
         // Second pass (simulating resize) measures zero width. The
         // cached widths must be reused, so the rects are unchanged.
         text.SetMeasureReturnsZero (true);
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        shortSecond = bar.MenuRect (0);
-        longSecond = bar.MenuRect (1);
+        shortSecond = bar.GetMenuRect (0);
+        longSecond = bar.GetMenuRect (1);
 
         Assert::AreEqual (shortFirst.right - shortFirst.left, shortSecond.right - shortSecond.left);
         Assert::AreEqual (longFirst.right  - longFirst.left,  longSecond.right  - longSecond.left);
@@ -626,7 +626,7 @@ public:
         bar.SetItems (MakeTestItems());
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
 
-        fileTitle = bar.MenuRect (0);
+        fileTitle = bar.GetMenuRect (0);
         cx = (fileTitle.left + fileTitle.right) / 2;
         cy = (fileTitle.top  + fileTitle.bottom) / 2;
 

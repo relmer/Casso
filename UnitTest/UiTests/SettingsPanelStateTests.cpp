@@ -967,7 +967,7 @@ public:
 
         Assert::AreEqual ((size_t) 2, page.GetMachines().size());
         Assert::AreEqual (0, page.GetActiveMachineIndex());
-        Assert::AreEqual (0, page.GetMachineDropdown().SelectedIndex());
+        Assert::AreEqual (0, page.GetMachineDropdown().GetSelectedIndex());
 
         // Drive the dropdown directly: production routes the popup
         // through DxuiPopupHost (out-of-panel HWND), so the panel's

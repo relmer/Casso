@@ -77,9 +77,9 @@ public:
         DxuiPanZoom  pz;
 
         Assert::AreEqual (1.0f, pz.Zoom(),  0.0001f);
-        Assert::AreEqual (0.0f, pz.PanX(),  0.0001f);
-        Assert::AreEqual (0.0f, pz.PanY(),  0.0001f);
-        Assert::IsFalse  (pz.Zoomed());
+        Assert::AreEqual (0.0f, pz.GetPanX(),  0.0001f);
+        Assert::AreEqual (0.0f, pz.GetPanY(),  0.0001f);
+        Assert::IsFalse  (pz.IsZoomedIn());
     }
 
 
@@ -90,7 +90,7 @@ public:
 
         pz.OnMouse (Wheel (+1.0f, /*horizontal*/ false, /*ctrl*/ true));
         Assert::AreEqual (1.25f, pz.ZoomTarget(), 0.0001f);
-        Assert::IsTrue   (pz.Zoomed());
+        Assert::IsTrue   (pz.IsZoomedIn());
 
         for (int i = 0; i < 20; i++)
         {
@@ -147,11 +147,11 @@ public:
         // Wheel up (+delta) reveals earlier content -> panY target decreases.
         pz.OnMouse (Wheel (+1.0f));
         Settle (pz);
-        Assert::AreEqual (-96.0f, pz.PanY(), 0.001f);
+        Assert::AreEqual (-96.0f, pz.GetPanY(), 0.001f);
 
         pz.OnMouse (Wheel (-1.0f));
         Settle (pz);
-        Assert::AreEqual (0.0f, pz.PanY(), 0.001f);
+        Assert::AreEqual (0.0f, pz.GetPanY(), 0.001f);
     }
 
 
@@ -165,7 +165,7 @@ public:
 
         pz.OnMouse (Wheel (+2.0f, /*horizontal*/ true));
         Settle (pz);
-        Assert::AreEqual (100.0f, pz.PanX(), 0.001f);
+        Assert::AreEqual (100.0f, pz.GetPanX(), 0.001f);
     }
 
 
@@ -183,7 +183,7 @@ public:
         }
 
         Settle (pz);
-        Assert::AreEqual (50.0f, pz.PanY(), 0.001f);
+        Assert::AreEqual (50.0f, pz.GetPanY(), 0.001f);
     }
 
 
@@ -204,7 +204,7 @@ public:
         }
 
         Settle (pz);
-        Assert::AreEqual (96.0f, pz.PanY(), 0.01f);
+        Assert::AreEqual (96.0f, pz.GetPanY(), 0.01f);
     }
 
 
@@ -221,8 +221,8 @@ public:
         pz.Tick (0.0);                    // prime the clock
         pz.Tick (0.05);                   // half a tau: partway there
 
-        Assert::IsTrue (pz.PanY() > 0.0f);
-        Assert::IsTrue (pz.PanY() < 100.0f);
+        Assert::IsTrue (pz.GetPanY() > 0.0f);
+        Assert::IsTrue (pz.GetPanY() < 100.0f);
     }
 
 
@@ -238,7 +238,7 @@ public:
         pz.OnMouse (Wheel (-1.0f));
         pz.Tick (0.0);
         pz.Tick (0.001);
-        Assert::AreEqual (100.0f, pz.PanY(), 0.0001f);
+        Assert::AreEqual (100.0f, pz.GetPanY(), 0.0001f);
     }
 
 
@@ -259,9 +259,9 @@ public:
         // A drag FRAMES the camera. Left 10px reveals the left (panX +20); up
         // 20px frames the camera down (panYCam -60). The content scroll (panY)
         // is untouched -- that lives on the wheel.
-        Assert::AreEqual (20.0f,  pz.PanX(),    0.01f);
-        Assert::AreEqual (-60.0f, pz.PanYCam(), 0.01f);
-        Assert::AreEqual (0.0f,   pz.PanY(),    0.01f);
+        Assert::AreEqual (20.0f,  pz.GetPanX(),    0.01f);
+        Assert::AreEqual (-60.0f, pz.GetPanYCam(), 0.01f);
+        Assert::AreEqual (0.0f,   pz.GetPanY(),    0.01f);
     }
 
 
@@ -277,7 +277,7 @@ public:
         pz.OnMouse (Mouse (DxuiMouseEventKind::Move, DxuiMouseButton::Left, 0, 0));
         pz.OnMouse (Mouse (DxuiMouseEventKind::Up,   DxuiMouseButton::Left, 0, 0));
         Settle (pz);
-        Assert::AreEqual (-0.5f, pz.PanYCam(), 0.001f);
+        Assert::AreEqual (-0.5f, pz.GetPanYCam(), 0.001f);
     }
 
 
@@ -295,7 +295,7 @@ public:
         consumed = pz.OnMouse (Mouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, 50, 50));
         Settle (pz);
         Assert::IsFalse  (consumed);
-        Assert::AreEqual (0.0f, pz.PanY(), 0.0001f);
+        Assert::AreEqual (0.0f, pz.GetPanY(), 0.0001f);
     }
 
 
@@ -356,8 +356,8 @@ public:
         pz.SetPanYBounds (-1000.0f, 1000.0f);
 
         pz.SnapPanY (250.0f);
-        Assert::AreEqual (250.0f, pz.PanY(),       0.0001f);
-        Assert::AreEqual (250.0f, pz.PanYTarget(), 0.0001f);
+        Assert::AreEqual (250.0f, pz.GetPanY(),       0.0001f);
+        Assert::AreEqual (250.0f, pz.GetPanYTarget(), 0.0001f);
     }
 
 
@@ -373,8 +373,8 @@ public:
 
         pz.PanByUser (10.0f, -48.0f);
         Settle (pz);
-        Assert::AreEqual (10.0f,  pz.PanX(), 0.001f);
-        Assert::AreEqual (-48.0f, pz.PanY(), 0.001f);
+        Assert::AreEqual (10.0f,  pz.GetPanX(), 0.001f);
+        Assert::AreEqual (-48.0f, pz.GetPanY(), 0.001f);
         Assert::AreEqual (1, userPans);
     }
 
@@ -395,8 +395,8 @@ public:
         pz.Tick (0.01);                            // a tiny slice of time
 
         Assert::AreEqual (1.25f, pz.Zoom(), 0.0001f);   // zoom already there
-        Assert::IsTrue   (pz.PanY() > 0.0f);            // pan still gliding
-        Assert::IsTrue   (pz.PanY() < 100.0f);
+        Assert::IsTrue   (pz.GetPanY() > 0.0f);            // pan still gliding
+        Assert::IsTrue   (pz.GetPanY() < 100.0f);
     }
 
 
@@ -412,14 +412,14 @@ public:
 
         // A user wheel lands immediately -- no Tick needed, no glide.
         pz.OnMouse (Wheel (-1.0f));
-        Assert::AreEqual (100.0f, pz.PanY(), 0.001f);
+        Assert::AreEqual (100.0f, pz.GetPanY(), 0.001f);
 
         // A programmatic follow target still eases (only partway after a slice).
         pz.SetPanYTarget (0.0f);
         pz.Tick (0.0);
         pz.Tick (0.01);
-        Assert::IsTrue (pz.PanY() > 0.0f);
-        Assert::IsTrue (pz.PanY() < 100.0f);
+        Assert::IsTrue (pz.GetPanY() > 0.0f);
+        Assert::IsTrue (pz.GetPanY() < 100.0f);
     }
 
 
@@ -456,8 +456,8 @@ public:
         Settle (pz);
 
         Assert::AreEqual (1.25f, pz.ZoomTarget(), 0.0001f);
-        Assert::AreEqual (20.0f, pz.PanX(), 0.01f);   // 50 * 2 * 0.2
-        Assert::AreEqual (0.0f,  pz.PanY(), 0.01f);   // cursor vertically centered
+        Assert::AreEqual (20.0f, pz.GetPanX(), 0.01f);   // 50 * 2 * 0.2
+        Assert::AreEqual (0.0f,  pz.GetPanY(), 0.01f);   // cursor vertically centered
     }
 
 
@@ -480,8 +480,8 @@ public:
         Settle (pz);
 
         // Frames the camera down toward the cursor: -(200-100)*3*(1 - 1/1.25).
-        Assert::AreEqual (-60.0f, pz.PanYCam(), 0.01f);
-        Assert::AreEqual (0.0f,   pz.PanY(),    0.01f);   // content scroll untouched
+        Assert::AreEqual (-60.0f, pz.GetPanYCam(), 0.01f);
+        Assert::AreEqual (0.0f,   pz.GetPanY(),    0.01f);   // content scroll untouched
         Assert::AreEqual (0, userPans);                     // framing never fires user-pan
     }
 
@@ -498,8 +498,8 @@ public:
         pz.ZoomIn();                    // centered zoom -- no cursor anchor
         Settle (pz);
         Assert::IsTrue   (pz.ZoomTarget() > 1.0f);
-        Assert::AreEqual (0.0f, pz.PanX(), 0.0001f);
-        Assert::AreEqual (0.0f, pz.PanY(), 0.0001f);
+        Assert::AreEqual (0.0f, pz.GetPanX(), 0.0001f);
+        Assert::AreEqual (0.0f, pz.GetPanY(), 0.0001f);
     }
 
 
@@ -522,8 +522,8 @@ public:
 
         Settle (pz);
 
-        Assert::AreEqual (50.0f, pz.PanY(),       0.001f);   // paper pinned at the limit
-        Assert::AreEqual (30.0f, pz.OverscrollY(), 0.001f);  // world nudged to its stop
+        Assert::AreEqual (50.0f, pz.GetPanY(),       0.001f);   // paper pinned at the limit
+        Assert::AreEqual (30.0f, pz.GetOverscrollY(), 0.001f);  // world nudged to its stop
     }
 
 
@@ -544,13 +544,13 @@ public:
 
         pz.OnMouse (Wheel (+1.0f));       // one notch back: overscroll unwinds first
         Settle (pz);
-        Assert::AreEqual (50.0f, pz.PanY(),       0.001f);   // paper still pinned
-        Assert::AreEqual (10.0f, pz.OverscrollY(), 0.001f);  // 30 - 20
+        Assert::AreEqual (50.0f, pz.GetPanY(),       0.001f);   // paper still pinned
+        Assert::AreEqual (10.0f, pz.GetOverscrollY(), 0.001f);  // 30 - 20
 
         pz.OnMouse (Wheel (+1.0f));       // next notch: overscroll gone, paper moves
         Settle (pz);
-        Assert::AreEqual (40.0f, pz.PanY(),       0.001f);
-        Assert::AreEqual (0.0f,  pz.OverscrollY(), 0.001f);
+        Assert::AreEqual (40.0f, pz.GetPanY(),       0.001f);
+        Assert::AreEqual (0.0f,  pz.GetOverscrollY(), 0.001f);
     }
 
 
@@ -569,12 +569,12 @@ public:
             pz.OnMouse (Wheel (-1.0f));   // into overscroll
         }
 
-        Assert::IsTrue (pz.OverscrollY() > 0.0f);
+        Assert::IsTrue (pz.GetOverscrollY() > 0.0f);
 
         pz.SetPanYTarget (0.0f);          // follow mode reclaims the paper position
         Settle (pz);
-        Assert::AreEqual (0.0f, pz.OverscrollY(), 0.001f);   // world sprung home
-        Assert::AreEqual (0.0f, pz.PanY(),        0.001f);
+        Assert::AreEqual (0.0f, pz.GetOverscrollY(), 0.001f);   // world sprung home
+        Assert::AreEqual (0.0f, pz.GetPanY(),        0.001f);
     }
 
 
@@ -594,8 +594,8 @@ public:
         }
 
         Settle (pz);
-        Assert::AreEqual (50.0f, pz.PanY(),       0.001f);
-        Assert::AreEqual (0.0f,  pz.OverscrollY(), 0.001f);
+        Assert::AreEqual (50.0f, pz.GetPanY(),       0.001f);
+        Assert::AreEqual (0.0f,  pz.GetOverscrollY(), 0.001f);
     }
 
 
@@ -614,10 +614,10 @@ public:
             pz.OnMouse (Wheel (-1.0f));
         }
 
-        Assert::IsTrue (pz.OverscrollY() > 0.0f);
+        Assert::IsTrue (pz.GetOverscrollY() > 0.0f);
 
         pz.SnapPanY (0.0f);               // torn / replaced content
-        Assert::AreEqual (0.0f, pz.OverscrollY(), 0.0001f);
-        Assert::AreEqual (0.0f, pz.PanY(),        0.0001f);
+        Assert::AreEqual (0.0f, pz.GetOverscrollY(), 0.0001f);
+        Assert::AreEqual (0.0f, pz.GetPanY(),        0.0001f);
     }
 };

@@ -68,12 +68,12 @@ public:
         button.Layout    (rect);
 
         // Accelerator is parsed from the '&' prefix in the label.
-        Assert::AreEqual ((wchar_t) L'a', button.Accelerator());
+        Assert::AreEqual ((wchar_t) L'a', button.GetAccelerator());
 
         // Default visibility / enabled state.
-        Assert::IsTrue  (button.Visible());
-        Assert::IsTrue  (button.Enabled());
-        Assert::IsFalse (button.Focused());
+        Assert::IsTrue  (button.IsVisible());
+        Assert::IsTrue  (button.IsEnabled());
+        Assert::IsFalse (button.IsFocused());
 
         // Hit testing reflects the layout rect.
         Assert::IsTrue  (button.HitTest (50, 40));
@@ -82,14 +82,14 @@ public:
         // SetVisible(false) resets transient hover / pressed / focus flags.
         button.SetFocused (true);
         button.SetVisible (false);
-        Assert::IsFalse (button.Visible());
-        Assert::IsFalse (button.Focused());
+        Assert::IsFalse (button.IsVisible());
+        Assert::IsFalse (button.IsFocused());
 
         // SetEnabled(false) likewise clears transient flags.
         button.SetVisible (true);
         button.SetEnabled (false);
-        Assert::IsFalse (button.Enabled());
-        Assert::IsTrue  (button.Visible());
+        Assert::IsFalse (button.IsEnabled());
+        Assert::IsTrue  (button.IsVisible());
 
         // Theme accessors compile against the interface base.
         const IDxuiTheme & iface = theme;

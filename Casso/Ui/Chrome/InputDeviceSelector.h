@@ -73,7 +73,7 @@ public:
 
     bool     HitTest       (int x, int y) const;
     Segment  GetSegmentAt  (int x, int y) const;
-    RECT     Bounds        () const       { return m_bounds; }
+    RECT     GetBounds     () const       { return m_bounds; }
 
     // Per-segment tooltip for the cursor position; falls back to the
     // state summary between segments. GetTooltipText() keeps the state-based

@@ -78,11 +78,11 @@ void DxuiTreeView::FlattenRecursive (const DxuiTreeNode & node, std::vector<int>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PathFor
+//  GetPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> DxuiTreeView::PathFor (int flatIndex) const
+std::vector<int> DxuiTreeView::GetPath (int flatIndex) const
 {
     std::vector<int>  out;
 
@@ -104,13 +104,13 @@ std::vector<int> DxuiTreeView::PathFor (int flatIndex) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NodeAt
+//  GetNodeAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DxuiTreeNode * DxuiTreeView::NodeAt (int flatIndex) const
+const DxuiTreeNode * DxuiTreeView::GetNodeAt (int flatIndex) const
 {
-    return const_cast<DxuiTreeView *> (this)->NodeAtMutable (flatIndex);
+    return const_cast<DxuiTreeView *> (this)->GetNodeAtMutable (flatIndex);
 }
 
 
@@ -119,7 +119,7 @@ const DxuiTreeNode * DxuiTreeView::NodeAt (int flatIndex) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NodeAtMutable
+//  GetNodeAtMutable
 //
 //  Resolves a flat row index to the node it names, for modification.
 //
@@ -137,7 +137,7 @@ const DxuiTreeNode * DxuiTreeView::NodeAt (int flatIndex) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
+DxuiTreeNode * DxuiTreeView::GetNodeAtMutable (int flatIndex)
 {
     std::vector<int>    path;
     DxuiTreeNode      * cursor = nullptr;
@@ -146,7 +146,7 @@ DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
 
 
 
-    path = PathFor (flatIndex);
+    path = GetPath (flatIndex);
 
     if (!path.empty())
     {
@@ -177,7 +177,7 @@ DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
 
 bool DxuiTreeView::IsInteractive (int flatIndex) const
 {
-    const DxuiTreeNode * n = NodeAt (flatIndex);
+    const DxuiTreeNode * n = GetNodeAt (flatIndex);
 
 
 
@@ -385,7 +385,7 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
     {
         if (HitTestTwisty (x, y, row))
         {
-            DxuiTreeNode * n = NodeAtMutable (row);
+            DxuiTreeNode * n = GetNodeAtMutable (row);
 
             if (n != nullptr && !n->children.empty())
             {
@@ -426,7 +426,7 @@ void DxuiTreeView::ToggleRow (int flatRow)
 
     if (IsInteractive (flatRow))
     {
-        n = NodeAtMutable (flatRow);
+        n = GetNodeAtMutable (flatRow);
     }
 
     if (n != nullptr)
@@ -499,7 +499,7 @@ bool DxuiTreeView::OnKey (WPARAM vk)
                 break;
 
             case VK_RIGHT:
-                n = NodeAtMutable (m_highlight);
+                n = GetNodeAtMutable (m_highlight);
                 if (n != nullptr && !n->children.empty() && !n->expanded)
                 {
                     n->expanded = true;
@@ -509,7 +509,7 @@ bool DxuiTreeView::OnKey (WPARAM vk)
                 break;
 
             case VK_LEFT:
-                n = NodeAtMutable (m_highlight);
+                n = GetNodeAtMutable (m_highlight);
                 if (n != nullptr && !n->children.empty() && n->expanded)
                 {
                     n->expanded = false;
@@ -574,7 +574,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t         s_kRowHover     = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
     uint32_t         s_kRowHighlight = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
     uint32_t         s_kBoxIdle      = theme.ButtonIdle();
-    uint32_t         s_kBoxLocked    = DxuiColor::TintForContrast (theme.Background(), 1.6f);
+    uint32_t         s_kBoxLocked    = DxuiColor::ComputeTintForContrast (theme.Background(), 1.6f);
     uint32_t         s_kCheckGlyph   = theme.ButtonText();
     uint32_t         s_kCheckLocked  = theme.ForegroundDisabled();
     uint32_t         s_kTwistyArgb   = theme.ForegroundMuted();
@@ -589,18 +589,18 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_flatRows.size();
-    float    checkInset = m_scaler.Pxf (s_kCheckInset);
-    float    fontDip    = m_scaler.Pxf (s_kFontDip);
-    float    twistyHt   = m_scaler.Pxf (s_kTwistyHeight);
-    float    textGap    = m_scaler.Pxf (4.0f);
-    float    twistyPad  = m_scaler.Pxf (4.0f);
+    float    checkInset = m_scaler.ToPxf (s_kCheckInset);
+    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
+    float    twistyHt   = m_scaler.ToPxf (s_kTwistyHeight);
+    float    textGap    = m_scaler.ToPxf (4.0f);
+    float    twistyPad  = m_scaler.ToPxf (4.0f);
 
 
 
     for (i = 0; i < (int) n; ++i)
     {
         const FlatRow       & fr          = m_flatRows[(size_t) i];
-        const DxuiTreeNode  * node        = NodeAt (i);
+        const DxuiTreeNode  * node        = GetNodeAt (i);
         float                 rowY        = (float) (m_boundsDip.top + i * m_rowHeightPx);
         float                 rowHeight   = (float) m_rowHeightPx;
         float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
@@ -727,7 +727,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    SetDpi (scaler.Dpi());
+    SetDpi (scaler.GetDpi());
 }
 
 

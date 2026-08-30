@@ -484,9 +484,9 @@ public:
         DxuiSystemButton  closeBtn (DxuiSystemButtonKind::Close);
 
 
-        Assert::AreEqual (std::wstring (L"Minimize"), minBtn.AccessibleName());
-        Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.AccessibleName());
-        Assert::AreEqual (std::wstring (L"Close"),    closeBtn.AccessibleName());
+        Assert::AreEqual (std::wstring (L"Minimize"), minBtn.GetAccessibleName());
+        Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.GetAccessibleName());
+        Assert::AreEqual (std::wstring (L"Close"),    closeBtn.GetAccessibleName());
     }
 
 
@@ -634,9 +634,9 @@ public:
         host.SetContentPanel (std::move (replacement));
 
         Assert::AreEqual ((const void *) replacementRaw,
-                          (const void *) &host.Root());
+                          (const void *) &host.GetRoot());
 
-        bounds = host.Root().Bounds();
+        bounds = host.GetRoot().GetBounds();
 
         Assert::AreEqual ((LONG) 0,                  bounds.left);
         Assert::AreEqual ((LONG) 0,                  bounds.top);
@@ -658,7 +658,7 @@ public:
 
         host.SetContentPanel (std::move (replacement));
 
-        Assert::AreEqual ((size_t) 1, host.Root().ChildCount());
+        Assert::AreEqual ((size_t) 1, host.GetRoot().GetChildCount());
     }
 };
 

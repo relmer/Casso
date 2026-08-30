@@ -36,5 +36,5 @@ public:
                           const IDxuiTheme    & theme) override;
 
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
-    DxuiAccessibleRole  AccessibleRole    () const          override { return DxuiAccessibleRole::CaptionBar; }
+    DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 };

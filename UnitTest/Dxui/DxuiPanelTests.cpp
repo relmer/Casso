@@ -48,9 +48,9 @@ public:
         MockDxuiControl &  child = panel.Add<MockDxuiControl>();
 
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.Child (0)));
-        Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.Parent()));
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.GetChild (0)));
+        Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.GetParent()));
     }
 
 
@@ -83,7 +83,7 @@ public:
         HRESULT  hr = panel.Remove (&child);
 
         Assert::IsTrue   (SUCCEEDED (hr));
-        Assert::AreEqual ((size_t) 0, panel.ChildCount());
+        Assert::AreEqual ((size_t) 0, panel.GetChildCount());
     }
 
 
@@ -96,7 +96,7 @@ public:
         panel.Add<MockDxuiControl>();
         panel.Clear();
 
-        Assert::AreEqual ((size_t) 0, panel.ChildCount());
+        Assert::AreEqual ((size_t) 0, panel.GetChildCount());
     }
 
 
@@ -166,10 +166,10 @@ public:
 
         // Add already marked dirty; clear it then toggle visibility.
         panel.ClearDirty();
-        Assert::IsFalse (panel.Dirty());
+        Assert::IsFalse (panel.IsDirty());
 
         child.SetVisible (false);
-        Assert::IsTrue (panel.Dirty());
+        Assert::IsTrue (panel.IsDirty());
     }
 
 
@@ -191,8 +191,8 @@ public:
 
         // With no weights, the natural sizes are zero for default-constructed
         // controls; the visible children stack at the same x without errors.
-        Assert::AreEqual ((size_t) 3, panel.ChildCount());
-        Assert::IsFalse (panel.Dirty());
+        Assert::AreEqual ((size_t) 3, panel.GetChildCount());
+        Assert::IsFalse (panel.IsDirty());
     }
 
 
@@ -236,9 +236,9 @@ public:
 
         panel.Adopt (caller);
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&caller), static_cast<void *> (panel.Child (0)));
-        Assert::AreEqual (static_cast<void *> (&panel),  static_cast<void *> (caller.Parent()));
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&caller), static_cast<void *> (panel.GetChild (0)));
+        Assert::AreEqual (static_cast<void *> (&panel),  static_cast<void *> (caller.GetParent()));
 
         panel.Paint (painter, text, theme);
         Assert::AreEqual (1, caller.paintCount);
@@ -260,7 +260,7 @@ public:
         // run after this scope on its own terms. (Test simply asserts
         // the panel destructor compiled and ran without UAF.)
         caller.SetEnabled (true);
-        Assert::IsTrue (caller.Enabled());
+        Assert::IsTrue (caller.IsEnabled());
     }
 
 
@@ -273,7 +273,7 @@ public:
         panel.Adopt (caller);
         panel.Adopt (caller);
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
     }
 
 
@@ -289,8 +289,8 @@ public:
         hr = panel.RemoveAdopted (caller);
 
         Assert::IsTrue   (SUCCEEDED (hr));
-        Assert::AreEqual ((size_t) 0, panel.ChildCount());
-        Assert::IsNull   (caller.Parent());
+        Assert::AreEqual ((size_t) 0, panel.GetChildCount());
+        Assert::IsNull   (caller.GetParent());
     }
 
 
@@ -315,7 +315,7 @@ public:
         HRESULT  hr = panel.RemoveAdopted (owned);
 
         Assert::IsTrue   (FAILED (hr));
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
     }
 
 
@@ -329,14 +329,14 @@ public:
 
         panel.Adopt (adoptedA);
         panel.Adopt (adoptedB);
-        Assert::AreEqual ((size_t) 3, panel.ChildCount());
+        Assert::AreEqual ((size_t) 3, panel.GetChildCount());
 
         panel.ClearAdopted();
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&owned), static_cast<void *> (panel.Child (0)));
-        Assert::IsNull   (adoptedA.Parent());
-        Assert::IsNull   (adoptedB.Parent());
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&owned), static_cast<void *> (panel.GetChild (0)));
+        Assert::IsNull   (adoptedA.GetParent());
+        Assert::IsNull   (adoptedB.GetParent());
     }
 
 
@@ -351,10 +351,10 @@ public:
         MockDxuiControl &  ownedMiddle = panel.Add<MockDxuiControl>();
         panel.Adopt (adoptedLast);
 
-        Assert::AreEqual ((size_t) 3, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&adoptedFirst), static_cast<void *> (panel.Child (0)));
-        Assert::AreEqual (static_cast<void *> (&ownedMiddle),  static_cast<void *> (panel.Child (1)));
-        Assert::AreEqual (static_cast<void *> (&adoptedLast),  static_cast<void *> (panel.Child (2)));
+        Assert::AreEqual ((size_t) 3, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&adoptedFirst), static_cast<void *> (panel.GetChild (0)));
+        Assert::AreEqual (static_cast<void *> (&ownedMiddle),  static_cast<void *> (panel.GetChild (1)));
+        Assert::AreEqual (static_cast<void *> (&adoptedLast),  static_cast<void *> (panel.GetChild (2)));
     }
 
 
@@ -371,7 +371,7 @@ public:
 
         Assert::IsTrue   (panel.OnMouse (ev));
         Assert::AreEqual (1, adoptedFront.mouseCount);
-        Assert::AreEqual (static_cast<void *> (&adoptedFront), static_cast<void *> (panel.Child (1)));
+        Assert::AreEqual (static_cast<void *> (&adoptedFront), static_cast<void *> (panel.GetChild (1)));
     }
 
 
@@ -396,13 +396,13 @@ public:
         panel.Layout (bounds, scaler);
 
         // Layout-policy positioning must be visible via the leaf
-        // widget's IDxuiControl::Bounds() — i.e., the policy's
+        // widget's IDxuiControl::GetBounds() — i.e., the policy's
         // SetBounds calls actually take effect on the widget. This
         // is the regression check for the rect-duality fix.
-        Assert::AreEqual ((LONG) 0,   a.Bounds().left);
-        Assert::AreEqual ((LONG) 60,  a.Bounds().right);
-        Assert::AreEqual ((LONG) 60,  b.Bounds().left);
-        Assert::AreEqual ((LONG) 140, b.Bounds().right);
+        Assert::AreEqual ((LONG) 0,   a.GetBounds().left);
+        Assert::AreEqual ((LONG) 60,  a.GetBounds().right);
+        Assert::AreEqual ((LONG) 60,  b.GetBounds().left);
+        Assert::AreEqual ((LONG) 140, b.GetBounds().right);
     }
 };
 

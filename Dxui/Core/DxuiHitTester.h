@@ -44,10 +44,10 @@ public:
     void                              Clear         ();
     void                              Register      (const DxuiHitRect & rect);
     const DxuiHitRect               * Pick          (int xClient, int yClient) const;
-    const std::vector<DxuiHitRect>  & Registrations() const { return m_rects; }
+    const std::vector<DxuiHitRect>  & GetRegistrations() const { return m_rects; }
 
 private:
-    static bool  RectContains (const RECT & r, int x, int y);
+    static bool  IsPointInRect (const RECT & r, int x, int y);
 
     std::vector<DxuiHitRect>  m_rects;
 };

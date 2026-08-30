@@ -188,7 +188,7 @@ float Apple2cSwitchBar::MeasureLabel (const wchar_t * text, float fontPx) const
 
 void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi        = scaler.Dpi();
+    UINT   dpi        = scaler.GetDpi();
     UINT   eDpi       = (dpi == 0) ? 96u : dpi;
     int    edge       = 0;
     int    resetW     = 0;

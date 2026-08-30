@@ -21,7 +21,7 @@
 //  Responsibilities:
 //      - Reports its size policy to enclosing layouts (`Fixed` /
 //        `Preferred` / `Fill`). Layouts that honor the policy can ask
-//        for the preferred size via `PreferredSizeDip()`. Fill clients
+//        for the preferred size via `GetPreferredSizeDip()`. Fill clients
 //        report {0,0} as a "no opinion" preferred size.
 //      - Notifies a registered bounds-changed callback when the
 //        rectangle changes so the external renderer can resize its
@@ -34,7 +34,7 @@
 //        (the `DLGC_WANTALLKEYS` analog for greedy input surfaces).
 //
 //  Painting is always a no-op: the external renderer draws into the
-//  same swap chain at the rectangle reported by `Bounds()`. Chrome
+//  same swap chain at the rectangle reported by `GetBounds()`. Chrome
 //  above the viewport paints on top through the normal control-tree
 //  fanout.
 //
@@ -74,11 +74,11 @@ public:
     void  SetWantsAllKeys        (bool       wantsAllKeys);
     void  SetOnBoundsChanged     (BoundsChangedFn callback) { m_onBoundsChanged = std::move (callback); }
 
-    SizePolicy                Policy             () const { return m_policy;            }
-    SIZE                      PreferredSizeDip   () const { return m_preferredSizeDip;  }
-    bool                      ConsumesInput      () const { return m_consumesInput;     }
-    bool                      WantsAllKeys       () const { return m_wantsAllKeys;      }
-    IDxuiViewportInputSink *  InputSink          () const { return m_sink;              }
+    SizePolicy                GetPolicy           () const { return m_policy;            }
+    SIZE                      GetPreferredSizeDip () const { return m_preferredSizeDip;  }
+    bool                      IsConsumesInput     () const { return m_consumesInput;     }
+    bool                      WantsAllKeys        () const { return m_wantsAllKeys;      }
+    IDxuiViewportInputSink *  GetInputSink        () const { return m_sink;              }
 
     static bool  IsReservedKeystroke (const DxuiKeyEvent & ev);
 
@@ -93,7 +93,7 @@ public:
 
     DxuiHitTestKind   ClassifyHit  (POINT clientDip) const override;
 
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Viewport; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Viewport; }
 
 private:
     BoundsChangedFn           m_onBoundsChanged;

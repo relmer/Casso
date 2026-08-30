@@ -77,12 +77,12 @@ struct DxuiMenuBarSubitem
     //  Live enabled state: the dynamic query when supplied, else the static
     //  flag -- so items whose availability changes (a drive emptying) stay
     //  truthful without rebuilding the menu.
-    bool  Enabled () const { return isEnabled ? isEnabled() : enabled; }
+    bool  IsEnabled () const { return isEnabled ? isEnabled() : enabled; }
 
     //  Live label: the dynamic text when supplied, else the static label --
     //  so items can name their target ("Write-protect <image>") and flip
     //  verbs with state without rebuilding the menu.
-    std::wstring  LabelText () const { return labelText ? labelText() : label; }
+    std::wstring  GetLabelText () const { return labelText ? labelText() : label; }
 };
 
 
@@ -131,13 +131,13 @@ public:
     int   OpenMenuIndex     () const { return m_openIndex;                          }
     bool  IsOpen            () const { return m_isOpen;                             }
     bool  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
-    int   HighlightIndex    () const { return m_highlightIndex;                     }
-    int   HoverIndex        () const { return m_hoverIndex;                         }
-    int   MenuCount         () const { return (int) m_items.size();                 }
+    int   GetHighlightIndex () const { return m_highlightIndex;                     }
+    int   GetHoverIndex     () const { return m_hoverIndex;                         }
+    int   GetMenuCount      () const { return (int) m_items.size();                 }
     void  SetFocusedMenu    (int menuIndex);
     void  ClearFocus        ();
     bool  HasFocus          () const { return m_hasFocus;                           }
-    int   FocusedMenu       () const { return m_focusedIndex;                       }
+    int   GetFocusedMenu    () const { return m_focusedIndex;                       }
 
     bool  HandleAltKey      (wchar_t ch);
     bool  HandleKey         (WPARAM vk);
@@ -156,20 +156,20 @@ public:
                              UINT                dpi);
 
     // IDxuiControl overrides.
-    void  Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnKey             (const DxuiKeyEvent   & ev) override;
-    bool  OnMouse           (const DxuiMouseEvent & ev) override;
+    void  Layout          (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnKey           (const DxuiKeyEvent   & ev) override;
+    bool  OnMouse         (const DxuiMouseEvent & ev) override;
 
     // Test seam: returns the per-menu strip rect computed by the last
     // Layout. Tests do not need to drive a real text renderer.
-    RECT  MenuRect          (int menuIndex) const;
-    RECT  DropdownRect      () const;
+    RECT  GetMenuRect     (int menuIndex) const;
+    RECT  GetDropdownRect () const;
 
     //  Width the open dropdown needs for its widest row, never narrower than
     //  the standard width. A fixed width silently clipped any label longer
     //  than it -- the text wrapped and ran into the row beneath.
-    int   DropdownWidthPx (size_t index, UINT dpi) const;
+    int   GetDropdownWidthPx (size_t index, UINT dpi) const;
 
     //  One text run in pixels, measured when a renderer is available and
     //  estimated from glyph width otherwise.
@@ -180,7 +180,7 @@ public:
     // Layout (the strip is anchored at the client left). Zero before the
     // first Layout. Lets the host clamp the window's minimum width so the
     // titles never clip.
-    int   MenuStripContentWidthPx () const;
+    int   GetMenuStripContentWidthPx () const;
 
     // Public reusable helper. Parses a Win32-style label ("E&xit") into
     // a stripped string ("Exit"), the index of the mnemonic in the
@@ -192,8 +192,8 @@ public:
                                  wchar_t            & outLower);
 
 private:
-    static bool  RectContains (const RECT & rect, int x, int y);
-    static int   ScaleDpi     (int dipValue, UINT dpi);
+    static bool  IsPointInRect (const RECT & rect, int x, int y);
+    static int   ScaleDpi      (int dipValue, UINT dpi);
 
     //
     //  Resolved dropdown colors. The in-window paint resolves these
@@ -221,14 +221,14 @@ private:
 
     bool  ActivateMnemonicRow (wchar_t ch);
 
-    int   HitTitleIndex     (int x, int y) const;
-    int   HitEntryIndex     (int x, int y) const;
-    int   EntryHeightPx     (const DxuiMenuBarSubitem & sub) const;
-    int   DropdownHeightPx  (int menuIndex) const;
-    int   NextEnabledRow    (int menuIndex, int startRow, int direction) const;
-    int   FirstEnabledRow   (int menuIndex) const;
-    int   VisibleRowCount   (int menuIndex) const;
-    const DxuiMenuBarSubitem *  EntryAt  (int menuIndex, int rowIndex) const;
+    int   HitTitleIndex       (int x, int y) const;
+    int   HitEntryIndex       (int x, int y) const;
+    int   GetEntryHeightPx    (const DxuiMenuBarSubitem & sub) const;
+    int   GetDropdownHeightPx (int menuIndex) const;
+    int   GetNextEnabledRow   (int menuIndex, int startRow, int direction) const;
+    int   GetFirstEnabledRow  (int menuIndex) const;
+    int   GetVisibleRowCount  (int menuIndex) const;
+    const DxuiMenuBarSubitem *  GetEntryAt  (int menuIndex, int rowIndex) const;
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 
@@ -244,12 +244,12 @@ private:
                                               const RECT             & rect,
                                               const DropdownPalette  & pal,
                                               UINT                     dpi) const;
-    void             ShowDropdownPopup       ();
-    void             ReleaseActivePopup      ();
-    void             RenderDropdownPopup     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    int              PopupRowAtLocalY        (int localYPx) const;
-    void             OnPopupMove             (POINT localPx);
-    void             OnPopupClick            (POINT localPx);
+    void             ShowDropdownPopup   ();
+    void             ReleaseActivePopup  ();
+    void             RenderDropdownPopup (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    int              GetPopupRowAtLocalY (int localYPx) const;
+    void             OnPopupMove         (POINT localPx);
+    void             OnPopupClick        (POINT localPx);
 
 
     std::vector<DxuiMenuBarItem>  m_items;

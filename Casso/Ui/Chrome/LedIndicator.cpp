@@ -96,7 +96,7 @@ void LedIndicator::PositionAt (int x, int y, UINT dpi)
 
 void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    PositionAt (boundsDip.left, boundsDip.top, scaler.Dpi());
+    PositionAt (boundsDip.left, boundsDip.top, scaler.GetDpi());
 }
 
 

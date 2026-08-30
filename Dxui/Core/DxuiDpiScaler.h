@@ -26,10 +26,10 @@ public:
     static constexpr UINT  kBaseDpi = 96;
 
     void   SetDpi (UINT dpi) { m_dpi = (dpi == 0) ? kBaseDpi : dpi; }
-    UINT   Dpi    () const   { return m_dpi; }
+    UINT   GetDpi () const   { return m_dpi; }
 
-    int    Px     (int   dip) const { return MulDiv (dip, (int) m_dpi, (int) kBaseDpi); }
-    float  Pxf    (float dip) const { return dip * (float) m_dpi / (float) kBaseDpi; }
+    int    ToPx   (int   dip) const { return MulDiv (dip, (int) m_dpi, (int) kBaseDpi); }
+    float  ToPxf  (float dip) const { return dip * (float) m_dpi / (float) kBaseDpi; }
 
 private:
     UINT  m_dpi = kBaseDpi;

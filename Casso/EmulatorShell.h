@@ -74,7 +74,7 @@ struct MonitorSpec;
 //  ChromeBand
 //
 //  Zero-render IDxuiControl whose only job is to carry a docked chrome
-//  band's pixel thickness in its Bounds() so DxuiDockLayout can arrange
+//  band's pixel thickness in its GetBounds() so DxuiDockLayout can arrange
 //  the emulator viewport around the title bar, nav strip, and drive bar.
 //  Never painted -- EmulatorShell / the host own chrome rendering; these
 //  bands exist purely to feed the dock's inset math (replacing the old
@@ -390,7 +390,7 @@ private:
     void    UpdateViewportLayout          (int widthPx, int heightPx);
 
     // Chrome-band sizing via DxuiDockLayout (replaces LayoutManager).
-    // SyncChromeBands stamps each band's Bounds() with its DPI-scaled
+    // SyncChromeBands stamps each band's GetBounds() with its DPI-scaled
     // pixel thickness. ComputeViewportRect docks the bands + center and
     // returns the middle (emulator viewport) rect. GetClientSizeForCenterPx
     // is the inverse: given a desired center size in px, the client size
@@ -1252,7 +1252,7 @@ private:
     UINT  m_joyBtnDpi        = 96;
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
-    // bar, nav strip, and drive bar pixel thicknesses in their Bounds();
+    // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();
     // m_centerBand (Fill) captures the emulator viewport rect the dock
     // leaves in the middle. m_driveBarThicknessDp is the live drive-bar
     // thickness the theme mutates (compact vs full).

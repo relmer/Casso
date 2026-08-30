@@ -55,7 +55,7 @@ public:
 
         t.Tick (500);
         Assert::IsTrue (t.IsVisible());
-        Assert::AreEqual (std::wstring (L"locked"), t.Text());
+        Assert::AreEqual (std::wstring (L"locked"), t.GetText());
     }
 
     TEST_METHOD (Request_HideAfterCloseDwell)
@@ -100,8 +100,8 @@ public:
 
         t.RequestShow (MakeRect (60, 0, 110, 20), L"b", 200);
         Assert::IsTrue (t.IsVisible());
-        Assert::AreEqual (std::wstring (L"b"), t.Text());
-        Assert::AreEqual ((LONG) 60, t.Anchor().left);
+        Assert::AreEqual (std::wstring (L"b"), t.GetText());
+        Assert::AreEqual ((LONG) 60, t.GetAnchor().left);
     }
 
     //

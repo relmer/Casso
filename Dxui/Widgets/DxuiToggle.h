@@ -34,13 +34,13 @@ public:
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
 
-    const RECT         & Rect    () const { return m_boundsDip;    }
-    const std::wstring & Label   () const { return m_label;   }
-    bool                 Checked () const { return m_checked; }
-    bool                 Enabled () const { return m_enabled; }
-    bool                 Focused () const { return m_focused; }
-    bool                 Hover   () const { return m_hover;   }
-    bool                 Pressed () const { return m_pressed; }
+    const RECT         & GetRect   () const { return m_boundsDip;    }
+    const std::wstring & GetLabel  () const { return m_label;   }
+    bool                 IsChecked () const { return m_checked; }
+    bool                 IsEnabled () const { return m_enabled; }
+    bool                 IsFocused () const { return m_focused; }
+    bool                 IsHovered () const { return m_hover;   }
+    bool                 IsPressed () const { return m_pressed; }
 
     bool  HitTest       (int x, int y) const;
     void  SetMouseHover (int x, int y);
@@ -52,13 +52,13 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override { return m_label; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override { return m_label; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
     static constexpr uint32_t  kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill

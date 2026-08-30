@@ -246,9 +246,9 @@ void DxuiTooltip::ShowPopup()
     {
         // The tooltip's DPI follows its host window, folding what used to be
         // an explicit SetDpi push from the consumer into the show path.
-        m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
+        m_scaler.SetDpi (m_popupHost->GetScaler().GetDpi());
 
-        owner         = m_popupHost->Hwnd();
+        owner         = m_popupHost->GetHwnd();
         m_activePopup = m_popupHost->AcquirePopup();
 
         // The pool can be exhausted, leaving no balloon to fill in.
@@ -372,11 +372,11 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
 
     HRESULT  hr        = S_OK;
-    float    fontPx    = m_scaler.Pxf (m_fontDip);
-    float    padX      = m_scaler.Pxf (s_kPadXDip);
-    float    padY      = m_scaler.Pxf (s_kPadYDip);
-    float    borderPx  = m_scaler.Pxf (s_kBorderDip);
-    float    anchorGap = m_scaler.Pxf (s_kAnchorGapDip);
+    float    fontPx    = m_scaler.ToPxf (m_fontDip);
+    float    padX      = m_scaler.ToPxf (s_kPadXDip);
+    float    padY      = m_scaler.ToPxf (s_kPadYDip);
+    float    borderPx  = m_scaler.ToPxf (s_kBorderDip);
+    float    anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
     float    textW     = 0.0f;
     float    textH     = 0.0f;
     float    width     = 0.0f;
@@ -393,7 +393,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
              m_text.c_str(), fontPx, s_kFontFamily,
-             m_scaler.Pxf (s_kMaxTextWidthDip), textW, textH);
+             m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     width   = std::ceil (textW)  + padX * 2.0f;
@@ -403,7 +403,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (m_viewportWPx > 0)
     {
-        float  edgePad = m_scaler.Pxf (s_kAnchorGapDip);
+        float  edgePad = m_scaler.ToPxf (s_kAnchorGapDip);
 
         if (boxLeft + width > (float) m_viewportWPx - edgePad)
         {
@@ -456,7 +456,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 void DxuiTooltip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -496,10 +496,10 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     RECT     placed   = {};
     float    width    = 0.0f;
     float    height   = 0.0f;
-    float    padX     = m_scaler.Pxf (s_kPadXDip);
-    float    padY     = m_scaler.Pxf (s_kPadYDip);
-    float    borderPx = m_scaler.Pxf (s_kBorderDip);
-    float    fontPx   = m_scaler.Pxf (m_fontDip);
+    float    padX     = m_scaler.ToPxf (s_kPadXDip);
+    float    padY     = m_scaler.ToPxf (s_kPadYDip);
+    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
+    float    fontPx   = m_scaler.ToPxf (m_fontDip);
 
 
 
@@ -508,7 +508,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         return;
     }
 
-    placed = m_activePopup->PlacedRectScreenPx();
+    placed = m_activePopup->GetPlacedRectScreenPx();
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 

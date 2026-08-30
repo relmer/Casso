@@ -73,7 +73,7 @@ public:
         if (m_glyph != 0)
         {
             wchar_t  g[2]      = { m_glyph, L'\0' };
-            int      iconColPx = m_scaler.Px (s_kIconColDip);
+            int      iconColPx = m_scaler.ToPx (s_kIconColDip);
 
             hr = text.DrawString (
 g,
@@ -82,7 +82,7 @@ g,
 (float) iconColPx,
 (float) (m_bounds.bottom - m_bounds.top),
 m_glyphArgb,
-m_scaler.Pxf ((float) s_kGlyphSizeDip),
+m_scaler.ToPxf ((float) s_kGlyphSizeDip),
 s_kMdl2Font,
 DxuiTextHAlign::Center,
 DxuiTextVAlign::Center,
@@ -90,7 +90,7 @@ DxuiFontWeight::Normal,
 false);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            tr.left += iconColPx + m_scaler.Px (s_kIconTextGapDip);
+            tr.left += iconColPx + m_scaler.ToPx (s_kIconTextGapDip);
         }
 
         {
@@ -103,7 +103,7 @@ m_text.c_str(),
 (float) (tr.right  - tr.left),
 (float) (tr.bottom - tr.top),
 theme.TextColor (DxuiTextRole::Body),
-m_scaler.Pxf (bf.sizeDip),
+m_scaler.ToPxf (bf.sizeDip),
 bf.face,
 DxuiTextHAlign::Left,
 DxuiTextVAlign::Center,
@@ -327,12 +327,12 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
         // Center the box on its owner (Win32 MessageBox centers on the owner too),
         // clamped to the owner's monitor work area so it never lands off-screen. The
         // window is created hidden, so this places it before ShowModalDialog shows it.
-        if (owner != nullptr && dlg.Hwnd() != nullptr)
+        if (owner != nullptr && dlg.GetHwnd() != nullptr)
         {
             RECT   ownerR = {};
             RECT   dlgR   = {};
 
-            if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd(), &dlgR))
+            if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.GetHwnd(), &dlgR))
             {
                 int    dw = dlgR.right  - dlgR.left;
                 int    dh = dlgR.bottom - dlgR.top;
@@ -348,7 +348,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
                     y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
                 }
 
-                SetWindowPos (dlg.Hwnd(), nullptr, x, y, 0, 0,
+                SetWindowPos (dlg.GetHwnd(), nullptr, x, y, 0, 0,
                               SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             }
         }

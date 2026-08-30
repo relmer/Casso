@@ -36,7 +36,7 @@ static constexpr uint32_t  s_kOrbRimArgb   = 0x5AFFFFFF;
 
 void DxuiOrbitControl::Metrics (float & cx, float & cy, float & orbR, float & reach) const
 {
-    RECT   rc   = Bounds();
+    RECT   rc   = GetBounds();
     float  side = (float) (std::min) (rc.right - rc.left, rc.bottom - rc.top);
 
 
@@ -73,7 +73,7 @@ DxuiOrbitControl::Part DxuiOrbitControl::HitPart (int xPx, int yPx) const
 
 
 
-    if (!Visible())
+    if (!IsVisible())
     {
         return Part::None;
     }
@@ -300,7 +300,7 @@ void DxuiOrbitControl::Tick (int64_t nowMs)
 
 void DxuiOrbitControl::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    m_dpi = scaler.Dpi();
+    m_dpi = scaler.GetDpi();
     SetBounds (boundsDip);
 }
 
@@ -333,7 +333,7 @@ void DxuiOrbitControl::Paint (IDxuiPainter      & painter,
     UNREFERENCED_PARAMETER (text);
     UNREFERENCED_PARAMETER (theme);
 
-    if (!Visible())
+    if (!IsVisible())
     {
         return;
     }

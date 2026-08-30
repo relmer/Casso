@@ -320,7 +320,7 @@ RECT CommandToolbar::FlyoutKeepAliveRc() const
 
 int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    UINT   dpi        = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
     int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
     int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
     int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
@@ -458,7 +458,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     PlanForWidth (boundsDip.right - boundsDip.left, scaler);
 
-    dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    dpi = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
     padX = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
     padXStack = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
     marginY = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
@@ -718,7 +718,7 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
     {
         m_flyoutOpen = true;
     }
-    else if (m_flyoutOpen && !m_volumeSlider.Dragging() &&
+    else if (m_flyoutOpen && !m_volumeSlider.IsDragging() &&
              !IsPointInRect (FlyoutKeepAliveRc(), x, y))
     {
         m_flyoutOpen = false;
@@ -758,7 +758,7 @@ void CommandToolbar::OnToolbarMouseLeave()
 
     // The pointer left the window entirely; a drag can survive that (the
     // shell keeps forwarding while captured), so only close when idle.
-    if (!m_volumeSlider.Dragging())
+    if (!m_volumeSlider.IsDragging())
     {
         m_flyoutOpen = false;
     }

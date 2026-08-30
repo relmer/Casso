@@ -83,7 +83,7 @@ void CreateDiskDialog::OnCreate()
     m_formatLabel.SetText      (L"Format:");
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_formatDropdown.SetPopupHost (PopupHost());
+    m_formatDropdown.SetPopupHost (GetPopupHost());
     m_formatDropdown.SetItems     ({ FormatCaption (BlankDiskContents::Dos33),
                                      FormatCaption (BlankDiskContents::ProDos),
                                      FormatCaption (BlankDiskContents::Unformatted) });
@@ -94,7 +94,7 @@ void CreateDiskDialog::OnCreate()
     m_imageTypeLabel.SetText      (L"Image type:");
     m_imageTypeLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_imageTypeDropdown.SetPopupHost (PopupHost());
+    m_imageTypeDropdown.SetPopupHost (GetPopupHost());
     m_imageTypeDropdown.SetSelect    ([this] (int index) { OnImageTypeChanged (index); });
 
     RebuildImageTypeChoices();
@@ -110,9 +110,9 @@ void CreateDiskDialog::OnCreate()
     m_nameLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_nameInput.SetTheme (m_theme);
-    m_nameInput.SetHwnd  (Hwnd());
+    m_nameInput.SetHwnd  (GetHwnd());
     m_nameInput.SetMaxLength (128);
-    m_nameInput.SetTextRenderer (TextRenderer());
+    m_nameInput.SetTextRenderer (GetTextRenderer());
 
     {
         CreateDiskBodyPanel::Children  kids;
@@ -352,7 +352,7 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 void CreateDiskDialog::ApplyImageTypeExtension()
 {
-    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_imageType)));
+    m_nameInput.SetText (ReplaceExtension (m_nameInput.GetText(), FormatExtension (m_imageType)));
 
     if (m_model != nullptr)
     {
@@ -499,7 +499,7 @@ void CreateDiskDialog::OnDownloadClicked()
 
     if (FAILED (hr))
     {
-        DxuiMessageBox (Hwnd(), m_theme,
+        DxuiMessageBox (GetHwnd(), m_theme,
                         L"The download failed. Check your connection and try again.",
                         L"Create New Disk", MB_OK | MB_ICONWARNING);
     }
@@ -604,7 +604,7 @@ void CreateDiskDialog::OnRowActivated (int row)
 
 void CreateDiskDialog::OnCreateClicked()
 {
-    std::wstring   name    = m_nameInput.Text();
+    std::wstring   name    = m_nameInput.GetText();
     int            drive   = -1;
     TargetVerdict  verdict = TargetVerdict::InvalidName;
     std::wstring   message;
@@ -642,7 +642,7 @@ void CreateDiskDialog::OnCreateClicked()
     {
         case TargetVerdict::InvalidName:
             message = L"\"" + name + L"\" is not a valid file name.";
-            DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                             L"Create New Disk", MB_OK | MB_ICONWARNING);
             break;
 
@@ -650,13 +650,13 @@ void CreateDiskDialog::OnCreateClicked()
             message = L"\"" + name + L"\" is mounted in Drive "
                     + std::to_wstring (drive + 1)
                     + L". Eject it before overwriting it with a new disk.";
-            DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                             L"Create New Disk", MB_OK | MB_ICONWARNING);
             break;
 
         case TargetVerdict::Exists:
             message = L"\"" + name + L"\" already exists. Replace it?";
-            choice  = DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            choice  = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                                       L"Create New Disk",
                                       MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
@@ -670,7 +670,7 @@ void CreateDiskDialog::OnCreateClicked()
         case TargetVerdict::Ok:
             m_result.spec.format   = m_imageType;
             m_result.spec.contents = m_contents;
-            m_result.spec.bootable = m_bootableCheck.Enabled() && m_bootableCheck.Checked();
+            m_result.spec.bootable = m_bootableCheck.IsEnabled() && m_bootableCheck.IsChecked();
             m_result.targetPath    = m_model->ComposeTargetPath (name);
             m_result.confirmed     = true;
             EndDialog (IDOK);

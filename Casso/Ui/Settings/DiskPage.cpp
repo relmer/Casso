@@ -147,20 +147,20 @@ void DiskPage::SetState (SettingsPanelState * state)
 
 void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi          = scaler.Dpi();
-    int  pad          = scaler.Px (s_kPagePadDp);
-    int  rowHeight    = scaler.Px (s_kRowHeightDp);
-    int  labelWidth   = scaler.Px (s_kLabelWidthDp);
-    int  checkWidth   = scaler.Px (s_kCheckWidthDp);
-    int  dropWidth    = scaler.Px (s_kDropdownWidthDp);
-    int  sectionGap   = scaler.Px (s_kSectionGapDp);
-    int  childIndent  = scaler.Px (18);          // matches DxuiTreeView indent
+    UINT dpi          = scaler.GetDpi();
+    int  pad          = scaler.ToPx (s_kPagePadDp);
+    int  rowHeight    = scaler.ToPx (s_kRowHeightDp);
+    int  labelWidth   = scaler.ToPx (s_kLabelWidthDp);
+    int  checkWidth   = scaler.ToPx (s_kCheckWidthDp);
+    int  dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
+    int  sectionGap   = scaler.ToPx (s_kSectionGapDp);
+    int  childIndent  = scaler.ToPx (18);          // matches DxuiTreeView indent
     int  x            = rect.left + pad;
     int  y            = rect.top  + pad;
     int  controlsX    = x + labelWidth;
     int  playSize     = rowHeight;
-    int  playX        = controlsX + dropWidth + scaler.Px (s_kPlayGapDp);
-    int  resetW       = scaler.Px (s_kResetWidthDp);
+    int  playX        = controlsX + dropWidth + scaler.ToPx (s_kPlayGapDp);
+    int  resetW       = scaler.ToPx (s_kResetWidthDp);
 
 
 

@@ -14,7 +14,7 @@ namespace PrinterViewportTests
     // Small viewport (100 rows), short snap (2000 ms), small top clearance (25
     // rows) keep the arithmetic readable; the production defaults only
     // change the constants.
-    static PrinterViewport::Config Cfg (int rows = 100, int64_t snapMs = 2000)
+    static PrinterViewport::Config GetCfg (int rows = 100, int64_t snapMs = 2000)
     {
         PrinterViewport::Config   c;
         c.viewportRows     = rows;
@@ -30,7 +30,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (FollowsLiveRowByDefault)
         {
-            PrinterViewport   v (Cfg());
+            PrinterViewport   v (GetCfg());
 
             Assert::IsTrue (v.IsFollowingLive());
 
@@ -43,7 +43,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (AdvanceIsMonotonic)
         {
-            PrinterViewport   v (Cfg());
+            PrinterViewport   v (GetCfg());
 
             v.Advance (500);
             v.Advance (200);   // stale lesser value must not regress the live row
@@ -54,7 +54,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (NotifyUserScrollLeavesFollowMode)
         {
-            PrinterViewport   v (Cfg());
+            PrinterViewport   v (GetCfg());
 
             v.Advance (500);
             v.NotifyUserScroll (0);
@@ -65,7 +65,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (BottomLocksToLiveRowTopExtendsToClearCurl)
         {
-            PrinterViewport   v (Cfg());   // 100-row viewport, 25 top clearance
+            PrinterViewport   v (GetCfg());   // 100-row viewport, 25 top clearance
 
             v.Advance (500);
 
@@ -80,7 +80,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (ShortStripPinsBottomToLiveRow)
         {
-            PrinterViewport   v (Cfg());
+            PrinterViewport   v (GetCfg());
 
             v.Advance (30);   // strip shorter than the viewport: nowhere to scroll back
 
@@ -91,7 +91,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (SnapsBackToLiveOnceIdleAndPrintingContinued)
         {
-            PrinterViewport   v (Cfg (100, 2000));
+            PrinterViewport   v (GetCfg (100, 2000));
 
             v.Advance (500);
             v.NotifyUserScroll (1000);
@@ -109,7 +109,7 @@ namespace PrinterViewportTests
         {
             // No new rows since the scroll: there is no "currently printing
             // row" to return to, so idling must NOT yank the view away.
-            PrinterViewport   v (Cfg (100, 2000));
+            PrinterViewport   v (GetCfg (100, 2000));
 
             v.Advance (500);
             v.NotifyUserScroll (1000);
@@ -121,7 +121,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (ContinuedScrollingDefersTheSnap)
         {
-            PrinterViewport   v (Cfg (100, 2000));
+            PrinterViewport   v (GetCfg (100, 2000));
 
             v.Advance (500);
             v.NotifyUserScroll (1000);
@@ -138,7 +138,7 @@ namespace PrinterViewportTests
 
         TEST_METHOD (ResetReturnsToFollowingAtTop)
         {
-            PrinterViewport   v (Cfg());
+            PrinterViewport   v (GetCfg());
 
             v.Advance (500);
             v.NotifyUserScroll (0);

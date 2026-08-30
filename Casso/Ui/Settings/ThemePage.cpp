@@ -626,15 +626,15 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 
 void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi        = scaler.Dpi();
-    int   pad        = scaler.Px (kPagePadDp);
-    int   rowHeight  = scaler.Px (kRowHeightDp);
-    int   labelWidth = scaler.Px (kLabelWidthDp);
-    int   dropWidth  = scaler.Px (kDropdownWidthDp);
+    UINT  dpi        = scaler.GetDpi();
+    int   pad        = scaler.ToPx (kPagePadDp);
+    int   rowHeight  = scaler.ToPx (kRowHeightDp);
+    int   labelWidth = scaler.ToPx (kLabelWidthDp);
+    int   dropWidth  = scaler.ToPx (kDropdownWidthDp);
     int   x          = rect.left + pad;
     int   y          = rect.top  + pad;
-    int   rowGap     = scaler.Px (8);
-    int   previewGap = scaler.Px (24);
+    int   rowGap     = scaler.ToPx (8);
+    int   previewGap = scaler.ToPx (24);
     // Three rows above the preview now: theme, the CRT opt-in, edge smoothing.
     int   previewTop = y + 3 * rowHeight + 2 * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
@@ -675,9 +675,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // intended width and dock the "Apply now" button immediately to its
     // right, so both stay near the left of the row (visible regardless of
     // how wide the settings window is).
-    applyGap = scaler.Px (8);
-    applyWidth = scaler.Px (88);
-    dropB = m_themeDropdown.Bounds();
+    applyGap = scaler.ToPx (8);
+    applyWidth = scaler.ToPx (88);
+    dropB = m_themeDropdown.GetBounds();
 
     dropB.right = dropB.left + dropWidth;
     m_themeDropdown.SetBounds (dropB);
@@ -702,7 +702,7 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // it (three stops need no width, and a full-width one reads as continuous).
     {
         int   aaTop     = y + (rowHeight + rowGap) * 2;
-        int   aaSliderW = scaler.Px (150);
+        int   aaSliderW = scaler.ToPx (150);
 
         m_aaLabel.Layout  (MakeRect (x, aaTop, labelWidth, rowHeight), scaler);
         m_aaLabel.SetDpi  (dpi);
@@ -798,7 +798,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     if (m_themeDropdown.IsOpen())
     {
-        int  highlighted = m_themeDropdown.HighlightIndex();
+        int  highlighted = m_themeDropdown.GetHighlightIndex();
 
         if (highlighted >= 0 && highlighted < (int) m_themeIds.size())
         {
@@ -822,17 +822,17 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.Checked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window
         // menu drops straight down over the preview, so cropping the scene
         // to what is left underneath keeps the live preview alive while the
         // user arrows through the list. A hosted popup is its own window and
-        // covers nothing here, which is why InWindowMenuRect returns empty
+        // covers nothing here, which is why GetInWindowMenuRect returns empty
         // for one.
         {
-            RECT  menu = m_themeDropdown.InWindowMenuRect();
+            RECT  menu = m_themeDropdown.GetInWindowMenuRect();
 
             if (menu.bottom > menu.top && menu.bottom > m_sceneRequest.clipPx.top)
             {

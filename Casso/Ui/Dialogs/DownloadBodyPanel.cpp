@@ -21,7 +21,7 @@
 void DownloadBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     SetBounds  (boundsPx);
-    m_dpiScale = (float) scaler.Dpi() / (float) DxuiDpiScaler::kBaseDpi;
+    m_dpiScale = (float) scaler.GetDpi() / (float) DxuiDpiScaler::kBaseDpi;
 }
 
 
@@ -43,7 +43,7 @@ void DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     ctx.painter        = static_cast<DxuiPainter *> (&painter);
     ctx.text           = static_cast<DxuiTextRenderer *> (&text);
     ctx.theme          = static_cast<const CassoTheme *> (&theme);
-    ctx.customBodyRect = Bounds();
+    ctx.customBodyRect = GetBounds();
     ctx.dpiScale       = m_dpiScale;
 
     if (m_paint)
@@ -65,7 +65,7 @@ void DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 bool DownloadBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     DialogInputEvent  die;
-    RECT              b        = Bounds();
+    RECT              b        = GetBounds();
     bool              consumed = true;
 
 

@@ -97,8 +97,8 @@ public:
     void  ApplyChromeColors (const CassoTheme & theme);
 
     MainMenuId  GetOpenMenu      () const { return (MainMenuId) OpenMenuIndex(); }
-    MainMenuId  GetFocusedMenuId () const { return (MainMenuId) DxuiMenuBar::FocusedMenu(); }
-    using DxuiMenuBar::FocusedMenu;
+    MainMenuId  GetFocusedMenuId () const { return (MainMenuId) DxuiMenuBar::GetFocusedMenu(); }
+    using DxuiMenuBar::GetFocusedMenu;
 
     void        SetFocusedMenu (MainMenuId menu) { DxuiMenuBar::SetFocusedMenu ((int) menu); }
     using DxuiMenuBar::SetFocusedMenu;

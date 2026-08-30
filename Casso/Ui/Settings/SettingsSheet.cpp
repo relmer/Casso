@@ -39,9 +39,9 @@ static constexpr int    s_kSheetHeightDip    = 760;
 
 SettingsSheet::~SettingsSheet()
 {
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        PopupHost()->SetComposeHook (nullptr);
+        GetPopupHost()->SetComposeHook (nullptr);
     }
 
     m_compositor.Shutdown();
@@ -189,11 +189,11 @@ HRESULT SettingsSheet::OpenModeless (
     // compositor blurs / reveals / composes onto the back buffer. The device is
     // borrowed from the window's DxuiHwndSource (non-owning); m_compositor
     // releases its own D3D resources in the sheet dtor while it is still alive.
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        hr = m_compositor.Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+        hr = m_compositor.Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
         CHRA (hr);
-        PopupHost()->SetComposeHook (
+        GetPopupHost()->SetComposeHook (
             [this] (ID3D11ShaderResourceView * contentSrv,
                     ID3D11RenderTargetView   * backBufferRtv,
                     int widthPx, int heightPx)
@@ -322,7 +322,7 @@ HRESULT SettingsSheet::OpenModeless (
     {
         if (m_prefs != nullptr && (ColorMonitorTextMode) idx == ColorMonitorTextMode::Custom)
         {
-            m_colorPicker.SetHwnd (Hwnd());
+            m_colorPicker.SetHwnd (GetHwnd());
             m_colorPicker.Open (m_prefs->colorMonitorTextCustomArgb);
             Invalidate();
         }
@@ -383,11 +383,11 @@ HRESULT SettingsSheet::OpenModeless (
 
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
-    m_hardwarePage->SetPopupHost (PopupHost());
-    m_diskPage->SetPopupHost     (PopupHost());
-    m_themePage->SetPopupHost    (PopupHost());
-    m_displayPage->SetPopupHost  (PopupHost());
-    m_printingPage->SetPopupHost (PopupHost());
+    m_hardwarePage->SetPopupHost (GetPopupHost());
+    m_diskPage->SetPopupHost     (GetPopupHost());
+    m_themePage->SetPopupHost    (GetPopupHost());
+    m_displayPage->SetPopupHost  (GetPopupHost());
+    m_printingPage->SetPopupHost (GetPopupHost());
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
@@ -551,9 +551,9 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     {
         m_previewSceneTried = true;
 
-        if (PopupHost() != nullptr)
+        if (GetPopupHost() != nullptr)
         {
-            hr = m_previewScene.Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+            hr = m_previewScene.Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
 
             if (SUCCEEDED (hr))
             {
@@ -687,7 +687,7 @@ void SettingsSheet::UpdatePreviewCompose()
         return;
     }
 
-    hwnd = Hwnd();
+    hwnd = GetHwnd();
 
     if (m_previewActive && hwnd != nullptr)
     {
@@ -741,7 +741,7 @@ void SettingsSheet::UpdatePreviewCompose()
 
 void SettingsSheet::RaiseOwnerBehindSheet()
 {
-    HWND  sheet = Hwnd();
+    HWND  sheet = GetHwnd();
     HWND  owner = (sheet != nullptr) ? GetWindow (sheet, GW_OWNER) : nullptr;
 
 
@@ -770,7 +770,7 @@ void SettingsSheet::RefreshOkLabel()
 
 
 
-    if (OkText() != want)   // only reflow on an actual change, not every tick
+    if (GetOkText() != want)   // only reflow on an actual change, not every tick
     {
         SetOkText (std::move (want));
         SetOkWidthDip (reboot ? 132 : 0);   // 0 => standard width, == Cancel
@@ -801,10 +801,10 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     // the OK / Cancel group (reserve the widest OK, "OK (reboot)").
     if (m_restartNotice != nullptr)
     {
-        int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
-        int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        int   rowH    = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+        int   edge    = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
         RECT  r;
-        int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
+        int   reserve = scaler.ToPx (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
                                    + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
 
         r.left   = boundsPx.left   + edge;
@@ -814,7 +814,7 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         if (r.right < r.left) { r.right = r.left; }
 
         m_restartNotice->SetRect (r);
-        m_restartNotice->SetDpi  (scaler.Dpi());
+        m_restartNotice->SetDpi  (scaler.GetDpi());
     }
 }
 

@@ -282,8 +282,8 @@ void Disk2DebugPanel::OnCreate()
     ConfigureWidgets();
     UpdateDynamicLabels();
 
-    m_columnMenu.SetPopupHost (PopupHost());
-    m_tooltip.SetPopupHost    (PopupHost());
+    m_columnMenu.SetPopupHost (GetPopupHost());
+    m_tooltip.SetPopupHost    (GetPopupHost());
 }
 
 
@@ -413,7 +413,7 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     std::vector<DxuiPopupMenu::Item>  items;
-    IDxuiTextRenderer              *  textRenderer = TextRenderer();
+    IDxuiTextRenderer              *  textRenderer = GetTextRenderer();
     RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
 
 
@@ -874,7 +874,7 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
             // header / divider / body sub-stops (column sort / resize / row
             // navigation) and declining only when Tab steps past either end;
             // focused checkboxes / buttons self-activate on Space / Enter.
-            focused = m_focusMgr.Focused();
+            focused = m_focusMgr.GetFocusedControl();
             handled = (focused != nullptr) && focused->OnKey (ev);
 
             // Tab then advances the panel's control focus, once the focused
@@ -911,7 +911,7 @@ void Disk2DebugPanel::Layout (
 {
     m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
     m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
-    m_dpi      = scaler.Dpi();
+    m_dpi      = scaler.GetDpi();
     m_scaler   = scaler;
 
     RecomputeLayout();
@@ -923,10 +923,10 @@ void Disk2DebugPanel::Layout (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CursorForPoint
+//  GetCursorForPoint
 //
 //  DxuiWindow resolves the client cursor by fanning a client-px point
-//  through the panel tree. DxuiListView::CursorForPoint expects list-
+//  through the panel tree. DxuiListView::GetCursorForPoint expects list-
 //  local coords, so translate by the list's bounds before delegating.
 //  During an active column-resize drag the pointer may leave the header
 //  strip (where the edge hit-test lives), so hold the resize cursor for
@@ -934,7 +934,7 @@ void Disk2DebugPanel::Layout (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR Disk2DebugPanel::CursorForPoint (POINT clientPx) const
+LPCWSTR Disk2DebugPanel::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
     RECT     bounds = {};
@@ -946,11 +946,11 @@ LPCWSTR Disk2DebugPanel::CursorForPoint (POINT clientPx) const
     // "no opinion" -- DxuiWindow falls back to the default arrow.
     if (m_eventList != nullptr)
     {
-        bounds  = m_eventList->Bounds();
+        bounds  = m_eventList->GetBounds();
         local.x = clientPx.x - bounds.left;
         local.y = clientPx.y - bounds.top;
 
-        cursor = m_eventList->CursorForPoint (local);
+        cursor = m_eventList->GetCursorForPoint (local);
 
         if (cursor == nullptr && m_eventList->IsResizingColumn())
         {
@@ -978,7 +978,7 @@ LPCWSTR Disk2DebugPanel::CursorForPoint (POINT clientPx) const
 
 void Disk2DebugPanel::RecomputeLayout()
 {
-    int  titleHeight = CaptionHeightPx();
+    int  titleHeight = GetCaptionHeightPx();
 
 
 
@@ -1011,8 +1011,8 @@ void Disk2DebugPanel::UpdateDynamicLabels()
     }
 
     m_trackFilterLabel->SetText   (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.GetRejectedSpans()).c_str());
-    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.GetRejectedSpans()).c_str());
+    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->GetText(),  m_filter.trackFilter.GetRejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->GetText(), m_filter.sectorFilter.GetRejectedSpans()).c_str());
 }
 
 
@@ -1184,11 +1184,11 @@ void Disk2DebugPanel::ConfigureWidgets()
     });
 
     m_trackEdit->SetMaxLength  (32);
-    m_trackEdit->SetHwnd       (Hwnd());
+    m_trackEdit->SetHwnd       (GetHwnd());
     m_trackEdit->SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
 
     m_sectorEdit->SetMaxLength (32);
-    m_sectorEdit->SetHwnd      (Hwnd());
+    m_sectorEdit->SetHwnd      (GetHwnd());
     m_sectorEdit->SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
 
     m_pauseButton->SetOnClick ([this] ()
@@ -1584,7 +1584,7 @@ void Disk2DebugPanel::OnFilterChanged()
 
 void Disk2DebugPanel::OnTrackEditChanged()
 {
-    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit->Text(),
+    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit->GetText(),
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
     m_trackEditValid = m_filter.trackFilter.GetRejectedSpans().empty();
@@ -1603,7 +1603,7 @@ void Disk2DebugPanel::OnTrackEditChanged()
 
 void Disk2DebugPanel::OnSectorEditChanged()
 {
-    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->Text(),
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->GetText(),
                                                          TrackSectorPredicate::Mode::Sector);
     m_sectorEditValid = m_filter.sectorFilter.GetRejectedSpans().empty();
     UpdateDynamicLabels();
@@ -2111,14 +2111,14 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
     {
         if (m_eventChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_eventChecks[i]->Rect(), s_kpszEventCheckTips[i], now);
+            m_tooltip.RequestShow (m_eventChecks[i]->GetRect(), s_kpszEventCheckTips[i], now);
             shown = true;
         }
     }
 
     if (!shown && m_audioMasterCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_audioMasterCheck->Rect(), s_kpszAudioMasterTip, now);
+        m_tooltip.RequestShow (m_audioMasterCheck->GetRect(), s_kpszAudioMasterTip, now);
         shown = true;
     }
 
@@ -2126,14 +2126,14 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
     {
         if (m_audioSubChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_audioSubChecks[i]->Rect(), s_kpszAudioSubTips[i], now);
+            m_tooltip.RequestShow (m_audioSubChecks[i]->GetRect(), s_kpszAudioSubTips[i], now);
             shown = true;
         }
     }
 
     if (!shown && m_rawQtCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_rawQtCheck->Rect(), s_kpszRawQtTip, now);
+        m_tooltip.RequestShow (m_rawQtCheck->GetRect(), s_kpszRawQtTip, now);
         shown = true;
     }
 
@@ -2143,9 +2143,9 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
         // option carries its own tip and rect.
         driveHit = m_driveRadio->HitTest (x, y);
 
-        if (driveHit >= 0 && driveHit < (int) m_driveRadio->Options().size())
+        if (driveHit >= 0 && driveHit < (int) m_driveRadio->GetOptions().size())
         {
-            m_tooltip.RequestShow (m_driveRadio->Options()[driveHit].rect,
+            m_tooltip.RequestShow (m_driveRadio->GetOptions()[driveHit].rect,
                                    s_kpszDriveRadioTips[driveHit],
                                    now);
             shown = true;
@@ -2154,13 +2154,13 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
 
     if (!shown && m_trackEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_trackEdit->Rect(), s_kpszTrackEditTip, now);
+        m_tooltip.RequestShow (m_trackEdit->GetRect(), s_kpszTrackEditTip, now);
         shown = true;
     }
 
     if (!shown && m_sectorEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_sectorEdit->Rect(), s_kpszSectorEditTip, now);
+        m_tooltip.RequestShow (m_sectorEdit->GetRect(), s_kpszSectorEditTip, now);
         shown = true;
     }
 

@@ -132,11 +132,11 @@ void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DialogBodyContent::PreferredHeightDip
+//  DialogBodyContent::GetPreferredHeightDip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogBodyContent::PreferredHeightDip() const
+int DialogBodyContent::GetPreferredHeightDip() const
 {
     int  iconTop = 0;
     int  runs    = 0;
@@ -176,8 +176,8 @@ int DialogBodyContent::PreferredHeightDip() const
 
 void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  linePx   = scaler.Px (s_kLineHeightDip);
-    int  gapPx    = scaler.Px (s_kItemGapDip);
+    int  linePx   = scaler.ToPx (s_kLineHeightDip);
+    int  gapPx    = scaler.ToPx (s_kItemGapDip);
     int  y        = boundsPx.top;
     int  runsLeft = boundsPx.left;
 
@@ -190,25 +190,25 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
-        int  iconPx = scaler.Px (m_iconSizeDip);
+        int  iconPx = scaler.ToPx (m_iconSizeDip);
         int  cx     = (boundsPx.left + boundsPx.right) / 2;
 
         m_iconRectPx.left   = cx - iconPx / 2;
         m_iconRectPx.top    = y;
         m_iconRectPx.right  = cx + iconPx / 2;
         m_iconRectPx.bottom = y + iconPx;
-        y += iconPx + scaler.Px (s_kIconGapDip);
+        y += iconPx + scaler.ToPx (s_kIconGapDip);
     }
 
     if (m_glyph != 0 && m_glyphSizeDip > 0)
     {
-        int  glyphPx = scaler.Px (m_glyphSizeDip);
+        int  glyphPx = scaler.ToPx (m_glyphSizeDip);
 
         m_glyphRectPx.left   = boundsPx.left;
         m_glyphRectPx.top    = y;
         m_glyphRectPx.right  = boundsPx.left + glyphPx;
         m_glyphRectPx.bottom = y + glyphPx;
-        runsLeft = boundsPx.left + glyphPx + scaler.Px (s_kGlyphGapDip);
+        runsLeft = boundsPx.left + glyphPx + scaler.ToPx (s_kGlyphGapDip);
     }
 
     for (Item & item : m_items)
