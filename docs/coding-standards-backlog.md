@@ -28,6 +28,32 @@ it only stops *new* violations.
 | `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 0 |
 | `CS0016` | a declaration block is followed by exactly 3 blank lines | 0 |
 
+**`CS0001` checks one spelling, and that is correct, not a gap.** The pattern
+is `'\w \(\)'` -- a single space. Two or more never matches it. First-party
+`.cpp` has 0 sites with one space and 83 with two or more, across 24 files, so
+widening the pattern to `'\w +\(\)'` would appear to surface an 83-site
+backlog.
+
+It would not. Those 83 are **column alignment, which the standards require**:
+
+    Assert::IsFalse (f.mmu.GetAltZp     ());
+    prng.Fill (m_ramAuxHigh.data   (), m_ramAuxHigh.size   ());
+    DxuiMessageResult  OnPaint          () override
+
+`copilot-instructions.md` says NEVER break existing column alignment, and a
+run of padded empty parens is that rule being obeyed. The single space CS0001
+forbids is the accidental `fn ()` typo; a padded run is deliberate. Widening
+the pattern would arm the gate against the standard it serves. **Do not widen
+it.**
+
+Two things this leaves true and worth stating so nobody re-derives them. The
+`*External/*` exclusion (CheckStyle.ps1, in the file enumeration for every
+mode) is deliberate: the four one-space sites in `StbVorbisWrapper.cpp` are
+vendored stb_vorbis and correctly out of scope. And `-Mode Tree` is not
+diff-scoped -- it reports OK over all 1,146 tracked files -- so the zero is a
+real zero for what the rule means, not an artifact of the hook only reading
+the diff.
+
 `CS0011` now covers `SUCCEEDED` / `FAILED` / `IGNORE_RETURN_VALUE` as well as
 the `CHR`/`CBR`/`CWR`/`CPR` families, 246 sites, production and tests, all
 converted. Two notes on how it got there:
