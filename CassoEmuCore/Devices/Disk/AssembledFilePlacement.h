@@ -36,6 +36,18 @@ class AssembledFilePlacement
 {
 public:
 
+    //  The ProDOS types a Merlin source may state that ProDosVolume has no name
+    //  for. Its manual gives the set: "Valid file types are 0,6,$F0~$F7, and
+    //  $FF (no type, BIN, CMD, user defined, SYS)".
+    //
+    //  HERE RATHER THAN ON THE VOLUME because they are not types the volume
+    //  layer does anything with. They pass through to a ProDOS directory entry
+    //  as bytes and have no DOS 3.3 counterpart, so the only code that needs to
+    //  name them is the code deciding whether a source may state them.
+    static constexpr Byte  kProDosNoType       = 0x00;
+    static constexpr Byte  kProDosCommandFirst = 0xF0;
+    static constexpr Byte  kProDosCommandLast  = 0xF7;
+
     //  Which type byte an output takes: the one the caller named, or the
     //  filesystem's own binary type when nobody named one.
     //

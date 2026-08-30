@@ -7,12 +7,14 @@
 #include "Assembler.h"
 #include "Cli/AssemblerMode.h"
 #include "Cli/ImageArtifactSink.h"
+#include "Devices/Disk/AssembledFilePlacement.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/ProDosSkeleton.h"
 #include "Devices/Disk/ProDosVolume.h"
+#include "Devices/Disk/VolumeImage.h"
 
 
 
@@ -972,6 +974,143 @@ namespace AssemblerToDiskTests
             Assert::AreNotEqual (0, exitCode, L"an image that is not there is refused");
             Assert::IsTrue (said.find (kImagePath) != std::string::npos,
                             L"and the reader is told which image");
+        }
+    };
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MerlinFileTypeSetTests
+    //
+    //  Which type bytes a source may state, against the set Merlin accepts.
+    //
+    //  THE SET IS QUOTED FROM THE MANUAL: "Valid file types are 0,6,$F0~$F7, and
+    //  $FF (no type, BIN, CMD, user defined, SYS)". Four of those five were
+    //  refused for a release -- only $06 and $FF were recognized -- so a genuine
+    //  Merlin source stating $00 or a command type was told the tool did not
+    //  recognize it. That is a port failing on a construct the assembler being
+    //  copied assembles.
+    //
+    //  The sweep runs the WHOLE set rather than a sample, in both directions:
+    //  every type Merlin accepts must be accepted on ProDOS, and a byte outside
+    //  the set must still be refused, because accepting everything would pass
+    //  this suite just as well.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MerlinFileTypeSetTests)
+    {
+    public:
+
+        //  Where a stated type ends up, or why it could not be honored.
+        static HRESULT Place (VolumeKind kind, Byte stated, Byte & outType, std::string & outError)
+        {
+            return AssembledFilePlacement::ResolveSourceType (kind, stated, outType, outError);
+        }
+
+
+
+        //  Merlin's own set, byte for byte from the manual.
+        TEST_METHOD (EveryTypeMerlinAcceptsIsAcceptedOnProDos)
+        {
+            Byte  merlinSet[] = { 0x00, 0x06, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xFF };
+
+            for (Byte stated : merlinSet)
+            {
+                Byte         resolved = 0;
+                std::string  error;
+
+                AssertSucceeded (Place (VolumeKind::ProDos, stated, resolved, error));
+
+                Assert::AreEqual ((int) stated, (int) resolved,
+                                  L"a ProDOS type passes through as the byte the source stated");
+                Assert::IsTrue   (error.empty(), L"and nothing is said about it");
+            }
+        }
+
+
+
+        //  Ours, beyond Merlin, and running in the safe direction: accepting
+        //  them refuses no source Merlin accepts.
+        TEST_METHOD (TextAndApplesoftAreAcceptedThoughMerlinListsNeither)
+        {
+            Byte         text      = 0;
+            Byte         applesoft = 0;
+            std::string  error;
+
+            AssertSucceeded (Place (VolumeKind::ProDos, 0x04, text, error));
+            AssertSucceeded (Place (VolumeKind::ProDos, 0xFC, applesoft, error));
+
+            Assert::AreEqual ((int) 0x04, (int) text,      L"text passes through");
+            Assert::AreEqual ((int) 0xFC, (int) applesoft, L"and Applesoft does");
+        }
+
+
+
+        //  A byte outside the set is refused NAMING ITSELF, which is what Merlin
+        //  does with ILLEGAL FILE TYPE. Without this the sweep above would pass
+        //  on an implementation that accepted everything.
+        TEST_METHOD (AByteOutsideTheSetIsRefusedNamingItself)
+        {
+            Byte         resolved = 0;
+            std::string  error;
+            HRESULT      placed   = Place (VolumeKind::ProDos, 0xE0, resolved, error);
+
+            Assert::IsTrue (FAILED (placed),
+                            L"$E0 is in neither Merlin's set nor ours");
+            Assert::IsTrue (error.find ("$E0") != std::string::npos,
+                            L"and the refusal names the byte");
+        }
+
+
+
+        //  Only three of the set have a DOS 3.3 counterpart. The rest are
+        //  refused by name rather than approximated, which is the rule that
+        //  keeps a program from being filed under a type that cannot start it.
+        TEST_METHOD (OnDos33OnlyTheTypesWithCounterpartsMap)
+        {
+            Byte         resolved = 0;
+            std::string  error;
+
+            AssertSucceeded (Place (VolumeKind::Dos33, 0x04, resolved, error));
+            Assert::AreEqual ((int) Dos33Volume::kTypeText, (int) resolved, L"text maps");
+
+            AssertSucceeded (Place (VolumeKind::Dos33, 0x06, resolved, error));
+            Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) resolved, L"binary maps");
+
+            AssertSucceeded (Place (VolumeKind::Dos33, 0xFC, resolved, error));
+            Assert::AreEqual ((int) Dos33Volume::kTypeApplesoft, (int) resolved, L"Applesoft maps");
+        }
+
+
+
+        //  Each refusal says which type and why, rather than one message
+        //  covering three different reasons.
+        TEST_METHOD (OnDos33TheTypesWithNoCounterpartAreRefusedByName)
+        {
+            struct Case { Byte stated; const char * says; };
+
+            Case  cases[] =
+            {
+                { 0x00, "typeless"          },
+                { 0xF0, "command"           },
+                { 0xF7, "command"           },
+                { 0xFF, "system"            },
+            };
+
+            for (const Case & one : cases)
+            {
+                Byte         resolved = 0;
+                std::string  error;
+                HRESULT      placed   = Place (VolumeKind::Dos33, one.stated, resolved, error);
+
+                Assert::IsTrue (FAILED (placed),
+                                L"DOS 3.3 has no equivalent for this type");
+                Assert::IsTrue (error.find (one.says) != std::string::npos,
+                                L"and the refusal says which kind of file it was");
+                Assert::IsTrue (error.find ("DOS 3.3") != std::string::npos,
+                                L"and which filesystem could not hold it");
+            }
         }
     };
 }

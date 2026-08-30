@@ -31,10 +31,13 @@ Entries before versioning was introduced use dates only.
   two agreed, so a source whose origin moved produced a file the guest loaded
   at the wrong address.
 - **Merlin's `TYP` is implemented.** It sets the filesystem type the output
-  takes, stated as a ProDOS type byte. Text, binary and Applesoft map to both
-  filesystems; a ProDOS system file is refused on DOS 3.3 by name rather than
-  approximated, because DOS 3.3 has no system-program concept at all. A byte
-  outside the recognized set is refused naming the byte.
+  takes, stated as a ProDOS type byte. The accepted set is Merlin's own —
+  `$00`, `$06`, `$F0` through `$F7` and `$FF` — plus `$04` text and `$FC`
+  Applesoft, which Merlin lists in neither direction. Text, binary and Applesoft
+  map to both filesystems; the rest are refused on DOS 3.3 by name rather than
+  approximated, because DOS 3.3 has five types and none of them means a system
+  program, a command file, or no type at all. A byte outside the set is refused
+  naming the byte, as Merlin's own `ILLEGAL FILE TYPE` does.
 - **Merlin's `SAV` is implemented, and one assembly can produce several
   files.** It writes the span accumulated since the previous save and carries
   on, with the accumulation emptied, so no byte appears in two outputs and each

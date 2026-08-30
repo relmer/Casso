@@ -465,6 +465,26 @@ startup program.
   DOS 3.3 has no system-program concept.
 - **FR-011**: A type value outside the set the tool recognizes MUST be refused,
   naming the value.
+
+  **The set is Merlin's, and it was implemented too narrowly.** Its manual gives
+  it exactly: "Valid file types are 0,6,$F0~$F7, and $FF (no type, BIN, CMD,
+  user defined, SYS)". The first implementation recognized only `$06` and `$FF`
+  of those five and added `$04` and `$FC` of its own, so a genuine Merlin source
+  stating `$00` or any command type was answered "not one this tool recognizes"
+  — a port failing on a construct the assembler being copied assembles, which is
+  the failure this feature exists to prevent. All five are accepted now.
+
+  `$04` and `$FC` stay, though Merlin lists neither. They run in the safe
+  direction: accepting them refuses no source Merlin accepts, both filesystems
+  have the type, and a text or Applesoft output is a thing a caller can want.
+- **FR-046**: `TYP` is ProDOS-only in the assembler being copied, and this is
+  recorded so it is not mistaken for a defect. Merlin Pro 2.23 under DOS 3.3
+  answers `Bad opcode` to it; the manual heads the entry "TYP (ProDOS only)".
+  Casso honors it against a DOS 3.3 volume anyway, mapping the three types that
+  have counterparts, because a DOS 3.3 file does carry a type and refusing the
+  directive outright would serve nobody. That is this tool going BEYOND the
+  period assembler rather than matching it, and it is why the two committed
+  `TYP` fixtures had to be captured on the ProDOS disk.
 - **FR-012**: `SAV` MUST write the object accumulated since the previous save —
   or since the start of the assembly, for the first — to the current target, and
   MUST then allow assembly to continue with that accumulation emptied. Bytes
