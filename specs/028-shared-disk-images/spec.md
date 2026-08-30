@@ -116,24 +116,45 @@ what to do.
    writes back and the image has NOT changed externally, **Then** it writes
    directly as it does today, with no backup and no prompt.
 
-### User Story 3 - Two writers cannot interleave (Priority: P2)
+### User Story 3 - Two writers cannot spoil each other's work (Priority: P2)
 
-Two programs writing the same image at the same time cannot produce a file that
-is half one and half the other.
+Two programs writing the same image cannot corrupt it, and neither can lose the
+other's change without anybody noticing.
 
-**Why this priority**: The window is small and the consequence is a corrupt
-image rather than a lost file, so it ranks below the two above. It is worth
-closing because a corrupt image is much harder to diagnose than a missing file.
+**Why this priority**: Most of this is already delivered, which is why it ranks
+below the two above. Both sides already write to a temporary beside the target
+and rename it over, so a reader sees the old file or the new one and never a
+mixture. What is left is narrower than "add locking" and is written out below.
 
-**Independent test**: Have one writer hold the image and confirm the other
-refuses, waits, or otherwise does not write into the same bytes.
+**THE CORRUPTION CASE IS ALREADY CLOSED, and the spec says so rather than
+asking for it again.** Reading the code: the emulator commits through
+`WriteFileAtomically` and the command line through `CommitPlan` and an atomic
+replace. Neither can leave a half-written image. A lock adding to that would buy
+nothing, and the plan should not add one on the strength of this story.
+
+**Two real gaps remain.** The first is that two EMULATOR instances derive the
+same temporary name from one image path -- a fixed suffix -- so they write into
+each other's temporary and one commits the other's bytes as its own. The command
+line already solved this for itself with a per-invocation tag, and its own
+reasoning says why: "the loser's bytes then go into the winner's temporary and
+are committed as though they were the winner's". The emulator never got that
+treatment. The second is the lost update: whoever renames last wins, and the
+loser's change disappears silently. The command line already detects that with
+the identity it recorded at read time; the emulator records nothing.
+
+**Independent test**: Have two writers commit the same image and confirm the
+result is one whole version, neither mixed nor silently replaced.
 
 **Acceptance Scenarios**:
 
-1. **Given** a process writing an image, **When** another tries to write the
-   same image, **Then** the second does not interleave with the first.
-2. **Given** a process that fails or is killed mid-write, **When** anything
-   later opens that image, **Then** it is not left permanently unwritable.
+1. **Given** two emulator instances holding the same image, **When** both flush,
+   **Then** neither writes into the other's temporary and the image ends as one
+   complete version.
+2. **Given** a writer that renames its version over a change it never saw,
+   **When** it commits, **Then** it is detected rather than silently winning.
+3. **Given** a process that fails or is killed mid-write, **When** anything later
+   opens that image, **Then** it is not left permanently unwritable, and any
+   temporary left behind does not become somebody else's.
 
 ### Edge Cases
 
@@ -156,7 +177,7 @@ refuses, waits, or otherwise does not write into the same bytes.
 - A writer that holds the image far longer than the quiet period.
 - The image sits on a network share or a synchronizing folder, where change
   notification and timestamps are less trustworthy.
-- Two emulator instances mount the same image.
+- Two emulator instances mount the same image and both flush it.
 - The user answers the conflict question by ejecting the disk instead.
 - The guest has a file OPEN on the disk when the contents are replaced, so its
   cached structure describes bytes that are no longer there.
@@ -309,30 +330,37 @@ configuration: each write carries its own answer.
 
 #### Writing safely
 
-- **FR-024**: A program writing a disk image MUST hold it for the duration of
-  the write, so that a second writer cannot interleave with it.
-- **FR-025**: A writer that cannot obtain the image MUST report that plainly,
-  naming the image, rather than failing obscurely or waiting forever.
-- **FR-026**: A writer that fails or is killed mid-write MUST NOT leave the
-  image permanently unwritable by anything else.
-- **FR-027**: The existing guarantee that a failed write leaves an image
+- **FR-024**: A partly written image MUST never be visible to a reader. This is
+  already delivered on both sides by writing to a temporary and renaming it over
+  the target; it is stated so that a change which abandons that stops being a
+  refactor and starts being a regression.
+- **FR-025**: Two writers MUST NOT derive the same temporary path from one image.
+  The emulator currently derives a fixed name from the image path, so two
+  instances write into each other and one commits the other bytes as its own.
+- **FR-026**: A writer MUST detect that the image changed under it since it read,
+  rather than renaming its version over a change it never saw. The command line
+  already does this; the emulator does not.
+- **FR-027**: A writer that fails or is killed mid-write MUST NOT leave the image
+  permanently unwritable, and a temporary left behind MUST NOT be adopted by
+  another writer as its own.
+- **FR-028**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-028**: A session in which no external change occurs MUST behave exactly
+- **FR-029**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-029**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-030**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-030**: Where change detection cannot be trusted — a network share, a
+- **FR-031**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-031**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-032**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-032**: The conflict question MUST state what is at stake on both sides —
+- **FR-033**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -362,7 +390,7 @@ configuration: each write carries its own answer.
 - **SC-003**: A session with no external change produces byte-for-byte the same
   image file it produces today.
 - **SC-004**: Concurrent writes never produce an image that is part one writer's
-  and part another's.
+  and part another's, and never let one writer commit another's bytes as its own.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
   detection, measured against the same session with it disabled.
