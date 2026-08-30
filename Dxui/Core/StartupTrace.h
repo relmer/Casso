@@ -35,39 +35,41 @@ namespace StartupTrace
 
     inline void Dump()
     {
-        wchar_t  path[512] = {};
+        wchar_t   path[512] = {};
+        FILE    * file      = nullptr;
 
-        if (GetEnvironmentVariableW (L"CASSO_STARTUP_TRACE", path, 512) == 0)
+        if (GetEnvironmentVariableW (L"CASSO_STARTUP_TRACE", path, 512) == 0 || Marks().empty())
         {
             return;
         }
 
-        LARGE_INTEGER  freq = {};
+        LARGE_INTEGER   freq = {};
         QueryPerformanceFrequency (&freq);
 
-        std::ofstream  out (path);
-
-        if (!out.good() || Marks().empty())
+        // Plain stdio rather than a stream: this header is included from both
+        // Dxui and Casso, whose precompiled headers do not agree on which of
+        // <fstream>/<iomanip> they carry, and scaffolding is a poor reason to
+        // widen either one.
+        if (_wfopen_s (&file, path, L"w") != 0 || file == nullptr)
         {
             return;
         }
 
-        long long  base = Marks().front().qpc;
-        long long  prev = base;
+        fprintf (file, "elapsed_ms  delta_ms  label\n");
 
-        out << "elapsed_ms  delta_ms  label\n";
+        long long   base = Marks().front().qpc;
+        long long   prev = base;
 
-        for (const Mark & m : Marks())
+        for (const Mark & mark : Marks())
         {
-            double  elapsed = (double) (m.qpc - base) * 1000.0 / (double) freq.QuadPart;
-            double  delta   = (double) (m.qpc - prev) * 1000.0 / (double) freq.QuadPart;
+            double   elapsed = (double) (mark.qpc - base) * 1000.0 / (double) freq.QuadPart;
+            double   delta   = (double) (mark.qpc - prev) * 1000.0 / (double) freq.QuadPart;
 
-            out << std::fixed << std::setprecision (1)
-                << std::setw (10) << elapsed << "  "
-                << std::setw (8)  << delta   << "  "
-                << m.label << "\n";
+            fprintf (file, "%10.1f  %8.1f  %s\n", elapsed, delta, mark.label);
 
-            prev = m.qpc;
+            prev = mark.qpc;
         }
+
+        fclose (file);
     }
 }

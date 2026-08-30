@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "StartupTrace.h"
+#include "Core/StartupTrace.h"
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
