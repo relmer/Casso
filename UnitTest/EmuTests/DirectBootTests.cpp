@@ -165,7 +165,7 @@ public:
             seen[(size_t) physical] = true;
 
             Assert::AreEqual ((int) logical,
-                              NibblizationLayer::DosFileIndexForPhysicalSector (physical),
+                              NibblizationLayer::GetDosFileIndexForPhysicalSector (physical),
                 L"the sector the drive presents at a physical position must be the one DOS "
                 L"3.3's own boot table says lives there");
 

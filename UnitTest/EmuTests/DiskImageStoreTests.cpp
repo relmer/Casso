@@ -250,7 +250,7 @@ public:
         AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
         AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
 
-        auto  mounted = store.MountedSourcePaths();
+        auto  mounted = store.GetMountedSourcePaths();
 
         Assert::AreEqual ((size_t) 2, mounted.size());
         Assert::AreEqual (std::string ("a.dsk"), mounted[0].path);
@@ -259,7 +259,7 @@ public:
         Assert::AreEqual (1, mounted[1].drive);
 
         store.Eject (6, 0);
-        mounted = store.MountedSourcePaths();
+        mounted = store.GetMountedSourcePaths();
 
         Assert::AreEqual ((size_t) 1, mounted.size());
         Assert::AreEqual (std::string ("b.dsk"), mounted[0].path);
@@ -272,7 +272,7 @@ public:
 
         AssertSucceeded (store.MountFromBytes (6, 0, "", DiskFormat::Dsk, raw));
 
-        Assert::AreEqual ((size_t) 0, store.MountedSourcePaths().size());
+        Assert::AreEqual ((size_t) 0, store.GetMountedSourcePaths().size());
     }
 
     TEST_METHOD (MountFromBytes_WozNativeNoNibblization)

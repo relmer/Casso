@@ -519,7 +519,7 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         skewedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
-                            + NibblizationLayer::DosFileIndexForPhysicalSector (1))
+                            + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
                            * NibblizationLayer::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0xA5, written[logicalAt],
@@ -911,7 +911,7 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         mappedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
-                            + NibblizationLayer::DosFileIndexForPhysicalSector (1))
+                            + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
                            * NibblizationLayer::kSectorByteSize);
 
         Assert::AreNotEqual (literalAt, mappedAt,
@@ -944,7 +944,7 @@ public:
 
         asPhysical = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1, kPhysical));
         asLogical  = runner.Run (MakeSectorRead ("raw.dsk", 3,
-                                                 NibblizationLayer::DosFileIndexForPhysicalSector (1),
+                                                 NibblizationLayer::GetDosFileIndexForPhysicalSector (1),
                                                  1, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kClean, asPhysical.exitStatus);
@@ -988,7 +988,7 @@ public:
         for (page = 0; page < 16; page++)
         {
             size_t  at = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
-                                  + NibblizationLayer::DosFileIndexForPhysicalSector ((int) page))
+                                  + NibblizationLayer::GetDosFileIndexForPhysicalSector ((int) page))
                                  * NibblizationLayer::kSectorByteSize);
 
             Assert::AreEqual ((int) page, (int) written[at],
@@ -1386,7 +1386,7 @@ public:
 
 
 
-        containers = DiskCommandRunner::AdvertisedContainers (count);
+        containers = DiskCommandRunner::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0, L"the tool advertises at least one container");
 
@@ -1438,7 +1438,7 @@ public:
 
 
 
-        containers = DiskCommandRunner::AdvertisedContainers (count);
+        containers = DiskCommandRunner::GetAdvertisedContainers (count);
 
         for (i = 0; i < count; i++)
         {
@@ -1855,11 +1855,11 @@ public:
         vector<Byte>                   edited;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         edited = EditedImageBytes();
 
-        AssertSucceeded (runner.Session().CommitImage (opened, edited, result));
+        AssertSucceeded (runner.GetSession().CommitImage (opened, edited, result));
 
         Assert::IsTrue (io.files[kImage] == edited, L"the new bytes are the image now");
         Assert::AreEqual (1, io.replaceCount, L"and arrived by one atomic replace");
@@ -1880,8 +1880,8 @@ public:
         DiskCommandResult              result;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
-        AssertSucceeded (runner.Session().CommitImage (opened, EditedImageBytes(), result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().CommitImage (opened, EditedImageBytes(), result));
 
         for (const std::string & path : io.writtenPaths)
         {
@@ -1905,11 +1905,11 @@ public:
         HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         io.failNextWrite = true;
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1932,11 +1932,11 @@ public:
         HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         io.failNextReplace = true;
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1957,11 +1957,11 @@ public:
         HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         io.mutateStampOnNextStat = true;
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -1985,11 +1985,11 @@ public:
         HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         io.stamps[kImage].sizeBytes += 1;
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -2006,11 +2006,11 @@ public:
         HRESULT                        hr     = S_OK;
 
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
 
         io.reportHeldByOther = true;
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -2036,12 +2036,12 @@ public:
         SeedRealDisk (io);
         io.stamps.erase (kImage);
 
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result),
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result),
             L"reading does not need the stamp and must still work");
 
         Assert::IsFalse (opened.stampRecorded);
 
-        hr = runner.Session().CommitImage (opened, EditedImageBytes(), result);
+        hr = runner.GetSession().CommitImage (opened, EditedImageBytes(), result);
 
         Assert::IsTrue (FAILED (hr));
         AssertImageIsUntouched (io);
@@ -2064,8 +2064,8 @@ public:
 
         // Learn the name this runner reaches for, by watching it commit once.
         SeedRealDisk (io);
-        AssertSucceeded (runner.Session().OpenImage (kImage, opened, result));
-        AssertSucceeded (runner.Session().CommitImage (opened, EditedImageBytes(), result));
+        AssertSucceeded (runner.GetSession().OpenImage (kImage, opened, result));
+        AssertSucceeded (runner.GetSession().CommitImage (opened, EditedImageBytes(), result));
 
         taken = TemporaryPathChosen (io);
 
@@ -2079,8 +2079,8 @@ public:
             DiskImageSession::OpenedImage  second;
             DiskCommandResult              secondResult;
 
-            AssertSucceeded (runner.Session().OpenImage (kImage, second, secondResult));
-            AssertSucceeded (runner.Session().CommitImage (second, EditedImageBytes(), secondResult));
+            AssertSucceeded (runner.GetSession().OpenImage (kImage, second, secondResult));
+            AssertSucceeded (runner.GetSession().CommitImage (second, EditedImageBytes(), secondResult));
         }
 
         Assert::AreEqual (size_t (1), io.files.count (taken),
@@ -2111,10 +2111,10 @@ public:
         SeedRealDisk (ioA);
         SeedRealDisk (ioB);
 
-        AssertSucceeded (runnerA.Session().OpenImage (kImage, openedA, resultA));
-        AssertSucceeded (runnerB.Session().OpenImage (kImage, openedB, resultB));
-        AssertSucceeded (runnerA.Session().CommitImage (openedA, EditedImageBytes(), resultA));
-        AssertSucceeded (runnerB.Session().CommitImage (openedB, EditedImageBytes(), resultB));
+        AssertSucceeded (runnerA.GetSession().OpenImage (kImage, openedA, resultA));
+        AssertSucceeded (runnerB.GetSession().OpenImage (kImage, openedB, resultB));
+        AssertSucceeded (runnerA.GetSession().CommitImage (openedA, EditedImageBytes(), resultA));
+        AssertSucceeded (runnerB.GetSession().CommitImage (openedB, EditedImageBytes(), resultB));
 
         Assert::IsFalse (TemporaryPathChosen (ioA) == TemporaryPathChosen (ioB),
             L"two invocations against one image must not reach for one name");

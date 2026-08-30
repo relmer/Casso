@@ -479,7 +479,7 @@ public:
         size_t                      i        = 0;
         std::vector<ContainerCase>  cases    = AllContainers();
 
-        writable = BlankDiskBuilder::WritableContainers (count);
+        writable = BlankDiskBuilder::GetWritableContainers (count);
 
         Assert::IsTrue (count > 0, L"the builder must write something");
 

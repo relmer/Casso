@@ -592,7 +592,7 @@ public:
         AssertSucceeded (VolumeImage::Load (clean, kBlankWoz, before, report));
         AssertSucceeded (VolumeImage::Load (survey.files[kBlankWoz], kBlankWoz, after, report));
 
-        VolumeImage::ChangedTracks (before, after, changed);
+        VolumeImage::CollectChangedTracks (before, after, changed);
 
         for (i = 0; i < changed.size(); i++)
         {

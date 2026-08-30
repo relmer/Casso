@@ -39,7 +39,7 @@ public:
         size_t                   i          = 0;
         std::vector<DiskFormat>  all;
 
-        containers = BlankDiskBuilder::WritableContainers (count);
+        containers = BlankDiskBuilder::GetWritableContainers (count);
 
         for (i = 0; i < count; i++)
         {
@@ -58,9 +58,9 @@ public:
     //  A container that no filling can reach is one nobody can create.
     TEST_METHOD (EveryWritableContainerIsOfferedForSomeFilesystem)
     {
-        std::vector<DiskFormat>  dos = BlankDiskBuilder::ContainersFor (BlankDiskContents::Dos33);
-        std::vector<DiskFormat>  pro = BlankDiskBuilder::ContainersFor (BlankDiskContents::ProDos);
-        std::vector<DiskFormat>  raw = BlankDiskBuilder::ContainersFor (BlankDiskContents::Unformatted);
+        std::vector<DiskFormat>  dos = BlankDiskBuilder::GetContainers (BlankDiskContents::Dos33);
+        std::vector<DiskFormat>  pro = BlankDiskBuilder::GetContainers (BlankDiskContents::ProDos);
+        std::vector<DiskFormat>  raw = BlankDiskBuilder::GetContainers (BlankDiskContents::Unformatted);
 
         for (DiskFormat format : Writable())
         {
@@ -75,7 +75,7 @@ public:
     TEST_METHOD (UnformattedOffersEveryWritableContainer)
     {
         Assert::AreEqual (Writable().size(),
-                          BlankDiskBuilder::ContainersFor (BlankDiskContents::Unformatted).size());
+                          BlankDiskBuilder::GetContainers (BlankDiskContents::Unformatted).size());
     }
 
     //  .do IS .dsk UNDER THE OTHER NAME, so wherever one is offered the other
@@ -88,7 +88,7 @@ public:
 
         for (BlankDiskContents contents : fillings)
         {
-            std::vector<DiskFormat>  offered = BlankDiskBuilder::ContainersFor (contents);
+            std::vector<DiskFormat>  offered = BlankDiskBuilder::GetContainers (contents);
 
             Assert::AreEqual (Holds (offered, DiskFormat::Dsk), Holds (offered, DiskFormat::Do),
                 L"the two spellings of one container must be offered together");
@@ -105,7 +105,7 @@ public:
 
         for (BlankDiskContents contents : fillings)
         {
-            for (DiskFormat format : BlankDiskBuilder::ContainersFor (contents))
+            for (DiskFormat format : BlankDiskBuilder::GetContainers (contents))
             {
                 BlankDiskSpec  spec;
 
@@ -231,7 +231,7 @@ public:
         size_t                                    i     = 0;
         std::vector<DiskFormat>                   advertised;
 
-        words = DiskCommandRunner::AdvertisedContainers (count);
+        words = DiskCommandRunner::GetAdvertisedContainers (count);
 
         for (i = 0; i < count; i++)
         {

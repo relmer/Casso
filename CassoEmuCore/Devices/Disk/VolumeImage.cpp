@@ -40,7 +40,7 @@ void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector
         for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
         {
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
 
@@ -78,7 +78,7 @@ void VolumeImage::DosLogicalToProDosFile (const vector<Byte> & sectors, vector<B
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
 
             std::copy (sectors.begin() + (ptrdiff_t) from,
                        sectors.begin() + (ptrdiff_t) (from + kSectorBytes),
@@ -210,14 +210,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  VolumeImage::ChangedTracks
+//  VolumeImage::CollectChangedTracks
 //
 //  A whole track is the unit because a bit stream is written a track at a time:
 //  one altered byte costs that track's encoding and nothing else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void VolumeImage::ChangedTracks (
+void VolumeImage::CollectChangedTracks (
     const vector<Byte>  & priorSectors,
     const vector<Byte>  & editedSectors,
     vector<int>         & outTracks)
@@ -457,7 +457,7 @@ HRESULT VolumeImage::SaveBitStream (
     CHR (hr);
 
     writability = TrackWritability::Evaluate (image, report);
-    ChangedTracks (prior, editedSectors, changed);
+    CollectChangedTracks (prior, editedSectors, changed);
 
     imageOk = writability.IsImageWritable();
     CBRFEx (imageOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),

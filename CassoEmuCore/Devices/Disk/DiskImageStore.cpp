@@ -30,13 +30,13 @@ DiskImageStore::DiskImageStore()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImageStore::Entry & DiskImageStore::At (int slot, int drive)
+DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive)
 {
     return m_entries[slot][drive];
 }
 
 
-const DiskImageStore::Entry & DiskImageStore::At (int slot, int drive) const
+const DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive) const
 {
     return m_entries[slot][drive];
 }
@@ -241,7 +241,7 @@ HRESULT DiskImageStore::MountFromBytes (
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     {
-        Entry &   entry = At (slot, drive);
+        Entry &   entry = GetEntry (slot, drive);
 
         if (entry.mounted)
         {
@@ -847,7 +847,7 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
-    hr = FlushEntry (At (slot, drive));
+    hr = FlushEntry (GetEntry (slot, drive));
 
 Error:
     return hr;
@@ -892,7 +892,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1042,7 +1042,7 @@ bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
         return false;
     }
 
-    return At (slot, drive).salvageOffered;
+    return GetEntry (slot, drive).salvageOffered;
 }
 
 
@@ -1081,7 +1081,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1151,7 +1151,7 @@ HRESULT DiskImageStore::SalvageToFile (
     CBRAEx (hasPath, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1345,9 +1345,9 @@ void DiskImageStore::Eject (int slot, int drive)
 
 
     // An out-of-range bay and an empty one are both nothing to eject.
-    if (IsValidBay (slot, drive) && At (slot, drive).mounted)
+    if (IsValidBay (slot, drive) && GetEntry (slot, drive).mounted)
     {
-        Entry &   entry = At (slot, drive);
+        Entry &   entry = GetEntry (slot, drive);
 
         // Flush failures are reported to the user by FlushEntry itself; the
         // eject proceeds either way, because refusing to unmount would leave
@@ -1443,7 +1443,7 @@ bool DiskImageStore::IsValidBay (int slot, int drive)
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
     // Null for a bad bay is the same answer as for an empty one: no image.
-    return IsValidBay (slot, drive) ? At (slot, drive).image.get() : nullptr;
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).image.get() : nullptr;
 }
 
 
@@ -1458,7 +1458,7 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
-    return IsValidBay (slot, drive) && At (slot, drive).mounted;
+    return IsValidBay (slot, drive) && GetEntry (slot, drive).mounted;
 }
 
 
@@ -1475,7 +1475,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
     // Returns a reference, so a bad bay yields the member empty string rather
     // than a temporary.
-    return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).path : m_emptyPath;
 }
 
 
@@ -1484,7 +1484,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountedSourcePaths
+//  GetMountedSourcePaths
 //
 //  Every mounted entry's backing path with its bay. Entries mounted from
 //  bytes with an empty virtual path are skipped -- there is no host file to
@@ -1492,7 +1492,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() const
+std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths() const
 {
     std::vector<MountedSource>  result;
     int                         slot   = 0;
@@ -1504,7 +1504,7 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() 
     {
         for (drive = 0; drive < kDriveCount; drive++)
         {
-            const Entry &  entry = At (slot, drive);
+            const Entry &  entry = GetEntry (slot, drive);
 
             if (entry.mounted && !entry.path.empty())
             {

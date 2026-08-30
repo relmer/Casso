@@ -178,7 +178,7 @@ public:
     //  indexed by logical sector is how a file reorder comes to disagree with
     //  the layout the drive would actually see -- an image that reads back
     //  perfectly through the same wrong table and is garbage on real hardware.
-    static int      PoFileIndexForDosLogicalSector (int logicalSector);
+    static int      GetPoFileIndexForDosLogicalSector (int logicalSector);
 
     //  Which sector of a DOS-ordered buffer the drive presents at physical
     //  position P -- equivalently, which one answers to the address field
@@ -197,7 +197,7 @@ public:
     //  sector commands routed their numbers through -- the twin's name
     //  claimed the inverse of what the shared table does, and following the
     //  name put user bytes on the wrong sector. The twin is gone.
-    static int      DosFileIndexForPhysicalSector (int physicalSector);
+    static int      GetDosFileIndexForPhysicalSector (int physicalSector);
 
 private:
     //  The walk shared by every entry point above. keepRecovered decides what

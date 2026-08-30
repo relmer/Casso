@@ -512,7 +512,7 @@ public:
 
         edited = PlaceTheBinary (prior);
 
-        VolumeImage::ChangedTracks (prior, edited, changed);
+        VolumeImage::CollectChangedTracks (prior, edited, changed);
 
         Assert::IsTrue (changed.size() > 0, L"the edit must have changed something");
         Assert::IsFalse (Contains (changed, kBlankedTrack),
@@ -576,7 +576,7 @@ public:
 
         edited = PlaceTheBinary (prior);
 
-        VolumeImage::ChangedTracks (prior, edited, changed);
+        VolumeImage::CollectChangedTracks (prior, edited, changed);
 
         Assert::IsFalse (Contains (changed, kDamagedTrack),
             L"the damaged track must be one the write does not need");
@@ -630,7 +630,7 @@ public:
 
         edited = PlaceTheBinary (prior);
 
-        VolumeImage::ChangedTracks (prior, edited, firstPass);
+        VolumeImage::CollectChangedTracks (prior, edited, firstPass);
 
         for (i = 0; i < firstPass.size() && victim < 0; i++)
         {
@@ -656,7 +656,7 @@ public:
 
         edited = PlaceTheBinary (prior);
 
-        VolumeImage::ChangedTracks (prior, edited, changed);
+        VolumeImage::CollectChangedTracks (prior, edited, changed);
 
         Assert::IsTrue (Contains (changed, victim), L"and the write must still need it");
 

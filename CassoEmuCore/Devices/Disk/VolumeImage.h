@@ -93,9 +93,9 @@ public:
 
     //  Tracks whose sectors differ between two buffers of the same volume.
     //  Ascending, and empty when the two agree.
-    static void     ChangedTracks (const vector<Byte> & priorSectors,
-                                   const vector<Byte> & editedSectors,
-                                   vector<int>        & outTracks);
+    static void     CollectChangedTracks (const vector<Byte> & priorSectors,
+                                          const vector<Byte> & editedSectors,
+                                          vector<int>        & outTracks);
 
     //  Reorders a ProDOS-ordered file image into DOS logical order. Public
     //  because the inverse is what writing a .po image needs.

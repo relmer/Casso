@@ -331,7 +331,7 @@ public:
 
         at   = Dos33Skeleton::SectorOffset (
                    DirectBootBuilder::kFirstPayloadTrack,
-                   NibblizationLayer::DosFileIndexForPhysicalSector (0));
+                   NibblizationLayer::GetDosFileIndexForPhysicalSector (0));
 
         span = (std::min) (payload.size(), (size_t) NibblizationLayer::kSectorByteSize);
 

@@ -254,7 +254,7 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 
 
-    m_imageTypeChoices = BlankDiskBuilder::ContainersFor (m_contents);
+    m_imageTypeChoices = BlankDiskBuilder::GetContainers (m_contents);
 
     for (i = 0; i < m_imageTypeChoices.size(); i++)
     {

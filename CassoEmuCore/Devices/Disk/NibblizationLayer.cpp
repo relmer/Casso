@@ -471,7 +471,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::PoFileIndexForDosLogicalSector
+//  NibblizationLayer::GetPoFileIndexForDosLogicalSector
 //
 //  Both interleave tables answer the same question -- which file offset holds
 //  the sector the drive will see at physical position P -- so the mapping
@@ -485,7 +485,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblizationLayer::PoFileIndexForDosLogicalSector (int logicalSector)
+int NibblizationLayer::GetPoFileIndexForDosLogicalSector (int logicalSector)
 {
     HRESULT  hr       = S_OK;
     int      physical = 0;
@@ -514,7 +514,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::DosFileIndexForPhysicalSector
+//  NibblizationLayer::GetDosFileIndexForPhysicalSector
 //
 //  The same table the nibblizer reads when it decides which of a buffer's
 //  sixteen sectors to encode under each address-field number, answered for
@@ -529,7 +529,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
+int NibblizationLayer::GetDosFileIndexForPhysicalSector (int physicalSector)
 {
     HRESULT  hr      = S_OK;
     int      found   = 0;

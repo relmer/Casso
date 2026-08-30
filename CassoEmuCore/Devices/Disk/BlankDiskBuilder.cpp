@@ -13,14 +13,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WritableContainers
+//  GetWritableContainers
 //
 //  In the order a chooser should offer them: WOZ first, being the one that
 //  carries any filesystem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
+const DiskFormat * BlankDiskBuilder::GetWritableContainers (size_t & outCount)
 {
     static constexpr DiskFormat  kContainers[] =
     {
@@ -44,7 +44,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ContainersFor
+//  GetContainers
 //
 //  Which containers can carry a filling.
 //
@@ -56,7 +56,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents contents)
+std::vector<DiskFormat> BlankDiskBuilder::GetContainers (BlankDiskContents contents)
 {
     std::vector<DiskFormat>   usable;
     const DiskFormat        * containers = nullptr;
@@ -66,7 +66,7 @@ std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents conte
 
 
 
-    containers    = WritableContainers (count);
+    containers    = GetWritableContainers (count);
     spec.contents = contents;
 
     for (i = 0; i < count; i++)

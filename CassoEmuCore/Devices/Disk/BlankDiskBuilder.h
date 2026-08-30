@@ -110,11 +110,11 @@ public:
     //  line, refused by this validator, and missing from the dialog, all at
     //  the same time.
     //
-    static const DiskFormat *  WritableContainers (size_t & outCount);
+    static const DiskFormat *  GetWritableContainers (size_t & outCount);
 
     //  Those of them that can hold `contents`, in the same order. A chooser
     //  offers exactly these, so an illegal pairing is never listed.
-    static std::vector<DiskFormat>  ContainersFor (BlankDiskContents contents);
+    static std::vector<DiskFormat>  GetContainers (BlankDiskContents contents);
 
     //  How a filling is named in a chooser: "DOS 3.3", "ProDOS 1.1.1".
     //  IN CORE because it is a decision, however short. The create dialog held

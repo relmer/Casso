@@ -1104,7 +1104,7 @@ public:
                 int     logical  = (int) (offset / kHalfBytes);
                 int     expected = block * kHalvesPerBlock + half;
 
-                Assert::AreEqual (expected, NibblizationLayer::PoFileIndexForDosLogicalSector (logical),
+                Assert::AreEqual (expected, NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical),
                     L"a ProDOS-ordered file must hold this sector where block order puts it");
 
                 Assert::IsFalse (claimed[(size_t) logical], L"and no logical sector twice");
