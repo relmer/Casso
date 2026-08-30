@@ -205,7 +205,10 @@ result is one whole version, neither mixed nor silently replaced.
 - **FR-003**: The emulator MUST re-check immediately before writing an image
   back, whatever it has or has not been told in the meantime. Notification is an
   optimization for promptness; the check before writing is what makes the
-  guarantee hold.
+  guarantee hold. This is the mounted-image case of the general writer rule
+  stated under "Writing safely"; the two are one mechanism, and splitting them
+  across sections is what let the work be scheduled after the phases that need
+  it.
 - **FR-004**: A change the emulator itself made MUST NOT be reported as an
   external change.
 
@@ -319,10 +322,18 @@ configuration: each write carries its own answer.
 - **FR-021**: The preserved version MUST be written beside the original with a
   timestamp in its name, so that repeated conflicts in one session cannot
   overwrite each other and the order they happened in is readable from the
-  directory.
+  directory. **Where a timestamp would collide with a backup already there, the
+  name MUST be disambiguated rather than overwritten** -- the promise is that
+  repeated conflicts accumulate, and a one-second resolution cannot keep it on
+  its own.
 - **FR-022**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
-- **FR-023**: Where the preserved copy cannot be written -- a read-only
+- **FR-023**: Ejecting the disk with a conflict unresolved MUST NOT discard
+  either version. The eject resolves it by keeping what is on disk, and the
+  guest's copy is preserved exactly as FR-020 requires. An eject is a plausible
+  answer to being asked a question, and it must not become the one path that
+  loses work.
+- **FR-024**: Where the preserved copy cannot be written -- a read-only
   directory, no space, the volume gone with the image -- the action that would
   discard a version MUST NOT proceed. The emulator MUST keep holding both and
   MUST offer another location. A backup that silently did not happen breaks the
@@ -330,37 +341,37 @@ configuration: each write carries its own answer.
 
 #### Writing safely
 
-- **FR-024**: A partly written image MUST never be visible to a reader. This is
+- **FR-025**: A partly written image MUST never be visible to a reader. This is
   already delivered on both sides by writing to a temporary and renaming it over
   the target; it is stated so that a change which abandons that stops being a
   refactor and starts being a regression.
-- **FR-025**: Two writers MUST NOT derive the same temporary path from one image.
+- **FR-026**: Two writers MUST NOT derive the same temporary path from one image.
   The emulator currently derives a fixed name from the image path, so two
   instances write into each other and one commits the other bytes as its own.
-- **FR-026**: A writer MUST detect that the image changed under it since it read,
+- **FR-027**: A writer MUST detect that the image changed under it since it read,
   rather than renaming its version over a change it never saw. The command line
   already does this; the emulator does not.
-- **FR-027**: A writer that fails or is killed mid-write MUST NOT leave the image
+- **FR-028**: A writer that fails or is killed mid-write MUST NOT leave the image
   permanently unwritable, and a temporary left behind MUST NOT be adopted by
   another writer as its own.
-- **FR-028**: The existing guarantee that a failed write leaves an image
+- **FR-029**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-029**: A session in which no external change occurs MUST behave exactly
+- **FR-030**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-030**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-031**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-031**: Where change detection cannot be trusted — a network share, a
+- **FR-032**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-032**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-033**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-033**: The conflict question MUST state what is at stake on both sides —
+- **FR-034**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -393,7 +404,10 @@ configuration: each write carries its own answer.
   and part another's, and never let one writer commit another's bytes as its own.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
-  detection, measured against the same session with it disabled.
+  detection, measured against a build without this feature rather than against
+  a switch that turns it off. **No off-switch is being added**, so a criterion
+  written as "the same session with it disabled" would describe a measurement
+  nobody can perform.
 
 ## Assumptions
 
@@ -427,7 +441,18 @@ configuration: each write carries its own answer.
 
 ## Dependencies
 
-- Nothing outside the repository.
+- **Spec 026 (assembler-to-disk) is a prerequisite for the assembler half, and
+  is NOT on master.** Its flat image-target options — `--disk`, `--as`, `--type`,
+  `--startup` — and its `ImageArtifactSink` are what an assembly writing into an
+  image is made of, and none of them exist here: on this branch `imagePath`
+  lives only inside the `disk` subcommand's own nested options, and
+  `ImageArtifactSink` does not exist at all. **Stating an intent from an
+  assembly therefore waits on 026 landing.**
+
+  Nothing else here waits on it. `disk put` already writes a mounted image
+  today, so the emulator-side work and the two writer defects stand alone, and
+  the build loop can be demonstrated end to end through `disk put` before 026
+  merges.
 - Independent of spec 021 (disk manager) and spec 022 / 027 (image formats),
   though 021 will need these guarantees when it edits a mounted disk live and
   should build on them rather than growing its own.

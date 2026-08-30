@@ -49,9 +49,13 @@ emulator in the common case and a small number in the worst.
 | III. UX Consistency | The banner uses the existing `DxuiInfoBanner`. Diagnostics follow `DiskCommandResult::Failure`'s wording, which every disk refusal already uses. |
 | IV. Performance | The watcher is event-driven; no polling loop. The pick-up runs on the existing motor-spindown hook, which already exists for flushing and costs nothing. |
 | V. Simplicity | No lock layer, no sidecar files, no daemon. The atomic-rename guarantee already in the tree is relied on rather than duplicated. |
-| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, mirroring `IDiskFileIo`. `Win32ImageWatcher` and `Win32IntentChannel` are shims in the shell. No decision logic in an exe. |
+| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, mirroring `IDiskFileIo`. `Win32ImageWatcher` and `Win32IntentChannel` are shims in the shell. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
 
-**Gate result**: PASS. No violations to justify.
+**Gate result**: PASS, after a correction. The first pass through this table
+recorded Principle VI as compliant while the task list placed seven decisions
+inside `Casso.exe`. `/speckit-analyze` caught it. The lesson worth keeping: a
+Constitution Check written from the plan's INTENTIONS is not a check -- it has
+to be read against the tasks that will actually be written.
 
 ## Key Decisions
 
@@ -125,12 +129,12 @@ CassoEmuCore/Devices/Disk/
 ├── ExternalChangePolicy.h/.cpp # NEW: intent, fallback, what to do
 ├── DiskImageStore.h/.cpp       # records identity at mount; re-checks before
 │                               # write; unique temp name (FR-025); stamp (FR-026)
-└── CommitPlan.cpp              # unchanged, already correct
+└── CommitPlan.cpp              # correct as it stands; may gain a caller
 
 CassoEmuCore/Cli/
 ├── IIntentChannel.h            # NEW: seam, state an intent
 ├── ImageArtifactSink.cpp       # states the intent after a successful commit
-└── DiskCommandRunner.cpp       # same, for `disk put` and friends
+    (DiskCommandRunner.cpp lives under Devices/Disk/, not here)
 
 CassoCore/
 └── CommandLineOptions.h        # NEW field: the stated intent
@@ -149,7 +153,8 @@ UnitTest/
 ├── ImageIdentityTests.cpp      # NEW
 ├── ExternalChangePolicyTests.cpp # NEW
 ├── SharedImageTests.cpp        # NEW: end to end through the seams
-└── EmuTests/FakeImageWatcher.h # NEW: drive a change without a file
+├── EmuTests/FakeImageWatcher.h # NEW: drive a change without a file
+└── EmuTests/FakeIntentChannel.h# NEW: record an intent without a window
 ```
 
 **Structure Decision**: single project, matching the tree. Everything that
