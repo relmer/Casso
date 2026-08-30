@@ -105,15 +105,20 @@ eliminating it, and is described as doing exactly that much.
   around each write. The spec requires only that writers not interleave; the
   owner's sketch takes it around the write, which also keeps `disk put` working
   against a mounted image.
-- **Whether the pick-up policy is one setting or one per drive.** A developer
-  may hold a bootable disk in one drive and a data disk in another with
-  genuinely different needs. The spec says "the user declares" without saying
-  how many answers there are, because per-drive is a real want and a global
-  setting is a much smaller thing to build.
-- **Whether `CassoCli` can state the intent per invocation** rather than the
-  emulator holding a standing answer — something like a flag saying "I just
-  replaced the boot program, restart it". That is strictly more expressive,
-  since intent is clearest at the moment of writing, but it needs a channel from
-  the command line to a running emulator that does not exist today. If the
-  writer-hold of FR-015 turns out to be a file beside the image, that file is an
-  obvious place to carry the hint, and the plan should say whether it does.
+### Two questions the owner resolved, recorded so they are not re-opened
+
+- **The writer states the intent, per invocation.** A standing preference in the
+  emulator was the earlier shape; it is now the FALLBACK, for a change written
+  by something that cannot state one. The intent is clearest at the moment of
+  writing, which is when somebody knows whether they replaced a binary or the
+  program the disk boots.
+- **There is no per-drive setting, because the intent is per IMAGE.** A
+  developer with a bootable disk in one drive and a data disk in another needs
+  no configuration at all: each write carries its own answer, and it attaches to
+  the image that changed rather than to the bay it sits in.
+
+The channel from the command line to a running emulator does not exist today.
+If FR-016's writer-hold turns out to be a file beside the image, that file is
+the obvious place to carry the intent, and the plan should say whether it does —
+one mechanism serving both would be a considerably smaller thing to build than
+two.

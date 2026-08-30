@@ -60,16 +60,16 @@ manual eject.
 
 **Acceptance Scenarios**:
 
-1. **Given** a developer who has declared that changes should be taken up in
-   place, **When** another process writes the image, **Then** the guest sees the
-   new contents without being asked anything, and the developer runs the program
+1. **Given** an assembly that states the change should be taken up in place,
+   **When** it writes a mounted image, **Then** the guest sees the new contents
+   without anybody being asked anything, and the developer runs the program
    again.
-2. **Given** a developer who has declared that changes should restart the
-   machine, **When** another process writes the image, **Then** the machine
-   restarts and boots the new contents.
-3. **Given** a developer who has declared nothing, **When** another process
-   writes the image, **Then** they are asked which of the two should happen, and
-   their answer is remembered.
+2. **Given** an assembly that states the change should restart the machine,
+   **When** it writes a mounted image, **Then** the machine restarts and boots
+   the new contents.
+3. **Given** a change written by something that stated no intent, **When** it
+   reaches a mounted image, **Then** the emulator falls back to the answer the
+   user declared, asking if they have declared none.
 4. **Given** any of the above, **When** the pick-up happens, **Then** it is
    reported, and it happens at a moment with no disk operation in flight.
 5. **Given** a disk mounted and never externally touched, **When** the guest
@@ -197,69 +197,81 @@ of the way.
 
 ##### How the guest takes up the new contents
 
-- **FR-005**: The user MUST be able to declare, in advance, what an external
-  change should do to a running machine: take up the new contents in place,
-  restart the machine, or ask each time.
-- **FR-006**: The default MUST be to ask. A tool that silently restarts a
-  machine, or silently swaps a disk under a program that cannot survive it, has
-  chosen for the user on the question the user is uniquely placed to answer.
-- **FR-007**: The declared answer MUST persist across sessions, so an
-  established build loop is configured once rather than confirmed hourly. It is
-  the repetition that makes a prompt unbearable, not the prompt.
-- **FR-008**: The user MUST be able to change the answer without restarting the
-  emulator or re-mounting the disk, since which loop they are in changes during
-  a session.
-- **FR-009**: Where the answer is to take up the new contents in place, a
-  restart MUST remain available afterward without the user hunting for it: the
-  swap may turn out to have been the wrong call, and the recovery is the same
-  action they declined.
+**THE INTENT TRAVELS WITH THE WRITE, NOT WITH THE DRIVE.** It is clearest at the
+moment somebody writes the image, because that is when they know what they
+changed: a binary to be run again, or the program the disk boots. So the writer
+states it and the emulator carries it out, rather than the emulator holding a
+standing guess about a disk it cannot inspect.
+
+That also settles what the intent attaches to. It belongs to the IMAGE that
+changed, not to the bay it happens to be mounted in, so a developer with a
+bootable disk in one drive and a data disk in another needs no per-drive
+configuration: each write carries its own answer.
+
+- **FR-005**: A tool writing a disk image MUST be able to state, as part of the
+  invocation that writes it, what the change should do to any emulator running
+  that image: take the new contents up in place, or restart the machine.
+- **FR-006**: The stated intent MUST be carried per image, so a change to one
+  mounted disk does not govern what happens to another.
+- **FR-007**: A change that arrives with NO stated intent MUST be handled too. A
+  developer editing an image in another program cannot state one, and the
+  emulator MUST fall back to an answer the user has declared, defaulting to
+  asking.
+- **FR-008**: The fallback answer MUST persist across sessions and MUST be
+  changeable without restarting the emulator or re-mounting the disk.
+- **FR-009**: Where the new contents are taken up in place, a restart MUST
+  remain available afterward without the user hunting for it: the swap may turn
+  out to have been the wrong call, and the recovery is the action they declined.
 - **FR-010**: Every pick-up MUST be reported, whichever answer governs it. A
   disk whose contents change under a running program is not something to do
-  silently even when the user asked for it.
+  silently, even when it was asked for.
 - **FR-011**: A pick-up MUST happen at a point where no disk operation is in
   flight, so it cannot land in the middle of a read or a write. The controller
   already reports motor spindown for this purpose. This bounds the damage to
   stale cached structure; it does not eliminate it, and must not be described as
   though it does.
+- **FR-012**: An intent stated for an image no emulator has mounted MUST NOT be
+  an error. The writer cannot know whether anything is running, and a build
+  script must behave the same either way.
 
 ##### What happens to the two versions
 
-- **FR-012**: Where the emulator HAS unsaved guest writes, an external change
+- **FR-013**: Where the emulator HAS unsaved guest writes, an external change
   MUST NOT be resolved without asking the user, whatever the pick-up answer says.
   The pick-up answer governs how the guest continues, not whether work may be
   discarded, and no configuration may turn the data-loss question off.
-- **FR-013**: Whichever version the user does not keep MUST be preserved in a
+- **FR-014**: Whichever version the user does not keep MUST be preserved in a
   separate image file rather than discarded, and the user MUST be told where it
   is.
-- **FR-014**: The emulator MUST NOT write an image back over an external change
+- **FR-015**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
 
 #### Writing safely
 
-- **FR-015**: A program writing a disk image MUST hold it for the duration of
+- **FR-016**: A program writing a disk image MUST hold it for the duration of
   the write, so that a second writer cannot interleave with it.
-- **FR-016**: A writer that cannot obtain the image MUST report that plainly,
+- **FR-017**: A writer that cannot obtain the image MUST report that plainly,
   naming the image, rather than failing obscurely or waiting forever.
-- **FR-017**: A writer that fails or is killed mid-write MUST NOT leave the
+- **FR-018**: A writer that fails or is killed mid-write MUST NOT leave the
   image permanently unwritable by anything else.
-- **FR-018**: The existing guarantee that a failed write leaves an image
+- **FR-019**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-019**: A session in which no external change occurs MUST behave exactly
+- **FR-020**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-020**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-021**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-021**: Where change detection cannot be trusted — a network share, a
+- **FR-022**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-022**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-023**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-023**: The conflict question MUST state what is at stake on both sides —
+- **FR-024**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -308,7 +320,12 @@ of the way.
   user.** Whether a pick-up is harmless depends on guest RAM the disk layer
   cannot see -- open files, a cached VTOC, a ProDOS volume control block. The
   emulator cannot compute the answer and must not pretend to; the developer
-  knows whether they are iterating on a binary or on a bootable system.
+  knows whether they are iterating on a binary or on a bootable system, and
+  knows it most clearly at the moment they write the image.
+- **A build script must not behave differently depending on whether an emulator
+  happens to be running.** Stating an intent is therefore always allowed and
+  never an error, and it simply has no effect when nothing has the image
+  mounted.
 - **The repetition is what makes a prompt unbearable, not the prompt.** Asking
   once and remembering is what keeps the build loop fast, so a remembered answer
   is the mechanism rather than a guessed default.
