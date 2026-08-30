@@ -4,17 +4,6 @@
 
 
 
-//  Windows spells this one itself, identically, in winnt.h. Ours is here for
-//  the translation units that never see a Windows header -- the emulator core
-//  is meant to build without one -- so it defers rather than competing.
-#ifndef ARRAYSIZE
-#define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
-#endif
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Utils
