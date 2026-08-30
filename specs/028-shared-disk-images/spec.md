@@ -85,7 +85,7 @@ manual eject.
 5. **Given** a disk mounted and never externally touched, **When** the guest
    runs normally, **Then** nothing about its behavior changes.
 
-### User Story 2 - A guest's work is never silently overwritten (Priority: P1)
+### User Story 2 - No version is discarded unless the user chose it (Priority: P1)
 
 A developer has a disk mounted, the guest has written to it, and something
 outside changes the same image. Neither side's work is thrown away without the
@@ -95,7 +95,9 @@ developer choosing it.
 in both directions — the guest's writes over the external change today, and the
 external change over the guest's writes under a naive fix. It is P1 alongside
 Story 1 because shipping the reload without this would make the loss MORE likely,
-not less.
+not less. It also covers the case where the FILE goes away and the emulator is
+left holding the only copy, which is a loss of the same kind from the other
+direction.
 
 **Independent test**: Mount a disk, have the guest write to it, change the image
 externally, and confirm both versions survive somewhere and the user is asked
@@ -115,6 +117,14 @@ what to do.
 4. **Given** a mounted disk the guest has written to, **When** the emulator
    writes back and the image has NOT changed externally, **Then** it writes
    directly as it does today, with no backup and no prompt.
+5. **Given** a mounted disk, **When** its file is deleted or replaced by
+   something that cannot be used as that disk, **Then** the change is refused,
+   the machine carries on with the contents it holds, and the emulator offers to
+   save them — because with the file gone they may be the only copy left.
+6. **Given** that offer, **When** the user declines it, **Then** the machine
+   keeps running with the disk still mounted, so they can save later.
+7. **Given** a conflict the user has been asked about, **When** they eject the
+   disk instead of answering, **Then** neither version is discarded.
 
 ### User Story 3 - Two writers cannot spoil each other's work (Priority: P2)
 

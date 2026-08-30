@@ -49,13 +49,31 @@ emulator in the common case and a small number in the worst.
 | III. UX Consistency | The banner uses the existing `DxuiInfoBanner`. Diagnostics follow `DiskCommandResult::Failure`'s wording, which every disk refusal already uses. |
 | IV. Performance | The watcher is event-driven; no polling loop. The pick-up runs on the existing motor-spindown hook, which already exists for flushing and costs nothing. |
 | V. Simplicity | No lock layer, no sidecar files, no daemon. The atomic-rename guarantee already in the tree is relied on rather than duplicated. |
-| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, mirroring `IDiskFileIo`. `Win32ImageWatcher` and `Win32IntentChannel` are shims in the shell. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
+| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, and so are their Win32 implementations, beside `CassoEmuCore/Cli/Win32DiskFileIo.cpp`. Only the HWND and message-pump hookup stays in the exe. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
 
-**Gate result**: PASS, after a correction. The first pass through this table
-recorded Principle VI as compliant while the task list placed seven decisions
-inside `Casso.exe`. `/speckit-analyze` caught it. The lesson worth keeping: a
-Constitution Check written from the plan's INTENTIONS is not a check -- it has
-to be read against the tasks that will actually be written.
+**Gate result**: PASS, after TWO corrections, and the second is the instructive
+one.
+
+The first pass recorded Principle VI as compliant while the task list placed
+seven decisions inside `Casso.exe`. Those moved to `ExternalChangePolicy` and
+`MountedImageState`.
+
+**The second pass still failed, because that correction stopped at the decisions
+and left the Win32 shims in the shell on the grounds that they were platform
+edges.** The constitution deletes exactly that reasoning: "Calling Win32 is not
+a reason to live in the exe", and "Does this call a platform API?" is named as
+the wrong question, which MUST NOT be used to justify placement. The tree
+already shows the answer — `Win32DiskFileIo` lives in `CassoEmuCore/Cli/`, not
+in an exe.
+
+It was a build error too, not only a purity one. `Win32IntentChannel` is the
+SENDER; its callers run inside `CassoCli.exe`; and `CassoCli` cannot link
+`Casso.exe`. Phase 5 as first written would not have compiled.
+
+The lesson, twice learned: a Constitution Check written from the plan's
+INTENTIONS is not a check. It has to be read against the tasks that will
+actually be written, and against the tree's own precedent rather than a
+plausible-sounding rule.
 
 ## Key Decisions
 
@@ -96,7 +114,7 @@ would need locking against the CPU thread and could land mid-operation.
 ### What is NOT being built
 
 - **No lock.** Both sides already commit through a temporary and an atomic
-  rename. A reader sees the old file or the new one. FR-024 states that as a
+  rename. A reader sees the old file or the new one. FR-025 states that as a
   requirement so abandoning it becomes a regression, and adds nothing.
 - **No merge.** A conflict resolves to one surviving image and one backup.
 - **No polling.** The watcher is event-driven, and the write-time re-check of
@@ -127,13 +145,17 @@ CassoEmuCore/Devices/Disk/
 ├── IImageWatcher.h             # NEW: seam, notice a file changing
 ├── MountedImageState.h/.cpp    # NEW: per-mount identity + pending change
 ├── ExternalChangePolicy.h/.cpp # NEW: intent, fallback, what to do
+├── Win32ImageWatcher.h/.cpp    # NEW: ReadDirectoryChangesW shim, IN CORE
 ├── DiskImageStore.h/.cpp       # records identity at mount; re-checks before
-│                               # write; unique temp name (FR-025); stamp (FR-026)
+│                               # write; unique temp name (FR-026); stamp (FR-027)
 └── CommitPlan.cpp              # correct as it stands; may gain a caller
 
 CassoEmuCore/Cli/
 ├── IIntentChannel.h            # NEW: seam, state an intent
-├── ImageArtifactSink.cpp       # states the intent after a successful commit
+├── Win32IntentChannel.h/.cpp   # NEW: the send/receive shim. IN CORE, beside
+│                               # Win32DiskFileIo -- CassoCli.exe needs the
+│                               # sender and cannot link Casso.exe
+└── ImageArtifactSink.cpp       # states the intent after a successful commit
     (DiskCommandRunner.cpp lives under Devices/Disk/, not here)
 
 CassoCore/
@@ -141,8 +163,6 @@ CassoCore/
     CommandLineParser.cpp       # NEW flag row, both dialects + `disk`
 
 Casso/Shell/
-├── Win32ImageWatcher.h/.cpp    # NEW: ReadDirectoryChangesW shim
-├── Win32IntentChannel.h/.cpp   # NEW: WM_COPYDATA send/receive shim
 ├── DiskManager.cpp             # wires watcher to store; owns the banner
 └── MachineManager.cpp          # motor-spindown callback also applies pick-ups
 
