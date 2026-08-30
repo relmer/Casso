@@ -327,13 +327,13 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
     else if (b == s_kFF)
     {
         PrinterEvent   ev;
-        int            before = raster.PaperRow();
+        int            before = raster.GetPaperRow();
 
         FlushTextPass (events);
         raster.MarkFormFeed();
         m_headColumnDots = 0;
         ev.type = PrinterEventType::FormFeed;
-        ev.rows = raster.PaperRow() - before;   // feed distance, for the presenter's slew
+        ev.rows = raster.GetPaperRow() - before;   // feed distance, for the presenter's slew
         events.push_back (ev);
     }
     else if (b == s_kEsc)
@@ -396,11 +396,11 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
         // First character of a line: the carriage pass starts here.
         m_textPassOpen = true;
         m_textFromDot  = m_headColumnDots;
-        m_textRow      = raster.PaperRow();
+        m_textRow      = raster.GetPaperRow();
         m_textInkTo    = -1;   // no ink laid on this line yet
     }
 
-    row = raster.PaperRow();
+    row = raster.GetPaperRow();
 
     {
         const Byte *  glyph = DraftFont::kGlyphs[ch - DraftFont::kGlyphFirst];
@@ -690,7 +690,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 
 void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, vector<PrinterEvent> & events)
 {
-    int   row   = raster.PaperRow();
+    int   row   = raster.GetPaperRow();
     int   dot0  = m_headColumnDots;
     int   dot1  = m_headColumnDots + 1;
     int   bit   = 0;

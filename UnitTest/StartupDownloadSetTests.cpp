@@ -35,7 +35,7 @@ namespace StartupDownloadSetTests
         {
             StartupDownloadSet  set;
 
-            Assert::IsTrue  (set.Empty(),        L"empty set should report Empty()");
+            Assert::IsTrue  (set.IsEmpty(),        L"empty set should report Empty()");
             Assert::IsFalse (set.RequiresRoms(), L"empty set never requires ROMs");
         }
 
@@ -46,7 +46,7 @@ namespace StartupDownloadSetTests
             set.entries.push_back (MakeEntry (StartupAssetKind::Rom, L"Apple //e ROM"));
             set.entries.push_back (MakeEntry (StartupAssetKind::Rom, L"Disk II ROM"));
 
-            Assert::IsFalse (set.Empty(),       L"ROM-only set is not empty");
+            Assert::IsFalse (set.IsEmpty(),       L"ROM-only set is not empty");
             Assert::IsTrue  (set.RequiresRoms(), L"any ROM forces RequiresRoms");
             Assert::AreEqual ((size_t) 2, set.entries.size());
         }
@@ -58,7 +58,7 @@ namespace StartupDownloadSetTests
             set.entries.push_back (MakeEntry (StartupAssetKind::DriveAudio, L"Alps WAVs"));
             set.entries.push_back (MakeEntry (StartupAssetKind::DriveAudio, L"Shugart WAVs"));
 
-            Assert::IsFalse (set.Empty());
+            Assert::IsFalse (set.IsEmpty());
             Assert::IsFalse (set.RequiresRoms(), L"audio-only set must not force ROMs");
         }
 
@@ -69,7 +69,7 @@ namespace StartupDownloadSetTests
             set.entries.push_back (MakeEntry (StartupAssetKind::DriveAudio, L"Alps WAVs"));
             set.entries.push_back (MakeEntry (StartupAssetKind::Rom,        L"Apple //e ROM"));
 
-            Assert::IsFalse (set.Empty());
+            Assert::IsFalse (set.IsEmpty());
             Assert::IsTrue  (set.RequiresRoms(), L"any ROM (even after audio) forces RequiresRoms");
         }
 
@@ -79,7 +79,7 @@ namespace StartupDownloadSetTests
             StartupDownloadSet  set;
             set.entries.push_back (MakeEntry (StartupAssetKind::BootDisk, L"DOS 3.3 master"));
 
-            Assert::IsFalse (set.Empty());
+            Assert::IsFalse (set.IsEmpty());
             Assert::IsFalse (set.RequiresRoms(), L"boot disks don't trigger required-ROMs button policy");
         }
 

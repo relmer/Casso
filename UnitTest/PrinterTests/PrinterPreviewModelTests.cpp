@@ -61,13 +61,13 @@ namespace PrinterPreviewModelTests
         TEST_METHOD (LiveBandOutsideSpan_BelowAndAbove)
         {
             // Band well below the snapshot span -> outside (fast text catch-up).
-            Assert::IsTrue  (PrinterPreviewModel::LiveBandOutsideSpan (100, 0, 50),
+            Assert::IsTrue  (PrinterPreviewModel::IsLiveBandOutsideSpan (100, 0, 50),
                              L"a band past the span bottom is outside");
             // Band above the span top -> outside.
-            Assert::IsTrue  (PrinterPreviewModel::LiveBandOutsideSpan (5, 10, 60),
+            Assert::IsTrue  (PrinterPreviewModel::IsLiveBandOutsideSpan (5, 10, 60),
                              L"a band above the span top is outside");
             // Band fully within the span -> inside.
-            Assert::IsFalse (PrinterPreviewModel::LiveBandOutsideSpan (10, 0, 60),
+            Assert::IsFalse (PrinterPreviewModel::IsLiveBandOutsideSpan (10, 0, 60),
                              L"a band inside the span is not outside");
         }
 
@@ -76,7 +76,7 @@ namespace PrinterPreviewModelTests
 
         TEST_METHOD (DirtyFromRow_FirstRenderIsEverything)
         {
-            Assert::AreEqual (-1, PrinterPreviewModel::DirtyFromRow (false, 100, 999),
+            Assert::AreEqual (-1, PrinterPreviewModel::GetDirtyFromRow (false, 100, 999),
                               L"the first render marks everything dirty");
         }
 
@@ -86,7 +86,7 @@ namespace PrinterPreviewModelTests
             // Rendered platen close behind: the fixed window (platen - 3 bands) wins.
             int   expected = 100 - 3 * PrinterGrid::kPinBandRows;   // 52
 
-            Assert::AreEqual (expected, PrinterPreviewModel::DirtyFromRow (true, 100, 95),
+            Assert::AreEqual (expected, PrinterPreviewModel::GetDirtyFromRow (true, 100, 95),
                               L"a fresh render dirties a fixed window at the platen");
         }
 
@@ -97,7 +97,7 @@ namespace PrinterPreviewModelTests
             // last-rendered platen so the frozen-through rows are refreshed.
             int   expected = 30 - PrinterGrid::kPinBandRows;   // 14
 
-            Assert::AreEqual (expected, PrinterPreviewModel::DirtyFromRow (true, 100, 30),
+            Assert::AreEqual (expected, PrinterPreviewModel::GetDirtyFromRow (true, 100, 30),
                               L"a stale render heals from the last-rendered platen");
         }
 
@@ -106,8 +106,8 @@ namespace PrinterPreviewModelTests
 
         TEST_METHOD (SpanAndRevealMovedDetectChange)
         {
-            Assert::IsFalse (PrinterPreviewModel::SpanMoved (0, 50, 0, 50), L"identical span did not move");
-            Assert::IsTrue  (PrinterPreviewModel::SpanMoved (0, 50, 1, 50), L"a shifted span moved");
+            Assert::IsFalse (PrinterPreviewModel::HasSpanMoved (0, 50, 0, 50), L"identical span did not move");
+            Assert::IsTrue  (PrinterPreviewModel::HasSpanMoved (0, 50, 1, 50), L"a shifted span moved");
             Assert::IsFalse (PrinterPreviewModel::RevealMoved (5, 100, 5, 100), L"identical reveal did not move");
             Assert::IsTrue  (PrinterPreviewModel::RevealMoved (5, 120, 5, 100), L"a swept column moved");
         }
@@ -119,7 +119,7 @@ namespace PrinterPreviewModelTests
         {
             // L->R word: sample from a bridge behind the trailing column up to the
             // leading column, so a word buzzes across its inter-glyph gaps.
-            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::AudioSampleWindow (true, 100, 200, 5, 5);
+            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::GetAudioSampleWindow (true, 100, 200, 5, 5);
 
             constexpr int   kBridge = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 24
 
@@ -130,7 +130,7 @@ namespace PrinterPreviewModelTests
 
         TEST_METHOD (AudioSampleWindow_RtlBridgesAhead)
         {
-            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::AudioSampleWindow (false, 200, 100, 5, 5);
+            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::GetAudioSampleWindow (false, 200, 100, 5, 5);
 
             constexpr int   kBridge = (PrinterGrid::kDotsPerInchH * 3) / 20;
 
@@ -143,7 +143,7 @@ namespace PrinterPreviewModelTests
         {
             // A margin-to-margin column jump (line wrap) has no contiguous span, so
             // the whole row is sampled -- any ink means a printing pass.
-            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::AudioSampleWindow (true, 1200, 10, 6, 5);
+            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::GetAudioSampleWindow (true, 1200, 10, 6, 5);
 
             Assert::AreEqual (0, s.loCol, L"a wrap samples the whole row");
             Assert::AreEqual (PrinterGrid::kDotsPerRow - 1, s.hiCol, L"...to the right margin");
@@ -153,7 +153,7 @@ namespace PrinterPreviewModelTests
         TEST_METHOD (AudioSampleWindow_ClampsToBounds)
         {
             // A window near the left margin must clamp its bridge to 0.
-            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::AudioSampleWindow (true, 10, 10, 5, 5);
+            PrinterPreviewModel::InkSample   s = PrinterPreviewModel::GetAudioSampleWindow (true, 10, 10, 5, 5);
 
             Assert::AreEqual (0,  s.loCol, L"the bridge clamps to the left margin");
             Assert::AreEqual (10, s.hiCol, L"the leading column is kept");
@@ -168,9 +168,9 @@ namespace PrinterPreviewModelTests
 
             span.Strike (50, 2, InkPrimary::Black);   // span-relative row 2, col 50
 
-            Assert::IsTrue  (PrinterPreviewModel::BandHasInk (span, 0, 0, 40, 60),
+            Assert::IsTrue  (PrinterPreviewModel::HasBandInk (span, 0, 0, 40, 60),
                              L"ink within the band and column range is found");
-            Assert::IsFalse (PrinterPreviewModel::BandHasInk (span, 0, 0, 0, 30),
+            Assert::IsFalse (PrinterPreviewModel::HasBandInk (span, 0, 0, 0, 30),
                              L"ink outside the column range is not");
         }
 
@@ -183,7 +183,7 @@ namespace PrinterPreviewModelTests
 
             // Absolute reveal row 5 with the span starting at absolute row 3 maps to
             // span-relative row 2 -- so the band [2..17] covers the struck cell.
-            Assert::IsTrue (PrinterPreviewModel::BandHasInk (span, 3, 5, 40, 60),
+            Assert::IsTrue (PrinterPreviewModel::HasBandInk (span, 3, 5, 40, 60),
                             L"the reveal row is rebased by the span's first row");
         }
     };

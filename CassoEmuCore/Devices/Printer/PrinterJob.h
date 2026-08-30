@@ -50,21 +50,21 @@ public:
 
     // Approximate bytes still queued in the card's ring. The worker uses this to
     // tell "printing" from "idle" so an idle gap never accrues a paced burst.
-    uint32_t  Pending () const;
+    uint32_t  GetPendingBytes () const;
 
     // Host-initiated form feed (the preview's Form Feed button): identical to
     // the guest sending $0C. The caller must only invoke this while the
     // printer is idle so it can't interleave with an in-flight command.
     void    FormFeed (vector<PrinterEvent> & outEvents);
 
-    bool                 HasContent () const { return m_raster.RowsUsed () > 0; }
-    const PrintRaster &  Raster     () const { return m_raster; }
-    PrintRaster &        Raster     ()       { return m_raster; }
+    bool                 HasContent () const { return m_raster.GetRowsUsed () > 0; }
+    const PrintRaster &  GetRaster  () const { return m_raster; }
+    PrintRaster &        GetRaster  ()       { return m_raster; }
 
     // The print head's position for the FR-034 ink reveal: the raster's paper
     // row (top of the current pin band) plus the interpreter's dot column.
-    int                  HeadRow        () const { return m_raster.PaperRow (); }
-    int                  HeadColumnDots () const { return m_interpreter.HeadColumnDots (); }
+    int                  GetHeadRow        () const { return m_raster.GetPaperRow (); }
+    int                  GetHeadColumnDots () const { return m_interpreter.GetHeadColumnDots (); }
 
     void    SetByteObserver (function<void (const Byte *, size_t)> observer) { m_observer = move (observer); }
 

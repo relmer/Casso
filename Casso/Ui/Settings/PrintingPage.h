@@ -72,15 +72,15 @@ public:
     void  Rebuild              ();
 
     // Test / wiring accessors.
-    DxuiDropdown       & ResolutionDropdown  ()       { return m_dpi;         }
-    DxuiDropdown       & DotStyleDropdown    ()       { return m_dotStyle;     }
-    const DxuiDropdown & ResolutionDropdown  () const { return m_dpi;         }
-    const DxuiDropdown & DotStyleDropdown    () const { return m_dotStyle;     }
-    DxuiToggle         & SoundsToggle        ()       { return m_soundsToggle; }
-    DxuiSlider         & VolumeSlider        ()       { return m_volume;       }
-    DxuiCheckbox       & PanOverrideCheckbox ()       { return m_panOverride;  }
-    DxuiSlider         & PanSlider           ()       { return m_pan;          }
-    DxuiButton         & ResetButton         ()       { return m_reset;        }
+    DxuiDropdown       & GetResolutionDropdown  ()       { return m_dpi;         }
+    DxuiDropdown       & GetDotStyleDropdown    ()       { return m_dotStyle;     }
+    const DxuiDropdown & GetResolutionDropdown  () const { return m_dpi;         }
+    const DxuiDropdown & GetDotStyleDropdown    () const { return m_dotStyle;     }
+    DxuiToggle         & GetSoundsToggle        ()       { return m_soundsToggle; }
+    DxuiSlider         & GetVolumeSlider        ()       { return m_volume;       }
+    DxuiCheckbox       & GetPanOverrideCheckbox ()       { return m_panOverride;  }
+    DxuiSlider         & GetPanSlider           ()       { return m_pan;          }
+    DxuiButton         & ResetButton            ()       { return m_reset;        }
 
 private:
     static RECT  MakeRect        (int l, int t, int w, int h);

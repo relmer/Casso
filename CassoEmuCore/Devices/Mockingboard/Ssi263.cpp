@@ -223,7 +223,7 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
 {
     Byte   sel      = SelectRegister (reg);
     bool   wasDown  = IsPoweredDown();
-    Byte   outgoing = Phoneme();
+    Byte   outgoing = GetPhoneme();
 
 
 
@@ -384,7 +384,7 @@ bool Ssi263::IsSilent() const
     // the envelope ramps the boundary instead of gating it, so the chip
     // stays audible for the few milliseconds the ramp needs. Idle and
     // unprogrammed chips have a zero envelope and stay free.
-    return IsPoweredDown() || (Amplitude() == 0) ||
+    return IsPoweredDown() || (GetAmplitude() == 0) ||
            (!m_sounding && m_envLevel < 0.001f);
 }
 
@@ -394,7 +394,7 @@ bool Ssi263::IsSilent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InflectionValue
+//  GetInflectionValue
 //
 //  Reassembles the 12-bit inflection value, which the register map scatters
 //  non-contiguously: I11 sits alone at register 2 bit 3, I10-I3 fill register
@@ -402,7 +402,7 @@ bool Ssi263::IsSilent() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint16_t Ssi263::InflectionValue() const
+uint16_t Ssi263::GetInflectionValue() const
 {
     uint16_t   high = static_cast<uint16_t> ((m_reg[kRegRateInflection] & kInflect11) != 0 ? 0x800 : 0);
     uint16_t   mid  = static_cast<uint16_t> (static_cast<uint16_t> (m_reg[kRegInflection]) << 3);
@@ -419,15 +419,15 @@ uint16_t Ssi263::InflectionValue() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FrameDurationSec
+//  GetFrameDurationSec
 //
 //  Datasheet: Frame Duration = 4096 * (16 - R) / XCK.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double Ssi263::FrameDurationSec() const
+double Ssi263::GetFrameDurationSec() const
 {
-    return (4096.0 * (16.0 - static_cast<double> (RateSel()))) / m_clockHz;
+    return (4096.0 * (16.0 - static_cast<double> (GetRateSel()))) / m_clockHz;
 }
 
 
@@ -436,7 +436,7 @@ double Ssi263::FrameDurationSec() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PhonemeDurationSec
+//  GetPhonemeDurationSec
 //
 //  Datasheet: Phoneme Duration = Frame Duration * (4 - D).
 //
@@ -445,9 +445,9 @@ double Ssi263::FrameDurationSec() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double Ssi263::PhonemeDurationSec() const
+double Ssi263::GetPhonemeDurationSec() const
 {
-    double   frame = FrameDurationSec();
+    double   frame = GetFrameDurationSec();
 
 
 
@@ -456,7 +456,7 @@ double Ssi263::PhonemeDurationSec() const
         return frame;
     }
 
-    return frame * (4.0 - static_cast<double> (DurationSel()));
+    return frame * (4.0 - static_cast<double> (GetDurationSel()));
 }
 
 
@@ -465,13 +465,13 @@ double Ssi263::PhonemeDurationSec() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FilterFrequencyHz
+//  GetFilterFrequencyHz
 //
 //  Datasheet: Filter Frequency = XCK / (2 * (256 - F)).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double Ssi263::FilterFrequencyHz() const
+double Ssi263::GetFilterFrequencyHz() const
 {
     double   divisor = 2.0 * (256.0 - static_cast<double> (m_reg[kRegFilterFreq]));
 
@@ -486,15 +486,15 @@ double Ssi263::FilterFrequencyHz() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InflectionFrequencyHz
+//  GetInflectionFrequencyHz
 //
 //  Datasheet: Inflection Frequency = XCK / (8 * (4096 - I)).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double Ssi263::InflectionFrequencyHz() const
+double Ssi263::GetInflectionFrequencyHz() const
 {
-    double   divisor = 8.0 * (4096.0 - static_cast<double> (InflectionValue()));
+    double   divisor = 8.0 * (4096.0 - static_cast<double> (GetInflectionValue()));
 
 
 
@@ -539,18 +539,18 @@ float Ssi263::GenerateSample()
 
     GlideFormants();
 
-    scale = FilterFrequencyHz() / kNominalFilterHz;
+    scale = GetFilterFrequencyHz() / kNominalFilterHz;
     scale = std::clamp (scale, 0.5, 2.0);
 
     // Voiced excitation drives the whole tract from the glottis; frication
     // is front-cavity excitation and enters AFTER the first formant stage.
     // Injecting noise at the glottis instead sent it through the F1 low-pass,
     // which crushed sibilants into a quiet sub-1 kHz rumble.
-    sample = Resonate (0, Excitation(), m_fCur[0] * scale);
+    sample = Resonate (0, GenerateExcitation(), m_fCur[0] * scale);
 
-    if (ActiveSpec().fricative)
+    if (GetActiveSpec().fricative)
     {
-        sample += NoiseSample() * s_kfNoiseGain;
+        sample += GenerateNoiseSample() * s_kfNoiseGain;
     }
 
     for (stage = 1; stage < 3; stage++)
@@ -577,7 +577,7 @@ float Ssi263::GenerateSample()
     // the linear amplitude transitioning the datasheet describes. Truncating
     // it instead put an audible click at every phoneme edge.
     target = m_sounding
-                 ? ActiveSpec().level * (static_cast<float> (Amplitude()) / 15.0f)
+                 ? GetActiveSpec().level * (static_cast<float> (GetAmplitude()) / 15.0f)
                  : 0.0f;
     tau    = (target > m_envLevel) ? s_kAttackTauSec : s_kReleaseTauSec;
     coef   = 1.0 - std::exp (-1.0 / (tau * static_cast<double> (m_sampleRate)));
@@ -614,17 +614,17 @@ void Ssi263::SetFormantTable (const Ssi263PhonemeSpec * table)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ActiveSpec
+//  GetActiveSpec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Ssi263PhonemeSpec & Ssi263::ActiveSpec() const
+const Ssi263PhonemeSpec & Ssi263::GetActiveSpec() const
 {
     const Ssi263PhonemeSpec *   table = (m_formants != nullptr) ? m_formants : s_kPhonemes;
 
 
 
-    return table[Phoneme()];
+    return table[GetPhoneme()];
 }
 
 
@@ -644,7 +644,7 @@ const Ssi263PhonemeSpec & Ssi263::ActiveSpec() const
 
 void Ssi263::GlideFormants()
 {
-    const Ssi263PhonemeSpec &   spec = ActiveSpec();
+    const Ssi263PhonemeSpec &   spec = GetActiveSpec();
 
 
 
@@ -679,7 +679,7 @@ void Ssi263::GlideFormants()
     }
 
     // Articulation 0 is the slowest transition, 7 the fastest.
-    tauSec = (8.0 - static_cast<double> (Articulation())) * 0.010;
+    tauSec = (8.0 - static_cast<double> (GetArticulation())) * 0.010;
     coef   = 1.0 - std::exp (-1.0 / (tauSec * static_cast<double> (m_sampleRate)));
 
     for (i = 0; i < 3; i++)
@@ -694,15 +694,15 @@ void Ssi263::GlideFormants()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Excitation
+//  GenerateExcitation
 //
 //  The glottal source: a tilted pulse train at the inflection frequency for
-//  voiced phonemes. Frication is generated separately by NoiseSample and
+//  voiced phonemes. Frication is generated separately by GenerateNoiseSample and
 //  injected past the first formant stage.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ssi263::Excitation()
+float Ssi263::GenerateExcitation()
 {
     float    src     = 0.0f;
     float    impulse = 0.0f;
@@ -710,9 +710,9 @@ float Ssi263::Excitation()
 
 
 
-    if (ActiveSpec().voiced)
+    if (GetActiveSpec().voiced)
     {
-        pitch = std::clamp (InflectionFrequencyHz(), 30.0, 400.0);
+        pitch = std::clamp (GetInflectionFrequencyHz(), 30.0, 400.0);
 
         m_glottalPhase += pitch / static_cast<double> (m_sampleRate);
 
@@ -747,7 +747,7 @@ float Ssi263::Excitation()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NoiseSample
+//  GenerateNoiseSample
 //
 //  Deterministic LFSR noise for frication, one-pole smoothed: raw LFSR
 //  output swings rail to rail between adjacent samples, which is a stream
@@ -755,7 +755,7 @@ float Ssi263::Excitation()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ssi263::NoiseSample()
+float Ssi263::GenerateNoiseSample()
 {
     Byte   bit = static_cast<Byte> (m_lfsr & 1u);
 
@@ -827,7 +827,7 @@ float Ssi263::Resonate (int stage, float input, double centerHz)
 
 void Ssi263::LatchMode()
 {
-    m_mode          = DurationSel();
+    m_mode          = GetDurationSel();
     m_request       = false;
     m_sounding      = false;
     m_phonemeCycles = 0.0;
@@ -855,7 +855,7 @@ void Ssi263::LatchMode()
 
 void Ssi263::BeginPhoneme (Byte outgoing)
 {
-    double                      seconds = PhonemeDurationSec();
+    double                      seconds = GetPhonemeDurationSec();
     const Ssi263PhonemeSpec *   table   = (m_formants != nullptr) ? m_formants : s_kPhonemes;
     int                         i       = 0;
 

@@ -69,8 +69,8 @@ public:
                                     IFileSystem       & fs) const;
     HRESULT      Reset             (const std::string & machineName,
                                     IFileSystem       & fs) const;
-    std::wstring UserFilePath      (const std::string & machineName) const;
-    std::wstring UserPrefsFilePath () const;
+    std::wstring GetUserFilePath      (const std::string & machineName) const;
+    std::wstring GetUserPrefsFilePath () const;
 
     // Pure helpers (exposed for testing)
 
@@ -78,7 +78,7 @@ public:
                                    const JsonValue & userV);
     static JsonValue DiffJson     (const JsonValue & currentV,
                                    const JsonValue & defaultV);
-    static bool      JsonEqual    (const JsonValue & a,
+    static bool      AreJsonEqual    (const JsonValue & a,
                                    const JsonValue & b);
 
 private:
@@ -100,9 +100,9 @@ private:
         const std::wstring & baseDir,
         const std::wstring & filename);
 
-    static std::wstring  UserPrefsFilename         ();
-    static std::wstring  LegacyGlobalPrefsFilename ();
-    static std::wstring  LegacyUserSuffix          ();
+    static std::wstring  GetUserPrefsFilename         ();
+    static std::wstring  GetLegacyGlobalPrefsFilename ();
+    static std::wstring  GetLegacyUserSuffix          ();
 
     static bool  EndsWith (
         const std::wstring & text,

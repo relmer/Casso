@@ -662,10 +662,10 @@ void GlobalUserPrefs::RecentDisksFromJson (
 
 
 
-    recentDisks.reserve (recentArr.ArraySize());
-    for (ri = 0; ri < recentArr.ArraySize(); ri++)
+    recentDisks.reserve (recentArr.GetArraySize());
+    for (ri = 0; ri < recentArr.GetArraySize(); ri++)
     {
-        const JsonValue   &  entry = recentArr.ArrayAt (ri);
+        const JsonValue   &  entry = recentArr.GetArrayElement (ri);
         // GetString is a plain accessor (empty for non-strings), so the
         // binding is safe before the type test.
         const std::string &  s     = entry.GetString();
@@ -706,10 +706,10 @@ void GlobalUserPrefs::RecentDiskTimesFromJson (
 
 
 
-    loadedAtUnix.reserve (loadedArr.ArraySize());
-    for (ti = 0; ti < loadedArr.ArraySize(); ti++)
+    loadedAtUnix.reserve (loadedArr.GetArraySize());
+    for (ti = 0; ti < loadedArr.GetArraySize(); ti++)
     {
-        const JsonValue &  entry = loadedArr.ArrayAt (ti);
+        const JsonValue &  entry = loadedArr.GetArrayElement (ti);
         std::int64_t       when  = 0;
 
         if (entry.GetType() == JsonType::Number)
@@ -727,11 +727,11 @@ void GlobalUserPrefs::RecentDiskTimesFromJson (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::FilePath
+//  GlobalUserPrefs::GetFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
+std::wstring GlobalUserPrefs::GetFilePath (const std::wstring & baseDir)
 {
     std::wstring  result = baseDir;
 
@@ -788,7 +788,7 @@ HRESULT GlobalUserPrefs::Load (
     IFileSystem         & fs)
 {
     HRESULT          hr      = S_OK;
-    std::wstring     path    = FilePath (baseDir);
+    std::wstring     path    = GetFilePath (baseDir);
     std::string      text;
     JsonValue        root;
     JsonParseError   err;
@@ -847,7 +847,7 @@ HRESULT GlobalUserPrefs::Save (
     IFileSystem         & fs) const
 {
     HRESULT              hr               = S_OK;
-    std::wstring         path             = FilePath (baseDir);
+    std::wstring         path             = GetFilePath (baseDir);
     std::string          text;
     std::string          existingText;
     JsonValue            existing;

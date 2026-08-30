@@ -468,7 +468,7 @@ void ClipboardManager::DrainPasteBuffer (uint32_t cyclesElapsed)
     // queues, so it doubles as "nothing to send".
     if (ch != 0)
     {
-        keyboard->KeyPress (ch);
+        keyboard->PressKey (ch);
         m_strobeClearCycles = 0;
     }
 }

@@ -412,7 +412,7 @@ static int PayloadDrive (const Disk2Event & src)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugDialogProjection::EventLabel
+//  DebugDialogProjection::GetEventLabel
 //
 //  Human-readable Event column text. `cat` is unused today -- the type
 //  alone determines the label -- but stays in the signature so a future
@@ -420,7 +420,7 @@ static int PayloadDrive (const Disk2Event & src)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, Disk2EventType type)
+std::wstring_view DebugDialogProjection::GetEventLabel (EventCategory cat, Disk2EventType type)
 {
     std::wstring_view  label = L"?";
 
@@ -585,7 +585,7 @@ void DebugDialogProjection::DrainAndProject (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugDialogProjection::PreservedFocusItem
+//  DebugDialogProjection::GetPreservedFocusItem
 //
 //  Spec-006 round-4 bug 5. Resolve where the user's focused row
 //  should land after a filter rebuild. Implementation walks the
@@ -602,7 +602,7 @@ void DebugDialogProjection::DrainAndProject (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DebugDialogProjection::PreservedFocusItem (
+int DebugDialogProjection::GetPreservedFocusItem (
     uint32_t                       priorDequeIdx,
     const std::vector<uint32_t> &  newFilteredIndices) noexcept
 {

@@ -135,5 +135,5 @@ void PrinterCard::Reset()
 
 Byte PrinterCard::ReadStatus() const
 {
-    return (m_ring.FreeSpace() > kReadyHighWater) ? kStatusReady : kStatusBusy;
+    return (m_ring.GetFreeBytes() > kReadyHighWater) ? kStatusReady : kStatusBusy;
 }

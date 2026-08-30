@@ -22,7 +22,7 @@ namespace PaperRendererTests
 {
     static bool IsInked (const RgbaImage & img, int x, int y)
     {
-        const Byte *   p = img.PixelAt (x, y);
+        const Byte *   p = img.GetPixel (x, y);
         return p[0] < 250 || p[1] < 250 || p[2] < 250;
     }
 
@@ -198,10 +198,10 @@ namespace PaperRendererTests
                 const Byte *   green  = nullptr;
                 const Byte *   purple = nullptr;
 
-                CellCenter (0, 0, 576, cx, cy);   yellow = img.PixelAt (cx, cy);
-                CellCenter (10, 0, 576, cx, cy);  orange = img.PixelAt (cx, cy);
-                CellCenter (20, 0, 576, cx, cy);  green  = img.PixelAt (cx, cy);
-                CellCenter (30, 0, 576, cx, cy);  purple = img.PixelAt (cx, cy);
+                CellCenter (0, 0, 576, cx, cy);   yellow = img.GetPixel (cx, cy);
+                CellCenter (10, 0, 576, cx, cy);  orange = img.GetPixel (cx, cy);
+                CellCenter (20, 0, 576, cx, cy);  green  = img.GetPixel (cx, cy);
+                CellCenter (30, 0, 576, cx, cy);  purple = img.GetPixel (cx, cy);
 
                 Assert::IsTrue (yellow[0] > yellow[1] && yellow[1] > yellow[2]);   // R>G>B
                 Assert::IsTrue (orange[0] > orange[1] && orange[1] > orange[2]);   // R>G>B

@@ -11,4 +11,4 @@
 // caption carries an explicit [Debug] tag for that (EmulatorShell::UpdateTitle).
 
 // e.g. "v1.10.0 x64 (Jul 19 2026 08:41:02)"
-const wchar_t *  CassoBuildInfo ();
+const wchar_t *  GetCassoBuildInfo ();

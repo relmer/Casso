@@ -32,8 +32,8 @@ public:
         }
     }
 
-    float PanLeft() const override { return m_panL; }
-    float PanRight() const override { return m_panR; }
+    float GetPanLeft() const override { return m_panL; }
+    float GetPanRight() const override { return m_panR; }
     void  SetPan (float l, float r) override { m_panL = l; m_panR = r; }
 
     void  OnMotorEngaged() override {}

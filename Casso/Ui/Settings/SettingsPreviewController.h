@@ -40,16 +40,16 @@ public:
         PersistenceSlider   = 9,
     };
 
-    void   StartPreview   (Focus focus, bool keyboardMode);
-    void   EndPreview     ();
-    void   Reset          ();
-    void   Tick           (int64_t nowMs);
+    void   StartPreview      (Focus focus, bool keyboardMode);
+    void   EndPreview        ();
+    void   Reset             ();
+    void   Tick              (int64_t nowMs);
 
-    bool   IsActive       () const { return m_focus != Focus::None; }
-    Focus  FocusedControl () const { return m_focus; }
-    int    FocusedId      () const { return (int) m_focus; }
-    float  PanelAlpha     () const { return m_panelAlpha; }
-    float  FocusedAlpha   () const { return m_focusedAlpha; }
+    bool   IsActive          () const { return m_focus != Focus::None; }
+    Focus  GetFocusedControl () const { return m_focus; }
+    int    GetFocusedId      () const { return (int) m_focus; }
+    float  GetPanelAlpha     () const { return m_panelAlpha; }
+    float  GetFocusedAlpha   () const { return m_focusedAlpha; }
 
 
 private:

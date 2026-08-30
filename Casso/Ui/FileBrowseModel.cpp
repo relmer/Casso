@@ -335,7 +335,7 @@ void FileBrowseModel::RebuildFilteredView()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UniqueDefaultName
+//  GetUniqueDefaultName
 //
 //  "Blank Disk.woz", then "Blank Disk (2).woz", ... -- the first name absent
 //  from the current folder. Existence is asked of the
@@ -344,7 +344,7 @@ void FileBrowseModel::RebuildFilteredView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FileBrowseModel::UniqueDefaultName (const std::wstring & baseName) const
+std::wstring FileBrowseModel::GetUniqueDefaultName (const std::wstring & baseName) const
 {
     constexpr int  kMaxSuffix = 999;
     std::wstring   candidate;
@@ -494,7 +494,7 @@ TargetVerdict FileBrowseModel::ValidateTarget (const std::wstring & fileName, in
 //
 //  ComposeTargetPath
 //
-//  CurrentFolder + fileName, appending the active extension when the name
+//  GetCurrentFolder + fileName, appending the active extension when the name
 //  doesn't already carry it (case-insensitive).
 //
 ////////////////////////////////////////////////////////////////////////////////

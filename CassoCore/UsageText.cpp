@@ -14,7 +14,7 @@ static const size_t  s_kGutterWidth = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UsageText::ContinuationIndent
+//  UsageText::GetContinuationIndent
 //
 //  Where the rest of a wrapped line belongs.
 //
@@ -24,7 +24,7 @@ static const size_t  s_kGutterWidth = 2;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t UsageText::ContinuationIndent (const std::string & line)
+size_t UsageText::GetContinuationIndent (const std::string & line)
 {
     size_t  leading = line.find_first_not_of (' ');
     size_t  indent  = (leading == std::string::npos) ? 0 : leading;
@@ -71,7 +71,7 @@ size_t UsageText::ContinuationIndent (const std::string & line)
 std::vector<std::string> UsageText::Wrap (const std::string & line, size_t width)
 {
     std::vector<std::string>  rows;
-    size_t                    indent = ContinuationIndent (line);
+    size_t                    indent = GetContinuationIndent (line);
     size_t                    taken  = 0;
 
 
@@ -145,7 +145,7 @@ std::vector<std::string> UsageText::Wrap (const std::string & line, size_t width
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UsageText::WidthFrom
+//  UsageText::ResolveWidth
 //
 //  How wide to fold help, given what the environment says and what the console
 //  reported.
@@ -164,7 +164,7 @@ std::vector<std::string> UsageText::Wrap (const std::string & line, size_t width
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t UsageText::WidthFrom (const char * columnsEnv, bool hasConsole, int consoleColumns)
+size_t UsageText::ResolveWidth (const char * columnsEnv, bool hasConsole, int consoleColumns)
 {
     size_t  width = kNoTerminal;
     int     asked = 0;

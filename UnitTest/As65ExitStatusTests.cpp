@@ -34,7 +34,7 @@ namespace As65ExitStatusTests
     public:
         TEST_METHOD (SourceReadAndAssembled_IsClean)
         {
-            Assert::AreEqual (0, As65ExitStatus::ForAssembly (true, true));
+            Assert::AreEqual (0, As65ExitStatus::GetAssemblyStatus (true, true));
         }
 
         //  WARNINGS ARE 5 AND ARE THE CALLER'S TO DECLARE. A source that
@@ -47,8 +47,8 @@ namespace As65ExitStatusTests
         //  only one, which is what stops the two disagreeing again.
         TEST_METHOD (SourceAssembledWithWarnings_IsWarned)
         {
-            Assert::AreEqual (5, As65ExitStatus::ForAssembly (true, true, true));
-            Assert::AreEqual (0, As65ExitStatus::ForAssembly (true, true, false),
+            Assert::AreEqual (5, As65ExitStatus::GetAssemblyStatus (true, true, true));
+            Assert::AreEqual (0, As65ExitStatus::GetAssemblyStatus (true, true, false),
                               L"and a clean assembly is still clean");
         }
 
@@ -56,8 +56,8 @@ namespace As65ExitStatusTests
         //  would tell a script an output file exists when none does.
         TEST_METHOD (WarningsDoNotSoftenAFailure)
         {
-            Assert::AreEqual (3, As65ExitStatus::ForAssembly (true, false, true));
-            Assert::AreEqual (2, As65ExitStatus::ForAssembly (false, false, true));
+            Assert::AreEqual (3, As65ExitStatus::GetAssemblyStatus (true, false, true));
+            Assert::AreEqual (2, As65ExitStatus::GetAssemblyStatus (false, false, true));
         }
 
         //  as65: "3 - Assembly gave errors." This was 2 -- the code for a file
@@ -65,14 +65,14 @@ namespace As65ExitStatusTests
         //  the status sent a syntax error down the "your path is wrong" arm.
         TEST_METHOD (SourceReadButNotAssembled_IsAssemblyErrors)
         {
-            Assert::AreEqual (3, As65ExitStatus::ForAssembly (true, false));
+            Assert::AreEqual (3, As65ExitStatus::GetAssemblyStatus (true, false));
         }
 
         //  as65: "2 - Unable to open input or output file." The neighbor that
         //  had to keep its meaning while 3 was split out of it.
         TEST_METHOD (SourceNeverRead_IsNoOutput)
         {
-            Assert::AreEqual (2, As65ExitStatus::ForAssembly (false, false));
+            Assert::AreEqual (2, As65ExitStatus::GetAssemblyStatus (false, false));
         }
 
         //  A file that was never read cannot have assembled, so the unreadable
@@ -82,7 +82,7 @@ namespace As65ExitStatusTests
         //  status table exists to prevent.
         TEST_METHOD (UnreadableInputOutranksTheAssembledFlag)
         {
-            Assert::AreEqual (2, As65ExitStatus::ForAssembly (false, true));
+            Assert::AreEqual (2, As65ExitStatus::GetAssemblyStatus (false, true));
         }
 
         //  The five statuses are distinct values, which is the only property a
@@ -226,9 +226,9 @@ namespace As65ExitStatusTests
         TEST_METHOD (AssemblingRefusesWithAs65sBadCommandLine)
         {
             Assert::AreEqual (As65ExitStatus::kBadCommandLine,
-                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::As65));
+                              CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::As65));
             Assert::AreEqual (As65ExitStatus::kBadCommandLine,
-                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Merlin));
+                              CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::Merlin));
         }
 
         //  `run` and `disk` have no status for a bad command line and fold it
@@ -236,9 +236,9 @@ namespace As65ExitStatusTests
         TEST_METHOD (RunAndDiskRefuseWithNothingStarted)
         {
             Assert::AreEqual (CommandLineParser::kNothingStarted,
-                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Run));
+                              CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::Run));
             Assert::AreEqual (CommandLineParser::kNothingStarted,
-                              CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Disk));
+                              CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::Disk));
         }
 
         //  AND EACH NUMBER IS THE ONE ITS OWN PAGE PROMISES. The mapping being
@@ -251,12 +251,12 @@ namespace As65ExitStatusTests
 
             Assert::IsTrue (assemble.find ("    1  Bad command line") != std::string::npos,
                             L"the assembler's page calls 1 a bad command line");
-            Assert::AreEqual (1, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::As65),
+            Assert::AreEqual (1, CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::As65),
                               L"and that is what it returns");
 
             Assert::IsTrue (run.find ("    2  Error: bad command line") != std::string::npos,
                             L"run's page folds a refusal into 2");
-            Assert::AreEqual (2, CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand::Run),
+            Assert::AreEqual (2, CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand::Run),
                               L"and that is what it returns");
         }
     };

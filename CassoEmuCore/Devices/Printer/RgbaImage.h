@@ -41,12 +41,12 @@ struct RgbaImage
         }
     }
 
-    Byte * PixelAt (int x, int y)
+    Byte * GetPixel (int x, int y)
     {
         return &rgba[((size_t) y * width + x) * 4];
     }
 
-    const Byte * PixelAt (int x, int y) const
+    const Byte * GetPixel (int x, int y) const
     {
         return &rgba[((size_t) y * width + x) * 4];
     }

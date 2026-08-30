@@ -156,7 +156,7 @@ private:
     void       StepLss();
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
-    size_t     CurrentTrackBits() const;
+    size_t     GetCurrentTrackBits() const;
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;

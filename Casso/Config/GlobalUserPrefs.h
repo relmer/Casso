@@ -201,7 +201,7 @@ struct GlobalUserPrefs
     // unit-testable without the (D3D-bound) Settings UI.
     void        ResetColorMonitorTextToDefault ();
 
-    static std::wstring  FilePath (const std::wstring & baseDir);
+    static std::wstring  GetFilePath (const std::wstring & baseDir);
 
 
 private:

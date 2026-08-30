@@ -42,7 +42,7 @@ public:
 
     const char * GetModeName () const override { return "apple2-hires"; }
 
-    static Word ScanlineAddress (int scanline, Word pageBase);
+    static Word GetScanlineAddress (int scanline, Word pageBase);
 
 private:
     MemoryBus & m_bus;

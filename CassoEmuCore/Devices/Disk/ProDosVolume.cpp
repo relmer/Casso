@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "ProDosVolume.h"
-#include "CountedNoun.h"
+#include "Utils.h"
 #include "ProDosSkeleton.h"
 #include "NibblizationLayer.h"
 
@@ -703,7 +703,7 @@ bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::StorageTypeFor
+//  ProDosVolume::GetStorageType
 //
 //  A seedling IS its data block. A sapling adds one index block of up to 256
 //  pointers above it. Past that the file needs a master index of index blocks,
@@ -712,7 +712,7 @@ bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte ProDosVolume::StorageTypeFor (size_t dataBlockCount)
+Byte ProDosVolume::GetStorageType (size_t dataBlockCount)
 {
     if (dataBlockCount <= 1)
     {
@@ -733,7 +733,7 @@ Byte ProDosVolume::StorageTypeFor (size_t dataBlockCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::OverheadBlocksFor
+//  ProDosVolume::GetOverheadBlocks
 //
 //  How many blocks the structure costs on top of the data itself. This is what
 //  makes the difference between the recorded block count and the file's length
@@ -741,7 +741,7 @@ Byte ProDosVolume::StorageTypeFor (size_t dataBlockCount)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t ProDosVolume::OverheadBlocksFor (size_t dataBlockCount)
+size_t ProDosVolume::GetOverheadBlocks (size_t dataBlockCount)
 {
     size_t  groups = (dataBlockCount + ProDosSkeleton::kPointersPerIndex - 1)
                    / ProDosSkeleton::kPointersPerIndex;
@@ -1309,7 +1309,7 @@ HRESULT ProDosVolume::AddFile (
         dataBlocks = 1;
     }
 
-    overhead  = OverheadBlocksFor (dataBlocks);
+    overhead  = GetOverheadBlocks (dataBlocks);
     allocated = TryAllocateBlocks (report, dataBlocks + overhead, blocks);
 
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
@@ -1333,7 +1333,7 @@ HRESULT ProDosVolume::AddFile (
                          slotBlock,
                          slotOffset,
                          name,
-                         StorageTypeFor (dataBlocks),
+                         GetStorageType (dataBlocks),
                          fileType,
                          (Word) blocks[0],
                          (Word) blocks.size(),
@@ -1465,7 +1465,8 @@ void ProDosVolume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
     if (leaked > 0)
     {
         inOutOutcome.warnings.push_back (
-            CountedNoun::Of ((long long) leaked, "block")
+            std::to_string (leaked) + " "
+          + Utils::GetSingularOrPluralForm ((long long) leaked, "block", "blocks")
           + " this file referenced are claimed by another directory entry"
             " as well, and were left allocated rather than freed");
     }

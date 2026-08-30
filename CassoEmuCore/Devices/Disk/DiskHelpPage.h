@@ -99,7 +99,7 @@ struct DiskCommandHelp
     //  stray double space mid-paragraph and every line after it hangs off that
     //  column instead of the left margin. Prose has no columns, so it has no
     //  business carrying a gutter.
-    static std::string  AsProse           (const std::string & text);
+    static std::string  FormatAsProse           (const std::string & text);
 
     static std::string  BuildCommandHelp (CommandLineOptions::DiskOptions::Command command,
                                           char flagPrefix);

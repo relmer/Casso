@@ -50,14 +50,14 @@ public:
     //  The prefix a chosen style writes its flags with. One place, because the
     //  help writes flags in dozens of sentences and a style decided in each of
     //  them is a style that will disagree with itself.
-    static std::string  LongPrefix  (char flagPrefix);
-    static std::string  ShortPrefix (char flagPrefix);
+    static std::string  GetLongPrefix  (char flagPrefix);
+    static std::string  GetShortPrefix (char flagPrefix);
 
     //  One mode's usage line: what the command line looks like and what it
     //  does. The general page prints all of them; a mode's own page prints the
     //  one that is its, from here, so the two cannot describe the same
     //  invocation differently.
-    static std::string  UsageLineFor (CommandLineOptions::Subcommand mode);
+    static std::string  GetUsageLine (CommandLineOptions::Subcommand mode);
 
     //  The operands a grammar line shows as REQUIRED, in the order it shows
     //  them.
@@ -70,7 +70,7 @@ public:
     //  Every mode prints a grammar line and every mode has to complain about
     //  the same operands it just printed; reading them back out of that line
     //  is what keeps the two from being written twice and drifting.
-    static std::vector<std::string>  RequiredOperandsIn (const std::string & grammar);
+    static std::vector<std::string>  GetRequiredOperands (const std::string & grammar);
 
     //  The five commands of the worked loop, without the prose that explains
     //  the two traps in it. The general page shows the loop; the disk page

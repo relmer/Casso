@@ -32,12 +32,12 @@ namespace PrinterViewportTests
         {
             PrinterViewport   v (Cfg());
 
-            Assert::IsTrue (v.FollowingLive());
+            Assert::IsTrue (v.IsFollowingLive());
 
             v.Advance (500);
 
-            Assert::AreEqual (500, v.LiveRow());
-            Assert::IsTrue   (v.FollowingLive());
+            Assert::AreEqual (500, v.GetLiveRow());
+            Assert::IsTrue   (v.IsFollowingLive());
         }
 
 
@@ -48,7 +48,7 @@ namespace PrinterViewportTests
             v.Advance (500);
             v.Advance (200);   // stale lesser value must not regress the live row
 
-            Assert::AreEqual (500, v.LiveRow());
+            Assert::AreEqual (500, v.GetLiveRow());
         }
 
 
@@ -59,7 +59,7 @@ namespace PrinterViewportTests
             v.Advance (500);
             v.NotifyUserScroll (0);
 
-            Assert::IsFalse (v.FollowingLive());
+            Assert::IsFalse (v.IsFollowingLive());
         }
 
 
@@ -73,8 +73,8 @@ namespace PrinterViewportTests
             // topClearanceRows so row 0 clears the curl (bottom 99 - 25 = 74).
             // Furthest forward = the live row itself: the bottom is LOCKED to
             // the last printed row, no blank feed scrolls in past it.
-            Assert::AreEqual (74,  v.MinBottomRow());
-            Assert::AreEqual (500, v.MaxBottomRow());
+            Assert::AreEqual (74,  v.GetMinBottomRow());
+            Assert::AreEqual (500, v.GetMaxBottomRow());
         }
 
 
@@ -84,8 +84,8 @@ namespace PrinterViewportTests
 
             v.Advance (30);   // strip shorter than the viewport: nowhere to scroll back
 
-            Assert::AreEqual (30, v.MinBottomRow());   // == live row
-            Assert::AreEqual (30, v.MaxBottomRow());   // == live row (bottom locked)
+            Assert::AreEqual (30, v.GetMinBottomRow());   // == live row
+            Assert::AreEqual (30, v.GetMaxBottomRow());   // == live row (bottom locked)
         }
 
 
@@ -98,10 +98,10 @@ namespace PrinterViewportTests
             v.Advance (600);   // the print keeps going
 
             v.Tick (2999);   // 1999 ms idle: not yet
-            Assert::IsFalse (v.FollowingLive());
+            Assert::IsFalse (v.IsFollowingLive());
 
             v.Tick (3000);   // 2000 ms idle: snap
-            Assert::IsTrue  (v.FollowingLive());
+            Assert::IsTrue  (v.IsFollowingLive());
         }
 
 
@@ -115,7 +115,7 @@ namespace PrinterViewportTests
             v.NotifyUserScroll (1000);
 
             v.Tick (1000000);
-            Assert::IsFalse (v.FollowingLive());
+            Assert::IsFalse (v.IsFollowingLive());
         }
 
 
@@ -129,10 +129,10 @@ namespace PrinterViewportTests
             v.Advance (900);             // print continues past the last scroll
 
             v.Tick (3500);               // only 1000 ms since the last scroll
-            Assert::IsFalse (v.FollowingLive());
+            Assert::IsFalse (v.IsFollowingLive());
 
             v.Tick (4500);
-            Assert::IsTrue  (v.FollowingLive());
+            Assert::IsTrue  (v.IsFollowingLive());
         }
 
 
@@ -144,9 +144,9 @@ namespace PrinterViewportTests
             v.NotifyUserScroll (0);
             v.Reset   ();
 
-            Assert::IsTrue   (v.FollowingLive());
-            Assert::AreEqual (0, v.LiveRow());
-            Assert::AreEqual (0, v.MinBottomRow());
+            Assert::IsTrue   (v.IsFollowingLive());
+            Assert::AreEqual (0, v.GetLiveRow());
+            Assert::AreEqual (0, v.GetMinBottomRow());
         }
     };
 }

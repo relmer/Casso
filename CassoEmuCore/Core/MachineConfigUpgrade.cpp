@@ -301,11 +301,11 @@ int  MachineConfigUpgrade::FindKey (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineConfigUpgrade::EntryHasKey
+//  MachineConfigUpgrade::HasKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool  MachineConfigUpgrade::EntryHasKey (
+bool  MachineConfigUpgrade::HasKey (
     const JsonValue & entry,
     const string    & key)
 {
@@ -342,16 +342,16 @@ bool  MachineConfigUpgrade::TryInjectCapabilityFlag (
     // document had under the key, and a missing section arrives as Null.
     if (arr.GetType() == JsonType::Array)
     {
-        rebuiltArr.reserve (arr.ArraySize());
+        rebuiltArr.reserve (arr.GetArraySize());
 
-        for (i = 0; i < arr.ArraySize(); ++i)
+        for (i = 0; i < arr.GetArraySize(); ++i)
         {
-            const JsonValue & elem = arr.ArrayAt (i);
+            const JsonValue & elem = arr.GetArrayElement (i);
 
             // Non-objects and entries that already carry a flag pass through
             // untouched -- an existing flag is the user's, not ours to reset.
             if (elem.GetType() != JsonType::Object ||
-                EntryHasKey (elem, kpszCapabilityFlagKey))
+                HasKey (elem, kpszCapabilityFlagKey))
             {
                 rebuiltArr.push_back (elem);
             }
@@ -404,9 +404,9 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
     // A non-array counts as occupied so nothing is appended to it. Otherwise
     // ANY existing slot-1 entry blocks the injection -- including a disabled
     // one, so a slot the user turned off is never resurrected (FR-001).
-    for (i = 0; !occupied && i < arr.ArraySize(); ++i)
+    for (i = 0; !occupied && i < arr.GetArraySize(); ++i)
     {
-        const JsonValue & elem = arr.ArrayAt (i);
+        const JsonValue & elem = arr.GetArrayElement (i);
 
         occupied = elem.GetType() == JsonType::Object
                    && elem.HasInt (kpszSlotNumberKey, slot)
@@ -417,11 +417,11 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
     {
         vector<pair<string, JsonValue>>  entry;
 
-        rebuilt.reserve (arr.ArraySize() + 1);
+        rebuilt.reserve (arr.GetArraySize() + 1);
 
-        for (i = 0; i < arr.ArraySize(); ++i)
+        for (i = 0; i < arr.GetArraySize(); ++i)
         {
-            rebuilt.push_back (arr.ArrayAt (i));
+            rebuilt.push_back (arr.GetArrayElement (i));
         }
 
         entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kPrinterDefaultSlot));
@@ -475,11 +475,11 @@ bool  MachineConfigUpgrade::TryInjectDiskPorts (JsonValue & arr)
         return false;
     }
 
-    rebuilt.reserve (arr.ArraySize());
+    rebuilt.reserve (arr.GetArraySize());
 
-    for (i = 0; i < arr.ArraySize(); ++i)
+    for (i = 0; i < arr.GetArraySize(); ++i)
     {
-        const JsonValue & elem     = arr.ArrayAt (i);
+        const JsonValue & elem     = arr.GetArrayElement (i);
         bool              fIsObj   = (elem.GetType() == JsonType::Object);
         HRESULT           hrDevice = E_FAIL;
 
@@ -493,7 +493,7 @@ bool  MachineConfigUpgrade::TryInjectDiskPorts (JsonValue & arr)
         // Only a Disk ][ card gets drive ports, and only if it has not
         // already spoken for itself.
         if (!fIsObj ||
-            EntryHasKey (elem, kpszPortsKey) ||
+            HasKey (elem, kpszPortsKey) ||
             FAILED (hrDevice) ||
             device != kpszDiskIiDevice)
         {
@@ -599,9 +599,9 @@ bool  MachineConfigUpgrade::TryFoldExternalDriveIntoDiskPort (
                 return false;
             }
 
-            for (i = 0; i < defaultPorts->ArraySize(); ++i)
+            for (i = 0; i < defaultPorts->GetArraySize(); ++i)
             {
-                const JsonValue &                entry = defaultPorts->ArrayAt (i);
+                const JsonValue &                entry = defaultPorts->GetArrayElement (i);
                 vector<pair<string, JsonValue>>  rebuilt;
                 string                           portName;
 

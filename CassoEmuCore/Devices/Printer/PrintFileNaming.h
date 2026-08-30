@@ -28,5 +28,5 @@ public:
                                     const function<bool (const fs::path &)> & taken);
 
 private:
-    static wstring  CandidateName (const wstring & base, int ordinal);
+    static wstring  ComposeCandidateName (const wstring & base, int ordinal);
 };

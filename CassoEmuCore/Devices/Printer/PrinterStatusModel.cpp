@@ -80,11 +80,11 @@ void PrinterStatusModel::Update (uint64_t activityCount, double nowMs, bool hasC
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterStatusModel::Status
+//  PrinterStatusModel::GetStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterStatus PrinterStatusModel::Status() const
+PrinterStatus PrinterStatusModel::GetStatus() const
 {
     return m_status;
 }

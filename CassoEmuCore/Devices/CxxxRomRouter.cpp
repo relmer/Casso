@@ -134,7 +134,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FastMapReadPtr
+//  GetFastMapReadPtr
 //
 //  See the header. Passive internal-ROM pages on the //c return a pointer into
 //  m_internal; reactive pages ($C3, $CF) and all //e pages return null so the
@@ -142,7 +142,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte * CxxxRomRouter::FastMapReadPtr (int page)
+Byte * CxxxRomRouter::GetFastMapReadPtr (int page)
 {
     static constexpr int    kPageSize = 0x100;
     size_t                  offset    = 0;
@@ -215,7 +215,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SlotIoDeviceFor
+//  GetSlotIoDevice
 //
 //  Returns the active I/O device owning `address`'s slot page, or nullptr
 //  if the address should resolve to ROM. Slot cards are only visible when
@@ -225,7 +225,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryDevice * CxxxRomRouter::SlotIoDeviceFor (Word address) const
+MemoryDevice * CxxxRomRouter::GetSlotIoDevice (Word address) const
 {
     HRESULT         hr     = S_OK;
     MemoryDevice *  result = nullptr;
@@ -268,7 +268,7 @@ Byte CxxxRomRouter::Read (Word address)
         // window is internal firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM
         // (see SetNoExternalSlots), and there is no slot device to delegate to.
         // Resolve the internal byte directly -- this is the //c hot path, e.g.
-        // the mouse firmware executing from $C700 -- skipping SlotIoDeviceFor
+        // the mouse firmware executing from $C700 -- skipping GetSlotIoDevice
         // and ResolveByte's four MMU state pulls. The $C3xx/$CFFF side effects
         // below still run for fidelity.
         Word  off = static_cast<Word> (address - kCxxxRouterStart);
@@ -276,7 +276,7 @@ Byte CxxxRomRouter::Read (Word address)
     }
     else
     {
-        MemoryDevice *  io = SlotIoDeviceFor (address);
+        MemoryDevice *  io = GetSlotIoDevice (address);
         value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
     }
 
@@ -313,7 +313,7 @@ Byte CxxxRomRouter::Read (Word address)
 
 void CxxxRomRouter::Write (Word address, Byte value)
 {
-    MemoryDevice *  io = SlotIoDeviceFor (address);
+    MemoryDevice *  io = GetSlotIoDevice (address);
 
 
 

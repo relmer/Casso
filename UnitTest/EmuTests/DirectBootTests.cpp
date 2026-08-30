@@ -190,32 +190,32 @@ public:
 
 
 
-        Assert::AreEqual (kBytesAtLowest, DirectBootBuilder::CapacityFor (0x0900),
+        Assert::AreEqual (kBytesAtLowest, DirectBootBuilder::GetCapacity (0x0900),
             L"a payload at the lowest address it may load at can fill memory to the top");
 
         Assert::AreEqual (kSectorsAtLowest, DirectBootBuilder::kMostSectors,
             L"which is one hundred and eighty-three sectors, and that is the number a "
             L"refusal has to be able to state");
 
-        Assert::AreEqual (kTopOfMemory - 0x6000, DirectBootBuilder::CapacityFor (0x6000),
+        Assert::AreEqual (kTopOfMemory - 0x6000, DirectBootBuilder::GetCapacity (0x6000),
             L"and a payload loading higher can carry proportionally less");
 
-        Assert::AreEqual (kSectorBytes, DirectBootBuilder::CapacityFor (0xBF00),
+        Assert::AreEqual (kSectorBytes, DirectBootBuilder::GetCapacity (0xBF00),
             L"down to the last page below the ceiling");
     }
 
     TEST_METHOD (Capacity_IsZeroForAnyAddressTheBootPathCannotLoadAt)
     {
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x0800),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x0800),
             L"the loader's own page is not available to a payload");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x08FF),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x08FF),
             L"nor is any part of it");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x0300),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x0300),
             L"nor is the boot ROM's decode table");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0xC000),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0xC000),
             L"and $C000 is not memory at all");
     }
 
@@ -468,7 +468,7 @@ public:
         spec.entryAddress = spec.loadAddress;
 
         Assert::AreEqual (size_t (1),
-            DirectBootBuilder::SectorsNeededFor (spec.loadAddress, payload.size()),
+            DirectBootBuilder::GetSectorsNeeded (spec.loadAddress, payload.size()),
             L"one byte behind a lead-in is still one sector");
 
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, built, refusal));

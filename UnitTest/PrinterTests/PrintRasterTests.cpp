@@ -29,8 +29,8 @@ namespace PrintRasterTests
 
             raster.Strike (10, 5, InkPrimary::Black);
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (10, 5));
-            Assert::AreEqual (6, raster.RowsUsed());
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (10, 5));
+            Assert::AreEqual (6, raster.GetRowsUsed());
         }
 
 
@@ -42,7 +42,7 @@ namespace PrintRasterTests
             raster.Strike (3, 0, InkPrimary::Red);
 
             // Yellow (0x2) | Red (0x4) = 0x6 -- the renderer derives orange.
-            Assert::AreEqual ((Byte) 0x6, raster.CellAt (3, 0));
+            Assert::AreEqual ((Byte) 0x6, raster.GetCell (3, 0));
         }
 
 
@@ -53,7 +53,7 @@ namespace PrintRasterTests
             raster.Strike (-1, 0, InkPrimary::Black);
             raster.Strike (PrinterGrid::kDotsPerRow, 0, InkPrimary::Black);
 
-            Assert::AreEqual (0, raster.RowsUsed());
+            Assert::AreEqual (0, raster.GetRowsUsed());
         }
 
 
@@ -63,8 +63,8 @@ namespace PrintRasterTests
 
             raster.AdvanceRows (16);
 
-            Assert::AreEqual (16, raster.PaperRow());
-            Assert::AreEqual (16, raster.RowsUsed());
+            Assert::AreEqual (16, raster.GetPaperRow());
+            Assert::AreEqual (16, raster.GetRowsUsed());
         }
 
 
@@ -77,8 +77,8 @@ namespace PrintRasterTests
             raster.AdvanceRows (12);
 
             // Two blank feeds past the struck row must still count.
-            Assert::AreEqual (24, raster.RowsUsed());
-            Assert::AreEqual ((Byte) 0, raster.CellAt (0, 12));
+            Assert::AreEqual (24, raster.GetRowsUsed());
+            Assert::AreEqual ((Byte) 0, raster.GetCell (0, 12));
         }
 
 
@@ -89,9 +89,9 @@ namespace PrintRasterTests
             raster.AdvanceRows (200);
             raster.MarkFormFeed();
 
-            Assert::AreEqual (PrinterGrid::kPageRows, raster.PaperRow());
-            Assert::AreEqual ((size_t) 1, raster.PageBoundaryRows().size());
-            Assert::AreEqual (PrinterGrid::kPageRows, raster.PageBoundaryRows()[0]);
+            Assert::AreEqual (PrinterGrid::kPageRows, raster.GetPaperRow());
+            Assert::AreEqual ((size_t) 1, raster.GetPageBoundaryRows().size());
+            Assert::AreEqual (PrinterGrid::kPageRows, raster.GetPageBoundaryRows()[0]);
         }
 
 
@@ -102,7 +102,7 @@ namespace PrintRasterTests
             raster.AdvanceRows (PrinterGrid::kPageRows);   // exactly at a boundary
             raster.MarkFormFeed();
 
-            Assert::AreEqual (PrinterGrid::kPageRows * 2, raster.PaperRow());
+            Assert::AreEqual (PrinterGrid::kPageRows * 2, raster.GetPaperRow());
         }
 
 
@@ -110,12 +110,12 @@ namespace PrintRasterTests
         {
             PrintRaster   raster;
 
-            Assert::IsFalse (raster.CapReached());
+            Assert::IsFalse (raster.HasReachedCap());
 
             raster.Strike (0, PrinterGrid::kMaxStripRows, InkPrimary::Black);
 
-            Assert::IsTrue (raster.CapReached());
-            Assert::AreEqual (0, raster.RowsUsed());   // the capped strike was dropped
+            Assert::IsTrue (raster.HasReachedCap());
+            Assert::AreEqual (0, raster.GetRowsUsed());   // the capped strike was dropped
         }
 
 
@@ -129,11 +129,11 @@ namespace PrintRasterTests
 
             raster.Clear();
 
-            Assert::AreEqual (0, raster.RowsUsed());
-            Assert::AreEqual (0, raster.PaperRow());
-            Assert::IsFalse (raster.CapReached());
-            Assert::AreEqual ((size_t) 0, raster.PageBoundaryRows().size());
-            Assert::AreEqual ((Byte) 0, raster.CellAt (5, 5));
+            Assert::AreEqual (0, raster.GetRowsUsed());
+            Assert::AreEqual (0, raster.GetPaperRow());
+            Assert::IsFalse (raster.HasReachedCap());
+            Assert::AreEqual ((size_t) 0, raster.GetPageBoundaryRows().size());
+            Assert::AreEqual ((Byte) 0, raster.GetCell (5, 5));
         }
 
 
@@ -141,7 +141,7 @@ namespace PrintRasterTests
         {
             PrintRaster   raster;
 
-            Assert::AreEqual ((Byte) 0, raster.CellAt (100, 100));
+            Assert::AreEqual ((Byte) 0, raster.GetCell (100, 100));
         }
 
 
@@ -156,10 +156,10 @@ namespace PrintRasterTests
 
             raster.CopyRowSpan (100, 199, span);
 
-            Assert::AreEqual (100, span.RowsUsed());
-            Assert::AreEqual ((Byte) InkPrimary::Black, span.CellAt (10, 0));    // 100 -> 0
-            Assert::AreEqual ((Byte) InkPrimary::Red,   span.CellAt (20, 50));   // 150 -> 50
-            Assert::AreEqual ((Byte) 0,                 span.CellAt (30, 100));  // 200 excluded
+            Assert::AreEqual (100, span.GetRowsUsed());
+            Assert::AreEqual ((Byte) InkPrimary::Black, span.GetCell (10, 0));    // 100 -> 0
+            Assert::AreEqual ((Byte) InkPrimary::Red,   span.GetCell (20, 50));   // 150 -> 50
+            Assert::AreEqual ((Byte) 0,                 span.GetCell (30, 100));  // 200 excluded
         }
 
 
@@ -172,8 +172,8 @@ namespace PrintRasterTests
 
             raster.CopyRowSpan (-10, 500, span);
 
-            Assert::AreEqual (50, span.RowsUsed());
-            Assert::AreEqual ((Byte) InkPrimary::Black, span.CellAt (0, 49));
+            Assert::AreEqual (50, span.GetRowsUsed());
+            Assert::AreEqual ((Byte) InkPrimary::Black, span.GetCell (0, 49));
         }
 
 
@@ -186,7 +186,7 @@ namespace PrintRasterTests
 
             raster.CopyRowSpan (100, 200, span);   // entirely past the extent
 
-            Assert::AreEqual (0, span.RowsUsed());
+            Assert::AreEqual (0, span.GetRowsUsed());
         }
 
 
@@ -202,8 +202,8 @@ namespace PrintRasterTests
             raster.CopyRowSpan (PrinterGrid::kPageRows - 100,
                                 PrinterGrid::kPageRows + 50, span);
 
-            Assert::AreEqual ((size_t) 1, span.PageBoundaryRows().size());
-            Assert::AreEqual (100, span.PageBoundaryRows()[0]);   // rebased
+            Assert::AreEqual ((size_t) 1, span.GetPageBoundaryRows().size());
+            Assert::AreEqual (100, span.GetPageBoundaryRows()[0]);   // rebased
         }
 
 
@@ -217,8 +217,8 @@ namespace PrintRasterTests
 
             raster.CopyRowSpan (4000, 4999, span);
 
-            Assert::AreEqual (1000, span.RowsUsed());
-            Assert::AreEqual ((Byte) 0, span.CellAt (0, 500));
+            Assert::AreEqual (1000, span.GetRowsUsed());
+            Assert::AreEqual ((Byte) 0, span.GetCell (0, 500));
         }
     };
 }

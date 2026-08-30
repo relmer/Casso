@@ -60,14 +60,14 @@ public:
     // Pick the presentation mode for a client width and return the band
     // thickness (dp) it needs -- the shell calls this BEFORE docking the
     // chrome bands, since the stacked mode needs a taller strip.
-    int   PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler);
-    int   BandDp       () const { return m_bandDp; }
-    Mode  CurrentMode  () const { return m_mode; }
+    int   PlanForWidth   (int clientWidthPx, const DxuiDpiScaler & scaler);
+    int   GetBandDp      () const { return m_bandDp; }
+    Mode  GetCurrentMode () const { return m_mode; }
 
     // The hovered button's label for the shell's tooltip (icon-only mode has
     // no labels, so tooltips are required there). Returns nullptr when no
     // tooltip should show; fills `anchor` with the button rect otherwise.
-    const wchar_t *  TooltipAt (int x, int y, RECT & anchor) const;
+    const wchar_t *  GetTooltipAt (int x, int y, RECT & anchor) const;
 
     // The DWrite renderer used to measure labels during Layout (the shell's
     // chrome text renderer; must outlive this control).
@@ -98,7 +98,7 @@ public:
 
     // Seed the volume controls from persisted prefs (no sink callback).
     void  SetVolume         (float volume01, bool muted);
-    float Volume            () const                     { return m_volume01; }
+    float GetVolume         () const                     { return m_volume01; }
     bool  IsMuted           () const                     { return m_muted; }
 
     void  SetPrinterStatus  (PrinterStatus status)       { m_printerStatus = status; }
@@ -141,10 +141,10 @@ private:
         bool  pressed = false;
     };
 
-    static bool      PointIn        (const RECT & rc, int x, int y);
-    static uint32_t  StatusCore     (PrinterStatus status);
+    static bool      IsPointInRect      (const RECT & rc, int x, int y);
+    static uint32_t  GetStatusCoreColor (PrinterStatus status);
 
-    void             PaintButton    (Button & btn, IDxuiPainter & painter,
+    void             PaintButton        (Button & btn, IDxuiPainter & painter,
                                      IDxuiTextRenderer & text, const struct CassoTheme & theme);
     void             PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                         const struct CassoTheme & theme);

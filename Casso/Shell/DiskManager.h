@@ -104,7 +104,7 @@ public:
 
     // Steady-clock millisecond timestamp used by the drive-widget door
     // animation FSM and the audio drive-door sync recorder.
-    static int64_t  NowMs ();
+    static int64_t  GetNowMs ();
 
     // Applies the effective external write-protect state to a freshly
     // mounted image: the user's per-drive preference plus the backing

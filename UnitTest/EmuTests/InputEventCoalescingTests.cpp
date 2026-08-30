@@ -135,7 +135,7 @@ public:
         RecordingInputSink  sink;
 
         kbd.SetInputEventSink (&sink);
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
 
         for (int i = 0; i < 5; i++)
         {
@@ -157,10 +157,10 @@ public:
 
         kbd.SetInputEventSink (&sink);
 
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
         kbd.Read (0xC000);
 
-        kbd.KeyPress ('B');
+        kbd.PressKey ('B');
         kbd.Read (0xC000);
 
         Assert::AreEqual (2, sink.kbdDataReadCount,
@@ -175,7 +175,7 @@ public:
         RecordingInputSink  sink;
 
         kbd.SetInputEventSink (&sink);
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
 
         kbd.Read (0xC010);
         kbd.Read (0xC010);
@@ -193,13 +193,13 @@ public:
         int                 baseline = 0;
 
         kbd.SetInputEventSink (&sink);
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
         kbd.Read (0xC000);
 
         baseline = sink.kbdDataReadCount;
 
         kbd.SetInputEventSink (nullptr);
-        kbd.KeyPress ('B');
+        kbd.PressKey ('B');
 
         for (int i = 0; i < 5; i++)
         {

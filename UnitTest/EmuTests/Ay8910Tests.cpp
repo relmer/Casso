@@ -416,12 +416,12 @@ namespace Ay8910TestNs
         {
             for (int level = 1; level <= Ay8910::kMaxEnvLevel; level++)
             {
-                Assert::IsTrue (Ay8910::VolumeForLevel (level) > Ay8910::VolumeForLevel (level - 1),
+                Assert::IsTrue (Ay8910::GetVolumeForLevel (level) > Ay8910::GetVolumeForLevel (level - 1),
                                 L"DAC table must increase monotonically");
             }
 
-            Assert::AreEqual (0.0f, Ay8910::VolumeForLevel (0));
-            Assert::AreEqual (1.0f, Ay8910::VolumeForLevel (Ay8910::kMaxEnvLevel));
+            Assert::AreEqual (0.0f, Ay8910::GetVolumeForLevel (0));
+            Assert::AreEqual (1.0f, Ay8910::GetVolumeForLevel (Ay8910::kMaxEnvLevel));
         }
     };
 }

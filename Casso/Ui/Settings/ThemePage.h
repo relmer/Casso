@@ -87,7 +87,7 @@ public:
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
     // no themes are loaded.
-    std::string  SelectedThemeId () const;
+    std::string  GetSelectedThemeId () const;
 
     // Routes the owned theme dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
@@ -105,10 +105,10 @@ public:
     // recovered by a downcast inside the definition.
     void  Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    DxuiDropdown                       & ThemeDropdown    ()       { return m_themeDropdown; }
-    const DxuiDropdown                 & ThemeDropdown    () const { return m_themeDropdown; }
-    const std::vector<std::string> & Themes           () const { return m_themeIds; }
-    int                              ActiveThemeIndex () const { return m_activeIndex; }
+    DxuiDropdown                       & GetThemeDropdown ()       { return m_themeDropdown; }
+    const DxuiDropdown                 & GetThemeDropdown () const { return m_themeDropdown; }
+    const std::vector<std::string> & GetThemes           () const { return m_themeIds; }
+    int                              GetActiveThemeIndex () const { return m_activeIndex; }
 
 private:
     // Row/preview geometry and the painting helpers that consume it. Every

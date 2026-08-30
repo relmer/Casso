@@ -173,7 +173,7 @@ private:
         const vector<pair<string, JsonValue>> & entries,
         const string                          & key);
 
-    static bool  EntryHasKey (
+    static bool  HasKey (
         const JsonValue & entry,
         const string    & key);
 

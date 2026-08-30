@@ -27,7 +27,7 @@ namespace RepoCheckout
 {
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  WorktreeKeyOf
+    //  GetWorktreeKey
     //
     //  A Claude worktree checkout lives at <repo>/.claude/worktrees/<name>/...
     //  Returns the ".../.claude/worktrees/<name>" prefix identifying that
@@ -35,7 +35,7 @@ namespace RepoCheckout
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    inline std::wstring WorktreeKeyOf (const std::filesystem::path & p)
+    inline std::wstring GetWorktreeKey (const std::filesystem::path & p)
     {
         std::vector<std::filesystem::path>  comps (p.begin(), p.end());
 
@@ -59,14 +59,14 @@ namespace RepoCheckout
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  MainRootOfWorktreeKey
+    //  GetMainRootOfWorktreeKey
     //
     //  The repo main root implied by a worktree key: strip the trailing
     //  ".claude/worktrees/<name>" (three components). Empty in, empty out.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    inline std::filesystem::path MainRootOfWorktreeKey (const std::wstring & worktreeKey)
+    inline std::filesystem::path GetMainRootOfWorktreeKey (const std::wstring & worktreeKey)
     {
         if (worktreeKey.empty())
         {
@@ -128,7 +128,7 @@ namespace RepoCheckout
     //
     //  Decide whether disk `p` belongs to a DIFFERENT checkout of this repo
     //  than the running build. `runningWorktreeKey` is
-    //  WorktreeKeyOf(exeDirectory) — empty when the running build is the main
+    //  GetWorktreeKey(exeDirectory) — empty when the running build is the main
     //  tree (or an installed layout with no repo around it).
     //
     //  Rules:
@@ -146,7 +146,7 @@ namespace RepoCheckout
     inline bool IsForeignCheckoutDisk (const std::filesystem::path & p,
                                        const std::wstring          & runningWorktreeKey)
     {
-        std::wstring  entryKey = WorktreeKeyOf (p);
+        std::wstring  entryKey = GetWorktreeKey (p);
 
         if (!entryKey.empty())
         {
@@ -161,6 +161,6 @@ namespace RepoCheckout
         // Running from a worktree: hide repo disks that live in a sibling
         // checkout — here, the main tree (under the repo root but not under any
         // worktree). Non-repo disks fall outside the main root and pass.
-        return IsUnderOrEqual (p, MainRootOfWorktreeKey (runningWorktreeKey));
+        return IsUnderOrEqual (p, GetMainRootOfWorktreeKey (runningWorktreeKey));
     }
 }

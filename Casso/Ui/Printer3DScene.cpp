@@ -615,7 +615,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // Assign each GREEN lamp a fixed front-panel role by left-to-right
         // position, matching the reference panel (Print Quality, Select, then
         // Power on the on/off cap); the red lamp is the paper/fault Error
-        // indicator. Roles drive each lamp INDIVIDUALLY (RoleIntensity), so the
+        // indicator. Roles drive each lamp INDIVIDUALLY (GetRoleIntensity), so the
         // panel no longer flashes every lamp together while receiving.
         {
             std::vector<int>  greens;
@@ -881,11 +881,11 @@ void Printer3DScene::SetLeds (bool online, bool error)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene::RoleIntensity
+//  Printer3DScene::GetRoleIntensity
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Printer3DScene::RoleIntensity (LampRole role) const
+float Printer3DScene::GetRoleIntensity (LampRole role) const
 {
     // 0 is dark, which is the right answer for a lamp role this scene does
     // not model.
@@ -1164,7 +1164,7 @@ void Printer3DScene::BuildLedBatches()
 
     for (const LedFace & f : m_ledFaces)
     {
-        float      intensity = RoleIntensity (f.role);
+        float      intensity = GetRoleIntensity (f.role);
         uint32_t   base      = (f.role == LampRole::Error) ? s_kLedRed : s_kLedGreen;
         float      bright    = 0.16f + 1.10f * intensity;
         float      r         = (float) ((base >> 16) & 0xFF) / 255.0f * f.shade * bright;
@@ -1827,10 +1827,10 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
         // LED windows flush in the wall above the right three caps, each at its
         // own fixed meaning (i==3 print quality, i==4 select, i==5 on/off pair:
         // red fault + green power) -- no longer all riding one brightness.
-        qualityI = RoleIntensity (LampRole::Quality);
-        selectI = RoleIntensity (LampRole::Select);
-        powerI = RoleIntensity (LampRole::Power);
-        errorI = RoleIntensity (LampRole::Error);
+        qualityI = GetRoleIntensity (LampRole::Quality);
+        selectI = GetRoleIntensity (LampRole::Select);
+        powerI = GetRoleIntensity (LampRole::Power);
+        errorI = GetRoleIntensity (LampRole::Error);
         ledCy = cy + s_kButtonH + 0.012f + 0.004f;
 
         if (i == 3)

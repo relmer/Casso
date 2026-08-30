@@ -1074,7 +1074,7 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
     // user's own folders, %LOCALAPPDATA%) always pass. The classification is
     // pure/lexical and unit-tested in RepoCheckout.h.
     static const std::wstring  runningKey =
-        RepoCheckout::WorktreeKeyOf (PathResolver::GetExecutableDirectory());
+        RepoCheckout::GetWorktreeKey (PathResolver::GetExecutableDirectory());
 
 
 
@@ -1695,9 +1695,9 @@ HRESULT AssetBootstrap::HasDiskController (
     hrOpt = merged.GetArray ("slots", pSlots);
     BAIL_OUT_IF (FAILED (hrOpt), S_OK);
 
-    for (idx = 0; idx < pSlots->ArraySize(); idx++)
+    for (idx = 0; idx < pSlots->GetArraySize(); idx++)
     {
-        const JsonValue  & entry   = pSlots->ArrayAt (idx);
+        const JsonValue  & entry   = pSlots->GetArrayElement (idx);
         bool               enabled = false;
         HRESULT            hrDev   = entry.GetString ("device", device);
         enabled = true; // optional key; defaults enabled
@@ -1839,11 +1839,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StockBootDiskPath
+//  GetStockBootDiskPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path AssetBootstrap::StockBootDiskPath (StockBootDisk disk)
+fs::path AssetBootstrap::GetStockBootDiskPath (StockBootDisk disk)
 {
     const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
                                ? s_kDos33Disk
@@ -1870,7 +1870,7 @@ bool AssetBootstrap::IsStockBootDiskCached (StockBootDisk disk)
 
 
 
-    return fs::exists (StockBootDiskPath (disk), ec);
+    return fs::exists (GetStockBootDiskPath (disk), ec);
 }
 
 
@@ -2466,7 +2466,7 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 int DiskMruPickerSession::Run()
 {
     HRESULT                           hr      = S_OK;
-    CassoTheme                        theme   = CassoTheme::ForName (m_themeName);
+    CassoTheme                        theme   = CassoTheme::MakeByName (m_themeName);
     std::unique_ptr<PickerBodyPanel>  content = std::make_unique<PickerBodyPanel>();
     PickerDialog                      dlg;
     DxuiWindow::CreateParams          params;
@@ -2513,7 +2513,7 @@ int DiskMruPickerSession::Run()
 
     dlg.SetTheme (&theme);
 
-    raw    = dlg.ShowModalDialog (dlg.DefaultCommandId());
+    raw    = dlg.ShowModalDialog (dlg.GetDefaultCommandId());
     chosen = dlg.MapResult (raw);
 
 Error:

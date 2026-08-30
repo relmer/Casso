@@ -72,17 +72,17 @@ public:
 
     void  Rebuild    ();
 
-    DxuiDropdown       & MachineDropdown ()       { return m_machineDropdown; }
-    DxuiDropdown       & SpeedDropdown   ()       { return m_speed; }
-    const DxuiDropdown & SpeedDropdown   () const { return m_speed; }
-    DxuiTreeView       & Tree ()       { return m_tree; }
-    const DxuiTreeView & Tree () const { return m_tree; }
-    const std::vector<std::string> & Machines () const { return m_machines; }
-    int  ActiveMachineIndex () const { return m_activeMachineIndex; }
+    DxuiDropdown       & GetMachineDropdown ()       { return m_machineDropdown; }
+    DxuiDropdown       & GetSpeedDropdown   ()       { return m_speed; }
+    const DxuiDropdown & GetSpeedDropdown   () const { return m_speed; }
+    DxuiTreeView       & GetTree ()       { return m_tree; }
+    const DxuiTreeView & GetTree () const { return m_tree; }
+    const std::vector<std::string> & GetMachines () const { return m_machines; }
+    int  GetActiveMachineIndex () const { return m_activeMachineIndex; }
 
     // Friendly display name of the machine the dropdown currently shows
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
-    std::wstring SelectedMachineDisplayName () const
+    std::wstring GetSelectedMachineDisplayName () const
     {
         int                                idx   = m_machineDropdown.SelectedIndex();
         const std::vector<std::wstring>  & items = m_machineDropdown.Items();

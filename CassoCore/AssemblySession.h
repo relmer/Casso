@@ -378,7 +378,7 @@ private:
     // Not static, and cannot be: both read the ACTIVE profile's vocabulary, and
     // a spelling one dialect does not claim must not be resolved through
     // another's table.
-    Directive          TokenForLine           (const ParsedLine & parsed) const;
+    Directive          GetTokenForLine        (const ParsedLine & parsed) const;
     bool               IsConditionalLine      (const ParsedLine & parsed) const;
 
     HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);
@@ -469,7 +469,7 @@ private:
     static std::string              StripCommentAndTrim       (const std::string & text);
     static std::string              GetLowerExtension         (const std::string & filename);
     static int                      HexCharToNibble           (char c);
-    static int                      HexByte                   (const std::string & s, size_t offset);
+    static int                      ParseHexByte              (const std::string & s, size_t offset);
     static std::vector<Byte>        ParseSRecord              (const std::string & content);
     static std::vector<Byte>        ParseIntelHex             (const std::string & content);
     static std::vector<std::string> GenerateByteDirectives    (const std::vector<Byte> & data);
@@ -496,7 +496,7 @@ private:
     // unless pass 1 substituted the branch. Both the emitter and the listing ask
     // through here, so the bytes and the cycle count cannot describe different
     // instructions.
-    static std::string EncodedMnemonic (const LineInfo & info);
+    static std::string GetEncodedMnemonic (const LineInfo & info);
 
     // The always-taken branch an absolute jump is replaced by, and the jump it
     // replaces. Named once because more than one place has to agree on them --
@@ -523,7 +523,7 @@ private:
     // Which column a diagnostic about this line as a whole points at: the
     // opcode field, or the label where the line has no opcode. 0 where the
     // dialect recorded no columns at all.
-    static int PrimaryColumn (const ParsedLine & parsed);
+    static int GetPrimaryColumn (const ParsedLine & parsed);
 
     // What to say about a word the active dialect does not recognize as an
     // operation. Three answers in order of how much they explain: the dialect's
@@ -539,12 +539,12 @@ private:
     // execute -- an instruction under the active dialect's spellings, or one of
     // its directives. Dialect-NEUTRAL: it consults the active profile's own
     // tables and the shared instruction set, and names no dialect.
-    bool  OperandNamesAnOperation (const ParsedLine & parsed) const;
+    bool  NamesAnOperation (const ParsedLine & parsed) const;
 
     // The highest positional parameter a macro body refers to, or 0 for a body
     // that refers to none. An invocation supplying fewer arguments than this has
     // nothing to put in the gap.
-    static int  HighestParameterReferenced (const MacroDefinition & macroDef, char sigil);
+    static int  GetHighestParameterReferenced (const MacroDefinition & macroDef, char sigil);
 
     // One construct the boundary refused, held until the pass ends.
     //

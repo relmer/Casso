@@ -169,5 +169,5 @@ public:
     static std::string                ComposeHelpText (std::span<const SubsetBoundaryRow> rows);
 
 private:
-    static const char *               ReasonLabel (SubsetBoundaryReason reason);
+    static const char *               GetReasonLabel (SubsetBoundaryReason reason);
 };

@@ -160,16 +160,16 @@ private:
 
     // True while the mouse is dragging the paper (pan), so Move/Up events route
     // to m_panZoom instead of the toolbar. Seeded by a left-press on the paper.
-    bool     PaperHit       (int x, int y) const;
+    bool     IsPaperHit     (int x, int y) const;
 
-    static DxuiPanZoom::Config  PanZoomConfig ();
+    static DxuiPanZoom::Config  GetPanZoomConfig ();
 
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                              int dirtyFromAbs, int revealBandTopAbs, int revealLoDots, int revealHiDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                              int revealBandTopAbs, int revealLoDots, int revealHiDots, int contentDirtyFromAbs);
 
-    static int64_t  NowMs ();
+    static int64_t  GetNowMs ();
 
     // Fanfold-paper furniture helpers (panel-only): the hole / perforation
     // phase modulus, the perforation-dash pixel darken, and the embedded

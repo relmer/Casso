@@ -200,7 +200,7 @@ void PaperRenderer::BlendPixel (RgbaImage & img, int x, int y, int alpha,
         alpha = 255;
     }
 
-    p = img.PixelAt (x, y);
+    p = img.GetPixel (x, y);
     p[0] = (Byte) ((p[0] * (255 - alpha) + r * alpha) / 255);
     p[1] = (Byte) ((p[1] * (255 - alpha) + g * alpha) / 255);
     p[2] = (Byte) ((p[2] * (255 - alpha) + b * alpha) / 255);
@@ -351,7 +351,7 @@ HRESULT PaperRenderer::Render (
 
         for (col = 0; col < s_kColumns; col++)
         {
-            Byte   cell = raster.CellAt (col, row);
+            Byte   cell = raster.GetCell (col, row);
 
             if (cell == 0)
             {

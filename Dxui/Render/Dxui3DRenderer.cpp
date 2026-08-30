@@ -590,7 +590,7 @@ HRESULT Dxui3DRenderer::CreateShaders()
                                       nullptr, m_ps.GetAddressOf());
     CHR (hr);
 
-    hr = m_device->CreateInputLayout (layout, ARRAYSIZE (layout),
+    hr = m_device->CreateInputLayout (layout, std::size (layout),
                                       vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
                                       m_layout.GetAddressOf());
     CHR (hr);

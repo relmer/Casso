@@ -317,13 +317,13 @@ public:
     TEST_METHOD (EventLabel_returnsStableStringsPerType)
     {
         Assert::AreEqual (std::wstring (L"Motor engaged"),
-            std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
+            std::wstring (DebugDialogProjection::GetEventLabel (EventCategory::Controller,
                                                               Disk2EventType::MotorEngaged)));
         Assert::AreEqual (std::wstring (L"Audio silent"),
-            std::wstring (DebugDialogProjection::EventLabel (EventCategory::Audio,
+            std::wstring (DebugDialogProjection::GetEventLabel (EventCategory::Audio,
                                                               Disk2EventType::AudioSilent)));
         Assert::AreEqual (std::wstring (L"Events lost"),
-            std::wstring (DebugDialogProjection::EventLabel (EventCategory::Controller,
+            std::wstring (DebugDialogProjection::GetEventLabel (EventCategory::Controller,
                                                               Disk2EventType::EventsLost)));
     }
 
@@ -730,7 +730,7 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  Spec-006 round-4 bug 5 -- PreservedFocusItem coverage.
+    //  Spec-006 round-4 bug 5 -- GetPreservedFocusItem coverage.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -740,9 +740,9 @@ public:
         // priorDequeIdx == 5 should map to item index 2.
         std::vector<uint32_t>  filtered { 0, 2, 5, 7, 10 };
 
-        Assert::AreEqual (2, DebugDialogProjection::PreservedFocusItem (5,  filtered));
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0,  filtered));
-        Assert::AreEqual (4, DebugDialogProjection::PreservedFocusItem (10, filtered));
+        Assert::AreEqual (2, DebugDialogProjection::GetPreservedFocusItem (5,  filtered));
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (0,  filtered));
+        Assert::AreEqual (4, DebugDialogProjection::GetPreservedFocusItem (10, filtered));
     }
 
 
@@ -752,9 +752,9 @@ public:
         // surviving deque idx < 6 is 5 (item index 2).
         std::vector<uint32_t>  filtered { 0, 2, 5, 7, 10 };
 
-        Assert::AreEqual (2, DebugDialogProjection::PreservedFocusItem (6,  filtered));
-        Assert::AreEqual (1, DebugDialogProjection::PreservedFocusItem (3,  filtered));
-        Assert::AreEqual (4, DebugDialogProjection::PreservedFocusItem (20, filtered));   // past end
+        Assert::AreEqual (2, DebugDialogProjection::GetPreservedFocusItem (6,  filtered));
+        Assert::AreEqual (1, DebugDialogProjection::GetPreservedFocusItem (3,  filtered));
+        Assert::AreEqual (4, DebugDialogProjection::GetPreservedFocusItem (20, filtered));   // past end
     }
 
 
@@ -764,8 +764,8 @@ public:
         // says focus row 0.
         std::vector<uint32_t>  filtered { 5, 7, 10 };
 
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0, filtered));
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (3, filtered));
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (0, filtered));
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (3, filtered));
     }
 
 
@@ -773,8 +773,8 @@ public:
     {
         std::vector<uint32_t>  filtered;
 
-        Assert::AreEqual (-1, DebugDialogProjection::PreservedFocusItem (0, filtered));
-        Assert::AreEqual (-1, DebugDialogProjection::PreservedFocusItem (42, filtered));
+        Assert::AreEqual (-1, DebugDialogProjection::GetPreservedFocusItem (0, filtered));
+        Assert::AreEqual (-1, DebugDialogProjection::GetPreservedFocusItem (42, filtered));
     }
 
 
@@ -782,9 +782,9 @@ public:
     {
         std::vector<uint32_t>  filtered { 7 };
 
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (0,  filtered));
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (7,  filtered));   // exact
-        Assert::AreEqual (0, DebugDialogProjection::PreservedFocusItem (99, filtered));   // past end
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (0,  filtered));
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (7,  filtered));   // exact
+        Assert::AreEqual (0, DebugDialogProjection::GetPreservedFocusItem (99, filtered));   // past end
     }
 
 

@@ -386,7 +386,7 @@ void HardwarePage::Rebuild()
         size_t        i          = 0;
 
         // Machine + CPU-speed selectors.
-        m_speed.SetSelected           ((int) state->Prefs().speedMode);
+        m_speed.SetSelected           ((int) state->GetPrefs().speedMode);
         m_machineDropdown.SetSelected (m_activeMachineIndex);
 
         m_machineDropdown.SetSelect ([this] (int idx)
@@ -402,8 +402,8 @@ void HardwarePage::Rebuild()
         });
         m_speed.SetSelect ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
 
-        info    = &state->MachineInfo();
-        entries = state->Hardware();
+        info    = &state->GetMachineInfo();
+        entries = state->GetHardware();
 
         // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format with
         // the "L" locale-aware flag requires a locale; build the grouped
@@ -461,8 +461,8 @@ void HardwarePage::Rebuild()
 
     {
         bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
-        bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
-        bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
+        bool  externalConnected = (state != nullptr) && state->GetPrefs().externalDriveConnected;
+        bool  mouseConnected    = (state == nullptr) || state->GetPrefs().mouseConnected;
 
         // A carded machine offers the same choice under its own name. The
         // //c is excluded here because its node is the external-drive one
@@ -508,9 +508,9 @@ void HardwarePage::Rebuild()
             return;
         }
 
-        for (i = 0; i < state->Hardware().size(); ++i)
+        for (i = 0; i < state->GetHardware().size(); ++i)
         {
-            std::wstring  candidate = Widen (state->Hardware()[i].displayName);
+            std::wstring  candidate = Widen (state->GetHardware()[i].displayName);
 
             if (candidate == label)
             {

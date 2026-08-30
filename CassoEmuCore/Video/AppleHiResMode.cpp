@@ -24,7 +24,7 @@ AppleHiResMode::AppleHiResMode (MemoryBus & bus)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ScanlineAddress
+//  GetScanlineAddress
 //
 //  Hi-res scanline interleaving (same as text but with 8 sub-rows):
 //  base + 128*(row%8) + 40*(row/64) + 1024*((row/8)%8)
@@ -32,7 +32,7 @@ AppleHiResMode::AppleHiResMode (MemoryBus & bus)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word AppleHiResMode::ScanlineAddress (int scanline, Word pageBase)
+Word AppleHiResMode::GetScanlineAddress (int scanline, Word pageBase)
 {
     int  group       = scanline / 64;   // 0-2 (which group of 64 scanlines)
     int  subRow      = scanline % 8;   // 0-7 (which of 8 interleave rows)
@@ -125,7 +125,7 @@ void AppleHiResMode::Render (
 
     for (int scanline = 0; scanline < 192; scanline++)
     {
-        Word lineAddr = ScanlineAddress (scanline, pageBase);
+        Word lineAddr = GetScanlineAddress (scanline, pageBase);
 
         // Pass 1: decode all 280 pixels and palette bits
         for (int byteIdx = 0; byteIdx < 40; byteIdx++)

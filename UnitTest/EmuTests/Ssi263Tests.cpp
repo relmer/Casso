@@ -93,7 +93,7 @@ namespace Ssi263TestNs
 
 
             StartSpeaking (chip, 0x15);
-            phoneme = chip.Phoneme();
+            phoneme = chip.GetPhoneme();
 
             // Raise CTL: Power Down silences and disables A/R, but the
             // datasheet is explicit that register contents survive.
@@ -101,7 +101,7 @@ namespace Ssi263TestNs
 
             Assert::IsTrue (chip.IsSilent());
             Assert::IsFalse (chip.IsRequesting());
-            Assert::AreEqual<Byte> (phoneme, chip.Phoneme(),
+            Assert::AreEqual<Byte> (phoneme, chip.GetPhoneme(),
                                     L"Power Down must not disturb register contents");
         }
 
@@ -118,7 +118,7 @@ namespace Ssi263TestNs
             for (code = 0; code < Ssi263::kPhonemeCount; code++)
             {
                 chip.WriteRegister (Ssi263::kRegDurationPhoneme, code);
-                Assert::AreEqual<Byte> (code, chip.Phoneme(),
+                Assert::AreEqual<Byte> (code, chip.GetPhoneme(),
                                         L"Every code $00-$3F must be accepted verbatim");
             }
         }
@@ -178,7 +178,7 @@ namespace Ssi263TestNs
                     chip.WriteRegister (Ssi263::kRegRateInflection, static_cast<Byte> (1u << bit));
                 }
 
-                Assert::AreEqual<uint16_t> (expected, chip.InflectionValue(),
+                Assert::AreEqual<uint16_t> (expected, chip.GetInflectionValue(),
                                             L"Each inflection bit must land at its documented position");
             }
         }
@@ -193,9 +193,9 @@ namespace Ssi263TestNs
             // R3-R0 in the high nibble, I11 and I2-I0 in the low.
             chip.WriteRegister (Ssi263::kRegRateInflection, 0xAF);
 
-            Assert::AreEqual<Byte> (0x0A, chip.RateSel(),
+            Assert::AreEqual<Byte> (0x0A, chip.GetRateSel(),
                                     L"Rate occupies the high nibble");
-            Assert::AreEqual<uint16_t> (0x807, chip.InflectionValue(),
+            Assert::AreEqual<uint16_t> (0x807, chip.GetInflectionValue(),
                                         L"I11 plus I2-I0 must come from the low nibble");
         }
 
@@ -214,7 +214,7 @@ namespace Ssi263TestNs
 
                 expected = (4096.0 * (16.0 - static_cast<double> (r))) / Ssi263::kDefaultClockHz;
 
-                Assert::AreEqual (expected, chip.FrameDurationSec(), 1e-12,
+                Assert::AreEqual (expected, chip.GetFrameDurationSec(), 1e-12,
                                   L"Frame Duration = 4096 x (16 - R) / XCK");
             }
         }
@@ -232,7 +232,7 @@ namespace Ssi263TestNs
             LeavePowerDown (chip, Ssi263::kModePhonemeTransitioned);
             chip.WriteRegister (Ssi263::kRegRateInflection, static_cast<Byte> (0x0A << Ssi263::kRateShift));
 
-            frame = chip.FrameDurationSec();
+            frame = chip.GetFrameDurationSec();
 
             for (d = 0; d <= 3; d++)
             {
@@ -240,7 +240,7 @@ namespace Ssi263TestNs
                                     static_cast<Byte> (d << Ssi263::kDurationShift));
 
                 Assert::AreEqual (frame * (4.0 - static_cast<double> (d)),
-                                  chip.PhonemeDurationSec(), 1e-12,
+                                  chip.GetPhonemeDurationSec(), 1e-12,
                                   L"Phoneme Duration = Frame Duration x (4 - D)");
             }
         }
@@ -263,7 +263,7 @@ namespace Ssi263TestNs
                 }
 
                 Assert::AreEqual (Ssi263::kDefaultClockHz / (2.0 * (256.0 - f)),
-                                  chip.FilterFrequencyHz(), 1e-6,
+                                  chip.GetFilterFrequencyHz(), 1e-6,
                                   L"Filter Frequency = XCK / (2 x (256 - F))");
             }
         }
@@ -277,9 +277,9 @@ namespace Ssi263TestNs
 
             chip.WriteRegister (Ssi263::kRegInflection, 0x80);   // I10 set -> I = 0x400
 
-            Assert::AreEqual<uint16_t> (0x400, chip.InflectionValue());
+            Assert::AreEqual<uint16_t> (0x400, chip.GetInflectionValue());
             Assert::AreEqual (Ssi263::kDefaultClockHz / (8.0 * (4096.0 - 1024.0)),
-                              chip.InflectionFrequencyHz(), 1e-9,
+                              chip.GetInflectionFrequencyHz(), 1e-9,
                               L"Inflection Frequency = XCK / (8 x (4096 - I))");
         }
 
@@ -292,7 +292,7 @@ namespace Ssi263TestNs
 
 
             StartSpeaking (chip, 0x08);
-            cycles = static_cast<uint32_t> (chip.PhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
 
             chip.Tick (cycles / 2);
             Assert::IsFalse (chip.IsRequesting(), L"Must not request part-way through");
@@ -332,14 +332,14 @@ namespace Ssi263TestNs
 
 
             LeavePowerDown (chip, Ssi263::kModeArDisabled);
-            Assert::AreEqual<Byte> (Ssi263::kModeArDisabled, chip.ActiveMode());
+            Assert::AreEqual<Byte> (Ssi263::kModeArDisabled, chip.GetActiveMode());
 
             // Changing the duration bits afterwards selects a DURATION, not a
             // mode -- the mode only latches on a CTL one-to-zero transition.
             chip.WriteRegister (Ssi263::kRegDurationPhoneme,
                                 static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
 
-            Assert::AreEqual<Byte> (Ssi263::kModeArDisabled, chip.ActiveMode(),
+            Assert::AreEqual<Byte> (Ssi263::kModeArDisabled, chip.GetActiveMode(),
                                     L"Duration writes must not re-latch the operating mode");
 
             chip.Tick (10000000);
@@ -356,7 +356,7 @@ namespace Ssi263TestNs
 
 
             StartSpeaking (chip, 0x08);
-            cycles = static_cast<uint32_t> (chip.PhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
 
             chip.Tick (cycles + 1);
             Assert::IsTrue (chip.IsRequesting());
@@ -384,10 +384,10 @@ namespace Ssi263TestNs
             StartSpeaking (a, 0x08);
             StartSpeaking (b, 0x08);
 
-            Assert::AreEqual (a.PhonemeDurationSec(), b.PhonemeDurationSec(), 1e-12,
+            Assert::AreEqual (a.GetPhonemeDurationSec(), b.GetPhonemeDurationSec(), 1e-12,
                               L"Host sample rate must not affect emulated duration");
 
-            cycles = static_cast<uint32_t> (a.PhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (a.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
 
             a.Tick (cycles + 1);
             b.Tick (cycles + 1);
@@ -407,7 +407,7 @@ namespace Ssi263TestNs
             chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x00);   // CTL low, amplitude 0
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x08);
 
-            Assert::AreEqual<Byte> (0, chip.Amplitude());
+            Assert::AreEqual<Byte> (0, chip.GetAmplitude());
             Assert::IsTrue (chip.IsSilent(),
                             L"Zero amplitude must let the audio path skip synthesis");
         }
@@ -427,8 +427,8 @@ namespace Ssi263TestNs
                 b.WriteRegister (r, static_cast<Byte> (0x11 * (r + 1)));
             }
 
-            Assert::AreEqual (a.InflectionValue(), b.InflectionValue());
-            Assert::AreEqual (a.PhonemeDurationSec(), b.PhonemeDurationSec(), 1e-12);
+            Assert::AreEqual (a.GetInflectionValue(), b.GetInflectionValue());
+            Assert::AreEqual (a.GetPhonemeDurationSec(), b.GetPhonemeDurationSec(), 1e-12);
             Assert::AreEqual (a.IsRequesting(), b.IsRequesting());
             Assert::AreEqual (a.IsSilent(), b.IsSilent());
         }
@@ -636,7 +636,7 @@ namespace Ssi263TestNs
             StartVowelAh1 (chip);
             RenderSteadyState (chip, buffer.data());
 
-            f2Before = chip.FormantCenter (1);
+            f2Before = chip.GetFormantCenter (1);
             Assert::IsTrue (f2Before > 1000.0, L"Precondition: settled at the vowel's F2");
 
             // A long, fully rendered pause. Its output is silence, but the
@@ -644,7 +644,7 @@ namespace Ssi263TestNs
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x00);
             RenderInto (chip, buffer.data(), kRenderSamples);
 
-            Assert::AreEqual (f2Before, chip.FormantCenter (1), 1.0,
+            Assert::AreEqual (f2Before, chip.GetFormantCenter (1), 1.0,
                               L"A pause must hold the tract where the last phoneme left it");
 
             // The phoneme AFTER a silence snaps to its own targets: the
@@ -655,7 +655,7 @@ namespace Ssi263TestNs
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
             RenderInto (chip, buffer.data(), 4);
 
-            Assert::AreEqual (2330.0, chip.FormantCenter (1), 1.0,
+            Assert::AreEqual (2330.0, chip.GetFormantCenter (1), 1.0,
                               L"After a silence the next phoneme starts at its own targets");
         }
 
@@ -690,7 +690,7 @@ namespace Ssi263TestNs
             last = buffer[kRenderSamples - 1];
 
             // Expire the phoneme between renders, as the emulated machine does.
-            chip.Tick (static_cast<uint32_t> (chip.PhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            chip.Tick (static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
 
             RenderInto (chip, buffer.data(), 2048);
 
@@ -764,7 +764,7 @@ namespace Ssi263TestNs
                 {
                     chip.WriteRegister (Ssi263::kRegDurationPhoneme, kUtterance[ph]);
 
-                    n = static_cast<uint32_t> (chip.PhonemeDurationSec() * kSampleRate);
+                    n = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kSampleRate);
 
                     for (rendered = 0; rendered < n; rendered += 512)
                     {
@@ -909,9 +909,9 @@ namespace Ssi263TestNs
 
             Assert::IsTrue (peak > 0.01f,
                             L"A sounding vowel must reach the audio source output");
-            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.PanLeft(),
+            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.GetPanLeft(),
                               L"Speech sits at the stereo center");
-            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.PanRight());
+            Assert::AreEqual (IDriveAudioSource::kCenterPan, source.GetPanRight());
         }
 
 
@@ -942,7 +942,7 @@ namespace Ssi263TestNs
 
 
             value = static_cast<uint16_t> (4096.0 - Ssi263::kDefaultClockHz / (8.0 * hz));
-            rate  = static_cast<Byte> (chip.RateSel() << Ssi263::kRateShift);
+            rate  = static_cast<Byte> (chip.GetRateSel() << Ssi263::kRateShift);
 
             chip.WriteRegister (Ssi263::kRegInflection,
                                 static_cast<Byte> ((value >> 3) & 0xFF));

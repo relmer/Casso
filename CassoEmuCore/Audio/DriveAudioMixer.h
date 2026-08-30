@@ -17,8 +17,8 @@
 //
 //    * iterates registered sources
 //    * asks each source for `numSamples` of mono PCM
-//    * accumulates `mono * source->PanLeft()`  into the L lane
-//      and    `mono * source->PanRight()` into the R lane
+//    * accumulates `mono * source->GetPanLeft()`  into the L lane
+//      and    `mono * source->GetPanRight()` into the R lane
 //
 //  Per-channel clamping is the WASAPI integrator's job (after the
 //  speaker has been summed in). FR-008 (no motor-hum dedup), FR-010
@@ -137,5 +137,5 @@ private:
     // Returns the canonical mixed-case directory name (L"Shugart" /
     // L"Alps") for any-case input, or nullptr if unrecognized -- so
     // callers may pass the persisted lower-case token directly.
-    static const wchar_t * CanonicalMechanism (const wstring & mechanism);
+    static const wchar_t * GetCanonicalMechanism (const wstring & mechanism);
 };

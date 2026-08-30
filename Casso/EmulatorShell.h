@@ -349,19 +349,19 @@ private:
     // no failable work, or recover in place -- asserting in debug so a dev
     // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
     // abort.
-    void    RegisterChromeDock            ();
-    void    InitAssetPathsAndStores       ();
-    void    AllocateFramebuffers          ();
-    void    PrimeChromeThemeEarly         ();
-    HRESULT BuildMachineDevices           (const MachineConfig & config);
-    HRESULT InitializeRenderer            ();
-    HRESULT InitializeUiShell             ();
-    HRESULT WireUiShellChromeAndThemes    ();
-    void    RestoreInputAndColorPrefs     ();
-    void    RecordActiveMachineSelection  ();
-    void    SubscribeAndActivateTheme     ();
-    HRESULT FinishUiShellLayout           ();
-    void    InstallDragDropTarget         ();
+    void    RegisterChromeDock              ();
+    void    InitAssetPathsAndStores         ();
+    void    AllocateFramebuffers            ();
+    void    PrimeChromeThemeEarly           ();
+    HRESULT BuildMachineDevices             (const MachineConfig & config);
+    HRESULT InitializeRenderer              ();
+    HRESULT InitializeUiShell               ();
+    HRESULT WireUiShellChromeAndThemes      ();
+    void    RestoreInputAndColorPrefs       ();
+    void    RecordActiveMachineSelection    ();
+    void    SubscribeAndActivateTheme       ();
+    HRESULT FinishUiShellLayout             ();
+    void    InstallDragDropTarget           ();
 
     // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
     // merges the machine JSON, handing back the "$cassoUiPrefs" object in
@@ -380,54 +380,54 @@ private:
 
     // Truncating wide->narrow of m_currentMachineName (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.
-    std::string CurrentMachineNameNarrow  () const;
+    std::string GetCurrentMachineNameNarrow () const;
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
     // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
     // which fires OnViewportBoundsChanged when the rectangle differs
     // from the last value reported.
-    void    UpdateViewportLayout         (int widthPx, int heightPx);
+    void    UpdateViewportLayout          (int widthPx, int heightPx);
 
     // Chrome-band sizing via DxuiDockLayout (replaces LayoutManager).
     // SyncChromeBands stamps each band's Bounds() with its DPI-scaled
     // pixel thickness. ComputeViewportRect docks the bands + center and
-    // returns the middle (emulator viewport) rect. ClientSizeForCenterPx
+    // returns the middle (emulator viewport) rect. GetClientSizeForCenterPx
     // is the inverse: given a desired center size in px, the client size
-    // that hosts it. ClientSizeForFramebufferPx DPI-scales a DIP
+    // that hosts it. GetClientSizeForFramebufferPx DPI-scales a DIP
     // framebuffer grid first, then adds the chrome insets.
-    void    SyncChromeBands              ();
-    RECT    ComputeViewportRect          (int widthPx, int heightPx);
+    void    SyncChromeBands               ();
+    RECT    ComputeViewportRect           (int widthPx, int heightPx);
 
     // The emulator viewport (CRT output area) in *screen* pixels: the middle
     // rect from ComputeViewportRect at the current back-buffer size, mapped
     // through the main window's client origin. The Settings live-preview
     // compositor (#8) intersects this with the (composited) sheet window to
     // punch a see-through hole revealing the running emulator behind the sheet.
-    RECT    EmulatorContentScreenRect    ();
+    RECT    GetEmulatorContentScreenRect  ();
 
     // Re-run the chrome layout at the current client size after a machine
     // switch: adding/removing the Disk ][ controller changes the drive band +
     // widgets + hit-test map, but no WM_SIZE fires when the window size itself
     // is unchanged, so OnSize would never re-evaluate it. See the
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
-    void    ReflowChromeForMachineChange ();
+    void    ReflowChromeForMachineChange  ();
 
     // Whether the second (external) drive-mount widget should be visible.
     // Always true for machines whose second drive is fixed hardware; on the
     // //c (banked system ROM) the external drive is an optional add-on, shown
     // only when m_externalDriveConnected. The drive-layout paths consult this
     // to hide m_driveChrome[1] and skip its hit rect when disconnected.
-    bool    ShouldShowExternalDrive      () const;
+    bool    ShouldShowExternalDrive       () const;
 
-    SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
-    SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
+    SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
+    SIZE    GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp);
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
     // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
     // so the framebuffer compositor can track where to draw once the
     // swap-chain restructure completes later in Phase 11d.
-    void    OnViewportBoundsChanged      (const RECT & boundsPx);
+    void    OnViewportBoundsChanged       (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
     // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
@@ -459,7 +459,7 @@ private:
 
     // The single mode the legacy toggle button displays: the pointer
     // mapping when active, else Joystick when the keys mapping is on.
-    InputMappingMode  DisplayInputMode() const
+    InputMappingMode  GetDisplayInputMode() const
     {
         return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
              : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
@@ -522,7 +522,7 @@ public:
     // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
     // this, so a persisted Mouse mode on a mouse-less machine is inert.
-    bool    GuestMouseActive       () const;
+    bool    IsGuestMouseActive     () const;
 
     // True when guest software has actually turned the mouse on: the
     // firmware's SETMOUSE programs ENBXY through the IOU for every active
@@ -530,7 +530,7 @@ public:
     // cannot fake. Gates the cursor-hide and button capture so the host
     // pointer never vanishes (or gets swallowed) while nothing mouse-aware
     // is running — which in turn makes Mouse mode safe to leave on.
-    bool    GuestMouseLive         () const;
+    bool    IsGuestMouseLive       () const;
 
     // Absolute host→guest mapping: the host position inside the emulator
     // viewport maps proportionally into the firmware's live clamp window
@@ -576,22 +576,22 @@ private:
     // path can call the shell without learning the manager.
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
-    const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
+    const std::wstring &  GetCurrentMachineName () const { return m_currentMachineName; }
 
     // One-line printer summary for the Settings > Printing info banner: what
     // printer this machine emulates and how it connects, or that it has none.
-    std::wstring  PrinterBannerMessage () const;
+    std::wstring  GetPrinterBannerMessage () const;
 
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
-    const Byte *  AuxRamBuffer() const;
+    const Byte *  GetAuxRamBuffer() const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
     // the post-CRT-effects pixel buffer the chrome composes on top of;
     // returning a raw pointer is safe because the chrome composition
     // pass runs synchronously after the framebuffer is published.
-    const uint32_t *  UiFramebufferPixels () const
+    const uint32_t *  GetUiFramebufferPixels () const
     {
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
@@ -600,7 +600,7 @@ private:
     // basename label with the actual filename of whatever disk image is
     // currently mounted in each drive (or an empty string if the drive
     // is empty). Index 0 is drive 1, index 1 is drive 2.
-    const std::wstring &  MountedImagePath (int driveIndex) const
+    const std::wstring &  GetMountedImagePath (int driveIndex) const
     {
         static const std::wstring  s_kEmpty;
 
@@ -616,7 +616,7 @@ private:
     // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
     // Used by the Settings → Theme preview so its sample drive shows the
     // padlock cue for whatever is actually mounted. Index 0 is drive 1.
-    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    WriteProtectInfo  GetDriveWriteProtect (int driveIndex) const
     {
         if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
         {
@@ -629,11 +629,11 @@ private:
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
-    const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
+    const std::wstring &  GetAssetBaseDir () const { return m_assetBaseDir; }
 
     // Per-machine pending-strip directory (FR-026):
     // <assetBase>/Machines/<current machine>/PendingPrint.
-    fs::path  PendingPrintDir () const
+    fs::path  GetPendingPrintDir () const
     {
         return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
     }
@@ -663,7 +663,7 @@ private:
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
-    HRESULT ApplyAndPersistTheme (const std::string & themeName);
+    HRESULT ApplyAndPersistTheme  (const std::string & themeName);
 
     // Activates the named theme LIVE (reskins the chrome via the
     // ThemeManager listener) WITHOUT persisting it to GlobalUserPrefs.
@@ -671,13 +671,13 @@ private:
     // user can preview a theme on the real chrome; a subsequent Cancel
     // re-activates the baseline theme, and OK persists via
     // ApplyAndPersistTheme. No-op if empty; falls back to Skeuomorphic.
-    HRESULT ApplyThemeLive       (const std::string & themeName);
+    HRESULT ApplyThemeLive        (const std::string & themeName);
 
     // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the
     // emulator pixel grid. Called from the ThemeManager listener.
-    void    ApplyThemeToChrome   (const CassoTheme & theme);
+    void    ApplyThemeToChrome    (const CassoTheme & theme);
 
     // Settings > Theme opt in/out for the CRT monitor. Applies live -- relays
     // out the chrome in place -- and persists to GlobalUserPrefs.
@@ -863,7 +863,7 @@ private:
     // Owner HWND for printer confirmation / notice message boxes: the preview
     // panel when it is open and visible (so the box centers on the dialog the
     // user is acting in), otherwise the main window.
-    HWND    PrinterDialogOwner () const;
+    HWND    GetPrinterDialogOwner () const;
 
     // Force-refresh the printer panel from the drain worker (race-free, without
     // stopping it): the panel snapshots and renders only its visible ~1-page
@@ -882,7 +882,7 @@ private:
     void    NotePrinterDeliveryResult (bool failed)
     {
         m_printerDeliveryError = failed;
-        m_printerErrorActivity = m_printerWorker.ActivityCount ();
+        m_printerErrorActivity = m_printerWorker.GetActivityCount ();
     }
 
     // Per-frame: auto-open the preview when a new print begins (activity resuming
@@ -1074,7 +1074,7 @@ private:
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu                    m_mainMenu;
-    CassoTheme                  m_chromeTheme = CassoTheme::Skeuomorphic();
+    CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
@@ -1258,7 +1258,7 @@ private:
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
-    // (The command toolbar band's thickness comes from m_toolbar.BandDp() --
+    // (The command toolbar band's thickness comes from m_toolbar.GetBandDp() --
     // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
@@ -1335,7 +1335,7 @@ private:
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
-    // silicon stays but GuestMouseActive() is false (no host input feeds
+    // silicon stays but IsGuestMouseActive() is false (no host input feeds
     // the device) and the input-mode cycle hides Mouse -- indistinguishable
     // from an unplugged DB-9 on real hardware.
     bool                     m_mouseConnected = true;

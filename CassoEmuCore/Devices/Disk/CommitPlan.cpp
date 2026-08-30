@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommitPlan::TemporaryPathFor
+//  CommitPlan::GetTemporaryPath
 //
 //  The temporary sits BESIDE the target -- same directory -- because an atomic
 //  replace cannot cross a volume boundary, and a temporary in the system's temp
@@ -32,7 +32,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommitPlan::TemporaryPathFor (
+std::string CommitPlan::GetTemporaryPath (
     const std::string & targetPath,
     uint64_t            invocationTag,
     unsigned            attempt)

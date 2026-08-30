@@ -64,7 +64,7 @@ void SettingsApplyController::SnapshotBaselines()
 
     if (m_state != nullptr)
     {
-        m_baselineColorMode = (int) m_state->Prefs().colorMode;
+        m_baselineColorMode = (int) m_state->GetPrefs().colorMode;
     }
     else
     {
@@ -200,7 +200,7 @@ bool SettingsApplyController::WillMachineChange() const
     // narrowing is a straight byte copy rather than a codepage conversion.
     if (!m_pendingMachine.empty() && m_emuShell != nullptr)
     {
-        current = m_emuShell->CurrentMachineName();
+        current = m_emuShell->GetCurrentMachineName();
         currentNarrow.reserve (current.size());
 
         for (wchar_t c : current)
@@ -270,14 +270,14 @@ void SettingsApplyController::CommitApply()
     hr = m_state->Apply (adapter, currentJson);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_ucs != nullptr && m_fs != nullptr && !m_state->MachineName().empty())
+    if (m_ucs != nullptr && m_fs != nullptr && !m_state->GetMachineName().empty())
     {
         // BuildJson rooted at the merged JSON includes the canonical
         // version stamp; SaveDelta diffs against the embedded default
         // so only user-changed keys persist.
-        hr = m_ucs->SaveDelta (m_state->MachineName(),
+        hr = m_ucs->SaveDelta (m_state->GetMachineName(),
                                 currentJson,
-                                m_state->DefaultJson(),
+                                m_state->GetDefaultJson(),
                                 *m_fs);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -335,7 +335,7 @@ void SettingsApplyController::CommitApply()
             }
             else
             {
-                hrSave = m_prefs->Save (m_emuShell->AssetBaseDir(), *m_fs);
+                hrSave = m_prefs->Save (m_emuShell->GetAssetBaseDir(), *m_fs);
             }
 
             IGNORE_RETURN_VALUE (hrSave, S_OK);
@@ -357,7 +357,7 @@ void SettingsApplyController::CommitApply()
         m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
 
-    m_baselineColorMode = (int) m_state->Prefs().colorMode;
+    m_baselineColorMode = (int) m_state->GetPrefs().colorMode;
 
     // Apply the staged theme BEFORE any machine switch so the chrome
     // is already in its final geometry when SwitchMachine triggers a
@@ -383,7 +383,7 @@ void SettingsApplyController::CommitApply()
     m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : m_baselineTheme;
     m_themeAppliedLive = false;
 
-    currentMachine = m_emuShell->CurrentMachineName();
+    currentMachine = m_emuShell->GetCurrentMachineName();
     currentMachineNarrow.reserve (currentMachine.size());
     for (wchar_t c : currentMachine)
     {
@@ -401,7 +401,7 @@ void SettingsApplyController::CommitApply()
         {
             m_catalog->DoMachineSelect (pendingMachine);
         }
-        else if (adapter.ResetQueued() && !currentMachineNarrow.empty())
+        else if (adapter.IsResetQueued() && !currentMachineNarrow.empty())
         {
             m_catalog->DoMachineSelect (currentMachineNarrow);
         }

@@ -55,7 +55,7 @@ struct DirectBootSpec
 //  stay the loader's for as long as anything is being read. $0300 through
 //  $03FF is the ROM's own decode table and secondary buffer, and $C000 up is
 //  not memory. That leaves $0900 to $BFFF, which is where a payload goes and
-//  what CapacityFor measures.
+//  what GetCapacity measures.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,8 +83,8 @@ public:
     //  that many bytes take on the disk. Zero for an address the boot path
     //  cannot load at, which is what makes an address outside the window a
     //  refusal of its own rather than a capacity of some odd size.
-    static size_t   CapacityFor      (Word loadAddress);
-    static size_t   SectorsNeededFor (Word loadAddress, size_t payloadBytes);
+    static size_t   GetCapacity      (Word loadAddress);
+    static size_t   GetSectorsNeeded (Word loadAddress, size_t payloadBytes);
 
     //  The complete 143,360-byte DOS-ordered sector buffer for the image, or
     //  a refusal naming one reason. All-or-nothing: outSectors is assigned

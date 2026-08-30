@@ -627,7 +627,7 @@ public:
 
     TEST_METHOD (APayloadTooLargeForTheBootPath_IsRefusedBeforeAnyDiskExists)
     {
-        std::vector<Byte>  payload (DirectBootBuilder::CapacityFor (kLoadAddress) + 1, 0xEA);
+        std::vector<Byte>  payload (DirectBootBuilder::GetCapacity (kLoadAddress) + 1, 0xEA);
         std::vector<Byte>  built;
         std::string        refusal;
         DirectBootSpec     spec;

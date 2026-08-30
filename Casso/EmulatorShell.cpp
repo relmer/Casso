@@ -318,7 +318,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     scaler.SetDpi (dpi);
     anchor = { 0, 0, 0, 0 };
     driveChrome[0].Layout (anchor, scaler);
-    probe   = driveChrome[0].OuterRect();
+    probe   = driveChrome[0].GetOuterRect();
     widgetW = probe.right  - probe.left;
     widgetH = probe.bottom - probe.top;
     totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
@@ -938,7 +938,7 @@ void EmulatorShell::RegisterChromeDock()
 {
     // Register the chrome bands + center with the dock layout once --
     // their thicknesses are refreshed from DPI + live drive-bar state
-    // on every ComputeViewportRect / ClientSizeForCenterPx call.
+    // on every ComputeViewportRect / GetClientSizeForCenterPx call.
     m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
     m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
     m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
@@ -1053,7 +1053,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
           m_globalPrefs = GlobalUserPrefs {});
 
 Error:
-    m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
+    m_chromeTheme = CassoTheme::MakeByName (m_globalPrefs.activeTheme);
     ApplyThemeToChrome (m_chromeTheme);
     return;
 }
@@ -2134,7 +2134,7 @@ void EmulatorShell::TickFullscreenToolbar()
                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
-    bandH = m_scaler.Px (m_toolbar.BandDp());
+    bandH = m_scaler.Px (m_toolbar.GetBandDp());
 
     if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
@@ -2445,7 +2445,7 @@ void EmulatorShell::LoadMachineUiPrefs (
     const JsonValue * & outUiPrefs)
 {
     HRESULT            hr                = S_OK;
-    std::string        machineNameNarrow = CurrentMachineNameNarrow();
+    std::string        machineNameNarrow = GetCurrentMachineNameNarrow();
     JsonValue          defaultJson;
     JsonParseError     parseErr;
     std::ifstream      configFile;
@@ -2622,7 +2622,7 @@ void EmulatorShell::RestoreInputAndColorPrefs()
                            ? InputMappingMode::Off
                            : m_globalPrefs.pointerMapping;
     m_globalPrefs.pointerMapping   = m_pointerMode;
-    m_globalPrefs.inputMappingMode = DisplayInputMode();
+    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
     SyncSelectorState();
 
     SetColorMonitorTextArgbLive (
@@ -2645,7 +2645,7 @@ void EmulatorShell::RestoreInputAndColorPrefs()
 
 void EmulatorShell::RecordActiveMachineSelection()
 {
-    std::string  narrow = CurrentMachineNameNarrow();
+    std::string  narrow = GetCurrentMachineNameNarrow();
 
 
 
@@ -2699,7 +2699,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // user re-picked the theme in Settings.
     m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
     {
-        m_chromeTheme = CassoTheme::ForName (t.name);
+        m_chromeTheme = CassoTheme::MakeByName (t.name);
         ApplyThemeToChrome (m_chromeTheme);
     });
 
@@ -2832,9 +2832,9 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetArray ("writeProtect", wpArr);
     if (SUCCEEDED (hrOpt) && wpArr != nullptr)
     {
-        for (size_t wi = 0; wi < wpArr->ArraySize() && wi < m_userWriteProtect.size(); ++wi)
+        for (size_t wi = 0; wi < wpArr->GetArraySize() && wi < m_userWriteProtect.size(); ++wi)
         {
-            const JsonValue &  entry = wpArr->ArrayAt (wi);
+            const JsonValue &  entry = wpArr->GetArrayElement (wi);
 
             if (entry.GetType() == JsonType::Bool)
             {
@@ -2933,10 +2933,10 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_uiShell.HitTest().Clear();
         if (fHasDisk)
         {
-            m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+            m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
             if (ShouldShowExternalDrive())
             {
-                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
     }
@@ -3125,11 +3125,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CurrentMachineNameNarrow
+//  GetCurrentMachineNameNarrow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::CurrentMachineNameNarrow() const
+std::string EmulatorShell::GetCurrentMachineNameNarrow() const
 {
     std::string  narrow;
 
@@ -3267,7 +3267,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_scaler.SetDpi (dpi);
 
     {
-        SIZE  client = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
+        SIZE  client = GetClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
 
         clientW = (int) client.cx;
         clientH = (int) client.cy;
@@ -3962,7 +3962,7 @@ void EmulatorShell::SyncChromeBands()
 
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_toolbar.BandDp()) });
+    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_toolbar.GetBandDp()) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (switchBandDp) });
 }
@@ -4017,7 +4017,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::EmulatorContentScreenRect
+//  EmulatorShell::GetEmulatorContentScreenRect
 //
 //  The emulator IMAGE rect in screen pixels, for the Settings live-preview
 //  compositor's see-through reveal (#8). Answered from the renderer's cache
@@ -4030,7 +4030,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT EmulatorShell::EmulatorContentScreenRect()
+RECT EmulatorShell::GetEmulatorContentScreenRect()
 {
     return m_d3dRenderer.GetEmulatorContentScreenRect();
 }
@@ -4185,7 +4185,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ClientSizeForCenterPx
+//  EmulatorShell::GetClientSizeForCenterPx
 //
 //  Inverse of ComputeViewportRect: given a desired center (emulator
 //  viewport) size in physical pixels, return the client size that hosts
@@ -4193,7 +4193,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
+SIZE EmulatorShell::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
     IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand };
 
@@ -4210,7 +4210,7 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ClientSizeForFramebufferPx
+//  EmulatorShell::GetClientSizeForFramebufferPx
 //
 //  Framebuffer scale policy: linear DPI scaling. The Apple ][ pixel grid
 //  (given in DIPs) scales at the same rate as the chrome dp, so the
@@ -4219,7 +4219,7 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
+SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
 {
     SIZE  client         = {};
     int   framebufferWpx = m_scaler.Px (framebufferWidthDp);
@@ -4243,12 +4243,12 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
-        client             = ClientSizeForCenterPx (center.cx, center.cy);
+        client             = GetClientSizeForCenterPx (center.cx, center.cy);
         m_chromeSceneScale = savedScale;
     }
     else
     {
-        client = ClientSizeForCenterPx (framebufferWpx, framebufferHpx);
+        client = GetClientSizeForCenterPx (framebufferWpx, framebufferHpx);
     }
 
     return client;
@@ -4319,7 +4319,7 @@ void EmulatorShell::ReconcileInitialClientSize()
 
     m_initialSizeReconciled = true;
 
-    desired         = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
+    desired         = GetClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
     desiredClientW  = (int) desired.cx;
     desiredClientH  = (int) desired.cy;
 
@@ -4674,7 +4674,7 @@ void EmulatorShell::BrowseForDisk (int drive)
 
     pSt = &m_driveWidgetState[drive];
 
-    // The time base MUST match DiskManager::NowMs (steady_clock ms):
+    // The time base MUST match DiskManager::GetNowMs (steady_clock ms):
     // TickDoorAnimation diffs the current frame time against
     // animationStartTimeMs. An empty drive rests with its door already
     // Open, so StartDoorTransition is a no-op there.
@@ -5061,7 +5061,7 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
 
     dlg.SetTheme (&m_chromeTheme);
 
-    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 
 Error:
     return result;
@@ -5424,7 +5424,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
     dlg.SetTheme (&m_chromeTheme);
 
-    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 
 Error:
     return result;
@@ -5525,7 +5525,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
     if (canResize)
     {
-        SIZE  newClient   = ClientSizeForCenterPx (centerW, centerH);
+        SIZE  newClient   = GetClientSizeForCenterPx (centerW, centerH);
         int   ncOverheadH = (rcWindow.bottom - rcWindow.top) - (rcClient.bottom - rcClient.top);
         int   ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
         int   newWindowW  = (int) newClient.cx + ncOverheadW;
@@ -5830,7 +5830,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // Scale the form-feed sound by how much of the current page will
             // feed to the tear bar (less unused -> shorter feed -> shorter
             // grain). A page that just wrapped feeds a full sheet (unused ~1).
-            rowsOnPage = m_printerWorker.RowsUsed() % PrinterGrid::kPageRows;
+            rowsOnPage = m_printerWorker.GetRowsUsed() % PrinterGrid::kPageRows;
             unused = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
             m_printerAudio.PlayFormFeed (unused);
 
@@ -5875,7 +5875,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PrinterDialogOwner
+//  EmulatorShell::GetPrinterDialogOwner
 //
 //  Owner HWND for the printer's confirmation / notice boxes. When the preview
 //  panel is open the user is acting inside it (its Finish / Copy / Discard
@@ -5886,7 +5886,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HWND EmulatorShell::PrinterDialogOwner() const
+HWND EmulatorShell::GetPrinterDialogOwner() const
 {
     HWND  owner       = m_hwnd;
     bool  panelIsUp   = m_printerPanel != nullptr
@@ -6036,17 +6036,17 @@ void EmulatorShell::UpdatePrinterStatus()
     // the user has moved on (Error outranks Receiving in the model, so a
     // stale latch would otherwise mask the live print).
     if (m_printerDeliveryError &&
-        m_printerWorker.ActivityCount() != m_printerErrorActivity)
+        m_printerWorker.GetActivityCount() != m_printerErrorActivity)
     {
         m_printerDeliveryError = false;
     }
 
-    m_printerStatus.Update (m_printerWorker.ActivityCount(),
+    m_printerStatus.Update (m_printerWorker.GetActivityCount(),
                             (double) nowMs,
                             m_printerWorker.HasContent(),
                             m_printerDeliveryError);
 
-    status = m_printerStatus.Status();
+    status = m_printerStatus.GetStatus();
 
     // The toolbar's printer button carries the status light (DCR-2); repaint
     // only when the LED state actually changes.
@@ -6085,7 +6085,7 @@ void EmulatorShell::UpdatePrinterPreview()
 
     BAIL_OUT_IF (m_refs.printerCard == nullptr, S_OK);   // machine has no printer card
 
-    activity = m_printerWorker.ActivityCount();
+    activity = m_printerWorker.GetActivityCount();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                    std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -6257,7 +6257,7 @@ void EmulatorShell::SyncSwitchBarState()
 
     for (const DriveWidget & drive : m_driveChrome)
     {
-        diskOn = diskOn || (drive.Led() == LedState::Active);
+        diskOn = diskOn || (drive.GetLed() == LedState::Active);
     }
 
     m_switchBar.SetDiskActive (diskOn);
@@ -6270,11 +6270,11 @@ void EmulatorShell::SyncSwitchBarState()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::AuxRamBuffer
+//  EmulatorShell::GetAuxRamBuffer
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Byte * EmulatorShell::AuxRamBuffer() const
+const Byte * EmulatorShell::GetAuxRamBuffer() const
 {
     return m_machineManager != nullptr ? m_machineManager->GetAuxRamBuffer() : nullptr;
 }
@@ -6426,7 +6426,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     if (menuIsOpen)
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
-        int   openIdx   = (int) m_mainMenu.OpenMenu();
+        int   openIdx   = (int) m_mainMenu.GetOpenMenu();
 
         m_mainMenu.HandleKey (vk);
 
@@ -6438,7 +6438,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
             // stranding focus on a title the user never Tab'd to.
             if (ringOwned)
             {
-                SetChromeFocusIndex ((int) m_mainMenu.OpenMenu());
+                SetChromeFocusIndex ((int) m_mainMenu.GetOpenMenu());
             }
         }
         else if (exitVk && ringOwned)
@@ -6495,11 +6495,11 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
         }
         else if (index == s_kChromeFocusDrive0)
         {
-            BrowseForDisk (m_driveChrome[0].Drive());
+            BrowseForDisk (m_driveChrome[0].GetDrive());
         }
         else if (index == s_kChromeFocusDrive1)
         {
-            BrowseForDisk (m_driveChrome[1].Drive());
+            BrowseForDisk (m_driveChrome[1].GetDrive());
         }
     }
 
@@ -7068,7 +7068,7 @@ bool EmulatorShell::TryPresentUiFrame()
         // summon the strip -- Active gated the reveal off for the whole
         // session on a machine whose mouse is built in.
         inputs.guestPointer  = m_paddleCaptured    ? GuestPointerMode::Paddle
-                             : GuestMouseLive()    ? GuestPointerMode::Mouse
+                             : IsGuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
 
@@ -7894,7 +7894,7 @@ void EmulatorShell::RunCpuThreadFrame()
         modeSig     = ComputeVideoModeSig();
         flashOn     = ComputeFlashOn();
         colorSig    = ComputeColorSig();
-        needsRender = m_memoryBus.VideoDirty()
+        needsRender = m_memoryBus.IsVideoDirty()
                       || modeSig  != m_lastRenderModeSig
                       || flashOn  != m_lastRenderFlashOn
                       || colorSig != m_lastRenderColorSig;
@@ -8532,16 +8532,16 @@ void EmulatorShell::OnDestroy()
     // sidecar. Loss on abnormal termination is acceptable per the spec.
     if (!m_currentMachineName.empty())
     {
-        PrinterJob *   printJob = m_printerWorker.Job();
+        PrinterJob *   printJob = m_printerWorker.GetJob();
 
         if (printJob != nullptr && printJob->HasContent())
         {
-            HRESULT   hrSave = PrintJobStore::Save (PendingPrintDir(), printJob->Raster());
+            HRESULT   hrSave = PrintJobStore::Save (GetPendingPrintDir(), printJob->GetRaster());
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
         else
         {
-            PrintJobStore::Clear (PendingPrintDir());
+            PrintJobStore::Clear (GetPendingPrintDir());
         }
     }
 
@@ -8700,7 +8700,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // drives the guest mouse via absolute mapping. Deliberately falls
     // through to normal routing — the viewport has no chrome, and moves
     // outside it (menu bar, drive band) behave exactly as before.
-    if (GuestMouseActive())
+    if (IsGuestMouseActive())
     {
         UpdateGuestMouseFromHost (x, y);
     }
@@ -8710,7 +8710,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // write-protected drive under the pointer so the WP tooltip can show.
     for (DriveWidget & drive : m_driveChrome)
     {
-        RECT  outer  = drive.OuterRect();
+        RECT  outer  = drive.GetOuterRect();
         bool  inside = x >= outer.left && x < outer.right &&
                        y >= outer.top  && y < outer.bottom;
 
@@ -8739,7 +8739,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     {
         // Per-segment tooltip: each device explains its own mapping.
         m_joystickTooltip.RequestShow (m_joystickButton.Bounds(),
-                                       m_joystickButton.TooltipTextAt (x, y), nowMs);
+                                       m_joystickButton.GetTooltipTextAt (x, y), nowMs);
     }
     else
     {
@@ -8755,7 +8755,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     {
         RECT             anchor = {};
-        const wchar_t *  tip    = m_toolbar.TooltipAt (x, y, anchor);
+        const wchar_t *  tip    = m_toolbar.GetTooltipAt (x, y, anchor);
 
         if (tip != nullptr)
         {
@@ -8771,7 +8771,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // keyboard). Inert on non-//c machines (hidden).
     if (IsApple2c())
     {
-        const wchar_t * tip = m_switchBar.TooltipTextAt (x, y);
+        const wchar_t * tip = m_switchBar.GetTooltipTextAt (x, y);
 
         m_switchBar.SetHovered    (m_switchBar.HitTest (x, y));
         m_switchBar.SetHoverPoint (x, y);
@@ -8855,10 +8855,10 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr && !overBtn)
         {
             std::wstring  imageName = std::filesystem::path (
-                m_diskStore.GetSourcePath (6, wpDrive->Drive())).filename().wstring();
+                m_diskStore.GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
 
-            anchor = wpDrive->OuterRect();
-            tip    = ComposeWriteProtectTooltip (wpDrive->Drive() + 1, imageName, wpDrive->WriteProtect());
+            anchor = wpDrive->GetOuterRect();
+            tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
         }
 
         if (!tip.empty())
@@ -8932,11 +8932,11 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestMouseActive
+//  IsGuestMouseActive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GuestMouseActive() const
+bool EmulatorShell::IsGuestMouseActive() const
 {
     // The fullscreen drive strip's hotkey summon "releases" the guest mouse
     // for the interaction; the FSM restores it when the strip hides.
@@ -8950,7 +8950,7 @@ bool EmulatorShell::GuestMouseActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestMouseLive
+//  IsGuestMouseLive
 //
 //  "Mouse-aware software is actually running", so Mouse mode stays invisible
 //  at a BASIC prompt: hardware truth (the IOU's own interrupt enables, which
@@ -8967,10 +8967,10 @@ bool EmulatorShell::GuestMouseActive() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GuestMouseLive() const
+bool EmulatorShell::IsGuestMouseLive() const
 {
-    return GuestMouseActive() &&
-           (m_mouse->XyInterruptsEnabled() || m_mouse->VblInterruptsEnabled());
+    return IsGuestMouseActive() &&
+           (m_mouse->AreXyInterruptsEnabled() || m_mouse->AreVblInterruptsEnabled());
 }
 
 
@@ -9003,7 +9003,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     const RECT & vp        = m_viewportBoundsPx;
     int          vpW       = vp.right  - vp.left;
     int          vpH       = vp.bottom - vp.top;
-    bool         isLive    = GuestMouseLive() && vpW > 1 && vpH > 1;
+    bool         isLive    = IsGuestMouseLive() && vpW > 1 && vpH > 1;
     uint16_t     fx        = 0;
     uint16_t     fy        = 0;
     bool         isInside  = xPx >= vp.left && xPx < vp.right &&
@@ -9075,11 +9075,11 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 
 
     // Only hide the cursor once guest software has turned the mouse on
-    // (GuestMouseLive) -- over a BASIC prompt or a non-mouse game the guest
+    // (IsGuestMouseLive) -- over a BASIC prompt or a non-mouse game the guest
     // draws no pointer, so hiding the host cursor would just look broken.
     // Short-circuit order matters: the cursor is only read once that holds.
     overGuest = hitTest == HTCLIENT
-                && GuestMouseLive()
+                && IsGuestMouseLive()
                 && GetCursorPos (&pt)
                 && ScreenToClient (m_hwnd, &pt);
 
@@ -9546,7 +9546,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             // one-finger drag then is someone pointing, and the promotion to
             // mouse input is exactly what has to keep happening.
             if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
-                GuestMouseLive())
+                IsGuestMouseLive())
             {
                 break;
             }
@@ -9614,7 +9614,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 //  varies on it, and the message is always reported as not fully handled so
 //  the default processing still runs.
 //
-//  The guest mouse button is gated on GuestMouseLive rather than merely
+//  The guest mouse button is gated on IsGuestMouseLive rather than merely
 //  active -- guest software must have turned the mouse ON -- so a click at a
 //  BASIC prompt is not silently swallowed by a device nobody is reading.
 //
@@ -9688,7 +9688,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     if (IsApple2c())
     {
-        Apple2cSwitchBar::Part  part = m_switchBar.PartAt (x, y);
+        Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
 
         m_switchBar.SetPressedPart (part);
 
@@ -9708,7 +9708,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Chrome outside the display already had its chance above. With the
     // desk scene, "over the display" means over the curved glass itself
     // (release stays deliberately ungated, matching the 2D contract).
-    if (GuestMouseLive())
+    if (IsGuestMouseLive())
     {
         bool  overDisplay = false;
 
@@ -9768,7 +9768,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // the only other thing a press on the scene begins, and which would
     // otherwise swallow the gesture.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
-        && !GuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
+        && !IsGuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
         SceneHitResult  hit = DeskSceneHit (x, y);
 
@@ -9810,7 +9810,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // on that alone armed a turn under the command buttons, and the release
     // that would have fired them ended the turn instead.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-        !m_mainMenu.IsOpen() && !GuestMouseLive() &&
+        !m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
         PointInSceneRect (x, y) && !chromeTook)
     {
         SceneHitResult  hit    = DeskSceneHit (x, y);
@@ -9967,7 +9967,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // release over a part. Captured before the pressed-part is cleared.
     if (IsApple2c())
     {
-        switchPart = m_switchBar.PartAt (x, y);
+        switchPart = m_switchBar.GetPartAt (x, y);
         m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
     }
 
@@ -9991,7 +9991,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     if (onModeButton)
     {
-        switch (m_joystickButton.SegmentAt (x, y))
+        switch (m_joystickButton.GetSegmentAt (x, y))
         {
             case InputDeviceSelector::Segment::Joystick:
                 ToggleInputMappingMode (InputMappingMode::Joystick);
@@ -10056,15 +10056,15 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             if (region == DriveWidgetRegion::Body)
             {
-                BrowseForDisk (drive.Drive());
+                BrowseForDisk (drive.GetDrive());
                 driveTook = true;
                 break;
             }
 
             if (region == DriveWidgetRegion::Eject)
             {
-                Eject (6, drive.Drive());
-                BrowseForDisk (drive.Drive());
+                Eject (6, drive.GetDrive());
+                BrowseForDisk (drive.GetDrive());
                 driveTook = true;
                 break;
             }
@@ -10093,7 +10093,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // //c Mouse mode: any left-release drops the guest mouse button --
     // unconditionally (not viewport-gated), so a press inside the viewport
     // released outside it can never leave the guest button stuck.
-    if (GuestMouseActive())
+    if (IsGuestMouseActive())
     {
         m_mouse->SetButton (false);
     }
@@ -10332,7 +10332,7 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 
     // Client size for the minimum center: the chrome-band dock adds the
     // live title / nav / drive-bar insets around the requested viewport.
-    minClient = ClientSizeForCenterPx (m_scaler.Px (s_kMinCenterWidthDp),
+    minClient = GetClientSizeForCenterPx (m_scaler.Px (s_kMinCenterWidthDp),
                                        m_scaler.Px (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
@@ -10788,7 +10788,7 @@ static bool HostKeyboardLayoutIsDvorak()
 //  The Char path feeds MapTypedChar so the //c keyboard switch can remap to
 //  Dvorak. The host's own layout is probed live and pushed in, so a host that
 //  is ALREADY Dvorak skips the remap instead of translating twice. Clipboard
-//  paste bypasses this path entirely and calls KeyPress directly -- pasted
+//  paste bypasses this path entirely and calls PressKey directly -- pasted
 //  text is never remapped, matching the hardware encoder.
 //
 //  Always returns true: nothing here bubbles back to the framework, since the
@@ -10839,7 +10839,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
             if (appleCode != 0)
             {
-                m_refs.keyboard->KeyPress (appleCode);
+                m_refs.keyboard->PressKey (appleCode);
                 m_refs.keyboard->BeginKeyRepeat (appleCode);
             }
         }
@@ -10908,7 +10908,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // switch is engaged. A no-op on the //e, when the switch is out, and
             // when the HOST layout is already Dvorak (the shell feeds that live
             // so MapTypedChar can skip the remap and avoid double-translating).
-            // Clipboard paste feeds KeyPress directly (not this path), so pasted
+            // Clipboard paste feeds PressKey directly (not this path), so pasted
             // text is never remapped -- matching the hardware encoder.
             Byte  code = static_cast<Byte> (ch);
 
@@ -10919,7 +10919,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
                 code = m_refs.iieKeyboard->MapTypedChar (code);
             }
 
-            m_refs.keyboard->KeyPress (code);
+            m_refs.keyboard->PressKey (code);
             m_refs.keyboard->BeginKeyRepeat (code);
         }
     }
@@ -11330,7 +11330,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 void EmulatorShell::SyncInputModeUi()
 {
-    m_globalPrefs.inputMappingMode = DisplayInputMode();
+    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
     SyncSelectorState();
     RelayoutJoystickButton();
     SaveGlobalPrefs();
@@ -11427,7 +11427,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
 void EmulatorShell::CycleInputMappingMode()
 {
     InputMappingMode  next    = InputMappingMode::Off;
-    InputMappingMode  current = DisplayInputMode();
+    InputMappingMode  current = GetDisplayInputMode();
 
 
 
@@ -12009,10 +12009,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_uiShell.HitTest().Clear();
                 if (fHasDisk)
                 {
-                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
                     if (ShouldShowExternalDrive())
                     {
-                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
                     }
                 }
             }
@@ -12195,7 +12195,7 @@ void EmulatorShell::UpdateWindowTitle()
     // timestamp) so a window is never mistaken for a stale rebuild. Same " - "
     // separator the machine name uses, so the caption reads as one list.
     title += L" - ";
-    title += CassoBuildInfo();
+    title += GetCassoBuildInfo();
 #endif
 
     m_host->SetTitle (title);
@@ -12210,7 +12210,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterBannerMessage
+//  GetPrinterBannerMessage
 //
 //  One-line printer summary for the Settings > Printing info banner. The
 //  machine-can-print fact comes from the config's enabled slots (core, tested);
@@ -12218,7 +12218,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::PrinterBannerMessage() const
+std::wstring EmulatorShell::GetPrinterBannerMessage() const
 {
     std::wstring  message;
 

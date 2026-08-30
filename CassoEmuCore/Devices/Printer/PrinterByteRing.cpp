@@ -111,7 +111,7 @@ uint32_t PrinterByteRing::Drain (Byte * out, uint32_t maxCount) noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApproxSize
+//  GetApproxSize
 //
 //  Advisory diagnostic. The result may be stale by the time the caller uses
 //  it; both indices are read relaxed because no synchronization decision
@@ -119,7 +119,7 @@ uint32_t PrinterByteRing::Drain (Byte * out, uint32_t maxCount) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t PrinterByteRing::ApproxSize() const noexcept
+uint32_t PrinterByteRing::GetApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);
@@ -135,7 +135,7 @@ uint32_t PrinterByteRing::ApproxSize() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FreeSpace
+//  GetFreeBytes
 //
 //  Producer-side (CPU thread) free-slot count feeding the card's ready bit.
 //  The consumer head is read with acquire so slots freed by a recent drain
@@ -144,7 +144,7 @@ uint32_t PrinterByteRing::ApproxSize() const noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t PrinterByteRing::FreeSpace() const noexcept
+uint32_t PrinterByteRing::GetFreeBytes() const noexcept
 {
     uint32_t  tail     = m_tail.load (std::memory_order_relaxed);
     uint32_t  head     = m_head.load (std::memory_order_acquire);

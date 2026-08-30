@@ -317,7 +317,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         previewScaler.SetDpi (effectiveDpi);
         previewDrives[0].Layout (previewAnchor, previewScaler);
 
-        probe = previewDrives[0].OuterRect();
+        probe = previewDrives[0].GetOuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
         totalW = widgetW * 2 + gap;
@@ -496,9 +496,9 @@ float ThemePage::StopForSamples (int samples)
 
 void ThemePage::UpdateCrtMonitorCheckboxEnabled()
 {
-    std::string  selected = SelectedThemeId();
+    std::string  selected = GetSelectedThemeId();
     bool         isSkeuo  = !selected.empty()
-                            && !CassoTheme::ForName (selected).compactDrives;
+                            && !CassoTheme::MakeByName (selected).compactDrives;
 
 
 
@@ -511,11 +511,11 @@ void ThemePage::UpdateCrtMonitorCheckboxEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::SelectedThemeId
+//  ThemePage::GetSelectedThemeId
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ThemePage::SelectedThemeId() const
+std::string ThemePage::GetSelectedThemeId() const
 {
     bool  hasSelection = (m_activeIndex >= 0 && m_activeIndex < (int) m_themeIds.size());
 
@@ -810,7 +810,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
         m_previewRect.bottom > m_previewRect.top &&
         previewIndex >= 0 && previewIndex < (int) m_themeIds.size())
     {
-        CassoTheme  preview = CassoTheme::ForName (m_themeIds[(size_t) previewIndex]);
+        CassoTheme  preview = CassoTheme::MakeByName (m_themeIds[(size_t) previewIndex]);
         bool        hasDisk = false;
 
         if (!m_previewDrivesInitialized)

@@ -53,7 +53,7 @@ public:
     void SoftReset () override;
 
     // Called from EmulatorShell when a key event arrives (UI thread)
-    void KeyPress (Byte asciiChar);
+    void PressKey (Byte asciiChar);
 
     // Check if the strobe is clear (CPU has consumed the previous key)
     bool IsStrobeClear () const { return (m_latchedKey.load (memory_order_acquire) & 0x80) == 0; }
@@ -114,7 +114,7 @@ private:
     void EmitKbdStrobe   (Word address, Byte value, bool clearedStrobe);
 
     // m_latchedKey bit 7 = strobe (new key available).  Atomic because
-    // KeyPress is called from the UI thread while Read is called from
+    // PressKey is called from the UI thread while Read is called from
     // the CPU thread.
     atomic<Byte>   m_latchedKey{0};
     atomic<bool>   m_anyKeyDown{false};
@@ -131,7 +131,7 @@ protected:
     // Input Debug panel sink (null when no panel is open). Plain pointer
     // per the Disk2 event-sink convention; written on the UI thread,
     // read on the CPU thread.
-    IInputEventSink * InputSink () const noexcept { return m_inputSink; }
+    IInputEventSink * GetInputSink () const noexcept { return m_inputSink; }
 
 private:
     IInputEventSink * m_inputSink = nullptr;
