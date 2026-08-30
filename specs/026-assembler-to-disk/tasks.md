@@ -26,7 +26,7 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 **Purpose**: A trustworthy baseline before anything changes.
 
 - [x] T001 Establish a green baseline: run `scripts\Build.ps1` then `scripts\RunTests.ps1 -Build` for x64 Debug, and record the passing test count so later runs are compared against a real number rather than an impression
-      Baseline was 4224 at the start of the feature; the suite stands at 4282 with everything below in it.
+      Baseline was 4224 at the start of the feature; the suite stands at 4284 with everything below in it.
 - [x] T002 Confirm `git config --get core.hooksPath` returns `.githooks` in this worktree so the style gate runs on push, per `scripts\Build.ps1`'s self-enabling behavior
       Confirmed: it returns the repository .githooks, so the style gate runs on push from this worktree.
 
@@ -195,7 +195,16 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 - [x] T078 Run `scripts\Build.ps1 -RunCodeAnalysis` and resolve to zero warnings. Do this on a clean rebuild — analysis over a stale Release build fabricates LNK4020 noise
 - [x] T079 Run `scripts\CheckStyle.ps1 -Mode Staged` before the first commit containing any new file, since diff mode cannot see a file that has never been committed and will report OK while checking nothing
 - [x] T080 Run the full suite in **Debug** (`scripts\RunTests.ps1 -Build`) and compare the count against T001's baseline. Release runs a different set and verifies no assertion behavior, so it is not a substitute for the gate
-- [ ] T081 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
+- [x] T081 Walk [quickstart.md](quickstart.md) end to end against a real build, including booting the Scenario 5 disk in the emulator — the only step that actually proves the startup program works
+      Walked against a Debug build, Scenarios 1 through 6, including booting the
+      Scenario 5 disk: it boots ProDOS 1.0.1 and the assembled startup program
+      runs, an A standing at the top left where its loop stores into $0400.
+      Three corrections came out of it, all recorded in quickstart.md: a failed
+      assembly exits 3 rather than the 2 the page claimed, a ProDOS SYS file
+      lists with aux=$0000 by design, and an image mounted in a running emulator
+      is NOT held, so the write succeeds rather than being refused.
+      It also found the one shipped defect this feature had: every refusal on
+      the disk path was silent. Fixed, with tests that assert what a reader sees.
 - [x] T082 Add a dialect-parity test to `UnitTest/AssemblerToDiskTests.cpp` driving the SAME image target through both `as65` and `merlin` and asserting identical placement (FR-003). The capability belongs to the assembler and the directives only feed it, so a dialect must not be required to have directives to reach it — nothing else in this list would catch that guarantee decaying
 - [x] T083 Add a no-image-target regression test (FR-016, SC-006) against checked-in expected artifacts rather than a self-comparison. Assert the assembled bytes are identical with NO allowance, and the listing identical line for line, allowing only the file division and destination this feature introduced. Everything else here tests new behavior; this is the only task watching the old behavior
 

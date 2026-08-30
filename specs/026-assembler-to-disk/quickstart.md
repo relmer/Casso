@@ -78,10 +78,23 @@ This said exit 2, and 2 is the wrong number: it is the file-open failure. A
 source that will not assemble is 3, which is what the tool returns and what the
 help page documents. Walked and confirmed: 0 of 143,360 bytes differ.
 
-Repeat with the image open in a running emulator.
+Repeat with the image mounted in a running emulator.
 
-**Expected**: refused, naming the image, and unchanged. `DiskImageSession`
-already words this one.
+**Expected**: it SUCCEEDS, and this step said it would be refused. Walked and
+measured: with `Casso.exe --disk1 boot.dsk` running, an assembly onto that image
+returns 0 and writes 27 bytes, and an exclusive open of the file from a third
+process succeeds too. The emulator does not hold a handle on a mounted image —
+it reads the bytes in and closes the file — so there is nothing for the
+held-by-another-program refusal to detect. That refusal is real and `DiskImageSession`
+words it properly; it fires when something genuinely holds the file, which a
+running Casso does not.
+
+**What actually happens is worth knowing and is not a refusal.** The emulator
+keeps its own copy of the image, so a file assembled onto the disk under it is
+not visible to the running guest until the disk is re-inserted, and a guest that
+writes and then ejects saves its copy over what was assembled. That is a real
+trap in exactly the build loop this feature exists to serve, and it belongs to
+the mounted-image story rather than to this one.
 
 ## Scenario 3 — Merlin source that names its own output (User Story 2, P2)
 
@@ -298,6 +311,15 @@ booting it:
 ```bash
 Casso.exe --disk1 boot.dsk
 ```
+
+**Walked and confirmed.** A source at `$2000` whose loop stores `$C1` into
+`$0400` was assembled with the line above; the disk boots ProDOS 1.0.1 and an
+`A` stands in the top-left corner of the text screen, which is that store and
+nothing else. The catalog lists `PROG.SYSTEM` as `$FF` ahead of
+`BASIC.SYSTEM`, which is what makes ProDOS run it.
+
+`--startup` with no `--disk` is refused: "describes a file on a volume, and no
+image was named".
 
 Then the refusals: `--startup` with no `--disk` (FR-023), and `--startup` naming
 a file the volume's operating system would not actually run (FR-022).
