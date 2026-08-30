@@ -203,6 +203,28 @@ namespace MerlinSaveObjectTests
 
 
 
+        //  A type belongs to the output it precedes, not to the assembly.
+        //
+        //  THIS WAS WRONG AND ONLY AN END-TO-END RUN SHOWED IT. The directive
+        //  was handled in the pass that sizes lines, so the last type the
+        //  source stated reached back and retyped every earlier output too --
+        //  invisible with one output, which is all the tests had.
+        TEST_METHOD (AFileTypeAppliesOnlyToTheOutputItPrecedes)
+        {
+            AssemblyResult  result = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV LOADER\n"
+                                                        " ORG $6000\n LDA #$22\n RTS\n TYP $04\n SAV MAIN\n");
+
+            Assert::AreEqual ((size_t) 2, result.savePoints.size(), L"two outputs");
+
+            Assert::IsFalse (result.savePoints[0].hasFileType,
+                             L"nothing stated a type before the first save");
+            Assert::IsTrue (result.savePoints[1].hasFileType,
+                            L"and the second output has the one stated above it");
+            Assert::AreEqual ((int) 0x04, (int) result.savePoints[1].fileType, L"which is the type given");
+        }
+
+
+
         //  Three saves, to show the cutting is not a two-case special.
         TEST_METHOD (ThreeSavesProduceThreeOutputsEachHoldingItsOwnSpan)
         {

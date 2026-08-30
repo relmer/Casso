@@ -4828,40 +4828,74 @@ HRESULT AssemblySession::HandlePass1SaveObject (const PendingLine & current, Lin
 
 HRESULT AssemblySession::HandlePass1FileType (const PendingLine & current, LineInfo & info)
 {
-    HRESULT     hr        = S_OK;
-    std::string arg       = StripCommentAndTrim (info.parsed.directiveArg);
-    bool        hasArg    = !arg.empty();
-    bool        inRange   = false;
-    ExprResult  er;
+    HRESULT      hr     = S_OK;
+    std::string  arg    = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg = !arg.empty();
 
 
 
+    //  Only that it names something. WHICH type it names is settled in pass 2,
+    //  where the type has to take effect at the point in the byte stream the
+    //  line sits at rather than for the whole assembly.
     if (!hasArg)
     {
         RecordError (current.sourceLineNumber, info.parsed.directive + " names no file type");
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitFileType
+//
+//  The filesystem type, taking effect where the line sits.
+//
+//  IN PASS 2 BECAUSE THE TYPE BELONGS TO AN OUTPUT rather than to the assembly.
+//  Setting it in pass 1 gives every output the last type the source stated,
+//  which is wrong the moment a source produces more than one: a type named
+//  before the second save would reach back and retype the first as well.
+//
+//  A value that will not fit in a byte is refused rather than truncated. The
+//  low byte of a wrong answer is still a wrong answer, and it would file the
+//  object under a type nobody asked for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitFileType (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr      = S_OK;
+    std::string  arg     = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg  = !arg.empty();
+    bool         inRange = false;
+    ExprResult   er;
+
+
+
+    (void) emitPC;
+
     BAIL_OUT_IF (!hasArg, S_OK);
 
-    m_pass1Ctx.currentPC = (int32_t) m_pc;
-    er                   = ExpressionEvaluator::Evaluate (arg, m_pass1Ctx);
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+    er                   = ExpressionEvaluator::Evaluate (arg, m_pass2Ctx);
 
     if (!er.success)
     {
-        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+        RecordErrorAt (m_lastSourceLine, info.parsed.operandColumn,
                        info.parsed.directive + " expression must be resolvable: " + er.error);
     }
 
     BAIL_OUT_IF (!er.success, S_OK);
 
-    //  A file type is one byte. A larger value is a source that means something
-    //  this directive cannot express, and taking the low byte of it would file
-    //  the object under a type nobody asked for.
     inRange = (er.value >= 0) && (er.value <= 0xFF);
 
     if (!inRange)
     {
-        RecordErrorAt (current.sourceLineNumber, info.parsed.operandColumn,
+        RecordErrorAt (m_lastSourceLine, info.parsed.operandColumn,
                        info.parsed.directive + " takes a one-byte file type");
     }
 
@@ -5247,7 +5281,7 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::Relocatable,     nullptr,                                  nullptr                                  },
     { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
     { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
-    { Directive::FileType,        &AssemblySession::HandlePass1FileType,    nullptr                                  },
+    { Directive::FileType,        &AssemblySession::HandlePass1FileType,    &AssemblySession::EmitFileType           },
     { Directive::SaveObject,      &AssemblySession::HandlePass1SaveObject,  &AssemblySession::EmitSaveObject         },
     };
 

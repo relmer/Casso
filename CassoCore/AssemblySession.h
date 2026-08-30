@@ -217,6 +217,7 @@ private:
     HRESULT HandlePass1FileType        (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1SaveObject      (const PendingLine & current, LineInfo & info);
+    HRESULT EmitFileType               (const LineInfo & info, Word & emitPC);
     HRESULT EmitObjectFile             (const LineInfo & info, Word & emitPC);
     HRESULT EmitSaveObject             (const LineInfo & info, Word & emitPC);
 
