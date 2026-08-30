@@ -46,7 +46,15 @@ these generators emit, but a depth buffer (like the real D3D renderer's)
 resolves them exactly.
 
 After regenerating, copy the OBJ/MTL pair over the checked-in copy under
-`Resources/Models/<Name>/`.
+`Resources/Models/<Name>/`. Nothing else is needed: the Casso build runs
+`MeshBake` over every model there and embeds the baked result.
+
+**The app never parses this text.** It reads `MeshBake`'s output, which is the
+same triangle list packed with shared positions and one color per material.
+The Monitor II is 1.3 million lines of OBJ, and re-reading them at every launch
+was most of Casso's startup, 15.6 seconds of a 17.7 second Debug start. Adding
+a model means naming its directory in the `BakedMesh` list in
+`Casso/Casso.vcxproj` and adding its `RCDATA` line to `Casso.rc`.
 
 ## CAD models
 

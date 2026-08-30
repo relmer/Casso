@@ -65,9 +65,9 @@ void DeskScene::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
-                               const std::string  & monitorObj, const std::string & monitorMtl,
-                               const std::string  & driveObj,   const std::string & driveMtl)
+HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
+                               std::span<const uint8_t>   monitorMesh,
+                               std::span<const uint8_t>   driveMesh)
 {
     DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
                                 ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
@@ -75,7 +75,7 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
 
 
 
-    hr = m_monitor.Load (monitorKind, monitorObj, monitorMtl);
+    hr = m_monitor.Load (monitorKind, monitorMesh);
     CHRA (hr);
 
     StartupTrace::Stamp ("          monitor DeskSceneModel::Load (OBJ parse)");
@@ -83,7 +83,7 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
     // them here beats making every caller say it twice and disagree once.
-    hr = m_drive.Load (driveKind, driveObj, driveMtl);
+    hr = m_drive.Load (driveKind, driveMesh);
     CHRA (hr);
 
     StartupTrace::Stamp ("          drive DeskSceneModel::Load (OBJ parse)");

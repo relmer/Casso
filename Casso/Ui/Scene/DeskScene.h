@@ -47,9 +47,9 @@ public:
     // `monitorKind` selects which monitor is being loaded, which decides
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
-    HRESULT  LoadModels (DeskDeviceKind       monitorKind,
-                         const std::string  & monitorObj, const std::string & monitorMtl,
-                         const std::string  & driveObj,   const std::string & driveMtl);
+    HRESULT  LoadModels (DeskDeviceKind             monitorKind,
+                         std::span<const uint8_t>   monitorMesh,
+                         std::span<const uint8_t>   driveMesh);
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different

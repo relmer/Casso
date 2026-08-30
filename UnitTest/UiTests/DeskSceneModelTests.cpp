@@ -2,6 +2,8 @@
 #include "../EhmTestHelper.h"
 
 #include "Ui/Chrome/DriveWidget.h"
+#include "Devices/Printer/MeshBlob.h"
+#include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -31,6 +33,48 @@ static constexpr float   s_kGlassX1    = 219.0f;
 static constexpr float   s_kGlassZ0    = 77.0f;
 static constexpr float   s_kGlassZ1    = 197.0f;
 static constexpr float   s_kGlassBaseY = 6.0f;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadFromText
+//
+//  DeskSceneModel loads a BAKED blob now, and these fixtures stay written as
+//  OBJ text because that is the form a person can read and edit. Baking each
+//  one here keeps the fixtures legible and, incidentally, puts every case
+//  below through the same pack and unpack the build performs on the shipping
+//  models.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT LoadFromText (DeskSceneModel    & model,
+                             DeskDeviceKind      kind,
+                             const std::string & obj,
+                             const std::string & mtl)
+{
+    std::vector<ObjTriangle>   triangles;
+    std::vector<std::string>   names;
+    std::vector<uint8_t>       blob;
+    HRESULT                    hr = S_OK;
+
+
+
+    hr = ObjMeshParser::Parse (obj, mtl, triangles, names);
+    CHR (hr);
+
+    hr = MeshBlob::Write (triangles, names, blob);
+    CHR (hr);
+
+    hr = model.Load (kind, blob);
+
+Error:
+    return hr;
+}
+
+
 
 
 TEST_CLASS (DeskSceneModelTests)
@@ -185,7 +229,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
         Assert::IsTrue  (model.HasGlass());
 
         {
@@ -213,7 +257,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
 
         for (const Dxui3DRenderer::Vertex & v : model.GlassVerts())
         {
@@ -237,7 +281,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::Monitor2c, MonitorObj(), Mtl()));
         Assert::IsFalse (model.GlassVerts().empty());
 
         for (const Dxui3DRenderer::Vertex & v : model.GlassVerts())
@@ -258,7 +302,7 @@ public:
 
         // Two guards fire: BuildGlassSurface's empty-glass check and Load's
         // CHRA on the propagated failure.
-        AssertFailed (model.Load (DeskDeviceKind::Monitor2c, MonitorObj (false), Mtl()));
+        AssertFailed (LoadFromText (model, DeskDeviceKind::Monitor2c, MonitorObj (false), Mtl()));
         expect.RequireCount (2);
     }
 
@@ -268,7 +312,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.HasGlass());
         Assert::IsFalse (model.LampVerts().empty());
         Assert::AreEqual ((size_t) 1, model.Lamps().size());
@@ -326,9 +370,9 @@ public:
             float            footMin[2]   = {};
             float            footMax[2]   = {};
 
-            AssertSucceeded (model.Load (kind,
-                                         (kind == DeskDeviceKind::Monitor2c) ? MonitorObj() : DriveObj(),
-                                         Mtl()));
+            AssertSucceeded (LoadFromText (model, kind,
+                                          (kind == DeskDeviceKind::Monitor2c) ? MonitorObj() : DriveObj(),
+                                          Mtl()));
 
             model.BoundsMin    (boundsMin);
             model.BoundsMax    (boundsMax);
@@ -397,7 +441,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.DoorVerts().empty());
 
         // The pole is the CANTILEVER's center, a fixed point inside the drive
@@ -428,7 +472,7 @@ public:
 
 
 
-        AssertFailed (model.Load (DeskDeviceKind::DiskII, DriveObj (false), Mtl()));
+        AssertFailed (LoadFromText (model, DeskDeviceKind::DiskII, DriveObj (false), Mtl()));
         expect.RequireCount (1);
     }
 
@@ -558,7 +602,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         model.DoorPivot (pivotY, pivotZ);
 
         DeskSceneModel::RotateDoorVerts (model.DoorVerts(), pivotY, pivotZ,
@@ -606,7 +650,7 @@ public:
         {
             DeskSceneModel   model;
 
-            AssertSucceeded (model.Load (kind, DriveObj(), Mtl()));
+            AssertSucceeded (LoadFromText (model, kind, DriveObj(), Mtl()));
             Assert::IsTrue (model.PadlockVerts().empty());
 
             for (const DeskRegionBox & box : model.RegionBoxes())
@@ -631,7 +675,7 @@ public:
 
 
 
-        AssertSucceeded (model.Load (DeskDeviceKind::DiskII, DriveObj(), Mtl()));
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::DiskII, DriveObj(), Mtl()));
         Assert::IsFalse (model.OpaqueVerts().empty());
 
         const std::vector<Dxui3DRenderer::Vertex> & verts = model.OpaqueVerts();

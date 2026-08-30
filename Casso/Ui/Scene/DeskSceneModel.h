@@ -152,7 +152,7 @@ class DeskSceneModel
 public:
     // Parses and splits the OBJ/MTL text. Monitor2c must carry exactly one
     // valid spherical-sag glass sheet; DiskII must carry its activity lamp.
-    HRESULT  Load (DeskDeviceKind kind, const std::string & objText, const std::string & mtlText);
+    HRESULT  Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob);
 
     DeskDeviceKind                                Kind         () const { return m_kind; }
     bool                                          HasGlass     () const { return !m_glass.empty(); }

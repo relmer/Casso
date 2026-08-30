@@ -48,6 +48,12 @@ public:
     // same path.
     static std::string  LoadTextResource (int resourceId);
 
+    // The same ladder for a BINARY resource, handed back as a view rather
+    // than a copy. The baked meshes are tens of megabytes and the reader
+    // only walks them, so copying one into a vector first would be the
+    // largest allocation in startup and would buy nothing.
+    static std::span<const uint8_t>  LoadBinaryResource (int resourceId);
+
     using ActionFn = std::function<void ()>;
 
     PrinterPanel  ();

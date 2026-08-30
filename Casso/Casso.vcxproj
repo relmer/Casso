@@ -214,7 +214,7 @@
        truth (all configs). -->
   <ItemDefinitionGroup>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\CassoCore;$(IntDir)Models;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -439,6 +439,41 @@
       <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
+  <!--
+    BakeMeshes: OBJ text in Resources/Models, baked blobs in $(IntDir)Models.
+
+    The app must not parse a modeling tool's text export at launch. The
+    Monitor II alone is 1.3 million lines of it, and re-reading them was most
+    of Casso's startup time.
+
+    MeshBake is invoked as x64 WHATEVER this project's platform is, because it
+    runs on the build machine rather than on the target. An ARM64 build on an
+    x64 host cannot execute an ARM64 tool, so building the tool for the target
+    would break exactly the cross-compile it is supposed to serve.
+
+    Inputs/Outputs give MSBuild the incrementality: an untouched model is not
+    re-baked. When a model DOES change, Casso.rc is touched, because the
+    resource compiler tracks the .rc file and not the RCDATA payloads it
+    names, so without that the build would embed the previous blob.
+  -->
+  <ItemGroup>
+    <BakedMesh Include="Monitor2" />
+    <BakedMesh Include="Monitor2c" />
+    <BakedMesh Include="DiskII" />
+    <BakedMesh Include="Disk2c" />
+    <BakedMesh Include="DuoDisk" />
+    <BakedMesh Include="ImageWriterII" />
+  </ItemGroup>
+  <Target Name="BakeMeshes"
+          BeforeTargets="ResourceCompile"
+          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl')"
+          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
+    <MSBuild Projects="..\MeshBake\MeshBake.vcxproj"
+             Properties="Configuration=$(Configuration);Platform=x64" />
+    <MakeDir Directories="$(IntDir)Models" />
+    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)\MeshBake.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
+    <Touch Files="Casso.rc" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -1515,24 +1515,22 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     // asked about its name. The drives still follow the machine, because a
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
-    HRESULT              hr         = S_OK;
-    bool                 isC        = IsApple2c();
-    const MonitorSpec &  monitor    = ResolveMonitorForCurrentMachine();
-    std::string          monitorObj = PrinterPanel::LoadTextResource (monitor.objResourceId);
-    std::string          monitorMtl = PrinterPanel::LoadTextResource (monitor.mtlResourceId);
-    std::string          driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ : IDR_MODEL_DISKII_OBJ);
-    std::string          driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL : IDR_MODEL_DISKII_MTL);
-    bool                 haveText   = false;
+    HRESULT                    hr          = S_OK;
+    bool                       isC         = IsApple2c();
+    const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
+    std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
+    std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
+                                                                                   : IDR_MODEL_DISKII_MESH);
+    bool                       haveMeshes  = false;
 
 
 
     StartupTrace::Stamp ("        LoadTextResource x4 (obj/mtl text)");
 
-    haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
-    CBRA (haveText);
+    haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
+    CBRA (haveMeshes);
 
-    hr = m_deskScene.LoadModels (monitor.sceneKind,
-                                 monitorObj, monitorMtl, driveObj, driveMtl);
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh);
     CHRA (hr);
 
     StartupTrace::Stamp ("        DeskScene::LoadModels TOTAL");

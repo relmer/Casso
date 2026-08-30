@@ -40,8 +40,7 @@ struct MonitorSpec
 {
     std::string_view  configName;      // as written in a machine's `monitor` key
     DeskDeviceKind    sceneKind;
-    int               objResourceId;
-    int               mtlResourceId;
+    int               meshResourceId;  // the baked mesh, built by MeshBake
     ColorMode         phosphor;        // what this tube actually glows
 };
 
@@ -49,11 +48,11 @@ struct MonitorSpec
 inline constexpr MonitorSpec s_kMonitors[] =
 {
     // The Apple Monitor II (A2M2010): the beige 12-inch, a P1 green tube.
-    { "MonitorII",  DeskDeviceKind::Monitor2,  IDR_MODEL_MONITOR2_OBJ,  IDR_MODEL_MONITOR2_MTL,  ColorMode::GreenMono },
+    { "MonitorII",  DeskDeviceKind::Monitor2,  IDR_MODEL_MONITOR2_MESH,  ColorMode::GreenMono },
 
     // The Monitor //c (A2M4090): the platinum 9-inch that shipped with the
     // //c, green as well.
-    { "MonitorIIc", DeskDeviceKind::Monitor2c, IDR_MODEL_MONITOR2C_OBJ, IDR_MODEL_MONITOR2C_MTL, ColorMode::GreenMono },
+    { "MonitorIIc", DeskDeviceKind::Monitor2c, IDR_MODEL_MONITOR2C_MESH, ColorMode::GreenMono },
 };
 
 

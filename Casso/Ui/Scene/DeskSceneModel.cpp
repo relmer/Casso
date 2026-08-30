@@ -3,6 +3,7 @@
 
 #include "Ui/Scene/DeskSceneModel.h"
 
+#include "Devices/Printer/MeshBlob.h"
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Chrome/CassoBranding.h"
 #include "Ui/Chrome/DriveWidget.h"
@@ -444,7 +445,7 @@ void DeskSceneModel::AppendFlatTri (std::vector<Dxui3DRenderer::Vertex> & out, c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, const std::string & mtlText)
+HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob)
 {
     HRESULT                    hr        = S_OK;
     std::vector<ObjTriangle>   triangles;
@@ -486,10 +487,10 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     StartupTrace::Stamp ("            (model Load entry)");
 
-    hr = ObjMeshParser::Parse (objText, mtlText, triangles, materialNames);
+    hr = MeshBlob::Read (meshBlob, triangles, materialNames);
     CHRA (hr);
 
-    StartupTrace::Stamp ("            ObjMeshParser::Parse (text -> triangles)");
+    StartupTrace::Stamp ("            MeshBlob::Read (blob -> triangles)");
 
     // Move the room's ceiling lights into this model's own coordinates so
     // the per-face bake needs no transform: the model's x-center rests on
