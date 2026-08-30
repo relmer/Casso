@@ -285,6 +285,20 @@
     hand fxc /Od /Zi there and quietly make the Debug scene a slower
     renderer than the one this replaced.
   -->
+  <!--
+    Shader debugging, OFF by default in every configuration.
+
+    Build with /p:CassoShaderDebug=true to get fxc /Od /Zi, which is what
+    PIX and RenderDoc need to step HLSL and show live values. It is not the
+    default because it is expensive where it hurts: the desk scene pixel
+    shader goes from 1407 to 3597 instruction slots, 2.56x the per-pixel
+    work, at 4x MSAA across the whole window. D3DCompile was called with
+    default flags, so Debug has always run optimized shaders, and turning
+    that around silently would have made the Debug scene the slow one.
+  -->
+  <PropertyGroup>
+    <CassoShaderDebug Condition="'$(CassoShaderDebug)' == ''">false</CassoShaderDebug>
+  </PropertyGroup>
   <ItemGroup>
     <FxCompile Include="Render\Shaders\Painter.vs.hlsl">
       <ShaderType>Vertex</ShaderType>
@@ -294,8 +308,8 @@
       <HeaderFileOutput>$(IntDir)Shaders\Painter.vs.h</HeaderFileOutput>
       <ObjectFileOutput>
       </ObjectFileOutput>
-      <DisableOptimizations>false</DisableOptimizations>
-      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
     <FxCompile Include="Render\Shaders\Painter.ps.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -305,8 +319,8 @@
       <HeaderFileOutput>$(IntDir)Shaders\Painter.ps.h</HeaderFileOutput>
       <ObjectFileOutput>
       </ObjectFileOutput>
-      <DisableOptimizations>false</DisableOptimizations>
-      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
     <FxCompile Include="Render\Shaders\Scene.vs.hlsl">
       <ShaderType>Vertex</ShaderType>
@@ -316,8 +330,8 @@
       <HeaderFileOutput>$(IntDir)Shaders\Scene.vs.h</HeaderFileOutput>
       <ObjectFileOutput>
       </ObjectFileOutput>
-      <DisableOptimizations>false</DisableOptimizations>
-      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
     <FxCompile Include="Render\Shaders\Scene.ps.hlsl">
       <ShaderType>Pixel</ShaderType>
@@ -327,8 +341,8 @@
       <HeaderFileOutput>$(IntDir)Shaders\Scene.ps.h</HeaderFileOutput>
       <ObjectFileOutput>
       </ObjectFileOutput>
-      <DisableOptimizations>false</DisableOptimizations>
-      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
     </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

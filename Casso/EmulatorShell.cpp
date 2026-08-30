@@ -959,36 +959,60 @@ HRESULT EmulatorShell::Initialize (
     // memory, so D3D allocations land in system RAM and show up in the
     // working set alongside everything else.
     {
-        PROCESS_MEMORY_COUNTERS_EX   pmc = {};
-        ComPtr<IDXGIDevice>          dxgiDevice;
-        ComPtr<IDXGIAdapter>         adapter;
-        ComPtr<IDXGIAdapter3>        adapter3;
+        PROCESS_MEMORY_COUNTERS_EX     pmc        = {};
+        ComPtr<IDXGIDevice>            dxgiDevice;
+        ComPtr<IDXGIAdapter>           adapter;
+        ComPtr<IDXGIAdapter3>          adapter3;
+        DXGI_QUERY_VIDEO_MEMORY_INFO   local      = {};
+        DXGI_QUERY_VIDEO_MEMORY_INFO   nonLocal   = {};
+        HRESULT                        hrDxgi     = E_FAIL;
+        HRESULT                        hrAdapter  = E_FAIL;
+        HRESULT                        hrAdapter3 = E_FAIL;
+        HRESULT                        hrLocal    = E_FAIL;
+        HRESULT                        hrNonLocal = E_FAIL;
+        BOOL                           gotProcess = FALSE;
 
-        if (GetProcessMemoryInfo (GetCurrentProcess(),
-                                  reinterpret_cast<PROCESS_MEMORY_COUNTERS *> (&pmc),
-                                  sizeof (pmc)))
+
+
+        gotProcess = GetProcessMemoryInfo (GetCurrentProcess(),
+                                           reinterpret_cast<PROCESS_MEMORY_COUNTERS *> (&pmc),
+                                           sizeof (pmc));
+
+        if (gotProcess)
         {
-            StartupTrace::Count ("process working set",  (long long) pmc.WorkingSetSize);
+            StartupTrace::Count ("process working set",   (long long) pmc.WorkingSetSize);
             StartupTrace::Count ("process private bytes", (long long) pmc.PrivateUsage);
         }
 
-        if (m_host != nullptr && m_host->GetDevice() != nullptr
-            && SUCCEEDED (m_host->GetDevice()->QueryInterface (IID_PPV_ARGS (&dxgiDevice)))
-            && SUCCEEDED (dxgiDevice->GetAdapter (adapter.GetAddressOf()))
-            && SUCCEEDED (adapter.As (&adapter3)))
+        if (m_host != nullptr && m_host->GetDevice() != nullptr)
         {
-            DXGI_QUERY_VIDEO_MEMORY_INFO   local    = {};
-            DXGI_QUERY_VIDEO_MEMORY_INFO   nonLocal = {};
+            hrDxgi = m_host->GetDevice()->QueryInterface (IID_PPV_ARGS (&dxgiDevice));
+        }
 
-            if (SUCCEEDED (adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local)))
-            {
-                StartupTrace::Count ("D3D local segment usage", (long long) local.CurrentUsage);
-            }
+        if (SUCCEEDED (hrDxgi))
+        {
+            hrAdapter = dxgiDevice->GetAdapter (adapter.GetAddressOf());
+        }
 
-            if (SUCCEEDED (adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocal)))
-            {
-                StartupTrace::Count ("D3D non-local segment usage", (long long) nonLocal.CurrentUsage);
-            }
+        if (SUCCEEDED (hrAdapter))
+        {
+            hrAdapter3 = adapter.As (&adapter3);
+        }
+
+        if (SUCCEEDED (hrAdapter3))
+        {
+            hrLocal    = adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local);
+            hrNonLocal = adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocal);
+        }
+
+        if (SUCCEEDED (hrLocal))
+        {
+            StartupTrace::Count ("D3D local segment usage", (long long) local.CurrentUsage);
+        }
+
+        if (SUCCEEDED (hrNonLocal))
+        {
+            StartupTrace::Count ("D3D non-local segment usage", (long long) nonLocal.CurrentUsage);
         }
 
         m_deskScene.ReportGeometryBytes();
