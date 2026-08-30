@@ -326,6 +326,8 @@ bool CpuManager::HasPendingCommands()
 {
     std::lock_guard<std::mutex>  lock (m_cmdMutex);
 
+
+
     return !m_commandQueue.empty();
 }
 

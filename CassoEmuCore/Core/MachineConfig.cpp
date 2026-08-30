@@ -633,6 +633,8 @@ void MachineConfigLoader::ParsePorts (
     const JsonValue * portsArray = nullptr;
     HRESULT           hrPorts    = owner.GetArray ("ports", portsArray);
 
+
+
     IGNORE_RETURN_VALUE (hrPorts, S_OK);
 
     if (portsArray == nullptr)

@@ -88,6 +88,8 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
     float            dir[3]          = {};
     float            bestT           = FLT_MAX;
 
+
+
     // The monitor's placement, tilt and all. The caller hands one in when the
     // bezel has moved, because the tube and its marks travel with it -- test
     // them against where they were drawn, not against where the untilted

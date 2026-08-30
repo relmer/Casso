@@ -106,6 +106,7 @@ public:
         return m_drive.DoorBoundsAt (std::clamp (m_doorProgress[drive], 0.0f, 1.0f),
                                      outMin, outMax);
     }
+
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
     // The measured metrics DeskSceneLayout composes with.

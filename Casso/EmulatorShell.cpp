@@ -1651,12 +1651,14 @@ Error:
 
 SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 {
-    float          tiltWorld[16]                       = {};
-    float          monLo[3]                             = {};
-    float          monHi[3]                             = {};
-    float          drvLo[3]                             = {};
-    float          drvHi[3]                             = {};
-    DeskRegionBox  doorBoxes[s_kSceneDriveMax]         = {};
+    float          tiltWorld[16]               = {};
+    float          monLo[3]                    = {};
+    float          monHi[3]                    = {};
+    float          drvLo[3]                    = {};
+    float          drvHi[3]                    = {};
+    DeskRegionBox  doorBoxes[s_kSceneDriveMax] = {};
+
+
 
     m_deskScene.BuildTiltedMonitorWorld (m_deskScene.Composition(), tiltWorld);
     m_deskScene.MonitorModel().BoundsMin (monLo);
@@ -1731,6 +1733,8 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
     float          drvLo[3]                     = {};
     float          drvHi[3]                     = {};
     DeskRegionBox  doorBoxes[s_kSceneDriveMax]  = {};
+
+
 
     m_deskScene.DriveModel().BoundsMin (drvLo);
     m_deskScene.DriveModel().BoundsMax (drvHi);
@@ -1862,6 +1866,8 @@ void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
     float  cy     = 0.0f;
     float  before = m_sceneView.zoom;
     float  k      = 1.0f;
+
+
 
     if (width <= 0.0f || height <= 0.0f)
     {

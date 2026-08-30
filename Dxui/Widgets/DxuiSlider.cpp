@@ -345,6 +345,8 @@ bool DxuiSlider::OnMouseMove (int x, int y)
 {
     bool  isDragging = m_dragging;
 
+
+
     if (isDragging)
     {
         ApplyValueWithStep (ValueFromPoint (x, y), DragStep());

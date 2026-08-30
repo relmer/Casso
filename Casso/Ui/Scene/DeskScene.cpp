@@ -337,6 +337,8 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
     Dxui3DRenderer::Lighting   lighting;
     float                      toModel[16] = {};
 
+
+
     // Where the fixtures are for THIS device, solved from its placement
     // rather than assumed. The model used to carry its own copy, offset by
     // its own x-center, which quietly lit every device as though it stood on
@@ -812,6 +814,8 @@ void DeskScene::BuildGlassSheen (const CurvedDisplaySurface & surface, float til
     float   eye[3] = { cx, apexY - kSheenEyeMm, cz };
     float   lgt[3] = { kSheenLight[0], kSheenLight[1], kSheenLight[2] };
 
+
+
     // THE ROOM DOES NOT TILT WITH THE TUBE. These verts ride the tilted
     // transform at draw time, so anything built here in model space turns
     // with the glass -- including, before this, the light and the viewer,
@@ -986,6 +990,8 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
         }
     };
 
+
+
     lo[0] = lo[1] = lo[2] =  FLT_MAX;
     hi[0] = hi[1] = hi[2] = -FLT_MAX;
 
@@ -1023,6 +1029,7 @@ HRESULT DeskScene::FillLampShadow (const DeskSceneModel       & model,
     float            proj[16] = {};
     float            eye[3]   = {};
     float            at[3]    = {};
+
 
 
     {
@@ -1104,6 +1111,7 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
     float    hi[3]     = {};
     float    center[3] = {};
     float    radius    = 0.0f;
+
 
 
     m_shadowsReady = false;
@@ -1371,6 +1379,8 @@ void DeskScene::BuildLampGlow (const DeskSceneModel                & model,
 {
     constexpr int  kBandCount = (int) (sizeof (kGlowProfile) / sizeof (kGlowProfile[0]));
 
+
+
     out.clear();
 
     if (model.Lamps().empty() ||
@@ -1495,6 +1505,8 @@ void DeskScene::BuildContactShadow (const DeskSceneModel                & model,
     float   boundsMin[3] = {};
     float   lo[2]        = {};
     float   hi[2]        = {};
+
+
 
     out.clear();
 

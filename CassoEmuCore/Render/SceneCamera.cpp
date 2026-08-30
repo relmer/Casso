@@ -75,6 +75,8 @@ void SceneCamera::LookAtRH (const float eye[3], const float at[3], float out[16]
 {
     const float   up[3] = { 0.0f, 1.0f, 0.0f };
 
+
+
     LookAtUpRH (eye, at, up, out);
 }
 
@@ -106,6 +108,8 @@ void SceneCamera::LookAtUpRH (const float eye[3], const float at[3],
     float   x[3] = {};
     float   xl   = 0.0f;
     float   y[3] = {};
+
+
 
     z[0] /= zl; z[1] /= zl; z[2] /= zl;
 

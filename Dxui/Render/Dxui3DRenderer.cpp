@@ -1570,6 +1570,7 @@ HRESULT Dxui3DRenderer::DrawStatic (StaticMesh           & mesh,
     ID3D11DepthStencilState  * depthState = m_depthState.Get();
 
 
+
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
 
@@ -1643,6 +1644,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     UINT                      stride         = sizeof (Vertex);
     UINT                      offset         = 0;
     float                     blendFactor[4] = {};
+
 
 
     CBREx (vertexBuffer != nullptr, E_UNEXPECTED);

@@ -1229,6 +1229,8 @@ void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 {
     constexpr int  s_kSegments = 20;
 
+
+
     for (int i = 0; i < s_kSegments; i++)
     {
         float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;

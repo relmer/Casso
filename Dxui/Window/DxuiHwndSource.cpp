@@ -3627,6 +3627,8 @@ bool DxuiHwndSource::NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest)
                      hitTest == HTLEFT       || hitTest == HTRIGHT  ||
                      hitTest == HTBOTTOMLEFT || hitTest == HTBOTTOM || hitTest == HTBOTTOMRIGHT;
 
+
+
     return !(resizable && isResize);
 }
 

@@ -112,6 +112,7 @@ void DeskSceneLayout::SolveStandoffTilted (const float   sceneMin[3],
     float   cosG  = std::cos (gazeDownRad);
 
 
+
     for (int corner = 0; corner < 8; corner++)
     {
         float   qx    = (corner & 1) ? sceneMax[0] : sceneMin[0];

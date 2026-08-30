@@ -117,9 +117,24 @@ HRESULT ObjMeshParser::Parse (const std::string        & objText,
 {
     std::vector<std::string>   names;
 
+
+
     return Parse (objText, mtlText, outTriangles, names);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObjMeshParser::Parse
+//
+//  The overload that also hands back the material NAMES, which is what lets a
+//  caller sort triangles by the part they belong to rather than by color
+//  alone -- two parts sharing a finish are one color and two different names.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ObjMeshParser::Parse (const std::string         & objText,
                               const std::string         & mtlText,
@@ -244,6 +259,8 @@ const std::string & ObjMeshParser::MaterialName (
     const std::vector<std::string> & names)
 {
     static const std::string  s_kNone;
+
+
 
     if (tri.material < 0 || (size_t) tri.material >= names.size())
     {

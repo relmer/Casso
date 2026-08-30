@@ -1095,6 +1095,8 @@ void DeskSceneModel::BuildSmoothMask (std::vector<Dxui3DRenderer::Vertex> & out,
     const int    span  = (int) std::ceil (smoothCells + 1.0f);
     const float  ny    = lit ? -1.0f : 0.0f;
 
+
+
     std::vector<float>                 field ((size_t) fh * fw, 0.0f);
     std::vector<std::vector<float>>    cross ((size_t) fh);
 
@@ -1250,6 +1252,8 @@ void DeskSceneModel::BuildBrandSolid (float leftMm, float topZMm, float heightMm
 {
     constexpr float  kRollMm = 0.14f;    // how far down the top edge rolls
 
+
+
     std::vector<uint8_t>  mask;
     std::vector<float>    rgb;
 
@@ -1298,6 +1302,8 @@ void DeskSceneModel::BuildRelief (std::vector<Dxui3DRenderer::Vertex> & out,
 {
     const int    kSuper   = superSample;
     const float  kSmoothR = smoothCells;
+
+
 
     const int    fw     = gridW * kSuper;
     const int    fh     = gridH * kSuper;
@@ -1868,6 +1874,8 @@ void DeskSceneModel::SlideDoorVerts (const std::vector<Dxui3DRenderer::Vertex> &
     float   dy    = 0.0f;
     float   dz    = 0.0f;
 
+
+
     if (here <= runY)
     {
         dy = here;
@@ -2001,6 +2009,8 @@ void DeskSceneModel::BuildInUseStamp()
     float               topZ = s_kInUseLampZ + (float) kInUseMaskRows * cell * 0.5f;
     std::vector<float>  ink ((size_t) kInUseMaskRows * 3);
 
+
+
     for (int row = 0; row < kInUseMaskRows; row++)
     {
         ink[(size_t) row * 3 + 0] = s_kFaceInkRgb[0];
@@ -2054,6 +2064,8 @@ void DeskSceneModel::BuildWordmarkStamp()
     constexpr int    kRefine = 3;
     constexpr int    kSuper  = 2;
     constexpr int    kErode  = 2;
+
+
 
     const int             cols     = s_kWordmarkCols * kRefine;
     const int             rows     = s_kWordmarkRows * kRefine;
@@ -2148,6 +2160,8 @@ void DeskSceneModel::StampFaceMask (std::vector<Dxui3DRenderer::Vertex> & out,
                                     bool                                  lit)
 {
     float  ny = lit ? -1.0f : 0.0f;   // a zero normal is what means unlit
+
+
 
     for (int row = 0; row < rowCount; row++)
     {
