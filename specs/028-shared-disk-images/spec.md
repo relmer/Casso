@@ -62,7 +62,9 @@ hand.
 
 **Why this priority**: This is the loop the whole disk-writing capability exists
 to serve, and today it appears not to work at all. It is also the case that
-loses nothing, so it can ship on its own and be worth having.
+discards no image FILE, so it can ship on its own — with the one caveat its
+phase records: a guest write meeting an external change is held in memory rather
+than preserved to disk until Story 2 lands.
 
 **Independent test**: Mount a disk, assemble a changed program onto it from a
 second process, and confirm the guest can load the new version without any
@@ -422,7 +424,11 @@ configuration: each write carries its own answer.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
   detection, measured IN ONE BUILD by comparing a session with a watched image
-  WATCHED against one with the same image mounted and watching disabled -- the state a directory that cannot be watched already produces -- in **Release** over three runs of five minutes: p99 frame time within 2% and audio underruns per minute no higher. **No off-switch is being added**, so
+  watched against one with the same image mounted and watching disabled -- the
+  state an unwatchable directory already produces. **Release**, three runs of five
+  minutes: p99 frame time within 2%, and audio underruns per minute within one
+  event of the not-watching arm. A zero-tolerance bar on a stochastic metric would
+  fail on noise. **No off-switch is being added**, so
   a criterion written as "the same session with it disabled" would describe a
   measurement nobody can perform -- and a cross-build comparison is worse still
   on this hardware, where clock variation between runs swamps the signal.

@@ -98,7 +98,7 @@ unnecessary, and a sidecar alone buys nothing while adding staleness and cleanup
 A named pipe is more machinery than lossy metadata warrants and needs instance
 discovery.
 
-### The pick-up rides the motor-spindown hook that already exists
+### The pick-up rides spindown OR an idle tick, both on the CPU thread
 
 `Disk2Controller::SetMotorOffFlushCallback` fires on the CPU thread at the exact
 moment the motor spins down -- after an operation completes and about a second
@@ -156,6 +156,8 @@ CassoEmuCore/Devices/Disk/
 ├── IImageWatcher.h             # NEW: seam, notice a file changing
 ├── MountedImageState.h/.cpp    # NEW: per-mount identity + pending change
 ├── ExternalChangePolicy.h/.cpp # NEW: intent, fallback, what to do
+├── ChangePrompt.h/.cpp         # NEW: composes every question this asks,
+│                               # kept out of the policy for the same reason
 ├── PreservedCopy.h/.cpp        # NEW: backup naming and writing, kept out
 │                               # of MountedImageState so it stays one job
 ├── Win32ImageWatcher.h/.cpp    # NEW: ReadDirectoryChangesW shim, IN CORE
