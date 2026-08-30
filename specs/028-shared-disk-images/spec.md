@@ -41,6 +41,16 @@ programs and belongs to neither. The disk manager (spec 021) will need the same
 guarantees the moment it edits a mounted disk live, and should build on what
 this delivers rather than inventing a second answer.
 
+## Clarifications
+
+### Session 2026-08-30
+
+- Q: How should the preserved (not-kept) version of a conflicted disk image be named and placed? -> A: Timestamped beside the original, e.g. PROG.20260830-014233.dsk
+- Q: How should the emulator treat a burst of changes from a multi-command build? -> A: Coalesce on a quiet period after the last write, then act once
+- Q: What should happen when the image is deleted or replaced with something unusable? -> A: Refuse the change and keep running, then offer to save the in-memory disk to a backup, since it may now be the only copy
+- Q: How should a pick-up be reported? -> A: A non-modal banner carrying a Restart action, which stays until acted on, absorbs further changes while it stands, and acts on the MOST RECENT contents
+- Q: What if the preserved copy cannot be written? -> A: Refuse the action that would discard a version, keep both live, and offer another location
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The build loop shows what was just built (Priority: P1)
@@ -127,13 +137,23 @@ refuses, waits, or otherwise does not write into the same bytes.
 
 ### Edge Cases
 
-- The image is deleted or renamed while mounted.
+- The image is deleted or renamed while mounted, leaving the emulator holding
+  the only copy of that disk.
 - The image is replaced with a file of a different format, or with something
   that is not a disk image at all.
 - The image is replaced with a valid image of a DIFFERENT size or geometry.
+- The image becomes unusable and the user declines to save the in-memory copy,
+  then the file reappears in a usable state.
 - The external change arrives while the guest is mid-write to the same disk.
-- Several changes arrive in quick succession, as a build script writing twice
-  in a second would produce.
+- A build script writing the image several times in a row, where the machine
+  would otherwise restart on the first and be mid-boot when the last arrives.
+- A change arriving after the quiet period elapsed but before the emulator has
+  finished acting on the previous one.
+- Several builds completing while the user is away from the emulator, so a
+  report stands unacted-on across all of them.
+- The image becoming unusable while a report from an earlier change still
+  stands.
+- A writer that holds the image far longer than the quiet period.
 - The image sits on a network share or a synchronizing folder, where change
   notification and timestamps are less trustworthy.
 - Two emulator instances mount the same image.
@@ -142,9 +162,12 @@ refuses, waits, or otherwise does not write into the same bytes.
   cached structure describes bytes that are no longer there.
 - The guest writes to the disk shortly after a pick-up, allocating against the
   structure it cached from the previous contents.
-- A backup would overwrite a backup from an earlier conflict in the same session.
+- Two conflicts on the same image within the resolution of the backup timestamp.
 - The image is write-protected, or the directory holding it is not writable, so
   no backup can be placed beside it.
+- The location the user chooses instead is also unwritable.
+- The user cancels rather than choosing a location, leaving the conflict
+  unresolved and the machine still running.
 
 ## Requirements *(mandatory)*
 
@@ -222,56 +245,94 @@ configuration: each write carries its own answer.
 - **FR-009**: Where the new contents are taken up in place, a restart MUST
   remain available afterward without the user hunting for it: the swap may turn
   out to have been the wrong call, and the recovery is the action they declined.
-- **FR-010**: Every pick-up MUST be reported, whichever answer governs it. A
-  disk whose contents change under a running program is not something to do
-  silently, even when it was asked for.
-- **FR-011**: A pick-up MUST happen at a point where no disk operation is in
+- **FR-010**: Every pick-up MUST be reported in a way that does not block the
+  machine, and the report MUST carry the restart action. A disk whose contents
+  change under a running program is not something to do silently, even when it
+  was asked for -- and a report that clears itself takes the restart away with
+  it, which is the action the user reaches for once the program misbehaves.
+- **FR-011**: A standing report MUST absorb further changes rather than be
+  replaced or duplicated by them. A developer may run three builds before
+  turning back to the emulator, and three reports about one disk say nothing
+  three times.
+- **FR-012**: Acting on a standing report MUST use the MOST RECENT contents of
+  the image, not those current when it first appeared. The version the developer
+  means is the one they just built.
+- **FR-013**: Changes arriving close together MUST be treated as one. A disk
+  carrying more than one thing is built by more than one command -- assemble a
+  loader, assemble a program, place a data file -- and the developer means one
+  build. Acting on each in turn restarts the machine repeatedly and lands later
+  writes while it is still booting from an earlier one.
+- **FR-014**: A pick-up MUST happen at a point where no disk operation is in
   flight, so it cannot land in the middle of a read or a write. The controller
   already reports motor spindown for this purpose. This bounds the damage to
   stale cached structure; it does not eliminate it, and must not be described as
   though it does.
-- **FR-012**: An intent stated for an image no emulator has mounted MUST NOT be
+- **FR-015**: An intent stated for an image no emulator has mounted MUST NOT be
   an error. The writer cannot know whether anything is running, and a build
   script must behave the same either way.
 
+##### When the new contents cannot be used
+
+- **FR-016**: Where the image is deleted, or replaced by something that cannot
+  be used as the mounted disk -- a different format, a different geometry,
+  unreadable bytes -- the emulator MUST refuse the pick-up and carry on with the
+  contents it already holds. The machine is running and what it holds is
+  known-good; ejecting or halting acts on a guest that was working.
+- **FR-017**: That refusal MUST offer to save the in-memory disk to a backup.
+  The file that backed it is gone or unusable, so what the emulator holds may be
+  the ONLY remaining copy of that disk, whether or not the guest has written to
+  it. The offer MUST use the same timestamped naming as any other preserved
+  version.
+- **FR-018**: Declining that offer MUST leave the machine running and the disk
+  mounted, so the user can carry on and save later.
+
 ##### What happens to the two versions
 
-- **FR-013**: Where the emulator HAS unsaved guest writes, an external change
+- **FR-019**: Where the emulator HAS unsaved guest writes, an external change
   MUST NOT be resolved without asking the user, whatever the pick-up answer says.
   The pick-up answer governs how the guest continues, not whether work may be
   discarded, and no configuration may turn the data-loss question off.
-- **FR-014**: Whichever version the user does not keep MUST be preserved in a
+- **FR-020**: Whichever version the user does not keep MUST be preserved in a
   separate image file rather than discarded, and the user MUST be told where it
   is.
-- **FR-015**: The emulator MUST NOT write an image back over an external change
+- **FR-021**: The preserved version MUST be written beside the original with a
+  timestamp in its name, so that repeated conflicts in one session cannot
+  overwrite each other and the order they happened in is readable from the
+  directory.
+- **FR-022**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
+- **FR-023**: Where the preserved copy cannot be written -- a read-only
+  directory, no space, the volume gone with the image -- the action that would
+  discard a version MUST NOT proceed. The emulator MUST keep holding both and
+  MUST offer another location. A backup that silently did not happen breaks the
+  promise exactly where it matters most.
 
 #### Writing safely
 
-- **FR-016**: A program writing a disk image MUST hold it for the duration of
+- **FR-024**: A program writing a disk image MUST hold it for the duration of
   the write, so that a second writer cannot interleave with it.
-- **FR-017**: A writer that cannot obtain the image MUST report that plainly,
+- **FR-025**: A writer that cannot obtain the image MUST report that plainly,
   naming the image, rather than failing obscurely or waiting forever.
-- **FR-018**: A writer that fails or is killed mid-write MUST NOT leave the
+- **FR-026**: A writer that fails or is killed mid-write MUST NOT leave the
   image permanently unwritable by anything else.
-- **FR-019**: The existing guarantee that a failed write leaves an image
+- **FR-027**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-020**: A session in which no external change occurs MUST behave exactly
+- **FR-028**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-021**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-029**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-022**: Where change detection cannot be trusted — a network share, a
+- **FR-030**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-023**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-031**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-024**: The conflict question MUST state what is at stake on both sides —
+- **FR-032**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -287,7 +348,8 @@ configuration: each write carries its own answer.
   Holds both versions until the user resolves it, and resolves to exactly one
   surviving image plus one backup.
 - **Backup image**: the version the user did not keep, written beside the
-  original under a name that says what it is.
+  original under a timestamped name, so repeated conflicts accumulate rather
+  than overwrite.
 
 ## Success Criteria *(mandatory)*
 
