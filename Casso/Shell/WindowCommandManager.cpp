@@ -893,7 +893,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStar
                            IID_PPV_ARGS (&dialog));
     CHR (hr);
 
-    hr = dialog->SetFileTypes (ARRAYSIZE (filters), filters);
+    hr = dialog->SetFileTypes (std::size (filters), filters);
     CHR (hr);
 
     hr = dialog->Show (m_shell.m_hwnd);
@@ -1387,7 +1387,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
                            IID_PPV_ARGS (&dialog));
     CHR (hr);
 
-    hr = dialog->SetFileTypes (ARRAYSIZE (s_kFilters), s_kFilters);
+    hr = dialog->SetFileTypes (std::size (s_kFilters), s_kFilters);
     CHR (hr);
 
     hr = dialog->SetDefaultExtension (L"png");

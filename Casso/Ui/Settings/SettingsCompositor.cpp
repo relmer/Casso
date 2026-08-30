@@ -287,7 +287,7 @@ HRESULT SettingsCompositor::CreateResources()
     hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vs);
     CHRA (hr);
 
-    hr = m_device->CreateInputLayout (layout, ARRAYSIZE (layout),
+    hr = m_device->CreateInputLayout (layout, std::size (layout),
                                       vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_inputLayout);
     CHRA (hr);
 

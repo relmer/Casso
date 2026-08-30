@@ -239,7 +239,7 @@ HRESULT DxuiPainter::CreateShaders()
     CHRA (hr);
 
     hr = m_device->CreateInputLayout (inputElements,
-                                      ARRAYSIZE (inputElements),
+                                      std::size (inputElements),
                                       vsBlob->GetBufferPointer(),
                                       vsBlob->GetBufferSize(),
                                       &m_layout);
