@@ -26,7 +26,7 @@ Entries before versioning was introduced use dates only.
 - A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.
   The picture maps onto spherical-sag glass, and input is inverse-projected
   through the curvature so a click lands on the right emulated pixel.
-- Four new device models -- Monitor II, Monitor //c, Disk II, Disk IIc --
+- Four new device models (Monitor II, Monitor //c, Disk II, Disk IIc),
   CAD-built from photographs at true dimensions. Openings are boolean cuts
   and edges are real fillets.
 - Each machine gets the hardware it shipped with: a Monitor II over Disk IIs

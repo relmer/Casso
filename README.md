@@ -69,7 +69,7 @@ The skeuomorphic theme used to be a picture of a monitor drawn around the
 emulator's output. It is now a room: four period devices modeled in CAD at
 their real dimensions, standing on a desk, lit and shadowed, seen from a
 seated person's eye about thirty inches from the screen. The perspective is
-not a set of tuned constants -- it falls out of where the hardware actually
+not a set of tuned constants; it falls out of where the hardware actually
 is.
 
 ![The Apple //e desk scene](Assets/feat-desk-scene.png)
@@ -535,8 +535,8 @@ CassoCli as65 input.a65c -x -ooutput.bin
 CassoCli merlin SOURCE.S
 CassoCli merlin SOURCE.S -o OBJECT
 
-# Assemble and run in one step. `run` names its assembler for the same reason
-# assembling does -- a source with neither flag is refused, not guessed at.
+# Assemble and run in one step. `run` specifies its assembler for the same reason
+# assembling does: a source with neither flag is refused, not guessed at.
 CassoCli run input.a65 --as65
 CassoCli run PROG.S --merlin
 
