@@ -12,6 +12,8 @@ Entries before versioning was introduced use dates only.
 - **Nibble disk images (`.nib`, `.nb2`) are supported.**
 
 ### Changed
+- **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
+  ones, for every image format.
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving
   clarity on mono. Replaced the color bars with a spiffy Beagle Bros. HGR
