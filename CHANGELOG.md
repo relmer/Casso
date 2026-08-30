@@ -8,6 +8,17 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+- **`disk create` writes any filesystem into any sector container, and `.do`
+  disks can be created at all.** `.dsk` accepted only DOS 3.3 and `.po` only
+  ProDOS, though sector order and filesystem are independent axes and Casso
+  already read every combination. `.do` was refused outright for every
+  filesystem, despite `--type` offering it and despite it producing
+  byte-identical output to `.dsk` — a restriction a rename defeated.
+- **A refused `disk create` says which rule it broke.** One message covered four
+  different mistakes, so a ProDOS volume name beginning with a digit was
+  answered with a paragraph about which container carries which filesystem.
+
 ### Added
 - **The assembler writes its object into a disk image.** `--disk <image>` sends
   the object onto a volume instead of to a host file, with `--as` naming it
