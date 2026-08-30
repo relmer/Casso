@@ -47,21 +47,35 @@ the owner's design achieves, and stating them as outcomes leaves the plan free t
 confirm the design or find that the platform makes a different one better, while
 still being testable.
 
-### The one judgment call worth re-reading
+### The judgment call, and a correction to it
 
-FR-005 picks up an external change WITHOUT asking when the guest has no unsaved
-writes, and FR-007 always asks when it does. The owner's sketch put a prompt on
-the external change generally, offering reboot or remount.
+FR-005 picks up an external change without BLOCKING when the guest has no
+unsaved writes, and FR-008 always asks when it does. The build loop is the case
+this feature exists to serve, it runs many times an hour, and a modal dialog on
+each pass would make the feature worse than the bug.
 
-The narrowing is deliberate and is argued in the Assumptions: the build loop is
-the case this feature exists to serve, it runs many times an hour, and a dialog
-on each pass would make the feature worse than the bug. Nothing is at risk in
-that case, because the emulator writes back only when dirty.
+**A first draft of this spec went further and said reboot should not be offered
+at all**, on the grounds that it discards guest state and re-reading achieves
+what the loop wants. That was wrong, and the owner caught it.
 
-Reboot is not offered as an option anywhere. It discards guest state the user may
-care about, and re-reading the disk achieves what the build loop wants without
-it. If a title needs a reboot to notice a changed disk, the user can reboot; the
-tool should not do it for them.
+Replacing a mounted disk's contents IS a disk swap. Real machines allow it and
+users did it constantly, but at a prompt with no files open, and that is
+precisely the state the emulator cannot verify. The guest caches disk structure
+in its own RAM: DOS 3.3 holds the VTOC, ProDOS a volume control block and an
+open file's index blocks. Swap underneath and the guest's next WRITE allocates
+against a map belonging to a disk that is gone.
+
+The "no unsaved guest writes" gate does not cover this. It says only that the
+guest has not written YET; a guest that has merely READ still holds cached
+structure, and it is the write AFTER the pick-up that corrupts.
+
+So FR-011 now requires reboot to be offered wherever a change is reported, and
+FR-006 requires the report itself to carry it. Reboot is the only action that
+makes the guest's cached structure match the bits on the disk, and the spec must
+not imply the emulator has established anything safer. FR-007 adds that a
+pick-up waits for a moment with no operation in flight, which the controller
+already reports at motor spindown; that bounds the damage without eliminating
+it, and is described as doing exactly that much.
 
 ### Deliberately unresolved, for `/speckit-clarify` or `/speckit-plan`
 

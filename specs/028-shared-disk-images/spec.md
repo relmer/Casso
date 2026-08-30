@@ -62,11 +62,14 @@ manual eject.
 
 1. **Given** a disk mounted with no guest writes, **When** another process
    writes the image, **Then** the emulator picks up the new contents and the
-   guest sees them, with no prompt and no loss.
+   guest sees them, without blocking for an answer and without loss.
 2. **Given** the same, **When** the pick-up happens, **Then** the user is told
-   plainly that the disk was reloaded, so a change appearing under a running
-   program is never a mystery.
-3. **Given** a disk mounted and never externally touched, **When** the guest
+   the disk was reloaded and is offered a reboot, so a change appearing under a
+   running program is never a mystery and the clean option is always at hand.
+3. **Given** the same, **When** the pick-up happens, **Then** it happens at a
+   moment when no disk operation is in flight, so it cannot land in the middle
+   of a read.
+4. **Given** a disk mounted and never externally touched, **When** the guest
    runs normally, **Then** nothing about its behavior changes.
 
 ### User Story 2 - A guest's work is never silently overwritten (Priority: P1)
@@ -132,6 +135,10 @@ refuses, waits, or otherwise does not write into the same bytes.
   notification and timestamps are less trustworthy.
 - Two emulator instances mount the same image.
 - The user answers the conflict question by ejecting the disk instead.
+- The guest has a file OPEN on the disk when the contents are replaced, so its
+  cached structure describes bytes that are no longer there.
+- The guest writes to the disk shortly after a pick-up, allocating against the
+  structure it cached from the previous contents.
 - A backup would overwrite a backup from an earlier conflict in the same session.
 - The image is write-protected, or the directory holding it is not writable, so
   no backup can be placed beside it.
@@ -157,45 +164,73 @@ refuses, waits, or otherwise does not write into the same bytes.
 
 #### Acting on a change
 
+**REPLACING A MOUNTED DISK'S CONTENTS IS A DISK SWAP, and it inherits every
+hazard of a real one.** Users swapped floppies constantly and the machines
+expect it, but they did it at a prompt with no files open, and that is exactly
+the state the emulator cannot verify. The guest caches disk structure in its own
+RAM: DOS 3.3 holds the VTOC, ProDOS holds a volume control block and an open
+file's index blocks. Swap underneath that and the guest's next WRITE allocates
+against a map belonging to the disk that is no longer there. ProDOS defends
+itself somewhat by comparing the volume name when it reaches the directory;
+DOS 3.3 does not.
+
+None of that state is visible from the disk layer, so no gate the emulator can
+build makes a swap unconditionally safe. What follows is therefore not "detect
+when it is safe" -- it cannot be detected -- but "do what a user swapping by
+hand does, say so, and keep the clean option one click away".
+
 - **FR-005**: Where the emulator has no unsaved guest writes, an external change
-  MUST be picked up without asking, so the build loop simply works.
-- **FR-006**: A pick-up MUST be reported to the user in passing. A disk whose
-  contents change under a running program is not something to do silently, even
-  when nothing is lost.
-- **FR-007**: Where the emulator HAS unsaved guest writes, an external change
+  MUST be picked up without blocking the user for an answer, so the build loop
+  works without a dialog on every pass.
+- **FR-006**: A pick-up MUST be reported to the user, and the report MUST offer
+  a reboot. Reading the new contents is what the build loop wants and is safe
+  for a guest that goes on to READ; a guest that goes on to WRITE may allocate
+  against the structure it cached from the previous contents. Rebooting is the
+  only action that clears that state, so it MUST be offered rather than decided
+  against on the user's behalf.
+- **FR-007**: A pick-up MUST happen at a point where no disk operation is in
+  flight, so it cannot land in the middle of a read or a write. The controller
+  already reports motor spindown for this purpose. This bounds the damage to
+  stale cached structure; it does not eliminate it, and must not be described as
+  though it does.
+- **FR-008**: Where the emulator HAS unsaved guest writes, an external change
   MUST NOT be resolved without asking the user.
-- **FR-008**: Whichever version the user does not keep MUST be preserved in a
+- **FR-009**: Whichever version the user does not keep MUST be preserved in a
   separate image file rather than discarded, and the user MUST be told where it
   is.
-- **FR-009**: The emulator MUST NOT write an image back over an external change
+- **FR-010**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
+- **FR-011**: Reboot MUST be among the actions offered wherever an external
+  change is reported, whether or not the guest has written. It is the only
+  action that guarantees the guest's cached structure matches the bits on the
+  disk.
 
 #### Writing safely
 
-- **FR-010**: A program writing a disk image MUST hold it for the duration of
+- **FR-012**: A program writing a disk image MUST hold it for the duration of
   the write, so that a second writer cannot interleave with it.
-- **FR-011**: A writer that cannot obtain the image MUST report that plainly,
+- **FR-013**: A writer that cannot obtain the image MUST report that plainly,
   naming the image, rather than failing obscurely or waiting forever.
-- **FR-012**: A writer that fails or is killed mid-write MUST NOT leave the
+- **FR-014**: A writer that fails or is killed mid-write MUST NOT leave the
   image permanently unwritable by anything else.
-- **FR-013**: The existing guarantee that a failed write leaves an image
+- **FR-015**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-014**: A session in which no external change occurs MUST behave exactly
+- **FR-016**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-015**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-017**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-016**: Where change detection cannot be trusted — a network share, a
+- **FR-018**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-017**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-019**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-018**: The conflict question MUST state what is at stake on both sides —
+- **FR-020**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -241,8 +276,13 @@ refuses, waits, or otherwise does not write into the same bytes.
   reads cannot destroy an external change, which is why Story 1 can ship without
   Story 2 and still be safe.
 - **A prompt is acceptable when work is genuinely at risk, and not otherwise.**
-  The build loop must not acquire a dialog; a real two-sided conflict is worth
-  one.
+  The build loop must not acquire a blocking dialog on every pass; a real
+  two-sided conflict is worth one.
+- **A swap cannot be made unconditionally safe, so the user is given the safe
+  action rather than promised safety.** Whether a pick-up is harmless depends on
+  guest RAM the disk layer cannot see -- open files, a cached VTOC, a ProDOS
+  volume control block. Reboot is offered every time for that reason, and the
+  documentation must not imply the emulator has established that a swap is safe.
 - **Backups are placed beside the image.** A user who has to hunt for the
   recovered version has not really been given it back.
 
