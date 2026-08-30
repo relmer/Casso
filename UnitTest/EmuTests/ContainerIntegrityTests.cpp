@@ -141,8 +141,15 @@ public:
     //  the stray read lands where nothing looks. The out-of-bounds access is
     //  real and the data round-trips perfectly regardless.
     //
-    //  No round-trip test can find that. It needs an address sanitizer or a
-    //  reader; a green suite here says nothing about it either way.
+    //  No round-trip test can find that, and -- measured, not assumed -- an
+    //  address sanitizer does not either. A volume is 143,360 bytes, which is
+    //  exactly 35 pages, so the allocation ends flush on a page boundary and
+    //  ASAN's large-allocation path has nowhere to put a redzone; the stray
+    //  read lands in addressable memory. The same read one byte past a
+    //  SIXTEEN-byte vector is caught instantly, which is how that was pinned
+    //  down. Catching this one needs a guard-page allocator, or a buffer
+    //  deliberately allocated one byte long and offset so its end falls
+    //  mid-block. A reader remains the cheapest instrument.
     static Byte  SectorEdges (size_t offset)
     {
         size_t  withinSector = offset % (size_t) kSectorSize;
