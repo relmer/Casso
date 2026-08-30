@@ -372,10 +372,20 @@ public:
     //  one; a hand-written list of the same names cannot.
     static std::span<const char * const>    GetAs65LongOptions();
 
+    // One option that sends the object onto a disk, as data. The parser walks
+    // these and the help is composed from them, so the tool cannot document an
+    // option it does not take or take one it does not document.
+    struct ImageTargetFlag
+    {
+        const char *  option;
+        const char *  valueName;
+        const char *  description;
+    };
+
     // The options that send the object onto a disk. Both assembler grammars
     // take them, because the capability is the assembler's rather than a
     // dialect's.
-    static std::span<const char * const>    GetImageTargetOptions();
+    static std::span<const ImageTargetFlag>  GetImageTargetFlags();
     static std::span<const char * const>    GetRunLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 

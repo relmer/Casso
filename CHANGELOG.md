@@ -8,6 +8,36 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **The assembler writes its object into a disk image.** `--disk <image>` sends
+  the object onto a volume instead of to a host file, with `--as` naming it
+  there, `--type` giving it a filesystem type and `--startup` making it the
+  program the volume runs at boot. The documented build loop drops from six
+  commands to three.
+- **The load address comes from the source's origin.** There is no `--load` on
+  the assembler and there must not be: placing an assembled file used to mean
+  restating the origin the source already declared, with nothing checking the
+  two agreed, so a source whose origin moved produced a file the guest loaded
+  at the wrong address.
+- **Merlin's `TYP` is implemented.** It sets the filesystem type the output
+  takes, stated as a ProDOS type byte. Text, binary and Applesoft map to both
+  filesystems; a ProDOS system file is refused on DOS 3.3 by name rather than
+  approximated, because DOS 3.3 has no system-program concept at all. A byte
+  outside the recognized set is refused naming the byte.
+- **Merlin's `SAV` is implemented, and one assembly can produce several
+  files.** It writes the span accumulated since the previous save and carries
+  on, with the accumulation emptied, so no byte appears in two outputs and each
+  records the address its own first byte assembles to. It works with or without
+  a disk: without one it writes host files.
+- **A second `DSK` closes the file the first opened and begins another**, so a
+  source carrying two produces two files with no `SAV` anywhere. It used to
+  keep only the last name, which is indistinguishable from Merlin for one
+  occurrence and wrong for two.
+
+  The Merlin subset boundary falls from six refused constructs to four. The
+  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
+  and a second `XC`, which needs a 65816 core.
+
 ### Changed
 - **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
   used to assume as65. Binaries are unaffected.

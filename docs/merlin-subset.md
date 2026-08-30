@@ -16,12 +16,12 @@ composed from that table's own fields, so they cannot describe different rules.
 
 ## Where support ends
 
-Six constructs are recognized and refused **by name**. That distinction is the
+Four constructs are recognized and refused **by name**. That distinction is the
 point: a refusal says which construct, why, and what would widen the boundary,
 where an unknown-directive error would read as "Merlin support is broken".
 
 The block below is the text that table composes, verbatim. It is no longer
-printed by `--help`, six rows of why belong in a document rather than in front
+printed by `--help`, four rows of why belong in a document rather than in front
 of someone who asked for the flag list.
 
 ```
@@ -30,9 +30,15 @@ REL -- relocatable-mode assembly [needs a linker]. it produces a relocatable mod
 ENT -- an entry symbol declaration [needs a linker]. it publishes a symbol for a linker to resolve from another module. Widens with a relocating linker (GitHub issue #112).
 EXT -- an external symbol declaration [needs a linker]. it names a symbol defined in another module, and resolving that is what a linker is for. Widens with a relocating linker (GitHub issue #112).
 XC -- a second CPU-selection directive [needs a CPU Casso does not emulate]. one selects the 65C02 and a second selects the 65802/65816, which Casso does not emulate. Widens with a 65802/65816 core.
-TYP -- the output file-type directive [owned by another part of Casso]. it sets the filesystem file type of the output, which means nothing without a filesystem that has types. Widens with Casso's disk file-access support, which is where filesystem file types belong.
-SAV -- the save-object directive [undecided]. it writes the object accumulated so far and carries on, so one assembly produces several outputs. Widens with a decision about multi-output assembly, which disk file access will not settle.
 ```
+
+**It was six, and `TYP` and `SAV` left.** The file-type directive set a
+filesystem type with no filesystem to set it on; the assembler writes onto a
+volume now, so the type has somewhere to land. The save-object directive was
+waiting on a decision about multi-output assembly rather than on a capability,
+and that decision was made: it writes the span accumulated since the previous
+save and carries on. Both are documented with the other supported directives
+below.
 
 Three things about that list are worth reading twice.
 
@@ -80,7 +86,9 @@ passes three.
 | `HEX` | Raw hexadecimal digit pairs |
 | `DS` | Reserve space |
 | `ORG` | Origin. It **relocates**: output stays one contiguous stream and only the program counter moves. With no operand it resyncs the program counter to where output has actually reached. |
-| `DSK` | Names the output file. A name supplied with `-o` beats it. |
+| `DSK` | Names the output. A name supplied with `-o` or `--as` beats it. **A second one closes the file the first opened and begins another**, so a source carrying two produces two files with no `SAV` anywhere. The name stays in effect until another replaces it. |
+| `TYP` | Sets the filesystem type the output takes, as a ProDOS type byte. `$04` text, `$06` binary, `$FC` Applesoft and `$FF` system are recognized; anything else is refused naming the byte. On DOS 3.3 the first three map and `$FF` is refused, because DOS 3.3 has no system-program concept for a ProDOS system file to become. `--type` beats it. |
+| `SAV` | Writes the span accumulated since the previous save and carries on, so one source produces several files. **The accumulation is emptied**, so no byte appears in two outputs, and each output records the address its own first byte assembles to. A name is required. |
 | `END` | End of assembly |
 | `PUT` `USE` | Include another file. The operand is a short name; Merlin prepends `T.` to reach the file on disk. |
 | `DO` `ELSE` `FIN` | Conditional assembly |

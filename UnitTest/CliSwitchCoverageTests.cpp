@@ -459,9 +459,9 @@ namespace CliSwitchCoverageTests
             //  Both dialects, because sending the object onto a disk is the
             //  assembler's capability rather than one dialect's: a dialect is
             //  not required to have directives for a developer to reach it.
-            for (const char * option : CommandLineParser::GetImageTargetOptions())
+            for (const CommandLineParser::ImageTargetFlag & target : CommandLineParser::GetImageTargetFlags())
             {
-                names.insert (Bare (option));
+                names.insert (Bare (target.option));
             }
         }
         else if (mode == "run")

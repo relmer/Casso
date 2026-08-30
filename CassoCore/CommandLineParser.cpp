@@ -261,12 +261,16 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 //  directives for a developer to reach it. Two lists would be two sets of
 //  options that have to be remembered to agree, and the sweep that checks every
 //  switch is exercised would be checking two different things.
-static constexpr const char *  s_kpszImageTargetOptions[] =
+static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
 {
-    "disk",
-    "as",
-    "type",
-    "startup",
+    //  Written WITH the dashes, the way the output-format rows are, because the
+    //  same composer renders both and it rewrites a canonical `--name` into the
+    //  reader's own prefix. The sweep that checks every option is exercised
+    //  strips them back off.
+    { "--disk",    " <image>", "Write the object into this disk image instead of a host file" },
+    { "--as",      " <name>",  "What the object is called on the volume. Beats a name the source gives" },
+    { "--type",    " <type>",  "The filesystem type: T, I, A, B or R on DOS 3.3, TXT, BIN, BAS or SYS on ProDOS. Beats a type the source gives" },
+    { "--startup", "",         "Make the object the program the volume runs when it boots" },
 };
 
 
@@ -1533,9 +1537,9 @@ std::span<const char * const> CommandLineParser::GetAs65LongOptions()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const char * const> CommandLineParser::GetImageTargetOptions()
+std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageTargetFlags()
 {
-    return std::span<const char * const> (s_kpszImageTargetOptions);
+    return std::span<const ImageTargetFlag> (s_kImageTargetFlags);
 }
 
 
