@@ -10,7 +10,7 @@
 
 | Value | Meaning |
 |---|---|
-| `reload` | Take the new contents up in place; leave the machine running |
+| `reload` | Take the new contents up in place; leave the machine running. This is the surface spelling of the `TakeUpInPlace` value the spec and the data model use. |
 | `restart` | Take the new contents up and restart the machine |
 
 Omitted means nothing is stated, and a running emulator falls back to the answer

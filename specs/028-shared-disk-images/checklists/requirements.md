@@ -111,7 +111,7 @@ Five questions, all answered, all integrated:
 
 ### What the plan settled
 
-- **The channel is a broadcast `WM_COPYDATA`**, and it is allowed to be lossy:
+- **The channel is a `WM_COPYDATA` sent to each emulator window in turn**, and it is allowed to be lossy:
   a change is found by watching regardless, so a dropped message degrades to the
   fallback rather than failing. That removed any need for delivery guarantees,
   discovery or cleanup, and it is why a sidecar file was not needed.

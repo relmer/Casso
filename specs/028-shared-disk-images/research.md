@@ -107,7 +107,7 @@ its own rather than inheriting one.
 **Read.** The window class is `CassoWindow`, registered once, so enumerating
 top-level windows by class finds every running emulator.
 
-**Decision**: broadcast `WM_COPYDATA` to every `CassoWindow`, each ignoring
+**Decision**: send `WM_COPYDATA` to every `CassoWindow` found by enumeration -- NOT `HWND_BROADCAST`, which `WM_COPYDATA` may not use -- each ignoring
 paths it has not mounted.
 **Rationale**: no discovery protocol, no files, and multi-instance falls out.
 The integrity hazard that would otherwise make this silently unreliable is
@@ -125,9 +125,17 @@ race-free point to persist dirty images (this thread owns the writes)".
 That is precisely what FR-014 asks for, and the ~1 second debounce is a
 head start on FR-013.
 
-**Decision**: apply pending pick-ups from that callback.
-**Rationale**: no new thread and no new synchronization; the thread that owns
-disk writes is the thread that applies the swap.
+**Decision**: apply pending pick-ups from that callback OR from an idle tick on
+the same thread, whichever comes first.
+
+**THE CALLBACK ALONE IS NOT ENOUGH, and an earlier draft of this finding said it
+was.** It fires only after a motor-on to motor-off transition with the spindown
+timer expiring, so a guest sitting at a BASIC prompt -- which is how the build
+loop is actually used -- never reaches it, and the headline scenario would never
+fire.
+
+**Rationale**: no new thread and no new synchronization either way; the thread
+that owns disk writes is the thread that applies the swap.
 **Alternatives**: applying from the watcher thread needs locking against the CPU
 thread and can land mid-operation.
 
@@ -170,8 +178,8 @@ AFTER the pick-up that corrupts.
 
 ## Open, for implementation rather than research
 
-- **How long the quiet period of FR-013 is.** The spindown callback already
-  debounces by about a second; whether that is sufficient alone, or a further
-  wait is needed, is a question for a real multi-command build.
+- **How long the quiet period of FR-013 is** -- SETTLED at 1 second, matching the
+  spindown debounce, as a named constant so a real multi-command build can tune
+  it in one edit.
 - **Whether `CommitPlan` can be reused verbatim** by the emulator for Finding 3,
   or whether its invocation-tag source is CLI-specific.

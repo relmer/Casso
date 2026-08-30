@@ -88,9 +88,9 @@ That means a dropped message degrades to the fallback of FR-007, which is
 correct behavior rather than a failure. A channel allowed to be lossy needs no
 delivery guarantee, no acknowledgement and no cleanup.
 
-**Decision**: a broadcast window message carrying the image path and the intent.
+**Decision**: a window message carrying the image path and the intent, sent to every top-level emulator window found by enumeration.
 **Rationale**: no files left on disk, so no staleness rule and no cleanup on
-crash; no process discovery, since a broadcast reaches every emulator and each
+crash; no process discovery, since enumeration reaches every emulator and each
 ignores paths it has not mounted; and the tree already routes commands this way.
 **Alternatives**: a sidecar file beside the image was attractive while the plan
 still needed a lock -- one mechanism for both -- but the lock turned out to be
@@ -173,7 +173,7 @@ CassoCore/
 └── CommandLineOptions.h        # NEW field: the stated intent
     CommandLineParser.cpp       # NEW flag row, both dialects + `disk`
 
-Dxui/Widgets/
+Dxui/Window/                    # beside DxuiButtonRow, which it composes
 └── DxuiActionBanner.h/.cpp     # NEW: banner text plus an action, since
                                 # DxuiInfoBanner is documented as not clickable
 

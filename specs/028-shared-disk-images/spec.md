@@ -418,7 +418,7 @@ configuration: each write carries its own answer.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
   detection, measured IN ONE BUILD by comparing a session with a watched image
-  mounted against one with no image mounted. **No off-switch is being added**, so
+  mounted against one with no image mounted, in **Release** over three runs of five minutes: p99 frame time within 2% and audio underruns per minute no higher. **No off-switch is being added**, so
   a criterion written as "the same session with it disabled" would describe a
   measurement nobody can perform -- and a cross-build comparison is worse still
   on this hardware, where clock variation between runs swamps the signal.

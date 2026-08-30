@@ -85,8 +85,13 @@ commit point to hang this on.
 ## Receiving
 
 The shell turns a received message into a `PendingChange` on the matching bay
-and returns immediately. It does NOT act on it: acting happens on the
-motor-spindown callback, on the CPU thread that owns disk writes (FR-014).
+and returns immediately. It does NOT act on it: acting happens on the CPU thread
+that owns disk writes, at the motor-spindown callback **or at an idle tick,
+whichever comes first** (FR-014).
+
+**Spindown alone would not be enough.** It fires only after a motor-on to
+motor-off transition, so a guest sitting at a BASIC prompt never reaches it --
+and that is exactly the build loop this feature exists to serve.
 
 **A message never bypasses the watcher.** If the file did not actually change,
 the identity comparison finds nothing and the intent is discarded. The channel
