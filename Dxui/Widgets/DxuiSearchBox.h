@@ -46,10 +46,10 @@ public:
     void  SetPlaceholder (const std::wstring & text)    { m_input.SetPlaceholder (text); }
     void  SetOnChange    (ChangeFn fn)                  { m_change = std::move (fn); }
 
-    const std::wstring & Text     () const              { return m_input.Text(); }
-    void                 SetText  (const std::wstring & text);
-    void                 Clear    ();
-    bool                 Focused  () const              { return m_focused; }
+    const std::wstring & GetText   () const              { return m_input.GetText(); }
+    void                 SetText   (const std::wstring & text);
+    void                 Clear     ();
+    bool                 IsFocused () const              { return m_focused; }
     void                 SetFocused (bool focused);
 
     // Host-driven input. The bespoke (x, y) / WPARAM / wchar_t entry points
@@ -67,14 +67,14 @@ public:
     //  shared animation / paint pump. Mouse / keyboard is host-driven
     //  through the bespoke entry points above.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                Tick           (int64_t nowMs) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override { return m_input.Text(); }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                Tick              (int64_t nowMs) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override { return m_input.GetText(); }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
     void  RelayoutInput   ();

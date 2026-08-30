@@ -143,15 +143,15 @@ void PrintingPage::SetPopupHost (DxuiHwndSource * host)
 
 void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi         = scaler.Dpi();
-    int  pad         = scaler.Px (s_kPagePadDp);
-    int  rowHeight   = scaler.Px (s_kRowHeightDp);
-    int  labelWidth  = scaler.Px (s_kLabelWidthDp);
-    int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
-    int  checkWidth  = scaler.Px (s_kCheckWidthDp);
-    int  resetWidth  = scaler.Px (s_kResetWidthDp);
-    int  childIndent = scaler.Px (s_kChildIndentDp);
-    int  sectionGap  = scaler.Px (s_kSectionGapDp);
+    UINT dpi         = scaler.GetDpi();
+    int  pad         = scaler.ToPx (s_kPagePadDp);
+    int  rowHeight   = scaler.ToPx (s_kRowHeightDp);
+    int  labelWidth  = scaler.ToPx (s_kLabelWidthDp);
+    int  dropWidth   = scaler.ToPx (s_kDropdownWidthDp);
+    int  checkWidth  = scaler.ToPx (s_kCheckWidthDp);
+    int  resetWidth  = scaler.ToPx (s_kResetWidthDp);
+    int  childIndent = scaler.ToPx (s_kChildIndentDp);
+    int  sectionGap  = scaler.ToPx (s_kSectionGapDp);
     int  x           = rect.left + pad;
     int  y           = rect.top  + pad;
     int  controlsX   = x + labelWidth;
@@ -162,7 +162,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // margin, its height driven by how far the message wraps -- so a long message
     // pushes every control below it down (reflow) instead of clipping.
     int    bannerWidth  = (rect.right - rect.left) - pad * 2;
-    int    bannerHeight = (int) std::ceil (m_printerBanner.PreferredHeightPx ((float) bannerWidth, scaler));
+    int    bannerHeight = (int) std::ceil (m_printerBanner.GetPreferredHeightPx ((float) bannerWidth, scaler));
 
     m_printerBanner.SetRect (MakeRect (x, y, bannerWidth, bannerHeight));
     m_printerBanner.SetDpi  (dpi);

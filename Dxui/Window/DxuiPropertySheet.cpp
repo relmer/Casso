@@ -244,7 +244,7 @@ void DxuiPropertySheet::SetPageVisible (int pageIndex, bool visible)
 
             if (m_active == pageIndex)
             {
-                first    = FirstPresentPage();
+                first    = GetFirstPresentPage();
                 m_active = (first >= 0) ? first : 0;
             }
         }
@@ -315,11 +315,11 @@ int DxuiPropertySheet::IndexOfPage (const DxuiPropertyPage * page) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FirstPresentPage
+//  GetFirstPresentPage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiPropertySheet::FirstPresentPage() const
+int DxuiPropertySheet::GetFirstPresentPage() const
 {
     int  found = -1;
     int  i     = 0;
@@ -416,7 +416,7 @@ void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) cons
 
         if (!m_present[(size_t) i]) { continue; }
 
-        tab.label = m_pages[(size_t) i]->Title();
+        tab.label = m_pages[(size_t) i]->GetTitle();
         out.push_back (std::move (tab));
     }
 }
@@ -570,9 +570,9 @@ bool DxuiPropertySheet::TryApplyAllDirtyPages()
 
 void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int   pad     = scaler.Px (s_kContentPadDip);
-    int   tabH    = scaler.Px (s_kTabStripHeightDip);
-    int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
+    int   pad     = scaler.ToPx (s_kContentPadDip);
+    int   tabH    = scaler.ToPx (s_kTabStripHeightDip);
+    int   rowH    = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
     RECT  page    = boundsPx;
     int   i       = 0;
 
@@ -589,7 +589,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     if (m_tabs != nullptr)
     {
         RECT  strip = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + tabH };
-        int   tabW  = scaler.Px (s_kTabWidthDip);
+        int   tabW  = scaler.ToPx (s_kTabWidthDip);
         int   tx    = strip.left + pad;
 
         // DxuiTabStrip does not lay out its own tabs -- the caller owns each
@@ -608,7 +608,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         m_tabs->SetTabs     (std::move (tabs));
         m_tabs->SetSelected (TabIndexOfPage (m_active));
         m_tabs->Layout      (strip, scaler);
-        m_tabs->SetDpi      (scaler.Dpi());
+        m_tabs->SetDpi      (scaler.GetDpi());
     }
 
     page.top     = boundsPx.top + tabH;
@@ -654,8 +654,8 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
         std::stable_sort (vis, vis + n, [] (const Slot & a, const Slot & b)
                           {
-                              return DxuiButtonRow::StandardRank (a.commandId) <
-                                     DxuiButtonRow::StandardRank (b.commandId);
+                              return DxuiButtonRow::GetStandardRank (a.commandId) <
+                                     DxuiButtonRow::GetStandardRank (b.commandId);
                           });
 
         for (i = 0; i < n; ++i)
@@ -670,7 +670,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         for (i = 0; i < n; ++i)
         {
             vis[i].btn->Layout (rects[i]);
-            vis[i].btn->SetDpi  (scaler.Dpi());
+            vis[i].btn->SetDpi  (scaler.GetDpi());
         }
     }
 }

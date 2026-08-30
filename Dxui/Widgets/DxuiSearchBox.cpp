@@ -210,12 +210,12 @@ void DxuiSearchBox::OnMouseMove (int x, int y)
 
 bool DxuiSearchBox::OnKey (WPARAM vk)
 {
-    std::wstring  before   = m_input.Text();
+    std::wstring  before   = m_input.GetText();
     bool          consumed = m_input.OnKey (vk);
 
 
 
-    if (m_input.Text() != before)
+    if (m_input.GetText() != before)
     {
         FireChange();
     }
@@ -235,12 +235,12 @@ bool DxuiSearchBox::OnKey (WPARAM vk)
 
 bool DxuiSearchBox::OnChar (wchar_t ch)
 {
-    std::wstring  before   = m_input.Text();
+    std::wstring  before   = m_input.GetText();
     bool          consumed = m_input.OnChar (ch);
 
 
 
-    if (m_input.Text() != before)
+    if (m_input.GetText() != before)
     {
         FireChange();
     }
@@ -268,10 +268,10 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float     y         = (float) m_boundsDip.top;
     float     w         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float     h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     pad       = m_scaler.Pxf ((float) s_kPadDip);
-    float     glyphSlot = m_scaler.Pxf ((float) s_kGlyphSlotDip);
-    float     glyphDip  = m_scaler.Pxf (s_kGlyphFontDip);
-    float     slide     = m_scaler.Pxf (s_kSlideDip);
+    float     pad       = m_scaler.ToPxf ((float) s_kPadDip);
+    float     glyphSlot = m_scaler.ToPxf ((float) s_kGlyphSlotDip);
+    float     glyphDip  = m_scaler.ToPxf (s_kGlyphFontDip);
+    float     slide     = m_scaler.ToPxf (s_kSlideDip);
     uint32_t  frameBg   = (m_theme != nullptr) ? m_theme->BackgroundElevated() : s_kFallbackFrameBg;
     uint32_t  border    = (m_theme != nullptr) ? m_theme->Border()             : s_kFallbackBorder;
     uint32_t  focusRing = (m_theme != nullptr) ? m_theme->FocusRing()          : s_kFallbackBorder;
@@ -335,8 +335,8 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 void DxuiSearchBox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
-    m_input.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
+    m_input.SetDpi (scaler.GetDpi());
     RelayoutInput();
 }
 
@@ -373,7 +373,7 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 void DxuiSearchBox::Tick (int64_t nowMs)
 {
-    float    target = (!m_focused && m_input.Text().empty()) ? 1.0f : 0.0f;
+    float    target = (!m_focused && m_input.GetText().empty()) ? 1.0f : 0.0f;
     int64_t  dt     = 0;
     float    step   = 0.0f;
     float    prev   = m_glyphShown;
@@ -493,8 +493,8 @@ bool DxuiSearchBox::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiSearchBox::RelayoutInput()
 {
-    int   pad       = m_scaler.Px (s_kPadDip);
-    int   glyphSlot = m_scaler.Px (s_kGlyphSlotDip);
+    int   pad       = m_scaler.ToPx (s_kPadDip);
+    int   glyphSlot = m_scaler.ToPx (s_kGlyphSlotDip);
     int   leading   = pad + (int) ((float) glyphSlot * m_glyphShown);
     int   trailing  = pad + (IsClearVisible() ? glyphSlot : 0);
     RECT  r         = { m_boundsDip.left  + leading,
@@ -524,7 +524,7 @@ void DxuiSearchBox::RelayoutInput()
 
 bool DxuiSearchBox::IsClearVisible() const
 {
-    return m_focused && !m_input.Text().empty();
+    return m_focused && !m_input.GetText().empty();
 }
 
 
@@ -542,8 +542,8 @@ bool DxuiSearchBox::IsClearVisible() const
 
 RECT DxuiSearchBox::ClearGlyphRect() const
 {
-    int  pad       = m_scaler.Px (s_kPadDip);
-    int  glyphSlot = m_scaler.Px (s_kGlyphSlotDip);
+    int  pad       = m_scaler.ToPx (s_kPadDip);
+    int  glyphSlot = m_scaler.ToPx (s_kGlyphSlotDip);
 
 
 
@@ -586,6 +586,6 @@ void DxuiSearchBox::FireChange()
 {
     if (m_change)
     {
-        m_change (m_input.Text());
+        m_change (m_input.GetText());
     }
 }

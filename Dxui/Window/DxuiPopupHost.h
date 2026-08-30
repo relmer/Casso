@@ -36,7 +36,7 @@
 //      Initialize() registers a per-instance window class, then on
 //      Show() creates the HWND, swap chain, DComp visual, and renders
 //      the content panel into it. Close() hides the HWND and resolves
-//      the std::future returned from Completion().
+//      the std::future returned from GetCompletion().
 //
 //  Test mode (InitializeForTest):
 //      No HWND, no device, no swap chain. All placement, dismiss-
@@ -192,18 +192,18 @@ public:
     //  would fall outside the monitor work area), promotes the popup
     //  HWND, and renders the content panel into its swap chain.
     //  Returns S_OK on success and stashes the future returned by
-    //  Completion(); already-open popups are Close()d first.
+    //  GetCompletion(); already-open popups are Close()d first.
     //
-    HRESULT  Show               (ShowParams params);
+    HRESULT  Show      (ShowParams params);
 
     //
     //  Hide the popup HWND, release its content panel, and resolve
-    //  the Completion() future with resultCode. Idempotent.
+    //  the GetCompletion() future with resultCode. Idempotent.
     //
-    void     Close              (int resultCode = 0);
+    void     Close     (int resultCode = 0);
 
-    bool     IsOpen             () const { return m_open; }
-    HWND     Hwnd               () const { return m_hwnd; }
+    bool     IsOpen    () const { return m_open; }
+    HWND     GetHwnd   () const { return m_hwnd; }
 
     //
     //  Re-render the popup content NOW (clear to the opaque background,
@@ -212,7 +212,7 @@ public:
     //  highlight, selection, item set, theme, DPI). No-op in test mode
     //  or when the popup is closed / has no render resources.
     //
-    void     MarkDirty          ();
+    void     MarkDirty ();
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -241,7 +241,7 @@ public:
     //  popup auto-dismisses). Each Show() resets the promise; only
     //  one outstanding future per Show() cycle is supported.
     //
-    std::future<int>  Completion ();
+    std::future<int>  GetCompletion ();
 
     //
     //  Owner-chain bookkeeping. A child popup (e.g. a cascading
@@ -249,15 +249,15 @@ public:
     //  classification can walk the chain rather than dismissing the
     //  whole tree when a click lands inside an ancestor popup.
     //
-    void              SetParentPopup    (DxuiPopupHost * parent);
-    DxuiPopupHost  *  ParentPopup       () const { return m_parent;       }
-    DxuiPopupHost  *  ActiveChildPopup  () const { return m_activeChild;  }
+    void              SetParentPopup      (DxuiPopupHost * parent);
+    DxuiPopupHost  *  GetParentPopup      () const { return m_parent;       }
+    DxuiPopupHost  *  GetActiveChildPopup () const { return m_activeChild;  }
 
     //
     //  Final rect computed by the most recent Show() (screen coords,
     //  pixels). Exposed for assertions / verification.
     //
-    const RECT  &  PlacedRectScreenPx () const { return m_placedRectScreenPx; }
+    const RECT  &  GetPlacedRectScreenPx () const { return m_placedRectScreenPx; }
 
     //
     //  Forwarded by DxuiHwndSource's WM_DPICHANGED_BEFOREPARENT
@@ -265,7 +265,7 @@ public:
     //
     void  HandleDpiChanged  (UINT newDpi);
 
-    const ShowParams  &  Params () const { return m_params; }
+    const ShowParams  &  GetParams () const { return m_params; }
 
 
     //
@@ -293,8 +293,8 @@ public:
                                           DxuiPopupDismissReason  reason);
 
 private:
-    static RECT  WorkAreaForRect (const RECT & rectScreenPx);
-    static RECT  PlaceOnEdge     (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+    static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
+    static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
 
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);

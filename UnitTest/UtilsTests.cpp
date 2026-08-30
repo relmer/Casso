@@ -61,7 +61,7 @@ public:
     }
 
     //  A multi-word unit is one unit. The CMOS fill line counts "CMOS slots",
-    //  and the caller spells both forms rather than trusting a rule about
+    //  and the caller supplies both forms rather than relying on a rule for
     //  where in the phrase an s would land.
     TEST_METHOD (GetSingularOrPluralForm_HandlesAMultiWordUnit)
     {

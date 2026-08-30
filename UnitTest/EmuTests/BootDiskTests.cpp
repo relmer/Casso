@@ -273,8 +273,8 @@ public:
     TEST_METHOD (CassoRocks_DemoDisk_DisplaysHgrCassowary)
     {
         {
-            std::string              source          = DemoAssets::Text (IDR_DEMO_STAGE1_SRC);
-            std::string              stage2Source    = DemoAssets::Text (IDR_DEMO_STAGE2_SRC);
+            std::string              source          = DemoAssets::GetText (IDR_DEMO_STAGE1_SRC);
+            std::string              stage2Source    = DemoAssets::GetText (IDR_DEMO_STAGE2_SRC);
             std::vector<Byte>        hgrPayload;
             std::vector<Byte>        hgrMonoPayload;
             std::vector<Byte>        dhgrAuxPayload;

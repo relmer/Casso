@@ -47,8 +47,8 @@ public:
         InputDeviceSelector  two   = MakeLaidOut (false);
         InputDeviceSelector  three = MakeLaidOut (true);
 
-        RECT  b2 = two.Bounds();
-        RECT  b3 = three.Bounds();
+        RECT  b2 = two.GetBounds();
+        RECT  b3 = three.GetBounds();
 
         Assert::AreEqual (200L, (b2.left + b2.right) / 2,  L"2-seg centered X");
         Assert::AreEqual (100L, (b2.top + b2.bottom) / 2,  L"2-seg centered Y");
@@ -61,7 +61,7 @@ public:
     {
         InputDeviceSelector  sel   = MakeLaidOut (true);
         InputDeviceSelector  two   = MakeLaidOut (false);
-        RECT                 b     = sel.Bounds();
+        RECT                 b     = sel.GetBounds();
         RECT                 c     = {};
         bool                 sawM2 = false;
 
@@ -86,7 +86,7 @@ public:
             L"outside bounds -> None");
 
         // Without the mouse, the third segment must be gone.
-        c = two.Bounds();
+        c = two.GetBounds();
         for (int x = c.left; x < c.right; ++x)
         {
             if (two.GetSegmentAt (x, (c.top + c.bottom) / 2) == InputDeviceSelector::Segment::Mouse)
@@ -132,7 +132,7 @@ public:
 
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
-        b = laid.Bounds();
+        b = laid.GetBounds();
         midY = (b.top + b.bottom) / 2;
         last = InputDeviceSelector::Segment::None;
         for (int x = b.left; x < b.right && found < 3; ++x)

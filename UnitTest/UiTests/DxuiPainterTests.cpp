@@ -43,7 +43,7 @@ public:
         painter.Shutdown();
         painter.Shutdown();
 
-        Assert::AreEqual (0, painter.PendingVertexCount());
+        Assert::AreEqual (0, painter.GetPendingVertexCount());
     }
 };
 

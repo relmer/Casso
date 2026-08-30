@@ -359,12 +359,12 @@ HRESULT PrinterPanel::Create (
     // touchpad's wheel-message flood would otherwise spawn a synchronous 3D
     // repaint per message and starve the loop's own paint pump, freezing the
     // view mid-scroll. Let the loop own paint pacing.
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        PopupHost()->SetSuppressInputInvalidate (true);
+        GetPopupHost()->SetSuppressInputInvalidate (true);
     }
 
-    m_tooltip.SetPopupHost (PopupHost());
+    m_tooltip.SetPopupHost (GetPopupHost());
 
     // 3D presentation (FR-032): build the scene on THIS window's own device
     // (its swap chain does not live on the emulator renderer's device) and
@@ -375,9 +375,9 @@ HRESULT PrinterPanel::Create (
         std::unique_ptr<Printer3DScene>   scene   = std::make_unique<Printer3DScene> ();
         HRESULT                           hrScene = E_FAIL;
 
-        if (PopupHost() != nullptr)
+        if (GetPopupHost() != nullptr)
         {
-            hrScene = scene->Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+            hrScene = scene->Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
         }
 
         if (SUCCEEDED (hrScene))
@@ -397,7 +397,7 @@ HRESULT PrinterPanel::Create (
                 }
             }
 
-            PopupHost()->SetBeforePresentHook ([this] ()
+            GetPopupHost()->SetBeforePresentHook ([this] ()
             {
                 if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
                 {
@@ -615,8 +615,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
     {
         if (!shown && tip.button != nullptr && tip.button->HitTest (x, y))
         {
-            m_tooltip.RequestShow (tip.button->Bounds(),
-                                   tip.button->Enabled() ? tip.enabledText : tip.disabledText,
+            m_tooltip.RequestShow (tip.button->GetBounds(),
+                                   tip.button->IsEnabled() ? tip.enabledText : tip.disabledText,
                                    now);
             shown = true;
         }
@@ -693,9 +693,9 @@ void PrinterPanel::SyncTransform()
     if (m_scene != nullptr)
     {
         m_scene->SetZoom (zoom);
-        m_scene->SetPanX (m_panZoom.PanX() / ((float) s_kStockWidthPx * 0.5f));
-        m_scene->SetCameraPanY (m_panZoom.PanYCam());
-        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY() / overMax) : 0.0f);
+        m_scene->SetPanX (m_panZoom.GetPanX() / ((float) s_kStockWidthPx * 0.5f));
+        m_scene->SetCameraPanY (m_panZoom.GetPanYCam());
+        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.GetOverscrollY() / overMax) : 0.0f);
     }
 
     // Zoom chrome changes rarely; refresh it only when the target moves.
@@ -932,11 +932,11 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // instead of scrolling down to it from row 0.
         if (!m_panYSeeded && rows > 0)
         {
-            m_panZoom.SnapPanY (m_panZoom.PanYTarget());
+            m_panZoom.SnapPanY (m_panZoom.GetPanYTarget());
             m_panYSeeded = true;
         }
 
-        span.lastRow  = (int) std::lround (m_panZoom.PanY());
+        span.lastRow  = (int) std::lround (m_panZoom.GetPanY());
         span.firstRow = (std::max) (0, span.lastRow - m_viewport.GetViewportRows() + 1);
 
         // The eased viewport pan lags a fast print (text catch-up), so the live band
@@ -1087,10 +1087,10 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
                 m_panZoom.SetPanYTarget ((float) m_viewport.GetLiveRow());
             }
 
-            m_panZoom.SnapPanY (m_panZoom.PanYTarget());
+            m_panZoom.SnapPanY (m_panZoom.GetPanYTarget());
             m_panYSeeded = true;
 
-            span.lastRow  = (int) std::lround (m_panZoom.PanY());
+            span.lastRow  = (int) std::lround (m_panZoom.GetPanY());
             span.firstRow = (std::max) (0, span.lastRow - m_viewport.GetViewportRows() + 1);
             raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
             RenderSpan (spanRaster, span.firstRow, span.lastRow, -1, -1, 0, 0);   // dirtyFromAbs -1: full render, no live head
@@ -1690,10 +1690,10 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  pad        = scaler.Px (kPadDip);
-    int  gap        = scaler.Px (6);
-    int  captionH   = CaptionHeightPx();
-    int  toolbarH   = scaler.Px (kToolbarHDip);
+    int  pad        = scaler.ToPx (kPadDip);
+    int  gap        = scaler.ToPx (6);
+    int  captionH   = GetCaptionHeightPx();
+    int  toolbarH   = scaler.ToPx (kToolbarHDip);
     int  topBandTop = 0;
     int  topBy      = 0;
     int  botBandTop = 0;
@@ -1703,11 +1703,11 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // renderer to measure with, and sizing it per-frame would make the paper
     // area jump as the window crosses the wrap threshold. A single line simply
     // centers in the taller box.
-    int  hintH      = scaler.Px (kHintHDip);
-    int  btnH       = scaler.Px (30);
-    int  btnW       = scaler.Px (84);   // Print... / Save... / Copy / Form Feed / Discard
-    int  zoomW      = scaler.Px (42);   // [-] and [+]
-    int  zoomResetW = scaler.Px (54);   // [nnn%]
+    int  hintH      = scaler.ToPx (kHintHDip);
+    int  btnH       = scaler.ToPx (30);
+    int  btnW       = scaler.ToPx (84);   // Print... / Save... / Copy / Form Feed / Discard
+    int  zoomW      = scaler.ToPx (42);   // [-] and [+]
+    int  zoomResetW = scaler.ToPx (54);   // [nnn%]
 
 
 
@@ -1759,7 +1759,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         }
     }
 
-    m_hintFontPx = scaler.Pxf (11.0f);
+    m_hintFontPx = scaler.ToPxf (11.0f);
     m_hintRect   = { boundsDip.left + pad,
                      botBandTop - hintH,
                      boundsDip.right - pad,
@@ -1816,7 +1816,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT  hr = S_OK;
-    RECT     b  = Bounds();
+    RECT     b  = GetBounds();
 
 
 

@@ -17,12 +17,12 @@
 
 namespace Utils
 {
-    //  Picks the word that agrees with `count`. BOTH FORMS ARE SPELLED OUT by
-    //  the caller, which is the whole point: a helper that synthesized the
-    //  plural could only ever add an s, so "index"/"indices" and "match"/
-    //  "matches" would have to route around it, and nothing in the signature
-    //  would warn you. It is also the shape that survives translation, where
-    //  the two forms become two resource ids rather than one plus a rule.
+    //  Picks the word that agrees with `count`. THE CALLER SUPPLIES BOTH FORMS,
+    //  which is the point: a helper that derived the plural could only append
+    //  an s, so "index"/"indices" and "match"/"matches" would have to route
+    //  around it, and the signature would give no warning. It is also the form
+    //  that survives translation, where the two forms become two resource ids
+    //  rather than one plus a rule.
     //
     //  Only exactly one is singular, so zero takes the plural: "0 errors",
     //  which is what English does.

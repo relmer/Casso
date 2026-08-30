@@ -84,15 +84,15 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
     m_scaler = scaler;
 
     // prose, gap, path, gap, table, gap, destination, gap
-    y += m_scaler.Px (s_kProseLines * s_kLineDip + s_kGapDip);
-    y += m_scaler.Px (s_kPathLines * s_kLineDip + s_kGapDip);
-    y += m_scaler.Px (s_kLineDip * static_cast<int> (m_rows.size()) + s_kGapDip);
-    y += m_scaler.Px (s_kLineDip + s_kGapDip);
+    y += m_scaler.ToPx (s_kProseLines * s_kLineDip + s_kGapDip);
+    y += m_scaler.ToPx (s_kPathLines * s_kLineDip + s_kGapDip);
+    y += m_scaler.ToPx (s_kLineDip * static_cast<int> (m_rows.size()) + s_kGapDip);
+    y += m_scaler.ToPx (s_kLineDip + s_kGapDip);
 
     bannerRect.left   = boundsDip.left;
     bannerRect.top    = y;
     bannerRect.right  = boundsDip.right;
-    bannerH           = m_warning.PreferredHeightPx (static_cast<float> (width), scaler);
+    bannerH           = m_warning.GetPreferredHeightPx (static_cast<float> (width), scaler);
     bannerRect.bottom = y + static_cast<int> (bannerH);
 
     m_warning.Layout (bannerRect, scaler);
@@ -175,10 +175,10 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     // into pixels. Drawing at a raw DIP size renders correctly only at 100%.
     DxuiFontHandle    body       = theme.BodyFont();
     const wchar_t   * face       = (body.face != nullptr) ? body.face : DxuiTheme::kBodyFace;
-    float             fontPx     = m_scaler.Pxf (body.sizeDip);
-    float             lineH      = static_cast<float> (m_scaler.Px (s_kLineDip));
-    float             gap        = static_cast<float> (m_scaler.Px (s_kGapDip));
-    float             figureCol  = static_cast<float> (m_scaler.Px (s_kNoteColDip));
+    float             fontPx     = m_scaler.ToPxf (body.sizeDip);
+    float             lineH      = static_cast<float> (m_scaler.ToPx (s_kLineDip));
+    float             gap        = static_cast<float> (m_scaler.ToPx (s_kGapDip));
+    float             figureCol  = static_cast<float> (m_scaler.ToPx (s_kNoteColDip));
     float             noteLeft   = figureCol + gap;
     float             bannerH    = 0.0f;
     RECT              bannerRect = {};
@@ -204,7 +204,7 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
         const Row &  row = m_rows[i];
 
         hr = text.DrawString (row.label.c_str(), left, y,
-                              static_cast<float> (m_scaler.Px (s_kFigureColDip)), lineH,
+                              static_cast<float> (m_scaler.ToPx (s_kFigureColDip)), lineH,
                               theme.Foreground(), fontPx, face, DxuiTextHAlign::Left,
                               DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -241,13 +241,13 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     // Size the banner to the height its text actually needs. Layout had to
     // estimate (no text renderer there), and the estimate rounds up so text
     // never clips -- which showed as an empty line inside the box.
-    bannerH           = m_warning.MeasuredHeightPx (text, width, m_scaler);
+    bannerH           = m_warning.GetMeasuredHeightPx (text, width, m_scaler);
     bannerRect.left   = m_boundsDip.left;
     bannerRect.top    = static_cast<int> (y);
     bannerRect.right  = m_boundsDip.right;
     bannerRect.bottom = static_cast<int> (y + bannerH);
 
     m_warning.SetRect (bannerRect);
-    m_warning.SetDpi (m_scaler.Dpi());
+    m_warning.SetDpi (m_scaler.GetDpi());
     m_warning.Paint (painter, text, theme);
 }

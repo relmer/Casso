@@ -55,7 +55,7 @@ public:
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
 
-    // Non-owning measurement hook (DxuiWindow::TextRenderer()). With it,
+    // Non-owning measurement hook (DxuiWindow::GetTextRenderer()). With it,
     // clicks place the caret under the cursor and dragging selects;
     // without it, clicking parks the caret at the end.
     void  SetTextRenderer (IDxuiTextRenderer * renderer) { m_renderer = renderer; }
@@ -70,10 +70,10 @@ public:
     // empty (e.g. "Search"). Empty by default.
     void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
 
-    const std::wstring & Text     () const { return m_text;    }
-    const RECT         & Rect     () const { return m_boundsDip;    }
-    bool                 Focused  () const { return m_focused; }
-    bool                 Enabled  () const { return m_enabled; }
+    const std::wstring & GetText   () const { return m_text;    }
+    const RECT         & GetRect   () const { return m_boundsDip;    }
+    bool                 IsFocused () const { return m_focused; }
+    bool                 IsEnabled () const { return m_enabled; }
 
     bool  HitTest       (int x, int y) const;
     void  SetMouseHover (int x, int y);
@@ -88,18 +88,18 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override { return m_text; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
     void   ClampCaret ();
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
-    size_t WordBoundary (size_t from, bool forward) const;
+    size_t GetWordBoundary (size_t from, bool forward) const;
 
     static bool IsWordChar (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
     void   DeleteSelection ();
@@ -109,8 +109,8 @@ private:
     void   FireChange ();
     void   ResetBlink () const { m_blinkAnchorMs = 0; }
 
-    static bool Shift   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
-    static bool Control () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
+    static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
+    static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
     std::wstring        m_text;
     std::wstring        m_placeholder;
     size_t              m_maxLen      = 64;

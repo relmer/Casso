@@ -47,18 +47,18 @@ public:
     explicit DxuiSystemButton  (DxuiSystemButtonKind kind);
     ~DxuiSystemButton          () override = default;
 
-    void  SetHwnd        (HWND hwnd);
-    HWND  Hwnd           () const { return m_hwnd; }
+    void  SetHwnd           (HWND hwnd);
+    HWND  GetHwnd           () const { return m_hwnd; }
 
-    void  SetMaximized   (bool maximized) { m_maximized = maximized; }
-    bool  Maximized      () const { return m_maximized; }
+    void  SetMaximized      (bool maximized) { m_maximized = maximized; }
+    bool  IsWindowMaximized () const { return m_maximized; }
 
-    DxuiSystemButtonKind  Kind () const { return m_kind; }
+    DxuiSystemButtonKind  GetKind () const { return m_kind; }
 
-    bool  Hovered        () const { return m_hovered; }
-    bool  Pressed        () const { return m_pressed; }
+    bool  IsHovered () const { return m_hovered; }
+    bool  IsPressed () const { return m_pressed; }
 
-    void  Layout         (const RECT          & boundsDip,
+    void  Layout    (const RECT          & boundsDip,
                           const DxuiDpiScaler & scaler) override;
     void  Paint          (IDxuiPainter        & painter,
                           IDxuiTextRenderer   & text,
@@ -67,8 +67,8 @@ public:
     bool  OnMouse        (const DxuiMouseEvent & ev) override;
 
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
-    DxuiAccessibleRole  AccessibleRole    () const          override { return DxuiAccessibleRole::Button; }
-    std::wstring        AccessibleName    () const          override;
+    DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::Button; }
+    std::wstring        GetAccessibleName () const          override;
 
 private:
     void  DispatchClick  ();

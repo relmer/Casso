@@ -31,7 +31,7 @@ DxuiStackLayout::DxuiStackLayout (Orientation orientation,
 //  SetWeight
 //
 //  weight == 0 keeps the child at its natural size (its existing
-//  Bounds()'s main-axis extent). weight > 0 makes the child a flex
+//  GetBounds()'s main-axis extent). weight > 0 makes the child a flex
 //  participant in the remaining-space distribution.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +63,7 @@ void DxuiStackLayout::SetWeight (IDxuiControl * child, int weight)
 //
 //  Algorithm:
 //    1. Compute the natural main-axis size for each non-flex child
-//       from its current Bounds().
+//       from its current GetBounds().
 //    2. Compute the leftover space along the main axis after
 //       subtracting natural sizes and inter-child spacing.
 //    3. Distribute the leftover proportionally to flex children's
@@ -104,7 +104,7 @@ void DxuiStackLayout::Arrange (
     {
         auto  it        = m_weights.find (child);
         int   weight    = (it == m_weights.end()) ? 0 : it->second;
-        RECT  curBounds = child->Bounds();
+        RECT  curBounds = child->GetBounds();
 
         if (weight > 0)
         {
@@ -128,7 +128,7 @@ void DxuiStackLayout::Arrange (
         IDxuiControl  * child       = children[i];
         auto            it          = m_weights.find (child);
         int             weight      = (it == m_weights.end()) ? 0 : it->second;
-        RECT            curBounds   = child->Bounds();
+        RECT            curBounds   = child->GetBounds();
         LONG            crossOffset = 0;
         RECT            newBounds   = {};
         LONG            mainSize  = horizontal ? (curBounds.right - curBounds.left)

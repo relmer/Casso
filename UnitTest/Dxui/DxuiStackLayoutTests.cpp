@@ -63,10 +63,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
-        Assert::AreEqual ((LONG) 0,   a.Bounds().left);
-        Assert::AreEqual ((LONG) 60,  a.Bounds().right);
-        Assert::AreEqual ((LONG) 60,  b.Bounds().left);
-        Assert::AreEqual ((LONG) 140, b.Bounds().right);
+        Assert::AreEqual ((LONG) 0,   a.GetBounds().left);
+        Assert::AreEqual ((LONG) 60,  a.GetBounds().right);
+        Assert::AreEqual ((LONG) 60,  b.GetBounds().left);
+        Assert::AreEqual ((LONG) 140, b.GetBounds().right);
     }
 
 
@@ -91,9 +91,9 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
-        Assert::AreEqual ((LONG) 0,  a.Bounds().left);
-        Assert::AreEqual ((LONG) 60, a.Bounds().right);
-        Assert::AreEqual ((LONG) 70, b.Bounds().left);
+        Assert::AreEqual ((LONG) 0,  a.GetBounds().left);
+        Assert::AreEqual ((LONG) 60, a.GetBounds().right);
+        Assert::AreEqual ((LONG) 70, b.GetBounds().left);
     }
 
 
@@ -121,9 +121,9 @@ public:
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 3));
 
         // Remaining 150 split 1:3 -> flex1 = 37, flex2 = 113 (last absorbs remainder).
-        Assert::AreEqual ((LONG) 50,  Width (fixed.Bounds()));
-        Assert::AreEqual ((LONG) 37,  Width (flex1.Bounds()));
-        Assert::AreEqual ((LONG) 113, Width (flex2.Bounds()));
+        Assert::AreEqual ((LONG) 50,  Width (fixed.GetBounds()));
+        Assert::AreEqual ((LONG) 37,  Width (flex1.GetBounds()));
+        Assert::AreEqual ((LONG) 113, Width (flex2.GetBounds()));
     }
 
 
@@ -146,10 +146,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 30, a.Bounds().left);
-        Assert::AreEqual ((LONG) 70, a.Bounds().right);
-        Assert::AreEqual ((LONG) 0,  a.Bounds().top);
-        Assert::AreEqual ((LONG) 30, a.Bounds().bottom);
+        Assert::AreEqual ((LONG) 30, a.GetBounds().left);
+        Assert::AreEqual ((LONG) 70, a.GetBounds().right);
+        Assert::AreEqual ((LONG) 0,  a.GetBounds().top);
+        Assert::AreEqual ((LONG) 30, a.GetBounds().bottom);
     }
 
 
@@ -172,7 +172,7 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 80, Height (a.Bounds()));
+        Assert::AreEqual ((LONG) 80, Height (a.GetBounds()));
     }
 };
 

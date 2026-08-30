@@ -71,12 +71,12 @@ public:
 
         Assert::IsTrue (g.OnLButtonDown (10, 10));
         Assert::IsTrue (g.OnLButtonUp   (10, 10));
-        Assert::AreEqual (0, g.Selected());
+        Assert::AreEqual (0, g.GetSelected());
         Assert::AreEqual (0, lastIdx);
 
         Assert::IsTrue (g.OnLButtonDown (120, 10));
         Assert::IsTrue (g.OnLButtonUp   (120, 10));
-        Assert::AreEqual (1, g.Selected());
+        Assert::AreEqual (1, g.GetSelected());
         Assert::AreEqual (1, lastIdx);
     }
 
@@ -87,7 +87,7 @@ public:
 
         Assert::IsTrue (g.OnLButtonDown (10, 10));
         Assert::IsFalse (g.OnLButtonUp (500, 500));
-        Assert::AreEqual (-1, g.Selected());
+        Assert::AreEqual (-1, g.GetSelected());
     }
 
     TEST_METHOD (Key_RightFromUnselected_SelectsFirst)
@@ -97,7 +97,7 @@ public:
         g.SetFocused (true);
 
         Assert::IsTrue (g.OnKey (VK_RIGHT));
-        Assert::AreEqual (0, g.Selected());
+        Assert::AreEqual (0, g.GetSelected());
     }
 
     TEST_METHOD (Key_LeftWraps)
@@ -108,7 +108,7 @@ public:
         g.SetSelected (0);
 
         Assert::IsTrue (g.OnKey (VK_LEFT));
-        Assert::AreEqual (1, g.Selected());
+        Assert::AreEqual (1, g.GetSelected());
     }
 
     TEST_METHOD (Key_RightWraps)
@@ -119,7 +119,7 @@ public:
         g.SetSelected (1);
 
         Assert::IsTrue (g.OnKey (VK_RIGHT));
-        Assert::AreEqual (0, g.Selected());
+        Assert::AreEqual (0, g.GetSelected());
     }
 
     TEST_METHOD (Key_DownEquivalentToRight)
@@ -130,7 +130,7 @@ public:
         g.SetSelected (0);
 
         Assert::IsTrue (g.OnKey (VK_DOWN));
-        Assert::AreEqual (1, g.Selected());
+        Assert::AreEqual (1, g.GetSelected());
     }
 
     TEST_METHOD (Key_UnfocusedNoOp)
@@ -139,7 +139,7 @@ public:
         g.SetOptions (MakeTwoOptions());
 
         Assert::IsFalse (g.OnKey (VK_RIGHT));
-        Assert::AreEqual (-1, g.Selected());
+        Assert::AreEqual (-1, g.GetSelected());
     }
 
     TEST_METHOD (Disabled_RejectsMouseAndHit)

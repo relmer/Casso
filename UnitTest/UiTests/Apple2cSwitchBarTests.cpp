@@ -73,7 +73,7 @@ public:
         MockDxuiTextRenderer  text;
         Apple2cSwitchBar      bar = MakeLaidOutBar (text);
 
-        RECT  b = bar.Bounds();
+        RECT  b = bar.GetBounds();
 
         Assert::AreEqual (s_kBand.left,   b.left,   L"bar spans the band left");
         Assert::AreEqual (s_kBand.right,  b.right,  L"bar spans the band right");
@@ -128,7 +128,7 @@ public:
 
         bar.Hide();
 
-        Assert::IsTrue (bar.Bounds().right <= bar.Bounds().left, L"hidden bar has empty bounds");
+        Assert::IsTrue (bar.GetBounds().right <= bar.GetBounds().left, L"hidden bar has empty bounds");
 
         midY = (s_kBand.top + s_kBand.bottom) / 2;
         for (int x = s_kBand.left; x < s_kBand.right; ++x)

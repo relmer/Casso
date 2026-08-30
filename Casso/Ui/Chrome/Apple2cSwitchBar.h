@@ -79,7 +79,7 @@ public:
 
     Part  GetPartAt (int x, int y) const;
     bool  HitTest   (int x, int y) const  { return GetPartAt (x, y) != Part::None; }
-    RECT  Bounds    () const              { return m_bounds; }
+    RECT  GetBounds () const              { return m_bounds; }
 
     const wchar_t * GetTooltipTextAt (int x, int y) const;
 

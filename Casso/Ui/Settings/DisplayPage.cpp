@@ -214,16 +214,16 @@ void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
 
 void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi          = scaler.Dpi();
-    int   pad          = scaler.Px (s_kPagePadDp);
-    int   rowHeight    = scaler.Px (s_kRowHeightDp);
-    int   labelWidth   = scaler.Px (s_kLabelWidthDp);
-    int   dropWidth    = scaler.Px (s_kDropdownWidthDp);
-    int   sliderWidth  = scaler.Px (s_kSliderWidthDp);
-    int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
-    int   sectionGap   = scaler.Px (s_kSectionGapDp);
-    int   bigGap       = scaler.Px (s_kBigSectionGapDp);
-    int   childIndent  = scaler.Px (18);            // matches DxuiTreeView indent
+    UINT  dpi          = scaler.GetDpi();
+    int   pad          = scaler.ToPx (s_kPagePadDp);
+    int   rowHeight    = scaler.ToPx (s_kRowHeightDp);
+    int   labelWidth   = scaler.ToPx (s_kLabelWidthDp);
+    int   dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
+    int   sliderWidth  = scaler.ToPx (s_kSliderWidthDp);
+    int   togglePillW  = scaler.ToPx (70);            // wide enough for "Off" / "On" text
+    int   sectionGap   = scaler.ToPx (s_kSectionGapDp);
+    int   bigGap       = scaler.ToPx (s_kBigSectionGapDp);
+    int   childIndent  = scaler.ToPx (18);            // matches DxuiTreeView indent
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
@@ -243,8 +243,8 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_monitorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
 
     {
-        int  btnWidth  = scaler.Px (140);
-        int  btnX      = controlsX + dropWidth + scaler.Px (16);
+        int  btnWidth  = scaler.ToPx (140);
+        int  btnX      = controlsX + dropWidth + scaler.ToPx (16);
         m_restore.Layout   (MakeRect (btnX, y, btnWidth, rowHeight));
         m_restore.SetLabel (L"Restore defaults");
         m_restoreRowRect = MakeRect (btnX, y, btnWidth, rowHeight);
@@ -262,8 +262,8 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_textColorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
 
     {
-        int  swatchSize = rowHeight - scaler.Px (8);
-        int  swatchX    = controlsX + dropWidth + scaler.Px (12);
+        int  swatchSize = rowHeight - scaler.ToPx (8);
+        int  swatchX    = controlsX + dropWidth + scaler.ToPx (12);
         int  swatchY    = y + (rowHeight - swatchSize) / 2;
 
         m_textColorSwatchRect = MakeRect (swatchX, swatchY, swatchSize, swatchSize);
@@ -390,7 +390,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // gap. All sliders are the same width so this lands at a single x
     // across every row; toggles use the same x even though their
     // controls don't extend that far.
-    m_indicatorX = controlsX + sliderWidth + scaler.Px (28);
+    m_indicatorX = controlsX + sliderWidth + scaler.ToPx (28);
 
     m_monitorLabel.SetDpi        (dpi);
     m_textColorLabel.SetDpi      (dpi);
@@ -616,7 +616,7 @@ RECT DisplayPage::GetFocusedControlRect (int controlId) const
 {
     RECT  rect      = {};
     RECT  menuRect  = {};
-    int   rowHeight = m_scaler.Px (s_kRowHeightDp);
+    int   rowHeight = m_scaler.ToPx (s_kRowHeightDp);
 
 
 
@@ -636,9 +636,9 @@ RECT DisplayPage::GetFocusedControlRect (int controlId) const
 
     if (controlId == kControlMonitor && m_monitor.IsOpen())
     {
-        menuRect        = m_monitor.Rect();
+        menuRect        = m_monitor.GetRect();
         menuRect.top    = menuRect.bottom;
-        menuRect.bottom = menuRect.top + (int) m_monitor.Items().size() * rowHeight;
+        menuRect.bottom = menuRect.top + (int) m_monitor.GetItems().size() * rowHeight;
         UnionRect (&rect, &rect, &menuRect);
     }
 
@@ -807,8 +807,8 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     int    focusedControlId = m_fadeFocusedId;
     float  focusedAlpha     = m_fadeFocusedAlpha;
     float  nonFocusedAlpha  = m_fadeNonFocusedAlpha;
-    float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
-    float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
+    float  indicatorFontPx  = m_scaler.ToPxf (s_kIndicatorFontDp);
+    float  indicatorWidthPx = m_scaler.ToPxf (s_kIndicatorWidthDp);
 
 
     auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
@@ -892,7 +892,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_brightnessLabel.Paint (painter, text);
     m_brightness.Paint      (painter, text, theme);
     DrawIndicator (m_brightnessRowRect,
-                   FloatMatches (m_brightness.Value() / 100.0f, m_hint.values.brightness),
+                   FloatMatches (m_brightness.GetValue() / 100.0f, m_hint.values.brightness),
                    m_hint.brightnessFromTheme);
 
     SetAlphaForRow (kControlContrast, m_contrastRowRect);
@@ -900,7 +900,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_contrastLabel.Paint   (painter, text);
     m_contrast.Paint        (painter, text, theme);
     DrawIndicator (m_contrastRowRect,
-                   FloatMatches (m_contrast.Value() / 100.0f, m_hint.values.contrast),
+                   FloatMatches (m_contrast.GetValue() / 100.0f, m_hint.values.contrast),
                    m_hint.contrastFromTheme);
 
     SetAlphaForRow (kControlGamma, m_gammaRowRect);
@@ -908,7 +908,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_gammaLabel.Paint      (painter, text);
     m_gamma.Paint           (painter, text, theme);
     DrawIndicator (m_gammaRowRect,
-                   FloatMatches (m_gamma.Value(), m_hint.values.gamma),
+                   FloatMatches (m_gamma.GetValue(), m_hint.values.gamma),
                    false);  // gamma is never theme-owned
 
     // Scanlines section: label in the left column, toggle in the value column.
@@ -916,14 +916,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_scanlinesLabel.Paint (painter, text);
     m_scanlinesEn.Paint    (painter, text, theme);
     DrawIndicator (m_scanlinesEnRowRect,
-                   m_scanlinesEn.Checked() == m_hint.values.scanlinesEnabled,
+                   m_scanlinesEn.IsChecked() == m_hint.values.scanlinesEnabled,
                    m_hint.scanlinesFromTheme);
     SetAlphaForRow (kControlScanlinesInt, m_scanlinesIntRowRect);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
     m_scanlinesIntLabel.Paint (painter, text);
     m_scanlinesInt.Paint      (painter, text, theme);
     DrawIndicator (m_scanlinesIntRowRect,
-                   FloatMatches (m_scanlinesInt.Value() / 100.0f, m_hint.values.scanlinesIntensity),
+                   FloatMatches (m_scanlinesInt.GetValue() / 100.0f, m_hint.values.scanlinesIntensity),
                    m_hint.scanlinesFromTheme);
 
     // Bloom section
@@ -931,21 +931,21 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_bloomLabel.Paint (painter, text);
     m_bloomEn.Paint    (painter, text, theme);
     DrawIndicator (m_bloomEnRowRect,
-                   m_bloomEn.Checked() == m_hint.values.bloomEnabled,
+                   m_bloomEn.IsChecked() == m_hint.values.bloomEnabled,
                    m_hint.bloomFromTheme);
     SetAlphaForRow (kControlBloomRadius, m_bloomRadiusRowRect);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
     m_bloomRadiusLabel.Paint (painter, text);
     m_bloomRadius.Paint      (painter, text, theme);
     DrawIndicator (m_bloomRadiusRowRect,
-                   FloatMatches (m_bloomRadius.Value(), m_hint.values.bloomRadius),
+                   FloatMatches (m_bloomRadius.GetValue(), m_hint.values.bloomRadius),
                    m_hint.bloomFromTheme);
     SetAlphaForRow (kControlBloomStrength, m_bloomStrengthRowRect);
     PaintBackingIfFocused (kControlBloomStrength, m_bloomStrengthRowRect);
     m_bloomStrengthLabel.Paint (painter, text);
     m_bloomStrength.Paint      (painter, text, theme);
     DrawIndicator (m_bloomStrengthRowRect,
-                   FloatMatches (m_bloomStrength.Value() / 100.0f, m_hint.values.bloomStrength),
+                   FloatMatches (m_bloomStrength.GetValue() / 100.0f, m_hint.values.bloomStrength),
                    m_hint.bloomFromTheme);
 
     // Color-bleed section
@@ -953,14 +953,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_colorBleedLabel.Paint (painter, text);
     m_colorBleedEn.Paint    (painter, text, theme);
     DrawIndicator (m_colorBleedEnRowRect,
-                   m_colorBleedEn.Checked() == m_hint.values.colorBleedEnabled,
+                   m_colorBleedEn.IsChecked() == m_hint.values.colorBleedEnabled,
                    m_hint.colorBleedFromTheme);
     SetAlphaForRow (kControlColorBleedW, m_colorBleedWRowRect);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
     m_colorBleedWLabel.Paint (painter, text);
     m_colorBleedW.Paint      (painter, text, theme);
     DrawIndicator (m_colorBleedWRowRect,
-                   FloatMatches (m_colorBleedW.Value(), m_hint.values.colorBleedWidth),
+                   FloatMatches (m_colorBleedW.GetValue(), m_hint.values.colorBleedWidth),
                    m_hint.colorBleedFromTheme);
 
     SetAlphaForRow (kControlPersistence, m_persistenceRowRect);
@@ -968,7 +968,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_persistenceLabel.Paint (painter, text);
     m_persistence.Paint      (painter, text, theme);
     DrawIndicator (m_persistenceRowRect,
-                   FloatMatches (m_persistence.Value() / 100.0f, m_hint.values.persistence),
+                   FloatMatches (m_persistence.GetValue() / 100.0f, m_hint.values.persistence),
                    false);  // persistence is never theme-owned
 
     SetAlphaForRow (-1, m_restoreRowRect);

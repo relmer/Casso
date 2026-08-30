@@ -74,11 +74,11 @@ public:
     {
         DxuiViewport  vp;
 
-        Assert::IsTrue   (vp.Visible());
-        Assert::IsTrue   (vp.Enabled());
-        Assert::IsFalse  (vp.Focusable());
-        Assert::AreEqual ((size_t) 0, vp.ChildCount());
-        Assert::IsTrue   (vp.AccessibleRole() == DxuiAccessibleRole::Viewport);
+        Assert::IsTrue   (vp.IsVisible());
+        Assert::IsTrue   (vp.IsEnabled());
+        Assert::IsFalse  (vp.IsFocusable());
+        Assert::AreEqual ((size_t) 0, vp.GetChildCount());
+        Assert::IsTrue   (vp.GetAccessibleRole() == DxuiAccessibleRole::Viewport);
     }
 
 
@@ -116,7 +116,7 @@ public:
         RECT           stored = {};
 
         vp.Layout (bounds, scaler);
-        stored = vp.Bounds();
+        stored = vp.GetBounds();
 
         Assert::AreEqual ((LONG) 10, stored.left);
         Assert::AreEqual ((LONG) 20, stored.top);
@@ -181,7 +181,7 @@ public:
 
         vp.Layout (bounds, scaler);
 
-        Assert::AreEqual ((LONG) 50, vp.Bounds().right);
+        Assert::AreEqual ((LONG) 50, vp.GetBounds().right);
     }
 
 
@@ -189,11 +189,11 @@ public:
     {
         DxuiViewport  vp;
 
-        Assert::IsTrue   (vp.Policy() == DxuiViewport::SizePolicy::Fill);
-        Assert::IsFalse  (vp.ConsumesInput());
-        Assert::IsTrue   (vp.InputSink() == nullptr);
-        Assert::AreEqual ((LONG) 0, vp.PreferredSizeDip().cx);
-        Assert::AreEqual ((LONG) 0, vp.PreferredSizeDip().cy);
+        Assert::IsTrue   (vp.GetPolicy() == DxuiViewport::SizePolicy::Fill);
+        Assert::IsFalse  (vp.IsConsumesInput());
+        Assert::IsTrue   (vp.GetInputSink() == nullptr);
+        Assert::AreEqual ((LONG) 0, vp.GetPreferredSizeDip().cx);
+        Assert::AreEqual ((LONG) 0, vp.GetPreferredSizeDip().cy);
     }
 
 
@@ -201,15 +201,15 @@ public:
     {
         DxuiViewport  vp;
 
-        Assert::IsFalse (vp.Focusable());
+        Assert::IsFalse (vp.IsFocusable());
 
         vp.SetConsumesInput (true);
-        Assert::IsTrue  (vp.ConsumesInput());
-        Assert::IsTrue  (vp.Focusable());
+        Assert::IsTrue (vp.IsConsumesInput());
+        Assert::IsTrue (vp.IsFocusable());
 
         vp.SetConsumesInput (false);
-        Assert::IsFalse (vp.ConsumesInput());
-        Assert::IsFalse (vp.Focusable());
+        Assert::IsFalse (vp.IsConsumesInput());
+        Assert::IsFalse (vp.IsFocusable());
     }
 
 
@@ -221,9 +221,9 @@ public:
         vp.SetPreferredSizeDip (pref);
         vp.SetSizePolicy       (DxuiViewport::SizePolicy::Fixed);
 
-        Assert::AreEqual ((LONG) 560, vp.PreferredSizeDip().cx);
-        Assert::AreEqual ((LONG) 384, vp.PreferredSizeDip().cy);
-        Assert::IsTrue   (vp.Policy() == DxuiViewport::SizePolicy::Fixed);
+        Assert::AreEqual ((LONG) 560, vp.GetPreferredSizeDip().cx);
+        Assert::AreEqual ((LONG) 384, vp.GetPreferredSizeDip().cy);
+        Assert::IsTrue   (vp.GetPolicy() == DxuiViewport::SizePolicy::Fixed);
     }
 
 

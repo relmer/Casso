@@ -776,7 +776,8 @@ a question with a true/false answer -- did the walk see a cycle, hit a bound,
 run past the length -- so they satisfy this rule as they stand. They were
 briefly renamed to `HasSeenCycle` / `HasHitBound` / `HasExceededLength` during
 item 6 and put back. The prefix list is examples, not an allowlist; what the
-rule asks is that the name pose a yes/no question, and a past-tense verb does.
+rule requires is a name that poses a yes/no question, and a past-tense verb
+does that.
 
 That is narrower than it sounds. Of the 38 bool queries item 6 renamed, those
 three were the only verb-first names. The rest are noun-first (`CapReached`,
@@ -809,7 +810,7 @@ VerbNoun violation, and they have one fix. 38 renames, listed there.
 
 ### 6. Function names are VerbNoun, mostly done
 
-A function name says what it *does*. `GetPrimaryExtension`, not `ExtensionFor`;
+A function name must begin with a verb. `GetPrimaryExtension`, not `ExtensionFor`;
 `HasReachedCap`, not `CapReached`. A noun-first name reads as a value rather
 than an action. `OnXxx` handlers are the standing exception. A *verb*-first name
 is fine whatever its tense: `SawCycle` is already VerbNoun, and item 5 accepts
@@ -898,11 +899,9 @@ link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
 
 **Still outstanding, and why:**
 
-* **Anything `Dxui` also declares.** `Bounds`, `Label`, `Text`,
-  `PreferredHeightDip`, `RectContains` and `CursorForPoint` name methods in both
-  Dxui and Casso, and several are Casso overrides of Dxui virtuals. Renaming one
-  side leaves a split that reads worse than the violation. These wait on Dxui
-  being swept too, which is outside the four directories this item covers.
+* ~~**Anything `Dxui` also declares.**~~ DONE. `Bounds`, `Label`, `Text`,
+  `PreferredHeightDip`, `RectContains` and `CursorForPoint` moved on both sides
+  together in the Dxui sweep below.
 * **The seven files branch `027-nibble-images` is holding.** `MountDiagnosis`,
   `BlankDiskBuilder`, `DiskCommandRunner`, `VolumeImage`, `DiskImage`,
   `DiskImageStore` and `NibblizationLayer` were not touched, call sites
@@ -948,3 +947,71 @@ references like `PrinterEngine::Job()` and plain prose, each one read before it
 was changed. The prose is where the judgment is. "the monitor's SceneScale"
 names a quantity and stays; "(PaperHit compares them directly)" names a function
 and moves.
+
+
+### 7. Dxui, same rule, one exemption
+
+249 renames across Dxui and its consumers, plus three done by hand because one
+name had two meanings. 155 files: 78 Dxui, 40 Casso, 37 UnitTest.
+
+The shape of the problem was visible before a single name was read: **246
+`SetXxx` against 35 `GetXxx`.** The setters had verbs and the getters were
+nouns, so `SetText` / `Text` is now `SetText` / `GetText` and `root->Visible()`
+is `root->IsVisible()`.
+
+**The theme colors are exempt, by owner decision.** `IDxuiTheme` and its
+implementations keep `Background()`, `ButtonIdle()`, `TooltipBackground()` and
+91 others. A theme is a bag of named colors and `theme.ButtonIdle()` reads as
+the property it is; prefixing 94 names would thicken every paint method in the
+framework to buy nothing. The better fix, if one is ever wanted, is at the call
+site rather than the declaration: rename the object to `themeColor`, so the
+qualifier carries the meaning. Parked, not merely allowed. `DxuiColor` is NOT part of the exemption:
+it is color math, so `RelativeLuminance` became `ComputeRelativeLuminance`.
+
+**Three names needed a class scope the by-name pass cannot express.**
+`DxuiFocusManager::Focused` returns the focused control while every widget's
+`Focused` returns a bool, so it became `GetFocusedControl` first and the rest
+became `IsFocused` after. `UiShell::Text` returns a text *renderer*, not text,
+so it is `GetTextRenderer` while the widgets' `Text` is `GetText`; its
+neighbour `HitTest` had the same bug and is `GetHitTester`.
+
+**A rename can collide with the platform, and the second time is not a
+coincidence.** `Maximized` -> `IsMaximized` compiled into nonsense because
+`IsMaximized` is a *function-like macro* in `winuser.h` that expands to
+`IsZoomed(hwnd)`: the declaration `bool IsMaximized () const` preprocessed to
+`bool IsZoomed ()`, which then shadowed the real Win32 `IsZoomed` at a call
+site 340 lines away, and the error named a function that appears nowhere in the
+source. It is `IsWindowMaximized`. The previous sweep lost the same afternoon
+to `GetFreeSpace` in `winbase.h`.
+
+So check the whole target set against the SDK before applying, not after:
+
+```
+grep -rhoE '^\s*#\s*define\s+[A-Za-z_]\w*' "$SDK/um" "$SDK/shared" |
+    awk '{print $NF}' | sort -u > sdkdefs.txt
+```
+
+then intersect with the proposed names. Do it in Python, not `comm` -- `comm`
+needs both files in the same collation and silently reports nothing when they
+disagree. Of 146 new names, exactly one collided.
+
+**Two real duplications fell out.** `DxuiHwndSource` had a public
+`GetBackBufferRtv()` and a private `BackBufferRtv()` override returning the
+identical expression; `DxuiListView` had a public `GetRowCount()` forwarding to
+a private `RowCount()`. Renaming collapsed each pair onto one name, which is
+the only reason anyone noticed. Both are single methods now. A sweep that
+normalizes names finds duplicates for free, because duplicates are usually two
+spellings of one idea.
+
+**What the by-name pass still cannot see**, both of which the compiler caught:
+a paren-less `using DxuiMenuBar::FocusedMenu;`, and `return DefWindowProc (...)`
+inside an inline body, which the declaration scanner read as a *declaration* of
+a method named `DefWindowProc` and duly renamed at every call site. Skip any
+candidate whose line begins with `return`.
+
+**Scope the comment pass the same way as the code pass.** It was not, and it
+rewrote three comments it had no business touching: an enum value
+(`SymbolKind::Label`), a prose mention of the Shift key, and -- worst -- the
+function banner over `StockBootDisks::PathFor`, whose code the `PathFor`
+scoping had correctly left alone for branch `027-nibble-images`. A comment pass
+that ignores the scoping quietly undoes it.

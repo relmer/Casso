@@ -209,7 +209,7 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    UINT   dpi        = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
     int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
     int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
     int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
@@ -324,7 +324,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     PlanForWidth (boundsDip.right - boundsDip.left, scaler);
 
-    dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    dpi = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
     padX = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
     padXStack = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
     marginY = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);

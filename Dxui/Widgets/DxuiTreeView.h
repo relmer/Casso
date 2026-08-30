@@ -71,26 +71,26 @@ public:
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
-        m_rowHeightPx = m_scaler.Px (22);
-        m_indentPx    = m_scaler.Px (18);
-        m_checkboxPx  = m_scaler.Px (16);
-        m_twistyPx    = m_scaler.Px (16);
+        m_rowHeightPx = m_scaler.ToPx (22);
+        m_indentPx    = m_scaler.ToPx (18);
+        m_checkboxPx  = m_scaler.ToPx (16);
+        m_twistyPx    = m_scaler.ToPx (16);
     }
 
-    const std::vector<DxuiTreeNode> & Nodes        () const { return m_nodes; }
-    int                           Highlight    () const { return m_highlight; }
-    int                           RowHeight    () const { return m_rowHeightPx; }
-    int                           VisibleCount () const { return (int) m_flatRows.size(); }
-    int                           HoverRow     () const { return m_hoverRow; }
-    bool                          Enabled      () const { return m_enabled; }
-    bool                          Focused      () const { return m_focused; }
+    const std::vector<DxuiTreeNode> & GetNodes        () const { return m_nodes; }
+    int                           GetHighlight    () const { return m_highlight; }
+    int                           GetRowHeight    () const { return m_rowHeightPx; }
+    int                           GetVisibleCount () const { return (int) m_flatRows.size(); }
+    int                           GetHoverRow     () const { return m_hoverRow; }
+    bool                          IsEnabled       () const { return m_enabled; }
+    bool                          IsFocused       () const { return m_focused; }
 
     // Returns the path-stack indices used to address the highlight
     // node within the nested tree. Empty if highlight is invalid.
-    std::vector<int>  PathFor   (int flatIndex) const;
+    std::vector<int>  GetPath   (int flatIndex) const;
     bool              IsInteractive (int flatIndex) const;
-    const DxuiTreeNode *  NodeAt    (int flatIndex) const;
-    DxuiTreeNode       *  NodeAtMutable (int flatIndex);
+    const DxuiTreeNode *  GetNodeAt (int flatIndex) const;
+    DxuiTreeNode       *  GetNodeAtMutable (int flatIndex);
 
     // Hit-test maps a (x, y) to either the row's checkbox or the
     // row's twisty toggle. Returns -1 when nothing was hit.
@@ -106,12 +106,12 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.

@@ -21,32 +21,32 @@ public:
     DxuiDropdown() { m_focusable = true; }
     ~DxuiDropdown() override = default;
 
-    void  SetRect        (const RECT & rect) { SetBounds (rect); }
-    void  SetItems       (const std::vector<std::wstring> & items);
-    void  SetSelected    (int index);
-    void  SetEnabled     (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
-    void  SetFocused     (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
-    bool  Focused        () const { return m_focused; }
-    void  SetSelect      (SelectFn select) { m_select = std::move (select); }
+    void  SetRect     (const RECT & rect) { SetBounds (rect); }
+    void  SetItems    (const std::vector<std::wstring> & items);
+    void  SetSelected (int index);
+    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
+    void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
+    bool  IsFocused   () const { return m_focused; }
+    void  SetSelect   (SelectFn select) { m_select = std::move (select); }
     void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
     void  Open           ();
     void  Close          ();
     bool  IsOpen()       const { return m_open; }
-    int   HighlightIndex () const { return m_highlight; }
-    int   SelectedIndex  () const { return m_selected; }
-    const RECT & Rect()    const { return m_boundsDip; }
-    const std::vector<std::wstring> & Items () const { return m_items; }
-    bool  HitTest        (int x, int y) const;
-    int   ItemHitTest    (int x, int y) const;
-    bool  Enabled        () const { return m_enabled; }
-    void  SetMouseHover  (int x, int y);
-    bool  OnLButtonDown  (int x, int y);
-    bool  OnLButtonUp    (int x, int y);
-    bool  HandleKey      (WPARAM vk);
-    void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  PaintBase      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  PaintMenu      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+    int   GetHighlightIndex () const { return m_highlight; }
+    int   GetSelectedIndex  () const { return m_selected; }
+    const RECT & GetRect()    const { return m_boundsDip; }
+    const std::vector<std::wstring> & GetItems () const { return m_items; }
+    bool  HitTest       (int x, int y) const;
+    int   HitTestItem   (int x, int y) const;
+    bool  IsEnabled     () const { return m_enabled; }
+    void  SetMouseHover (int x, int y);
+    bool  OnLButtonDown (int x, int y);
+    bool  OnLButtonUp   (int x, int y);
+    bool  HandleKey     (WPARAM vk);
+    void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintBase     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintMenu     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  SetDpi        (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
@@ -55,13 +55,13 @@ public:
     //  consumers that need the menu painted last across siblings
     //  keep calling PaintBase / PaintMenu directly.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override;
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override;
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
     //
     //  Opt-in popup hosting. When a host is supplied the dropdown
@@ -89,8 +89,8 @@ public:
         m_popupHost = host;
     }
 
-    DxuiHwndSource *  PopupHost () const { return m_popupHost; }
-    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+    DxuiHwndSource *  GetPopupHost () const { return m_popupHost; }
+    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
     //
     //  Supplies the active theme so every paint path derives its colors
@@ -102,7 +102,7 @@ public:
     void  SetTheme       (const IDxuiTheme * theme) const;
 
 private:
-    static bool  RectContains (const RECT & rect, int x, int y);
+    static bool  IsPointInRect (const RECT & rect, int x, int y);
 
     struct ResolvedColors
     {

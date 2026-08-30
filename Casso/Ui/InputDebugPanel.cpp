@@ -832,8 +832,8 @@ void InputDebugPanel::OnCreate()
 
     ConfigureWidgets();
 
-    m_columnMenu.SetPopupHost (PopupHost());
-    m_tooltip.SetPopupHost    (PopupHost());
+    m_columnMenu.SetPopupHost (GetPopupHost());
+    m_tooltip.SetPopupHost    (GetPopupHost());
 }
 
 
@@ -934,7 +934,7 @@ void InputDebugPanel::Layout (
 {
     m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
     m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
-    m_dpi      = scaler.Dpi();
+    m_dpi      = scaler.GetDpi();
     m_scaler   = scaler;
 
     RecomputeLayout();
@@ -946,10 +946,10 @@ void InputDebugPanel::Layout (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CursorForPoint
+//  GetCursorForPoint
 //
 //  DxuiWindow resolves the client cursor by fanning a client-px point
-//  through the panel tree. DxuiListView::CursorForPoint expects list-
+//  through the panel tree. DxuiListView::GetCursorForPoint expects list-
 //  local coords, so translate by the list's bounds before delegating.
 //  During an active column-resize drag the pointer may leave the header
 //  strip (where the edge hit-test lives), so hold the resize cursor for
@@ -957,7 +957,7 @@ void InputDebugPanel::Layout (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
+LPCWSTR InputDebugPanel::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
     RECT     bounds = {};
@@ -967,11 +967,11 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 
     if (m_eventList != nullptr)
     {
-        bounds  = m_eventList->Bounds();
+        bounds  = m_eventList->GetBounds();
         local.x = clientPx.x - bounds.left;
         local.y = clientPx.y - bounds.top;
 
-        cursor = m_eventList->CursorForPoint (local);
+        cursor = m_eventList->GetCursorForPoint (local);
 
         if (cursor == nullptr && m_eventList->IsResizingColumn())
         {
@@ -1106,7 +1106,7 @@ void InputDebugPanel::ConfigureWidgets()
 
 void InputDebugPanel::RecomputeLayout()
 {
-    int  titleHeight = CaptionHeightPx();
+    int  titleHeight = GetCaptionHeightPx();
 
 
 
@@ -1557,10 +1557,10 @@ void InputDebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point 
 
 void InputDebugPanel::OnFilterChanged()
 {
-    m_filter.showEmuKeyboard  = m_emuKeyboardCheck->Checked();
-    m_filter.showJoystick     = m_joystickCheck->Checked();
-    m_filter.showPaddle       = m_paddleCheck->Checked();
-    m_filter.showHostKeyboard = m_hostKeyboardCheck->Checked();
+    m_filter.showEmuKeyboard  = m_emuKeyboardCheck->IsChecked();
+    m_filter.showJoystick     = m_joystickCheck->IsChecked();
+    m_filter.showPaddle       = m_paddleCheck->IsChecked();
+    m_filter.showHostKeyboard = m_hostKeyboardCheck->IsChecked();
 
     SyncAllCheck();
     RebuildFilteredIndices();
@@ -1622,12 +1622,12 @@ void InputDebugPanel::UpdatePairVisibility()
 
 void InputDebugPanel::SyncAllCheck()
 {
-    bool  all = m_emuKeyboardCheck->Checked();
+    bool  all = m_emuKeyboardCheck->IsChecked();
 
 
 
-    if (m_joystickVisible) { all = all && m_joystickCheck->Checked(); }
-    if (m_paddleVisible)   { all = all && m_paddleCheck->Checked(); }
+    if (m_joystickVisible) { all = all && m_joystickCheck->IsChecked(); }
+    if (m_paddleVisible)   { all = all && m_paddleCheck->IsChecked(); }
 
     m_allCheck->SetChecked (all);
 }
@@ -1644,7 +1644,7 @@ void InputDebugPanel::SyncAllCheck()
 
 void InputDebugPanel::ApplyAllToggle()
 {
-    bool  newState = m_allCheck->Checked();
+    bool  newState = m_allCheck->IsChecked();
 
 
 
@@ -1727,7 +1727,7 @@ void InputDebugPanel::CopyEventsToClipboard()
 
     BAIL_OUT_IF (!hasText, S_OK);
 
-    isOpen = OpenClipboard (Hwnd()) != FALSE;
+    isOpen = OpenClipboard (GetHwnd()) != FALSE;
 
     BAIL_OUT_IF (!isOpen, S_OK);
 
@@ -2175,7 +2175,7 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
     // Activation / value keys go to the focused control first: a focused
     // checkbox / button self-activates on Space / Enter (firing its wired
     // callback) and a focused dropdown steers its open popup.
-    focused = m_focusMgr.Focused();
+    focused = m_focusMgr.GetFocusedControl();
     claimed = (focused != nullptr) && focused->OnKey (ev);
 
     BAIL_OUT_IF (claimed, S_OK);
@@ -2235,28 +2235,28 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 
 
 
-    if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->Bounds();         }
-    else if (m_emuKeyboardCheck->HitTest (x, y))                  { text = s_kpszEmuKbdTip;   anchor = m_emuKeyboardCheck->Bounds(); }
-    else if (m_joystickVisible && m_joystickCheck->HitTest (x, y)) { text = s_kpszJoystickTip; anchor = m_joystickCheck->Bounds();    }
-    else if (m_paddleVisible && m_paddleCheck->HitTest (x, y))     { text = s_kpszPaddleTip;   anchor = m_paddleCheck->Bounds();      }
-    else if (m_hostKeyboardCheck->HitTest (x, y))                 { text = s_kpszHostKbdTip;  anchor = m_hostKeyboardCheck->Bounds(); }
+    if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->GetBounds();         }
+    else if (m_emuKeyboardCheck->HitTest (x, y))                  { text = s_kpszEmuKbdTip;   anchor = m_emuKeyboardCheck->GetBounds(); }
+    else if (m_joystickVisible && m_joystickCheck->HitTest (x, y)) { text = s_kpszJoystickTip; anchor = m_joystickCheck->GetBounds();    }
+    else if (m_paddleVisible && m_paddleCheck->HitTest (x, y))     { text = s_kpszPaddleTip;   anchor = m_paddleCheck->GetBounds();      }
+    else if (m_hostKeyboardCheck->HitTest (x, y))                 { text = s_kpszHostKbdTip;  anchor = m_hostKeyboardCheck->GetBounds(); }
 
     if (text == nullptr && m_pauseButton->HitTest (x, y))
     {
         text   = L"Pause or resume live input logging";
-        anchor = m_pauseButton->Bounds();
+        anchor = m_pauseButton->GetBounds();
     }
 
     if (text == nullptr && m_clearButton->HitTest (x, y))
     {
         text   = L"Clear the input debug log";
-        anchor = m_clearButton->Bounds();
+        anchor = m_clearButton->GetBounds();
     }
 
     if (text == nullptr && m_copyButton->HitTest (x, y))
     {
         text   = L"Copy the visible input debug log to the clipboard";
-        anchor = m_copyButton->Bounds();
+        anchor = m_copyButton->GetBounds();
     }
 
     if (text != nullptr)
@@ -2300,7 +2300,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     auto                              & columns      = m_columnsModel;
     std::vector<DxuiPopupMenu::Item>    items;
-    IDxuiTextRenderer                 * textRenderer = TextRenderer();
+    IDxuiTextRenderer                 * textRenderer = GetTextRenderer();
     RECT                                hostRect     = { 0, 0, m_widthPx, m_heightPx };
     int                                 i            = 0;
 

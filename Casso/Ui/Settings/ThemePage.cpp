@@ -612,15 +612,15 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 
 void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi        = scaler.Dpi();
-    int   pad        = scaler.Px (kPagePadDp);
-    int   rowHeight  = scaler.Px (kRowHeightDp);
-    int   labelWidth = scaler.Px (kLabelWidthDp);
-    int   dropWidth  = scaler.Px (kDropdownWidthDp);
+    UINT  dpi        = scaler.GetDpi();
+    int   pad        = scaler.ToPx (kPagePadDp);
+    int   rowHeight  = scaler.ToPx (kRowHeightDp);
+    int   labelWidth = scaler.ToPx (kLabelWidthDp);
+    int   dropWidth  = scaler.ToPx (kDropdownWidthDp);
     int   x          = rect.left + pad;
     int   y          = rect.top  + pad;
-    int   rowGap     = scaler.Px (8);
-    int   previewGap = scaler.Px (24);
+    int   rowGap     = scaler.ToPx (8);
+    int   previewGap = scaler.ToPx (24);
     int   previewTop = y + 2 * rowHeight + rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
@@ -660,9 +660,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // intended width and dock the "Apply now" button immediately to its
     // right, so both stay near the left of the row (visible regardless of
     // how wide the settings window is).
-    applyGap = scaler.Px (8);
-    applyWidth = scaler.Px (88);
-    dropB = m_themeDropdown.Bounds();
+    applyGap = scaler.ToPx (8);
+    applyWidth = scaler.ToPx (88);
+    dropB = m_themeDropdown.GetBounds();
 
     dropB.right = dropB.left + dropWidth;
     m_themeDropdown.SetBounds (dropB);
@@ -767,7 +767,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     if (m_themeDropdown.IsOpen())
     {
-        int  highlighted = m_themeDropdown.HighlightIndex();
+        int  highlighted = m_themeDropdown.GetHighlightIndex();
 
         if (highlighted >= 0 && highlighted < (int) m_themeIds.size())
         {

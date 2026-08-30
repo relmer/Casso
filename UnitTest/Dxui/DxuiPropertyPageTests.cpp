@@ -53,7 +53,7 @@ public:
     {
         TestPage  page;
 
-        Assert::AreEqual (L"Test", page.Title().c_str());
+        Assert::AreEqual (L"Test", page.GetTitle().c_str());
     }
 
 

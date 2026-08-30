@@ -56,14 +56,14 @@ public:
 
     // The displayed label for the current mode. Paddle uses "Paddle Mode";
     // Off and Joystick both use "Joystick Mode" (the widget's resting name).
-    const wchar_t *       Label      () const;
+    const wchar_t *       GetLabel   () const;
     void                  SetHovered (bool hovered)  { m_hovered = hovered; }
     bool                  IsHovered  () const        { return m_hovered; }
     void                  SetFocused (bool focused)  { m_focused = focused; }
     bool                  IsFocused  () const        { return m_focused; }
     void                  SetPressed (bool pressed)  { m_pressed = pressed; }
     bool                  HitTest    (int x, int y) const;
-    RECT                  Bounds     () const        { return m_bounds; }
+    RECT                  GetBounds  () const        { return m_bounds; }
 
     void                  Paint      (IDxuiPainter      & painter,
                                         IDxuiTextRenderer & text,

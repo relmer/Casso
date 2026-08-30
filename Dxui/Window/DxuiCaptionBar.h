@@ -56,7 +56,7 @@ public:
     // pixel helpers scale it. HeightPxForDpi lets a consumer reserve the
     // band before a host (and thus a live scaler) exists.
     static constexpr int  kCaptionHeightDip = 32;
-    static int            HeightPxForDpi    (UINT dpi);
+    static int            GetHeightPxForDpi    (UINT dpi);
 
     // Host-owned caption configuration (mode 2)
 
@@ -68,8 +68,8 @@ public:
 
     // Natural caption-strip height in physical pixels for the given DPI;
     // the host reserves this band at the top and lays content out below.
-    int   PreferredHeightPx  (const DxuiDpiScaler & scaler) const;
-    int   PreferredHeightDip () const;
+    int   GetPreferredHeightPx  (const DxuiDpiScaler & scaler) const;
+    int   GetPreferredHeightDip () const;
 
     // IDxuiControl / DxuiPanel overrides
 
@@ -79,8 +79,8 @@ public:
                   IDxuiTextRenderer   & text,
                   const IDxuiTheme    & theme) override;
 
-    DxuiHitTestKind     ClassifyHit    (POINT clientDip) const override;
-    DxuiAccessibleRole  AccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
+    DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
+    DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
     static constexpr int      kButtonWidthDip   = 46;

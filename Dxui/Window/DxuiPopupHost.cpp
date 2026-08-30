@@ -21,7 +21,7 @@ std::atomic<uint32_t>  s_classSerial { 0 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WorkAreaForRect
+//  GetWorkAreaForRect
 //
 //
 //   Returns the monitor work-area rect (excludes the taskbar) for
@@ -32,7 +32,7 @@ std::atomic<uint32_t>  s_classSerial { 0 };
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
+RECT  DxuiPopupHost::GetWorkAreaForRect (const RECT & rectScreenPx)
 {
     RECT          work     = { 0, 0, 1920, 1080 };
     HMONITOR      monitor  = nullptr;
@@ -335,7 +335,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     sizePx.cx = MulDiv (m_params.sizeDip.cx, (int) dpi, (int) s_kDefaultDpi);
     sizePx.cy = MulDiv (m_params.sizeDip.cy, (int) dpi, (int) s_kDefaultDpi);
 
-    workArea   = WorkAreaForRect (m_params.anchorRectScreen);
+    workArea   = GetWorkAreaForRect (m_params.anchorRectScreen);
     placedRect = ComputePlacementForTest (m_params.anchorRectScreen,
                                           workArea,
                                           m_params.placement,
@@ -350,8 +350,8 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     m_resultCode         = 0;
 
     // Test mode: no HWND, no swap chain. The state set above is the entire
-    // deliverable; tests inspect Params(), PlacedRectScreenPx(), and
-    // Completion() directly.
+    // deliverable; tests inspect GetParams(), GetPlacedRectScreenPx(), and
+    // GetCompletion() directly.
     BAIL_OUT_IF (m_testMode, S_OK);
 
     hr = EnsureWindowClass();
@@ -494,11 +494,11 @@ void DxuiPopupHost::Close (int resultCode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Completion
+//  GetCompletion
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::future<int> DxuiPopupHost::Completion()
+std::future<int> DxuiPopupHost::GetCompletion()
 {
     DXUI_ASSERT_UI_THREAD();
     return m_completionPromise.get_future();

@@ -73,10 +73,10 @@ public:
     static std::span<const Byte>  Bytes (int resourceId);
 
     //  The same, as text, for the two .a65 sources the test assembles.
-    static std::string            Text (int resourceId);
+    static std::string            GetText (int resourceId);
 
     //  And as a vector, for the callers that want to own it.
-    static std::vector<Byte>      Copy (int resourceId);
+    static std::vector<Byte>      Copy    (int resourceId);
 };
 
 #endif  // RC_INVOKED

@@ -58,8 +58,8 @@ public:
         DxuiPropertySheet  sheet;
 
         Assert::IsTrue   (sheet.ApplyVisible());
-        Assert::AreEqual (L"OK", sheet.OkText().c_str());
-        Assert::AreEqual (0, sheet.OkWidthDip());
+        Assert::AreEqual (L"OK", sheet.GetOkText().c_str());
+        Assert::AreEqual (0, sheet.GetOkWidthDip());
     }
 
 
@@ -72,8 +72,8 @@ public:
         sheet.SetOkWidthDip   (140);
 
         Assert::IsFalse  (sheet.ApplyVisible());
-        Assert::AreEqual (L"OK (reboot)", sheet.OkText().c_str());
-        Assert::AreEqual (140, sheet.OkWidthDip());
+        Assert::AreEqual (L"OK (reboot)", sheet.GetOkText().c_str());
+        Assert::AreEqual (140, sheet.GetOkWidthDip());
     }
 
 
@@ -174,11 +174,11 @@ public:
     {
         using namespace DxuiButtonRow;
 
-        Assert::IsTrue (StandardRank (IDOK)            < StandardRank (IDCANCEL));
-        Assert::IsTrue (StandardRank (IDCANCEL)        < StandardRank (kApplyCommandId));
-        Assert::IsTrue (StandardRank (kApplyCommandId) < StandardRank (IDHELP));
-        Assert::IsTrue (StandardRank (IDYES)           < StandardRank (IDNO));
-        Assert::IsTrue (StandardRank (IDNO)            < StandardRank (IDCANCEL));
+        Assert::IsTrue (GetStandardRank (IDOK)            < GetStandardRank (IDCANCEL));
+        Assert::IsTrue (GetStandardRank (IDCANCEL)        < GetStandardRank (kApplyCommandId));
+        Assert::IsTrue (GetStandardRank (kApplyCommandId) < GetStandardRank (IDHELP));
+        Assert::IsTrue (GetStandardRank (IDYES)           < GetStandardRank (IDNO));
+        Assert::IsTrue (GetStandardRank (IDNO)            < GetStandardRank (IDCANCEL));
     }
 
 
@@ -189,8 +189,8 @@ public:
         // A dialog's synthetic result-code command id (not a standard IDxxx)
         // ranks after the affirmative buttons but before Cancel, so a stable
         // sort keeps author order for the primary actions.
-        Assert::IsTrue (StandardRank (IDOK)   < StandardRank (12345));
-        Assert::IsTrue (StandardRank (12345)  < StandardRank (IDCANCEL));
+        Assert::IsTrue (GetStandardRank (IDOK)   < GetStandardRank (12345));
+        Assert::IsTrue (GetStandardRank (12345)  < GetStandardRank (IDCANCEL));
     }
 
 

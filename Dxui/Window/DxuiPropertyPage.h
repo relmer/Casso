@@ -12,7 +12,7 @@
 //  DxuiPropertyPage
 //
 //  One tab-page of a DxuiPropertySheet (the Win32 PROPSHEETPAGE analog).
-//  A page is a DxuiPanel that carries a tab Title(), a dirty flag the
+//  A page is a DxuiPanel that carries a tab GetTitle(), a dirty flag the
 //  sheet reads to enable Apply, and validate/commit + activation hooks:
 //
 //      OnActivated() -- the tab became the visible page.
@@ -30,8 +30,8 @@ public:
     explicit DxuiPropertyPage (std::wstring title) : m_title (std::move (title)) {}
     ~DxuiPropertyPage () override = default;
 
-    const std::wstring &  Title   () const { return m_title; }
-    bool                  IsDirty () const { return m_dirty; }
+    const std::wstring &  GetTitle () const { return m_title; }
+    bool                  IsDirty  () const { return m_dirty; }
 
     //
     //  Set/clear the dirty flag and notify the sheet (which re-evaluates

@@ -206,8 +206,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     uint32_t textColor    = theme.ButtonText();
     uint32_t borderColor  = theme.ButtonBorder();
     uint32_t color        = 0;
-    float    fontDip      = m_scaler.Pxf (13.0f);
-    float    autoBorderPx = m_scaler.Pxf (1.0f);
+    float    fontDip      = m_scaler.ToPxf (13.0f);
+    float    autoBorderPx = m_scaler.ToPxf (1.0f);
     bool     isLink       = (m_variant == Variant::Link);
 
 
@@ -247,11 +247,11 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
         if (m_focused)
         {
-            painter.OutlineRect ((float) m_boundsDip.left + m_scaler.Pxf (s_kFocusInsetPx),
-                                 (float) m_boundsDip.top  + m_scaler.Pxf (s_kFocusInsetPx),
-                                 (float) (m_boundsDip.right  - m_boundsDip.left) - m_scaler.Pxf (s_kFocusInsetPx) * 2.0f,
-                                 (float) (m_boundsDip.bottom - m_boundsDip.top)  - m_scaler.Pxf (s_kFocusInsetPx) * 2.0f,
-                                 m_scaler.Pxf (s_kFocusRingPx),
+            painter.OutlineRect ((float) m_boundsDip.left + m_scaler.ToPxf (s_kFocusInsetPx),
+                                 (float) m_boundsDip.top  + m_scaler.ToPxf (s_kFocusInsetPx),
+                                 (float) (m_boundsDip.right  - m_boundsDip.left) - m_scaler.ToPxf (s_kFocusInsetPx) * 2.0f,
+                                 (float) (m_boundsDip.bottom - m_boundsDip.top)  - m_scaler.ToPxf (s_kFocusInsetPx) * 2.0f,
+                                 m_scaler.ToPxf (s_kFocusRingPx),
                                  theme.FocusRing());
         }
     }
@@ -262,7 +262,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     {
         // White label on this fill, so the fill must clear the WCAG
         // 1.4.3 text-contrast threshold (4.5:1) against white.
-        idle      = DxuiColor::AccentForWhiteContrast (theme.Accent(), s_kPrimaryTextRatio);
+        idle      = DxuiColor::ComputeAccentForWhiteContrast (theme.Accent(), s_kPrimaryTextRatio);
         hover     = DxuiColor::Lighten (idle, s_kPrimaryHover);
         pressed   = DxuiColor::Darken  (idle, s_kPrimaryPressed);
         textColor = s_kPrimaryTextArgb;
@@ -288,7 +288,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right  - m_boundsDip.left),
                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                             m_scaler.Pxf (s_kEmphasisPx),
+                             m_scaler.ToPxf (s_kEmphasisPx),
                              theme.HoverBackground());
     }
     else if (borderColor != 0)
@@ -318,8 +318,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     if (m_focused)
     {
-        float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
-        float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
+        float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
+        float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
 
         painter.OutlineRect ((float) m_boundsDip.left + focusInset,
                              (float) m_boundsDip.top  + focusInset,
@@ -346,7 +346,7 @@ Error:
 void DxuiButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -418,14 +418,14 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiButton::CursorForPoint  (IDxuiControl override)
+//  DxuiButton::GetCursorForPoint  (IDxuiControl override)
 //
 //  A link-styled button reads as a hyperlink, so advertise the hand cursor
 //  while the pointer is over it. Other variants keep the default arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
+LPCWSTR DxuiButton::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
 

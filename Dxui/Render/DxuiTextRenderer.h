@@ -132,7 +132,7 @@ public:
     // opacity arg of DrawBitmap so a single switch fades all text,
     // filled rects, and the framebuffer preview uniformly.
     void     SetGlobalAlpha   (float alpha) override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
-    float    GlobalAlpha      () const      override { return m_globalAlpha; }
+    float    GetGlobalAlpha   () const      override { return m_globalAlpha; }
 
 private:
     static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);

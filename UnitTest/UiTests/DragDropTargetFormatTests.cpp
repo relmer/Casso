@@ -269,7 +269,7 @@ public:
 
         Assert::IsFalse  (t.IsDragInProgress());
         Assert::IsFalse  (t.IsDragAcceptedType());
-        Assert::AreEqual (-1, t.HoveredTag());
+        Assert::AreEqual (-1, t.GetHoveredTag());
     }
 
     TEST_METHOD (DragEnter_SupportedFile_SetsInProgressAndAccepted)
@@ -331,7 +331,7 @@ public:
         Assert::AreEqual (S_OK, t.DragLeave());
         Assert::IsFalse  (t.IsDragInProgress(),    L"DragLeave must reset in-progress");
         Assert::IsFalse  (t.IsDragAcceptedType(),  L"DragLeave must reset accepted");
-        Assert::AreEqual (-1, t.HoveredTag(),      L"DragLeave must reset hovered tag");
+        Assert::AreEqual (-1, t.GetHoveredTag(),      L"DragLeave must reset hovered tag");
     }
 
     TEST_METHOD (Drop_ResetsState)
@@ -348,7 +348,7 @@ public:
         Assert::AreEqual (S_OK, t.Drop (&obj, 0, pt, &effect));
         Assert::IsFalse  (t.IsDragInProgress());
         Assert::IsFalse  (t.IsDragAcceptedType());
-        Assert::AreEqual (-1, t.HoveredTag());
+        Assert::AreEqual (-1, t.GetHoveredTag());
         Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
             L"Without a drive hit, Drop reports NONE and skips the mount callback");
     }
