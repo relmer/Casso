@@ -1548,6 +1548,53 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::RefuseImageOptionsWithoutAnImage
+//
+//  The options that describe a placement on a volume, given with no volume.
+//
+//  REFUSED RATHER THAN IGNORED. Each of these says something about a file on a
+//  disk -- what it is called there, what type it takes, whether the volume
+//  starts it -- so an invocation carrying one and naming no image was written
+//  by somebody who believed something false about what was about to happen.
+//  Accepting it and doing nothing tells a build script that a command line it
+//  got wrong had worked, and a parsed-then-ignored option is worse than one
+//  that does not exist.
+//
+//  Both assembler grammars ask this, because the options are the assembler's
+//  rather than a dialect's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & options)
+{
+    bool  hasImage = !options.imagePath.empty();
+    bool  named    = !options.onDiskName.empty();
+    bool  typed    = !options.imageTypeName.empty();
+    bool  starts   = options.setStartupProgram;
+    bool  stray    = !hasImage && (named || typed || starts);
+
+
+
+    if (stray)
+    {
+        Refusal (options) << "Error: "
+                          << FormatLongOption (named ? "--as" : typed ? "--type" : "--startup", options.flagPrefix)
+                          << " describes a file on a volume, and no image was named\n"
+                          << "       add " << FormatLongOption ("--disk", options.flagPrefix)
+                          << " <image>, or drop the option\n";
+
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineParser::GetRunLongOptions
 //
 //  The long options `run` takes.
@@ -2653,6 +2700,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
         argIndex++;
     }
+
+    RefuseImageOptionsWithoutAnImage (options);
 }
 
 
@@ -3363,6 +3412,8 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         argIndex++;
     }
+
+    RefuseImageOptionsWithoutAnImage (options);
 }
 
 

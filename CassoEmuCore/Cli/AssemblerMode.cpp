@@ -161,6 +161,9 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     hr = options.generateListing ? out->WriteListing (ar.result, options, reports) : S_OK;
     CHRF (hr, exitCode = kNoOutput);
 
+    hr = RefuseUnusableOutputRequest (options, ar.result);
+    CHRF (hr, exitCode = kNoOutput);
+
     writeOptions            = options;
     writeOptions.outputFile = ResolveOutputName (options, ar.result);
 
@@ -179,6 +182,81 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
         std::println (stderr, "  End:     ${:04X}", ar.result.endAddress);
         std::println (stderr, "  Symbols: {}", ar.result.symbols.size());
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblerMode::RefuseUnusableOutputRequest
+//
+//  What the invocation asked for against what the source turned out to produce.
+//
+//  ASKED HERE BECAUSE THIS IS WHERE BOTH ARE VISIBLE, which is the same reason
+//  the precedence between a flag and a directive is settled by the assembler
+//  rather than guessed by the parser. Neither of these can be answered from the
+//  command line alone: how many outputs a source produces, and whether it
+//  states a file type, are known only once it has been assembled.
+//
+//  Refused BEFORE anything is written, so a target that cannot serve the
+//  request is left as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblerMode::RefuseUnusableOutputRequest (const CommandLineOptions & options,
+                                                    const AssemblyResult & result) const
+{
+    HRESULT  hr        = S_OK;
+    bool     several   = result.savePoints.size() > 1;
+    bool     namedOnce = !options.onDiskName.empty();
+    bool     typedHere = false;
+    bool     usable    = true;
+
+
+
+    //  ONE NAME CANNOT SERVE SEVERAL FILES. Applying it to each output in turn
+    //  would leave each overwriting the last, and the tool would report success
+    //  having written one file where the source asked for three. This is not
+    //  the case two saves under one name make: there the SOURCE said so and the
+    //  period assembler allows it, where here an option said it about outputs
+    //  the option's author could not have seen.
+    if (several && namedOnce)
+    {
+        std::println (stderr,
+                      "Error: this source produces {} outputs and a single name was given for them",
+                      result.savePoints.size());
+        usable = false;
+    }
+
+    //  A TYPE WITH NO FILESYSTEM TO SET IT ON. The directive that states one
+    //  names a ProDOS file type, and a host file has no such thing, so the
+    //  reason it was once refused outright still stands whenever no image is
+    //  named. Unlike the naming directives beside it there is no host meaning to
+    //  fall back to.
+    for (const SavePoint & span : result.savePoints)
+    {
+        typedHere = typedHere || span.hasFileType;
+    }
+
+    if (typedHere && options.imagePath.empty())
+    {
+        std::println (stderr,
+                      "Error: the source sets a filesystem file type and no image was named");
+        std::println (stderr,
+                      "       add {}{}disk <image>, or remove the directive",
+                      options.flagPrefix, options.flagPrefix == '/' ? "" : "-");
+        usable = false;
+    }
+
+    //  NOT E_INVALIDARG, which asserts and marks a coding error. Both conditions
+    //  above are things a person typed or wrote, so they earn a verdict at the
+    //  edge rather than an assertion. The same code an assembly error returns.
+    CBREx (usable, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
     return hr;

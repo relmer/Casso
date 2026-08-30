@@ -386,6 +386,11 @@ public:
     // take them, because the capability is the assembler's rather than a
     // dialect's.
     static std::span<const ImageTargetFlag>  GetImageTargetFlags();
+
+    // Refuses the options that describe a placement on a volume when no volume
+    // was named. Both assembler grammars ask, the options being the
+    // assembler's rather than a dialect's.
+    static void         RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
     static std::span<const char * const>    GetRunLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 

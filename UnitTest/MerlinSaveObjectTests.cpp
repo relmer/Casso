@@ -236,6 +236,25 @@ namespace MerlinSaveObjectTests
 
 
 
+        //  A type with no filesystem to set it on.
+        //
+        //  Unlike the naming directives beside it there is nothing to fall back
+        //  to: a host file has no filesystem type, so the reason the directive
+        //  was once refused outright still stands whenever no image is named.
+        TEST_METHOD (AFileTypeIsReportedSoACallerWithNoImageCanRefuseIt)
+        {
+            AssemblyResult  typed   = Fixture::Assemble (" ORG $300\n TYP $06\n LDA #$11\n RTS\n");
+            AssemblyResult  untyped = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n");
+
+            Assert::AreEqual ((size_t) 1, typed.savePoints.size(), L"one output");
+            Assert::IsTrue (typed.savePoints[0].hasFileType,
+                            L"the source stated a type, and the result says so");
+            Assert::IsFalse (untyped.savePoints[0].hasFileType,
+                             L"and says so equally when it did not, since zero is a real type");
+        }
+
+
+
         //  Three saves, to show the cutting is not a two-case special.
         TEST_METHOD (ThreeSavesProduceThreeOutputsEachHoldingItsOwnSpan)
         {

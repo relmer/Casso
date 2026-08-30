@@ -565,6 +565,68 @@ namespace CliSwitchCoverageTests
             }
         }
 
+        //  The options that describe a placement on a volume, with no volume.
+        //
+        //  REFUSED RATHER THAN IGNORED, which is the same failure the pass
+        //  below catches in its general form: a flag accepted and dropped on
+        //  the floor tells a build script that a command line it got wrong had
+        //  worked. Swept over both assembler grammars and both prefixes,
+        //  because the options belong to the assembler rather than a dialect.
+        TEST_METHOD (ImageOptionsWithoutAnImage_AreRefused)
+        {
+            const char *  kModes[]   = { "as65", "merlin" };
+            const char *  kSources[] = { "p.a65", "p.s" };
+            const char *  kOptions[] = { "--as", "--type", "--startup" };
+            size_t        mode       = 0;
+            size_t        option     = 0;
+
+            for (mode = 0; mode < std::size (kModes); mode++)
+            {
+                for (option = 0; option < std::size (kOptions); option++)
+                {
+                    std::vector<std::string>  argv = { "CassoCli", kModes[mode], kSources[mode], kOptions[option] };
+                    CommandLineOptions        options;
+
+                    //  The two that take a value get one, so what is refused is
+                    //  the missing image rather than a missing operand.
+                    if (std::string (kOptions[option]) != "--startup")
+                    {
+                        argv.push_back ("VALUE");
+                    }
+
+                    ArgVector  args (argv);
+
+                    options = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                    Assert::IsTrue (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                    Widen (std::string (kModes[mode]) + " " + kOptions[option]
+                                           + " with no image should be refused").c_str());
+                    Assert::IsTrue (options.refusalMessage.find ("no image was named") != std::string::npos,
+                                    L"and the refusal should say why");
+                }
+            }
+        }
+
+
+
+        //  The same options WITH an image are ordinary, so the refusal above is
+        //  about the missing image and not about the options themselves.
+        TEST_METHOD (ImageOptionsWithAnImage_AreAccepted)
+        {
+            std::vector<std::string>  argv = { "CassoCli", "merlin", "p.s",
+                                               "--disk", "d.dsk", "--as", "PROG",
+                                               "--type", "BIN", "--startup" };
+            ArgVector                 args (argv);
+            CommandLineOptions        options = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (options.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"an image was named, so nothing is stray");
+            Assert::AreEqual (std::string ("PROG"), options.onDiskName, L"and the name took effect");
+            Assert::IsTrue (options.setStartupProgram, L"as did the startup request");
+        }
+
+
+
         //  Every switch parses without refusal AND is visible in the result.
         //  Accepting a flag and then dropping it on the floor is the failure
         //  this catches.
@@ -777,6 +839,56 @@ namespace CliSwitchCoverageTests
 
             return exitCode;
         }
+
+        //  ONE NAME CANNOT SERVE SEVERAL FILES. Applying it to each output in
+        //  turn leaves each overwriting the last, and the tool would report
+        //  success having written one file where the source asked for several.
+        //
+        //  Deliberately NOT the case two saves under one name make: there the
+        //  SOURCE said so and the period assembler allows it, where here an
+        //  option said it about outputs its author could not have seen.
+        TEST_METHOD (ASingleNameForSeveralOutputs_IsRefused)
+        {
+            OneSource           reader (" ORG $300\n LDA #$11\n SAV ONE\n LDA #$22\n SAV TWO\n");
+            MemorySink                      sink;
+            CommandLineOptions              options;
+            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::Merlin);
+            HRESULT                         hr       = S_OK;
+            int                             exitCode = -1;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile  = "in-memory.s";
+            options.imagePath  = "work.dsk";
+            options.onDiskName = "ONENAME";
+
+            hr = mode->Run (options, exitCode, &reader, &sink);
+
+            Assert::IsTrue (FAILED (hr), L"one name was given for two outputs");
+            Assert::AreEqual (As65ExitStatus::kNoOutput, exitCode, L"and nothing was written");
+        }
+
+
+
+        //  The same source with no single name is fine, so the refusal above is
+        //  about the name rather than about producing several outputs.
+        TEST_METHOD (SeveralOutputsWithoutASingleName_IsAccepted)
+        {
+            OneSource           reader (" ORG $300\n LDA #$11\n SAV ONE\n LDA #$22\n SAV TWO\n");
+            MemorySink                      sink;
+            CommandLineOptions              options;
+            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::Merlin);
+            HRESULT                         hr       = S_OK;
+            int                             exitCode = -1;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile = "in-memory.s";
+
+            hr = mode->Run (options, exitCode, &reader, &sink);
+
+            Assert::IsTrue (SUCCEEDED (hr), L"several outputs are ordinary");
+        }
+
+
 
         //  as65: "3 - Errors during assembly."
         TEST_METHOD (AnAssemblyError_IsThree)
