@@ -138,23 +138,25 @@ namespace MerlinSaveObjectTests
 
 
 
-        //  The output-file directive stays in effect past a save, so a span
-        //  after one still belongs to it. Reasoned from the manual's "already in
-        //  effect" rather than measured; no vendor source mixes the two.
-        TEST_METHOD (AnObjectFileDirectiveStaysInEffectPastASave)
+        //  The two output directives are mutually exclusive, measured.
+        //
+        //  THIS TEST ASSERTED THE OPPOSITE and the opposite was invented. The
+        //  code carried a rule for combining them -- the directive staying in
+        //  effect past a save, governing the next span -- reasoned out because
+        //  no vendor source mixes the two. Running it showed the period
+        //  assembler answers `Bad "SAV"` and writes no second file: one streams
+        //  the following code to disk and the other writes the buffer held in
+        //  memory, and they are different mechanisms rather than two spellings.
+        TEST_METHOD (ASaveIsRefusedOnceAnObjectFileDirectiveIsInEffect)
         {
             AssemblyResult  result = Fixture::Assemble (" DSK OUTER\n ORG $300\n LDA #$11\n RTS\n SAV INNER\n"
                                                         " LDA #$22\n RTS\n");
 
-            Assert::IsTrue (result.success, L"assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.savePoints.size(), L"two outputs");
-
-            Assert::AreEqual (std::string ("INNER"), result.savePoints[0].name,
-                              L"the save names the span it ends");
-            Assert::AreEqual (std::string ("OUTER"), result.savePoints[1].name,
-                              L"and the directive still governs the next one");
-            Assert::AreEqual ((size_t) 0, result.warnings.size(),
-                              L"nothing was dropped, so nothing is warned about");
+            Assert::IsFalse (result.success, L"the two cannot both be in play");
+            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one error");
+            Assert::AreEqual (5, result.errors[0].lineNumber, L"at the save that cannot be honored");
+            Assert::IsTrue (result.errors[0].message.find ("DSK") != std::string::npos,
+                            L"and it names the directive already in effect");
         }
 
 
@@ -186,19 +188,28 @@ namespace MerlinSaveObjectTests
 
 
 
-        //  Two outputs under one name would write one over the other, and the
-        //  assembly would report success having produced one file where the
-        //  source named two. Deliberately NOT the same case as a name already
-        //  on the target from an earlier run, which is replaced.
-        TEST_METHOD (TwoOutputsUnderOneNameIsRefusedNamingTheFile)
+        //  Two outputs under one name warn rather than refuse, measured.
+        //
+        //  THIS TEST ASSERTED A REFUSAL and measurement said otherwise. The
+        //  period assembler writes both and lets the second overwrite the
+        //  first, reporting no error: the disk ends with one file holding the
+        //  second save's bytes. Refusing would leave no files where it leaves
+        //  one, which the promise to produce the same files does not allow.
+        //  The warning is what keeps the loss from being silent.
+        TEST_METHOD (TwoOutputsUnderOneNameWarnAndTheLaterOneSurvives)
         {
-            AssemblyResult  result = Fixture::Assemble (" ORG $300\n LDA #$11\n SAV SAME\n"
-                                                        " LDA #$22\n SAV SAME\n");
+            AssemblyResult     result = Fixture::Assemble (" ORG $300\n LDA #$11\n SAV SAME\n"
+                                                           " LDA #$22\n SAV SAME\n");
+            std::vector<Byte>  second = { 0xA9, 0x22 };
 
-            Assert::IsFalse (result.success, L"one output would be written over the other");
-            Assert::AreEqual ((size_t) 1, result.errors.size(), L"one error");
-            Assert::IsTrue (result.errors[0].message.find ("SAME") != std::string::npos,
-                            L"and it names the file that collided");
+            Assert::IsTrue (result.success, L"the period assembler reports no error here");
+            Assert::AreEqual ((size_t) 2, result.savePoints.size(), L"both saves happened");
+            Assert::IsTrue (second == result.savePoints[1].bytes,
+                            L"and the later one is what a caller writing in order leaves behind");
+
+            Assert::AreEqual ((size_t) 1, result.warnings.size(), L"one warning");
+            Assert::IsTrue (result.warnings[0].message.find ("SAME") != std::string::npos,
+                            L"naming the file that will not survive");
         }
 
 

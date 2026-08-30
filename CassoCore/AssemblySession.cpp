@@ -4786,21 +4786,39 @@ Error:
 
 HRESULT AssemblySession::HandlePass1SaveObject (const PendingLine & current, LineInfo & info)
 {
-    HRESULT      hr     = S_OK;
-    std::string  name   = StripCommentAndTrim (info.parsed.directiveArg);
-    bool         hasArg = !name.empty();
+    HRESULT      hr        = S_OK;
+    std::string  name      = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg    = !name.empty();
+    bool         streaming = m_objectFileSeen;
 
 
 
     //  A NAME IS REQUIRED, and is not taken from anywhere else when it is
-    //  missing. This directive exists to write a named output, and falling back
-    //  to whatever name happened to be in effect is what would let several
-    //  saves in one source resolve to one file, each writing over the last
-    //  while the assembly reported success. The output-file directive beside it
-    //  is already an error with no operand, for the same reason.
+    //  missing. Measured: the period assembler does not fall back either. It
+    //  saves under the empty name and the operating system refuses that with a
+    //  syntax error, so the outcome is the same failure reported later and less
+    //  clearly. Saying it at the line that is missing the name is the whole
+    //  improvement.
     if (!hasArg)
     {
         RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+    }
+
+    //  THE TWO OUTPUT DIRECTIVES ARE MUTUALLY EXCLUSIVE, which was measured and
+    //  is not what this code first assumed. The output-file directive streams
+    //  the code that follows it straight to disk; this one writes the buffer
+    //  held in memory. They are different mechanisms rather than two spellings
+    //  of one, and the period assembler rejects this line outright once the
+    //  other is in effect.
+    //
+    //  A rule for combining them was invented here before anyone checked, and
+    //  it described a source the assembler being copied refuses.
+    if (hasArg && streaming)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " cannot be used once DSK is in effect: DSK assembles "
+                     "the code that follows it straight to disk, and " + info.parsed.directive +
+                     " writes the object held in memory");
     }
 
     return hr;
@@ -4945,6 +4963,12 @@ HRESULT AssemblySession::HandlePass1ObjectFile (const PendingLine & current, Lin
     }
 
     BAIL_OUT_IF (!hasName, S_OK);
+
+    //  Recorded even when the caller's name wins, because what it gates is not
+    //  the name: a save directive below this one is refused, and that is true
+    //  however the output ends up called.
+    m_objectFileSeen = true;
+
     BAIL_OUT_IF (callerSet, S_OK);
 
     m_result.outputFileName = name;
@@ -8249,17 +8273,21 @@ void AssemblySession::CloseSpan (const std::string & name)
 //
 //  AssemblySession::ReportDuplicateOutputNames
 //
-//  Two outputs of one assembly under one name, which is refused.
+//  Two outputs of one assembly under one name, which is a warning and not a
+//  refusal.
 //
-//  DELIBERATELY NOT THE SAME CASE as a name already on the target from an
-//  earlier run. Replacing across runs is what a build loop needs and happens
-//  every time after the first; replacing within one run throws away an output
-//  the source just asked for, and the assembly would report success having
-//  written one file where the source named two.
+//  THIS WAS A REFUSAL AND MEASUREMENT SAID OTHERWISE. The period assembler
+//  writes both and lets the second overwrite the first, reporting no error at
+//  all: a source saving twice under one name leaves one file holding the second
+//  save's bytes. Refusing would produce no files where it produces one, which
+//  the promise to write what a period assembler wrote does not allow.
+//
+//  So the files match and the warning carries what is lost. Silently discarding
+//  an output the source asked for is the half that would be wrong, and it is
+//  the half a diagnostic can fix without changing what lands on the disk.
 //
 //  Checked once the outputs are known rather than as each is cut, so the
-//  diagnostic can name the file rather than the position, and so nothing has
-//  been written by the time it is raised.
+//  diagnostic can name the file rather than the position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -8286,9 +8314,9 @@ void AssemblySession::ReportDuplicateOutputNames()
         {
             if (m_result.savePoints[inner].name == name)
             {
-                RecordError (m_lastSourceLine,
-                             "two outputs of this assembly are both called " + name +
-                             ", so one would be written over the other");
+                RecordWarning (m_lastSourceLine,
+                               "two outputs of this assembly are both called " + name +
+                               ", so the later one is all that survives");
                 break;
             }
         }

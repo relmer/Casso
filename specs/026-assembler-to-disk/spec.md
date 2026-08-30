@@ -228,12 +228,13 @@ startup program.
 - A save is requested when no image target was given. **Writes a host file**;
   the directive is not refused for want of a disk.
 - The startup-program flag is given with no image target.
-- The same file is named twice in one assembly. **Refused**, naming the file —
-  unlike a name left by an earlier run, which is replaced.
+- The same file is named twice in one assembly. **Written in order and warned
+  about**, the later surviving — which is what the period assembler does, with
+  the warning added because the loss should not be silent.
 - A command-line name is given and the source produces several outputs.
   **Refused**, naming the flag; one name cannot serve several files.
-- The source names an output before the bytes exist (`DSK`) and again after they
-  do (`SAV`), for the same span.
+- A `SAV` appears once a `DSK` is in effect. **Refused**, naming both: they are
+  different output mechanisms and cannot both be in play.
 - Bytes are emitted after the last save, so a span ends with nothing having
   named it.
 
@@ -372,24 +373,24 @@ startup program.
   replaced by the next, and the tool would report success having written one
   file where the source asked for several. A command-line TYPE has no such
   limit, because one type applies to every output without ambiguity.
-- **FR-027**: Two outputs of a single assembly MUST NOT be written under the
-  same name. This MUST be refused, naming the file. It is a different case from
-  FR-019, which replaces a file left by an EARLIER run: replacing across runs is
-  what a build loop needs, and replacing within one run discards an output the
-  source just asked for.
+- **FR-027**: Two outputs of a single assembly under one name MUST be written in
+  order, the later overwriting the earlier, and MUST warn naming the file.
 
-  The sequence this most often catches is several saves that never name
-  themselves differently. Each would write over the last, so the assembly would
-  report success having produced one file where the source asked for several,
-  and only the final one would survive. That is the shape FR-042 exists to catch
-  earlier and this one to catch regardless.
+  **This was a refusal and measurement corrected it.** The period assembler
+  writes both and reports no error at all: a source saving twice under one name
+  leaves a disk holding one file with the second save's bytes. Refusing would
+  produce no files where it produces one, which SC-003 does not allow. The
+  warning carries what is lost, which is the part that would otherwise be
+  silent — and silence, not the overwrite, is what this feature must not do.
 - **FR-042**: `SAV` MUST require a name operand, and MUST report a missing one
   as an error naming the directive. It MUST NOT fall back to the command-line
-  name, to a `DSK` in effect, or to the default. `SAV` is the directive whose
-  whole purpose is to write a named output — Merlin's own form is `SAV
-  filename` — and the tool already treats a `DSK` with no operand as an error
-  for the same reason. Falling back instead is what would let several saves in
-  one source silently resolve to one name.
+  name, to a `DSK` in effect, or to the default.
+
+  **Confirmed by measurement, with the diagnostic improved.** The period
+  assembler does not fall back either: it saves under the empty name and the
+  operating system refuses that with a syntax error, so the outcome is the same
+  failure reported later and less clearly. Raising it at the line that is
+  missing the name is the whole difference.
 
 **Merlin directives**
 
@@ -405,12 +406,18 @@ startup program.
   open, or by the end of the assembly, and by nothing else. `SAV` and `DSK` are
   therefore each able to produce several outputs without the other, and neither
   is a prerequisite for the other.
-- **FR-044**: A `DSK` name MUST remain in effect until another `DSK` replaces
-  it, which is what its manual means by a `DSK` "already in effect". A `SAV`
-  MUST override that name for the span it ends and for no other, so a later span
-  still belongs to the `DSK` in effect. This gives one rule for every
-  combination of the two directives and leaves no case needing to be refused as
-  ambiguous.
+- **FR-044**: `SAV` MUST be refused once `DSK` is in effect, naming both
+  directives. `DSK` assembles the code that follows it straight to disk and
+  `SAV` writes the object held in memory: they are different output mechanisms
+  rather than two spellings of one, and cannot both be in play.
+
+  **This requirement said the opposite and the opposite was invented.** It had
+  a rule for combining them — the name staying in effect past a save and
+  governing the next span — reasoned out precisely because no vendor source
+  mixes the two. Measured, the period assembler answers `Bad "SAV"` at that
+  line and writes no second file. A `DSK` name still stays in effect until
+  another `DSK` replaces it; what is gone is the idea that a `SAV` can appear
+  underneath one at all.
 - **FR-045**: A span MUST be written when a directive named it, or when it is
   the only span and takes the command-line or default name. Bytes emitted after
   the last save with nothing naming them MUST NOT be written, and the assembly

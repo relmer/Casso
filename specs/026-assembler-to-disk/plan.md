@@ -309,11 +309,11 @@ depth; full depth is for CPU work.
   procedure and its traps are in [research.md](research.md) finding 2a, and the
   measured values there are the oracle the fixtures assert against.
 
-  Three rules remain assumption rather than measurement: a bare `SAV` with no
-  operand (FR-042), two saves naming one file (FR-027), and a `DSK` name
-  persisting past a `SAV` (FR-044). None contradicts anything measured, and each
-  is cheap to settle with the recorded procedure. Worth doing before the tests
-  that assert them are written, since one of the four already went the other way.
+  **All seven rules are now measured, and three of the seven were wrong.** The
+  trailing span, the file type's scope, two saves under one name, and a `SAV`
+  beneath a `DSK` all behaved differently from what was reasoned out. What the
+  manual states plainly held every time; what it was silent about did not.
+  Anything further in this area should be run before it is written down.
 - **`TYP`'s exact operand syntax is documented only indirectly.** The Merlin
   Pro manual's OCR is truncated at the entry. Research finding 4 reasons from
   the ProDOS type set and from what Casso already publishes, which is solid for

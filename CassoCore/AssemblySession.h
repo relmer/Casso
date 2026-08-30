@@ -805,6 +805,12 @@ private:
     // span still belongs to this.
     std::string                                        m_objectFileInEffect;
 
+    // Whether the source has reached an output-file directive at all. Pass 1
+    // tracks it so a save directive below one can be refused at its own line,
+    // the two being different output mechanisms rather than two spellings of
+    // one.
+    bool                                               m_objectFileSeen     = false;
+
     // The last source line pass 1 read, so a diagnostic raised once the walk
     // has finished still points somewhere in the file rather than at line zero.
     int                                                m_lastSourceLine     = 0;

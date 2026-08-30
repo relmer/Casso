@@ -134,25 +134,20 @@ other, and the in-tree corpus shows both shapes: `PI.ADD.S` and `PI.START.S` eac
 carry a lone `DSK`, while `CLOCK.S` names its outputs with `SAV` alone.
 
 **The `DSK` name persists until another `DSK` replaces it**, which is what its
-manual means by "already in effect". `SAV` overrides that name for the span it
-ends, and only for that span — a later span still belongs to the `DSK` in
-effect. That gives one rule for every combination, with no case needing to be
-refused as ambiguous:
+manual means by "already in effect".
 
-| Source | Outputs |
-|---|---|
-| `DSK A … DSK B` | `A`, then `B` |
-| `SAV A … SAV B` | `A`, then `B` |
-| `DSK A … SAV B … <more code>` | `B`, then `A` — `SAV` took that span's name, and the `DSK` still stands for the next |
-| `DSK A … SAV B` (nothing after) | `B` only — no bytes follow, so there is no second span |
+**But the two cannot both be in play.** A `SAV` once a `DSK` is in effect is
+refused, naming both directives (FR-044). They are different output mechanisms
+rather than two spellings of one: `DSK` streams the following code straight to
+disk, `SAV` writes the object held in memory.
 
-**Mixing them is not a documented Merlin pattern** and no source in the corpus
-does it. In real Merlin the two are separate subsystems — `DSK` streams to disk,
-`SAV` writes the in-memory buffer — so the rows above are Casso's composition
-rather than recovered behavior. They are specified rather than refused because
-the rule falls out of the two directives' own definitions without needing a
-special case, and refusing would be inventing a restriction Merlin does not
-have.
+**This section previously specified a combination table** — the `DSK` name
+governing the span after a `SAV`, one rule covering every mixture, "no case
+needing to be refused as ambiguous". It even said out loud that those rows were
+"Casso's composition rather than recovered behavior", which was true and should
+have been the signal to run it rather than write it down. Merlin answers
+`Bad "SAV" in line: 6` and writes no second file. The composition covered a case
+that does not exist.
 
 ## How a save point gets its name
 
@@ -167,17 +162,13 @@ plainly:
 So a span's name may be fixed before its first byte exists or after its last
 one. Both are ordinary; neither is an error.
 
-**Where both name the same span**, `SAV` wins. It is the later statement and the
-one made with the bytes in hand, and it is the directive whose whole purpose is
-to write this output — `DSK` merely said where the following code was headed.
+The two never name the same span, since they cannot both be in effect.
 
 **`SAV` must carry a name; `DSK` already must.** A bare `SAV` is an error naming
 the directive (FR-042), not a fallback to whatever name happens to be in effect.
-Merlin's own form is `SAV filename`, and the tool already errors on a `DSK` with
-no operand. This matters more than it looks: a `SAV` that fell back would let
-several saves in one source resolve to one name, each writing over the last, and
-the assembly would report success having produced a single file where the source
-asked for several.
+Measured: Merlin does not fall back either — it saves under the empty name and
+the operating system answers `SYNTAX ERROR`, so the outcome is the same failure
+reported later and less clearly.
 
 **A span nothing named** takes the command-line name, then the default
 (`<source>.bin`). This is the ordinary single-output assembly — no directive
@@ -222,21 +213,20 @@ produce output earns.
 **A command-line TYPE is not limited this way.** One type applies to every
 output without ambiguity, so `--type` with several saves is ordinary.
 
-**Two outputs of one assembly under one name is refused** (FR-027), naming the
-file. The common shape is several saves that never name themselves differently:
-each writes over the last, so the assembly succeeds having produced one file
-where the source asked for several, and only the final one survives. FR-042
-catches most of these at the directive — a bare `SAV` is an error rather than a
-fallback — and FR-027 catches the rest, including two saves that name the same
-file explicitly.
+**Two outputs of one assembly under one name warn** (FR-027), naming the file,
+and the later one survives. Measured: Merlin writes both, lets the second
+overwrite the first, and reports no error — the disk ends with one file holding
+the second save's bytes.
 
-This is deliberately NOT the same as FR-019, which replaces a file left by an
-earlier run:
+This was specified as a refusal and the refusal was wrong. It would leave no
+files where Merlin leaves one, which SC-003 forbids. What is ours to add is the
+warning: the overwrite is Merlin's behavior and stays, the silence is not and
+goes.
 
 | | |
 |---|---|
-| Name already on the volume from an **earlier run** | **Replace.** A build loop reassembles constantly; refusing would fail every build after the first. |
-| Two save points in **one assembly** under one name | **Refuse.** The source just asked for two files and one of them would be thrown away. |
+| Name already on the volume from an **earlier run** | **Replace**, silently. A build loop reassembles constantly; complaining would fire on every build after the first. |
+| Two save points in **one assembly** under one name | **Replace, and warn.** Same bytes on the disk as Merlin leaves, and a word about the output that did not survive. |
 
 ## The boundary table
 

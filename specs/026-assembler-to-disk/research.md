@@ -168,9 +168,62 @@ and an ordinary assembly with no directives at all is one span under the
 command-line name, which is what `CassoCli merlin` already does and FR-016
 protects.
 
-**What is still assumption rather than measurement**: a bare `SAV` with no
-operand (FR-042), two saves naming one file (FR-027), and a `DSK` name persisting
-past a `SAV` (FR-044). The procedure below makes each cheap to settle.
+### The last three, measured: one confirmed, two wrong
+
+These were implemented on reasoning and then run. **Two of the three were
+wrong**, which is the second time in this feature that a rule reasoned out from
+the manual did not survive contact.
+
+**A bare `SAV` — confirmed.** Merlin does not fall back to any other name. It
+prints `Object saved as ,A$0300,L$0003` — the name empty — and the operating
+system then answers `SYNTAX ERROR`. So it is an error and there is no fallback,
+which is what FR-042 says. The difference is only that Casso raises it at the
+line missing the name rather than letting DOS raise it later and less clearly.
+
+**Two saves under one name — WRONG, it is not an error.**
+
+```
+* TWO SAVES, ONE NAME
+ ORG $300
+ LDA #$11
+ SAV SAME
+ LDA #$22
+ SAV SAME
+```
+
+Merlin reported `Object saved as SAME,A$0302,L$0002` and `--End assembly, 4
+bytes, Errors: 0`. Reading the disk back leaves exactly one `SAME`, holding the
+SECOND save's bytes: the first was overwritten with no complaint. FR-027 refused
+this outright, which would produce no files where Merlin produces one. Corrected
+to the shape the trailing-span rule already uses — the files match Merlin, and a
+warning carries what was lost.
+
+**A `DSK` name persisting past a `SAV` — WRONG, the combination is refused.**
+
+```
+* DSK, THEN SAV, THEN MORE
+ DSK OUTER
+ ORG $300
+ LDA #$11
+ RTS
+ SAV INNER
+```
+
+Merlin answered **`Bad "SAV" in line: 6`**. The disk afterwards holds `OUTER`
+(`$0300`, 3 bytes, the code above the save) and no `INNER` at all.
+
+The two directives are **mutually exclusive output mechanisms**: `DSK` streams
+the following code straight to disk, `SAV` writes the object held in memory, and
+Merlin will not have both in play. FR-044 had invented a rule for combining
+them — the name staying in effect past a save and governing the next span —
+and the contract even flagged those rows as "Casso's composition rather than
+recovered behavior". They were composition of a case that does not exist.
+
+**The lesson, since it now has three instances.** Every rule in this feature
+reasoned out rather than measured has had roughly even odds: the trailing span
+was wrong, the file type's scope was wrong, two of these three were wrong. What
+the manual states plainly has held every time. What it is silent about should be
+run, not derived.
 
 ### The procedure, since 019 asked for exactly this
 
