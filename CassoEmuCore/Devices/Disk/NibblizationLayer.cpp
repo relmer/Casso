@@ -681,11 +681,15 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 
 Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 {
-    size_t   trackBits = img.GetTrackBitCount (track);
-    Byte     value     = 0;
-    Byte     bit       = 0;
-    size_t   start     = bitPos;
-    bool     overran   = false;
+    const vector<Byte>  &  bits         = img.GetTrackBits (track);
+    size_t                 trackBits    = img.GetTrackBitCount (track);
+    size_t                 capacityBits = bits.size() * 8;
+    size_t                 start        = bitPos;
+    size_t                 pos          = 0;
+    Byte                   value        = 0;
+    Byte                   bit          = 0;
+    bool                   overran      = false;
+    bool                   addressable  = trackBits != 0 && trackBits <= capacityBits;
 
 
 
@@ -696,14 +700,51 @@ Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t &
     // The overrun test stays AFTER the read and outranks a completed nibble:
     // a value whose MSB set on the very read that crossed the revolution
     // boundary is discarded, because its high bits came from before the wrap.
-    if (trackBits != 0)
+    //
+    // THE WRAP IS A COMPARE, NOT A MODULO, and that is most of what this
+    // function costs. Every caller walks the track in order, so the position
+    // only ever needs to fall back to zero at the end -- but the general bit
+    // accessor cannot know that and divides by the track length on every read,
+    // twice over once the caller has taken its own remainder. A division is
+    // twenty-odd cycles against the two or three the rest of the loop spends,
+    // so a whole disk's decode was paying for arithmetic it had already done.
+    if (addressable)
     {
+        pos = bitPos % trackBits;
+
         while ((value & 0x80) == 0 && !overran)
         {
-            bit    = img.ReadBit (track, bitPos % trackBits);
-            bitPos++;
-            value  = static_cast<Byte> ((value << 1) | (bit & 1));
+            bit = static_cast<Byte> ((bits[pos >> 3] >> (7 - (pos & 7))) & 1);
 
+            bitPos++;
+            pos++;
+
+            if (pos == trackBits)
+            {
+                pos = 0;
+            }
+
+            value   = static_cast<Byte> ((value << 1) | bit);
+            overran = (bitPos - start > trackBits);
+        }
+
+        if (overran)
+        {
+            value = 0;
+        }
+    }
+    else if (trackBits != 0)
+    {
+        // A bit count larger than the buffer behind it should not happen --
+        // ResizeTrack sizes the two together -- but SetTrackBitCount can set
+        // one without the other, and reading past the end to save a division
+        // is not a trade worth making. The general accessor range-checks.
+        while ((value & 0x80) == 0 && !overran)
+        {
+            bit = img.ReadBit (track, bitPos % trackBits);
+
+            bitPos++;
+            value   = static_cast<Byte> ((value << 1) | (bit & 1));
             overran = (bitPos - start > trackBits);
         }
 
@@ -1239,6 +1280,8 @@ HRESULT NibblizationLayer::DecodeTracks (
     uint16_t      lost                  = 0;
     uint16_t      duplicated            = 0;
     uint16_t      slotMask              = 0;
+    uint16_t      seenAtRevStart        = 0;
+    size_t        revolutionEnd         = 0;
     Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
@@ -1284,8 +1327,39 @@ HRESULT NibblizationLayer::DecodeTracks (
         slotMask   = 0;
         trackBits = img.GetTrackBitCount (track);
 
+        //  A revolution that turns up nothing new means there is nothing left
+        //  to find, and the scan can stop. Without this an EMPTY track is the
+        //  worst case in the whole decoder: the mask never fills, so the loop
+        //  below runs its full count, and each attempt scans a whole
+        //  revolution looking for a prologue that is not there -- thirty-two
+        //  passes over the same bits to conclude what the first one did.
+        //
+        //  It costs the damaged-media recovery nothing. That recovery works by
+        //  arriving at a skipped sector from a different offset on the next
+        //  time round, so it pays off within a revolution or two; a revolution
+        //  that adds no sector, recovers none and loses none has met only
+        //  headers it has already read.
+        revolutionEnd  = trackBits;
+        seenAtRevStart = 0;
+
         for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
         {
+            //  AT THE TOP, because every failure path below continues, and a
+            //  track with nothing on it takes all of them -- which is the one
+            //  case this exists to cut short.
+            if (bitPos >= revolutionEnd)
+            {
+                uint16_t  seen = static_cast<uint16_t> (mask | recovered | lost);
+
+                if (seen == seenAtRevStart)
+                {
+                    break;
+                }
+
+                seenAtRevStart = seen;
+                revolutionEnd  = bitPos + trackBits;
+            }
+
             //  DUPLICATES ARE ONLY MEANINGFUL WITHIN ONE REVOLUTION. This loop
             //  deliberately keeps scanning after the cursor has been all the way
             //  round, because that is how it retries the sectors a damaged header

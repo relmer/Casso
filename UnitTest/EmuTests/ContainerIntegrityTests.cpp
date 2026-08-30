@@ -125,6 +125,31 @@ public:
         return static_cast<Byte> (offset & 0xFF);
     }
 
+    //  Position WITHIN a sector, and never a multiple of four.
+    //
+    //  It changes at every 256-byte edge, which is where an off-by-one in
+    //  sector indexing shows, and it carries non-zero low bits everywhere --
+    //  the two bits the encoder treats separately from the other six, which no
+    //  other pattern here guarantees at a sector boundary.
+    //
+    //  WHAT IT DOES NOT COVER, recorded so nobody assumes otherwise. The
+    //  encoder's third-group guard, `i + 172 < 256`, was the reason this
+    //  pattern was written: a `<=` there reads sectorData[256], one past the
+    //  volume for the last sector. That mutation was tried and this sweep did
+    //  NOT catch it, for a structural reason -- the decoder maps the third
+    //  group to encoded[0..83] and never reads encoded[84]'s bits at all, so
+    //  the stray read lands where nothing looks. The out-of-bounds access is
+    //  real and the data round-trips perfectly regardless.
+    //
+    //  No round-trip test can find that. It needs an address sanitizer or a
+    //  reader; a green suite here says nothing about it either way.
+    static Byte  SectorEdges (size_t offset)
+    {
+        size_t  withinSector = offset % (size_t) kSectorSize;
+
+        return static_cast<Byte> (((withinSector * 3) | 1) & 0xFF);
+    }
+
 
 
     using PatternFn = Byte (*) (size_t);
@@ -146,7 +171,8 @@ public:
             { 1,  4, &WalkingOnes,   "walking ones"   },
             { 5,  4, &WalkingZeros,  "walking zeros"  },
             { 9,  4, &Alternating,   "alternating"    },
-            { 13, 4, &AddressInData, "address in data"},
+            { 13, 2, &AddressInData, "address in data"},
+            { 15, 2, &SectorEdges,   "sector edges"   },
         };
     }
 
@@ -155,8 +181,9 @@ public:
     static std::vector<Region>  SecondPass()
     {
         return {
-            { 18, 8, &AllValues,     "all values"     },
-            { 26, 8, &AddressInData, "address in data"},
+            { 18, 6, &AllValues,     "all values"     },
+            { 24, 5, &AddressInData, "address in data"},
+            { 29, 5, &SectorEdges,   "sector edges"   },
         };
     }
 
@@ -366,6 +393,71 @@ public:
         Assert::IsTrue (bestRun > 20,
             L"data encodes to a sync run longer than the inter-sector gap, "
             L"which is why the gap is found by what follows it and not by length");
+    }
+
+
+
+    TEST_METHOD (NoEncodedDataCanImpersonateAFieldMark)
+    {
+        //  $D5 OPENS EVERY FIELD AND MUST APPEAR NOWHERE ELSE. The 6-and-2
+        //  alphabet excludes it deliberately, and the address header's 4-and-4
+        //  encoding cannot produce it either -- every 4-and-4 byte is
+        //  `x | $AA`, and $D5 does not contain $AA's bits. So a track holds
+        //  exactly thirty-two: sixteen address prologues and sixteen data ones.
+        //
+        //  This is the property every resync in the decoder rests on. If a
+        //  future edit let $D5 into the data alphabet, a sector's own contents
+        //  could impersonate the start of the next field and the decoder would
+        //  sync to garbage -- so the count is asserted rather than assumed, on
+        //  the patterns most likely to produce awkward encodings.
+        PatternFn  patterns[] = { &Alternating, &AllValues, &SectorEdges, &WalkingOnes };
+
+        for (PatternFn pattern : patterns)
+        {
+            DiskImage     img;
+            vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  derived;
+            size_t        bitPos = 0;
+            size_t        bits   = 0;
+            size_t        i      = 0;
+            int           marks  = 0;
+            Byte          nib    = 0;
+
+            for (i = 0; i < sectors.size(); i++)
+            {
+                sectors[i] = pattern (i);
+            }
+
+            AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+
+            bits = img.GetTrackBitCount (5);
+
+            while (bitPos < bits)
+            {
+                nib = NibblizationLayer::ReadNibbleAt (img, 5, bitPos);
+
+                if (nib == 0)
+                {
+                    break;
+                }
+
+                derived.push_back (nib);
+            }
+
+            Assert::IsTrue (derived.size() > 0, L"the track must derive something");
+
+            for (i = 0; i < derived.size(); i++)
+            {
+                if (derived[i] == NibblizationLayer::kProlog0)
+                {
+                    marks++;
+                }
+            }
+
+            Assert::AreEqual (32, marks,
+                L"a track must hold exactly sixteen address and sixteen data marks; "
+                L"any other count means encoded data is impersonating a field start");
+        }
     }
 
 
