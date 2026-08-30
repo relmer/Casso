@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "StartupTrace.h"
 
 #include "Ui/Scene/DeskScene.h"
 
@@ -77,11 +78,15 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind       monitorKind,
     hr = m_monitor.Load (monitorKind, monitorObj, monitorMtl);
     CHRA (hr);
 
+    StartupTrace::Stamp ("          monitor DeskSceneModel::Load (OBJ parse)");
+
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
     // them here beats making every caller say it twice and disagree once.
     hr = m_drive.Load (driveKind, driveObj, driveMtl);
     CHRA (hr);
+
+    StartupTrace::Stamp ("          drive DeskSceneModel::Load (OBJ parse)");
 
     // The per-drive legend: the number differs per drive, so it is stamped
     // here rather than into the shared model. Everything about how it is set
@@ -179,10 +184,14 @@ void DeskScene::BuildDerivedGeometry()
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
+    StartupTrace::Stamp ("          BuildLampGlow x2 (occlusion bake)");
+
     BuildContactShadow (m_monitor, kMonitorShadowMarginSideMm, kMonitorShadowMarginDepthMm,
                         m_monitorShadowVerts);
     BuildContactShadow (m_drive,   kShadowMarginSideMm,        kShadowMarginDepthMm,
                         m_driveShadowVerts);
+
+    StartupTrace::Stamp ("          BuildContactShadow x2");
 
     m_modelsLoaded = true;
     m_glassUvDirty = true;

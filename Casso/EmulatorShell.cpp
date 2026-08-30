@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "StartupTrace.h"
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
@@ -824,8 +825,12 @@ HRESULT EmulatorShell::Initialize (
     // is replayed once the window exists.
     s_pNotifyShell = this;
 
+    StartupTrace::Stamp ("EmulatorShell::Initialize entry");
+
     RegisterChromeDock();
     InitAssetPathsAndStores();
+
+    StartupTrace::Stamp ("  RegisterChromeDock + InitAssetPathsAndStores");
 
     // Bring up OLE on the UI thread before any RegisterDragDrop / IFileDialog
     // (drive-widget click-to-browse) needs the STA apartment. OleInitialize
@@ -841,14 +846,25 @@ HRESULT EmulatorShell::Initialize (
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
+    StartupTrace::Stamp ("  OleInitialize + RegisterBuiltinDevices");
+
     AllocateFramebuffers();
+
+    StartupTrace::Stamp ("  AllocateFramebuffers");
+
     PrimeChromeThemeEarly();
+
+    StartupTrace::Stamp ("  PrimeChromeThemeEarly");
 
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
+    StartupTrace::Stamp ("  CreateEmulatorWindow (D3D device + swap chain)");
+
     hr = BuildMachineDevices (config);
     CHR (hr);
+
+    StartupTrace::Stamp ("  BuildMachineDevices (ROMs, CPU, bus)");
 
     // Mark the display pages so a write into them raises the bus video-dirty
     // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
@@ -869,8 +885,12 @@ HRESULT EmulatorShell::Initialize (
     hr = InitializeRenderer();
     CHR (hr);
 
+    StartupTrace::Stamp ("  InitializeRenderer TOTAL");
+
     hr = InitializeUiShell();
     CHR (hr);
+
+    StartupTrace::Stamp ("  InitializeUiShell");
 
     // Native-only bootstrap baseline: legacy chrome overlay retired
     // ahead of the native painter. Keep existing command/menu path active.
@@ -881,7 +901,11 @@ HRESULT EmulatorShell::Initialize (
     // not just the normal rect it was created with: showing maximized
     // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
     // flash of the restored-size window.
+    StartupTrace::Stamp ("  (pre ShowWindow)");
+
     ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+
+    StartupTrace::Stamp ("  ShowWindow");
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
@@ -903,7 +927,11 @@ HRESULT EmulatorShell::Initialize (
     // disk. Mounting first then power-cycling silently throws away the
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
+    StartupTrace::Stamp ("  ReconcileInitialClientSize + UpdateWindowTitle");
+
     PowerCycle();
+
+    StartupTrace::Stamp ("  PowerCycle");
 
     // Every mount reports its outcome through here, not just this one:
     // the recent-disks entry, the damage check, and the failure report all
@@ -918,7 +946,11 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    StartupTrace::Stamp ("  MountCommandLineDisks");
+
     ApplyPersistedAudioPrefs();
+
+    StartupTrace::Stamp ("  ApplyPersistedAudioPrefs");
 
 Error:
     return hr;
@@ -1168,6 +1200,8 @@ HRESULT EmulatorShell::InitializeRenderer()
                                    m_viewportBoundsPx);
     CHR (hr);
 
+    StartupTrace::Stamp ("    D3DRenderer::Initialize (9 CRT shaders compiled)");
+
     // Desk scene (spec 018): shares the host device with the framebuffer
     // renderer. Failure (broken embedded asset) asserts in debug and leaves
     // the 2D chrome paths active.
@@ -1175,6 +1209,8 @@ HRESULT EmulatorShell::InitializeRenderer()
         HRESULT  hrScene = InitializeDeskScene();
 
         IGNORE_RETURN_VALUE (hrScene, S_OK);
+
+        StartupTrace::Stamp ("    InitializeDeskScene TOTAL");
     }
 
     // Composite the Apple ][ framebuffer before the host paints chrome on
@@ -1490,12 +1526,16 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
 
 
+    StartupTrace::Stamp ("        LoadTextResource x4 (obj/mtl text)");
+
     haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
     CBRA (haveText);
 
     hr = m_deskScene.LoadModels (monitor.sceneKind,
                                  monitorObj, monitorMtl, driveObj, driveMtl);
     CHRA (hr);
+
+    StartupTrace::Stamp ("        DeskScene::LoadModels TOTAL");
 
     m_deskSceneMachineIsC = isC;
 
@@ -1530,14 +1570,20 @@ HRESULT EmulatorShell::InitializeDeskScene()
     hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
     CHRA (hr);
 
+    StartupTrace::Stamp ("      DeskScene::Initialize (scene shaders/RTs)");
+
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
+
+    StartupTrace::Stamp ("      LoadDeskSceneModelsForMachine TOTAL");
 
     // A powered monitor's lamp is lit for as long as the machine exists;
     // drive activity arrives per frame from the drive state sync.
     m_deskScene.SetPowerLampOn (true);
 
     ApplySceneAntiAliasing();
+
+    StartupTrace::Stamp ("      ApplySceneAntiAliasing");
 
     {
         wchar_t   debugValue[8] = {};

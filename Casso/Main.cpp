@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "StartupTrace.h"
 
 #include "AssetBootstrap.h"
 #include "CommandLineParser.h"
@@ -476,6 +477,8 @@ int WINAPI wWinMain (
     // anything can fail, so a command-line or machine-config failure is
     // reported too; those happen before the shell exists, so the sink queues
     // them and the shell replays them once there is a window.
+    StartupTrace::Stamp ("wWinMain entry");
+
     SetNotifyFunction (&EmulatorShell::NotifyUser);
 
     // Register a GUI assertion breakpoint. In debug builds a failed EHM
@@ -519,6 +522,8 @@ int WINAPI wWinMain (
     });
 
     // Parse command line
+    StartupTrace::Stamp ("hooks installed");
+
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
 
@@ -556,6 +561,8 @@ int WINAPI wWinMain (
         hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
         IGNORE_RETURN_VALUE (hrSounds, S_OK);
     }
+
+    StartupTrace::Stamp ("asset bootstrap (configs/themes/sounds)");
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
     if (machineName.empty())
@@ -596,12 +603,16 @@ int WINAPI wWinMain (
             discovered, machineName, s_kPreferredDefaultMachine);
     }
 
+    StartupTrace::Stamp ("machine scan + canonicalize");
+
     // Load machine configuration. A user who dismissed one of the
     // startup dialogs wants out, so exit cleanly without a follow-up
     // error MessageBox.
     hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
     CHR (hr);
     BAIL_OUT_IF (userExited, S_OK);
+
+    StartupTrace::Stamp ("LoadMachineConfig (roms/prefs/disk pre-flight)");
 
     // Initialize emulator. EmulatorShell::Initialize records the
     // chosen machine into GlobalUserPrefs.lastSelectedMachine and
@@ -613,6 +624,9 @@ int WINAPI wWinMain (
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
+    StartupTrace::Stamp ("shell->Initialize returned");
+    StartupTrace::Dump();
+
     exitCode = shell->RunMessageLoop();
 
     // --trace graceful-exit dump. No-op (one-shot guard) if a crash
