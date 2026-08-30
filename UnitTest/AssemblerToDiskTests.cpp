@@ -5,6 +5,7 @@
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
 #include "Assembler.h"
+#include "Cli/AssemblerMode.h"
 #include "Cli/ImageArtifactSink.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/Dos33Volume.h"
@@ -816,6 +817,161 @@ namespace AssemblerToDiskTests
 
             Assert::IsTrue (viaMerlin == viaAs65,
                             L"the image is the same whichever dialect assembled the program");
+        }
+    };
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RefusalsReachTheReaderTests
+    //
+    //  That a refusal on the disk path is SAID, not merely returned.
+    //
+    //  THIS IS THE GAP EVERY OTHER TEST IN THIS FILE LEFT OPEN. They assert
+    //  that the sink PRODUCES its diagnostics, which it always did; nothing
+    //  asserted that anything reads them back. For one release nothing did, and
+    //  every refusal here -- no image, a type the filesystem has no equivalent
+    //  for, a volume full, a locked file, an illegal name, an image held by
+    //  another program -- exited non-zero and printed absolutely nothing.
+    //
+    //  Only running the tool found it, which is why the assertion is made
+    //  against what a reader would see rather than against the sink.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (RefusalsReachTheReaderTests)
+    {
+    public:
+
+        //  Standard error, captured while one assembly runs.
+        class CapturedErrors
+        {
+        public:
+
+            CapturedErrors() : m_saved (std::cerr.rdbuf (m_text.rdbuf()))
+            {
+            }
+
+            ~CapturedErrors()
+            {
+                std::streambuf *  discarded = std::cerr.rdbuf (m_saved);
+
+                (void) discarded;
+            }
+
+            CapturedErrors (const CapturedErrors &)             = delete;
+            CapturedErrors & operator= (const CapturedErrors &) = delete;
+
+            std::string  Text() const
+            {
+                return m_text.str();
+            }
+
+        private:
+
+            std::ostringstream  m_text;
+            std::streambuf   *  m_saved;
+        };
+
+
+
+        //  A source reader that hands back one fixed text, so a run needs no
+        //  file on the host.
+        class OneSource : public FileReader
+        {
+        public:
+
+            explicit OneSource (const std::string & text) : m_text (text)
+            {
+            }
+
+            FileReadResult ReadFile (const std::string & filename, const std::string & baseDir) override
+            {
+                FileReadResult  result;
+
+                (void) filename;
+                (void) baseDir;
+
+                result.success  = true;
+                result.contents = m_text;
+
+                return result;
+            }
+
+        private:
+
+            std::string  m_text;
+        };
+
+
+
+        //  THE REFUSAL A READER ACTUALLY SEES. The sink carries its words and
+        //  the mode is what prints them, so this drives the mode rather than the
+        //  sink: asking the sink what it recorded is exactly the question that
+        //  stayed answerable while the tool said nothing.
+        TEST_METHOD (ATypeTheFilesystemCannotHold_IsSaidOutLoud)
+        {
+            FakeDiskFileIo      io;
+            OneSource           source (" TYP $FF\n ORG $2000\n LDA #$11\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("SYSPROG");
+            std::string         said;
+            int                 exitCode = 0;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile = "SYSPROG.S";
+
+            Fixture::SeedImage (io, Fixture::MakeDos33Image());
+
+            ImageArtifactSink  sink (io);
+
+            {
+                CapturedErrors  captured;
+
+                std::unique_ptr<AssemblerMode>  mode = AssemblerMode::CreateFor (DialectId::Merlin);
+                HRESULT                         ran  = mode->Run (options, exitCode, &source, &sink);
+
+                said = captured.Text();
+
+                Assert::IsTrue (FAILED (ran), L"the run reports the failure as well as printing it");
+            }
+
+            Assert::AreNotEqual (0, exitCode, L"a type DOS 3.3 has no equivalent for is refused");
+            Assert::IsTrue (said.find ("$FF") != std::string::npos,
+                            L"and the reader is told which type");
+            Assert::IsTrue (said.find ("DOS 3.3") != std::string::npos,
+                            L"and which filesystem could not hold it");
+        }
+
+
+
+        //  The same, for the refusal a caller meets first.
+        TEST_METHOD (AMissingImage_IsSaidOutLoud)
+        {
+            FakeDiskFileIo      io;
+            OneSource           source (" ORG $2000\n LDA #$11\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG");
+            std::string         said;
+            int                 exitCode = 0;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile = "PROG.S";
+
+            ImageArtifactSink  sink (io);
+
+            {
+                CapturedErrors  captured;
+
+                std::unique_ptr<AssemblerMode>  mode = AssemblerMode::CreateFor (DialectId::Merlin);
+                HRESULT                         ran  = mode->Run (options, exitCode, &source, &sink);
+
+                said = captured.Text();
+
+                Assert::IsTrue (FAILED (ran), L"the run reports the failure as well as printing it");
+            }
+
+            Assert::AreNotEqual (0, exitCode, L"an image that is not there is refused");
+            Assert::IsTrue (said.find (kImagePath) != std::string::npos,
+                            L"and the reader is told which image");
         }
     };
 }

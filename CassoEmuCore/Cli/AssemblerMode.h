@@ -86,6 +86,10 @@ public:
     virtual InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const = 0;
 
 protected:
+    //  What the sink had to say about a write that failed. Nothing for the sink
+    //  that writes host files, which says its own piece as it goes.
+    static void          ReportSinkDiagnostics (const ArtifactSink & sink);
+
     //  What the invocation asked for against what the source turned out to
     //  produce. Neither question can be answered before the assembly: how many
     //  outputs there are, and whether one states a file type, are facts about

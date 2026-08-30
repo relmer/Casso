@@ -57,7 +57,7 @@ public:
     //  CARRIED RATHER THAN PRINTED, for the reason the command line's refusals
     //  are: a library has no business owning a console, and a message written
     //  straight to one is a message no test can read.
-    const std::string &  GetDiagnostics() const;
+    const std::string &  GetDiagnostics() const override;
 
 private:
 

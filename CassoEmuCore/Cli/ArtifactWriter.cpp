@@ -203,6 +203,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ArtifactSink::GetDiagnostics
+//
+//  Nothing, for a sink that says its own piece as it goes. The one that writes
+//  onto a volume carries its refusals instead and overrides this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string & ArtifactSink::GetDiagnostics() const
+{
+    static const std::string  kNothing;
+
+
+
+    return kNothing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ArtifactWriter::ResolveArtifactName
 //
 //  An output's name with its extension replaced, so the listing and the debug

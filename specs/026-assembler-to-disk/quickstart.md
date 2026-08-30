@@ -71,8 +71,12 @@ only `PROG` on the volume.
 The guarantee that makes the rest safe. Record the image's bytes, assemble a
 source with a deliberate error, and compare.
 
-**Expected**: the assembly fails, exit status 2, and the image is byte-for-byte
-identical. Not "mostly unchanged" — compare the whole file.
+**Expected**: the assembly fails, **exit status 3**, and the image is
+byte-for-byte identical. Not "mostly unchanged" — compare the whole file.
+
+This said exit 2, and 2 is the wrong number: it is the file-open failure. A
+source that will not assemble is 3, which is what the tool returns and what the
+help page documents. Walked and confirmed: 0 of 143,360 bytes differ.
 
 Repeat with the image open in a running emulator.
 
@@ -114,6 +118,20 @@ CassoCli merlin SYSPROG.S --disk dos.dsk
 Not filed under some nearby DOS 3.3 type. Run the same source against the ProDOS
 disk to confirm it is accepted there — a refusal that fires on both volumes is
 refusing for the wrong reason.
+
+**This is the step that found the feature's one shipped defect.** The refusal
+happened and said nothing: exit 2, image untouched, not one word printed. The
+sink carries its diagnostics rather than printing them, which is what lets a
+test read them, and nothing on the calling side read them back — so every
+refusal on this path was silent, including no image, a full volume, a locked
+file and an illegal name. The unit tests could not see it, because what they
+assert is that the sink PRODUCES the text. Only running the tool did.
+
+**On ProDOS, a `SYS` file lists with `aux=$0000` and that is correct.** ProDOS
+puts the load address in the auxiliary type for `BIN` only; a `SYS` file loads
+at `$2000` by definition and its aux field means nothing. A `BIN` output at the
+same origin lists `aux=$2000`, which is the comparison that settles it. Do not
+"fix" this.
 
 Then `TYP` with no disk at all:
 

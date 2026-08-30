@@ -62,6 +62,17 @@ public:
     virtual HRESULT  WriteListing (const AssemblyResult & result,
                                    const CommandLineOptions & options,
                                    const std::vector<DialectReportLine> & reports) = 0;
+
+    //  What went wrong, in the words a reader sees. Empty when nothing did, and
+    //  empty by default for a sink that says its own piece as it goes.
+    //
+    //  ON THE INTERFACE BECAUSE THE CALLER IS THE ONE WITH A CONSOLE. A sink
+    //  that writes onto a volume carries its refusals rather than printing them,
+    //  which is what lets a test read them -- and for one release that meant
+    //  nobody printed them at all: every refusal on the disk path exited
+    //  non-zero and said nothing. The tests could not see it, because what they
+    //  assert is that the sink PRODUCES the text.
+    virtual const std::string &  GetDiagnostics() const;
 };
 
 

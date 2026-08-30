@@ -170,10 +170,10 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     writeOptions.outputFile = ResolveOutputName (options, ar.result);
 
     hr = options.generateListing ? out->WriteListing (ar.result, writeOptions, reports) : S_OK;
-    CHRF (hr, exitCode = kNoOutput);
+    CHRF (hr, ReportSinkDiagnostics (*out); exitCode = kNoOutput);
 
     hr = out->WriteBinary (ar.result, writeOptions);
-    CHRF (hr, exitCode = kNoOutput);
+    CHRF (hr, ReportSinkDiagnostics (*out); exitCode = kNoOutput);
 
     hr = WriteExtraArtifacts (options, ar.result);
     CHRF (hr, exitCode = kNoOutput);
@@ -190,6 +190,42 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblerMode::ReportSinkDiagnostics
+//
+//  What the sink had to say about a write that failed.
+//
+//  THE SINK CARRIES ITS REFUSALS AND THIS PRINTS THEM. A library has no
+//  business owning a console, which is why the words are carried rather than
+//  written where they are decided -- and for one release nothing on this side
+//  read them back, so every refusal on the disk path exited non-zero in
+//  silence: no image, wrong type for the filesystem, volume full, locked file,
+//  illegal name, image held by another program. All of them.
+//
+//  Empty for the sink that writes host files, which says its own piece as it
+//  goes, so this prints nothing on that path rather than a blank line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblerMode::ReportSinkDiagnostics (const ArtifactSink & sink)
+{
+    const std::string &  said = sink.GetDiagnostics();
+
+
+
+    if (!said.empty())
+    {
+        std::cerr << said;
+    }
+
+    return;
 }
 
 
