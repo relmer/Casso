@@ -60,16 +60,19 @@ manual eject.
 
 **Acceptance Scenarios**:
 
-1. **Given** a disk mounted with no guest writes, **When** another process
-   writes the image, **Then** the emulator picks up the new contents and the
-   guest sees them, without blocking for an answer and without loss.
-2. **Given** the same, **When** the pick-up happens, **Then** the user is told
-   the disk was reloaded and is offered a reboot, so a change appearing under a
-   running program is never a mystery and the clean option is always at hand.
-3. **Given** the same, **When** the pick-up happens, **Then** it happens at a
-   moment when no disk operation is in flight, so it cannot land in the middle
-   of a read.
-4. **Given** a disk mounted and never externally touched, **When** the guest
+1. **Given** a developer who has declared that changes should be taken up in
+   place, **When** another process writes the image, **Then** the guest sees the
+   new contents without being asked anything, and the developer runs the program
+   again.
+2. **Given** a developer who has declared that changes should restart the
+   machine, **When** another process writes the image, **Then** the machine
+   restarts and boots the new contents.
+3. **Given** a developer who has declared nothing, **When** another process
+   writes the image, **Then** they are asked which of the two should happen, and
+   their answer is remembered.
+4. **Given** any of the above, **When** the pick-up happens, **Then** it is
+   reported, and it happens at a moment with no disk operation in flight.
+5. **Given** a disk mounted and never externally touched, **When** the guest
    runs normally, **Then** nothing about its behavior changes.
 
 ### User Story 2 - A guest's work is never silently overwritten (Priority: P1)
@@ -174,63 +177,89 @@ against a map belonging to the disk that is no longer there. ProDOS defends
 itself somewhat by comparing the volume name when it reaches the directory;
 DOS 3.3 does not.
 
-None of that state is visible from the disk layer, so no gate the emulator can
-build makes a swap unconditionally safe. What follows is therefore not "detect
-when it is safe" -- it cannot be detected -- but "do what a user swapping by
-hand does, say so, and keep the clean option one click away".
+**TWO DIFFERENT QUESTIONS ARE TANGLED HERE and the spec keeps them apart.**
 
-- **FR-005**: Where the emulator has no unsaved guest writes, an external change
-  MUST be picked up without blocking the user for an answer, so the build loop
-  works without a dialog on every pass.
-- **FR-006**: A pick-up MUST be reported to the user, and the report MUST offer
-  a reboot. Reading the new contents is what the build loop wants and is safe
-  for a guest that goes on to READ; a guest that goes on to WRITE may allocate
-  against the structure it cached from the previous contents. Rebooting is the
-  only action that clears that state, so it MUST be offered rather than decided
-  against on the user's behalf.
-- **FR-007**: A pick-up MUST happen at a point where no disk operation is in
+1. *What happens to the two versions*, when the guest has written and something
+   else has changed the file. This is a data-loss question, it arises only when
+   the image is dirty, and its answer is the conflict resolution below.
+2. *How the guest should take up the new contents* — carry on against the new
+   bits, or restart the machine. This is a correctness-of-guest-state question,
+   it arises on EVERY pick-up including the clean ones, and its answer cannot be
+   computed by the emulator at all.
+
+The second is the one the user is equipped to answer and the tool is not. A
+developer iterating on a binary they will `BRUN` again wants the contents
+swapped and nothing else; a developer working on a bootable program, or one
+whose guest holds state that a changed disk invalidates, wants the machine
+restarted. Nothing in the image or the emulator distinguishes those; only the
+person driving does. So the tool asks once, remembers the answer, and gets out
+of the way.
+
+##### How the guest takes up the new contents
+
+- **FR-005**: The user MUST be able to declare, in advance, what an external
+  change should do to a running machine: take up the new contents in place,
+  restart the machine, or ask each time.
+- **FR-006**: The default MUST be to ask. A tool that silently restarts a
+  machine, or silently swaps a disk under a program that cannot survive it, has
+  chosen for the user on the question the user is uniquely placed to answer.
+- **FR-007**: The declared answer MUST persist across sessions, so an
+  established build loop is configured once rather than confirmed hourly. It is
+  the repetition that makes a prompt unbearable, not the prompt.
+- **FR-008**: The user MUST be able to change the answer without restarting the
+  emulator or re-mounting the disk, since which loop they are in changes during
+  a session.
+- **FR-009**: Where the answer is to take up the new contents in place, a
+  restart MUST remain available afterward without the user hunting for it: the
+  swap may turn out to have been the wrong call, and the recovery is the same
+  action they declined.
+- **FR-010**: Every pick-up MUST be reported, whichever answer governs it. A
+  disk whose contents change under a running program is not something to do
+  silently even when the user asked for it.
+- **FR-011**: A pick-up MUST happen at a point where no disk operation is in
   flight, so it cannot land in the middle of a read or a write. The controller
   already reports motor spindown for this purpose. This bounds the damage to
   stale cached structure; it does not eliminate it, and must not be described as
   though it does.
-- **FR-008**: Where the emulator HAS unsaved guest writes, an external change
-  MUST NOT be resolved without asking the user.
-- **FR-009**: Whichever version the user does not keep MUST be preserved in a
+
+##### What happens to the two versions
+
+- **FR-012**: Where the emulator HAS unsaved guest writes, an external change
+  MUST NOT be resolved without asking the user, whatever the pick-up answer says.
+  The pick-up answer governs how the guest continues, not whether work may be
+  discarded, and no configuration may turn the data-loss question off.
+- **FR-013**: Whichever version the user does not keep MUST be preserved in a
   separate image file rather than discarded, and the user MUST be told where it
   is.
-- **FR-010**: The emulator MUST NOT write an image back over an external change
+- **FR-014**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
-- **FR-011**: Reboot MUST be among the actions offered wherever an external
-  change is reported, whether or not the guest has written. It is the only
-  action that guarantees the guest's cached structure matches the bits on the
-  disk.
 
 #### Writing safely
 
-- **FR-012**: A program writing a disk image MUST hold it for the duration of
+- **FR-015**: A program writing a disk image MUST hold it for the duration of
   the write, so that a second writer cannot interleave with it.
-- **FR-013**: A writer that cannot obtain the image MUST report that plainly,
+- **FR-016**: A writer that cannot obtain the image MUST report that plainly,
   naming the image, rather than failing obscurely or waiting forever.
-- **FR-014**: A writer that fails or is killed mid-write MUST NOT leave the
+- **FR-017**: A writer that fails or is killed mid-write MUST NOT leave the
   image permanently unwritable by anything else.
-- **FR-015**: The existing guarantee that a failed write leaves an image
+- **FR-018**: The existing guarantee that a failed write leaves an image
   byte-for-byte unchanged MUST continue to hold.
 
 #### Not making things worse
 
-- **FR-016**: A session in which no external change occurs MUST behave exactly
+- **FR-019**: A session in which no external change occurs MUST behave exactly
   as it does today, in what it writes and when.
-- **FR-017**: Detection MUST NOT impose a cost the user can feel while the
+- **FR-020**: Detection MUST NOT impose a cost the user can feel while the
   emulator is running.
-- **FR-018**: Where change detection cannot be trusted — a network share, a
+- **FR-021**: Where change detection cannot be trusted — a network share, a
   synchronizing folder — the feature MUST degrade to the check before writing
   rather than to silence.
 
 #### Saying so
 
-- **FR-019**: A refusal or a conflict MUST name the image it is about. A user
+- **FR-022**: A refusal or a conflict MUST name the image it is about. A user
   with several disks mounted cannot act on a message that does not say which.
-- **FR-020**: The conflict question MUST state what is at stake on both sides —
+- **FR-023**: The conflict question MUST state what is at stake on both sides —
   that the guest has written, and that something else has changed the file —
   rather than asking the user to choose between two unlabeled options.
 
@@ -275,14 +304,17 @@ hand does, say so, and keep the clean option one click away".
 - **The emulator writes back only when its image is dirty.** A session that only
   reads cannot destroy an external change, which is why Story 1 can ship without
   Story 2 and still be safe.
-- **A prompt is acceptable when work is genuinely at risk, and not otherwise.**
-  The build loop must not acquire a blocking dialog on every pass; a real
-  two-sided conflict is worth one.
-- **A swap cannot be made unconditionally safe, so the user is given the safe
-  action rather than promised safety.** Whether a pick-up is harmless depends on
-  guest RAM the disk layer cannot see -- open files, a cached VTOC, a ProDOS
-  volume control block. Reboot is offered every time for that reason, and the
-  documentation must not imply the emulator has established that a swap is safe.
+- **A swap cannot be made unconditionally safe, so the choice belongs to the
+  user.** Whether a pick-up is harmless depends on guest RAM the disk layer
+  cannot see -- open files, a cached VTOC, a ProDOS volume control block. The
+  emulator cannot compute the answer and must not pretend to; the developer
+  knows whether they are iterating on a binary or on a bootable system.
+- **The repetition is what makes a prompt unbearable, not the prompt.** Asking
+  once and remembering is what keeps the build loop fast, so a remembered answer
+  is the mechanism rather than a guessed default.
+- **The data-loss question is never configured away.** A declared pick-up answer
+  says how the guest continues; it does not grant permission to discard work.
+  Those stay separate however the preference is set.
 - **Backups are placed beside the image.** A user who has to hunt for the
   recovered version has not really been given it back.
 
