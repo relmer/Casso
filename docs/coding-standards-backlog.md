@@ -776,7 +776,8 @@ a question with a true/false answer -- did the walk see a cycle, hit a bound,
 run past the length -- so they satisfy this rule as they stand. They were
 briefly renamed to `HasSeenCycle` / `HasHitBound` / `HasExceededLength` during
 item 6 and put back. The prefix list is examples, not an allowlist; what the
-rule asks is that the name pose a yes/no question, and a past-tense verb does.
+rule requires is a name that poses a yes/no question, and a past-tense verb
+does that.
 
 That is narrower than it sounds. Of the 38 bool queries item 6 renamed, those
 three were the only verb-first names. The rest are noun-first (`CapReached`,
@@ -809,7 +810,7 @@ VerbNoun violation, and they have one fix. 38 renames, listed there.
 
 ### 6. Function names are VerbNoun, mostly done
 
-A function name says what it *does*. `GetPrimaryExtension`, not `ExtensionFor`;
+A function name must begin with a verb. `GetPrimaryExtension`, not `ExtensionFor`;
 `HasReachedCap`, not `CapReached`. A noun-first name reads as a value rather
 than an action. `OnXxx` handlers are the standing exception. A *verb*-first name
 is fine whatever its tense: `SawCycle` is already VerbNoun, and item 5 accepts
@@ -963,8 +964,8 @@ implementations keep `Background()`, `ButtonIdle()`, `TooltipBackground()` and
 91 others. A theme is a bag of named colors and `theme.ButtonIdle()` reads as
 the property it is; prefixing 94 names would thicken every paint method in the
 framework to buy nothing. The better fix, if one is ever wanted, is at the call
-site rather than the declaration -- `themeColor.ButtonPressed()` says it -- so
-this is parked, not merely allowed. `DxuiColor` is NOT part of the exemption:
+site rather than the declaration: rename the object to `themeColor`, so the
+qualifier carries the meaning. Parked, not merely allowed. `DxuiColor` is NOT part of the exemption:
 it is color math, so `RelativeLuminance` became `ComputeRelativeLuminance`.
 
 **Three names needed a class scope the by-name pass cannot express.**
