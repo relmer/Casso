@@ -291,11 +291,11 @@ void InputDebugPanel::FormatUptime (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintableChar
+//  GetPrintableChar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wchar_t InputDebugPanel::PrintableChar (Byte value) noexcept
+wchar_t InputDebugPanel::GetPrintableChar (Byte value) noexcept
 {
     return (value >= 0x20 && value <= 0x7E) ? (wchar_t) value : L'.';
 }
@@ -312,7 +312,7 @@ wchar_t InputDebugPanel::PrintableChar (Byte value) noexcept
 
 std::wstring InputDebugPanel::FormatByteChar (Byte value)
 {
-    return std::format (L"${:02X} '{}'", value, PrintableChar (value));
+    return std::format (L"${:02X} '{}'", value, GetPrintableChar (value));
 }
 
 
@@ -321,11 +321,11 @@ std::wstring InputDebugPanel::FormatByteChar (Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourceLabel
+//  GetSourceLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
+std::wstring InputDebugPanel::GetSourceLabel (InputEventCategory category)
 {
     // "?" also covers a value outside the enum.
     std::wstring  label = L"?";
@@ -348,11 +348,11 @@ std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ButtonAnnotation
+//  GetButtonAnnotation
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::ButtonAnnotation (Word address, bool mouseButtonAtC063) noexcept
+LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC063) noexcept
 {
     // Empty for any address that is not one of the three button switches.
     LPCWSTR  text = L"";
@@ -528,7 +528,7 @@ void InputDebugPanel::FormatInputEvent (
     out.type     = src.type;
     out.gamePort = ClassifyGamePort (src.type, src.payload.io.address);
     out.cycle    = src.cycle;
-    out.source   = SourceLabel (src.category);
+    out.source   = GetSourceLabel (src.category);
     out.address.clear();
     out.value.clear();
     out.meaning.clear();
@@ -609,7 +609,7 @@ void InputDebugPanel::FormatInputEvent (
             out.meaning = std::format (L"Read {} -> {}  key='{}' strobe={}",
                                        out.address,
                                        out.value,
-                                       PrintableChar (key),
+                                       GetPrintableChar (key),
                                        strobe ? 1 : 0);
             break;
 
@@ -639,7 +639,7 @@ void InputDebugPanel::FormatInputEvent (
                           ? (value & s_kButtonPressedBit) == 0
                           : (value & s_kButtonPressedBit) != 0;
 
-            button  = ButtonAnnotation (address, mouseButtonAtC063);
+            button  = GetButtonAnnotation (address, mouseButtonAtC063);
             out.address = std::format (L"${:04X}", address);
             out.value   = std::format (L"${:02X}", value);
             out.meaning = std::format (L"DxuiButton read {} -> {}  pressed={}",
@@ -873,7 +873,7 @@ void InputDebugPanel::Destroy()
 HRESULT InputDebugPanel::RenderFrame()
 {
     HRESULT  hr  = S_OK;
-    int64_t  now = NowMs();
+    int64_t  now = GetNowMs();
 
 
 
@@ -2261,11 +2261,11 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 
     if (text != nullptr)
     {
-        m_tooltip.RequestShow (anchor, text, NowMs());
+        m_tooltip.RequestShow (anchor, text, GetNowMs());
     }
     else
     {
-        m_tooltip.RequestHide (NowMs());
+        m_tooltip.RequestHide (GetNowMs());
     }
 }
 
@@ -2369,11 +2369,11 @@ void InputDebugPanel::OnDividerResizeKey (int direction)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NowMs
+//  GetNowMs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t InputDebugPanel::NowMs() const
+int64_t InputDebugPanel::GetNowMs() const
 {
     using namespace std::chrono;
     return duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();

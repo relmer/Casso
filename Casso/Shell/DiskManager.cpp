@@ -61,7 +61,7 @@ DiskManager::DiskManager (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NowMs
+//  GetNowMs
 //
 //  Steady-clock millisecond timestamp used by the drive-widget door
 //  animation FSM. Monotonic so an NTP step doesn't strand a half-open
@@ -69,7 +69,7 @@ DiskManager::DiskManager (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t DiskManager::NowMs()
+int64_t DiskManager::GetNowMs()
 {
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
@@ -474,10 +474,10 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
         static_cast<size_t> (drive) < m_diskAudioSources.size() &&
         m_diskAudioSources[drive] != nullptr)
     {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
+        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, GetNowMs());
         m_driveWidgets.PublishSyncEvent (drive,
                                          DriveWidgetController::SyncAction::DoorClose,
-                                         NowMs());
+                                         GetNowMs());
         m_diskAudioSources[drive]->OnDiskInserted();
     }
 
@@ -541,10 +541,10 @@ void DiskManager::EjectDiskInSlot6 (int drive)
         static_cast<size_t> (drive) < m_diskAudioSources.size() &&
         m_diskAudioSources[drive] != nullptr)
     {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, NowMs());
+        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, GetNowMs());
         m_driveWidgets.PublishSyncEvent (drive,
                                          DriveWidgetController::SyncAction::DoorOpen,
-                                         NowMs());
+                                         GetNowMs());
         m_diskAudioSources[drive]->OnDiskEjected();
     }
 }
@@ -679,7 +679,7 @@ void DiskManager::Eject (int slot, int drive)
         // caught up (door reopens) -- one click, two open animations. The
         // flap predates the modal keep-alive; it just never PRESENTED
         // before, because the old pre-picker pump stalled.
-        m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, NowMs());
+        m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, GetNowMs());
     }
 }
 
@@ -702,7 +702,7 @@ void DiskManager::Eject (int slot, int drive)
 void DiskManager::UpdateDriveWidgets()
 {
     Disk2Controller                                     * controller = FindSlot6Controller();
-    int64_t                                               nowMs      = NowMs();
+    int64_t                                               nowMs      = GetNowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
     int                                                   drive      = 0;
 

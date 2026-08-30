@@ -34,16 +34,16 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
 
 
 
-    for (i = 0; i < raster.PageBoundaryRows().size(); i++)
+    for (i = 0; i < raster.GetPageBoundaryRows().size(); i++)
     {
-        boundaries.push_back (JsonValue ((double) raster.PageBoundaryRows()[i]));
+        boundaries.push_back (JsonValue ((double) raster.GetPageBoundaryRows()[i]));
     }
 
     root.push_back ({ s_kszFormatVersion, JsonValue ((double) kFormatVersion)        });
-    root.push_back ({ s_kszRowsUsed,      JsonValue ((double) raster.RowsUsed())     });
-    root.push_back ({ s_kszPaperRow,      JsonValue ((double) raster.PaperRow())     });
+    root.push_back ({ s_kszRowsUsed,      JsonValue ((double) raster.GetRowsUsed())     });
+    root.push_back ({ s_kszPaperRow,      JsonValue ((double) raster.GetPaperRow())     });
     root.push_back ({ s_kszBoundaries,    JsonValue (move (boundaries))              });
-    root.push_back ({ s_kszCapReached,    JsonValue (raster.CapReached())            });
+    root.push_back ({ s_kszCapReached,    JsonValue (raster.HasReachedCap())            });
 
     return JsonWriter::Write (JsonValue (move (root)));
 }
@@ -98,9 +98,9 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
     {
         size_t   i = 0;
 
-        for (i = 0; i < arr->ArraySize(); i++)
+        for (i = 0; i < arr->GetArraySize(); i++)
         {
-            meta.pageBoundaryRows.push_back (arr->ArrayAt (i).GetInt());
+            meta.pageBoundaryRows.push_back (arr->GetArrayElement (i).GetInt());
         }
     }
 
@@ -127,7 +127,7 @@ void PrintJobSerializer::ExtractIndexPlane (
     vector<Byte> &      outPixels)
 {
     int   width  = PrinterGrid::kDotsPerRow;
-    int   height = raster.RowsUsed();
+    int   height = raster.GetRowsUsed();
     int   row    = 0;
     int   col    = 0;
 
@@ -141,7 +141,7 @@ void PrintJobSerializer::ExtractIndexPlane (
     {
         for (col = 0; col < width; col++)
         {
-            outPixels[(size_t) row * width + col] = (Byte) (raster.CellAt (col, row) & 0x0F);
+            outPixels[(size_t) row * width + col] = (Byte) (raster.GetCell (col, row) & 0x0F);
         }
     }
 }

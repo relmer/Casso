@@ -65,12 +65,12 @@ public:
     void SetOnColor (uint32_t bgra) { m_onColor = bgra; }
 
 private:
-    static Word RowBaseAddress (int row, Word pageBase);
+    static Word GetRowBaseAddress (int row, Word pageBase);
 
     // True if the 40 bytes hold any glyph that flashes with the flash clock
     // ($40-$7F, and only when ALTCHARSET is off -- //e alt charset suppresses
     // flash). Such rows must re-raster on a flash-phase flip even if unchanged.
-    bool RowHasFlashChar (const Byte * rowBytes) const;
+    bool HasFlashChar (const Byte * rowBytes) const;
 
     static constexpr int     kGridCols = 40;
     static constexpr int     kGridRows = 24;

@@ -103,7 +103,7 @@ private:
 
     // Fixed real-panel meaning of each front-panel lamp, so they light for
     // their own reason instead of all together (see BuildLedBatches /
-    // RoleIntensity). SetModel assigns a role to each clustered lamp.
+    // GetRoleIntensity). SetModel assigns a role to each clustered lamp.
     enum class LampRole { Power, Select, Quality, Error };
 
     static void  AppendQuad (std::vector<Vertex> & out,
@@ -156,7 +156,7 @@ private:
     // The live brightness (0..1) of a lamp given its fixed role and the current
     // online / quality / error inputs. Drives each lamp INDIVIDUALLY so the
     // front panel no longer pulses every lamp together.
-    float RoleIntensity (LampRole role) const;
+    float GetRoleIntensity (LampRole role) const;
 
     void  BuildBackdrop   (std::vector<Vertex> & out) const;
     void  BuildBodyBack   (std::vector<Vertex> & out) const;

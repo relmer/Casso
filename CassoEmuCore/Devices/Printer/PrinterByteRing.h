@@ -17,7 +17,7 @@
 //
 //  Capacity is deliberately large (64 KiB) -- orders of magnitude beyond the
 //  fastest sustained 6502 store-loop burst across many drain intervals. The
-//  card exposes a ready bit driven by FreeSpace: it de-asserts within a
+//  card exposes a ready bit driven by GetFreeBytes: it de-asserts within a
 //  high-water margin of capacity, so a guest honoring the handshake stalls
 //  rather than overflows if the drain is delayed (e.g. a modal print dialog
 //  holds the UI thread). Overflow past that guard is a programming error and
@@ -25,7 +25,7 @@
 //
 //  Concurrency contract mirrors InputEventRing / Disk2EventRing (standard
 //  SPSC formulation, Vyukov 2010):
-//    * Exactly one thread calls TryPush / FreeSpace (the CPU thread).
+//    * Exactly one thread calls TryPush / GetFreeBytes (the CPU thread).
 //    * Exactly one thread calls TryPop / Drain (the UI/presenter thread).
 //    * Head/tail are 32-bit unsigned counters; the mask isolates the slot.
 //      Counter overflow is harmless because subtraction modulo 2^32 still
@@ -48,21 +48,21 @@ public:
     PrinterByteRing() = default;
 
     // CPU thread only. Returns false when the ring is full.
-    bool       TryPush    (Byte value) noexcept;
+    bool       TryPush       (Byte value) noexcept;
 
     // UI thread only. Returns false when the ring is empty.
-    bool       TryPop     (Byte & out) noexcept;
+    bool       TryPop        (Byte & out) noexcept;
 
     // UI thread only. Pops up to `maxCount` bytes into `out` and returns the
     // number actually written. `out` must hold at least `maxCount` bytes.
-    uint32_t   Drain      (Byte * out, uint32_t maxCount) noexcept;
+    uint32_t   Drain         (Byte * out, uint32_t maxCount) noexcept;
 
     // Advisory; either thread may call. May be stale when observed.
-    uint32_t   ApproxSize () const noexcept;
+    uint32_t   GetApproxSize () const noexcept;
 
     // Producer-side free-slot count (CPU thread). Drives the card's ready
     // bit; reads the consumer head with acquire so freed slots are seen.
-    uint32_t   FreeSpace  () const noexcept;
+    uint32_t   GetFreeBytes  () const noexcept;
 
 private:
     alignas(64) std::atomic<uint32_t>   m_head  { 0 };   // consumer-owned

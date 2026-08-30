@@ -205,11 +205,11 @@ public:
 
         for (size_t i = 0; typed[i] != '\0'; i++)
         {
-            core.keyboard->KeyPressRaw (typed[i]);
+            core.keyboard->PressKeyRaw (typed[i]);
             core.RunCycles (100'000ULL);
         }
 
-        core.keyboard->KeyPressRaw ('\r');
+        core.keyboard->PressKeyRaw ('\r');
         core.RunCycles (2'000'000ULL);
 
         screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
@@ -555,7 +555,7 @@ public:
             //  framebuffer during the load phase, so this is only the
             //  display switches, and the picture is there immediately.
             Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
-            core.keyboard->KeyPressRaw ('M');
+            core.keyboard->PressKeyRaw ('M');
             core.RunCycles (200'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
@@ -662,7 +662,7 @@ public:
             // HGR page 2 and the step is a PAGE2 flip out of DHGR, so what
             // is asserted is the switch state and that page 2 still holds
             // the image.
-            core.keyboard->KeyPressRaw (' ');
+            core.keyboard->PressKeyRaw (' ');
             core.RunCycles (200'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR mono) must keep HIRES on");
@@ -683,7 +683,7 @@ public:
             //  content: it is mid-flight at any given cycle, and
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
-            core.keyboard->KeyPressRaw (' ');
+            core.keyboard->PressKeyRaw (' ');
             core.RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
@@ -719,7 +719,7 @@ public:
             }
 
             quietMark = core.speaker->GetToggleTimestamps().size();
-            core.keyboard->KeyPressRaw (' ');
+            core.keyboard->PressKeyRaw (' ');
             core.RunCycles (500'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
@@ -769,7 +769,7 @@ public:
             Assert::IsFalse (ss->IsGraphicsMode(),
                 L"The re-booted demo must wait in TEXT for its answer too");
 
-            core.keyboard->KeyPressRaw ('C');
+            core.keyboard->PressKeyRaw ('C');
             core.RunCycles (600'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
@@ -794,7 +794,7 @@ public:
 
             // Step 1 on the color answer is the HGR color cassowary,
             // restored from the main $A000 stash to page 1.
-            core.keyboard->KeyPressRaw (' ');
+            core.keyboard->PressKeyRaw (' ');
             core.RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR color) must keep HIRES on");
@@ -820,7 +820,7 @@ public:
             //  content: it is mid-flight at any given cycle, and
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
-            core.keyboard->KeyPressRaw (' ');
+            core.keyboard->PressKeyRaw (' ');
             core.RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
@@ -860,7 +860,7 @@ public:
             //  what matters is that it leaves the same habitable screen
             //  whichever step it was called from.
             quietMark = core.speaker->GetToggleTimestamps().size();
-            core.keyboard->KeyPressRaw (0x1B);
+            core.keyboard->PressKeyRaw (0x1B);
             core.RunCycles (200'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step

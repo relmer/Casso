@@ -278,11 +278,11 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipText
+//  GetTooltipText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::TooltipText() const
+const wchar_t * JoystickToggleButton::GetTooltipText() const
 {
     const wchar_t *  tip = s_kTooltip;      // matches Label()'s default arm
 

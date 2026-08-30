@@ -72,14 +72,14 @@ AppleTextMode::AppleTextMode (MemoryBus & bus, const CharacterRomData & charRom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowBaseAddress
+//  GetRowBaseAddress
 //
 //  Apple II text/lo-res interleaved row address calculation:
 //    base + 128 * (row % 8) + 40 * (row / 8)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word AppleTextMode::RowBaseAddress (int row, Word pageBase)
+Word AppleTextMode::GetRowBaseAddress (int row, Word pageBase)
 {
     return static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
 }
@@ -171,7 +171,7 @@ void AppleTextMode::Render (
 
     for (int row = 0; row < kTextRows; row++)
     {
-        Word    rowAddr             = RowBaseAddress (row, pageBase);
+        Word    rowAddr             = GetRowBaseAddress (row, pageBase);
         Byte  * cacheRow            = &m_prevBytes[row * kTextCols];
         Byte    rowBytes[kTextCols];
         bool    changed             = false;
@@ -185,7 +185,7 @@ void AppleTextMode::Render (
             changed      |= (b != cacheRow[col]);
         }
 
-        dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+        dirty = full || changed || (flashFlip && HasFlashChar (rowBytes));
 
         if (dirty)
         {
@@ -212,7 +212,7 @@ void AppleTextMode::Render (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowHasFlashChar
+//  HasFlashChar
 //
 //  A glyph flashes with the flash clock only for char codes $40-$7F, and only
 //  when ALTCHARSET is off (the //e enhanced ROM remaps that range to MouseText
@@ -221,7 +221,7 @@ void AppleTextMode::Render (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleTextMode::RowHasFlashChar (const Byte * rowBytes) const
+bool AppleTextMode::HasFlashChar (const Byte * rowBytes) const
 {
     int   col      = 0;
     bool  hasFlash = false;
@@ -272,7 +272,7 @@ void AppleTextMode::RenderRowRange (
 
     for (int row = startRow; row < endRow; row++)
     {
-        Word rowAddr     = RowBaseAddress (row, pageBase);
+        Word rowAddr     = GetRowBaseAddress (row, pageBase);
         int  fbRowOrigin = row * kCharHeight * kScaleY * fbWidth;
 
         for (int col = 0; col < kTextCols; col++)

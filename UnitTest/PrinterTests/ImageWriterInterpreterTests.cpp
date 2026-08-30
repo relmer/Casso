@@ -56,7 +56,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x0A });     // LF
 
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // 24
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.GetPaperRow());   // 24
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::LineFeed));
             Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, events[0].rows);
         }
@@ -70,7 +70,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x0C });     // FF
 
-            Assert::AreEqual (PrinterGrid::kPageRows, raster.PaperRow());
+            Assert::AreEqual (PrinterGrid::kPageRows, raster.GetPaperRow());
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::FormFeed));
         }
 
@@ -85,13 +85,13 @@ namespace ImageWriterInterpreterTests
             vector<PrinterEvent>     events;
 
             Feed (interp, raster, events, { 0x1B, 'B', 0x0A });   // 8 lpi then LF
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 8, raster.PaperRow());   // 18
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 8, raster.GetPaperRow());   // 18
 
             Feed (interp, raster, events, { 0x1B, 'A', 0x0C, 0x0A });   // 12/72" = 1/6" then LF
-            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6, raster.PaperRow());
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6, raster.GetPaperRow());
 
             Feed (interp, raster, events, { 0x1B, 'A', 0x07, 0x0A });   // 7/72" = 14 rows then LF
-            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6 + 14, raster.PaperRow());
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6 + 14, raster.GetPaperRow());
         }
 
 
@@ -103,7 +103,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x1B, 'T', '1', '8', 0x0A });   // 18/144" then LF
 
-            Assert::AreEqual (18, raster.PaperRow());
+            Assert::AreEqual (18, raster.GetPaperRow());
         }
 
 
@@ -118,12 +118,12 @@ namespace ImageWriterInterpreterTests
             // top pin -> rows 0..1.
             Feed (interp, raster, events, { 0x1B, 'G', '0', '0', '0', '2', 0x80, 0x01 });
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 14));  // MSB -> bottom pin
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 15));  // ...fills 2 rows
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0, 0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 0));   // LSB -> top pin
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 1));   // ...fills 2 rows
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 14));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0, 14));  // MSB -> bottom pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0, 15));  // ...fills 2 rows
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (0, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (1, 0));   // LSB -> top pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (1, 1));   // ...fills 2 rows
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (1, 14));
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, events.back().fromDot);
@@ -145,9 +145,9 @@ namespace ImageWriterInterpreterTests
             // first two land on native dots 0 and 1.
             Feed (interp, raster, events, { 0x1B, 'L', 0x02, 0x00, 0x80, 0x01 });
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));   // MSB -> TOP pin
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 14));  // LSB -> bottom pin
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0, 14));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0, 0));   // MSB -> TOP pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (1, 14));  // LSB -> bottom pin
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (0, 14));
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
@@ -172,10 +172,10 @@ namespace ImageWriterInterpreterTests
 
             // 120-dpi columns on the 160-dpi grid: 256 columns span
             // 256*4/3 = 341 native dots, gap-free.
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (170, 0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (340, 0));
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (341, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0,   0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (170, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (340, 0));
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (341, 0));
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (340, events.back().toDot);   // all 256 columns were data, not text
         }
@@ -209,10 +209,10 @@ namespace ImageWriterInterpreterTests
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0,   bandTop));      // MSB clear -> top pin empty
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   bandTop + 2));  // bit 6 -> second pin
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (681, bandTop + 2));  // last column's dot
-            Assert::IsTrue (raster.RowsUsed() > bandTop,
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (0,   bandTop));      // MSB clear -> top pin empty
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0,   bandTop + 2));  // bit 6 -> second pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (681, bandTop + 2));  // last column's dot
+            Assert::IsTrue (raster.GetRowsUsed() > bandTop,
                 L"the graphics band must extend the used-rows extent");
         }
 
@@ -248,11 +248,11 @@ namespace ImageWriterInterpreterTests
 
             // 960 columns * 4/3 = 1280 dots = the full printable width; the
             // seam at column 96 (dot 128) must carry ink from both bursts.
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,    0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (127,  0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (128,  0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1279, 0));
-            Assert::AreEqual (14, raster.PaperRow());   // ESC A $07 = 14 native rows
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0,    0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (127,  0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (128,  0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (1279, 0));
+            Assert::AreEqual (14, raster.GetPaperRow());   // ESC A $07 = 14 native rows
         }
 
 
@@ -267,8 +267,8 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x0D });
             Feed (interp, raster, events, { 0x1B, 'G', '0', '0', '0', '1', 0x80 });
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 14));  // 0x80 -> bottom pin (rows 14..15)
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 14));  // CR sent it back to col 0
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.GetCell (0, 14));  // 0x80 -> bottom pin (rows 14..15)
+            Assert::AreEqual ((Byte) 0,                 raster.GetCell (1, 14));  // CR sent it back to col 0
         }
 
 
@@ -284,13 +284,13 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0xC8 });   // 'H' | 0x80
 
-            Assert::IsTrue (raster.CellAt (2, 0)   != 0);   // left stem  (sub-col 1, top pin)
-            Assert::IsTrue (raster.CellAt (3, 13)  != 0);   // left stem  (baseline pin, rows 12..13)
-            Assert::IsTrue (raster.CellAt (6, 6)   != 0);   // crossbar   (sub-col 3, pin 3 -> rows 6..7)
-            Assert::IsTrue (raster.CellAt (10, 0)  != 0);   // right stem (sub-col 5)
-            Assert::IsTrue (raster.CellAt (0, 0)   == 0);   // pre-centered: sub-col 0 blank
-            Assert::IsTrue (raster.CellAt (14, 0)  == 0);   // trailing inter-character gap blank
-            Assert::AreEqual (16, interp.HeadColumnDots());  // advanced one pica cell
+            Assert::IsTrue (raster.GetCell (2, 0)   != 0);   // left stem  (sub-col 1, top pin)
+            Assert::IsTrue (raster.GetCell (3, 13)  != 0);   // left stem  (baseline pin, rows 12..13)
+            Assert::IsTrue (raster.GetCell (6, 6)   != 0);   // crossbar   (sub-col 3, pin 3 -> rows 6..7)
+            Assert::IsTrue (raster.GetCell (10, 0)  != 0);   // right stem (sub-col 5)
+            Assert::IsTrue (raster.GetCell (0, 0)   == 0);   // pre-centered: sub-col 0 blank
+            Assert::IsTrue (raster.GetCell (14, 0)  == 0);   // trailing inter-character gap blank
+            Assert::AreEqual (16, interp.GetHeadColumnDots());  // advanced one pica cell
         }
 
 
@@ -304,8 +304,8 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0xA0 });
 
-            Assert::AreEqual (0,  raster.RowsUsed());
-            Assert::AreEqual (16, interp.HeadColumnDots());
+            Assert::AreEqual (0,  raster.GetRowsUsed());
+            Assert::AreEqual (16, interp.GetHeadColumnDots());
         }
 
 
@@ -321,8 +321,8 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0xC1, 0x8D, 0xC2 });   // 'A' CR 'B'
 
-            Assert::AreEqual (0,  raster.PaperRow());        // no feed
-            Assert::AreEqual (16, interp.HeadColumnDots());  // 'B' printed from the left margin
+            Assert::AreEqual (0,  raster.GetPaperRow());        // no feed
+            Assert::AreEqual (16, interp.GetHeadColumnDots());  // 'B' printed from the left margin
         }
 
 
@@ -337,8 +337,8 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, line);
 
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // wrapped once
-            Assert::AreEqual (16, interp.HeadColumnDots());                        // 81st char on the new line
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.GetPaperRow());   // wrapped once
+            Assert::AreEqual (16, interp.GetHeadColumnDots());                        // 81st char on the new line
             Assert::AreEqual (1,  CountEvents (events, PrinterEventType::LineFeed));
         }
 
@@ -423,7 +423,7 @@ namespace ImageWriterInterpreterTests
                 vector<PrinterEvent>     events;
 
                 Feed (interp, raster, events, { 0x1B, p.cmd, 'M' });
-                Assert::AreEqual (PrinterGrid::kDotsPerInchH / p.cpi, interp.HeadColumnDots());
+                Assert::AreEqual (PrinterGrid::kDotsPerInchH / p.cpi, interp.GetHeadColumnDots());
             }
         }
 
@@ -439,10 +439,10 @@ namespace ImageWriterInterpreterTests
             int                      pica      = PrinterGrid::kDotsPerInchH / 10;
 
             Feed (interp, raster, events, { 0x1B, 'Q', 'M' });
-            Assert::AreEqual (condensed, interp.HeadColumnDots());
+            Assert::AreEqual (condensed, interp.GetHeadColumnDots());
 
             Feed (interp, raster, events, { 0x9B, 0xCE, 0xCD });   // ESC N 'M', high-bit
-            Assert::AreEqual (condensed + pica, interp.HeadColumnDots());
+            Assert::AreEqual (condensed + pica, interp.GetHeadColumnDots());
         }
 
 
@@ -471,7 +471,7 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x0A });                  // LF at default spacing
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::ResetSeen));
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // default 24
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.GetPaperRow());   // default 24
         }
 
 
@@ -494,8 +494,8 @@ namespace ImageWriterInterpreterTests
             Feed (a, ra, ea, stream);
             Feed (b, rb, eb, stream);
 
-            Assert::AreEqual (ra.RowsUsed(), rb.RowsUsed());
-            Assert::AreEqual (ra.PaperRow(), rb.PaperRow());
+            Assert::AreEqual (ra.GetRowsUsed(), rb.GetRowsUsed());
+            Assert::AreEqual (ra.GetPaperRow(), rb.GetPaperRow());
             Assert::AreEqual (ea.size(),     eb.size());
 
             for (i = 0; i < ea.size(); i++)

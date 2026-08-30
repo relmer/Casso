@@ -67,13 +67,13 @@ public:
     void Reset() override;
 
     // Host (presenter) drains bytes the guest has written.
-    PrinterByteRing & ByteRing() { return m_ring; }
+    PrinterByteRing & GetByteRing() { return m_ring; }
 
     // FR-020: true once the guest first writes a data byte. The host reveals
     // the panel on the rising edge.
-    bool EverTouched() const { return m_everTouched; }
+    bool HasBeenTouched() const { return m_everTouched; }
 
-    int  Slot() const { return m_slot; }
+    int  GetSlot() const { return m_slot; }
 
 private:
     Byte ReadStatus() const;

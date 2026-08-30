@@ -488,8 +488,8 @@ void SettingsPanelState::Cancel()
 
 bool SettingsPanelState::IsDirty() const
 {
-    return !PrefsEqual    (m_original.prefs,    m_current.prefs)
-        || !HardwareEqual (m_original.hardware, m_current.hardware);
+    return !ArePrefsEqual    (m_original.prefs,    m_current.prefs)
+        || !AreHardwareEqual (m_original.hardware, m_current.hardware);
 }
 
 
@@ -884,9 +884,9 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     if (uiObj->HasArray ("writeProtect", wpArr))
     {
-        for (i = 0; i < wpArr->ArraySize() && i < 2; ++i)
+        for (i = 0; i < wpArr->GetArraySize() && i < 2; ++i)
         {
-            const JsonValue & entry = wpArr->ArrayAt (i);
+            const JsonValue & entry = wpArr->GetArrayElement (i);
             if (entry.GetType() == JsonType::Bool)
             {
                 outPrefs.writeProtect[i] = entry.GetBool();
@@ -1046,9 +1046,9 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     if (SUCCEEDED (hrRead) && ramArray != nullptr)
     {
         size_t  i = 0;
-        for (i = 0; i < ramArray->ArraySize(); ++i)
+        for (i = 0; i < ramArray->GetArraySize(); ++i)
         {
-            const JsonValue &  entry  = ramArray->ArrayAt (i);
+            const JsonValue &  entry  = ramArray->GetArrayElement (i);
             std::string        addr;
             std::string        size;
             std::string        bank;
@@ -1142,16 +1142,16 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     {
         bool  hasLanguageCard = false;
 
-        outInfo.devices += internalDevices->ArraySize();
+        outInfo.devices += internalDevices->GetArraySize();
 
         // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
         // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
         // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
         // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
         // (main, plus aux when the machine has an aux bank).
-        for (size_t d = 0; d < internalDevices->ArraySize(); ++d)
+        for (size_t d = 0; d < internalDevices->GetArraySize(); ++d)
         {
-            const JsonValue &  dev = internalDevices->ArrayAt (d);
+            const JsonValue &  dev = internalDevices->GetArrayElement (d);
             std::string        type;
 
             if (dev.GetType() == JsonType::Object &&
@@ -1186,7 +1186,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     hrRead = mergedJson.GetArray ("slots", slots);
     if (SUCCEEDED (hrRead) && slots != nullptr)
     {
-        outInfo.devices += slots->ArraySize();
+        outInfo.devices += slots->GetArraySize();
     }
 
     // Headline total: sum every RAM region (main + aux + language-card banks;
@@ -1272,9 +1272,9 @@ HRESULT SettingsPanelState::ExtractHardware (
 
     if (mergedJson.HasArray ("internalDevices", devArr))
     {
-        for (i = 0; i < devArr->ArraySize(); ++i)
+        for (i = 0; i < devArr->GetArraySize(); ++i)
         {
-            const JsonValue  & entry    = devArr->ArrayAt (i);
+            const JsonValue  & entry    = devArr->GetArrayElement (i);
             HardwareEntry      hw;
             std::string        friendly;
             if (entry.GetType() != JsonType::Object)
@@ -1311,9 +1311,9 @@ HRESULT SettingsPanelState::ExtractHardware (
 
     if (mergedJson.HasArray ("slots", slotArr))
     {
-        for (i = 0; i < slotArr->ArraySize(); ++i)
+        for (i = 0; i < slotArr->GetArraySize(); ++i)
         {
-            const JsonValue  & entry   = slotArr->ArrayAt (i);
+            const JsonValue  & entry   = slotArr->GetArrayElement (i);
             HardwareEntry      hw;
             std::string        devNice;
             if (entry.GetType() != JsonType::Object)
@@ -1421,11 +1421,11 @@ JsonValue SettingsPanelState::BuildJson (
 
         if (mergedJson.HasArray ("internalDevices", devSrc))
         {
-            for (i = 0; i < devSrc->ArraySize(); ++i)
+            for (i = 0; i < devSrc->GetArraySize(); ++i)
             {
                 // GetObjectEntries is a plain accessor (empty for
                 // non-objects), so the binding is safe before the type test.
-                const JsonValue                                 & src         = devSrc->ArrayAt (i);
+                const JsonValue                                 & src         = devSrc->GetArrayElement (i);
                 const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              found       = false;
                 bool                                              enabledFlag = false;
@@ -1470,11 +1470,11 @@ JsonValue SettingsPanelState::BuildJson (
 
         if (mergedJson.HasArray ("slots", slotSrc))
         {
-            for (i = 0; i < slotSrc->ArraySize(); ++i)
+            for (i = 0; i < slotSrc->GetArraySize(); ++i)
             {
                 // Same accessor-before-type-test shape as the
                 // internalDevices loop above.
-                const JsonValue                                 & src         = slotSrc->ArrayAt (i);
+                const JsonValue                                 & src         = slotSrc->GetArrayElement (i);
                 const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              enabledFlag = false;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
@@ -1557,11 +1557,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrefsEqual
+//  ArePrefsEqual
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsPanelState::PrefsEqual (
+bool SettingsPanelState::ArePrefsEqual (
     const SettingsUiPrefs & a,
     const SettingsUiPrefs & b)
 {
@@ -1589,11 +1589,11 @@ bool SettingsPanelState::PrefsEqual (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HardwareEqual
+//  AreHardwareEqual
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsPanelState::HardwareEqual (
+bool SettingsPanelState::AreHardwareEqual (
     const std::vector<HardwareEntry> & a,
     const std::vector<HardwareEntry> & b)
 {

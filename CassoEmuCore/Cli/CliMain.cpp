@@ -66,7 +66,7 @@ int CliMain (int argc, char * argv[])
         // is that mode's alone. Refused rather than warned about and run: a
         // typo that still produced an output file was a typo nobody saw.
         CommandLine::PrintUnrecognizedFlag (options.unrecognizedFlag, options.subcommand, options.flagPrefix);
-        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+        exitCode = CommandLineParser::GetExitCodeForRefusal (options.subcommand);
     }
     else if (!options.outputFormatConflict.empty())
     {
@@ -74,7 +74,7 @@ int CliMain (int argc, char * argv[])
         // reasoning as the arm below: the sentence naming both flags is a
         // better answer than usage text that lists them among twenty others.
         CommandLine::PrintCpuFlagRefusal (options.outputFormatConflict);
-        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+        exitCode = CommandLineParser::GetExitCodeForRefusal (options.subcommand);
     }
     else if (!options.cpuFlagRefusal.empty())
     {
@@ -82,7 +82,7 @@ int CliMain (int argc, char * argv[])
         // refusal that names the directive to write instead is a strictly better
         // answer than a wall of usage text, and printing usage would bury it.
         CommandLine::PrintCpuFlagRefusal (options.cpuFlagRefusal);
-        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+        exitCode = CommandLineParser::GetExitCodeForRefusal (options.subcommand);
     }
     else if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                              || options.subcommand == CommandLineOptions::Subcommand::Help)
@@ -129,7 +129,7 @@ int CliMain (int argc, char * argv[])
 
         std::cerr << CommandLine::kGapBeforeTheReason << options.refusalMessage;
 
-        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+        exitCode = CommandLineParser::GetExitCodeForRefusal (options.subcommand);
     }
     else if (options.inputFile.empty()
              && (options.subcommand == CommandLineOptions::Subcommand::As65
@@ -153,8 +153,8 @@ int CliMain (int argc, char * argv[])
         // Still non-zero, and for the same reason a bare `CassoCli` is: a
         // script that invokes the tool wrongly has to fail. Asking for the
         // page BY NAME is what exits 0.
-        std::vector<std::string>  required = CommandLineHelp::RequiredOperandsIn (
-                                                 CommandLineHelp::UsageLineFor (options.subcommand));
+        std::vector<std::string>  required = CommandLineHelp::GetRequiredOperands (
+                                                 CommandLineHelp::GetUsageLine (options.subcommand));
 
         {
             CommandLine::UsageOnErrorStream  toTheErrorStream;
@@ -169,7 +169,7 @@ int CliMain (int argc, char * argv[])
                       << "Error: required parameter " << required[0] << " missing\n";
         }
 
-        exitCode = CommandLineParser::ExitCodeForRefusal (options.subcommand);
+        exitCode = CommandLineParser::GetExitCodeForRefusal (options.subcommand);
     }
     else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {

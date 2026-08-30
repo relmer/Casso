@@ -55,13 +55,13 @@ namespace PrinterCardTests
             card->Write (dataAddr, 'B');
             card->Write (dataAddr, 'C');
 
-            Assert::AreEqual ((uint32_t) 3, card->ByteRing().ApproxSize());
+            Assert::AreEqual ((uint32_t) 3, card->GetByteRing().GetApproxSize());
 
-            Assert::IsTrue (card->ByteRing().TryPop (out));
+            Assert::IsTrue (card->GetByteRing().TryPop (out));
             Assert::AreEqual ((Byte) 'A', out);
-            Assert::IsTrue (card->ByteRing().TryPop (out));
+            Assert::IsTrue (card->GetByteRing().TryPop (out));
             Assert::AreEqual ((Byte) 'B', out);
-            Assert::IsTrue (card->ByteRing().TryPop (out));
+            Assert::IsTrue (card->GetByteRing().TryPop (out));
             Assert::AreEqual ((Byte) 'C', out);
         }
 
@@ -77,7 +77,7 @@ namespace PrinterCardTests
                 card->Write ((Word) (card->GetStart() + i), 0x55);
             }
 
-            Assert::AreEqual ((uint32_t) 0, card->ByteRing().ApproxSize());
+            Assert::AreEqual ((uint32_t) 0, card->GetByteRing().GetApproxSize());
         }
 
 
@@ -142,13 +142,13 @@ namespace PrinterCardTests
             auto  card     = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
             Word  dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
 
-            Assert::IsFalse (card->EverTouched());
+            Assert::IsFalse (card->HasBeenTouched());
 
             card->Write (dataAddr, 'X');
-            Assert::IsTrue (card->EverTouched());
+            Assert::IsTrue (card->HasBeenTouched());
 
             card->Reset();
-            Assert::IsFalse (card->EverTouched());
+            Assert::IsFalse (card->HasBeenTouched());
         }
 
 

@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  PrinterByteRingTests
 //
-//  Single-threaded fundamentals, the FreeSpace high-water contract that
+//  Single-threaded fundamentals, the GetFreeBytes high-water contract that
 //  backs the card's ready bit, and a two-threaded stress test verifying FIFO
 //  ordering with no dropped or torn bytes under sustained contention.
 //
@@ -35,8 +35,8 @@ namespace PrinterByteRingTests
             Byte              out  = 0;
 
             Assert::IsFalse (ring.TryPop (out));
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.FreeSpace());
+            Assert::AreEqual ((uint32_t) 0, ring.GetApproxSize());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.GetFreeBytes());
         }
 
 
@@ -50,12 +50,12 @@ namespace PrinterByteRingTests
                 Assert::IsTrue (ring.TryPush ((Byte) (i & 0xFF)));
             }
 
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.ApproxSize());
-            Assert::AreEqual ((uint32_t) 0, ring.FreeSpace());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.GetApproxSize());
+            Assert::AreEqual ((uint32_t) 0, ring.GetFreeBytes());
 
             // One-past-capacity push must fail without corrupting state.
             Assert::IsFalse (ring.TryPush (0xAB));
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.GetApproxSize());
         }
 
 
@@ -70,14 +70,14 @@ namespace PrinterByteRingTests
                 Assert::IsTrue (ring.TryPush ((Byte) i));
             }
 
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity - 100, ring.FreeSpace());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity - 100, ring.GetFreeBytes());
 
             for (i = 0; i < 40; i++)
             {
                 Assert::IsTrue (ring.TryPop (out));
             }
 
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity - 60, ring.FreeSpace());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity - 60, ring.GetFreeBytes());
         }
 
 
@@ -116,7 +116,7 @@ namespace PrinterByteRingTests
 
             pulled = ring.Drain (buffer, 32);
             Assert::AreEqual ((uint32_t) 32, pulled);
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
+            Assert::AreEqual ((uint32_t) 0, ring.GetApproxSize());
 
             for (i = 0; i < 32; i++)
             {
@@ -139,7 +139,7 @@ namespace PrinterByteRingTests
 
             pulled = ring.Drain (buffer, 10);
             Assert::AreEqual ((uint32_t) 10, pulled);
-            Assert::AreEqual ((uint32_t) 15, ring.ApproxSize());
+            Assert::AreEqual ((uint32_t) 15, ring.GetApproxSize());
 
             for (i = 0; i < 10; i++)
             {
@@ -174,7 +174,7 @@ namespace PrinterByteRingTests
                 Assert::IsTrue (ring.TryPush ((Byte) (seq & 0xFF)));
             }
 
-            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (PrinterByteRing::kByteRingCapacity, ring.GetApproxSize());
 
             for (i = 0; i < PrinterByteRing::kByteRingCapacity; i++)
             {

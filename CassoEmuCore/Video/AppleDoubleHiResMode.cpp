@@ -173,7 +173,7 @@ void AppleDoubleHiResMode::Render (
 
     for (int scanline = 0; scanline < kDhrScanlines; scanline++)
     {
-        Word lineAddr = AppleHiResMode::ScanlineAddress (scanline, pageBase);
+        Word lineAddr = AppleHiResMode::GetScanlineAddress (scanline, pageBase);
 
         // Pass 1: unpack 80 bytes (aux+main) into 560 dots in display order.
         for (int byteIdx = 0; byteIdx < kBytesPerScanline; byteIdx++)

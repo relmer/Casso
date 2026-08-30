@@ -253,7 +253,7 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 
 
 //  The emulator GUI's flags. `trace` is here so `/trace=50M` canonicalizes
-//  the same way `/out` does; its `=` tail rides through CanonicalLongFlag
+//  the same way `/out` does; its `=` tail rides through GetCanonicalLongFlag
 //  untouched.
 static constexpr const char *  s_kpszEmulatorOptions[] =
 {
@@ -443,7 +443,7 @@ bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::ExitCodeForRefusal
+//  CommandLineParser::GetExitCodeForRefusal
 //
 //  What a command line this parser turned down reports to the shell.
 //
@@ -458,7 +458,7 @@ bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandLineParser::ExitCodeForRefusal (CommandLineOptions::Subcommand mode)
+int CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand mode)
 {
     bool  startedNothing = mode == CommandLineOptions::Subcommand::Run ||
                            mode == CommandLineOptions::Subcommand::Disk;
@@ -640,7 +640,7 @@ bool CommandLineParser::IsPlainDecimal (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TrailingParameterFlag
+//  GetTrailingParameterFlag
 //
 //  The letter a group of assembler flags ends on, when that letter is one which
 //  takes a parameter -- and 0 otherwise.
@@ -661,7 +661,7 @@ bool CommandLineParser::IsPlainDecimal (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-char CommandLineParser::TrailingParameterFlag (const std::string & previous)
+char CommandLineParser::GetTrailingParameterFlag (const std::string & previous)
 {
     //  as65's own notations: -d<name>, -l<filename>, -s<n>, -w<width>.
     std::string_view  kTakesParameter = "dlsw";
@@ -833,7 +833,7 @@ std::vector<std::string> CommandLineParser::RejoinShellSplitArguments (int argc,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskOperandCount
+//  GetDiskOperandCount
 //
 //  How many positional operands a disk command HAS A USE FOR.
 //
@@ -850,7 +850,7 @@ std::vector<std::string> CommandLineParser::RejoinShellSplitArguments (int argc,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Command command)
+int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Command command)
 {
     int  count = 0;
 
@@ -892,7 +892,7 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Comman
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandWord
+//  GetDiskCommandWord
 //
 //  The descriptive word a command is written with, read from the table rather than
 //  retyped so a diagnostic cannot name a command the grammar no longer has. The
@@ -900,7 +900,7 @@ int CommandLineParser::DiskOperandCount (CommandLineOptions::DiskOptions::Comman
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * CommandLineParser::DiskCommandWord (CommandLineOptions::DiskOptions::Command command)
+const char * CommandLineParser::GetDiskCommandWord (CommandLineOptions::DiskOptions::Command command)
 {
     const char *  word = "disk";
 
@@ -971,7 +971,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CanonicalLongFlag
+//  GetCanonicalLongFlag
 //
 //  An argument reduced to the one form the grammars below test for, so
 //  `/out` and `--out` reach the same arm.
@@ -987,7 +987,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineParser::CanonicalLongFlag (const std::string             & arg,
+std::string CommandLineParser::GetCanonicalLongFlag (const std::string             & arg,
                                                   std::span<const char * const>   names)
 {
     std::string  canonical = arg;
@@ -1023,13 +1023,13 @@ std::string CommandLineParser::CanonicalLongFlag (const std::string             
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CanonicalDiskFlag
+//  GetCanonicalDiskFlag
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
+std::string CommandLineParser::GetCanonicalDiskFlag (const std::string & arg)
 {
-    return CanonicalLongFlag (arg, std::span<const char * const> (s_kpszDiskOptions));
+    return GetCanonicalLongFlag (arg, std::span<const char * const> (s_kpszDiskOptions));
 }
 
 
@@ -1057,7 +1057,7 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  Each option is also accepted with a `/` prefix, because the usage text
 //  writes every flag with whichever prefix the reader asked for and offering a
 //  form the parser rejects is worse than never offering it. See
-//  CanonicalDiskFlag for why that is a table lookup and not a rewrite of any
+//  GetCanonicalDiskFlag for why that is a table lookup and not a rewrite of any
 //  leading slash.
 //
 //  Parsing does not validate that required operands are present. That is the
@@ -1073,7 +1073,7 @@ std::string CommandLineParser::CanonicalDiskFlag (const std::string & arg)
 //  suggestion names the flags it does have.
 //
 //  AN EXTRA OPERAND IS REFUSED ON THE SAME GROUND, and the count comes from the
-//  COMMAND -- see DiskOperandCount. Two slots were filled whatever the command, so
+//  COMMAND -- see GetDiskOperandCount. Two slots were filled whatever the command, so
 //  `disk list img.dsk PROG` filled a slot `list` does not read and `disk get
 //  img.dsk PROG extra` filled none at all; both exited 0 having said nothing.
 //
@@ -1128,7 +1128,7 @@ void CommandLineParser::ParseDiskOptions (
         i++;
     }
 
-    limit = DiskOperandCount (options.disk.command);
+    limit = GetDiskOperandCount (options.disk.command);
 
     //  THE PREFIX THE READER ACTUALLY WROTE.
     //
@@ -1141,12 +1141,12 @@ void CommandLineParser::ParseDiskOptions (
     //  Scanned ahead of the loop rather than set inside it, so a refusal
     //  raised at the first argument is worded the same as one raised at the
     //  last. Matched against the option table rather than on the leading
-    //  character, for the reason CanonicalDiskFlag is a table lookup at all:
+    //  character, for the reason GetCanonicalDiskFlag is a table lookup at all:
     //  `/VOLUME/STARTUP` is a ProDOS path and comes back unchanged.
     for (int probe = i; probe < argc; probe++)
     {
         if (argv[probe][0] == '/'
-         && CanonicalDiskFlag (argv[probe]).rfind ("--", 0) == 0)
+         && GetCanonicalDiskFlag (argv[probe]).rfind ("--", 0) == 0)
         {
             options.flagPrefix = '/';
             break;
@@ -1155,7 +1155,7 @@ void CommandLineParser::ParseDiskOptions (
 
     for ( ; i < argc; i++)
     {
-        std::string  arg      = CanonicalDiskFlag (argv[i]);
+        std::string  arg      = GetCanonicalDiskFlag (argv[i]);
         bool         hasValue = (i + 1) < argc;
 
         if (arg == "--text")
@@ -1386,7 +1386,7 @@ void CommandLineParser::ParseDiskOptions (
         //  not have is refused rather than counted as an operand.
         //
         //  Only a dash. A ProDOS path is written `/VOLUME/FILE` and is an
-        //  operand, which is the same reason CanonicalDiskFlag matches a table
+        //  operand, which is the same reason GetCanonicalDiskFlag matches a table
         //  instead of rewriting every leading slash -- so a slash that reached
         //  here is a path, and a path is exactly what the positional block
         //  below is for.
@@ -1412,7 +1412,7 @@ void CommandLineParser::ParseDiskOptions (
         if (limit > 0 && positional >= limit)
         {
             Refusal (options) << "Error: surplus argument: " << arg << "\n"
-                              << "       `disk " << DiskCommandWord (options.disk.command) << "` takes "
+                              << "       `disk " << GetDiskCommandWord (options.disk.command) << "` takes "
                               << (limit == 1 ? "the image and nothing else\n"
                                      : "the image and one file\n");
 
@@ -2381,7 +2381,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         if (arg[0] != '-' && arg[0] != '/')
         {
             std::string  previous   = (argIndex > 1) ? argv[argIndex - 1] : "";
-            char         wantsValue = TrailingParameterFlag (previous);
+            char         wantsValue = GetTrailingParameterFlag (previous);
 
             if (options.inputFile.empty())
             {
@@ -3307,7 +3307,7 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
         // The long options first, for the reason ParseAs65Flags gives: the
         // single-character normalization below turns `/load` into `-load`,
         // which matches nothing and is reported as an unknown option.
-        std::string arg = CanonicalLongFlag (argv[argIndex],
+        std::string arg = GetCanonicalLongFlag (argv[argIndex],
                               std::span<const char * const> (s_kpszRunLongOptions));
 
         // THE PREFIX IS RECORDED FROM THE ARGUMENT AS TYPED, before the line
@@ -3855,7 +3855,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
 
     for (int i = 0; i < argc; i++)
     {
-        std::string  arg      = CanonicalLongFlag (argv[i],
+        std::string  arg      = GetCanonicalLongFlag (argv[i],
                                     std::span<const char * const> (s_kpszEmulatorOptions));
         bool         hasValue = (i + 1) < argc;
 

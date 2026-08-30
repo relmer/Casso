@@ -49,7 +49,7 @@ namespace Disk2EventRingTests
             Disk2Event      out  {};
 
             Assert::IsFalse (ring.TryPop (out));
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
+            Assert::AreEqual ((uint32_t) 0, ring.GetApproxSize());
         }
 
 
@@ -63,11 +63,11 @@ namespace Disk2EventRingTests
                 Assert::IsTrue (ring.TryPush (MakeEvent (i)));
             }
 
-            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.GetApproxSize());
 
             // One-past-capacity push must fail without corrupting state.
             Assert::IsFalse (ring.TryPush (MakeEvent (0xDEADBEEF)));
-            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.GetApproxSize());
         }
 
 
@@ -106,7 +106,7 @@ namespace Disk2EventRingTests
 
             pulled = ring.Drain (buffer, 32);
             Assert::AreEqual ((uint32_t) 32, pulled);
-            Assert::AreEqual ((uint32_t) 0, ring.ApproxSize());
+            Assert::AreEqual ((uint32_t) 0, ring.GetApproxSize());
 
             for (i = 0; i < 32; i++)
             {
@@ -129,7 +129,7 @@ namespace Disk2EventRingTests
 
             pulled = ring.Drain (buffer, 10);
             Assert::AreEqual ((uint32_t) 10, pulled);
-            Assert::AreEqual ((uint32_t) 15, ring.ApproxSize());
+            Assert::AreEqual ((uint32_t) 15, ring.GetApproxSize());
 
             for (i = 0; i < 10; i++)
             {
@@ -167,7 +167,7 @@ namespace Disk2EventRingTests
                 Assert::IsTrue (ring.TryPush (MakeEvent (cycleVal)));
             }
 
-            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.ApproxSize());
+            Assert::AreEqual (Disk2EventRing::kEventRingCapacity, ring.GetApproxSize());
 
             for (i = 0; i < Disk2EventRing::kEventRingCapacity; i++)
             {

@@ -198,7 +198,7 @@ public:
         };
 
         DiskFormat  fmt        = DiskFormat::Dsk;
-        size_t      candidates = ARRAYSIZE (kCandidates);
+        size_t      candidates = std::size (kCandidates);
         bool        routed     = false;
         bool        offered    = false;
 

@@ -40,7 +40,7 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 {
     vector<PageRange>   pages;
     vector<int>         breaks;
-    int                 rowsUsed = raster.RowsUsed();
+    int                 rowsUsed = raster.GetRowsUsed();
 
 
 
@@ -51,7 +51,7 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
         // ends so every segment has both a start and an end.
         breaks.push_back (0);
 
-        for (int b : raster.PageBoundaryRows())
+        for (int b : raster.GetPageBoundaryRows())
         {
             if (b > 0 && b < rowsUsed)
             {

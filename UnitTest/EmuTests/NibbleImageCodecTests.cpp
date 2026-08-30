@@ -148,7 +148,7 @@ public:
             static const Byte  kGlyphs[] = { 0xCE, 0xC9, 0xC2, 0xCF, 0xCB };   // N I B O K
             Byte               column    = 0;
 
-            for (column = 0; column < (Byte) _countof (kGlyphs); column++)
+            for (column = 0; column < (Byte) std::size (kGlyphs); column++)
             {
                 payload.push_back (0xA9);  payload.push_back (kGlyphs[column]);
                 payload.push_back (0x8D);  payload.push_back (column);  payload.push_back (0x04);
@@ -222,7 +222,7 @@ public:
         static constexpr size_t  kRejected[] = { 232959, 232961, 223439, 223441, 143360, 0 };
 
         size_t   trackSize = 0;
-        size_t   count     = ARRAYSIZE (kRejected);
+        size_t   count     = std::size (kRejected);
         size_t   i         = 0;
         HRESULT  hr        = S_OK;
 

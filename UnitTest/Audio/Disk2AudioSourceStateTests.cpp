@@ -117,7 +117,7 @@ public:
         Disk2AudioSource  src;
 
         src.SetPan (0.25f, 0.75f);
-        Assert::AreEqual (0.25f, src.PanLeft(),  1e-6f);
-        Assert::AreEqual (0.75f, src.PanRight(), 1e-6f);
+        Assert::AreEqual (0.25f, src.GetPanLeft(),  1e-6f);
+        Assert::AreEqual (0.75f, src.GetPanRight(), 1e-6f);
     }
 };

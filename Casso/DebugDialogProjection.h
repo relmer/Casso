@@ -68,7 +68,7 @@ public:
 
     // Returns the fixed-width label for the Event column based on
     // (category, type). Stable wide string view; no allocation.
-    static std::wstring_view  EventLabel (EventCategory cat, Disk2EventType type);
+    static std::wstring_view  GetEventLabel (EventCategory cat, Disk2EventType type);
 
     // Format one source event into a display record.
     static void               FormatEvent      (
@@ -106,7 +106,7 @@ public:
     //     (walk backwards).
     //   * If no earlier entry qualifies (priorDequeIdx is smaller
     //     than every surviving filtered index), return 0.
-    static int                PreservedFocusItem (
+    static int                GetPreservedFocusItem (
         uint32_t                                     priorDequeIdx,
         const std::vector<uint32_t> &                newFilteredIndices) noexcept;
 

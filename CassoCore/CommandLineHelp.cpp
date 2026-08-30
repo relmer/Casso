@@ -8,17 +8,17 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineHelp::LongPrefix / ShortPrefix
+//  CommandLineHelp::GetLongPrefix / GetShortPrefix
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineHelp::LongPrefix (char flagPrefix)
+std::string CommandLineHelp::GetLongPrefix (char flagPrefix)
 {
     return (flagPrefix == '/') ? std::string ("/") : std::string ("--");
 }
 
 
-std::string CommandLineHelp::ShortPrefix (char flagPrefix)
+std::string CommandLineHelp::GetShortPrefix (char flagPrefix)
 {
     return (flagPrefix == '/') ? std::string ("/") : std::string ("-");
 }
@@ -29,13 +29,13 @@ std::string CommandLineHelp::ShortPrefix (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineHelp::RequiredOperandsIn
+//  CommandLineHelp::GetRequiredOperands
 //
 //  The operands a grammar line shows as required, in order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> CommandLineHelp::RequiredOperandsIn (const std::string & grammar)
+std::vector<std::string> CommandLineHelp::GetRequiredOperands (const std::string & grammar)
 {
     std::vector<std::string>  required;
     std::string               previousWord;
@@ -110,7 +110,7 @@ std::vector<std::string> CommandLineHelp::RequiredOperandsIn (const std::string 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineHelp::UsageLineFor
+//  CommandLineHelp::GetUsageLine
 //
 //  One line per mode: the shape of the command line, then what it does.
 //
@@ -127,7 +127,7 @@ std::vector<std::string> CommandLineHelp::RequiredOperandsIn (const std::string 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
+std::string CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand mode)
 {
     std::string  line;
 
@@ -184,8 +184,8 @@ std::string CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand mode)
 
 std::string CommandLineHelp::BuildExampleCommands (char flagPrefix)
 {
-    std::string  lp = LongPrefix (flagPrefix);
-    std::string  sp = ShortPrefix (flagPrefix);
+    std::string  lp = GetLongPrefix (flagPrefix);
+    std::string  sp = GetShortPrefix (flagPrefix);
 
 
 
@@ -243,7 +243,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     //  plus a real gutter: `CassoCli merlin --help` reaches 24, and a column at
     //  25 left that one row with a single space while every other row had four.
     const size_t       kDescriptionColumn = 27;
-    const std::string  lp                 = LongPrefix (flagPrefix);
+    const std::string  lp                 = GetLongPrefix (flagPrefix);
 
 
 
@@ -261,10 +261,10 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
 
 
     text += "\nUsage:\n";
-    text += UsageLineFor (CommandLineOptions::Subcommand::As65) + "\n";
-    text += UsageLineFor (CommandLineOptions::Subcommand::Merlin) + "\n";
-    text += UsageLineFor (CommandLineOptions::Subcommand::Run)  + "\n";
-    text += UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::As65) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Merlin) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Run)  + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Disk) + "\n";
 
     text += "\nHelp:\n";
 

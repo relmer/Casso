@@ -78,7 +78,7 @@ static std::wstring  BuildTimeFromExe()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoBuildInfo
+//  GetCassoBuildInfo
 //
 //  Version + arch (from compile-time macros -- each is exact for this
 //  configuration's binary) + the exe's link time (read at runtime, so it always
@@ -86,7 +86,7 @@ static std::wstring  BuildTimeFromExe()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t *  CassoBuildInfo()
+const wchar_t *  GetCassoBuildInfo()
 {
     static const std::wstring   s = std::format (
         L"v{}.{}.{} {} ({})",

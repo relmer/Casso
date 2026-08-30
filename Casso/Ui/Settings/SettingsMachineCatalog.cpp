@@ -114,7 +114,7 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 
     if (ok)
     {
-        machineNameW = m_emuShell->CurrentMachineName();
+        machineNameW = m_emuShell->GetCurrentMachineName();
         machineName  = NarrowMachineName (machineNameW);
         ok           = !machineName.empty();
     }
@@ -204,7 +204,7 @@ void SettingsMachineCatalog::PopulateMachineList()
         return;
     }
 
-    activeMachine = NarrowMachineName (m_emuShell->CurrentMachineName());
+    activeMachine = NarrowMachineName (m_emuShell->GetCurrentMachineName());
     searchPaths  = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
                                                    PathResolver::GetWorkingDirectory());
     machinesInfo = MachineScanner::Scan (searchPaths,

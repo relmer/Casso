@@ -192,7 +192,7 @@ public:
     //  the console executable is where the exit code is returned and the test
     //  assembly does not link it -- a status decided there is a decision
     //  nothing can check. See As65ExitStatus for the same argument at length.
-    static int  ExitCodeForRefusal (CommandLineOptions::Subcommand mode);
+    static int  GetExitCodeForRefusal (CommandLineOptions::Subcommand mode);
 
     //
     //  What KIND of value a flag takes, which decides three things at once: how
@@ -390,10 +390,10 @@ public:
     //  not keep, so a test can pin the rule here or nowhere.
     //
     //  IsPlainDecimal    -- a word that is only digits: a separated value.
-    //  TrailingParameterFlag -- the letter a flag group ends on, when that
+    //  GetTrailingParameterFlag -- the letter a flag group ends on, when that
     //                       letter takes a parameter, and 0 otherwise.
-    static bool  IsPlainDecimal        (const std::string & text);
-    static char  TrailingParameterFlag (const std::string & previous);
+    static bool  IsPlainDecimal           (const std::string & text);
+    static char  GetTrailingParameterFlag (const std::string & previous);
 
     //  Whether an argument is the BACK HALF of one a shell cut in two, with the
     //  argument in front of it as the front half. Public because it is the
@@ -510,17 +510,17 @@ private:
     //  How many operands a disk command has a use for, and the descriptive word
     //  the help writes it with. An operand past the count is one the command would
     //  otherwise read and discard.
-    static int           DiskOperandCount (CommandLineOptions::DiskOptions::Command command);
-    static const char *  DiskCommandWord     (CommandLineOptions::DiskOptions::Command command);
+    static int           GetDiskOperandCount (CommandLineOptions::DiskOptions::Command command);
+    static const char *  GetDiskCommandWord     (CommandLineOptions::DiskOptions::Command command);
 
     //  An argument reduced to the `--` form the grammars test for, so
     //  `/out` and `--out` reach the same arm. Only an exact option name from
     //  the supplied table is rewritten -- a ProDOS path starts with a slash and
     //  must stay an operand.
-    static std::string  CanonicalLongFlag (const std::string             & arg,
+    static std::string  GetCanonicalLongFlag (const std::string             & arg,
                                            std::span<const char * const>   names);
 
-    static std::string  CanonicalDiskFlag (const std::string & arg);
+    static std::string  GetCanonicalDiskFlag (const std::string & arg);
     static void  ParseAs65Flags      (int argc, char * argv[], int startIndex, CommandLineOptions & options);
     static void  ApplyAs65Defaults   (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseMerlinFlags    (int argc, char * argv[], int startIndex, CommandLineOptions & options);

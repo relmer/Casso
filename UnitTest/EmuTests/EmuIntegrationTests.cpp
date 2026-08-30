@@ -236,7 +236,7 @@ public:
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
-        kbd.KeyPress ('H');
+        kbd.PressKey ('H');
 
         // EmuCpu::ReadByte for $C000-$CFFF goes through bus
         val = cpu.ReadByte (0xC000);
@@ -260,7 +260,7 @@ public:
         EmuCpu cpu (env.bus);
         env.LoadIntoEmu (cpu);
 
-        kbd.KeyPress ('Z');
+        kbd.PressKey ('Z');
 
         // Write to $C010 to clear strobe (via bus)
         cpu.WriteByte (0xC010, 0x00);

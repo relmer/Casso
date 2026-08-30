@@ -43,7 +43,7 @@ public:
 
     // The print head's current dot column, for the panel's left-to-right ink
     // reveal (FR-034). Observing it never alters interpretation or the raster.
-    int     HeadColumnDots () const { return m_headColumnDots; }
+    int     GetHeadColumnDots () const { return m_headColumnDots; }
 
 private:
     enum class EscState

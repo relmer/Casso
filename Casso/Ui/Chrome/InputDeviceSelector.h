@@ -34,7 +34,7 @@ class IDxuiTheme;
 //
 //  On/off state is the LED (per user feedback, an outline ring reads as
 //  focus, not state); keyboard focus keeps the thin accent ring on the
-//  whole control. Each segment carries its own tooltip (TooltipTextAt).
+//  whole control. Each segment carries its own tooltip (GetTooltipTextAt).
 //  Clicking a segment toggles its axis via the shell's
 //  ToggleInputMappingMode; keyboard activation still cycles presets.
 //
@@ -64,22 +64,22 @@ public:
     }
 
     // Theme style: 3/4 perspective glyphs (skeuo) vs top-down (dark/retro).
-    void     SetSkeuoStyle   (bool skeuo)   { m_skeuoStyle = skeuo; }
+    void     SetSkeuoStyle (bool skeuo)   { m_skeuoStyle = skeuo; }
 
-    void     SetHovered      (bool hovered) { m_hovered = hovered; if (!hovered) { m_hoverSegment = Segment::None; } }
-    void     SetHoverPoint   (int x, int y) { m_hoverSegment = SegmentAt (x, y); }
-    void     SetFocused      (bool focused) { m_focused = focused; }
-    void     SetPressed      (bool pressed) { m_pressed = pressed; }
+    void     SetHovered    (bool hovered) { m_hovered = hovered; if (!hovered) { m_hoverSegment = Segment::None; } }
+    void     SetHoverPoint (int x, int y) { m_hoverSegment = GetSegmentAt (x, y); }
+    void     SetFocused    (bool focused) { m_focused = focused; }
+    void     SetPressed    (bool pressed) { m_pressed = pressed; }
 
-    bool     HitTest         (int x, int y) const;
-    Segment  SegmentAt       (int x, int y) const;
-    RECT     Bounds          () const       { return m_bounds; }
+    bool     HitTest       (int x, int y) const;
+    Segment  GetSegmentAt  (int x, int y) const;
+    RECT     Bounds        () const       { return m_bounds; }
 
     // Per-segment tooltip for the cursor position; falls back to the
-    // state summary between segments. TooltipText() keeps the state-based
+    // state summary between segments. GetTooltipText() keeps the state-based
     // text for non-positional callers (the paddle-capture notice).
-    const wchar_t * TooltipText   () const;
-    const wchar_t * TooltipTextAt (int x, int y) const;
+    const wchar_t * GetTooltipText   () const;
+    const wchar_t * GetTooltipTextAt (int x, int y) const;
 
     // IDxuiControl. boundsDip carries the anchor CENTER point (left/top ==
     // right/bottom), matching the old button's layout contract.
@@ -178,9 +178,9 @@ private:
         L"The host pointer drives the built-in mouse while over the screen\n"
         L"(non-capturing).";
 
-    int      SegmentCount() const { return m_mouseAvailable ? 3 : 2; }
-    bool     SegmentSelected (int index) const;
-    const wchar_t * SegmentLabel (int index) const;
+    int      GetSegmentCount() const { return m_mouseAvailable ? 3 : 2; }
+    bool     IsSegmentSelected (int index) const;
+    const wchar_t * GetSegmentLabel (int index) const;
 
     RECT                 m_bounds         = {};
     RECT                 m_segRects[3]    = {};   // full segment (hit) rects

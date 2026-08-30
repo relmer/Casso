@@ -142,8 +142,8 @@ private:
     //  Which storage type a file of this many data blocks needs, and how many
     //  index blocks come with it -- none for a seedling, one for a sapling, and
     //  for a tree one per group of 256 plus the master index above them.
-    static Byte    StorageTypeFor      (size_t dataBlockCount);
-    static size_t  OverheadBlocksFor   (size_t dataBlockCount);
+    static Byte    GetStorageType    (size_t dataBlockCount);
+    static size_t  GetOverheadBlocks (size_t dataBlockCount);
 
     //  One pointer in an index block: low byte in the first half, high byte in
     //  the second.

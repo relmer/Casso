@@ -31,7 +31,7 @@ public:
         // the system temp folder is on a different one often enough that the
         // guarantee would hold only on the machine it was tried on. Deriving
         // the name by appending to the whole target path is what puts it there.
-        std::string  temp = CommitPlan::TemporaryPathFor (kTarget, 1, 0);
+        std::string  temp = CommitPlan::GetTemporaryPath (kTarget, 1, 0);
 
         Assert::AreEqual (size_t (0), temp.find (kTarget),
             L"the temporary must be derived from the whole target path, so it lands beside it");
@@ -45,7 +45,7 @@ public:
         // Two separate jobs. The suffix is what makes a sweep for leftovers
         // possible at all; the marker is what stops that sweep claiming
         // somebody else's temporary file as ours.
-        std::string  temp   = CommitPlan::TemporaryPathFor (kTarget, 0x1234, 3);
+        std::string  temp   = CommitPlan::GetTemporaryPath (kTarget, 0x1234, 3);
         std::string  suffix = CommitPlan::kSuffix;
 
         Assert::IsTrue (temp.size() > suffix.size());
@@ -61,14 +61,14 @@ public:
         // Purity is the property that makes every other test in this file
         // mean something. If the derivation consulted a clock or a counter,
         // the comparisons below would be measuring that instead of the rule.
-        Assert::AreEqual (CommitPlan::TemporaryPathFor (kTarget, 7, 2),
-                          CommitPlan::TemporaryPathFor (kTarget, 7, 2));
+        Assert::AreEqual (CommitPlan::GetTemporaryPath (kTarget, 7, 2),
+                          CommitPlan::GetTemporaryPath (kTarget, 7, 2));
     }
 
     TEST_METHOD (TemporaryPath_DiffersByAttempt)
     {
-        Assert::IsFalse (CommitPlan::TemporaryPathFor (kTarget, 7, 0)
-                      == CommitPlan::TemporaryPathFor (kTarget, 7, 1),
+        Assert::IsFalse (CommitPlan::GetTemporaryPath (kTarget, 7, 0)
+                      == CommitPlan::GetTemporaryPath (kTarget, 7, 1),
             L"stepping the attempt must step the name, or the retry loop spins on one name");
     }
 
@@ -81,15 +81,15 @@ public:
         // as the winner's. The comparison that matters is therefore at EQUAL
         // attempt: a test that varied the attempt as well would pass against a
         // derivation that ignored the tag completely.
-        Assert::IsFalse (CommitPlan::TemporaryPathFor (kTarget, 7, 0)
-                      == CommitPlan::TemporaryPathFor (kTarget, 8, 0),
+        Assert::IsFalse (CommitPlan::GetTemporaryPath (kTarget, 7, 0)
+                      == CommitPlan::GetTemporaryPath (kTarget, 8, 0),
             L"two invocations must not derive the same temporary name");
     }
 
     TEST_METHOD (TemporaryPath_DiffersByTarget)
     {
-        Assert::IsFalse (CommitPlan::TemporaryPathFor ("C:\\a.dsk", 7, 0)
-                      == CommitPlan::TemporaryPathFor ("C:\\b.dsk", 7, 0));
+        Assert::IsFalse (CommitPlan::GetTemporaryPath ("C:\\a.dsk", 7, 0)
+                      == CommitPlan::GetTemporaryPath ("C:\\b.dsk", 7, 0));
     }
 
     TEST_METHOD (InvocationTag_IsNeverTheSameTwice)
@@ -105,8 +105,8 @@ public:
         Assert::IsFalse (second == third);
         Assert::IsFalse (first == third);
 
-        Assert::IsFalse (CommitPlan::TemporaryPathFor (kTarget, first,  0)
-                      == CommitPlan::TemporaryPathFor (kTarget, second, 0),
+        Assert::IsFalse (CommitPlan::GetTemporaryPath (kTarget, first,  0)
+                      == CommitPlan::GetTemporaryPath (kTarget, second, 0),
             L"and successive tags must actually reach the name");
     }
 

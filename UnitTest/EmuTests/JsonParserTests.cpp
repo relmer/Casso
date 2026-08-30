@@ -117,7 +117,7 @@ public:
 
         AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Array);
-        Assert::AreEqual (size_t (0), value.ArraySize());
+        Assert::AreEqual (size_t (0), value.GetArraySize());
     }
 
     TEST_METHOD (Parse_NestedObject)
@@ -156,10 +156,10 @@ public:
         HRESULT hr = JsonParser::Parse ("[1, \"two\", true]", value, error);
 
         AssertSucceeded (hr);
-        Assert::AreEqual (size_t (3), value.ArraySize());
-        Assert::AreEqual (1, value.ArrayAt (0).GetInt());
-        Assert::AreEqual (std::string ("two"), value.ArrayAt (1).GetString());
-        Assert::IsTrue (value.ArrayAt (2).GetBool());
+        Assert::AreEqual (size_t (3), value.GetArraySize());
+        Assert::AreEqual (1, value.GetArrayElement (0).GetInt());
+        Assert::AreEqual (std::string ("two"), value.GetArrayElement (1).GetString());
+        Assert::IsTrue (value.GetArrayElement (2).GetBool());
     }
 
     TEST_METHOD (Parse_EscapedString)

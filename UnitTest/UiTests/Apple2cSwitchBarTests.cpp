@@ -94,7 +94,7 @@ public:
 
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
-            switch (bar.PartAt (x, midY))
+            switch (bar.GetPartAt (x, midY))
             {
                 case Apple2cSwitchBar::Part::Reset:
                     if (firstReset < 0) { firstReset = x; }
@@ -133,7 +133,7 @@ public:
         midY = (s_kBand.top + s_kBand.bottom) / 2;
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
-            Assert::IsTrue (bar.PartAt (x, midY) == Apple2cSwitchBar::Part::None,
+            Assert::IsTrue (bar.GetPartAt (x, midY) == Apple2cSwitchBar::Part::None,
                 L"a hidden bar hit-tests to nothing");
         }
     }
@@ -163,8 +163,8 @@ public:
 
         for (int x = s_kBand.left; x < s_kBand.right; ++x)
         {
-            const wchar_t * tip = bar.TooltipTextAt (x, midY);
-            bool            hit = bar.PartAt (x, midY) != Apple2cSwitchBar::Part::None;
+            const wchar_t * tip = bar.GetTooltipTextAt (x, midY);
+            bool            hit = bar.GetPartAt (x, midY) != Apple2cSwitchBar::Part::None;
 
             if (hit) { Assert::IsNotNull (tip, L"a clickable part has a tooltip"); sawTip = true; }
             else     { Assert::IsNull (tip,   L"a gap has no tooltip");            sawNoTip = true; }

@@ -53,7 +53,7 @@ public:
     //
     //  Command id for ShowModalDialog(): the default button's, or 0 (no default).
     //
-    int   DefaultCommandId () const { return m_defaultCommandId; }
+    int   GetDefaultCommandId () const { return m_defaultCommandId; }
 
     //
     //  Translate a ShowModalDialog() return code into the configured button's
@@ -69,7 +69,7 @@ protected:
 private:
     static constexpr int  s_kCommandBase = 1000;   // synthetic command-id base (avoids IDOK/IDCANCEL)
 
-    static int  CommandIdFor (const Button & button, int index);
+    static int  GetCommandId (const Button & button, int index);
 
 
     std::unique_ptr<DxuiPanel>  m_pendingContent;

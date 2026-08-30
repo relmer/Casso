@@ -15,7 +15,7 @@
 #include "ProDosSkeleton.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
-#include "CountedNoun.h"
+#include "Utils.h"
 
 
 
@@ -531,12 +531,12 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
     if (opened.report.HasDataLoss())
     {
-        std::string  lost = CountedNoun::Of (opened.report.GetUnrecoveredCount(), "sector");
+        int  lost = opened.report.GetUnrecoveredCount();
 
         snprintf (summary, sizeof (summary),
-                  "%s could not be decoded and read back as zeros "
+                  "%d %s could not be decoded and read back as zeros "
                   "-- THIS LISTING IS INCOMPLETE, entries may be missing",
-                  lost.c_str());
+                  lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
         result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
@@ -698,12 +698,12 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
 
     if (opened.report.HasDataLoss())
     {
-        std::string  lost = CountedNoun::Of (opened.report.GetUnrecoveredCount(), "sector");
+        int  lost = opened.report.GetUnrecoveredCount();
 
         snprintf (note, sizeof (note),
-                  "%s could not be decoded. THIS FILE IS INCOMPLETE, "
+                  "%d %s could not be decoded. THIS FILE IS INCOMPLETE, "
                   "unreadable sectors were delivered as zeros",
-                  lost.c_str());
+                  lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
         result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.path, note) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
@@ -2454,16 +2454,18 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
 
     if (!fits)
     {
-        size_t       spare  = total - first;
-        std::string  wanted = CountedNoun::Of (options.disk.count, "sector");
-        std::string  left   = CountedNoun::Of ((long long) spare, "sector");
+        size_t  spare = total - first;
 
         snprintf (summary, sizeof (summary),
                   "Error: not enough sectors available\n"
-                  "       Requested %s starting at track %d sector %d,\n"
-                  "       but only %s %s on the disk.\n",
-                  wanted.c_str(), options.disk.track, options.disk.sector,
-                  left.c_str(), (spare == 1) ? "remains" : "remain");
+                  "       Requested %d %s starting at track %d sector %d,\n"
+                  "       but only %zu %s %s on the disk.\n",
+                  options.disk.count,
+                  Utils::GetSingularOrPluralForm (options.disk.count, "sector", "sectors"),
+                  options.disk.track, options.disk.sector,
+                  spare,
+                  Utils::GetSingularOrPluralForm ((long long) spare, "sector", "sectors"),
+                  (spare == 1) ? "remains" : "remain");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2497,13 +2499,14 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
         hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload);
         CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
 
-        std::string  bytes   = CountedNoun::Of ((long long) payload.size(), "byte");
-        std::string  sectors = CountedNoun::Of (options.disk.count, "sector");
-
         snprintf (summary, sizeof (summary),
-                  "%s: %s from track %d %s sector %d, %s\n",
-                  options.disk.hostFile.c_str(), bytes.c_str(),
-                  options.disk.track, how, options.disk.sector, sectors.c_str());
+                  "%s: %zu %s from track %d %s sector %d, %d %s\n",
+                  options.disk.hostFile.c_str(),
+                  payload.size(),
+                  Utils::GetSingularOrPluralForm ((long long) payload.size(), "byte", "bytes"),
+                  options.disk.track, how, options.disk.sector,
+                  options.disk.count,
+                  Utils::GetSingularOrPluralForm (options.disk.count, "sector", "sectors"));
 
         result.output += summary;
     }
@@ -2520,12 +2523,12 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     //  sector delivered as zeros looks exactly like a sector that holds zeros.
     if (opened.report.HasDataLoss())
     {
-        std::string  lost = CountedNoun::Of (opened.report.GetUnrecoveredCount(), "sector");
+        int  lost = opened.report.GetUnrecoveredCount();
 
         snprintf (summary, sizeof (summary),
-                  "%s could not be decoded. Any of them in this range "
+                  "%d %s could not be decoded. Any of them in this range "
                   "were delivered as zeros",
-                  lost.c_str());
+                  lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
         result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
@@ -2584,8 +2587,6 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     vector<Byte>                   edited;
-    std::string                    wroteBytes;
-    std::string                    wroteSectors;
     char                           summary[160] = {};
 
 
@@ -2645,15 +2646,15 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
         if (!fits)
         {
             size_t       spare  = total - first;
-            std::string  wanted = CountedNoun::Of ((long long) needed, "sector");
-            std::string  left   = CountedNoun::Of ((long long) spare, "sector");
-
             snprintf (summary, sizeof (summary),
                       "Error: not enough sectors available\n"
                       "       Writing %zu bytes starting at track %d sector %d requires\n"
-                      "       %s, but only %s %s on the disk.\n",
+                      "       %zu %s, but only %zu %s %s on the disk.\n",
                       payload.size(), options.disk.track, options.disk.sector,
-                      wanted.c_str(), left.c_str(),
+                      needed,
+                      Utils::GetSingularOrPluralForm ((long long) needed, "sector", "sectors"),
+                      spare,
+                      Utils::GetSingularOrPluralForm ((long long) spare, "sector", "sectors"),
                       (spare == 1) ? "remains" : "remain");
         }
 
@@ -2682,13 +2683,14 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
-    wroteBytes   = CountedNoun::Of ((long long) written, "byte");
-    wroteSectors = CountedNoun::Of ((long long) needed, "sector");
-
     snprintf (summary, sizeof (summary),
-              "%s: %s at track %d %s sector %d, %s\n",
-              options.disk.imagePath.c_str(), wroteBytes.c_str(),
-              options.disk.track, how, options.disk.sector, wroteSectors.c_str());
+              "%s: %zu %s at track %d %s sector %d, %zu %s\n",
+              options.disk.imagePath.c_str(),
+              written,
+              Utils::GetSingularOrPluralForm ((long long) written, "byte", "bytes"),
+              options.disk.track, how, options.disk.sector,
+              needed,
+              Utils::GetSingularOrPluralForm ((long long) needed, "sector", "sectors"));
 
     result.output     += summary;
     result.exitStatus  = DiskCommandResult::kClean;
@@ -2802,16 +2804,18 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
     if (!fits)
     {
-        int          spare  = ProDosSkeleton::kTotalBlocks - options.disk.block;
-        std::string  wanted = CountedNoun::Of (options.disk.count, "block");
-        std::string  left   = CountedNoun::Of (spare, "block");
+        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
 
         snprintf (summary, sizeof (summary),
                   "Error: not enough blocks available\n"
-                  "       Requested %s starting at block %d,\n"
-                  "       but only %s %s on the disk.\n",
-                  wanted.c_str(), options.disk.block,
-                  left.c_str(), (spare == 1) ? "remains" : "remain");
+                  "       Requested %d %s starting at block %d,\n"
+                  "       but only %d %s %s on the disk.\n",
+                  options.disk.count,
+                  Utils::GetSingularOrPluralForm (options.disk.count, "block", "blocks"),
+                  options.disk.block,
+                  spare,
+                  Utils::GetSingularOrPluralForm (spare, "block", "blocks"),
+                  (spare == 1) ? "remains" : "remain");
     }
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -2846,13 +2850,14 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
         hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload);
         CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
 
-        std::string  bytes  = CountedNoun::Of ((long long) payload.size(), "byte");
-        std::string  blocks = CountedNoun::Of (options.disk.count, "block");
-
         snprintf (summary, sizeof (summary),
-                  "%s: %s from block %d, %s\n",
-                  options.disk.hostFile.c_str(), bytes.c_str(),
-                  options.disk.block, blocks.c_str());
+                  "%s: %zu %s from block %d, %d %s\n",
+                  options.disk.hostFile.c_str(),
+                  payload.size(),
+                  Utils::GetSingularOrPluralForm ((long long) payload.size(), "byte", "bytes"),
+                  options.disk.block,
+                  options.disk.count,
+                  Utils::GetSingularOrPluralForm (options.disk.count, "block", "blocks"));
 
         result.output += summary;
     }
@@ -2869,12 +2874,12 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
     //  zeros, and nothing behind these bytes records the difference.
     if (opened.report.HasDataLoss())
     {
-        std::string  lost = CountedNoun::Of (opened.report.GetUnrecoveredCount(), "sector");
+        int  lost = opened.report.GetUnrecoveredCount();
 
         snprintf (summary, sizeof (summary),
-                  "%s could not be decoded. Any of them in this range "
+                  "%d %s could not be decoded. Any of them in this range "
                   "were delivered as zeros",
-                  lost.c_str());
+                  lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
         result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
@@ -2919,8 +2924,6 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     vector<Byte>                   edited;
-    std::string                    wroteBytes;
-    std::string                    wroteBlocks;
     char                           summary[160] = {};
 
 
@@ -2953,16 +2956,17 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
 
     if (!fits)
     {
-        int          spare  = ProDosSkeleton::kTotalBlocks - options.disk.block;
-        std::string  wanted = CountedNoun::Of ((long long) needed, "block");
-        std::string  left   = CountedNoun::Of (spare, "block");
+        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
 
         snprintf (summary, sizeof (summary),
                   "Error: not enough blocks available\n"
                   "       Writing %zu bytes starting at block %d requires\n"
-                  "       %s, but only %s %s on the disk.\n",
+                  "       %zu %s, but only %d %s %s on the disk.\n",
                   payload.size(), options.disk.block,
-                  wanted.c_str(), left.c_str(),
+                  needed,
+                  Utils::GetSingularOrPluralForm ((long long) needed, "block", "blocks"),
+                  spare,
+                  Utils::GetSingularOrPluralForm (spare, "block", "blocks"),
                   (spare == 1) ? "remains" : "remain");
     }
 
@@ -3001,13 +3005,14 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
-    wroteBytes  = CountedNoun::Of ((long long) written, "byte");
-    wroteBlocks = CountedNoun::Of ((long long) needed, "block");
-
     snprintf (summary, sizeof (summary),
-              "%s: %s at block %d, %s\n",
-              options.disk.imagePath.c_str(), wroteBytes.c_str(),
-              options.disk.block, wroteBlocks.c_str());
+              "%s: %zu %s at block %d, %zu %s\n",
+              options.disk.imagePath.c_str(),
+              written,
+              Utils::GetSingularOrPluralForm ((long long) written, "byte", "bytes"),
+              options.disk.block,
+              needed,
+              Utils::GetSingularOrPluralForm ((long long) needed, "block", "blocks"));
 
     result.output     += summary;
     result.exitStatus  = DiskCommandResult::kClean;
