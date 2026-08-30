@@ -7,16 +7,27 @@ Project guidelines, code style, EHM patterns, build rules, and current feature c
 Read that file at the start of every session.
 
 <!-- SPECKIT START -->
-Active spec on THIS branch: **018-3d-desk-scene** (`desk-scene-models`) - the
-3D desk scene. Artifacts: `specs/018-3d-desk-scene/` (spec.md, plan.md,
-research.md, data-model.md, contracts/, quickstart.md). Scripts need
+**018-3d-desk-scene SHIPPED in 1.21.0** ("The one where the skeuomorphic theme
+goes to 11"), merged to master 2026-08-30. The 3D desk scene replaced the
+skeuomorphic theme's 2D chrome: four CAD-built devices at true dimensions,
+per-pixel lighting, cast and contact shadows, and the picture on spherical-sag
+glass with input inverse-projected back through the curvature. Artifacts:
+`specs/018-3d-desk-scene/` (spec.md, plan.md, research.md, data-model.md,
+contracts/, quickstart.md). Scripts need
 `$env:SPECIFY_FEATURE = "018-3d-desk-scene"` since the branch name is
 unnumbered.
 
-Still open on 018: Disk II realism tweaks, //e monitor (A2M2010) refinement,
-and drive repositioning. The merge gate (ARM64 build, Code Analysis,
-CHANGELOG) is separate from that remaining feature work. This branch carries
-master merged in as of 1.20.1.
+Still open on 018: **movable drives** (the last unstarted piece), Disk II
+realism tweaks, and //e monitor (A2M2010) refinement. Groundwork for movable
+drives is already in place: `DeskSceneLayout::MakeDeviceWorld` builds each
+device's world matrix and `driveTx[0]`/`driveTx[1]` place them side by side,
+`DeskSceneHitTester` resolves per-drive rays with occlusion, `EmulatorShell`'s
+bezel-tilt and compass drags are the gesture pattern to model a drag on, and
+`GlobalUserPrefs::monitorTilt` shows how a per-device scene property persists.
+
+**Parked:** GH #131, steady-state GPU cost that scales with window area rather
+than picture area. Its first step is a measurement, not a design, and it
+overlaps #100 -- plan them together rather than building invalidation twice.
 
 **Active spec: `specs/024-mockingboard-speech`** (IMPLEMENTED, GH #123) — the
 Mockingboard's SSI-263 voice chip shipped on branch `024-mockingboard-speech`:
@@ -37,13 +48,11 @@ Audio clicks were fixed by the dedicated event-driven WASAPI render pump
 (#125). Still open on the spec: T040/T060 (title regression + acceptance
 sets — need acquired period software, local gates).
 
-**Also active: `specs/020-disk-file-access`** (IMPLEMENTED, unmerged) --
-disk file access for the
-build loop: assembler binary output, DOS 3.3 / ProDOS file read+write, a
-`disk` subcommand -- create, init, list, get, put, delete, boot, sectorread
-and sectorwrite -- and boot configuration. Delivered on branch
-`020-disk-file-access` and cut as **1.20.0** there, since master took 1.19.0
-for the Mockingboard first. See
+**`specs/020-disk-file-access` SHIPPED in 1.20.0** (merged to master;
+1.20.1 followed) -- disk file access for the build loop: assembler binary
+output, DOS 3.3 / ProDOS file read+write, a `disk` subcommand -- create, init,
+list, get, put, delete, boot, sectorread and sectorwrite -- and boot
+configuration. See
 [`specs/020-disk-file-access/plan.md`](specs/020-disk-file-access/plan.md).
 
 Four further specs are drafted but NOT started, each to be picked up in its
@@ -60,9 +69,9 @@ own session:
 - `specs/025-game-compat-patcher` — runtime patch table over live guest RAM,
   defusing title protection checks that fail by design on later machines
   (Choplifter on Enhanced //e and //c, the Karateka //c VBL spin, and a path to
-  the wider Broderbund/Gebelli catalog). Tracked by GH #94. Work continues on
-  branch `025-game-compat-patcher`; next step is `/speckit-clarify` or
-  `/speckit-plan`.
+  the wider Broderbund/Gebelli catalog). Tracked by GH #94. The spec is on
+  master; branch `025-game-compat-patcher` carries no unique commits, so start
+  fresh from master. Next step is `/speckit-clarify` or `/speckit-plan`.
 - `specs/026-assembler-to-disk` — the assembler writes its object into a disk
   image rather than only to host files. Drafted on branch
   `026-assembler-to-disk`; next step is `/speckit-clarify`.
@@ -119,6 +128,18 @@ any time; it builds on the unmerged `game-patch-table` proof-of-concept (see
 its `research/parked-branch.md` for the gap analysis, including an unresolved
 scan-cost question).
 
+**Merge master into a long-lived branch EARLY, and expect renames.** Master
+took two sweeping accessor renames in August 2026 -- VerbNoun across 278 files
+(`HasHitBound`->`HitBound`, `JsonEqual`->`AreJsonEqual`, our `ARRAYSIZE`->
+`std::size`) and Dxui getters across 156 (`DpiScaler::Px`->`ToPx`,
+`Bounds`->`GetBounds`, `Visible`->`IsVisible`, `DxuiColor` helpers->`Compute*`).
+The convention is codified in `docs/coding-standards-backlog.md`: getters take
+`Get`/`Is`, theme colors are exempt. **Renames merge cleanly and then fail to
+compile**, so textual conflicts badly understate the work -- taking these into
+018 cost 13 conflicts and roughly 100 stale call sites the compiler had to
+find one round at a time. `026-assembler-to-disk` and `027-nibble-images` are
+both hundreds of commits behind and have not taken either sweep yet.
+
 **019 and 020 both rewrote the command line, and 019 landed first.** Master was
 merged into 020 and the reconciliation was decided in 019's favor on the point
 that matters: **the grammar is table-driven**, a dialect's flags are data that
@@ -129,10 +150,10 @@ codes, and the rejoining of a command line PowerShell cut in half. Both branches
 had independently withdrawn `--cpu` in favor of as65's `-x`, so the collision
 predicted here never materialized.
 
-**020 is delivered and awaiting merge.** All of it: the assembler's output
+**020 shipped whole.** All of it: the assembler's output
 formats, DOS 3.3 and ProDOS read and write, the `disk` subcommand with nine
-commands, boot configuration, and a command line that matches as65's. Cut as
-**1.20.0** on the branch. The runner was split into `DiskCommandResult`,
+commands, boot configuration, and a command line that matches as65's. The
+runner was split into `DiskCommandResult`,
 `DiskImageSession`, `DiskHelpPage` and the command runner itself, every
 function leaves through one exit, and `Casso.exe` now parses its own command
 line through the shared table-driven grammar in `CassoCore`.
