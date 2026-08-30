@@ -101,6 +101,21 @@ passes three.
 | `PAG` `TR` `EXP` `AST` | Listing control; no object byte changes |
 | `XC` | Selects the 65C02 (first occurrence only, see above) |
 
+#### One source, several outputs
+
+`SAV` and a second `DSK` both cut a source into more than one file, and
+everything the assembly writes follows the cut. Each object gets its own
+listing, named after it: `SAV LOADER` produces `LOADER` and `LOADER.lst`.
+
+The equates and macro definitions above the first output are repeated into every
+listing rather than left in the first, because a listing a reader opens on its
+own has to resolve the names its code refers to.
+
+That is why `-l` takes no filename under Merlin. One name cannot serve several
+listings, and the objects already supply the names. `as65 -l` is unchanged: it
+keeps its filename and its standard-output default, and an as65 source has no
+directive that could produce a second output.
+
 ### Symbols and expressions
 
 - **Local labels.** A leading `:` scopes a label to the global label above it, so

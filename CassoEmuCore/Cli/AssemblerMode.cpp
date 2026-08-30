@@ -158,14 +158,19 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
 
     ReportAssemblySucceeded (options, ar.result);
 
-    hr = options.generateListing ? out->WriteListing (ar.result, options, reports) : S_OK;
-    CHRF (hr, exitCode = kNoOutput);
-
     hr = RefuseUnusableOutputRequest (options, ar.result);
     CHRF (hr, exitCode = kNoOutput);
 
+    //  RESOLVED BEFORE THE LISTING, not after it. A listing that names no file
+    //  of its own is written beside the object and takes its name from it, so
+    //  the object's name has to be settled first. It used to be settled only in
+    //  time for the object, which is fine while every listing either names
+    //  itself or goes to standard output and wrong the moment one is derived.
     writeOptions            = options;
     writeOptions.outputFile = ResolveOutputName (options, ar.result);
+
+    hr = options.generateListing ? out->WriteListing (ar.result, writeOptions, reports) : S_OK;
+    CHRF (hr, exitCode = kNoOutput);
 
     hr = out->WriteBinary (ar.result, writeOptions);
     CHRF (hr, exitCode = kNoOutput);

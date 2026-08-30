@@ -247,6 +247,20 @@ struct AssemblyError
 
 struct AssemblyLine
 {
+    //  The output this line contributed to, or kSharedByEveryOutput for one
+    //  above the first of them.
+    //
+    //  RECORDED SO A LISTING CAN BE SPLIT THE WAY THE OBJECT IS. A source
+    //  producing several files is read one program at a time, and a single
+    //  listing spanning all of them makes a reader hunting for one walk past
+    //  the others.
+    //
+    //  The equates and macro definitions at the top belong to no single output
+    //  and are marked as such rather than assigned to the first, because every
+    //  per-output listing needs them: a file missing the definitions its code
+    //  refers to does not stand alone, which is the whole point of splitting.
+    static constexpr size_t  kSharedByEveryOutput = (size_t) -1;
+
     int                lineNumber;
     Word               address;
     std::vector<Byte>  bytes;
@@ -255,6 +269,7 @@ struct AssemblyLine
     bool               isMacroExpansion  = false;
     bool               isConditionalSkip = false;
     Byte               cycleCounts       = 0;
+    size_t             outputIndex       = kSharedByEveryOutput;
 };
 
 
@@ -307,6 +322,12 @@ struct AssemblyResult
     Word                                        endAddress   = 0;
     std::unordered_map<std::string, Word>       symbols;
     std::unordered_map<std::string, SymbolKind> symbolKinds;
+
+    // The source line each symbol was defined on. Recorded so that artifacts
+    // written per output can carry the symbols belonging to that output, which
+    // a flat table cannot answer: two outputs may both begin at the same
+    // address, and an index built by address over all of them collides.
+    std::unordered_map<std::string, int>        symbolLines;
     std::vector<AssemblyError>                  errors;
     std::vector<AssemblyError>                  warnings;
     std::vector<AssemblyLine>                   listing;

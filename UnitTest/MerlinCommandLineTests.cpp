@@ -277,21 +277,33 @@ namespace MerlinCommandLineTests
                               L"the name after -o must not also be taken for the source");
         }
 
-        TEST_METHOD (ListingFlagAlone_GoesToStdout)
+        //  A LISTING PER OBJECT, which is why the flag takes no name and does
+        //  not go to standard output. A Merlin source may save itself several
+        //  times and each save is its own program; neither one file nor one
+        //  stream can hold those apart, so each listing is written beside the
+        //  object it describes. The name is settled after the assembly, so
+        //  nothing is resolved at parse time beyond "not standard output".
+        TEST_METHOD (ListingFlagAlone_NamesNoFileAndIsNotStdout)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-l" });
 
-            Assert::IsTrue (opts.generateListing);
-            Assert::IsTrue (opts.listingToStdout);
-            Assert::IsTrue (opts.listingFile.empty());
+            Assert::IsTrue  (opts.generateListing);
+            Assert::IsFalse (opts.listingToStdout, L"a Merlin listing is a file, not a stream");
+            Assert::IsTrue  (opts.listingFile.empty(), L"and the name comes from the object, later");
         }
 
-        TEST_METHOD (ListingFlag_TakesAnAttachedName)
+        //  Refused BY NAME rather than walked letter by letter. The row still
+        //  takes a value so that `-lout.lst` arrives here whole; without that the
+        //  walk would read `o`, `u`, `t` as flags and answer with a row of
+        //  unknown-flag complaints that says nothing about the real mistake.
+        TEST_METHOD (ListingFlag_RefusesAnAttachedName)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-lout.lst" });
 
-            Assert::AreEqual (std::string ("out.lst"), opts.listingFile);
-            Assert::IsFalse  (opts.listingToStdout);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"a name cannot serve several listings");
+            Assert::IsTrue (opts.refusalMessage.find ("takes no filename") != std::string::npos,
+                            L"and the refusal says which rule was broken");
         }
 
         //  Deliberately unlike the as65 form, which also accepts a separated
@@ -304,7 +316,7 @@ namespace MerlinCommandLineTests
 
             Assert::AreEqual (std::string ("demo.s"), opts.inputFile,
                               L"the word after -l is the source, not the listing");
-            Assert::IsTrue   (opts.listingToStdout);
+            Assert::IsTrue   (opts.generateListing);
             Assert::IsTrue   (opts.listingFile.empty());
         }
 

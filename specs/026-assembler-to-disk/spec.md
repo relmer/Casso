@@ -305,9 +305,18 @@ startup program.
 - **FR-030**: Symbols MUST be scoped by where they are DEFINED in the source,
   using the same cuts that divide the object, so scoping cannot disagree with
   the bytes. Symbols defined above the first output — equates naming hardware
-  addresses and the like — belong to no output, MUST be reported once, and MUST
-  NOT be repeated into each. Scoping by address instead would be ambiguous
-  exactly where outputs overlap, which is the case this requirement exists for.
+  addresses and the like — belong to no output; what happens to them is FR-035.
+  Scoping by address instead would be ambiguous exactly where outputs overlap,
+  which is the case this requirement exists for.
+
+  **This requirement said "reported once, and MUST NOT be repeated into each"
+  and FR-035 says the opposite in as many words.** The clause was written when
+  the artifacts were still one combined file, where reporting a shared equate
+  once was an economy available to it. FR-031 split them, FR-035 recorded that
+  the split reverses the economy, and this clause was left behind. FR-035
+  governs: a file a reader holds alone has to resolve the names its code refers
+  to. What survives here is the scoping rule itself, which is by source position
+  and not by address.
 - **FR-031**: Where an assembly produces several outputs, its listing, symbol
   and debug artifacts MUST be written as separate files, one set per output,
   rather than as one file holding several sections. Each output already has a

@@ -93,6 +93,30 @@ public:
 class ArtifactWriter
 {
 public:
+    //  How many artifact sets an assembly's outputs call for, and what each one
+    //  is called.
+    //
+    //  ONE SOURCE PRODUCING SEVERAL PROGRAMS PRODUCES SEVERAL OF EVERYTHING.
+    //  A single listing spanning all of them makes a reader hunting for one walk
+    //  past the others, and a single debug file is worse than inconvenient: its
+    //  index runs from address to name, and two outputs may both begin at $0300,
+    //  so the entries collide and one name silently wins. Splitting is what makes
+    //  the by-address half answerable at all.
+    //
+    //  The name comes from the output's own name with the extension replaced, so
+    //  the artifacts sit beside the file they describe.
+    static std::string     ResolveArtifactName (const std::string & outputName,
+                                                const std::string & extension);
+
+    //  One output's share of an assembly: its bytes, its listing lines, and the
+    //  symbols defined within it.
+    //
+    //  What sits above the first output -- the equates and macro definitions --
+    //  goes into EVERY one of these rather than into the first, because a file
+    //  missing the definitions its code refers to does not stand alone, and
+    //  standing alone is the whole point of splitting.
+    static AssemblyResult  ForOutput           (const AssemblyResult & result, size_t index);
+
     //  The object file, in whichever format the flags selected.
     static HRESULT  WriteBinary      (const AssemblyResult & result,
                                       const CommandLineOptions & options);

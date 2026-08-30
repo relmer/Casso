@@ -278,8 +278,10 @@ independently and resolving references between them afterward. That is why
 Merlin's `REL`, `ENT` and `EXT` are refused, and why AS65's own relocatable
 output has no equivalent here.
 
-Nor does one assembly produce several outputs, which is why Merlin's `SAV` is
-refused.
+One assembly *does* produce several outputs, which is what Merlin's `SAV` and a
+second `DSK` do. That is not separate compilation: the outputs come from one
+source read once, and nothing resolves a reference from one of them into
+another.
 
 If your project needs either, please open an issue at
 [github.com/relmer/Casso/issues](https://github.com/relmer/Casso/issues);
@@ -388,7 +390,7 @@ CassoCli merlin <source> [flags]
 | Flag | Meaning |
 |---|---|
 | `-o <file>` | Rename output file. Default: `<source>.bin`, unless the source names one itself. |
-| `-l [<file>]` | Generate a listing. `-l` alone goes to stdout. |
+| `-l` | Generate a listing beside each object, named after it. Takes no filename. |
 | `-d <symbol>[=<value>]` | Define a symbol the source expects. Without a value it is defined as `1`. |
 | `-v` | Verbose: an assembly summary on stderr. |
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
@@ -458,10 +460,7 @@ assembly before pass 2 and exits 2.
 | `ENT` | An entry symbol declaration | Publishes a symbol for a linker to resolve from another module | A relocating linker ([#112](https://github.com/relmer/Casso/issues/112)) |
 | `EXT` | An external symbol declaration | Names a symbol defined in another module, and resolving that is what a linker is for | A relocating linker ([#112](https://github.com/relmer/Casso/issues/112)) |
 | `XC` (second one) | A second CPU-selection directive | One selects the 65C02; a second selects the 65802/65816, which Casso does not emulate | A 65802/65816 core |
-| `TYP` | The output file-type directive | Sets the filesystem file type of the output, which means nothing without a filesystem that has types | Disk file-access support, where filesystem types belong |
-| `SAV` | The save-object directive | Writes the object accumulated so far and carries on, so one assembly produces several outputs | A decision about multi-output assembly |
-
-Three things about that list are worth reading twice.
+Two things about that list are worth reading twice.
 
 - **`XC` is cumulative, not forbidden.** The *first* occurrence is carried out
   and selects the 65C02, which Casso emulates. Only a second is refused.
@@ -475,7 +474,7 @@ Three things about that list are worth reading twice.
   needs the size of the gap, and stopping at the first refusal turns one answer
   into as many assembly runs as there are constructs.
 
-The authority for all six rows is one table in
+The authority for all four rows is one table in
 `CassoCore/MerlinSubsetBoundary.cpp`; the refusals and this list are composed
 from its fields, so they cannot describe two different sets of rules.
 

@@ -669,6 +669,17 @@ private:
     std::vector<LineInfo>                              m_lineInfos;
     std::unordered_map<std::string, Word>              m_symbols;
     std::unordered_map<std::string, SymbolKind>        m_symbolKinds;
+
+    // The source line each symbol was defined on, which is how a symbol is
+    // attributed to one output among several. A symbol carries no output of its
+    // own -- most are bound in pass 1, before any span has been cut -- so the
+    // line is recorded instead and matched afterwards against the lines each
+    // output covers.
+    //
+    // A symbol with no line recorded, which is every predefined one, stays at
+    // zero and is therefore shared by every output. That is the right default:
+    // a name the assembler supplied belongs to no particular file.
+    std::unordered_map<std::string, int>               m_symbolLines;
     std::unordered_map<std::string, int32_t>           m_exprSymbols;
     ExprContext                                        m_pass1Ctx           = { &m_exprSymbols, 0 };
     Word                                               m_pc                 = 0;
@@ -792,6 +803,21 @@ private:
     Word                                               m_spanOutputEnd      = 0;
     Word                                               m_spanLoadAddress    = 0;
     bool                                               m_spanHasBytes       = false;
+
+    // Which output the listing line being built belongs to, so a listing can be
+    // split the way the object is.
+    //
+    // SNAPSHOT AT THE TOP OF THE LINE rather than read as the line finishes.
+    // The line carrying a save closes the span, so by the time its listing entry
+    // is built the counter has already moved on, and reading it there would file
+    // every save under the output it begins instead of the one it ends.
+    //
+    // Whether any byte has landed yet is what separates the equates and macro
+    // definitions at the top from the first output's own lines. They belong to
+    // no single output and go into all of them.
+    size_t                                             m_currentOutput      = 0;
+    size_t                                             m_lineOutput         = 0;
+    bool                                               m_anyBytesYet        = false;
 
     // The filesystem type the source asked its output to take, and whether it
     // asked at all. Absent rather than zero, because zero is a real type on

@@ -228,10 +228,14 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.outputFile == "out.bin"; },
               "-o names the output" },
 
-            { "merlin", "l", { "CassoCli", "merlin", "p.s", "-lprog.lst" },
+            //  No filename, unlike the as65 row above: a Merlin source may cut
+            //  itself into several objects and each gets a listing named after
+            //  its own, so nothing is resolved at parse time beyond asking for
+            //  one and saying it is not standard output.
+            { "merlin", "l", { "CassoCli", "merlin", "p.s", "-l" },
               [] (const CommandLineOptions & o)
-              { return o.generateListing && o.listingFile == "prog.lst"; },
-              "-l<file> writes the listing there" },
+              { return o.generateListing && !o.listingToStdout && o.listingFile.empty(); },
+              "-l asks for a listing beside each object" },
 
             { "merlin", "v", { "CassoCli", "merlin", "p.s", "-v" },
               [] (const CommandLineOptions & o) { return o.verbose; },

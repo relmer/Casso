@@ -79,10 +79,16 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
            nullptr,
            CommandLineParser::FlagCategory::AssembledCode, "<file>",
            "Rename output file (default: <source>.bin)" },
+    //  NO FILENAME, unlike the as65 row further down, which keeps its own form
+    //  untouched. A Merlin source may cut itself into several objects and each
+    //  one gets its own listing, so a single name could serve at most one of
+    //  them; the names come from the objects instead. The value kind stays
+    //  Filename so that a caller who types one has it consumed and refused by
+    //  name, rather than walked letter by letter into a row of unknown flags.
     { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
-           "-",
-           CommandLineParser::FlagCategory::Listing, "<file>",
-           "Generate listing to <file> if specified, stdout if not" },
+           nullptr,
+           CommandLineParser::FlagCategory::Listing, "",
+           "Generate a listing beside each object assembled" },
     { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::General, "",
@@ -3180,12 +3186,25 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
         break;
 
     case 'l':
-        //  "-" is what the table says a bare -l means, so the sentinel is
-        //  read here rather than every caller having to know that an empty
-        //  filename and "no filename" are the same request.
+        //  A LISTING PER OBJECT, NAMED AFTER IT, which is why no name is taken
+        //  here. Neither a single file nor standard output can hold several
+        //  listings apart, and a Merlin source that saves twice produces two.
+        //  Where they go is settled once the objects have names, so nothing is
+        //  resolved here beyond "not standard output".
         options.generateListing = true;
-        options.listingToStdout = value == "-";
-        options.listingFile     = options.listingToStdout ? std::string() : ApplyListingExtension (value);
+        options.listingToStdout = false;
+        options.listingFile.clear();
+
+        if (!value.empty())
+        {
+            Refusal (options) << "Error: " << options.flagPrefix
+                              << "l takes no filename under merlin\n";
+            Refusal (options) << "       a listing is written beside each object, named after it\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
+        }
+
         break;
 
     case 'v':

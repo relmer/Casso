@@ -40,7 +40,7 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 - [ ] T003 Add the `SavePoint` struct to `CassoCore/AssemblerTypes.h` with `bytes`, `loadAddress`/`hasLoadAddress`, `name`, `fileType`/`hasFileType`, per [data-model.md](data-model.md). Use the has-flag idiom rather than sentinels — `$00` is a real DOS 3.3 type and `$0000` is a legal address
 - [ ] T004 Add `savePoints` to `AssemblyResult` in `CassoCore/AssemblerTypes.h`, documented as REPORTED not acted on, matching the note `outputFileName` already carries. Leave `bytes`, `startAddress` and `endAddress` meaning what they mean today so existing consumers are untouched
-- [ ] T005 Add per-symbol output scope to `AssemblyResult` in `CassoCore/AssemblerTypes.h`, keeping `symbols` itself unchanged in shape and meaning (FR-030)
+- [x] T005 Add per-symbol output scope to `AssemblyResult` in `CassoCore/AssemblerTypes.h`, keeping `symbols` itself unchanged in shape and meaning (FR-030)
 - [ ] T006 Track the current span's start in `CassoCore/AssemblySession.h`/`.cpp` so a span can be cut, and record each symbol's scope as it is defined
 - [ ] T007 Close the final span at end of assembly in `CassoCore/AssemblySession.cpp`, so an assembly with no `SAV` yields exactly one save point covering the whole object and there is no separate single-output path to keep in step
 - [ ] T008 Derive each save point's load address as the address of its own first byte in `CassoCore/AssemblySession.cpp` (FR-024), reusing the derivation `AssemblyResult::startAddress` already applies to a whole assembly
@@ -126,13 +126,15 @@ Existing solution layout. `CassoCore` and `CassoEmuCore` are static libraries; `
 
 ### Per-output host artifacts
 
-- [ ] T053 [US3] Split listing, symbol and debug artifacts into one set per output, named from the output (FR-028, FR-031, FR-032), in `CassoEmuCore/Cli/ArtifactWriter.cpp`
-- [ ] T054 [US3] Rework `Assembler::FormatDebugInfo` in `CassoCore/Assembler.cpp` to index per output rather than from one flat map, so "what is at $0310" has one answer where outputs overlap (FR-029)
-- [ ] T055 [US3] Repeat the equates above the first output into every per-output artifact (FR-035, FR-036). Each file must stand alone: a debugger holding only one program still needs the hardware addresses it was opened to resolve
-- [ ] T056 [US3] Keep single-output artifact names and destinations as they are (FR-033), the Merlin listing flag excepted
-- [ ] T057 [US3] Change the Merlin `-l` row in `s_kMerlinFlags` to take no value, writing `<output>.lst` files rather than standard output (FR-034, FR-037), in `CassoCore/CommandLineParser.cpp`
-- [ ] T058 [US3] Give a filename supplied to Merlin's `-l` a diagnostic naming the rule, not a generic unknown-flag message (FR-034)
-- [ ] T059 [US3] Leave the as65 `-l` row untouched (FR-038) — an as65 compatibility obligation, and as65 has no directive that could produce a second output
+- [x] T053 [US3] Split listing, symbol and debug artifacts into one set per output, named from the output (FR-028, FR-031, FR-032), in `CassoEmuCore/Cli/ArtifactWriter.cpp`
+- [x] T054 [US3] Rework `Assembler::FormatDebugInfo` in `CassoCore/Assembler.cpp` to index per output rather than from one flat map, so "what is at $0310" has one answer where outputs overlap (FR-029)
+      **Done one level up instead.** `FormatDebugInfo` formats whatever symbol map it is handed, so the scoping belongs before it, not inside it: `ArtifactWriter::ForOutput` cuts the result into one share per output and the formatter is called once per share, unchanged. Splitting inside the formatter would have taught it about save points, which is not its subject.
+      Note that no CLI path reaches this with more than one output today -- only Merlin cuts a source into several, and only as65 has `-d` and `-g`. `ForOutput` is tested directly for that reason.
+- [x] T055 [US3] Repeat the equates above the first output into every per-output artifact (FR-035, FR-036). Each file must stand alone: a debugger holding only one program still needs the hardware addresses it was opened to resolve
+- [x] T056 [US3] Keep single-output artifact names and destinations as they are (FR-033), the Merlin listing flag excepted
+- [x] T057 [US3] Change the Merlin `-l` row in `s_kMerlinFlags` to take no value, writing `<output>.lst` files rather than standard output (FR-034, FR-037), in `CassoCore/CommandLineParser.cpp`
+- [x] T058 [US3] Give a filename supplied to Merlin's `-l` a diagnostic naming the rule, not a generic unknown-flag message (FR-034)
+- [x] T059 [US3] Leave the as65 `-l` row untouched (FR-038) — an as65 compatibility obligation, and as65 has no directive that could produce a second output
 
 ### Tests
 

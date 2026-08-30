@@ -195,7 +195,62 @@ promises the files a period assembler would have produced. A missing warning is
 equally a failure: dropping bytes silently is the thing the warning exists to
 prevent.
 
-### 4d — Host files and failure
+### 4d — Two saves under one name
+
+```
+ ORG $300
+ LDA #$11
+ SAV SAME
+ LDA #$22
+ SAV SAME
+```
+
+**Expected**: `Errors: 0`, one file, holding `A9 22` — the second save overwrote
+the first. Merlin reports nothing about it.
+
+**This was specified as a refusal and measurement said otherwise.** Refusing
+leaves no file where Merlin leaves one, which SC-003 does not allow. Casso warns
+and lets the later output stand; the warning is the half that is ours.
+
+### 4e — A save under an output-file directive
+
+```
+ DSK OUTER
+ ORG $300
+ LDA #$11
+ RTS
+ SAV INNER
+ LDA #$22
+ RTS
+```
+
+**Expected**: refused, at the `SAV` line, naming `DSK`. Merlin answers
+`Bad "SAV" in line: 6` and writes no second file.
+
+**This was specified the other way round too.** The code carried a rule for
+combining them — the directive staying in effect past a save and governing the
+next span — reasoned out because no vendor source mixes the two. One streams the
+following code to disk as it is assembled and the other writes the buffer held
+in memory: different mechanisms, not two spellings of one.
+
+### 4f — A listing per output
+
+```bash
+CassoCli merlin TWO.S -l
+```
+
+**Expected**: `SPAN1A`, `SPAN1A.lst`, `SPAN1B`, `SPAN1B.lst`. Each listing holds
+its own output's lines plus the equates above the first output, which appear in
+both. The line carrying `SAV SPAN1A` belongs to `SPAN1A.lst`, not to `SPAN1B`'s.
+
+`-lfoo.lst` is refused, naming the rule. `as65 -l` is untouched and still writes
+to standard output.
+
+**No period behavior is being matched here.** Merlin sent its listing to a screen
+or a printer and could not write one to disk, so there is nothing to be faithful
+to; FR-028 says as much.
+
+### 4g — Host files and failure
 
 ```bash
 CassoCli merlin TWO.S

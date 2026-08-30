@@ -130,17 +130,13 @@ HRESULT FileArtifactSink::WriteBinary (const AssemblyResult & result,
     //  Several outputs, each under the name its own directive gave it. The
     //  source asked for these files individually, so the caller's single output
     //  name cannot serve them and each span carries its own.
-    for (const SavePoint & span : result.savePoints)
+    for (size_t i = 0; i < result.savePoints.size(); i++)
     {
-        AssemblyResult      one;
+        AssemblyResult      one         = ArtifactWriter::ForOutput (result, i);
         CommandLineOptions  spanOptions = options;
+        const std::string & given       = result.savePoints[i].name;
 
-        one.success      = result.success;
-        one.bytes        = span.bytes;
-        one.startAddress = span.loadAddress;
-        one.endAddress   = (Word) (span.loadAddress + span.bytes.size());
-
-        spanOptions.outputFile = span.name.empty() ? options.outputFile : span.name;
+        spanOptions.outputFile = given.empty() ? options.outputFile : given;
 
         hr = ArtifactWriter::WriteBinary (one, spanOptions);
         CHR (hr);
@@ -158,7 +154,18 @@ Error:
 //
 //  FileArtifactSink::WriteListing
 //
-//  Straight through, for the reason above.
+//  One listing per output, and the caller's own listing for the ordinary
+//  assembly that produces one.
+//
+//  ONE OUTPUT TAKES THE PATH IT ALWAYS TOOK, which includes going to standard
+//  output when no file was named. That is what keeps `-l` pipeable for the
+//  assembly that has one program in it, which is nearly every assembly.
+//
+//  SEVERAL OUTPUTS CANNOT GO TO ONE PLACE. Neither a single named file nor
+//  standard output can hold them apart, so each is written beside its own
+//  object with the extension replaced. A caller who named a listing file gets
+//  that name's directory and stem for none of them, which is the same answer
+//  the object side gives: a single name cannot serve several files.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,7 +173,147 @@ HRESULT FileArtifactSink::WriteListing (const AssemblyResult & result,
                                         const CommandLineOptions & options,
                                         const std::vector<DialectReportLine> & reports)
 {
-    return ArtifactWriter::WriteListing (result, options, reports);
+    HRESULT  hr       = S_OK;
+    bool     isSingle = result.savePoints.size() <= 1;
+
+
+
+    BAIL_OUT_IF (isSingle, ArtifactWriter::WriteListing (result, options, reports));
+
+    for (size_t i = 0; i < result.savePoints.size(); i++)
+    {
+        AssemblyResult      one         = ArtifactWriter::ForOutput (result, i);
+        CommandLineOptions  spanOptions = options;
+        const std::string & given       = result.savePoints[i].name;
+        std::string         object      = given.empty() ? options.outputFile : given;
+
+        spanOptions.listingFile = ArtifactWriter::ResolveArtifactName (object, ".lst");
+
+        hr = ArtifactWriter::WriteListing (one, spanOptions, reports);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArtifactWriter::ResolveArtifactName
+//
+//  An output's name with its extension replaced, so the listing and the debug
+//  file sit beside the object they describe.
+//
+//  Only a trailing extension on the last path component is replaced. A name
+//  with a dot in a directory above it -- `..uild\prog` -- keeps the dot and
+//  gains the extension, which a search for the last dot alone would get wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ArtifactWriter::ResolveArtifactName (const std::string & outputName,
+                                                 const std::string & extension)
+{
+    std::string  name    = outputName;
+    size_t       lastSep = name.find_last_of ("/\\");
+    size_t       dot     = name.find_last_of ('.');
+    bool         hasExt  = (dot != std::string::npos) &&
+                           (lastSep == std::string::npos || dot > lastSep);
+
+
+
+    if (hasExt)
+    {
+        name.erase (dot);
+    }
+
+    return name + extension;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArtifactWriter::ForOutput
+//
+//  One output's share of an assembly.
+//
+//  THE LINES ABOVE THE FIRST OUTPUT GO INTO EVERY SHARE. They are the equates
+//  and macro definitions a source states once and every program in it refers
+//  to, and a listing missing them cannot be read on its own.
+//
+//  Lines filed under an output that does not exist -- which is what bytes
+//  assembled after the last save are -- are attached to the last output rather
+//  than dropped. Those bytes reach no file and the assembly says so, but the
+//  listing is a record of what was assembled and must still show them.
+//
+//  Symbols are attributed by the line they were defined on, matched against the
+//  lines this output covers. A symbol carries no output of its own: most are
+//  bound in the pass that runs before any span has been cut.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AssemblyResult ArtifactWriter::ForOutput (const AssemblyResult & result, size_t index)
+{
+    AssemblyResult                   one;
+    const SavePoint                  empty   = {};
+    bool                             inRange = index < result.savePoints.size();
+    const SavePoint                & span    = inRange ? result.savePoints[index] : empty;
+    bool                             isLast  = (index + 1) >= result.savePoints.size();
+    std::unordered_map<int, bool>    covered;
+
+
+
+    one.success      = result.success;
+    one.listingTitle = result.listingTitle;
+    one.bytes        = span.bytes;
+    one.startAddress = span.loadAddress;
+    one.endAddress   = (Word) (span.loadAddress + span.bytes.size());
+
+    for (const AssemblyLine & line : result.listing)
+    {
+        bool shared = line.outputIndex == AssemblyLine::kSharedByEveryOutput;
+        bool beyond = !shared && (line.outputIndex >= result.savePoints.size()) && isLast;
+        bool mine   = !shared && (line.outputIndex == index);
+
+        if (shared || beyond || mine)
+        {
+            one.listing.push_back (line);
+        }
+
+        if (shared || beyond || mine)
+        {
+            covered[line.lineNumber] = true;
+        }
+    }
+
+    //  A symbol whose defining line is one this output shows. Predefined names
+    //  record no line at all and are shared, which is what a name the assembler
+    //  supplied should be.
+    for (const auto & symbol : result.symbols)
+    {
+        auto  lineIt = result.symbolLines.find (symbol.first);
+        int   line   = lineIt == result.symbolLines.end() ? 0 : lineIt->second;
+        auto  kindIt = result.symbolKinds.find (symbol.first);
+
+        if (line == 0 || covered.count (line) != 0)
+        {
+            one.symbols[symbol.first]     = symbol.second;
+            one.symbolLines[symbol.first] = line;
+
+            if (kindIt != result.symbolKinds.end())
+            {
+                one.symbolKinds[symbol.first] = kindIt->second;
+            }
+        }
+    }
+
+    return one;
 }
 
 
@@ -302,20 +449,31 @@ HRESULT ArtifactWriter::WriteListing (const AssemblyResult & result,
     HRESULT         hr      = S_OK;
     std::ostream *  listOut = &std::cout;
     std::ofstream   listFile;
+    std::string     path    = options.listingFile;
     bool            isOpen  = false;
 
 
 
-    // No listing file named means the listing goes to stdout, which cannot
-    // fail to open.
-    if (!options.listingFile.empty())
+    // A dialect that names no file and does not ask for standard output gets a
+    // listing beside its object. That is Merlin: its `-l` takes no filename,
+    // because a source of its that saves twice produces two listings and one
+    // name could serve at most one of them. AS65's bare `-l` asks for standard
+    // output outright and reaches here saying so, so it is untouched by this.
+    if (path.empty() && !options.listingToStdout)
     {
-        listFile.open (options.listingFile);
+        path = ResolveArtifactName (options.outputFile, ".lst");
+    }
+
+    // Nothing named and standard output asked for: the listing goes there,
+    // which cannot fail to open.
+    if (!path.empty())
+    {
+        listFile.open (path);
         isOpen = listFile.is_open();
 
         if (!isOpen)
         {
-            std::cerr << "Error: Cannot write listing file: " << options.listingFile << "\n";
+            std::cerr << "Error: Cannot write listing file: " << path << "\n";
         }
 
         CBR (isOpen);

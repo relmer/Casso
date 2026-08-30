@@ -1282,6 +1282,7 @@ void AssemblySession::InjectBuiltin (const std::string & name, int32_t value)
 {
     m_symbols[name]     = (Word) value;
     m_symbolKinds[name] = SymbolKind::Set;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = value;
 }
 
@@ -1432,6 +1433,7 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
     {
         m_symbols[predef.first]     = (Word) predef.second;
         m_symbolKinds[predef.first] = SymbolKind::Equ;
+        m_symbolLines[predef.first] = m_lastSourceLine;
         m_exprSymbols[predef.first] = predef.second;
     }
 
@@ -2179,6 +2181,7 @@ HRESULT AssemblySession::HandleStructCollection (const PendingLine & current, Li
 
         m_symbols[m_currentStruct.name]     = (Word) structSize;
         m_symbolKinds[m_currentStruct.name] = SymbolKind::Equ;
+        m_symbolLines[m_currentStruct.name] = m_lastSourceLine;
         m_exprSymbols[m_currentStruct.name] = structSize;
         m_structs[m_currentStruct.name]     = m_currentStruct;
 
@@ -2387,6 +2390,7 @@ HRESULT AssemblySession::RecordStructMember (const std::string & name, int32_t s
 
     m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
     m_symbolKinds[symName] = SymbolKind::Equ;
+    m_symbolLines[symName] = m_lastSourceLine;
     m_exprSymbols[symName] = m_currentStruct.currentOffset;
 
     m_currentStruct.currentOffset += size;
@@ -3189,6 +3193,7 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
 
     m_symbols[name]     = (Word) answer->second;
     m_symbolKinds[name] = SymbolKind::Equ;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = answer->second;
 
 Error:
@@ -3627,6 +3632,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
             m_symbols[stored]     = address;
             m_symbolKinds[stored] = SymbolKind::Label;
+            m_symbolLines[stored] = m_lastSourceLine;
             m_exprSymbols[stored] = (int32_t) address;
 
             // Warn if label resembles mnemonic by case
@@ -3694,6 +3700,7 @@ HRESULT AssemblySession::RecordRebindableLabel (const PendingLine & current, Lin
 
     m_symbols[name]     = address;
     m_symbolKinds[name] = SymbolKind::Set;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = (int32_t) address;
 
 Error:
@@ -3779,6 +3786,7 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
             {
                 m_symbols[info.parsed.constantName]     = (Word) er.value;
                 m_symbolKinds[info.parsed.constantName] = SymbolKind::Set;
+                m_symbolLines[info.parsed.constantName] = m_lastSourceLine;
                 m_exprSymbols[info.parsed.constantName] = er.value;
             }
         }
@@ -3842,6 +3850,7 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
             const std::string & expr = info.parsed.constantExpr;
 
             m_symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
+            m_symbolLines[info.parsed.constantName] = m_lastSourceLine;
 
             if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {
@@ -5058,6 +5067,7 @@ HRESULT AssemblySession::BindPositionalParameters (int                 lineNumbe
         {
             m_symbols[name]     = (Word) er.value;
             m_symbolKinds[name] = SymbolKind::Set;
+            m_symbolLines[name] = m_lastSourceLine;
             m_exprSymbols[name] = er.value;
 
             if (isFinalPass)
@@ -6405,6 +6415,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         {
             m_symbols[labelName]     = m_pc;
             m_symbolKinds[labelName] = SymbolKind::Label;
+            m_symbolLines[labelName] = m_lastSourceLine;
             m_exprSymbols[labelName] = (int32_t) m_pc;
         }
 
@@ -6958,6 +6969,16 @@ HRESULT AssemblySession::RunPass2()
         m_currentSourceFile = info.sourceFile;
         m_diagnosticColumn  = PrimaryColumn (info.parsed);
 
+        // Which output this line belongs to, taken BEFORE it is emitted. A line
+        // carrying a save closes the span while it runs, so asking afterwards
+        // would file the save under the output it opens rather than the one it
+        // ends. See m_lineOutput.
+        m_lineOutput        = m_currentOutput;
+
+        // And the line itself, so a symbol rebound during this pass records the
+        // line it was rebound on rather than the last one pass 1 saw.
+        m_lastSourceLine    = info.parsed.lineNumber;
+
         // Same reasoning for the instruction set: REPLAY what pass 1 recorded
         // for this line rather than re-deriving it. Emitting against a
         // different table than the one that sized the line is how an operand
@@ -7022,6 +7043,7 @@ HRESULT AssemblySession::RunPass2()
 
     m_result.symbols     = m_symbols;
     m_result.symbolKinds = m_symbolKinds;
+    m_result.symbolLines = m_symbolLines;
 
 Error:
     return hr;
@@ -8137,6 +8159,12 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         listLine.isMacroExpansion  = (info.macroDepth > 0);
         listLine.isConditionalSkip = info.conditionalSkip;
 
+        //  A line above the first byte of the assembly belongs to no one output
+        //  and goes into every listing; one below it belongs to the output that
+        //  was open when the line ran.
+        listLine.outputIndex       = m_anyBytesYet ? m_lineOutput
+                                                   : AssemblyLine::kSharedByEveryOutput;
+
         if (info.isInstruction && !info.hasError && emitPC > emitPCStart)
         {
             OpcodeEntry cycleEntry = {};
@@ -8199,6 +8227,7 @@ void AssemblySession::NoteSpanEmission (const LineInfo & info, Word emitPCStart,
         }
 
         m_spanOutputEnd = emitPC;
+        m_anyBytesYet   = true;
     }
 
     return;
@@ -8258,6 +8287,11 @@ void AssemblySession::CloseSpan (const std::string & name)
         span.hasFileType    = m_hasFileType;
 
         m_result.savePoints.push_back (span);
+
+        //  Only a span that became an output moves the counter, so the listing
+        //  lines that follow are filed under the next real file rather than
+        //  under a number no output carries.
+        m_currentOutput++;
     }
 
     m_spanHasBytes = false;

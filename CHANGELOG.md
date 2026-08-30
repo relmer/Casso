@@ -48,10 +48,19 @@ Entries before versioning was introduced use dates only.
   The Merlin subset boundary falls from six refused constructs to four. The
   remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
   and a second `XC`, which needs a 65816 core.
+- **An assembly producing several outputs produces a listing for each**, named
+  after the object it describes, holding that object's code and the equates
+  above it. One listing spanning every output made a reader looking for one
+  program walk past the others.
 
 ### Changed
 - **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
   used to assume as65. Binaries are unaffected.
+- **Merlin's `-l` takes no filename and writes files rather than standard
+  output.** One name cannot serve a source that saves itself twice, so listings
+  are named after the objects instead. A filename supplied anyway is refused by
+  name. `as65 -l` is unchanged: it keeps its filename and its standard-output
+  default, and an as65 source has no way to produce a second output.
 - **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization, and `NOOPT` /
   `-n` switch it off.** It was the one optimization Casso did not do, so a
   backward, in-range `JMP` now assembles to two bytes instead of three and
