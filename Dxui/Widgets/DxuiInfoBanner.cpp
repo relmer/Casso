@@ -29,7 +29,7 @@ static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" o
 
 int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const
 {
-    float   glyphPx = scaler.Pxf (s_kFontDip) * s_kEstGlyphEm;
+    float   glyphPx = scaler.ToPxf (s_kFontDip) * s_kEstGlyphEm;
     float   perLine = (glyphPx > 0.0f) ? (textWidthPx / glyphPx) : 1.0f;
     int     chars   = (int) m_text.size();
     int     lines   = 1;
@@ -55,20 +55,20 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::PreferredHeightPx
+//  DxuiInfoBanner::GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
+float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
 {
-    float   padX      = scaler.Pxf (s_kPadXDip);
-    float   padY      = scaler.Pxf (s_kPadYDip);
-    float   iconCol   = scaler.Pxf (s_kIconBoxDip) + scaler.Pxf (s_kIconGapDip);
+    float   padX      = scaler.ToPxf (s_kPadXDip);
+    float   padY      = scaler.ToPxf (s_kPadYDip);
+    float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
     float   textWidth = widthPx - padX * 2.0f - iconCol;
-    float   lineH     = scaler.Pxf (s_kFontDip) * s_kLineHeightEm;
+    float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
     int     lines     = EstimateLines ((textWidth > 1.0f) ? textWidth : 1.0f, scaler);
     float   textH     = lineH * (float) lines;
-    float   iconH     = scaler.Pxf (s_kIconBoxDip);
+    float   iconH     = scaler.ToPxf (s_kIconBoxDip);
 
 
 
@@ -82,20 +82,20 @@ float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & sc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::MeasuredHeightPx
+//  DxuiInfoBanner::GetMeasuredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::MeasuredHeightPx (IDxuiTextRenderer   &  text,
+float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
                                         float                  widthPx,
                                         const DxuiDpiScaler &  scaler) const
 {
     HRESULT  hr        = S_OK;
-    float    padX      = scaler.Pxf (s_kPadXDip);
-    float    padY      = scaler.Pxf (s_kPadYDip);
-    float    iconCol   = scaler.Pxf (s_kIconBoxDip) + scaler.Pxf (s_kIconGapDip);
+    float    padX      = scaler.ToPxf (s_kPadXDip);
+    float    padY      = scaler.ToPxf (s_kPadYDip);
+    float    iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
     float    textWidth = widthPx - padX * 2.0f - iconCol;
-    float    iconH     = scaler.Pxf (s_kIconBoxDip);
+    float    iconH     = scaler.ToPxf (s_kIconBoxDip);
     float    outW      = 0.0f;
     float    outH      = 0.0f;
 
@@ -106,12 +106,12 @@ float DxuiInfoBanner::MeasuredHeightPx (IDxuiTextRenderer   &  text,
         textWidth = 1.0f;
     }
 
-    hr = text.MeasureStringWrapped (m_text.c_str(), scaler.Pxf (s_kFontDip),
+    hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
                                     DxuiTheme::kBodyFace, textWidth, outW, outH);
 
     if (FAILED (hr) || outH <= 0.0f)
     {
-        return PreferredHeightPx (widthPx, scaler);
+        return GetPreferredHeightPx (widthPx, scaler);
     }
 
     return ((outH > iconH) ? outH : iconH) + padY * 2.0f;
@@ -153,12 +153,12 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float    top      = (float) m_boundsDip.top;
     float    width    = (float) (m_boundsDip.right  - m_boundsDip.left);
     float    height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float    padX     = m_scaler.Pxf (s_kPadXDip);
-    float    padY     = m_scaler.Pxf (s_kPadYDip);
-    float    borderPx = m_scaler.Pxf (s_kBorderDip);
-    float    iconBox  = m_scaler.Pxf (s_kIconBoxDip);
-    float    iconGap  = m_scaler.Pxf (s_kIconGapDip);
-    float    fontPx   = m_scaler.Pxf (s_kFontDip);
+    float    padX     = m_scaler.ToPxf (s_kPadXDip);
+    float    padY     = m_scaler.ToPxf (s_kPadYDip);
+    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
+    float    iconBox  = m_scaler.ToPxf (s_kIconBoxDip);
+    float    iconGap  = m_scaler.ToPxf (s_kIconGapDip);
+    float    fontPx   = m_scaler.ToPxf (s_kFontDip);
     float    textX    = left + padX + iconBox + iconGap;
     float    textW    = width - padX * 2.0f - iconBox - iconGap;
     float    iconR    = iconBox * 0.5f;

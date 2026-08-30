@@ -76,7 +76,7 @@ public:
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsNotNull (host.get());
-        Assert::IsNull    (host->Hwnd());
+        Assert::IsNull    (host->GetHwnd());
     }
 
 
@@ -176,7 +176,7 @@ public:
 
         Assert::IsFalse  (handled);
         Assert::AreEqual ((unsigned int) s_kSyntheticDpi,
-                          (unsigned int) host->Scaler().Dpi());
+                          (unsigned int) host->GetScaler().GetDpi());
     }
 
 
@@ -235,7 +235,7 @@ public:
     //  Destroying an adopt-mode host does NOT call DestroyWindow on
     //  the supplied HWND. We can't observe DestroyWindow directly
     //  with a fake HWND value, but a release-without-crash plus
-    //  Hwnd() returning the supplied value before drop is sufficient
+    //  GetHwnd() returning the supplied value before drop is sufficient
     //  evidence the host treats the HWND as non-owned. (If
     //  DestroyWindow ran on a bogus HWND the process would AV.)
     //
@@ -250,7 +250,7 @@ public:
 
         hr = DxuiHwndSource::CreateInAdoptMode (fakeHwnd, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
-        Assert::AreEqual ((intptr_t) s_kFakeHwndValue, (intptr_t) host->Hwnd());
+        Assert::AreEqual ((intptr_t) s_kFakeHwndValue, (intptr_t) host->GetHwnd());
 
         // Release the host — must not call DestroyWindow on the bogus
         // HWND. If it did, this would AV.
@@ -273,7 +273,7 @@ public:
 
         hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
-        Assert::AreEqual ((unsigned int) s_kDefaultDpi, (unsigned int) host->Scaler().Dpi());
+        Assert::AreEqual ((unsigned int) s_kDefaultDpi, (unsigned int) host->GetScaler().GetDpi());
     }
 };
 

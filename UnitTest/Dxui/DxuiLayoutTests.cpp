@@ -79,10 +79,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 4));
 
-        Assert::AreEqual ((LONG) 0,   a.Bounds().left);
-        Assert::AreEqual ((LONG) 100, a.Bounds().right);
-        Assert::AreEqual ((LONG) 100, b.Bounds().left);
-        Assert::AreEqual ((LONG) 50,  c.Bounds().top);   // bandY + cellH = 50
+        Assert::AreEqual ((LONG) 0,   a.GetBounds().left);
+        Assert::AreEqual ((LONG) 100, a.GetBounds().right);
+        Assert::AreEqual ((LONG) 100, b.GetBounds().left);
+        Assert::AreEqual ((LONG) 50,  c.GetBounds().top);   // bandY + cellH = 50
     }
 
 
@@ -106,9 +106,9 @@ public:
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
         // (210 - 10) / 2 = 100 per cell.
-        Assert::AreEqual ((LONG) 100, a.Bounds().right - a.Bounds().left);
-        Assert::AreEqual ((LONG) 110, b.Bounds().left);
-        Assert::AreEqual ((LONG) 210, b.Bounds().right);
+        Assert::AreEqual ((LONG) 100, a.GetBounds().right - a.GetBounds().left);
+        Assert::AreEqual ((LONG) 110, b.GetBounds().left);
+        Assert::AreEqual ((LONG) 210, b.GetBounds().right);
     }
 
 
@@ -128,8 +128,8 @@ public:
         layout.SetCell (&wide, 0, 0, 1, 3);
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 0,   wide.Bounds().left);
-        Assert::AreEqual ((LONG) 300, wide.Bounds().right);
+        Assert::AreEqual ((LONG) 0,   wide.GetBounds().left);
+        Assert::AreEqual ((LONG) 300, wide.GetBounds().right);
     }
 };
 
@@ -181,12 +181,12 @@ public:
         layout.AddRow (&lab2, &fld2);
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const>());
 
-        Assert::AreEqual ((LONG) 0,   lab1.Bounds().top);
-        Assert::AreEqual ((LONG) 24,  lab1.Bounds().bottom);
-        Assert::AreEqual ((LONG) 32,  lab2.Bounds().top);
-        Assert::AreEqual ((LONG) 100, lab1.Bounds().right);
-        Assert::AreEqual ((LONG) 108, fld1.Bounds().left);
-        Assert::AreEqual ((LONG) 400, fld1.Bounds().right);
+        Assert::AreEqual ((LONG) 0,   lab1.GetBounds().top);
+        Assert::AreEqual ((LONG) 24,  lab1.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 32,  lab2.GetBounds().top);
+        Assert::AreEqual ((LONG) 100, lab1.GetBounds().right);
+        Assert::AreEqual ((LONG) 108, fld1.GetBounds().left);
+        Assert::AreEqual ((LONG) 400, fld1.GetBounds().right);
     }
 
 
@@ -209,8 +209,8 @@ public:
         layout.AddSubRow (&labSub,  &fldSub);
         layout.Arrange   (bounds, scaler, std::span<IDxuiControl * const>());
 
-        Assert::AreEqual ((LONG) 0,  labMain.Bounds().left);
-        Assert::AreEqual ((LONG) 12, labSub.Bounds().left);
+        Assert::AreEqual ((LONG) 0,  labMain.GetBounds().left);
+        Assert::AreEqual ((LONG) 12, labSub.GetBounds().left);
     }
 
 
@@ -235,7 +235,7 @@ public:
         layout.Arrange        (bounds, scaler, std::span<IDxuiControl * const>());
 
         // first row: 0..24, +8 rowGap, +16 sectionGap, then second row.
-        Assert::AreEqual ((LONG) 48, lab2.Bounds().top);
+        Assert::AreEqual ((LONG) 48, lab2.GetBounds().top);
     }
 };
 
@@ -268,9 +268,9 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
-        Assert::AreEqual ((LONG) 10,  a.Bounds().left);
-        Assert::AreEqual ((LONG) 40,  a.Bounds().bottom);
-        Assert::AreEqual ((LONG) 200, b.Bounds().top);
-        Assert::AreEqual ((LONG) 300, b.Bounds().right);
+        Assert::AreEqual ((LONG) 10,  a.GetBounds().left);
+        Assert::AreEqual ((LONG) 40,  a.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 200, b.GetBounds().top);
+        Assert::AreEqual ((LONG) 300, b.GetBounds().right);
     }
 };

@@ -8,11 +8,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RectContains
+//  IsPointInRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHitTester::RectContains (const RECT & r, int x, int y)
+bool DxuiHitTester::IsPointInRect (const RECT & r, int x, int y)
 {
     return (x >= r.left) && (x < r.right) && (y >= r.top) && (y < r.bottom);
 }
@@ -71,7 +71,7 @@ const DxuiHitRect * DxuiHitTester::Pick (int xClient, int yClient) const
     // condition stops the walk at it.
     for ( ; hit == nullptr && it != m_rects.rend(); ++it)
     {
-        if (RectContains (it->rect, xClient, yClient))
+        if (IsPointInRect (it->rect, xClient, yClient))
         {
             hit = &(*it);
         }

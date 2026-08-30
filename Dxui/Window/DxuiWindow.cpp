@@ -132,7 +132,7 @@ void DxuiWindow::DestroyBackend()
 
 void DxuiWindow::Show (bool activate)
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -169,7 +169,7 @@ void DxuiWindow::Show (bool activate)
 
 void DxuiWindow::Hide()
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -324,7 +324,7 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
 bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
 {
     bool  isHandled = false;
-    HWND  hwnd      = Hwnd();
+    HWND  hwnd      = GetHwnd();
 
 
 
@@ -371,7 +371,7 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
 
 void DxuiWindow::EndDialog (int result)
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -439,7 +439,7 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 
 void DxuiWindow::Invalidate()
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -504,7 +504,7 @@ void DxuiWindow::SetTitle (const std::wstring & title)
 
 DxuiMessageResult DxuiWindow::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -558,7 +558,7 @@ DxuiMessageResult DxuiWindow::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HWND  hwnd = Hwnd();
+    HWND  hwnd = GetHwnd();
 
 
 
@@ -620,7 +620,7 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HWND   hwnd  = Hwnd();
+    HWND   hwnd  = GetHwnd();
     POINT  point = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
     float  notch = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
 
@@ -720,7 +720,7 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
     {
         // Dialog text entry goes to the focused control only -- there is no
         // fanout, so an unfocused dialog reports NotHandled.
-        focused = m_focus.Focused();
+        focused = m_focus.GetFocusedControl();
 
         if (focused != nullptr)
         {
@@ -756,14 +756,14 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              cursor     = {};
     LPCWSTR            cursorName = nullptr;
-    HWND               hwnd       = Hwnd();
+    HWND               hwnd       = GetHwnd();
 
 
 
     if (hitTest == HTCLIENT && hwnd != nullptr && GetCursorPos (&cursor) != FALSE)
     {
         ScreenToClient (hwnd, &cursor);
-        cursorName = CursorForPoint (cursor);
+        cursorName = GetCursorForPoint (cursor);
         if (cursorName != nullptr)
         {
             SetCursor (LoadCursorW (nullptr, cursorName));
@@ -791,7 +791,7 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 {
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-    UINT               dpi    = Dpi();
+    UINT               dpi    = GetDpi();
 
 
 
@@ -872,7 +872,7 @@ DxuiMessageResult DxuiWindow::OnClose()
 {
     if (m_dialogActive)
     {
-        if (!TriggerButtonById (IDCANCEL))
+        if (!IsTriggerButtonById (IDCANCEL))
         {
             EndDialog (IDCANCEL);
         }
@@ -1019,7 +1019,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
             break;
 
         case VK_ESCAPE:
-            if (!TriggerButtonById (IDCANCEL))
+            if (!IsTriggerButtonById (IDCANCEL))
             {
                 EndDialog (IDCANCEL);
             }
@@ -1028,7 +1028,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
             break;
 
         case VK_RETURN:
-            isHandled = RouteKeyToFocused (vk, shift) || TriggerButtonById (m_defaultButtonId);
+            isHandled = RouteKeyToFocused (vk, shift) || IsTriggerButtonById (m_defaultButtonId);
             break;
 
         default:
@@ -1106,7 +1106,7 @@ void DxuiWindow::WireDialogButtons()
 
     ForEachButton (this, [this, defaultId] (DxuiButton * button)
     {
-        int  id = button->CommandId();
+        int  id = button->GetCommandId();
 
 
         button->SetEmphasis (id != 0 && id == defaultId);
@@ -1135,7 +1135,7 @@ bool DxuiWindow::RouteKeyToFocused (WPARAM vk, bool shift)
 {
     HRESULT         hr        = S_OK;
     bool            isHandled = false;
-    IDxuiControl *  focused   = m_focus.Focused();
+    IDxuiControl *  focused   = m_focus.GetFocusedControl();
     DxuiKeyEvent    ke;
 
 
@@ -1158,21 +1158,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TriggerButtonById
+//  IsTriggerButtonById
 //
 //  Finds and clicks the enabled / visible button with the given command
 //  id. Returns true iff such a button exists and was fired.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiWindow::TriggerButtonById (int commandId)
+bool DxuiWindow::IsTriggerButtonById (int commandId)
 {
     bool          fired  = false;
     DxuiButton *  button = FindButtonById (this, commandId);
 
 
 
-    if (button != nullptr && button->Enabled() && button->Visible())
+    if (button != nullptr && button->IsEnabled() && button->IsVisible())
     {
         button->Click();
         fired = true;
@@ -1209,17 +1209,17 @@ DxuiButton * DxuiWindow::FindButtonById (IDxuiControl * node, int commandId)
 
     self = dynamic_cast<DxuiButton *> (node);
 
-    if (self != nullptr && self->CommandId() == commandId)
+    if (self != nullptr && self->GetCommandId() == commandId)
     {
         found = self;
         BAIL_OUT_IF (true, S_OK);
     }
 
-    count = node->ChildCount();
+    count = node->GetChildCount();
 
     for (i = 0; i < count; ++i)
     {
-        found = FindButtonById (node->Child (i), commandId);
+        found = FindButtonById (node->GetChild (i), commandId);
 
         if (found != nullptr)
         {
@@ -1261,11 +1261,11 @@ void DxuiWindow::ForEachButton (IDxuiControl * node, const std::function<void (D
         fn (self);
     }
 
-    count = node->ChildCount();
+    count = node->GetChildCount();
 
     for (i = 0; i < count; ++i)
     {
-        ForEachButton (node->Child (i), fn);
+        ForEachButton (node->GetChild (i), fn);
     }
 
 Error:

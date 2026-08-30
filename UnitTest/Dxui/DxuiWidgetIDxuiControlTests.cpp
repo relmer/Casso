@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Verifies every Dxui/Widgets/* primitive correctly satisfies the
 //  IDxuiControl contract: derives from the base, can be Add'd into a
-//  DxuiPanel, has a working Layout that updates Bounds(), has a Paint
+//  DxuiPanel, has a working Layout that updates GetBounds(), has a Paint
 //  that is callable through the base virtual, and reports a sensible
 //  AccessibleRole. These tests exist to lock the Phase 12.5 retrofit
 //  in place so Phase 13's page conversions can lean on Add<T> /
@@ -75,10 +75,10 @@ public:
         scaler.SetDpi (96);
         static_cast<IDxuiControl &> (widget).Layout (bounds, scaler);
 
-        Assert::AreEqual (bounds.left,   widget.Bounds().left);
-        Assert::AreEqual (bounds.top,    widget.Bounds().top);
-        Assert::AreEqual (bounds.right,  widget.Bounds().right);
-        Assert::AreEqual (bounds.bottom, widget.Bounds().bottom);
+        Assert::AreEqual (bounds.left,   widget.GetBounds().left);
+        Assert::AreEqual (bounds.top,    widget.GetBounds().top);
+        Assert::AreEqual (bounds.right,  widget.GetBounds().right);
+        Assert::AreEqual (bounds.bottom, widget.GetBounds().bottom);
     }
 
 
@@ -109,9 +109,9 @@ public:
         TWidget &   child = panel.Add<TWidget>();
 
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.Child (0)));
-        Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.Parent()));
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.GetChild (0)));
+        Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.GetParent()));
     }
 
     TEST_METHOD (DxuiButton_DerivesFromIDxuiControl)
@@ -120,7 +120,7 @@ public:
 
         IDxuiControl *  basePtr = &btn;
         Assert::IsNotNull (basePtr);
-        Assert::AreEqual ((int) DxuiAccessibleRole::Button, (int) btn.AccessibleRole());
+        Assert::AreEqual ((int) DxuiAccessibleRole::Button, (int) btn.GetAccessibleRole());
     }
 
     TEST_METHOD (DxuiButton_AddsIntoPanel)             { VerifyAddsIntoPanel       <DxuiButton>(); }
@@ -187,7 +187,7 @@ public:
 
         btn.SetLabel (L"OK");
 
-        Assert::AreEqual (std::wstring (L"OK"), btn.AccessibleName());
+        Assert::AreEqual (std::wstring (L"OK"), btn.GetAccessibleName());
     }
 
 
@@ -196,7 +196,7 @@ public:
         DxuiCheckbox  cb;
 
 
-        Assert::AreEqual ((int) DxuiAccessibleRole::Checkbox, (int) cb.AccessibleRole());
+        Assert::AreEqual ((int) DxuiAccessibleRole::Checkbox, (int) cb.GetAccessibleRole());
     }
 
 
@@ -205,7 +205,7 @@ public:
         DxuiDropdown  dd;
 
 
-        Assert::AreEqual ((int) DxuiAccessibleRole::Dropdown, (int) dd.AccessibleRole());
+        Assert::AreEqual ((int) DxuiAccessibleRole::Dropdown, (int) dd.GetAccessibleRole());
     }
 
 
@@ -214,7 +214,7 @@ public:
         DxuiSlider  sl;
 
 
-        Assert::AreEqual ((int) DxuiAccessibleRole::Slider, (int) sl.AccessibleRole());
+        Assert::AreEqual ((int) DxuiAccessibleRole::Slider, (int) sl.GetAccessibleRole());
     }
 
 
@@ -226,9 +226,9 @@ public:
 
         panel.Adopt (external);
 
-        Assert::AreEqual ((size_t) 1, panel.ChildCount());
-        Assert::AreEqual (static_cast<void *> (&external), static_cast<void *> (panel.Child (0)));
-        Assert::AreEqual (static_cast<void *> (&panel),    static_cast<void *> (external.Parent()));
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        Assert::AreEqual (static_cast<void *> (&external), static_cast<void *> (panel.GetChild (0)));
+        Assert::AreEqual (static_cast<void *> (&panel),    static_cast<void *> (external.GetParent()));
     }
 
 

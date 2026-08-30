@@ -38,11 +38,11 @@ namespace DxuiButtonRowTests
         {
             // Every existing dialog has short labels, so none of them may move.
             Assert::AreEqual (DxuiButtonRow::kButtonWidthDip,
-                              DxuiButtonRow::WidthForLabel (L"OK"),
+                              DxuiButtonRow::GetWidthForLabel (L"OK"),
                               L"a short label keeps the standard button width");
 
             Assert::AreEqual (DxuiButtonRow::kButtonWidthDip,
-                              DxuiButtonRow::WidthForLabel (L"Cancel"),
+                              DxuiButtonRow::GetWidthForLabel (L"Cancel"),
                               L"and so does a slightly longer one");
         }
 
@@ -51,7 +51,7 @@ namespace DxuiButtonRowTests
         TEST_METHOD (WidthForLabel_EmptyLabel_StillHasAButton)
         {
             Assert::AreEqual (DxuiButtonRow::kButtonWidthDip,
-                              DxuiButtonRow::WidthForLabel (std::wstring()),
+                              DxuiButtonRow::GetWidthForLabel (std::wstring()),
                               L"an empty label must not collapse the button to nothing");
         }
 
@@ -61,7 +61,7 @@ namespace DxuiButtonRowTests
         {
             // The case that was broken: this label wrapped to three lines and
             // spilled outside its own button.
-            int  wide = DxuiButtonRow::WidthForLabel (L"Salvage readable sectors...");
+            int  wide = DxuiButtonRow::GetWidthForLabel (L"Salvage readable sectors...");
 
             Assert::IsTrue (wide > DxuiButtonRow::kButtonWidthDip,
                 L"a label the standard width cannot hold must widen the button");
@@ -71,8 +71,8 @@ namespace DxuiButtonRowTests
 
         TEST_METHOD (WidthForLabel_GrowsMonotonicallyWithTheLabel)
         {
-            int  shortW  = DxuiButtonRow::WidthForLabel (L"Salvage readable sectors...");
-            int  longerW = DxuiButtonRow::WidthForLabel (L"Salvage readable sectors and then some more");
+            int  shortW  = DxuiButtonRow::GetWidthForLabel (L"Salvage readable sectors...");
+            int  longerW = DxuiButtonRow::GetWidthForLabel (L"Salvage readable sectors and then some more");
 
             Assert::IsTrue (longerW > shortW,
                 L"a longer label needs a wider button");
@@ -85,7 +85,7 @@ namespace DxuiButtonRowTests
             // The estimate is deliberately generous: a button whose text just
             // touches its edges reads as broken even when nothing is clipped.
             std::wstring  label = L"Salvage readable sectors...";
-            int           width = DxuiButtonRow::WidthForLabel (label);
+            int           width = DxuiButtonRow::GetWidthForLabel (label);
 
             Assert::IsTrue (width > (int) label.size() * 8,
                 L"the width must exceed a bare glyph-count estimate, leaving padding");

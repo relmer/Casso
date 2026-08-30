@@ -80,11 +80,11 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
 
     BAIL_OUT_IF (m_textRenderer == nullptr, S_OK);
 
-    dpi = TargetDpi();
+    dpi = GetTargetDpi();
 
     if (offscreen)
     {
-        SIZE  sz        = BackBufferSizePx();
+        SIZE  sz        = GetBackBufferSizePx();
         bool  recreated = false;
 
         hr = EnsureComposeTarget ((int) sz.cx, (int) sz.cy, recreated);
@@ -100,7 +100,7 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     }
     else
     {
-        surface = BackBufferSurface();
+        surface = GetBackBufferSurface();
         BAIL_OUT_IF (surface == nullptr, S_OK);
 
         hr = m_textRenderer->BindBackBuffer (surface.Get(), dpi, dpi);
@@ -216,7 +216,7 @@ Error:
 
 void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
 {
-    ID3D11RenderTargetView  * backRtv       = BackBufferRtv();
+    ID3D11RenderTargetView  * backRtv       = GetBackBufferRtv();
     SIZE                      sz            = {};
     float                     clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     uint32_t                  bgArgb        = 0xFF000000u;
@@ -226,7 +226,7 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
 
     // No render surface yet, or a zero-sized one (minimized / mid-resize):
     // there is nothing to draw into, and Present would fail anyway.
-    sz = BackBufferSizePx();
+    sz = GetBackBufferSizePx();
 
     if (backRtv != nullptr && m_context != nullptr &&
         m_painter != nullptr && m_textRenderer != nullptr &&

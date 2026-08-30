@@ -53,12 +53,12 @@ public:
     //  so click-outside dismiss walks the chain.
     //
     void  SetPopupHost  (DxuiHwndSource * host) { m_popupHost = host; }
-    DxuiHwndSource *  PopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
     bool                       IsVisible () const { return m_visible; }
-    const std::vector<Item>  & Items     () const { return m_items;   }
-    const RECT               & Rect      () const { return m_boundsDip;    }
+    const std::vector<Item>  & GetItems  () const { return m_items;   }
+    const RECT               & GetRect   () const { return m_boundsDip;    }
 
     void  Show           (int anchorX,
                           int anchorY,
@@ -80,11 +80,11 @@ public:
     //  DxuiPopupHost, so the panel-tree path is rare but supported
     //  for consistency).
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
 private:
     static constexpr int    kItemHeightDip    = 26;

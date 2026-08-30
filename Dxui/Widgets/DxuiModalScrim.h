@@ -50,10 +50,10 @@ public:
     //  IDxuiControl overrides — additive shims so DxuiModalScrim can
     //  appear in a DxuiPanel tree as a full-bleed overlay child.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dialog; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Dialog; }
 
 private:
     RECT      m_viewport = {};

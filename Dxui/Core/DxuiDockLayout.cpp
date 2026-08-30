@@ -51,7 +51,7 @@ void DxuiDockLayout::ClearDock (IDxuiControl & child)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockLayout::DockOf
+//  DxuiDockLayout::GetDock
 //
 //  Returns the dock side recorded for a child, or `Fill` if none was
 //  set. Provided for tests and consumers that need to inspect layout
@@ -59,7 +59,7 @@ void DxuiDockLayout::ClearDock (IDxuiControl & child)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiDock DxuiDockLayout::DockOf (const IDxuiControl & child) const
+DxuiDock DxuiDockLayout::GetDock (const IDxuiControl & child) const
 {
     return LookupDock (&child);
 }
@@ -96,7 +96,7 @@ DxuiDock DxuiDockLayout::LookupDock (const IDxuiControl * child) const
 //
 //  Walk children in two passes. Pass 1 peels each non-Fill child off the
 //  matching edge of the remaining rect (in registration order) equal to
-//  the child's natural Bounds() extent on the docked axis. Pass 2 gives
+//  the child's natural GetBounds() extent on the docked axis. Pass 2 gives
 //  the first Fill child whatever rect is left -- AFTER every edge has
 //  been peeled, regardless of registration order -- so a Fill child that
 //  was registered before an edge child no longer steals the edge's slab.
@@ -120,7 +120,7 @@ void DxuiDockLayout::Arrange (
     for (IDxuiControl * child : children)
     {
         DxuiDock  side       = LookupDock (child);
-        RECT      curBounds  = child->Bounds();
+        RECT      curBounds  = child->GetBounds();
         LONG      naturalW   = curBounds.right  - curBounds.left;
         LONG      naturalH   = curBounds.bottom - curBounds.top;
         RECT      assigned   = {};
@@ -223,7 +223,7 @@ void DxuiDockLayout::Arrange (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockLayout::ContainerSizeForFill
+//  DxuiDockLayout::GetContainerSizeForFill
 //
 //  Inverse computation: given a desired Fill-region size and the
 //  non-fill children that will surround it, return the container size
@@ -234,7 +234,7 @@ void DxuiDockLayout::Arrange (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE DxuiDockLayout::ContainerSizeForFill (
+SIZE DxuiDockLayout::GetContainerSizeForFill (
     SIZE                                          desiredFillDip,
     std::span<IDxuiControl * const>               nonFillChildren) const
 {
@@ -247,7 +247,7 @@ SIZE DxuiDockLayout::ContainerSizeForFill (
     for (IDxuiControl * child : nonFillChildren)
     {
         DxuiDock  side      = LookupDock (child);
-        RECT      curBounds = child->Bounds();
+        RECT      curBounds = child->GetBounds();
         LONG      naturalW  = curBounds.right  - curBounds.left;
         LONG      naturalH  = curBounds.bottom - curBounds.top;
 

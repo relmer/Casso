@@ -89,7 +89,7 @@ void DxuiIconButton::Click()
 void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -232,9 +232,9 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     y = (float) m_boundsDip.top;
     w = (float) (m_boundsDip.right  - m_boundsDip.left);
     h = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    glyphDip = m_scaler.Pxf (kGlyphFontDip);
-    focusInset = m_scaler.Pxf (kFocusInsetPx);
-    focusThick = m_scaler.Pxf (kFocusRingPx);
+    glyphDip = m_scaler.ToPxf (kGlyphFontDip);
+    focusInset = m_scaler.ToPxf (kFocusInsetPx);
+    focusThick = m_scaler.ToPxf (kFocusRingPx);
     glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 

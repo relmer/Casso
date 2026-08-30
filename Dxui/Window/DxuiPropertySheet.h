@@ -40,7 +40,7 @@ public:
     DxuiPropertySheet  () = default;
     ~DxuiPropertySheet () override = default;
 
-    int  ActiveIndex () const { return m_active; }
+    int  GetActiveIndex () const { return m_active; }
     void SetActivePage (int index);
 
     //
@@ -69,9 +69,9 @@ public:
     void  SetApplyVisible (bool visible);
     bool  ApplyVisible    () const { return m_applyVisible; }
     void  SetOkText       (std::wstring text);
-    const std::wstring &  OkText () const { return m_okText; }
-    void  SetOkWidthDip   (int widthDip);
-    int   OkWidthDip      () const { return m_okWidthDip; }
+    const std::wstring &  GetOkText () const { return m_okText; }
+    void  SetOkWidthDip (int widthDip);
+    int   GetOkWidthDip () const { return m_okWidthDip; }
 
     //
     //  Pure layout helper (exposed for tests). Right-aligns a row of buttons
@@ -137,7 +137,7 @@ private:
     // Present-page <-> tab-position mapping. A page is "present" when its
     // m_present flag is set; only present pages get a tab, so a page index is
     // NOT the same as its tab position once any page is hidden.
-    int   FirstPresentPage    () const;
+    int   GetFirstPresentPage () const;
     int   TabIndexOfPage      (int pageIndex) const;
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;

@@ -51,16 +51,16 @@ void CreateDiskBodyPanel::Init (const Children & children)
 
 void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  pathH    = scaler.Px (kPathHeightDip);
-    int  pathGap  = scaler.Px (kPathGapDip);
-    int  optH     = scaler.Px (kOptionsRowDip);
-    int  optGap   = scaler.Px (kOptionsGapDip);
-    int  optPad   = scaler.Px (kOptionLabelPadDip);
-    int  bootH    = scaler.Px (kBootRowDip);
-    int  nameH    = scaler.Px (kNameRowDip);
-    int  nameGap  = scaler.Px (kNameGapDip);
-    int  labelW   = scaler.Px (kNameLabelDip);
-    int  labelPad = scaler.Px (kNameLabelPadDip);
+    int  pathH    = scaler.ToPx (kPathHeightDip);
+    int  pathGap  = scaler.ToPx (kPathGapDip);
+    int  optH     = scaler.ToPx (kOptionsRowDip);
+    int  optGap   = scaler.ToPx (kOptionsGapDip);
+    int  optPad   = scaler.ToPx (kOptionLabelPadDip);
+    int  bootH    = scaler.ToPx (kBootRowDip);
+    int  nameH    = scaler.ToPx (kNameRowDip);
+    int  nameGap  = scaler.ToPx (kNameGapDip);
+    int  labelW   = scaler.ToPx (kNameLabelDip);
+    int  labelPad = scaler.ToPx (kNameLabelPadDip);
     int  nameTop  = 0;
     int  bootTop  = 0;
     int  optTop   = 0;
@@ -94,7 +94,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.formatLabel != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kFormatLabelDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.ToPx (kFormatLabelDip), optTop + optH };
 
         m_kids.formatLabel->Layout (r, scaler);
         x = r.right + optPad;
@@ -102,7 +102,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.format != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kFormatDropDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.ToPx (kFormatDropDip), optTop + optH };
 
         m_kids.format->Layout (r, scaler);
         x = r.right + optGap * 2;
@@ -110,7 +110,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.imageTypeLabel != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kImageTypeLabelDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.ToPx (kImageTypeLabelDip), optTop + optH };
 
         m_kids.imageTypeLabel->Layout (r, scaler);
         x = r.right + optPad;
@@ -118,7 +118,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.imageType != nullptr)
     {
-        RECT  r = { x, optTop, x + scaler.Px (kImageTypeDropDip), optTop + optH };
+        RECT  r = { x, optTop, x + scaler.ToPx (kImageTypeDropDip), optTop + optH };
 
         m_kids.imageType->Layout (r, scaler);
     }
@@ -130,8 +130,8 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
         // With the download button hidden the checkbox owns the whole strip
         // (its label carries the explanation); with the button visible the
         // checkbox keeps its short-label width and the button follows.
-        bool  haveButton = (m_kids.download != nullptr && m_kids.download->Visible());
-        int   checkW     = haveButton ? scaler.Px (kBootCheckDip)
+        bool  haveButton = (m_kids.download != nullptr && m_kids.download->IsVisible());
+        int   checkW     = haveButton ? scaler.ToPx (kBootCheckDip)
                                       : (boundsPx.right - x);
         RECT  r          = { x, bootTop, x + checkW, bootTop + bootH };
 
@@ -145,7 +145,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_kids.download != nullptr)
     {
-        int   buttonW = m_kids.download->Visible() ? scaler.Px (kBootButtonDip) : 0;
+        int   buttonW = m_kids.download->IsVisible() ? scaler.ToPx (kBootButtonDip) : 0;
         RECT  r       = { x, bootTop, x + buttonW, bootTop + bootH };
 
         m_kids.download->Layout (r, scaler);
@@ -179,7 +179,7 @@ void CreateDiskBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
 void CreateDiskBodyPanel::Relayout()
 {
-    Layout (Bounds(), m_lastScaler);
+    Layout (GetBounds(), m_lastScaler);
 }
 
 
@@ -219,7 +219,7 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (!handled && m_kids.list != nullptr)
     {
-        RECT  lb = m_kids.list->Bounds();
+        RECT  lb = m_kids.list->GetBounds();
 
         listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
         handled            = m_kids.list->OnMouse (listEv);
@@ -261,11 +261,11 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CursorForPoint
+//  GetCursorForPoint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR CreateDiskBodyPanel::CursorForPoint (POINT clientPx) const
+LPCWSTR CreateDiskBodyPanel::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
 
@@ -273,10 +273,10 @@ LPCWSTR CreateDiskBodyPanel::CursorForPoint (POINT clientPx) const
 
     if (m_kids.list != nullptr)
     {
-        RECT   lb    = m_kids.list->Bounds();
+        RECT   lb    = m_kids.list->GetBounds();
         POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
 
-        cursor = m_kids.list->CursorForPoint (local);
+        cursor = m_kids.list->GetCursorForPoint (local);
     }
 
     return cursor;

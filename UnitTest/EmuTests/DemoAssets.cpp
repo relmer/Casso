@@ -57,13 +57,13 @@ std::span<const Byte> DemoAssets::Bytes (int resourceId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DemoAssets::Text
+//  DemoAssets::GetText
 //
 //  The same payload as a string, for the sources the test assembles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DemoAssets::Text (int resourceId)
+std::string DemoAssets::GetText (int resourceId)
 {
     std::span<const Byte>  bytes = Bytes (resourceId);
 

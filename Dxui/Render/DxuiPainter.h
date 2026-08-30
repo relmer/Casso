@@ -80,16 +80,16 @@ public:
     void    DrawLineApprox    (float x0, float y0, float x1, float y1,
                                float thicknessPx, uint32_t argbColor) override;
 
-    HRESULT End              (ID3D11RenderTargetView * pRtv);
+    HRESULT End            (ID3D11RenderTargetView * pRtv);
 
     // Global alpha multiplier applied to every vertex's alpha channel.
     // Used by the Settings panel's live-preview state machine to fade
     // the whole UI without touching individual paint call sites. 1.0
     // is opaque (default), 0.0 is fully transparent.
-    void    SetGlobalAlpha   (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
-    float   GlobalAlpha      () const                 override { return m_globalAlpha; }
+    void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
 
-    int     PendingVertexCount () const { return (int) m_vertices.size(); }
+    int     GetPendingVertexCount () const { return (int) m_vertices.size(); }
 
 private:
     static constexpr size_t  kInitialVertexCapacity = 1024;

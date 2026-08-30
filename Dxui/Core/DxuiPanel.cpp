@@ -356,7 +356,7 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         visibleRaw.reserve (m_children.size());
         for (auto & slot : m_children)
         {
-            if (slot.raw->Visible())
+            if (slot.raw->IsVisible())
             {
                 visibleRaw.push_back (slot.raw);
             }
@@ -379,9 +379,9 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     //
     for (auto & slot : m_children)
     {
-        if (slot.raw->Visible())
+        if (slot.raw->IsVisible())
         {
-            slot.raw->Layout (slot.raw->Bounds(), scaler);
+            slot.raw->Layout (slot.raw->GetBounds(), scaler);
         }
     }
 }
@@ -405,7 +405,7 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
     for (auto & slot : m_children)
     {
-        if (slot.raw->Visible())
+        if (slot.raw->IsVisible())
         {
             slot.raw->Paint (painter, text, theme);
 
@@ -416,7 +416,7 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
             //  overflow, overlap). Compile with /D DXUI_DEBUG_BOUNDS.
             //
             {
-                RECT  b = slot.raw->Bounds();
+                RECT  b = slot.raw->GetBounds();
 
                 painter.OutlineRect ((float) b.left,
                                      (float) b.top,
@@ -459,7 +459,7 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         IDxuiControl *  child = it->raw;
 
-        if (child->Visible() && child->Enabled())
+        if (child->IsVisible() && child->IsEnabled())
         {
             consumed = child->OnMouse (ev);
         }
@@ -474,7 +474,7 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CursorForPoint
+//  GetCursorForPoint
 //
 //  Fans the cursor query front-to-back (last-added child first), mirroring
 //  OnMouse. The first child that advertises a cursor wins; children that
@@ -482,7 +482,7 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
+LPCWSTR DxuiPanel::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
 
@@ -494,9 +494,9 @@ LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
     {
         const IDxuiControl *  child = it->raw;
 
-        if (child->Visible())
+        if (child->IsVisible())
         {
-            cursor = child->CursorForPoint (clientPx);
+            cursor = child->GetCursorForPoint (clientPx);
 
             if (cursor != nullptr)
             {
@@ -532,7 +532,7 @@ bool DxuiPanel::OnKey (const DxuiKeyEvent & ev)
     {
         IDxuiControl *  child = it->raw;
 
-        if (child->Visible() && child->Enabled())
+        if (child->IsVisible() && child->IsEnabled())
         {
             consumed = child->OnKey (ev);
         }
@@ -596,7 +596,7 @@ void DxuiPanel::Tick (int64_t nowMs)
 
 void DxuiPanel::OnVisibilityChanged()
 {
-    DxuiPanel *  parentPanel = dynamic_cast<DxuiPanel *> (Parent());
+    DxuiPanel *  parentPanel = dynamic_cast<DxuiPanel *> (GetParent());
 
 
 

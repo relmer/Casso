@@ -24,11 +24,11 @@ public:
     //
     //  WCAG relative luminance of a packed ARGB color (alpha ignored).
     //
-    static float RelativeLuminance (uint32_t argb)
+    static float ComputeRelativeLuminance (uint32_t argb)
     {
-        float  r = ChannelLinear (argb >> 16);
-        float  g = ChannelLinear (argb >> 8);
-        float  b = ChannelLinear (argb);
+        float  r = ChannelToLinear (argb >> 16);
+        float  g = ChannelToLinear (argb >> 8);
+        float  b = ChannelToLinear (argb);
 
         return 0.2126f * r + 0.7152f * g + 0.0722f * b;
     }
@@ -37,10 +37,10 @@ public:
     //
     //  WCAG contrast ratio between two packed ARGB colors (1.0 .. 21.0).
     //
-    static float ContrastRatio (uint32_t a, uint32_t b)
+    static float ComputeContrastRatio (uint32_t a, uint32_t b)
     {
-        float  la = RelativeLuminance (a);
-        float  lb = RelativeLuminance (b);
+        float  la = ComputeRelativeLuminance (a);
+        float  lb = ComputeRelativeLuminance (b);
         float  hi = (la > lb) ? la : lb;
         float  lo = (la > lb) ? lb : la;
 
@@ -52,7 +52,7 @@ public:
     //  Darkens `accent` in fixed steps until it clears `minRatio` against
     //  white, so a bright accent stays legible behind white labels / thumbs.
     //
-    static uint32_t AccentForWhiteContrast (uint32_t accent, float minRatio)
+    static uint32_t ComputeAccentForWhiteContrast (uint32_t accent, float minRatio)
     {
         constexpr uint32_t  s_kWhite    = 0xFFFFFFFFu;
         constexpr int       s_kMaxSteps = 32;
@@ -61,7 +61,7 @@ public:
         uint32_t  cur = accent;
         int       i   = 0;
 
-        for (i = 0; i < s_kMaxSteps && ContrastRatio (cur, s_kWhite) < minRatio; ++i)
+        for (i = 0; i < s_kMaxSteps && ComputeContrastRatio (cur, s_kWhite) < minRatio; ++i)
         {
             cur = Scale (cur, s_kStepMul);
         }
@@ -77,17 +77,17 @@ public:
     //  surfaces (inactive slider track, disabled checkbox fill) that must
     //  stand off the panel regardless of theme.
     //
-    static uint32_t TintForContrast (uint32_t background, float minRatio)
+    static uint32_t ComputeTintForContrast (uint32_t background, float minRatio)
     {
         constexpr int    s_kMaxSteps  = 24;
         constexpr float  s_kLightStep = 0.08f;
         constexpr float  s_kDarkMul   = 0.92f;
 
-        bool      lighten = RelativeLuminance (background) < 0.5f;
+        bool      lighten = ComputeRelativeLuminance (background) < 0.5f;
         uint32_t  cur     = background;
         int       i       = 0;
 
-        for (i = 0; i < s_kMaxSteps && ContrastRatio (cur, background) < minRatio; ++i)
+        for (i = 0; i < s_kMaxSteps && ComputeContrastRatio (cur, background) < minRatio; ++i)
         {
             cur = lighten ? Lighten (cur, s_kLightStep) : Scale (cur, s_kDarkMul);
         }
@@ -146,7 +146,7 @@ public:
 
 
 private:
-    static float ChannelLinear (uint32_t c8)
+    static float ChannelToLinear (uint32_t c8)
     {
         float  s = (float) (c8 & 0xFFu) / 255.0f;
 

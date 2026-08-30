@@ -43,9 +43,9 @@ public:
     {
         DxuiDpiScaler  scaler;
 
-        Assert::AreEqual ((UINT) 96, scaler.Dpi());
-        Assert::AreEqual (16,        scaler.Px (16));
-        Assert::AreEqual (10.0f,     scaler.Pxf (10.0f));
+        Assert::AreEqual ((UINT) 96, scaler.GetDpi());
+        Assert::AreEqual (16,        scaler.ToPx (16));
+        Assert::AreEqual (10.0f,     scaler.ToPxf (10.0f));
     }
 
 
@@ -54,9 +54,9 @@ public:
         DxuiDpiScaler  scaler;
 
         scaler.SetDpi (96);
-        Assert::AreEqual (16,    scaler.Px (16));
-        Assert::AreEqual (24,    scaler.Px (24));
-        Assert::AreEqual (13.0f, scaler.Pxf (13.0f));
+        Assert::AreEqual (16,    scaler.ToPx (16));
+        Assert::AreEqual (24,    scaler.ToPx (24));
+        Assert::AreEqual (13.0f, scaler.ToPxf (13.0f));
     }
 
 
@@ -65,9 +65,9 @@ public:
         DxuiDpiScaler  scaler;
 
         scaler.SetDpi (144);
-        Assert::AreEqual (24,                  scaler.Px (16));
-        Assert::AreEqual (216,                 scaler.Px (144));
-        Assert::AreEqual (19.5f,               scaler.Pxf (13.0f));
+        Assert::AreEqual (24,                  scaler.ToPx (16));
+        Assert::AreEqual (216,                 scaler.ToPx (144));
+        Assert::AreEqual (19.5f,               scaler.ToPxf (13.0f));
     }
 
 
@@ -76,8 +76,8 @@ public:
         DxuiDpiScaler  scaler;
 
         scaler.SetDpi (192);
-        Assert::AreEqual (32,    scaler.Px (16));
-        Assert::AreEqual (26.0f, scaler.Pxf (13.0f));
+        Assert::AreEqual (32,    scaler.ToPx (16));
+        Assert::AreEqual (26.0f, scaler.ToPxf (13.0f));
     }
 
 
@@ -87,8 +87,8 @@ public:
 
         scaler.SetDpi (240);
         scaler.SetDpi (0);
-        Assert::AreEqual ((UINT) 96, scaler.Dpi());
-        Assert::AreEqual (16,        scaler.Px (16));
+        Assert::AreEqual ((UINT) 96, scaler.GetDpi());
+        Assert::AreEqual (16,        scaler.ToPx (16));
     }
 };
 

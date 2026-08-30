@@ -100,13 +100,13 @@ public:
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
 
 private:
-    int    ContentExtent() const;     // nMax - nMin
-    int    MainTrackStart() const;    // along the scroll axis
-    int    MainTrackLength() const;
-    int    ArrowExtent() const;       // 0 when the bar is too short
-    float  ThumbStart() const;
-    float  ThumbLength() const;
-    RECT   MainRect (int mainStart, int mainExtent) const;
+    int    GetContentExtent() const;     // nMax - nMin
+    int    GetMainTrackStart() const;    // along the scroll axis
+    int    GetMainTrackLength() const;
+    int    GetArrowExtent() const;       // 0 when the bar is too short
+    float  GetThumbStart() const;
+    float  GetThumbLength() const;
+    RECT   GetMainRect (int mainStart, int mainExtent) const;
     void   NotifyPos (int sbCode, int newPos);
     void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
 

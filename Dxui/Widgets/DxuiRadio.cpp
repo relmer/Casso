@@ -254,12 +254,12 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_options.size();
-    float    boxSize    = m_scaler.Pxf (s_kBoxSizeDip);
-    float    dotInset   = m_scaler.Pxf (s_kDotInsetDip);
-    float    focusInset = m_scaler.Pxf (s_kFocusInsetDip);
-    float    focusThick = m_scaler.Pxf (s_kFocusThickDip);
-    float    labelGap   = m_scaler.Pxf (s_kLabelGapDip);
-    float    fontDip    = m_scaler.Pxf (s_kFontDip);
+    float    boxSize    = m_scaler.ToPxf (s_kBoxSizeDip);
+    float    dotInset   = m_scaler.ToPxf (s_kDotInsetDip);
+    float    focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
+    float    focusThick = m_scaler.ToPxf (s_kFocusThickDip);
+    float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
+    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
     uint32_t dotColor   = m_enabled ? theme.ButtonText() : theme.ForegroundDisabled();
 
@@ -330,7 +330,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -421,13 +421,13 @@ bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiRadioGroup::AccessibleName  (IDxuiControl override)
+//  DxuiRadioGroup::GetAccessibleName  (IDxuiControl override)
 //
 //  Returns the label of the selected option (or empty if no selection).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiRadioGroup::AccessibleName() const
+std::wstring DxuiRadioGroup::GetAccessibleName() const
 {
     std::wstring  name;
     bool          hasSelection = false;

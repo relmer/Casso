@@ -16,18 +16,18 @@ public:
     explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
-    void  Layout          (const RECT & rect) { SetBounds (rect); }
-    void  SetLabel        (const std::wstring & label);
-    wchar_t  Accelerator  () const { return m_accelerator; }
-    void  SetOnClick        (ClickFn click) { m_click = std::move (click); }
-    bool  HasClickHandler   () const { return (bool) m_click; }
+    void  Layout            (const RECT & rect) { SetBounds (rect); }
+    void  SetLabel          (const std::wstring & label);
+    wchar_t  GetAccelerator () const { return m_accelerator; }
+    void  SetOnClick      (ClickFn click) { m_click = std::move (click); }
+    bool  HasClickHandler () const { return (bool) m_click; }
 
     // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
     // discovers its buttons by id: the default (Enter) button, the IDCANCEL
     // (Escape / close-box) button, and -- for any command button without a
     // custom click handler -- an auto-wired click that calls EndDialog(id).
-    void  SetCommandId      (int id) { m_commandId = id; }
-    int   CommandId         () const { return m_commandId; }
+    void  SetCommandId    (int id) { m_commandId = id; }
+    int   GetCommandId    () const { return m_commandId; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     // Visual variant. Default uses the theme's neutral button tokens;
@@ -37,34 +37,34 @@ public:
     // SetOnClick to open the URL. A button cannot be given an arbitrary,
     // non-theme color -- every fill/text derives from IDxuiTheme.
     enum class Variant { Default, Primary, Link };
-    void  SetVariant      (Variant variant) { m_variant = variant; }
+    void  SetVariant  (Variant variant) { m_variant = variant; }
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
-    void  SetEmphasis     (bool on) { m_emphasis = on; }
-    void  SetMouse        (int x, int y, bool down);
-    void  SetFocused      (bool focused) { m_focused = focused; }
-    bool  Focused         () const { return m_focused; }
-    void  SetEnabled      (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    bool  Enabled         () const { return m_enabled; }
-    void  SetVisible      (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
-    bool  Visible         () const { return m_visible; }
-    bool  HitTest         (int x, int y) const;
-    void  Click           ();
-    bool  OnKey           (WPARAM vk);
-    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  SetEmphasis (bool on) { m_emphasis = on; }
+    void  SetMouse    (int x, int y, bool down);
+    void  SetFocused  (bool focused) { m_focused = focused; }
+    bool  IsFocused   () const { return m_focused; }
+    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    bool  IsEnabled   () const { return m_enabled; }
+    void  SetVisible  (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
+    bool  IsVisible   () const { return m_visible; }
+    bool  HitTest     (int x, int y) const;
+    void  Click       ();
+    bool  OnKey       (WPARAM vk);
+    void  Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiButton slots
     //  into DxuiPanel trees. Forward to the existing widget API; the
     //  legacy entry points remain callable for direct consumers.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    LPCWSTR             CursorForPoint (POINT clientPx) const override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override { return m_label; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Button; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override { return m_label; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Button; }
 
 private:
     std::wstring   m_label;

@@ -144,6 +144,6 @@ public:
     // Defaulted to a no-op on the interface so test mocks don't have to
     // implement alpha tracking; the concrete DxuiTextRenderer overrides
     // these to fade brushes and bitmap opacity uniformly.
-    virtual void   SetGlobalAlpha   (float alpha)                               { (void) alpha; }
-    virtual float  GlobalAlpha      () const                                    { return 1.0f; }
+    virtual void   SetGlobalAlpha (float alpha)                               { (void) alpha; }
+    virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };
