@@ -99,12 +99,22 @@ Error:
 //  Clears the run flag, wakes the pause CV (in case the thread is
 //  parked on a pause), and joins. Idempotent.
 //
+//  The wake takes the pause mutex for the same reason PostCommand does:
+//  a notify that lands between the waiter's predicate check and its block
+//  is lost, and a lost wakeup HERE hangs the join -- app shutdown deadlocks
+//  against a paused machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManager::Stop()
 {
     m_running.store (false, std::memory_order_release);
-    m_pauseCV.notify_all();
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+        m_pauseCV.notify_all();
+    }
 
     if (m_thread.joinable())
     {
@@ -120,15 +130,32 @@ void CpuManager::Stop()
 //
 //  PostCommand
 //
+//  Wakes a PAUSED CPU thread, because the queue is serviced while paused:
+//  mount / eject / write-protect are user intents that must land when the
+//  user asks for them, not when the machine next runs. The wake takes the
+//  pause mutex so it cannot slip into the window between the waiter
+//  evaluating its predicate and actually blocking -- a lost wakeup there
+//  would strand the command until something else resumed the thread.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManager::PostCommand (WORD id, const std::string & payload)
 {
-    std::lock_guard<std::mutex>  lock (m_cmdMutex);
+    {
+        std::lock_guard<std::mutex>  lock (m_cmdMutex);
 
 
 
-    m_commandQueue.push_back ({ id, payload });
+        m_commandQueue.push_back ({ id, payload });
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+
+
+        m_pauseCV.notify_all();
+    }
 }
 
 
@@ -169,12 +196,20 @@ bool CpuManager::IsPaused() const noexcept
 //
 //  SetPaused
 //
+//  Wakes under the pause mutex (see Stop): a lost wakeup on the resume
+//  edge would leave the machine parked with the UI reporting it running.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManager::SetPaused (bool paused) noexcept
 {
     m_paused.store (paused, std::memory_order_release);
-    m_pauseCV.notify_all();
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+        m_pauseCV.notify_all();
+    }
 }
 
 
@@ -201,7 +236,12 @@ void CpuManager::TogglePaused() noexcept
 
 
     m_paused.store (next, std::memory_order_release);
-    m_pauseCV.notify_all();
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+        m_pauseCV.notify_all();
+    }
 }
 
 
@@ -275,6 +315,28 @@ void CpuManager::DrainCommandQueue()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HasPendingCommands
+//
+//  The pause wait's other wake condition, so a command posted to a paused
+//  machine is dispatched rather than parked until resume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::HasPendingCommands()
+{
+    std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+
+
+    return !m_commandQueue.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThreadProc
 //
 //  CPU-thread entry point. Owns COM init/uninit on this thread, the
@@ -318,11 +380,22 @@ void CpuManager::ThreadProc()
             m_pauseCV.wait (lock,
                 [&]
                 {
-                    return !m_paused.load (std::memory_order_acquire) || !m_running.load (std::memory_order_acquire);
+                    return !m_paused.load  (std::memory_order_acquire) ||
+                           !m_running.load (std::memory_order_acquire) ||
+                           HasPendingCommands();
                 });
         }
 
+        // Runs before the pause check below, so a paused machine still
+        // services mount / eject / settings commands: the shell gives the
+        // user immediate feedback (the drive door swings open the moment
+        // eject is clicked) and the store has to catch up, paused or not.
         DrainCommandQueue();
+
+        if (m_paused.load (std::memory_order_acquire) && m_running.load (std::memory_order_acquire))
+        {
+            continue;
+        }
 
         dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);

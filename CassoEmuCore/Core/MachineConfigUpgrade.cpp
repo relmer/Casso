@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MachineConfigUpgrade.h"
+#include "MachineConfig.h"
 #include "JsonParser.h"
 #include "JsonValue.h"
 #include "JsonWriter.h"
@@ -259,6 +260,12 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //          `internalDevices[]` (default `"required"`) and `slots[]`
 //          (default `"optional"`). Existing flags are preserved.
 //
+//      3.  `ports[]` injection on a `disk-ii` slot entry that predates the
+//          key, giving it the two occupied drive connectors it has always
+//          behaved as though it had. Needed because a user delta replaces
+//          an array wholesale, so `slots[]` in a user file never picks up
+//          the embedded default's new ports through the merge.
+//
 //  The operation is idempotent: running it on an already-canonical
 //  document leaves `outChanged` false with `outMigrated` set to the input
 //  bytes verbatim. `outChanged` is true when at least one change was
@@ -434,6 +441,225 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryInjectDiskPorts
+//
+//  Give a Disk ][ Interface entry that predates `ports` the two drive
+//  connectors the real card has, both occupied -- which is the hardware every
+//  such config has been emulating all along, now written down instead of
+//  assumed. Returns true if any entry was changed.
+//
+//  THIS EXISTS BECAUSE A USER DELTA REPLACES AN ARRAY WHOLESALE. A user file
+//  carrying its own `slots[]` never receives the embedded default's new
+//  `ports` through the merge, so without this migration everyone who has
+//  touched their slots would silently lose their second drive.
+//
+//  An entry that already has `ports` is left alone even if the list is empty
+//  or disagrees with the card: that list is the user's statement about their
+//  own hardware, and a migration that "corrects" it would reattach a drive
+//  they detached on purpose -- the same rule TryInjectPrinterSlot follows for
+//  a slot the user turned off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::TryInjectDiskPorts (JsonValue & arr)
+{
+    vector<JsonValue>  rebuilt;
+    bool               fChanged = false;
+    size_t             i        = 0;
+    string             device;
+
+
+
+    if (arr.GetType() != JsonType::Array)
+    {
+        return false;
+    }
+
+    rebuilt.reserve (arr.GetArraySize());
+
+    for (i = 0; i < arr.GetArraySize(); ++i)
+    {
+        const JsonValue & elem     = arr.GetArrayElement (i);
+        bool              fIsObj   = (elem.GetType() == JsonType::Object);
+        HRESULT           hrDevice = E_FAIL;
+
+        device.clear();
+
+        if (fIsObj)
+        {
+            hrDevice = elem.GetString (kpszDeviceKey, device);
+        }
+
+        // Only a Disk ][ card gets drive ports, and only if it has not
+        // already spoken for itself.
+        if (!fIsObj ||
+            HasKey (elem, kpszPortsKey) ||
+            FAILED (hrDevice) ||
+            device != kpszDiskIiDevice)
+        {
+            rebuilt.push_back (elem);
+        }
+        else
+        {
+            vector<pair<string, JsonValue>>  entry = elem.GetObjectEntries();
+            vector<JsonValue>                ports;
+            int                              p     = 0;
+
+            for (p = 0; p < kDiskIiPortCount; ++p)
+            {
+                ports.emplace_back (string (kpszDiskIiDrive));
+            }
+
+            entry.emplace_back (kpszPortsKey, JsonValue (std::move (ports)));
+            rebuilt.emplace_back (JsonValue (std::move (entry)));
+            fChanged = true;
+        }
+    }
+
+    if (fChanged)
+    {
+        arr = JsonValue (std::move (rebuilt));
+    }
+
+    return fChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryFoldExternalDriveIntoDiskPort
+//
+//  The //c's second drive used to be a UI preference: a boolean saying the
+//  external unit was plugged into the back panel. A boolean was only ever
+//  able to answer that one question, which is why it could not describe a
+//  DuoDisk or anything else on that connector. It is a port now, and this
+//  carries the user's existing answer across so nobody's drive disappears
+//  because the way we store it changed.
+//
+//  THE WHOLE DEFAULT LIST IS WRITTEN, not just the disk port. A user array
+//  replaces the default's wholesale, so a delta containing one port would
+//  leave the machine with one connector -- a //c with no serial or joystick
+//  ports at all. Materializing the default list and occupying one entry is
+//  also exactly what Settings writes when the checkbox is toggled, so the
+//  migrated shape and the steady-state shape are the same shape.
+//
+//  The legacy key is removed either way, including when it was false. Leaving
+//  it behind would keep two answers to one question on disk, which is the
+//  thing this fold exists to end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::TryFoldExternalDriveIntoDiskPort (
+    vector<pair<string, JsonValue>> & root,
+    const JsonValue                 * defaultPorts)
+{
+    int                idxUi     = FindKey (root, kpszUiPrefsKey);
+    bool               connected = false;
+    bool               fHadPref  = false;
+    vector<JsonValue>  ports;
+    size_t             i         = 0;
+
+
+
+    if (idxUi < 0 || root[(size_t) idxUi].second.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    {
+        const JsonValue &  uiPrefs = root[(size_t) idxUi].second;
+        HRESULT            hrPref  = uiPrefs.GetBool (kpszExternalDrivePref, connected);
+
+        fHadPref = SUCCEEDED (hrPref);
+    }
+
+    if (!fHadPref)
+    {
+        return false;
+    }
+
+    {
+        bool  fHaveTemplate = (defaultPorts != nullptr) &&
+                              (defaultPorts->GetType() == JsonType::Array);
+        bool  fHavePorts    = (FindKey (root, kpszPortsKey) >= 0);
+
+        // AN ATTACHED DRIVE IS NEVER DROPPED ON THE FLOOR. Retiring the key
+        // is only safe once the answer lives somewhere else, so a `true` with
+        // no port to move it to keeps the key and waits for a migration that
+        // has the template. `false` needs nowhere to go -- it already matches
+        // the default -- and an existing ports array is the user's own
+        // statement, which outranks a pref we are in the middle of retiring.
+        if (connected && !fHavePorts)
+        {
+            if (!fHaveTemplate)
+            {
+                return false;
+            }
+
+            for (i = 0; i < defaultPorts->GetArraySize(); ++i)
+            {
+                const JsonValue &                entry = defaultPorts->GetArrayElement (i);
+                vector<pair<string, JsonValue>>  rebuilt;
+                string                           portName;
+
+                if (entry.GetType() != JsonType::Object)
+                {
+                    ports.push_back (entry);
+                    continue;
+                }
+
+                {
+                    HRESULT  hrName = entry.GetString (kpszPortNameKey, portName);
+
+                    IGNORE_RETURN_VALUE (hrName, S_OK);
+                }
+
+                for (const auto & field : entry.GetObjectEntries())
+                {
+                    if (field.first != kpszDeviceKey)
+                    {
+                        rebuilt.emplace_back (field.first, field.second);
+                    }
+                }
+
+                rebuilt.emplace_back (kpszDeviceKey,
+                                      JsonValue (string (portName == kpszDiskPortName
+                                                         ? kpszDiskIicDrive : "")));
+                ports.emplace_back (JsonValue (std::move (rebuilt)));
+            }
+
+            root.emplace_back (kpszPortsKey, JsonValue (std::move (ports)));
+        }
+    }
+
+    // The answer is safely stored elsewhere now, so retire the key.
+    {
+        JsonValue &                      uiPrefs = root[(size_t) idxUi].second;
+        vector<pair<string, JsonValue>>  rebuilt;
+
+        for (const auto & entry : uiPrefs.GetObjectEntries())
+        {
+            if (entry.first != kpszExternalDrivePref)
+            {
+                rebuilt.emplace_back (entry.first, entry.second);
+            }
+        }
+
+        uiPrefs = JsonValue (std::move (rebuilt));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineConfigUpgrade::RewriteTopLevel
 //
 //  Build a new top-level object, applying the version canonicalization
@@ -510,6 +736,16 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
     string       & outMigrated,
     bool         & outChanged)
 {
+    return MigrateUserConfig (content, nullptr, outMigrated, outChanged);
+}
+
+
+HRESULT MachineConfigUpgrade::MigrateUserConfig (
+    const string     & content,
+    const JsonValue  * defaultPorts,
+    string           & outMigrated,
+    bool             & outChanged)
+{
     HRESULT              hr           = S_OK;
     JsonValue            root;
     JsonParseError       err;
@@ -562,6 +798,16 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
             {
                 fChanged = true;
             }
+
+            if (TryInjectDiskPorts (rebuilt[(size_t) idxSlots].second))
+            {
+                fChanged = true;
+            }
+        }
+
+        if (TryFoldExternalDriveIntoDiskPort (rebuilt, defaultPorts))
+        {
+            fChanged = true;
         }
 
         rewritten = JsonValue (std::move (rebuilt));

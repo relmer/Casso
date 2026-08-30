@@ -258,6 +258,72 @@ void WasapiAudio::Shutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NoteEndpointLoss
+//
+//  CPU THREAD ONLY. Shutdown joins the render pump, so the pump reports a
+//  dead endpoint through m_endpointLossHr and stops rather than tearing
+//  itself down from inside its own thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::NoteEndpointLoss (HRESULT hrLoss)
+{
+    DEBUGMSG (L"WASAPI endpoint lost (hr=0x%08X). Reopening the default device shortly.\n", hrLoss);
+
+    Shutdown();
+
+    m_deviceLost = true;
+    m_reinitAtMs = NowMs() + kReinitRetryMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportEndpointLoss
+//
+//  PUMP THREAD ONLY. Records the FIRST failing hr; a later one does not
+//  displace it, because the reason the endpoint went away is worth more than
+//  a consequence of its going.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::ReportEndpointLoss (HRESULT hrLoss)
+{
+    HRESULT  expected = S_OK;
+    bool     stored   = false;
+
+
+
+    stored = m_endpointLossHr.compare_exchange_strong (expected, hrLoss,
+                                                       std::memory_order_release);
+    IGNORE_RETURN_VALUE (stored, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t WasapiAudio::NowMs() const
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+               std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SubmitFrame
 //
 //  Generates one slice of audio -- speaker, drives, Mockingboard -- mixes it,
@@ -299,8 +365,29 @@ HRESULT WasapiAudio::SubmitFrame (
     size_t     prevFrames     = 0;
     UINT32     i              = 0;
     float    * stereoPtr      = nullptr;
+    HRESULT    hrLost         = S_OK;
 
 
+
+    // Device-loss recovery. The pump reports the failing hr and stops; the
+    // teardown happens here because Shutdown joins that very thread, and the
+    // reopen is throttled so a device switch mid-teardown is not hammered.
+    hrLost = m_endpointLossHr.exchange (S_OK, std::memory_order_acquire);
+
+    if (FAILED (hrLost))
+    {
+        NoteEndpointLoss (hrLost);
+    }
+
+    if (m_deviceLost && NowMs() >= m_reinitAtMs)
+    {
+        HRESULT  hrReopen = S_OK;
+
+        m_reinitAtMs = NowMs() + kReinitRetryMs;
+
+        hrReopen = Initialize();
+        IGNORE_RETURN_VALUE (hrReopen, S_OK);
+    }
 
     BAIL_OUT_IF (!m_initialized || m_renderClient == nullptr, S_OK);
 
@@ -470,7 +557,8 @@ void WasapiAudio::RenderPump()
 
         if (FAILED (hr))
         {
-            continue;
+            ReportEndpointLoss (hr);
+            break;
         }
 
         available = m_bufferFrames - padding;
@@ -500,7 +588,8 @@ void WasapiAudio::RenderPump()
 
         if (FAILED (hr))
         {
-            continue;
+            ReportEndpointLoss (hr);
+            break;
         }
 
         DrainFrames (toWrite, buffer);

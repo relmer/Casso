@@ -33,12 +33,22 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
-    // Skeuomorphic desk scene: frame the display in a period CRT monitor
-    // (with the drives scaled to sit under it). Opt-in from the Settings
-    // theme page because the scene trades a lot of screen real estate for
-    // the look; off renders the classic bare display. Skeuo themes only --
-    // compact themes never draw the monitor regardless.
-    bool         skeuoMonitorFrame   = false;
+    // Whether the display rides a period CRT monitor's curved glass. Default
+    // ON; the Settings theme page checkbox drops the monitor and puts the
+    // picture back on a flat rect. It governs the MONITOR only -- the 3D
+    // drives are not optional and render either way. Skeuo themes only:
+    // compact themes never draw the scene regardless. (Replaces the retired
+    // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
+    bool         crtMonitor          = true;
+
+    // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
+    // costs real GPU -- the whole scene is drawn into a target this many times
+    // over -- and how much depends on the machine and the window size, so it
+    // is a user choice rather than a constant. Global, not per machine or per
+    // monitor: it describes the host's graphics budget, and nothing about the
+    // emulated hardware. Values outside the set are clamped down to the
+    // nearest supported one on load.
+    int          sceneAntiAliasing   = 4;
 
     // Disk II audio asset download consent. Tri-state string:
     //   "ask"     -- user has never been prompted (default)
@@ -60,6 +70,12 @@ struct GlobalUserPrefs
     // (Off/Paddle/Mouse). Migrated from the legacy single mode on load.
     bool              arrowsToJoystick = false;
     InputMappingMode  pointerMapping   = InputMappingMode::Off;
+
+    // HOW FAR EACH MONITOR'S BEZEL IS TILTED, in radians, keyed by the
+    // monitor's catalog name. A property of the MONITOR rather than of the
+    // machine, for the same reason its phosphor is: stand the same tube in
+    // front of another machine and it is still tilted the way it was left.
+    std::map<std::string, float>  monitorTilt;
 
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is
@@ -99,10 +115,17 @@ struct GlobalUserPrefs
 
     struct WindowBounds
     {
-        int  x = 0;
-        int  y = 0;
-        int  w = 0;
-        int  h = 0;
+        int   x = 0;
+        int   y = 0;
+        int   w = 0;
+        int   h = 0;
+
+        // Whether the window was MAXIMIZED when this placement was saved.
+        // The rect above stays the NORMAL (restored) rect either way -- a
+        // maximized window's own rect is the monitor's, and persisting that
+        // as the windowed placement is the classic way to lose the user's
+        // real window size.
+        bool  maximized = false;
     };
 
     struct

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds the Casso solution using MSBuild.
 
@@ -24,6 +24,15 @@
 .PARAMETER RunCodeAnalysis
     If set, enables C++ Core Check code analysis during build.
 
+.PARAMETER NormalPriority
+    Run at the shell's own priority instead of below it. For CI, which has
+    no foreground to protect.
+
+.PARAMETER LowPriority
+    Run at Idle instead of BelowNormal: no progress at all while anything
+    else wants the CPU. For a run you genuinely do not care about finishing
+    soon.
+
 .EXAMPLE
     .\Build.ps1
     Builds Debug configuration for x64.
@@ -42,7 +51,11 @@ param(
     [ValidateSet('Build', 'Clean', 'Rebuild', 'BuildAllRelease', 'CleanAll', 'RebuildAllRelease')]
     [string]$Target = 'Build',
 
-    [switch]$RunCodeAnalysis
+    [switch]$RunCodeAnalysis,
+
+    [switch]$NormalPriority,
+
+    [switch]$LowPriority
 )
 
 if ($Platform -eq 'Auto') {
@@ -57,6 +70,54 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot     = Split-Path $PSScriptRoot -Parent
 $solutionPath = Join-Path $repoRoot 'Casso.sln'
+
+#
+#  OFF THE FOREGROUND'S BACK. This saturates every core and the disk with
+#  it, and nothing about it is latency-sensitive -- nobody watches a build.
+#  Lowered here rather than around the tool because Windows hands a child
+#  its parent's priority class, so this reaches MSBuild, every cl.exe it
+#  fans out, and vstest and its hosts. See scripts/HostLoad.ps1.
+#
+. (Join-Path $PSScriptRoot 'HostLoad.ps1')
+
+$priorityWas = $null
+
+#
+#  There are exactly two ways this script runs:
+#
+#      default            BelowNormal (or Idle with -LowPriority), and
+#                         MSBuild node reuse OFF
+#      -NormalPriority    the shell's own priority, node reuse ON
+#
+#  Nothing else decides it -- no CI sniffing, no environment variable. If
+#  you want a build at full priority you ask for one.
+#
+#  NODE REUSE IS NOT A SEPARATE PERFORMANCE KNOB HERE. It is off only
+#  because it is what makes the lowering reach the compiler, and it rides
+#  the same flag for that reason alone. A child inherits its parent's
+#  priority AT CREATION, and MSBuild's reusable workers are not children of
+#  this build: they outlive the build that made them, were started at
+#  Normal by whichever build came first, and are handed this build's work
+#  as they already are. Sampled mid-build with reuse on, exactly one
+#  MSBuild was BelowNormal -- the one we launched -- while six workers and
+#  every cl.exe under them ran at Normal, which is to say the entire
+#  compile. With reuse off: seven MSBuild and eighteen cl.exe, all
+#  BelowNormal.
+#
+#  So when we are NOT lowering there is nothing for reuse to defeat, and it
+#  stays on and keeps its roughly one second per build.
+#
+$msbuildNodeArgs = @()
+
+if (-not $NormalPriority) {
+    $priorityWas      = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
+    $msbuildNodeArgs += '-nr:false'
+}
+
+#  Put it back on the way out however this ends -- these are run from an
+#  interactive shell as often as from a fresh one, and a session left at
+#  BelowNormal for the rest of the day is a slow shell nobody can explain.
+trap { Restore-CassoHostLoad -Priority $priorityWas; break }
 
 $toolsScript = Join-Path $PSScriptRoot 'VSTools.ps1'
 if (-not (Test-Path $toolsScript)) {
@@ -168,7 +229,7 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
                 "-p:Platform=$platformToBuild",
                 "-p:PreferredToolArchitecture=$preferredArch",
                 "-t:$msbuildTarget"
-            )
+            ) + $msbuildNodeArgs
 
             if ($RunCodeAnalysis) {
                 $msbuildArgs += '-p:EnableCppCoreCheck=true'
@@ -201,7 +262,7 @@ else {
         "-p:Configuration=$Configuration",
         "-p:Platform=$Platform",
         "-p:PreferredToolArchitecture=$preferredArch"
-    )
+    ) + $msbuildNodeArgs
 
     if ($RunCodeAnalysis) {
         $msbuildArgs += '-p:EnableCppCoreCheck=true'
@@ -224,6 +285,8 @@ else {
 
 $minutes  = [int][Math]::Floor($stopwatch.Elapsed.TotalMinutes)
 $timeText = "{0:00}:{1:00}.{2:000}" -f $minutes, $stopwatch.Elapsed.Seconds, $stopwatch.Elapsed.Milliseconds
+
+Restore-CassoHostLoad -Priority $priorityWas
 
 if ($scriptExitCode -ne 0) {
     Write-Host "FAILED ($timeText)" -ForegroundColor Red

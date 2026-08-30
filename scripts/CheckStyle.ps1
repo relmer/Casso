@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Fails if changed code violates the mechanically-checkable subset of the
     Casso coding standards in .github/copilot-instructions.md.
@@ -82,8 +82,32 @@ param(
     # tree-wide, since a gate that fails on pre-existing violations is one
     # people switch off. That backlog is now zero over all tracked files, so
     # the switch inverts: `-NoStructural` opts out.
-    [switch]$NoStructural
+    [switch]$NoStructural,
+
+    [switch]$NormalPriority,
+
+    [switch]$LowPriority
 )
+
+#
+#  OFF THE FOREGROUND'S BACK. This saturates every core and the disk with
+#  it, and nothing about it is latency-sensitive -- nobody watches a build.
+#  Lowered here rather than around the tool because Windows hands a child
+#  its parent's priority class, so this reaches MSBuild, every cl.exe it
+#  fans out, and vstest and its hosts. See scripts/HostLoad.ps1.
+#
+. (Join-Path $PSScriptRoot 'HostLoad.ps1')
+
+$priorityWas = $null
+
+if (-not $NormalPriority) {
+    $priorityWas = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
+}
+
+#  Put it back on the way out however this ends -- these are run from an
+#  interactive shell as often as from a fresh one, and a session left at
+#  BelowNormal for the rest of the day is a slow shell nobody can explain.
+trap { Restore-CassoHostLoad -Priority $priorityWas; break }
 
 $Structural = -not $NoStructural
 
@@ -312,17 +336,26 @@ function Get-AddedLines
 {
     param([string]$Base, [string]$Tip, [switch]$Cached)
 
-    $results = @()
+    #  A List, not an array. `$results += ...` reallocates and copies the whole
+    #  array for every added line, so the cost is quadratic in the size of the
+    #  diff. A push whose range added 1.5M lines spent 34 minutes in here.
+    $results = [System.Collections.Generic.List[object]]::new()
     $file    = ''
     $lineNo  = 0
 
+    #  Ask git for the extensions the rules actually read. Every check's Globs
+    #  are a subset of these three, so this changes no verdict -- it stops a
+    #  generated model (one mesh carries 1.3M added lines) from being parsed
+    #  into an object per line and then dropped for not matching a glob.
+    $pathspec = @('*.cpp', '*.h', '*.md')
+
     if ($Cached)
     {
-        $diff = git -C $repoRoot diff --cached --unified=0 --no-color --diff-filter=d 2>$null
+        $diff = git -C $repoRoot diff --cached --unified=0 --no-color --diff-filter=d -- $pathspec 2>$null
     }
     else
     {
-        $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" 2>$null
+        $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" -- $pathspec 2>$null
     }
 
     foreach ($raw in $diff)
@@ -343,11 +376,11 @@ function Get-AddedLines
         {
             if ($file -ne '')
             {
-                $results += [pscustomobject]@{
+                $results.Add([pscustomobject]@{
                     File = $file
                     Line = $lineNo
                     Text = $raw.Substring(1)
-                }
+                })
             }
             $lineNo++
         }
@@ -1304,6 +1337,8 @@ if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 }
 
 $violations = $sink
+
+Restore-CassoHostLoad -Priority $priorityWas
 
 if ($violations.Count -gt 0)
 {

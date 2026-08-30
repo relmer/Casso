@@ -91,12 +91,20 @@ public:
 
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.
-    // When supportsExternalDrive is set (the //c), a synthetic checkable
-    // "External drive" node is appended, reflecting externalDriveConnected.
+    // When supportsExternalDrive is set (the //c), synthetic checkable
+    // "External drive" and "Mouse" nodes are appended, reflecting
+    // externalDriveConnected and mouseConnected.
+    //
+    // Otherwise, when supportsSecondDrive is set (any machine with a Disk ][
+    // card), a "Drive 2" node is appended instead. The two are mutually
+    // exclusive: a machine's second drive is either an external unit on the
+    // //c's disk port or a drive on the card's second connector, never both.
     static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries,
                                                   bool supportsExternalDrive  = false,
                                                   bool externalDriveConnected = false,
-                                                  bool mouseConnected         = true);
+                                                  bool mouseConnected         = true,
+                                                  bool supportsSecondDrive    = false,
+                                                  bool secondDriveAttached    = false);
 
 private:
     static RECT                    MakeRect (int l, int t, int w, int h);
