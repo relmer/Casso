@@ -54,7 +54,7 @@ public:
         int  toggles = 0;
         int  resets  = 0;
         void ToggleRomBank() override { ++toggles; }
-        void ResetRomBank  () override { ++resets; }
+        void ResetRomBank() override { ++resets; }
     };
 
     TEST_METHOD (AppliesBank0OnLoad)

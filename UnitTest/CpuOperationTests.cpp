@@ -2068,7 +2068,7 @@ namespace CpuOperationTests
             TestCpu cpu;
             cpu.InitForTest();
             cpu.RegSP() = 0x00;
-            cpu.RegX  () = 0x55;
+            cpu.RegX() = 0x55;
 
             CpuOperations::Transfer (cpu, &cpu.RegSP(), &cpu.RegX());
 

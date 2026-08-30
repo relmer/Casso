@@ -609,7 +609,7 @@ void EmulatorCore::SoftReset()
     }
 
     bus->SoftResetAll();
-    mmu->OnSoftReset  ();
+    mmu->OnSoftReset();
 
     if (videoTiming != nullptr)
     {

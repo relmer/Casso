@@ -294,7 +294,7 @@ void Apple2eMmu::ResetIntC8Rom()
 
 void Apple2eMmu::OnSoftSwitchChanged()
 {
-    ResolveText04_07  ();
+    ResolveText04_07();
     ResolveHires20_3F();
 }
 

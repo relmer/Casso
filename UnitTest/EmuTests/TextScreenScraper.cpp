@@ -173,7 +173,7 @@ std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
 {
     const Byte *   auxRam   = core.mmu->GetAuxBuffer();
     bool           col80    = core.softSwitches->Is80ColMode();
-    bool           page2    = core.softSwitches->IsPage2     ();
+    bool           page2    = core.softSwitches->IsPage2();
     Word           pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
 
 
