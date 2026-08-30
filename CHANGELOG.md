@@ -9,13 +9,9 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **Nibble disk images (`.nib`, `.nb2`)** mount, boot and write back, in the
-  emulator and in every `disk` command including `create`. Track size comes from
-  the file's length, not its extension.
+- **Nibble disk images (`.nib`, `.nb2`) are supported.**
 
 ### Changed
-- **Nibble track decoding is ~100x faster on unformatted tracks and ~2x on
-  formatted ones**, on the shared mount, flush and salvage path.
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving
   clarity on mono. Replaced the color bars with a spiffy Beagle Bros. HGR
