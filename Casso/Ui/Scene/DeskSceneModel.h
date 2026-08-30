@@ -472,7 +472,13 @@ public:
 
 private:
     static bool  ColorMatches   (float r, float g, float b, const float kd[3]);
-    void         AppendLitTri   (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
+    // `smooth` is the three per-corner normals the baked mesh carries for
+    // this triangle, or null to fall back on the face normal. Carried
+    // normals are what let a curved surface shade smoothly across however
+    // few triangles approximate it.
+    void         AppendLitTri   (std::vector<Dxui3DRenderer::Vertex>     & out,
+                                 const struct ObjTriangle                & tri,
+                                 const std::array<float, 3>              * smooth);
     static void  AppendFlatTri  (std::vector<Dxui3DRenderer::Vertex> & out, const struct ObjTriangle & tri);
 
     HRESULT  BuildGlassSurface  ();

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/MeshBlob.h"
+#include "Devices/Printer/MeshNormals.h"
 #include "Devices/Printer/ObjMeshParser.h"
 
 
@@ -100,12 +101,13 @@ static bool WriteWholeFile (const char * path, const std::vector<uint8_t> & byte
 
 int main (int argc, char ** argv)
 {
-    std::string               objText;
-    std::string               mtlText;
-    std::vector<ObjTriangle>  triangles;
-    std::vector<std::string>  materialNames;
-    std::vector<uint8_t>      blob;
-    HRESULT                   hr = S_OK;
+    std::string                        objText;
+    std::string                        mtlText;
+    std::vector<ObjTriangle>           triangles;
+    std::vector<std::string>           materialNames;
+    std::vector<uint8_t>               blob;
+    std::vector<std::array<float, 3>>  normals;
+    HRESULT                            hr            = S_OK;
 
 
 
@@ -136,7 +138,11 @@ int main (int argc, char ** argv)
         return 1;
     }
 
-    hr = MeshBlob::Write (triangles, materialNames, blob);
+    // Averaged at BUILD time, so the app never pays for it and a coarser
+    // mesh can still shade as the smooth surface it approximates.
+    MeshNormals::Compute (triangles, MeshNormals::kDefaultSmoothingDeg, normals);
+
+    hr = MeshBlob::Write (triangles, materialNames, normals, blob);
 
     if (FAILED (hr))
     {

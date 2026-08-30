@@ -34,6 +34,12 @@
 //  Unpacking restores exactly what the parser produced, including the white
 //  a face gets when it names a material the MTL never defined.
 //
+//  NORMALS ARE CARRIED, not derived. The scene used to take each triangle's
+//  own face normal, which shades a curved surface in bands and left more
+//  triangles as the only cure. MeshNormals averages them across faces that
+//  meet gently, at build time, and the result rides here. They are shared the
+//  same way positions are, since a flat face's whole run repeats one normal.
+//
 //  Read is a build-defect check, not input validation: the blob is compiled
 //  into the executable, so a header that does not agree with its own body
 //  means the baker and the loader disagree, which no user can cause and no
@@ -46,21 +52,31 @@ class MeshBlob
 public:
 
     // Bumped whenever the layout below changes. Read refuses anything else
-    // rather than misreading a stale blob as a current one.
-    static constexpr uint32_t  kVersion = 1;
+    // rather than misreading a stale blob as a current one. Version 2 added
+    // the normals.
+    static constexpr uint32_t  kVersion = 2;
 
     // Packs `triangles` and their `materialNames` into `outBytes`, sharing
-    // positions that are bit-identical. Lossless: Read returns triangles
-    // equal to these, field for field.
-    static HRESULT  Write (const std::vector<ObjTriangle>   & triangles,
-                           const std::vector<std::string>   & materialNames,
-                           std::vector<uint8_t>             & outBytes);
+    // positions and normals that are bit-identical. `normals` holds three per
+    // triangle, as MeshNormals::Compute produces them; an empty span writes a
+    // blob whose faces carry no normal, which Read hands back the same way.
+    static HRESULT  Write (const std::vector<ObjTriangle>            & triangles,
+                           const std::vector<std::string>            & materialNames,
+                           std::span<const std::array<float, 3>>       normals,
+                           std::vector<uint8_t>                      & outBytes);
 
     // Unpacks a blob written by Write. Fails, and asserts, on a truncated or
     // mislabeled blob.
-    static HRESULT  Read  (std::span<const uint8_t>           bytes,
-                           std::vector<ObjTriangle>         & outTriangles,
-                           std::vector<std::string>         & outMaterialNames);
+    static HRESULT  Read  (std::span<const uint8_t>                    bytes,
+                           std::vector<ObjTriangle>                  & outTriangles,
+                           std::vector<std::string>                  & outMaterialNames,
+                           std::vector<std::array<float, 3>>         & outNormals);
+
+    // For callers that light their own geometry and want only the shape. The
+    // printer panel is one: it tints by material and never reads a normal.
+    static HRESULT  Read  (std::span<const uint8_t>                    bytes,
+                           std::vector<ObjTriangle>                  & outTriangles,
+                           std::vector<std::string>                  & outMaterialNames);
 
 private:
 
@@ -69,24 +85,23 @@ private:
     // identical floats, so exact equality already recovers the sharing the OBJ
     // had before triangulation flattened it. Welding within a tolerance would
     // be a different operation with a different name, and it would change the
-    // mesh rather than repack it.
-    using PositionKey = std::array<uint32_t, 3>;
+    // mesh rather than repack it. Normals share the same treatment.
+    using VectorKey = std::array<uint32_t, 3>;
 
 
-    struct PositionHash
+    struct VectorHash
     {
-        size_t operator() (const PositionKey & key) const noexcept;
+        size_t operator() (const VectorKey & key) const noexcept;
     };
 
 
-    // The three coordinates as the words that spell them, so the map keys on
+    // The three components as the words that spell them, so the map keys on
     // what was written rather than on what compares equal.
-    static PositionKey  KeyOf       (const float * position);
+    static VectorKey  KeyOf       (const float * value);
 
-    static void         AppendBytes (std::vector<uint8_t> & out,
-                                     const void           * data,
-                                     size_t                 count);
-
+    static void       AppendBytes (std::vector<uint8_t> & out,
+                                   const void           * data,
+                                   size_t                 count);
 
     // Eight bytes so the tag survives a hex dump, then the counts. Every
     // field is fixed-width and little-endian, which both target
@@ -99,7 +114,7 @@ private:
         uint32_t  positionCount;
         uint32_t  faceCount;
         uint32_t  nameBytes;       // NUL-terminated names, concatenated
-        uint32_t  reserved;        // zero; keeps the body 8-byte aligned
+        uint32_t  normalCount;     // zero when the blob carries no normals
     };
 
     static constexpr char      kMagic[8]     = { 'C', 'A', 'S', 'S', 'O', 'M', 'S', 'H' };
@@ -107,4 +122,9 @@ private:
     // A face whose material index is this belongs to no material, which is
     // ObjTriangle::material == -1: a triangle declared before any usemtl.
     static constexpr uint32_t  kNoMaterial   = 0xFFFFFFFFu;
+
+    // Words per face: three position indices, three normal indices, and the
+    // material. The normal indices are written even when there are no
+    // normals, so a face is one fixed stride either way.
+    static constexpr size_t    kFaceWords    = 7;
 };

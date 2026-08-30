@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "Devices/Printer/MeshBlob.h"
+#include "Devices/Printer/MeshNormals.h"
 #include "Devices/Printer/ObjMeshParser.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -52,7 +53,7 @@ namespace MeshBlobTests
         hr = ObjMeshParser::Parse (obj, mtl, parsed, parsedNames);
         Assert::IsTrue (SUCCEEDED (hr), L"parse");
 
-        hr = MeshBlob::Write (parsed, parsedNames, blob);
+        hr = MeshBlob::Write (parsed, parsedNames, {}, blob);
         Assert::IsTrue (SUCCEEDED (hr), L"write");
 
         hr = MeshBlob::Read (blob, restored, restoredNames);
@@ -124,7 +125,7 @@ namespace MeshBlobTests
                                   "f 1 2 3\n",
                                   "", parsed, parsedNames);
 
-            MeshBlob::Write (parsed, parsedNames, blob);
+            MeshBlob::Write (parsed, parsedNames, {}, blob);
             MeshBlob::Read  (blob, restored, names);
 
             Assert::AreEqual ((size_t) 1, restored.size());
@@ -153,14 +154,14 @@ namespace MeshBlobTests
 
             ObjMeshParser::Parse (obj, "", parsed, parsedNames);
 
-            HRESULT   hr = MeshBlob::Write (parsed, parsedNames, blob);
+            HRESULT   hr = MeshBlob::Write (parsed, parsedNames, {}, blob);
 
             Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual ((size_t) 2, parsed.size());
 
-            // 32-byte header, no materials, no names, four shared positions
-            // at 12 bytes, two faces at 16.
-            Assert::AreEqual ((size_t) (32 + 0 + 0 + 4 * 12 + 2 * 16), blob.size());
+            // 32-byte header, no materials, no names, no normals, four
+            // shared positions at 12 bytes, two faces at 28.
+            Assert::AreEqual ((size_t) (32 + 0 + 0 + 4 * 12 + 2 * 28), blob.size());
         }
 
 
@@ -173,7 +174,7 @@ namespace MeshBlobTests
 
 
 
-            hr = MeshBlob::Write ({}, {}, blob);
+            hr = MeshBlob::Write ({}, {}, {}, blob);
             Assert::IsTrue (SUCCEEDED (hr), L"write");
 
             hr = MeshBlob::Read (blob, restored, names);
@@ -181,6 +182,121 @@ namespace MeshBlobTests
             Assert::AreEqual ((size_t) 0, restored.size());
         }
 
+
+        // Normals ride along per corner, and survive the trip exactly. The
+        // scene reads them instead of computing a face normal, so a drift
+        // here would be a shading change nothing else would catch.
+        TEST_METHOD (RoundTripsSmoothedNormals)
+        {
+            std::vector<ObjTriangle>   parsed;
+            std::vector<std::string>   parsedNames;
+            std::vector<ObjTriangle>   restored;
+            std::vector<std::string>   names;
+            std::vector<uint8_t>       blob;
+
+            std::vector<std::array<float, 3>>   normals;
+            std::vector<std::array<float, 3>>   restoredNormals;
+
+
+
+            ObjMeshParser::Parse ("v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+                                  "f 1 2 3\n"
+                                  "f 1 3 4\n",
+                                  "", parsed, parsedNames);
+
+            MeshNormals::Compute (parsed, MeshNormals::kDefaultSmoothingDeg, normals);
+
+            Assert::AreEqual ((size_t) 6, normals.size(), L"three per triangle");
+
+            MeshBlob::Write (parsed, parsedNames, normals, blob);
+            MeshBlob::Read  (blob, restored, names, restoredNormals);
+
+            Assert::AreEqual (normals.size(), restoredNormals.size(), L"normal count");
+
+            for (size_t i = 0; i < normals.size(); i++)
+            {
+                for (size_t c = 0; c < 3; c++)
+                {
+                    Assert::AreEqual (normals[i][c], restoredNormals[i][c], L"normal");
+                }
+            }
+        }
+
+
+        // The whole quad is one plane, so every corner of both triangles
+        // shares one normal and the table holds exactly that one.
+        TEST_METHOD (SharesNormalsBetweenFaces)
+        {
+            std::vector<ObjTriangle>   parsed;
+            std::vector<std::string>   parsedNames;
+            std::vector<uint8_t>       blob;
+
+            std::vector<std::array<float, 3>>   normals;
+
+
+
+            ObjMeshParser::Parse ("v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+                                  "f 1 2 3\n"
+                                  "f 1 3 4\n",
+                                  "", parsed, parsedNames);
+
+            MeshNormals::Compute (parsed, MeshNormals::kDefaultSmoothingDeg, normals);
+            MeshBlob::Write (parsed, parsedNames, normals, blob);
+
+            // Header, four positions at 12, ONE normal at 12, two faces at 28.
+            Assert::AreEqual ((size_t) (32 + 4 * 12 + 1 * 12 + 2 * 28), blob.size());
+        }
+
+
+        // A blob written with normals and one written without are different
+        // lengths, and the reader reports which it got rather than inventing
+        // normals for the second.
+        TEST_METHOD (ReadsBackNoNormalsWhenNoneWereWritten)
+        {
+            std::vector<ObjTriangle>   parsed;
+            std::vector<std::string>   parsedNames;
+            std::vector<ObjTriangle>   restored;
+            std::vector<std::string>   names;
+            std::vector<uint8_t>       blob;
+
+            std::vector<std::array<float, 3>>   restoredNormals;
+
+
+
+            ObjMeshParser::Parse ("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
+                                  "", parsed, parsedNames);
+
+            MeshBlob::Write (parsed, parsedNames, {}, blob);
+            MeshBlob::Read  (blob, restored, names, restoredNormals);
+
+            Assert::AreEqual ((size_t) 1, restored.size());
+            Assert::AreEqual ((size_t) 0, restoredNormals.size(), L"no normals");
+        }
+
+
+        // Three normals per triangle or none: a partial set is a caller bug.
+        TEST_METHOD (RefusesAPartialNormalSet)
+        {
+            std::vector<ObjTriangle>   parsed;
+            std::vector<std::string>   parsedNames;
+            std::vector<uint8_t>       blob;
+            HRESULT                    hr = S_OK;
+
+            std::vector<std::array<float, 3>>   normals (2);
+
+
+
+            ObjMeshParser::Parse ("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
+                                  "", parsed, parsedNames);
+
+            {
+                UnitTestHelpers::ExpectedEhmAssert   expected;
+
+                hr = MeshBlob::Write (parsed, parsedNames, normals, blob);
+            }
+
+            Assert::IsTrue (FAILED (hr));
+        }
 
         TEST_METHOD (RefusesATruncatedBlob)
         {
@@ -195,7 +311,7 @@ namespace MeshBlobTests
 
             ObjMeshParser::Parse ("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
                                   "", parsed, parsedNames);
-            MeshBlob::Write (parsed, parsedNames, blob);
+            MeshBlob::Write (parsed, parsedNames, {}, blob);
 
             blob.pop_back();
 

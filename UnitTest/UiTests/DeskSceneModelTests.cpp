@@ -3,6 +3,7 @@
 
 #include "Ui/Chrome/DriveWidget.h"
 #include "Devices/Printer/MeshBlob.h"
+#include "Devices/Printer/MeshNormals.h"
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
@@ -55,17 +56,20 @@ static HRESULT LoadFromText (DeskSceneModel    & model,
                              const std::string & obj,
                              const std::string & mtl)
 {
-    std::vector<ObjTriangle>   triangles;
-    std::vector<std::string>   names;
-    std::vector<uint8_t>       blob;
-    HRESULT                    hr = S_OK;
+    std::vector<ObjTriangle>           triangles;
+    std::vector<std::string>           names;
+    std::vector<uint8_t>               blob;
+    HRESULT                            hr        = S_OK;
+    std::vector<std::array<float, 3>>  normals;
 
 
 
     hr = ObjMeshParser::Parse (obj, mtl, triangles, names);
     CHR (hr);
 
-    hr = MeshBlob::Write (triangles, names, blob);
+    MeshNormals::Compute (triangles, MeshNormals::kDefaultSmoothingDeg, normals);
+
+    hr = MeshBlob::Write (triangles, names, normals, blob);
     CHR (hr);
 
     hr = model.Load (kind, blob);

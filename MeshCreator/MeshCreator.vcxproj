@@ -93,6 +93,9 @@
     <ClCompile Include="..\CassoCore\Ehm.cpp">
       <ObjectFileName>$(IntDir)Ehm.obj</ObjectFileName>
     </ClCompile>
+    <ClCompile Include="..\CassoEmuCore\Devices\Printer\MeshNormals.cpp">
+      <ObjectFileName>$(IntDir)MeshNormals.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\CassoEmuCore\Devices\Printer\MeshBlob.cpp">
       <ObjectFileName>$(IntDir)MeshBlob.obj</ObjectFileName>
     </ClCompile>

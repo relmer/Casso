@@ -24,18 +24,19 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
   <!--
-    Shader debugging, OFF by default in every configuration.
+    Shader debugging follows the CONFIGURATION: fxc gets /Od /Zi in Debug
+    and optimizes in Release, which is what the rest of the build does and
+    so is the least surprising thing for it to do.
 
-    Build with /p:CassoShaderDebug=true to get fxc /Od /Zi, which is what
-    PIX and RenderDoc need to step HLSL and show live values. It is not the
-    default because it is expensive where it hurts: the desk scene pixel
-    shader goes from 1407 to 3597 instruction slots, 2.56x the per-pixel
-    work, at 4x MSAA across the whole window. D3DCompile was called with
-    default flags, so Debug has always run optimized shaders, and turning
-    that around silently would have made the Debug scene the slow one.
+    It is not free. The desk scene pixel shader goes from 1407 to 3597
+    instruction slots that way, 2.56x the per-pixel work, at 4x MSAA over
+    the whole window, so a Debug build draws the scene appreciably slower
+    than it used to when D3DCompile ran with default flags. Override with
+    /p:CassoShaderDebug=false when the frame rate matters more than
+    stepping the HLSL.
   -->
   <PropertyGroup>
-    <CassoShaderDebug Condition="'$(CassoShaderDebug)' == ''">false</CassoShaderDebug>
+    <CassoShaderDebug Condition="'$(CassoShaderDebug)' == ''">$([System.String]::Copy('$(Configuration)').Equals('Debug').ToString().ToLowerInvariant())</CassoShaderDebug>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

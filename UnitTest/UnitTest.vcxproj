@@ -363,6 +363,7 @@
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
     <ClCompile Include="PrinterTests\MeshBlobTests.cpp" />
+    <ClCompile Include="PrinterTests\MeshNormalsTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterByteRingTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterCardTests.cpp" />
     <ClCompile Include="PrinterTests\FirmwareParityTests.cpp" />

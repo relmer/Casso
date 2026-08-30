@@ -294,6 +294,7 @@
     <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
     <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
     <ClCompile Include="Devices\Printer\MeshBlob.cpp" />
+    <ClCompile Include="Devices\Printer\MeshNormals.cpp" />
     <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
     <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
@@ -443,6 +444,7 @@
     <ClInclude Include="Devices\Printer\PrintDelivery.h" />
     <ClInclude Include="Devices\Printer\PrintPagination.h" />
     <ClInclude Include="Devices\Printer\MeshBlob.h" />
+    <ClInclude Include="Devices\Printer\MeshNormals.h" />
     <ClInclude Include="Devices\Printer\ObjMeshParser.h" />
     <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
     <ClInclude Include="Devices\Printer\PrinterViewport.h" />

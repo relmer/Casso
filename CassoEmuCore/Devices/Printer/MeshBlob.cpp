@@ -8,14 +8,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeshBlob::PositionHash::operator()
+//  MeshBlob::VectorHash::operator()
 //
 //  FNV-1a over the three words. The map is only alive for the length of one
 //  bake, so this wants to be cheap rather than strong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t MeshBlob::PositionHash::operator() (const PositionKey & key) const noexcept
+size_t MeshBlob::VectorHash::operator() (const VectorKey & key) const noexcept
 {
     size_t   hash = 1469598103934665603ull;
 
@@ -39,13 +39,13 @@ size_t MeshBlob::PositionHash::operator() (const PositionKey & key) const noexce
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MeshBlob::PositionKey MeshBlob::KeyOf (const float * position)
+MeshBlob::VectorKey MeshBlob::KeyOf (const float * value)
 {
-    PositionKey   key = {};
+    VectorKey   key = {};
 
 
 
-    memcpy (key.data(), position, sizeof (float) * 3);
+    memcpy (key.data(), value, sizeof (float) * 3);
 
     return key;
 }
@@ -77,8 +77,9 @@ void MeshBlob::AppendBytes (std::vector<uint8_t> & out, const void * data, size_
 //
 //  MeshBlob::Write
 //
-//  Shares positions, then writes the header, the per-material colors, the
-//  name table, the positions, and the faces, in that order.
+//  Shares positions and normals, then writes the header, the per-material
+//  colors, the name table, the positions, the normals, and the faces, in that
+//  order.
 //
 //  A material's color is taken from the LAST triangle that names it, and any
 //  triangle would do. The parser resolves a material name to a color once and
@@ -87,22 +88,33 @@ void MeshBlob::AppendBytes (std::vector<uint8_t> & out, const void * data, size_
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MeshBlob::Write (const std::vector<ObjTriangle>  & triangles,
-                         const std::vector<std::string>  & materialNames,
-                         std::vector<uint8_t>            & outBytes)
+HRESULT MeshBlob::Write (const std::vector<ObjTriangle>          & triangles,
+                         const std::vector<std::string>          & materialNames,
+                         std::span<const std::array<float, 3>>     normals,
+                         std::vector<uint8_t>                    & outBytes)
 {
-    HRESULT                                                  hr        = S_OK;
-    Header                                                   header    = {};
-    std::vector<float>                                       positions;
-    std::vector<uint32_t>                                    faces;
-    std::vector<float>                                       colors;
-    std::vector<uint8_t>                                     names;
-    bool                                                     fits      = false;
-    std::unordered_map<PositionKey, uint32_t, PositionHash>  shared;
+    HRESULT                                              hr           = S_OK;
+    Header                                               header       = {};
+    std::vector<float>                                   positions;
+    std::vector<float>                                   normalTable;
+    std::vector<uint32_t>                                faces;
+    std::vector<float>                                   colors;
+    std::vector<uint8_t>                                 names;
+    bool                                                 haveNormals  = false;
+    bool                                                 normalsMatch = false;
+    bool                                                 fits         = false;
+    std::unordered_map<VectorKey, uint32_t, VectorHash>  sharedPos;
+    std::unordered_map<VectorKey, uint32_t, VectorHash>  sharedNrm;
 
 
 
     outBytes.clear();
+
+    // Either every triangle has three normals or none does. A partial set is
+    // a caller bug rather than a shape this format should try to describe.
+    haveNormals  = !normals.empty();
+    normalsMatch = !haveNormals || normals.size() == triangles.size() * 3;
+    CBRA (normalsMatch);
 
     // One color per material, seeded white so a material no triangle
     // references still round-trips to the white the parser hands back for an
@@ -120,27 +132,59 @@ HRESULT MeshBlob::Write (const std::vector<ObjTriangle>  & triangles,
     }
 
     positions.reserve (triangles.size() * 3);
-    faces.reserve (triangles.size() * 4);
+    faces.reserve (triangles.size() * kFaceWords);
 
-    for (const ObjTriangle & tri : triangles)
+    for (size_t t = 0; t < triangles.size(); t++)
     {
-        for (const float * corner : { tri.p0, tri.p1, tri.p2 })
-        {
-            PositionKey   key   = KeyOf (corner);
-            auto          found = shared.find (key);
+        const ObjTriangle &   tri       = triangles[t];
+        const float *         corner[3] = { tri.p0, tri.p1, tri.p2 };
 
-            if (found == shared.end())
+        for (size_t c = 0; c < 3; c++)
+        {
+            VectorKey   key   = KeyOf (corner[c]);
+            auto        found = sharedPos.find (key);
+
+            if (found == sharedPos.end())
             {
                 uint32_t   index = (uint32_t) (positions.size() / 3);
 
-                positions.push_back (corner[0]);
-                positions.push_back (corner[1]);
-                positions.push_back (corner[2]);
+                positions.push_back (corner[c][0]);
+                positions.push_back (corner[c][1]);
+                positions.push_back (corner[c][2]);
 
-                found = shared.emplace (key, index).first;
+                found = sharedPos.emplace (key, index).first;
             }
 
             faces.push_back (found->second);
+        }
+
+        for (size_t c = 0; c < 3; c++)
+        {
+            uint32_t   index = 0;
+
+            if (haveNormals)
+            {
+                const float *   n     = normals[t * 3 + c].data();
+                VectorKey       key   = KeyOf (n);
+                auto            found = sharedNrm.find (key);
+
+                if (found == sharedNrm.end())
+                {
+                    index = (uint32_t) (normalTable.size() / 3);
+
+                    normalTable.push_back (n[0]);
+                    normalTable.push_back (n[1]);
+                    normalTable.push_back (n[2]);
+
+                    sharedNrm.emplace (key, index);
+                }
+                else
+                {
+                    index = found->second;
+                }
+            }
+
+            faces.push_back (index);
         }
 
         faces.push_back ((tri.material < 0) ? kNoMaterial : (uint32_t) tri.material);
@@ -162,10 +206,11 @@ HRESULT MeshBlob::Write (const std::vector<ObjTriangle>  & triangles,
     // anything is one this format cannot describe. Nothing comes close, the
     // largest shipping mesh being under a million faces, but truncating
     // silently would corrupt the blob where refusing it says so.
-    fits = materialNames.size()   <= UINT32_MAX
-        && (positions.size() / 3) <= UINT32_MAX
-        && triangles.size()       <= UINT32_MAX
-        && names.size()           <= UINT32_MAX;
+    fits = materialNames.size()     <= UINT32_MAX
+        && (positions.size() / 3)   <= UINT32_MAX
+        && (normalTable.size() / 3) <= UINT32_MAX
+        && triangles.size()         <= UINT32_MAX
+        && names.size()             <= UINT32_MAX;
     CBRA (fits);
 
     memcpy (header.magic, kMagic, sizeof (header.magic));
@@ -175,19 +220,21 @@ HRESULT MeshBlob::Write (const std::vector<ObjTriangle>  & triangles,
     header.positionCount = (uint32_t) (positions.size() / 3);
     header.faceCount     = (uint32_t) triangles.size();
     header.nameBytes     = (uint32_t) names.size();
-    header.reserved      = 0;
+    header.normalCount   = (uint32_t) (normalTable.size() / 3);
 
     outBytes.reserve (sizeof (header)
-                      + colors.size()    * sizeof (float)
+                      + colors.size()      * sizeof (float)
                       + names.size()
-                      + positions.size() * sizeof (float)
-                      + faces.size()     * sizeof (uint32_t));
+                      + positions.size()   * sizeof (float)
+                      + normalTable.size() * sizeof (float)
+                      + faces.size()       * sizeof (uint32_t));
 
-    AppendBytes (outBytes, &header,          sizeof (header));
-    AppendBytes (outBytes, colors.data(),    colors.size()    * sizeof (float));
-    AppendBytes (outBytes, names.data(),     names.size());
-    AppendBytes (outBytes, positions.data(), positions.size() * sizeof (float));
-    AppendBytes (outBytes, faces.data(),     faces.size()     * sizeof (uint32_t));
+    AppendBytes (outBytes, &header,            sizeof (header));
+    AppendBytes (outBytes, colors.data(),      colors.size()      * sizeof (float));
+    AppendBytes (outBytes, names.data(),       names.size());
+    AppendBytes (outBytes, positions.data(),   positions.size()   * sizeof (float));
+    AppendBytes (outBytes, normalTable.data(), normalTable.size() * sizeof (float));
+    AppendBytes (outBytes, faces.data(),       faces.size()       * sizeof (uint32_t));
 
 Error:
     return hr;
@@ -202,40 +249,44 @@ Error:
 //  MeshBlob::Read
 //
 //  Rebuilds the parser's own output: a flat triangle list with each
-//  triangle's color already resolved, and the material name table those
-//  triangles index.
+//  triangle's color already resolved, the material name table those triangles
+//  index, and the per-corner normals the baker averaged.
 //
 //  The length check comes first and covers the whole body, so the expansion
 //  loop can index the arrays without re-testing a bound the header already
-//  settled. Each face's three vertex indices are still checked, because those
-//  are data rather than a size, and one of them past the end would read off a
-//  position array whose length no header field constrains.
+//  settled. Each face's indices are still checked, because those are data
+//  rather than a size, and one past the end would read off an array whose
+//  length no header field constrains.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MeshBlob::Read (std::span<const uint8_t>    bytes,
-                        std::vector<ObjTriangle>  & outTriangles,
-                        std::vector<std::string>  & outMaterialNames)
+HRESULT MeshBlob::Read (std::span<const uint8_t>            bytes,
+                        std::vector<ObjTriangle>          & outTriangles,
+                        std::vector<std::string>          & outMaterialNames,
+                        std::vector<std::array<float, 3>> & outNormals)
 {
-    HRESULT                 hr         = S_OK;
-    Header                  header     = {};
+    HRESULT                 hr          = S_OK;
+    Header                  header      = {};
     std::vector<float>      colors;
     std::vector<float>      positions;
+    std::vector<float>      normalTable;
     std::vector<uint32_t>   faces;
-    size_t                  offset     = 0;
-    size_t                  colorBytes = 0;
-    size_t                  posBytes   = 0;
-    size_t                  faceBytes  = 0;
-    bool                    headerFits = false;
-    bool                    recognized = false;
-    bool                    bodyFits   = false;
-    bool                    terminated = false;
-    bool                    indexOk    = false;
+    size_t                  offset      = 0;
+    size_t                  colorBytes  = 0;
+    size_t                  posBytes    = 0;
+    size_t                  normalBytes = 0;
+    size_t                  faceBytes   = 0;
+    bool                    headerFits  = false;
+    bool                    recognized  = false;
+    bool                    bodyFits    = false;
+    bool                    terminated  = false;
+    bool                    indexOk     = false;
 
 
 
     outTriangles.clear();
     outMaterialNames.clear();
+    outNormals.clear();
 
     headerFits = bytes.size() >= sizeof (Header);
     CBRA (headerFits);
@@ -246,12 +297,13 @@ HRESULT MeshBlob::Read (std::span<const uint8_t>    bytes,
               && header.version == kVersion;
     CBRA (recognized);
 
-    colorBytes = (size_t) header.materialCount * 3 * sizeof (float);
-    posBytes   = (size_t) header.positionCount * 3 * sizeof (float);
-    faceBytes  = (size_t) header.faceCount     * 4 * sizeof (uint32_t);
+    colorBytes  = (size_t) header.materialCount * 3 * sizeof (float);
+    posBytes    = (size_t) header.positionCount * 3 * sizeof (float);
+    normalBytes = (size_t) header.normalCount   * 3 * sizeof (float);
+    faceBytes   = (size_t) header.faceCount * kFaceWords * sizeof (uint32_t);
 
     bodyFits = bytes.size() == sizeof (Header) + colorBytes + header.nameBytes
-                             + posBytes + faceBytes;
+                             + posBytes + normalBytes + faceBytes;
     CBRA (bodyFits);
 
     offset = sizeof (Header);
@@ -265,9 +317,9 @@ HRESULT MeshBlob::Read (std::span<const uint8_t>    bytes,
     // header and body disagree.
     for (uint32_t i = 0; i < header.materialCount; i++)
     {
-        const char  * first  = reinterpret_cast<const char *> (bytes.data() + offset);
-        size_t        room   = sizeof (Header) + colorBytes + header.nameBytes - offset;
-        size_t        length = strnlen (first, room);
+        const char *   first  = reinterpret_cast<const char *> (bytes.data() + offset);
+        size_t         room   = sizeof (Header) + colorBytes + header.nameBytes - offset;
+        size_t         length = strnlen (first, room);
 
         terminated = length < room;
         CBRA (terminated);
@@ -282,25 +334,49 @@ HRESULT MeshBlob::Read (std::span<const uint8_t>    bytes,
     memcpy (positions.data(), bytes.data() + offset, posBytes);
     offset += posBytes;
 
-    faces.resize ((size_t) header.faceCount * 4);
+    normalTable.resize ((size_t) header.normalCount * 3);
+    memcpy (normalTable.data(), bytes.data() + offset, normalBytes);
+    offset += normalBytes;
+
+    faces.resize ((size_t) header.faceCount * kFaceWords);
     memcpy (faces.data(), bytes.data() + offset, faceBytes);
 
     outTriangles.resize (header.faceCount);
 
+    if (header.normalCount > 0)
+    {
+        outNormals.resize ((size_t) header.faceCount * 3);
+    }
+
     for (size_t f = 0; f < header.faceCount; f++)
     {
-        ObjTriangle &   tri       = outTriangles[f];
-        uint32_t        material  = faces[f * 4 + 3];
-        float *         corner[3] = { tri.p0, tri.p1, tri.p2 };
+        ObjTriangle     & tri       = outTriangles[f];
+        const uint32_t  * face      = faces.data() + f * kFaceWords;
+        uint32_t          material  = face[6];
+        float           * corner[3] = { tri.p0, tri.p1, tri.p2 };
 
         for (size_t c = 0; c < 3; c++)
         {
-            uint32_t   index = faces[f * 4 + c];
+            uint32_t   index = face[c];
 
             indexOk = index < header.positionCount;
             CBRA (indexOk);
 
             memcpy (corner[c], positions.data() + (size_t) index * 3, sizeof (float) * 3);
+        }
+
+        if (header.normalCount > 0)
+        {
+            for (size_t c = 0; c < 3; c++)
+            {
+                uint32_t   index = face[3 + c];
+
+                indexOk = index < header.normalCount;
+                CBRA (indexOk);
+
+                memcpy (outNormals[f * 3 + c].data(),
+                        normalTable.data() + (size_t) index * 3, sizeof (float) * 3);
+            }
         }
 
         if (material == kNoMaterial)
@@ -324,7 +400,31 @@ Error:
     {
         outTriangles.clear();
         outMaterialNames.clear();
+        outNormals.clear();
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeshBlob::Read
+//
+//  The shape-only overload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MeshBlob::Read (std::span<const uint8_t>     bytes,
+                        std::vector<ObjTriangle>   & outTriangles,
+                        std::vector<std::string>   & outMaterialNames)
+{
+    std::vector<std::array<float, 3>>   ignored;
+
+
+
+    return Read (bytes, outTriangles, outMaterialNames, ignored);
 }
