@@ -452,3 +452,35 @@ HRESULT BlankDiskBuilder::WrapInContainer (
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlankDiskBuilder::GetContentsCaption
+//
+//  What a chooser calls a filling.
+//
+//  NO DEFAULT ARM. Every enumerator is named, and one added later fails to
+//  compile here rather than being quietly labeled DOS 3.3 -- which is what the
+//  version of this in the create dialog did, where no test could see it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlankDiskBuilder::GetContentsCaption (BlankDiskContents contents)
+{
+    std::wstring  caption;
+
+
+
+    switch (contents)
+    {
+        case BlankDiskContents::Unformatted: caption = L"Unformatted";   break;
+        case BlankDiskContents::Dos33:       caption = L"DOS 3.3";       break;
+        case BlankDiskContents::ProDos:      caption = L"ProDOS 1.1.1";  break;
+    }
+
+    return caption;
+}

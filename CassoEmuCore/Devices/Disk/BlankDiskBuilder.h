@@ -116,6 +116,13 @@ public:
     //  offers exactly these, so an illegal pairing is never listed.
     static std::vector<DiskFormat>  ContainersFor (BlankDiskContents contents);
 
+    //  How a filling is named in a chooser: "DOS 3.3", "ProDOS 1.1.1".
+    //  IN CORE because it is a decision, however short. The create dialog held
+    //  it as a switch with a default arm answering "DOS 3.3", so a filling
+    //  added without an arm was mislabeled rather than caught -- and nothing
+    //  in the test assembly could reach it, the dialog being in the exe.
+    static std::wstring             GetContentsCaption (BlankDiskContents contents);
+
     //  Why the format / contents / bootable / volume-name combination
     //  cannot be written, or Ok. Does not assert: user input reaches it.
     static BlankDiskVerdict  CheckSpec (const BlankDiskSpec & spec);

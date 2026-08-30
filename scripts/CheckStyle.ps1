@@ -103,6 +103,30 @@ $checks = @(
         Exclude = @()
     },
     @{
+        # CS0021: a lookup table in an executable. A switch arm returning a
+        # string literal is a mapping -- format to name, filling to caption --
+        # and a mapping is a decision, which Principle VI says lives in a core
+        # library where the UnitTest project can reach it.
+        #
+        # THIS IS NOT PEDANTRY ABOUT WHERE FILES GO. Both instances that
+        # prompted the rule ended in a default arm answering with another
+        # entry's name, so a value added without an arm was silently rendered
+        # as something else rather than refused -- and being in the exe, which
+        # the test assembly does not link, nothing could reach them to notice.
+        # One shipped a create dialog that would have named a nibble image
+        # ".woz".
+        #
+        # Narrow on purpose: only `case X::Y: return "..."`. A switch that
+        # dispatches, computes, or returns non-literals is untouched, so the
+        # check stays quiet enough to survive.
+        Id      = 'CS0021'
+        Globs   = @('*.cpp')
+        Include = @('Casso/', 'CassoCli/')
+        Pattern = 'case [A-Za-z_][A-Za-z0-9_]*::[A-Za-z0-9_]+: *return +L?"'
+        Message = 'lookup table in an executable -- move the mapping into a core library where a test can reach it'
+        Exclude = @()
+    },
+    @{
         Id      = 'CS0002'
         Globs   = @('*.cpp', '*.h')
         Pattern = '^\s*namespace\s*\{\s*$|^\s*namespace\s*$'
@@ -232,6 +256,32 @@ $checks = @(
 )
 
 $violations = @()
+
+
+####################################################################
+#
+#  Test-Included -- does this path fall under a check's own scope?
+#
+#  PREFIX matching, where Test-Excluded matches a suffix. The exclusions name
+#  whole files, so a suffix is right for them; an inclusion names a project
+#  directory, and `Casso/` is never the end of a path. Prefix matching also
+#  keeps `Casso/` off `CassoCore/` and off the tests in `UnitTest/Casso/`.
+#
+####################################################################
+
+function Test-Included
+{
+    param([string]$Path, [string[]]$Include)
+
+    $normalized = $Path -replace '\\', '/'
+
+    foreach ($i in $Include)
+    {
+        if ($normalized -like "$i*") { return $true }
+    }
+
+    return $false
+}
 
 
 ####################################################################
@@ -373,6 +423,19 @@ function Get-ApplicableChecks
     {
         if (-not (Test-GlobMatch -Path $Path -Globs $check.Globs)) { continue }
         if (Test-Excluded -Path $Path -Exclude $check.Exclude)     { continue }
+
+        # Include is the inverse of Exclude: when present, the check applies
+        # ONLY under those paths. A rule about where code lives needs it.
+        #
+        # NOT Test-Excluded WITH THE ARGUMENT FLIPPED. That matches a suffix,
+        # which is right for the full paths the exclusions name and never true
+        # of a directory prefix -- reusing it made this rule skip every file
+        # and report a clean tree while checking nothing.
+        if ($check.ContainsKey('Include') -and $check.Include.Count -gt 0 -and
+            -not (Test-Included -Path $Path -Include $check.Include))
+        {
+            continue
+        }
 
         $applicable += $check
     }

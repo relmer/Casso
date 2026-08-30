@@ -542,7 +542,8 @@ Two specific practices fall out of this:
 above that reduce to a mechanical test: empty-paren spacing, anonymous
 namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 `goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
-messages, the banner/blank-line structure rules (CS0014–CS0017), and
+messages, lookup tables in an executable (CS0021), the banner/blank-line
+structure rules (CS0014–CS0017), and
 declaration-run column alignment (CS0019, flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
 have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
@@ -557,6 +558,25 @@ function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
 no path, or a failed read; `TryExtractFirstHDropPath` says which. When
 converting a function away from `HRESULT`, rename it to suit. Not gated yet;
 see `docs/coding-standards-backlog.md`.
+
+**Lookup tables in an executable (CS0021).** A `case X::Y: return "..."` under
+`Casso/` or `CassoCli/` is a mapping, and a mapping is a decision, which
+Principle VI puts in a core library where `UnitTest` can reach it. The rule is
+narrow on purpose: only a switch arm returning a string literal, so dispatching
+and computing switches are untouched.
+
+It exists because the failure is not cosmetic. `CreateDiskDialog` held three of
+these -- format to extension, format to caption, filling to caption -- and each
+ended in a `default:` arm answering with another entry's name, so a value added
+without an arm was silently rendered as something else rather than refused. One
+of them would have shipped a create dialog naming a nibble image `.woz`. Living
+in the exe, which the test assembly does not link, nothing could reach them to
+notice; the fix was to move them, after which the tests wrote themselves.
+
+`Include` in the check table is the inverse of `Exclude` and matches a path
+PREFIX, where `Exclude` matches a suffix. Do not reuse one for the other: the
+first version of CS0021 did, matched nothing, and reported a clean tree while
+checking no files at all.
 
 **`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
 approval. Returning it overloads the result with a second, private meaning (

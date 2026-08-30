@@ -86,9 +86,9 @@ void CreateDiskDialog::OnCreate()
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_formatDropdown.SetPopupHost (PopupHost());
-    m_formatDropdown.SetItems     ({ FormatCaption (BlankDiskContents::Dos33),
-                                     FormatCaption (BlankDiskContents::ProDos),
-                                     FormatCaption (BlankDiskContents::Unformatted) });
+    m_formatDropdown.SetItems     ({ BlankDiskBuilder::GetContentsCaption (BlankDiskContents::Dos33),
+                                     BlankDiskBuilder::GetContentsCaption (BlankDiskContents::ProDos),
+                                     BlankDiskBuilder::GetContentsCaption (BlankDiskContents::Unformatted) });
     m_formatDropdown.SetSelected  (0);
     m_formatDropdown.SetSelect    ([this] (int index) { OnFormatChanged (index); });
 
@@ -217,77 +217,6 @@ void CreateDiskDialog::RefreshFromModel()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormatExtension
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CreateDiskDialog::FormatExtension (DiskFormat format)
-{
-    std::string  narrow = MountDiagnosis::GetPrimaryExtension (format);
-
-
-
-    return std::wstring (narrow.begin(), narrow.end());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ImageTypeCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
-{
-    std::wstring  caption = FormatExtension (imageType);
-
-
-
-    //  The extension without its dot, in capitals: ".dsk" reads as "DSK" in a
-    //  dropdown. Derived rather than listed, so the caption cannot name a
-    //  container something other than what the file will be called.
-    if (!caption.empty() && caption[0] == L'.')
-    {
-        caption.erase (0, 1);
-    }
-
-    for (wchar_t & letter : caption)
-    {
-        letter = (wchar_t) towupper (letter);
-    }
-
-    return caption;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CreateDiskDialog::FormatCaption (BlankDiskContents contents)
-{
-    switch (contents)
-    {
-        case BlankDiskContents::ProDos:      return L"ProDOS 1.1.1";
-        case BlankDiskContents::Unformatted: return L"Unformatted";
-        default:                             return L"DOS 3.3";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ReplaceExtension
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,7 +258,7 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
     for (i = 0; i < m_imageTypeChoices.size(); i++)
     {
-        captions.push_back (ImageTypeCaption (m_imageTypeChoices[i]));
+        captions.push_back (MountDiagnosis::GetContainerCaption (m_imageTypeChoices[i]));
 
         if (m_imageTypeChoices[i] == m_imageType)
         {
@@ -363,12 +292,14 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 void CreateDiskDialog::ApplyImageTypeExtension()
 {
-    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(),
-                                          FormatExtension (m_imageType).c_str()));
+    m_nameInput.SetText (ReplaceExtension (
+        m_nameInput.Text(),
+        MountDiagnosis::GetPrimaryExtensionText (m_imageType).c_str()));
 
     if (m_model != nullptr)
     {
-        m_model->SetExtensionFilter (FormatExtension (m_imageType).c_str());
+        m_model->SetExtensionFilter (
+            MountDiagnosis::GetPrimaryExtensionText (m_imageType).c_str());
         RefreshListing();
     }
 }
@@ -438,7 +369,7 @@ void CreateDiskDialog::UpdateBootableRow()
 {
     bool          formatted = (m_contents != BlankDiskContents::Unformatted);
     bool          available = false;
-    std::wstring  os        = FormatCaption (m_contents);
+    std::wstring  os        = BlankDiskBuilder::GetContentsCaption (m_contents);
 
 
 
@@ -631,7 +562,7 @@ void CreateDiskDialog::OnCreateClicked()
 
     // The file's extension always matches the chosen format.
     {
-        std::wstring    extText = FormatExtension (m_imageType);
+        std::wstring    extText = MountDiagnosis::GetPrimaryExtensionText (m_imageType);
         const wchar_t * ext     = extText.c_str();
         size_t          extLen  = wcslen (ext);
         bool            matches = name.size() >= extLen;

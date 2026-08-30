@@ -111,4 +111,11 @@ public:
     //  nibble images are both .nib and .nb2 -- and this returns the
     //  representative name rather than the file's own.
     static const char *  GetPrimaryExtension (DiskFormat fmt);
+
+    //  The same answer for an interface: the extension as wide text, and the
+    //  container's name for a chooser -- ".dsk" and "DSK". Both derive from
+    //  the one list above, so a surface cannot name a container something the
+    //  rest of Casso does not call it.
+    static std::wstring  GetPrimaryExtensionText (DiskFormat fmt);
+    static std::wstring  GetContainerCaption     (DiskFormat fmt);
 };

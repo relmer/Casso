@@ -188,3 +188,67 @@ const char * MountDiagnosis::GetPrimaryExtension (DiskFormat fmt)
 
     return "disk";
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::GetPrimaryExtensionText
+//
+//  The extension as wide text, for the interfaces that speak it.
+//
+//  IN CORE BECAUSE THE ANSWER IS, not because the conversion is interesting.
+//  A dialog that widens this itself is a dialog holding a decision, and the
+//  create dialog held two of them until recently -- its own switch over the
+//  format, ending in a default arm that answered with the WOZ name, so a
+//  container added without an arm was presented as a WOZ rather than refused.
+//  Being in the executable, no test could reach it to notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MountDiagnosis::GetPrimaryExtensionText (DiskFormat fmt)
+{
+    std::string  narrow = GetPrimaryExtension (fmt);
+
+
+
+    return std::wstring (narrow.begin(), narrow.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::GetContainerCaption
+//
+//  How a chooser names the container: ".dsk" reads as "DSK" in a dropdown.
+//
+//  DERIVED FROM THE EXTENSION RATHER THAN LISTED, so the caption and the name
+//  the file will actually be given cannot disagree. A second list here would
+//  be a third place to add a container to, and the first two have already
+//  drifted apart once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MountDiagnosis::GetContainerCaption (DiskFormat fmt)
+{
+    std::wstring  caption = GetPrimaryExtensionText (fmt);
+
+
+
+    if (!caption.empty() && caption[0] == L'.')
+    {
+        caption.erase (0, 1);
+    }
+
+    for (wchar_t & letter : caption)
+    {
+        letter = (wchar_t) towupper (letter);
+    }
+
+    return caption;
+}
