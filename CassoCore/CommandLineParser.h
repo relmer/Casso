@@ -518,7 +518,7 @@ private:
     //  the supplied table is rewritten -- a ProDOS path starts with a slash and
     //  must stay an operand.
     static std::string  GetCanonicalLongFlag (const std::string             & arg,
-                                           std::span<const char * const>   names);
+                                              std::span<const char * const>   names);
 
     static std::string  GetCanonicalDiskFlag (const std::string & arg);
     static void  ParseAs65Flags      (int argc, char * argv[], int startIndex, CommandLineOptions & options);

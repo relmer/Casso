@@ -10333,7 +10333,7 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
     // Client size for the minimum center: the chrome-band dock adds the
     // live title / nav / drive-bar insets around the requested viewport.
     minClient = GetClientSizeForCenterPx (m_scaler.ToPx (s_kMinCenterWidthDp),
-                                       m_scaler.ToPx (s_kMinCenterHeightDp));
+                                          m_scaler.ToPx (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
     // on-strip. The width is physical client px, the same space as minClient.

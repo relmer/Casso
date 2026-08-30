@@ -64,7 +64,7 @@ public:
                     std::span<IDxuiControl * const>       children) override;
 
     SIZE  GetContainerSizeForFill (SIZE                                          desiredFillDip,
-                                std::span<IDxuiControl * const>               nonFillChildren) const;
+                                   std::span<IDxuiControl * const>               nonFillChildren) const;
 
 private:
     DxuiDock  LookupDock (const IDxuiControl * child) const;

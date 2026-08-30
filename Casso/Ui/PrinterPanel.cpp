@@ -946,7 +946,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         revealBehind = PrinterPreviewModel::IsLiveBandOutsideSpan (platenRow, span.firstRow, span.lastRow);
 
         moved       = PrinterPreviewModel::HasSpanMoved (span.firstRow, span.lastRow,
-                                                      m_renderedSpan.firstRow, m_renderedSpan.lastRow);
+                                                         m_renderedSpan.firstRow, m_renderedSpan.lastRow);
         revealMoved = PrinterPreviewModel::RevealMoved (revealRow, revealCol,
                                                         m_renderedRevealRow, m_renderedRevealCol);
 

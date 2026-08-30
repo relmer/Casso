@@ -805,7 +805,7 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         int   edge    = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
         RECT  r;
         int   reserve = scaler.ToPx (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
-                                   + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
+                                     + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
 
         r.left   = boundsPx.left   + edge;
         r.top    = boundsPx.bottom - rowH;
