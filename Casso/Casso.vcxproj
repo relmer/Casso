@@ -410,15 +410,6 @@
     <ResourceCompile Include="Casso.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shaders\CRT\scanlines.hlsl" />
-    <None Include="Shaders\CRT\bloom_h.hlsl" />
-    <None Include="Shaders\CRT\bloom_v.hlsl" />
-    <None Include="Shaders\CRT\bloom_composite.hlsl" />
-    <None Include="Shaders\CRT\color_bleed.hlsl" />
-    <None Include="Shaders\CRT\brightness.hlsl" />
-    <None Include="Shaders\CRT\persistence.hlsl" />
-    <None Include="Shaders\CRT\gamma.hlsl" />
-    <None Include="Shaders\CRT\copy.hlsl" />
     <None Include="Shaders\CRT\LICENSES.md" />
     <None Include="Shaders\Settings\gaussian_h.hlsl" />
     <None Include="Shaders\Settings\gaussian_v.hlsl" />
@@ -474,6 +465,7 @@
     <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
     <Touch Files="Casso.rc" />
   </Target>
+  <Import Project="Shaders\Shaders.targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

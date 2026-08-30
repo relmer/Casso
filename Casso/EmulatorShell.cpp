@@ -2563,16 +2563,30 @@ HRESULT EmulatorShell::InitializeUiShell()
     hr = m_uiShell.Initialize (&m_d3dRenderer);
     CHR (hr);
 
+    StartupTrace::Stamp ("      UiShell::Initialize (painter + text renderer)");
+
     hr = WireUiShellChromeAndThemes();
     CHR (hr);
 
+    StartupTrace::Stamp ("      WireUiShellChromeAndThemes (ThemeManager::Discover)");
+
     RestoreInputAndColorPrefs();
     RecordActiveMachineSelection();
+
+    StartupTrace::Stamp ("      RestoreInputAndColorPrefs + RecordActiveMachineSelection");
+
     SubscribeAndActivateTheme();
+
+    StartupTrace::Stamp ("      SubscribeAndActivateTheme");
+
     ApplyPersistedChromePrefs();
+
+    StartupTrace::Stamp ("      ApplyPersistedChromePrefs");
 
     hr = FinishUiShellLayout();
     CHR (hr);
+
+    StartupTrace::Stamp ("      FinishUiShellLayout");
 
 Error:
     return hr;

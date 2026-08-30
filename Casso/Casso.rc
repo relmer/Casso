@@ -73,15 +73,6 @@ IDR_SOUND_PAPER_TEAR_4            RCDATA "..\\Assets\\ImageWriter II Sounds\\pap
 IDR_SOUND_PAPER_TEAR_5            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_05.mp3"
 
 // Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
-IDR_HLSL_BRIGHTNESS      RCDATA "Shaders\\CRT\\brightness.hlsl"
-IDR_HLSL_SCANLINES       RCDATA "Shaders\\CRT\\scanlines.hlsl"
-IDR_HLSL_BLOOM_H         RCDATA "Shaders\\CRT\\bloom_h.hlsl"
-IDR_HLSL_BLOOM_V         RCDATA "Shaders\\CRT\\bloom_v.hlsl"
-IDR_HLSL_BLOOM_COMPOSITE RCDATA "Shaders\\CRT\\bloom_composite.hlsl"
-IDR_HLSL_COLOR_BLEED     RCDATA "Shaders\\CRT\\color_bleed.hlsl"
-IDR_HLSL_PERSISTENCE     RCDATA "Shaders\\CRT\\persistence.hlsl"
-IDR_HLSL_GAMMA           RCDATA "Shaders\\CRT\\gamma.hlsl"
-IDR_HLSL_COPY            RCDATA "Shaders\\CRT\\copy.hlsl"
 IDR_HLSL_SETTINGS_GAUSSIAN_H RCDATA "Shaders\\Settings\\gaussian_h.hlsl"
 IDR_HLSL_SETTINGS_GAUSSIAN_V RCDATA "Shaders\\Settings\\gaussian_v.hlsl"
 IDR_HLSL_SETTINGS_COMPOSE    RCDATA "Shaders\\Settings\\settings_compose.hlsl"

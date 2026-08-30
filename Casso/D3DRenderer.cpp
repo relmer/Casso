@@ -2,10 +2,14 @@
 
 #include "D3DRenderer.h"
 
+// The blit pair, compiled to bytecode by fxc at build time (see
+// Casso.vcxproj). The CRT chain shares this same vertex shader.
+#include "blit.vs.h"
+#include "blit.ps.h"
+
 #include "PerfStats.h"
 
 #pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dxguid.lib")
 
@@ -264,31 +268,8 @@ Error:
 HRESULT D3DRenderer::InitializeShaders()
 {
     HRESULT            hr     = S_OK;
-    ComPtr<ID3DBlob>   vsBlob;
-    ComPtr<ID3DBlob>   psBlob;
-    ComPtr<ID3DBlob>   errors;
 
 
-
-    static const char kVertexShaderSrc[] =
-        "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-        "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "VSOutput main (VSInput i)\n"
-        "{\n"
-        "    VSOutput o;\n"
-        "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-        "    o.uv  = i.uv;\n"
-        "    return o;\n"
-        "}\n";
-
-    static const char kPixelShaderSrc[] =
-        "Texture2D    tex : register(t0);\n"
-        "SamplerState sam : register(s0);\n"
-        "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "float4 main (PSInput i) : SV_TARGET\n"
-        "{\n"
-        "    return tex.Sample (sam, i.uv);\n"
-        "}\n";
 
     D3D11_INPUT_ELEMENT_DESC layout[] =
     {
@@ -298,44 +279,15 @@ HRESULT D3DRenderer::InitializeShaders()
 
 
 
-    // Compile vertex shader
-    hr = D3DCompile (kVertexShaderSrc,
-                     sizeof (kVertexShaderSrc) - 1,
-                     "VS",
-                     nullptr,
-                     nullptr,
-                     "main",
-                     "vs_4_0",
-                     0,
-                     0,
-                     &vsBlob,
-                     &errors);
-    CHRA (hr);
-
-    // Compile pixel shader
-    hr = D3DCompile (kPixelShaderSrc,
-                     sizeof (kPixelShaderSrc) - 1,
-                     "PS",
-                     nullptr,
-                     nullptr,
-                     "main",
-                     "ps_4_0",
-                     0,
-                     0,
-                     &psBlob,
-                     &errors);
-    CHRA (hr);
-
-    // Create vertex shader
-    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(),
-                                       vsBlob->GetBufferSize(),
+    // The shaders arrive as bytecode; nothing compiles HLSL here any more.
+    hr = m_device->CreateVertexShader (g_BlitVs,
+                                       sizeof (g_BlitVs),
                                        nullptr,
                                        &m_vertexShader);
     CHRA (hr);
 
-    // Create pixel shader
-    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer(),
-                                      psBlob->GetBufferSize(),
+    hr = m_device->CreatePixelShader (g_BlitPs,
+                                      sizeof (g_BlitPs),
                                       nullptr,
                                       &m_pixelShader);
     CHRA (hr);
@@ -343,8 +295,7 @@ HRESULT D3DRenderer::InitializeShaders()
     // Create input layout
     hr = m_device->CreateInputLayout (layout,
                                       2,
-                                      vsBlob->GetBufferPointer(),
-                                      vsBlob->GetBufferSize(),
+                                      g_BlitVs, sizeof (g_BlitVs),
                                       &m_inputLayout);
     CHRA (hr);
 

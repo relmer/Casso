@@ -646,6 +646,7 @@
       <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
+  <Import Project="..\Casso\Shaders\Shaders.targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
