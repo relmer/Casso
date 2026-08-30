@@ -206,6 +206,38 @@ void DeskScene::BuildDerivedGeometry()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::ReportGeometryBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::ReportGeometryBytes() const
+{
+    const size_t   kVertex = sizeof (Dxui3DRenderer::Vertex);
+    long long      derived = 0;
+
+
+
+    StartupTrace::Count ("monitor opaque verts (CPU)", (long long) (m_monitor.OpaqueVerts().size() * kVertex));
+    StartupTrace::Count ("monitor tiltable verts",     (long long) (m_monitor.TiltableVerts().size() * kVertex));
+    StartupTrace::Count ("monitor glass + lamp verts", (long long) ((m_monitor.GlassVerts().size()
+                                                                    + m_monitor.LampVerts().size()) * kVertex));
+    StartupTrace::Count ("drive opaque verts (CPU)",   (long long) (m_drive.OpaqueVerts().size() * kVertex));
+    StartupTrace::Count ("drive door + lamp verts",    (long long) ((m_drive.DoorVerts().size()
+                                                                    + m_drive.LampVerts().size()) * kVertex));
+
+    derived = (long long) ((m_glassVerts.size() + m_pictureVerts.size() + m_pictureDepthVerts.size()
+                            + m_maskVerts.size() + m_sheenVerts.size() + m_monitorGlowVerts.size()
+                            + m_driveGlowVerts.size() + m_monitorShadowVerts.size()
+                            + m_driveShadowVerts.size()) * kVertex);
+
+    StartupTrace::Count ("derived scene verts (glow, shadow, glass)", derived);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::Metrics
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1168,7 +1200,7 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
 
         SceneCamera::Mul44 (comp.monitorWorld, m_lightVp[k], mvp);
 
-        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[0],
+        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
                                     m_monitor.OpaqueVerts().data(),
                                     m_monitor.OpaqueVerts().size(),
                                     m_geometryRev, mvp, false, viewport, true);
@@ -1177,7 +1209,7 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
         {
             SceneCamera::Mul44 (comp.driveWorld[drive], m_lightVp[k], mvp);
 
-            hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
+            hr = m_renderer.DrawStatic (m_driveOpaqueMesh,
                                         m_drive.OpaqueVerts().data(),
                                         m_drive.OpaqueVerts().size(),
                                         m_geometryRev, mvp, false, viewport, true);
@@ -1193,10 +1225,10 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
     // space the way the room lights are.
     {
         HRESULT  hrMonitorLamp = FillLampShadow (m_monitor, kLampSlotMonitor,
-                                                  m_monitorOpaqueMesh[0], m_geometryRev,
+                                                  m_monitorOpaqueMesh, m_geometryRev,
                                                   m_lampVp[0]);
         HRESULT  hrDriveLamp   = FillLampShadow (m_drive, kLampSlotDrive,
-                                                  m_driveOpaqueMesh[0], m_geometryRev,
+                                                  m_driveOpaqueMesh, m_geometryRev,
                                                   m_lampVp[1]);
 
         m_lampVpValid[0] = SUCCEEDED (hrMonitorLamp);
@@ -1241,7 +1273,7 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
         SetModelLighting (m_drive, comp.driveWorld[drive], m_driveActive[drive],
                           DriveGlowRgb (m_drive.Kind()));
 
-        hr = m_renderer.DrawStatic (m_driveOpaqueMesh[0],
+        hr = m_renderer.DrawStatic (m_driveOpaqueMesh,
                                     m_drive.OpaqueVerts().data(),
                                     m_drive.OpaqueVerts().size(),
                                     m_geometryRev, mvp, false, viewport, true);
@@ -1915,7 +1947,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
     SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
-    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[0],
+    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
                                 m_monitor.OpaqueVerts().data(),
                                 m_monitor.OpaqueVerts().size(),
                                 m_geometryRev, mvp, false, viewport, true);
@@ -2023,7 +2055,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
             SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
-            hr = m_renderer.DrawStatic (m_monitorOpaqueMesh[1],
+            hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
                                         m_monitor.OpaqueVerts().data(),
                                         m_monitor.OpaqueVerts().size(),
                                         m_geometryRev, caseMvp, false, viewport, true, false);

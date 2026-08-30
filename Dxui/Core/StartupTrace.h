@@ -26,6 +26,21 @@ namespace StartupTrace
         return s_marks;
     }
 
+    // Named byte counts, written after the timeline. Separate from Stamp
+    // because they answer "how much", not "when".
+    struct Note { const char * label; long long bytes; };
+
+    inline std::vector<Note> & Notes()
+    {
+        static std::vector<Note> s_notes;
+        return s_notes;
+    }
+
+    inline void Count (const char * label, long long bytes)
+    {
+        Notes().push_back (Note { label, bytes });
+    }
+
     inline void Stamp (const char * label)
     {
         LARGE_INTEGER now = {};
@@ -68,6 +83,17 @@ namespace StartupTrace
             fprintf (file, "%10.1f  %8.1f  %s\n", elapsed, delta, mark.label);
 
             prev = mark.qpc;
+        }
+
+        if (!Notes().empty())
+        {
+            fprintf (file, "\nbytes        MB  label\n");
+
+            for (const Note & note : Notes())
+            {
+                fprintf (file, "%12lld  %8.1f  %s\n", note.bytes,
+                         (double) note.bytes / (1024.0 * 1024.0), note.label);
+            }
         }
 
         fclose (file);

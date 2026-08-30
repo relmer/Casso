@@ -52,6 +52,7 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shcore.lib")
 
 // Embed Common Controls v6 dependency in the binary's activation
@@ -951,6 +952,47 @@ HRESULT EmulatorShell::Initialize (
     ApplyPersistedAudioPrefs();
 
     StartupTrace::Stamp ("  ApplyPersistedAudioPrefs");
+
+    // Memory accounting, written alongside the timeline. The desk scene is
+    // most of this process's footprint and the split between CPU heap and
+    // D3D is not guessable: on an integrated GPU there is no dedicated video
+    // memory, so D3D allocations land in system RAM and show up in the
+    // working set alongside everything else.
+    {
+        PROCESS_MEMORY_COUNTERS_EX   pmc = {};
+        ComPtr<IDXGIDevice>          dxgiDevice;
+        ComPtr<IDXGIAdapter>         adapter;
+        ComPtr<IDXGIAdapter3>        adapter3;
+
+        if (GetProcessMemoryInfo (GetCurrentProcess(),
+                                  reinterpret_cast<PROCESS_MEMORY_COUNTERS *> (&pmc),
+                                  sizeof (pmc)))
+        {
+            StartupTrace::Count ("process working set",  (long long) pmc.WorkingSetSize);
+            StartupTrace::Count ("process private bytes", (long long) pmc.PrivateUsage);
+        }
+
+        if (m_host != nullptr && m_host->GetDevice() != nullptr
+            && SUCCEEDED (m_host->GetDevice()->QueryInterface (IID_PPV_ARGS (&dxgiDevice)))
+            && SUCCEEDED (dxgiDevice->GetAdapter (adapter.GetAddressOf()))
+            && SUCCEEDED (adapter.As (&adapter3)))
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO   local    = {};
+            DXGI_QUERY_VIDEO_MEMORY_INFO   nonLocal = {};
+
+            if (SUCCEEDED (adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local)))
+            {
+                StartupTrace::Count ("D3D local segment usage", (long long) local.CurrentUsage);
+            }
+
+            if (SUCCEEDED (adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocal)))
+            {
+                StartupTrace::Count ("D3D non-local segment usage", (long long) nonLocal.CurrentUsage);
+            }
+        }
+
+        m_deskScene.ReportGeometryBytes();
+    }
 
 Error:
     return hr;

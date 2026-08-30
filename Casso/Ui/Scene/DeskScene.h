@@ -59,6 +59,11 @@ public:
 
     const DeskSceneModel &  MonitorModel () const { return m_monitor; }
 
+    // Byte counts of every CPU-side vertex array the scene holds, written
+    // into the startup trace so the working set can be accounted for
+    // rather than estimated.
+    void  ReportGeometryBytes () const;
+
     // THE BEZEL'S TILT, in radians, positive tipping the top back.
     //
     // Carried as a transform rather than baked into the vertices, which is
@@ -564,8 +569,15 @@ private:
     // it changes costs nothing measurable -- and it makes the failure mode
     // impossible to hit by forgetting a per-array bump. Every rebuild path
     // ends in TouchGeometry().
-    Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh[2];   // by lamp state
-    Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh[2];     // by activity
+    // ONE BUFFER EACH. These were arrays of two, indexed "by lamp state" and
+    // "by activity", from when those states were baked into the vertices.
+    // They travel as shader constants now (SetModelLighting), so both slots
+    // held identical geometry: every draw passed the same array and the same
+    // revision, and the drive's second slot was never drawn at all. The
+    // monitor alone is 178 MB of vertices, so the spare copy was 178 MB of
+    // memory holding a duplicate.
+    Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
     Dxui3DRenderer::StaticMesh            m_labelMesh[2];
     Dxui3DRenderer::StaticMesh            m_monitorTiltMesh;
