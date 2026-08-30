@@ -6,10 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.21.0]: The one with nibble support
 
 ### Added
 - **Nibble disk images (`.nib`, `.nb2`) are supported.**
+- **The Harte vectors now check instruction timing, not just results.** The
+  packed fixtures had discarded the per-cycle trace, so no depth of vectors
+  could catch a timing error. It found three timing bugs on its first run.
+- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
+  illegal NMOS opcodes had no vectors at all, so their tests loaded nothing
+  and passed. All 79 now run at full depth and came out clean.
+- **An offline cycle reference at `docs/cycle-reference.md`.** Every opcode's
+  mnemonic, addressing mode, length, and base cycle count for the 6502 and
+  65C02, generated from the emulator's own instruction tables.
 
 ### Changed
 - **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
@@ -27,17 +36,6 @@ Entries before versioning was introduced use dates only.
 - **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization; `NOOPT` and `-n`
   disable it.** A backward, in-range `JMP` assembles to two bytes instead of
   three, so every label below it moves.
-
-### Added
-- **The Harte vectors now check instruction timing, not just results.** The
-  packed fixtures had discarded the per-cycle trace, so no depth of vectors
-  could catch a timing error. It found three timing bugs on its first run.
-- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
-  illegal NMOS opcodes had no vectors at all, so their tests loaded nothing
-  and passed. All 79 now run at full depth and came out clean.
-- **An offline cycle reference at `docs/cycle-reference.md`.** Every opcode's
-  mnemonic, addressing mode, length, and base cycle count for the 6502 and
-  65C02, generated from the emulator's own instruction tables.
 
 ### Removed
 - **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
