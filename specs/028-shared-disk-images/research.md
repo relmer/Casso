@@ -73,8 +73,11 @@ the obvious route and the plan should try that before adding a second scheme.
 **Read.** No `ReadDirectoryChangesW`, `FindFirstChangeNotification` or
 equivalent appears in any source file.
 
-**Decision**: a new `IImageWatcher` seam in core with a `Win32ImageWatcher`
-shim in the shell, mirroring `IDiskFileIo` / `Win32DiskFileIo` exactly.
+**Decision**: a new `IImageWatcher` seam in core, AND its `Win32ImageWatcher`
+implementation in core too, mirroring `IDiskFileIo` / `Win32DiskFileIo` exactly
+-- that shim lives in `CassoEmuCore/Devices/Disk/`, beside the store it serves, and not in an executable. An earlier
+draft of this finding said "shim in the shell", which is the platform-boundary
+reasoning the constitution deletes.
 **Rationale**: Constitution Principle VI. A watcher in an exe is a watcher no
 test can drive.
 **Alternatives**: polling `Stat` on a timer needs no new platform code, but
@@ -127,10 +130,16 @@ thread and can land mid-operation.
 ## Finding 7: the banner widget exists
 
 **Read.** `Dxui/Widgets/DxuiInfoBanner` exists and is used by
-`SalvageDialogContent`. FR-010's non-modal report with an action is what it is
-for.
+`SalvageDialogContent` and `PrintingPage`. **Its own header says "not
+clickable, no raised surface"**, so it cannot carry the restart action FR-010
+requires, and nothing in the tree hosts a non-modal banner over the running
+machine yet.
 
-**Decision**: reuse it. **Alternatives**: none needed.
+**Decision**: reuse the banner for the text, pair it with a `DxuiButtonRow` for
+the action, and host it where `SalvageDialogContent` is already driven from.
+**An earlier draft of this finding said the banner was "what it is for" and
+concluded no alternatives were needed. That was wrong** -- it was read as a
+name rather than as a widget with a documented limitation.
 
 ## Finding 8: a swap cannot be made safe, only chosen
 

@@ -46,7 +46,7 @@ emulator in the common case and a small number in the worst.
 |---|---|
 | I. Code Quality | New types follow the existing header-comment convention. The two defects fixed in Story 3 are named in comments as defects with their failure modes, per the tree's practice. |
 | II. Testing Discipline | Every decision is in `CassoEmuCore` behind seams. Watching, messaging and clock are all injected, so the whole feature is unit-testable without a file, a window or a wait. |
-| III. UX Consistency | The banner uses the existing `DxuiInfoBanner`. Diagnostics follow `DiskCommandResult::Failure`'s wording, which every disk refusal already uses. |
+| III. UX Consistency | The report reuses `DxuiInfoBanner` for its text, paired with a `DxuiButtonRow` for the restart action -- the banner's own header says it is "not clickable", so it cannot carry one alone. Diagnostics follow `DiskCommandResult::Failure`'s wording, which every disk refusal already uses. |
 | IV. Performance | The watcher is event-driven; no polling loop. The pick-up runs on the existing motor-spindown hook, which already exists for flushing and costs nothing. |
 | V. Simplicity | No lock layer, no sidecar files, no daemon. The atomic-rename guarantee already in the tree is relied on rather than duplicated. |
 | VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, and so are their Win32 implementations, beside `CassoEmuCore/Cli/Win32DiskFileIo.cpp`. Only the HWND and message-pump hookup stays in the exe. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
@@ -155,7 +155,7 @@ CassoEmuCore/Cli/
 ├── Win32IntentChannel.h/.cpp   # NEW: the send/receive shim. IN CORE, beside
 │                               # Win32DiskFileIo -- CassoCli.exe needs the
 │                               # sender and cannot link Casso.exe
-└── ImageArtifactSink.cpp       # states the intent after a successful commit
+└── ImageArtifactSink.cpp       # GATED ON SPEC 026 -- absent from this branch
     (DiskCommandRunner.cpp lives under Devices/Disk/, not here)
 
 CassoCore/
@@ -169,12 +169,12 @@ Casso/Shell/
 Casso/Config/
 └── GlobalUserPrefs.h/.cpp      # NEW: the fallback answer (FR-007)
 
-UnitTest/
+UnitTest/EmuTests/              # with every other disk test
 ├── ImageIdentityTests.cpp      # NEW
 ├── ExternalChangePolicyTests.cpp # NEW
 ├── SharedImageTests.cpp        # NEW: end to end through the seams
-├── EmuTests/FakeImageWatcher.h # NEW: drive a change without a file
-└── EmuTests/FakeIntentChannel.h# NEW: record an intent without a window
+├── FakeImageWatcher.h          # NEW: drive a change without a file
+└── FakeIntentChannel.h         # NEW: record an intent without a window
 ```
 
 **Structure Decision**: single project, matching the tree. Everything that
@@ -192,11 +192,14 @@ The stories are independently shippable and the order is the spec's priority.
   when a backup cannot be written. Delivers the guarantee that nothing is lost.
 - **Phase C (US1 completion)** — the CLI flag and the channel, so intent comes
   from the writer rather than the standing answer.
-- **Phase D (US3)** — the unique temporary name and the emulator-side stamp.
-  Independent of A–C and could go first; it is last because it is the narrowest.
+- **Phase D (US3)** — the unique temporary name. The emulator-side stamp moved
+  into the foundational phase, because the two stories before it cite it as the
+  guarantee they rest on. What is left is independent of A–C and could go first;
+  it is last because it is the narrowest.
 
-**Phase D is separable enough to land on its own.** Both halves are defects in
-today's behavior, not new capability, and neither needs the watcher.
+**Phase D is separable enough to land on its own.** The temp-name collision is a
+defect in today's behavior rather than new capability, and it needs neither the
+watcher nor the channel.
 
 ## Complexity Tracking
 

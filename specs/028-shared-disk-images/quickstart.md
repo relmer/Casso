@@ -22,9 +22,22 @@ scripts\RunTests.ps1 -Build
 
 Have a disk with something runnable on it, and a source that rebuilds it.
 
+**Most commands below are written with the assembler, and the assembler cannot
+target an image until spec 026 lands.** Until then, substitute `disk put`, which
+targets a mounted image today and exercises exactly the same machinery -- the
+watcher, the policy, the coalescing and the channel do not care which tool wrote
+the file. Where a scenario turns on assembler behavior specifically, it says so.
+
 ## Scenario 1 — The build loop (User Story 1, P1)
 
-Mount a disk, leave the machine at a prompt, and rebuild onto it:
+Mount a disk, leave the machine at a prompt, and write onto it. Buildable
+today:
+
+```bash
+CassoCli disk put work.dsk prog.bin --as PROG --on-change reload
+```
+
+Or, once spec 026 has landed, from an assembly directly:
 
 ```bash
 CassoCli as65 prog.a65 --disk work.dsk --as PROG --on-change reload
@@ -84,7 +97,7 @@ Make the directory read-only and force a conflict.
 
 **Expected**: the discarding action does not proceed, both versions stay live,
 and another location is offered. **Not** a report followed by the loss anyway —
-that is the one outcome FR-023 exists to prevent.
+that is the one outcome FR-024 exists to prevent.
 
 ## Scenario 3 — Two writers (User Story 3, P2)
 
