@@ -263,4 +263,69 @@ namespace PerOutputArtifactTests
             Assert::AreEqual  ((int) 0x6000, (int) second.startAddress, L"at its own origin");
         }
     };
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SingleOutputIsUnchangedTests
+    //
+    //  The ordinary assembly, which is nearly every assembly, seeing none of this.
+    //
+    //  THE HAZARD THE SPLIT INTRODUCES RUNS THIS WAY. Every other test here
+    //  checks that a source producing several outputs is divided correctly; the
+    //  regression to fear is the division reaching a source that produces one,
+    //  where there is nothing to divide and the shipped behavior is what callers
+    //  already depend on. A listing that lost a line, or gained a second file,
+    //  would be a change nobody asked for.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SingleOutputIsUnchangedTests)
+    {
+    public:
+
+        static constexpr const char *  kOneOutput = "CONST  EQU $12\n"
+                                                    "       ORG $300\n"
+                                                    "FIRST  LDA #CONST\n"
+                                                    "       RTS\n";
+
+
+
+        TEST_METHOD (TheWholeListingIsInTheOneOutput)
+        {
+            AssemblyResult  result = Fixture::Assemble (kOneOutput);
+            AssemblyResult  only   = ArtifactWriter::ForOutput (result, 0);
+
+            Assert::AreEqual ((size_t) 1, result.savePoints.size(), L"one output");
+            Assert::AreEqual (result.listing.size(), only.listing.size(),
+                              L"and it holds every line the assembly listed, none dropped");
+        }
+
+
+
+        TEST_METHOD (EverySymbolIsInTheOneOutput)
+        {
+            AssemblyResult  result = Fixture::Assemble (kOneOutput);
+            AssemblyResult  only   = ArtifactWriter::ForOutput (result, 0);
+
+            Assert::AreEqual (result.symbols.size(), only.symbols.size(),
+                              L"scoping cannot lose a symbol when there is nothing to scope against");
+        }
+
+
+
+        //  The bytes an existing caller reads are the ones they always read.
+        //  `bytes` spans the whole assembly and the single save point spans the
+        //  same thing, and a divergence between them would surface as an object
+        //  file that changed size for no stated reason.
+        TEST_METHOD (TheOnlySavePointHoldsWhatTheAssemblyHolds)
+        {
+            AssemblyResult  result = Fixture::Assemble (kOneOutput);
+
+            Assert::IsTrue (result.bytes == result.savePoints[0].bytes,
+                            L"the one output is the whole object");
+            Assert::AreEqual ((int) result.startAddress, (int) result.savePoints[0].loadAddress,
+                              L"at the address the assembly reports");
+        }
+    };
 }

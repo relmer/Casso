@@ -589,4 +589,233 @@ namespace AssemblerToDiskTests
                               L"the command line wins over the source's text type");
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  AllOrNothingTests
+    //
+    //  What the image holds after a write that did not finish.
+    //
+    //  THE GUARANTEE IS STRUCTURAL, WHICH IS EXACTLY WHY IT NEEDS ASSERTING.
+    //  The volume layer never mutates in place and the sink commits once at the
+    //  end, so nothing has to remember to undo itself -- and a reading of the
+    //  code was all the evidence there was. A commit moved inside the loop would
+    //  pass every other test in this file.
+    //
+    //  The failure is provoked with a name DOS 3.3 cannot store: it begins with
+    //  a digit, which the catalog encoding refuses. The assembly itself
+    //  succeeds, so the WRITE is what fails, which is the case the guarantee is
+    //  about. An assembly that failed would never reach the sink at all.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (AllOrNothingTests)
+    {
+    public:
+
+        static constexpr int     kVtocTrack          = 17;
+        static constexpr int     kCatalogFirstSector = 15;
+        static constexpr size_t  kEntryBase          = 0x0B;
+        static constexpr size_t  kEntOffType         = 0x02;
+        static constexpr Byte    kLockedBit          = 0x80;
+
+        //  An image already carrying one file, so a test can tell "nothing was
+        //  written" apart from "the volume was blank anyway".
+        static vector<Byte> ImageHoldingOneFile (const char * name, const std::string & source)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (source);
+            CommandLineOptions  options = Fixture::ImageOptions (name);
+
+            Fixture::SeedImage (io, Fixture::MakeDos33Image());
+
+            ImageArtifactSink  sink (io);
+
+            AssertSucceeded (sink.WriteBinary (result, options));
+
+            return io.files[kImagePath];
+        }
+
+
+
+        //  The bytes of one file as a guest loading it would read them.
+        static vector<Byte> ReadBack (const vector<Byte> & imageBytes, const char * name)
+        {
+            Dos33Volume  volume (imageBytes);
+            FilePayload  payload;
+
+            AssertSucceeded (volume.Read (FilePath::Parse (name), payload));
+
+            return payload.bytes;
+        }
+
+
+
+        //  Sets the lock bit on the first catalog entry, which is where a file
+        //  placed onto a freshly formatted volume lands.
+        static void LockFirstCatalogEntry (vector<Byte> & buffer)
+        {
+            size_t  at = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector)
+                       + kEntryBase + kEntOffType;
+
+            buffer[at] = (Byte) (buffer[at] | kLockedBit);
+        }
+
+
+
+        //  Replacement is the common path in a build loop, so it is worth
+        //  asserting that the second write leaves the second program and not
+        //  some mixture of the two.
+        TEST_METHOD (WritingOverAFileLeavesOnlyTheNewBytes)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      second  = Fixture::Assemble (" ORG $300\n LDA #$22\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG");
+            vector<Byte>        expect  = { 0xA9, 0x22, 0x60 };
+
+            Fixture::SeedImage (io, ImageHoldingOneFile ("PROG", " ORG $300\n LDA #$11\n RTS\n"));
+
+            ImageArtifactSink  sink (io);
+
+            AssertSucceeded (sink.WriteBinary (second, options));
+
+            Assert::IsTrue (expect == ReadBack (io.files[kImagePath], "PROG"),
+                            L"the file holds the second program, whole");
+        }
+
+
+
+        //  THE CENTRAL PROMISE. The first output is perfectly writable and the
+        //  second is not, so a sink that committed as it went would leave GOOD
+        //  on the volume and report failure.
+        TEST_METHOD (AFailureOnALaterOutputLeavesTheImageExactlyAsItWas)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV GOOD\n"
+                                                             " LDA #$22\n RTS\n SAV 9BAD\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("");
+            vector<Byte>        before  = ImageHoldingOneFile ("PROG", " ORG $300\n LDA #$11\n RTS\n");
+            HRESULT             written = S_OK;
+            FileEntry           entry;
+
+            Assert::AreEqual ((size_t) 2, result.savePoints.size(), L"two outputs, or this proves nothing");
+
+            Fixture::SeedImage (io, before);
+
+            ImageArtifactSink  sink (io);
+
+            written = sink.WriteBinary (result, options);
+
+            Assert::IsTrue (FAILED (written), L"a name the volume cannot store is refused");
+            Assert::IsTrue (before == io.files[kImagePath],
+                            L"and the image is byte for byte as it was");
+            Assert::IsFalse (Fixture::FindEntry (io.files[kImagePath], "GOOD", entry),
+                             L"the output that WOULD have written is not there either");
+        }
+
+
+
+        //  The half of the all-or-nothing rule that a replacement puts at risk:
+        //  the first output overwrites a file that already exists, and the
+        //  second output fails. The old file must come through untouched.
+        TEST_METHOD (AReplacementAbandonedPartWayLeavesTheOldFileIntact)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result   = Fixture::Assemble (" ORG $300\n LDA #$33\n RTS\n SAV PROG\n"
+                                                              " LDA #$44\n RTS\n SAV 9BAD\n");
+            CommandLineOptions  options  = Fixture::ImageOptions ("");
+            vector<Byte>        original = { 0xA9, 0x11, 0x60 };
+            HRESULT             written  = S_OK;
+
+            Fixture::SeedImage (io, ImageHoldingOneFile ("PROG", " ORG $300\n LDA #$11\n RTS\n"));
+
+            ImageArtifactSink  sink (io);
+
+            written = sink.WriteBinary (result, options);
+
+            Assert::IsTrue (FAILED (written), L"the second output cannot be written");
+            Assert::IsTrue (original == ReadBack (io.files[kImagePath], "PROG"),
+                            L"and the file that was there still holds what it held");
+        }
+
+
+
+        //  The filesystem's own protection, surfaced rather than overridden.
+        //  The refusal lives in the volume layer; what this asserts is that the
+        //  assembler path takes it rather than writing anyway.
+        TEST_METHOD (ALockedFileIsRefusedAndKeepsItsBytes)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (" ORG $300\n LDA #$22\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG");
+            vector<Byte>        before  = ImageHoldingOneFile ("PROG", " ORG $300\n LDA #$11\n RTS\n");
+            HRESULT             written = S_OK;
+
+            LockFirstCatalogEntry (before);
+            Fixture::SeedImage (io, before);
+
+            ImageArtifactSink  sink (io);
+
+            written = sink.WriteBinary (result, options);
+
+            Assert::IsTrue (FAILED (written), L"a locked file is not replaced");
+            Assert::IsTrue (before == io.files[kImagePath], L"and the image is unchanged");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DialectParityTests
+    //
+    //  The same program, written in either dialect, placed identically.
+    //
+    //  THE CAPABILITY BELONGS TO THE ASSEMBLER AND THE DIRECTIVES ONLY FEED IT.
+    //  A dialect must not have to own directives to reach a disk: AS65 has no
+    //  equivalent of DSK, TYP or SAV and still writes onto a volume through the
+    //  same flags. Nothing else in this file would catch that guarantee decaying
+    //  into a Merlin-only path.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DialectParityTests)
+    {
+    public:
+
+        //  One image, one program, under whichever dialect was named.
+        static vector<Byte> PlaceUnder (DialectId dialect, const std::string & source)
+        {
+            FakeDiskFileIo      io;
+            AssemblyResult      result  = Fixture::Assemble (source, dialect);
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG", "B");
+
+            Assert::IsTrue (result.success, L"the source must assemble under the dialect it was written for");
+
+            Fixture::SeedImage (io, Fixture::MakeDos33Image());
+
+            ImageArtifactSink  sink (io);
+
+            AssertSucceeded (sink.WriteBinary (result, options));
+
+            return io.files[kImagePath];
+        }
+
+
+
+        TEST_METHOD (TheSameProgramPlacesIdenticallyUnderEitherDialect)
+        {
+            vector<Byte>  viaMerlin = PlaceUnder (DialectId::Merlin, " ORG $6000\n LDA #$11\n RTS\n");
+            vector<Byte>  viaAs65   = PlaceUnder (DialectId::As65,   "        .org $6000\n"
+                                                                     "        lda #$11\n"
+                                                                     "        rts\n");
+
+            Assert::IsTrue (viaMerlin == viaAs65,
+                            L"the image is the same whichever dialect assembled the program");
+        }
+    };
 }
