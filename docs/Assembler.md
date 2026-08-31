@@ -292,14 +292,21 @@ would benefit from a concrete case to be designed against.
 
 ## Building into a disk Casso already has open
 
-The assembler writes host files. **It cannot yet write into a disk image** --
-that is spec 026 -- so a build loop that ends in a running emulator goes through
-`disk put`:
+A build loop that ends in a running emulator is one command:
 
 ```
-CassoCli as65 prog.a65 -o prog.bin
+CassoCli as65 prog.a65 --disk work.dsk --as PROG --type B --on-change reload
+```
+
+The same flag is on `disk put`, for a file the assembler did not produce:
+
+```
 CassoCli disk put work.dsk prog.bin --as PROG --type B --load $6000 --on-change reload
 ```
+
+**There is no `--load` on the assembler**, and that is the point rather than an
+omission: the address comes from the origin the source declared, so the two
+cannot disagree.
 
 Casso notices the image change on its own, whichever tool made it. `--on-change`
 only says what the change should MEAN:

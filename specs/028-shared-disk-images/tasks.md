@@ -175,11 +175,11 @@
 
 ### Gated on spec 026 — the assembler grammar
 
-- [ ] T095 [US1] Add the `--on-change` row to both assembler grammars in `CassoCore/CommandLineParser.cpp`, and move `pickUpIntent` beside 026's flat image-target fields
-- [ ] T096 [US1] Refuse `--on-change` without `--disk` in `CassoCore/CommandLineParser.cpp`, sharing 026's wording for image options given with no image target rather than inventing a second phrasing
-- [ ] T097 [US1] State the intent after a successful commit in `CassoEmuCore/Cli/ImageArtifactSink.cpp`
-- [ ] T098 [US1] Extend the switch-coverage row in `UnitTest/CliSwitchCoverageTests.cpp` to both assembler grammars
-- [ ] T099 [US1] Confirm `--on-change` changes no assembled byte: the same source with and without it produces identical images
+- [X] T095 [US1] Add the `--on-change` row to both assembler grammars in `CassoCore/CommandLineParser.cpp`, and move `pickUpIntent` beside 026's flat image-target fields
+- [X] T096 [US1] Refuse `--on-change` without `--disk` in `CassoCore/CommandLineParser.cpp`, sharing 026's wording for image options given with no image target rather than inventing a second phrasing
+- [X] T097 [US1] State the intent after a successful commit in `CassoEmuCore/Cli/ImageArtifactSink.cpp`
+- [X] T098 [US1] Extend the switch-coverage row in `UnitTest/CliSwitchCoverageTests.cpp` to both assembler grammars
+- [X] T099 [US1] Confirm `--on-change` changes no assembled byte: the same source with and without it produces identical images
 
 **Checkpoint**: Intent comes from the writer, for whichever grammars are available.
 
@@ -338,11 +338,13 @@ Phase 5a (US1: disk grammar)                        │  tests: exercise Phase 2
    ↓                                                │
 Phase 7 (Polish) ←──────────────────────────────────┘
    
-Phase 5b (US1: assembler) ⚠ GATED ON SPEC 026 -- hangs off 5a, and the
-feature completes without it on this branch
+Phase 5b (US1: assembler) -- was gated on spec 026, which merged to master
+on 2026-08-31; unblocked and delivered
 ```
 
-**Phase 5 is split, not merely annotated.** Its `disk`-grammar half is buildable today and demonstrates the whole mechanism; its assembler half needs 026's flat image-target options and `ImageArtifactSink`, neither of which exists on this branch.
+**Phase 5 was split, not merely annotated.** Its `disk`-grammar half was buildable on its own and demonstrates the whole mechanism; its assembler half needed 026's flat image-target options and `ImageArtifactSink`, which arrived when 026 merged to master. Both halves are delivered.
+
+**026 made T095 smaller than it was written.** The task asked for a row in *both* assembler grammars; 026 had already built `s_kImageTargetFlags`, one table both grammars read and the help is composed from, so `--on-change` is one row rather than two. The same applies to T096: `RefuseImageOptionsWithoutAnImage` already existed and already carried the wording, so the flag joined it instead of getting a refusal of its own.
 
 **Phase 6's temp-name half can go first.** It is a data-loss defect in shipped code and needs nothing from any earlier phase. Its stale-detection tests exercise the re-check built in Phase 2.
 

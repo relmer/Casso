@@ -7,6 +7,7 @@
 #include "As65ExitStatus.h"
 #include "DialectReporting.h"
 #include "ImageArtifactSink.h"
+#include "Win32IntentChannel.h"
 #include "MerlinMode.h"
 #include "Win32DiskFileIo.h"
 
@@ -86,6 +87,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     DefaultFileReader               fileReader;
     FileArtifactSink                fileSink;
     Win32DiskFileIo                 diskFileIo;
+    Win32IntentChannel              intentChannel;
     ImageArtifactSink               imageSink (diskFileIo);
     //  Empty means no image was named, which is the one question deciding
     //  where the object goes. Asked once so the two sinks cannot disagree.
@@ -107,6 +109,11 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
 
 
     exitCode = kNoOutput;
+
+    //  Wired unconditionally, though only the image sink can reach it: a
+    //  build that writes to a host file has no image for anyone to pick up,
+    //  and the sink that would state an intent is not the one selected.
+    imageSink.SetIntentChannel (&intentChannel);
 
     if (!hasInput)
     {

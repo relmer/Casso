@@ -4,6 +4,9 @@
 #include "Devices/Disk/DiskImageSession.h"
 
 
+class IIntentChannel;
+
+
 
 
 
@@ -45,6 +48,13 @@ public:
     {
     }
 
+    //  Where a stated intent goes once the image has been written.
+    //
+    //  OPTIONAL AND CALLER-OWNED, like the disk command's. A build with no
+    //  channel writes the image and says nothing, which is the behavior an
+    //  emulator falls back to anyway.
+    void     SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
+
     HRESULT  WriteBinary  (const AssemblyResult & result,
                            const CommandLineOptions & options) override;
 
@@ -78,4 +88,5 @@ private:
     DiskImageSession  m_session;
     FileArtifactSink  m_hostArtifacts;
     std::string       m_diagnostics;
+    IIntentChannel *  m_intentChannel = nullptr;
 };

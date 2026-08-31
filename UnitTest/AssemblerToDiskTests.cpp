@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmuTests/FakeDiskFileIo.h"
+#include "EmuTests/FakeIntentChannel.h"
 #include "EhmTestHelper.h"
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
@@ -167,6 +168,85 @@ namespace AssemblerToDiskTests
 
             Assert::IsTrue (Fixture::FindEntry (io.files[kImagePath], "PROG", entry),
                             L"the object is on the volume under the name it was given");
+        }
+
+
+
+        //  THE INTENT MUST NOT REACH THE BYTES. It is addressed to whoever is
+        //  holding the image, not to the assembly, so an object assembled with
+        //  it has to be the same object assembled without it -- down to the
+        //  sector. Asserting on the whole image rather than on the file's
+        //  contents is deliberate: a directory entry or a bitmap that differed
+        //  would be just as much of a defect and a contents check would miss
+        //  it.
+        TEST_METHOD (StatingAnIntentChangesNoAssembledByte)
+        {
+            const char *        kSource = " ORG $6000\n LDA #$11\n RTS\n";
+            FakeDiskFileIo      quiet;
+            FakeDiskFileIo      stating;
+            FakeIntentChannel   channel;
+            AssemblyResult      quietResult   = Fixture::Assemble (kSource);
+            AssemblyResult      statingResult = Fixture::Assemble (kSource);
+            CommandLineOptions  quietOptions   = Fixture::ImageOptions ("PROG");
+            CommandLineOptions  statingOptions = Fixture::ImageOptions ("PROG");
+
+            Fixture::SeedImage (quiet,   Fixture::MakeDos33Image());
+            Fixture::SeedImage (stating, Fixture::MakeDos33Image());
+
+            statingOptions.pickUpIntent = PickUpIntent::Restart;
+
+            {
+                ImageArtifactSink  sink (quiet);
+
+                AssertSucceeded (sink.WriteBinary (quietResult, quietOptions));
+            }
+
+            {
+                ImageArtifactSink  sink (stating);
+
+                sink.SetIntentChannel (&channel);
+
+                AssertSucceeded (sink.WriteBinary (statingResult, statingOptions));
+            }
+
+            Assert::IsTrue (quiet.files[kImagePath] == stating.files[kImagePath],
+                            L"--on-change changes nothing about the image that is written");
+
+            //  And it did state it, so the comparison above is not passing
+            //  because the flag was quietly ignored.
+            Assert::AreEqual (size_t (1), channel.stated.size(),
+                              L"the intent is stated once");
+            Assert::IsTrue (channel.stated[0].intent == PickUpIntent::Restart,
+                            L"and it is the intent the command line gave");
+            Assert::AreEqual (std::string (kImagePath), channel.stated[0].imagePath,
+                              L"about the image that was written");
+        }
+
+
+
+        //  A write that never landed leaves nothing to pick up, so saying it
+        //  changed would send a running emulator to re-read bytes nobody
+        //  replaced.
+        TEST_METHOD (AFailedWriteStatesNoIntent)
+        {
+            FakeDiskFileIo      io;
+            FakeIntentChannel   channel;
+            AssemblyResult      result  = Fixture::Assemble (" ORG $6000\n LDA #$11\n RTS\n");
+            CommandLineOptions  options = Fixture::ImageOptions ("PROG");
+            HRESULT             written = S_OK;
+
+            //  No image seeded, so the write is refused before it begins.
+            options.pickUpIntent = PickUpIntent::Restart;
+
+            ImageArtifactSink  sink (io);
+
+            sink.SetIntentChannel (&channel);
+
+            written = sink.WriteBinary (result, options);
+
+            Assert::IsTrue (FAILED (written), L"the write is refused");
+            Assert::IsTrue (channel.stated.empty(),
+                            L"a write that failed states no intent");
         }
 
 

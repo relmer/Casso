@@ -281,6 +281,12 @@ static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
     { "--as",      " <name>",  "What the object is called on the volume. Beats a name the source gives" },
     { "--type",    " <type>",  "The filesystem type: T, I, A, B or R on DOS 3.3, TXT, BIN, BAS or SYS on ProDOS. Beats a type the source gives" },
     { "--startup", "",         "Make the object the program the volume runs when it boots" },
+
+    //  Stated to a RUNNING emulator, which is what makes it different in kind
+    //  from the three above: they describe where the object lands, this
+    //  describes what should happen to somebody already holding the image.
+    //  Omitting it asks the user, so there is no value that spells that.
+    { "--on-change", " <what>", "What a running Casso should do with the changed image: reload or restart" },
 };
 
 
@@ -1238,15 +1244,7 @@ void CommandLineParser::ParseDiskOptions (
         {
             std::string  value = argv[++i];
 
-            if (value == "reload")
-            {
-                options.disk.pickUpIntent = PickUpIntent::TakeUpInPlace;
-            }
-            else if (value == "restart")
-            {
-                options.disk.pickUpIntent = PickUpIntent::Restart;
-            }
-            else
+            if (!TryReadPickUpIntent (value, options.disk.pickUpIntent))
             {
                 //  Named rather than approximated, and the accepted set listed,
                 //  because a value outside a known set is a typo the reader
@@ -1597,6 +1595,51 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::TryReadPickUpIntent
+//
+//  Reads an --on-change value into an intent.
+//
+//  `reload` IS THE SURFACE SPELLING OF TakeUpInPlace. The internal name says
+//  what happens to the machine; the flag says what a developer means, and
+//  "reload the disk" is the sentence they would use.
+//
+//  THERE IS NO `ask` VALUE. Omitting the flag already produces asking, so a
+//  third word would be a second spelling of leaving it out.
+//
+//  IT ANSWERS RATHER THAN REFUSES. The three grammars that call it word their
+//  own refusals through their own Refusal stream; what they share is which
+//  words are accepted, and that is all this decides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIntent & outIntent)
+{
+    bool  known = true;
+
+
+
+    if (value == "reload")
+    {
+        outIntent = PickUpIntent::TakeUpInPlace;
+    }
+    else if (value == "restart")
+    {
+        outIntent = PickUpIntent::Restart;
+    }
+    else
+    {
+        known = false;
+    }
+
+    return known;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineParser::RefuseImageOptionsWithoutAnImage
 //
 //  The options that describe a placement on a volume, given with no volume.
@@ -1620,14 +1663,18 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
     bool  named    = !options.onDiskName.empty();
     bool  typed    = !options.imageTypeName.empty();
     bool  starts   = options.setStartupProgram;
-    bool  stray    = !hasImage && (named || typed || starts);
+    bool  states   = options.pickUpIntent != PickUpIntent::Unstated;
+    bool  stray    = !hasImage && (named || typed || starts || states);
 
 
 
     if (stray)
     {
         Refusal (options) << "Error: "
-                          << FormatLongOption (named ? "--as" : typed ? "--type" : "--startup", options.flagPrefix)
+                          << FormatLongOption (named  ? "--as"
+                                             : typed  ? "--type"
+                                             : starts ? "--startup"
+                                             :          "--on-change", options.flagPrefix)
                           << " describes a file on a volume, and no image was named\n"
                           << "       add " << FormatLongOption ("--disk", options.flagPrefix)
                           << " <image>, or drop the option\n";
@@ -2558,6 +2605,20 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             continue;
         }
 
+        if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
+        {
+            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            {
+                Refusal (options) << "Error: " << attachedValue << " is not an "
+                                  << FormatLongOption ("--on-change", options.flagPrefix) << " value\n"
+                                  << "       write reload or restart\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
+            continue;
+        }
+
         //  A `--` OPTION THIS GRAMMAR DOES NOT HAVE IS REFUSED, NOT WALKED.
         //
         //  Everything below reads a single dash as a group of letters, so
@@ -3382,6 +3443,20 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         {
             options.setStartupProgram = true;
             argIndex++;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
+        {
+            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            {
+                Refusal (options) << "Error: " << attachedValue << " is not an "
+                                  << FormatLongOption ("--on-change", options.flagPrefix) << " value\n"
+                                  << "       write reload or restart\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
             continue;
         }
 

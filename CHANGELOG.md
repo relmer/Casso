@@ -156,6 +156,10 @@ Entries before versioning was introduced use dates only.
   three, so every label below it moves.
 
 ### Added
+- **The assembler states what its write should do.** `as65` and `merlin` take
+  `--on-change reload|restart` beside `--disk`, so a build that assembles
+  straight onto a mounted image tells the running emulator what to do with it
+  and the loop is one command. It changes no assembled byte.
 - **Casso picks up a disk image changed outside it.** A build that
   writes onto a mounted image reaches the running guest without an eject and
   re-insert. `CassoCli disk put --on-change reload|restart` says what the write

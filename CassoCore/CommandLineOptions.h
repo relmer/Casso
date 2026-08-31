@@ -347,6 +347,15 @@ struct CommandLineOptions
     std::string   imageTypeName;                   // --type <t>, overrides TYP
     bool          setStartupProgram = false;       // --startup
 
+    //  What the assembler says a pick-up of this image should do, carried to a
+    //  running emulator after the write lands.
+    //
+    //  BESIDE THE IMAGE TARGET RATHER THAN IN THE `disk` GROUP, because it is
+    //  answered by the same `imagePath` question above: an assembly that writes
+    //  onto an image may state an intent, and one that does not has nothing to
+    //  state it about.
+    PickUpIntent  pickUpIntent = PickUpIntent::Unstated;   // --on-change <what>
+
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be
     //  answered with whichever prefix happened to come last, so the same
