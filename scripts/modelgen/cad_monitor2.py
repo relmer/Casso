@@ -1484,19 +1484,54 @@ MOUTH_RR     = MOUTH_R - GLASS_INSET - MOUTH_LAP
 
 FUNNEL_FRONT_R = MOUTH_RR + FUNNEL_RUN
 
+# HOW DEEP THE TUBE IS SEATED. Its rim was left on the mouth's own plane,
+# which put the sheet's CROWN -- a full sag ahead of the rim -- out past the
+# front of the bezel that is supposed to contain it. Seen from the side the
+# tube appeared to burst through the bezel's face. Seated back by this much,
+# the crown sits behind the bezel's front face.
+#
+# It lives up here because the funnel below is cut to REACH it.
+GLASS_SET = 4.5
+
+# THE FUNNEL DOES NOT STOP AT THE MOUTH. It carries on at the same rake until
+# it is inside the glass, so the bezel and the tube TOUCH.
+#
+# Stopping at the mouth and boring straight back from there left an open ring
+# between the two: the rim is seated GLASS_SET back, the bezel lapped it by
+# MOUTH_LAP, and a lap of half a millimeter over a seat of four and a half
+# stops hiding that ring at atan(0.5 / 4.5) -- SIX DEGREES off normal. Past
+# that the scene can be spun to look down the bore, and the bore is cut from
+# the bezel, so what showed was CASE-COLORED PLASTIC around the picture: from
+# above it filled the top of the opening, from below the bottom.
+#
+# Widening the lap only moves that threshold; carrying the funnel down onto
+# the glass removes the ring itself, and there is then no angle that can see
+# between them. The two solids simply interpenetrate -- no boolean is wanted
+# or needed, the depth buffer resolves it -- so the run is taken past contact
+# rather than exactly to it.
+FUNNEL_BITE = GLASS_SET / math.tan(math.radians(RAKE_DEG))
+
+CX0, CX1    = MX0 + FUNNEL_BITE, MX1 - FUNNEL_BITE
+CZ0, CZ1    = MZ0 + FUNNEL_BITE, MZ1 - FUNNEL_BITE
+CONTACT_RR  = max(MOUTH_RR - FUNNEL_BITE, 0.2)
+CONTACT_Y   = -PROTRUDE + TUBE_DROP + GLASS_SET
+
 funnel = cq.Solid.makeLoft([
     round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
     round_rect_wire(-PROTRUDE + TUBE_DROP, MX0,     MX1,     MZ0,     MZ1,     MOUTH_RR),
+    round_rect_wire(CONTACT_Y,             CX0,     CX1,     CZ0,     CZ1,     CONTACT_RR),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=funnel))
 
 # The tunnel behind the mouth carries the SAME rounded profile. Cut square,
 # its corners stood proud of the funnel's rounded ones and left a wedge of
-# bezel hanging into each corner of the opening.
+# bezel hanging into each corner of the opening. It starts where the funnel
+# ends, not at the mouth, or it would hollow out the reach the funnel just
+# made.
 tunnel = cq.Solid.makeLoft([
-    round_rect_wire(-PROTRUDE + TUBE_DROP,             MX0, MX1, MZ0, MZ1, MOUTH_RR),
-    round_rect_wire(-PROTRUDE + TUBE_DROP + CAVITY_D,  MX0, MX1, MZ0, MZ1, MOUTH_RR),
+    round_rect_wire(CONTACT_Y,             CX0, CX1, CZ0, CZ1, CONTACT_RR),
+    round_rect_wire(CONTACT_Y + CAVITY_D,  CX0, CX1, CZ0, CZ1, CONTACT_RR),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=tunnel))
@@ -1512,18 +1547,6 @@ m.add("bezel", bezel, BEZEL, angular=CORNER_ANG)
 # rather than carrying a second, hand-tuned number.
 GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - GLASS_INSET * 2.0) * 0.5,
                              (GZ1 - GZ0 - GLASS_INSET * 2.0) * 0.5)
-
-# HOW DEEP THE TUBE IS SEATED. Its rim was left on the mouth's own plane,
-# which put the sheet's CROWN -- a full sag ahead of the rim -- out past the
-# front of the bezel that is supposed to contain it. Seen from the side the
-# tube appeared to burst through the bezel's face.
-#
-# Seated back by this much, two things come right at once: the crown sits
-# behind the bezel's front face, and the rim sits behind the mouth, so the
-# bezel LAPS the tube instead of meeting it edge to edge. That lap is also
-# what covers the funnel's inner ramp, which used to show as beige wedges
-# cutting into the picture wherever the two surfaces crossed.
-GLASS_SET = 4.5
 
 m.add_triangles("glass",
                 sag_sheet(GX0 + GLASS_INSET, GX1 - GLASS_INSET,
