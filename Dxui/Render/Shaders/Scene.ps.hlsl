@@ -258,20 +258,24 @@ float4 main (PSIn input) : SV_TARGET
                 float  lvis = 1.0f;
                 if (lampShadowParm.x > 0.0f && emit * recv > 0.0f)
                 {
-// OUTSIDE THIS LAMP'S FRUSTUM IS UNLIT, which is the opposite of the rule
-// the room lights use a few lines up -- and both are right. A room light's
-// frustum covers the whole scene, so a point falling outside it means
-// nothing was in the way. A lamp's frustum is a narrow cone covering only
-// its own reach, so falling outside it means the point is not in the beam
-// at all.
+// A LAMP'S FRUSTUM CANNOT COVER A LAMP'S REACH, so off the map means the
+// map has no opinion, and no opinion resolves to lit -- which is the same
+// rule the room lights use a few lines up, arrived at for a different
+// reason. Theirs covers the whole scene, so off it is off the scene. This
+// one is a 120 degree pyramid pinned to the lens, and that is SEVEN
+// MILLIMETERS WIDE at the two where the Monitor II's power notch stands
+// its back wall.
 //
-// Treating the two the same is what let the Monitor II's power notch take
-// full lamp light on surfaces the button stands squarely in front of: the
-// lookup landed off the map, and off the map read as nothing in the way.
-// The tell was that changing the shadow bias moved nothing there while it
-// moved plenty elsewhere -- a lookup that never happened cannot care what
-// its bias is.
-                    lvis = 0.0f;
+// Reading off the map as full shadow instead drew that pyramid on the
+// case: a dark wedge flanking the LED and opening forward over the power
+// button, apex exactly at the lamp, which is the cone's own edge and not
+// any occluder at all. It read as an LED sunk down a deep well.
+//
+// Nothing is given up. What the map is for is the button, which stands
+// eleven millimeters proud of the lens and shadows a notch floor forty
+// degrees off axis -- well inside the pyramid, mapped, and correctly
+// dark. Only the lamp's own few millimeters fall outside it, and at that
+// range there is nothing between lamp and surface to find.
                     float4 lc = mul (float4 (input.wp, 1.0f), lampShadow);
                     if (lc.w > 0.0f)
                     {
