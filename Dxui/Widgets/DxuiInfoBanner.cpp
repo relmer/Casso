@@ -210,7 +210,14 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         painter.FillRect         (iconCx - stemW * 0.5f, iconCy - iconR * 0.07f, stemW, stemH, s_kBadgeInkArgb);
     }
 
-    // Wrapping body text.
+    // Wrapping body text, VERTICALLY CENTERED IN WHATEVER HEIGHT THE BANNER HAS.
+    //
+    // Top alignment is right only when the banner was sized to exactly the text
+    // -- which is true in a dialog and false in a message bar, where the height
+    // is the taller of the text and whatever the bar contains. A single line
+    // then sat against the top edge with the whole button's worth of space
+    // beneath it. Centering is identical in the sized-to-text case, so nothing
+    // that used this before moves.
     hr = text.DrawString (m_text.c_str(),
                           textX,
                           top + padY,
@@ -220,7 +227,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           fontPx,
                           DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Top,
+                          DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
                           true);
     IGNORE_RETURN_VALUE (hr, S_OK);

@@ -2199,7 +2199,11 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         m_restartCallback();
     }
 
-    if (m_reportSink && !entry.sharedState.IsReportStanding())
+    //  EVERY TIME, NOT ONLY THE FIRST. The sink re-words a notice already up
+    //  for this bay rather than raising a second, so absorbing further changes
+    //  costs nothing -- and reporting only the first left the bar saying
+    //  something that had stopped being true.
+    if (m_reportSink)
     {
         ChangePrompt  report;
 

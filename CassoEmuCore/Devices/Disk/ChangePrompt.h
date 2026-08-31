@@ -120,6 +120,14 @@ struct ChangePrompt
     //  Dialogs lay text out in paragraphs and are free to add breaks.
     static const wchar_t *  StaleDirectoryWarning ();
 
-    //  "Loader.dsk in Drive 1", which every message opens with.
+    //  "Loader.dsk in Drive 1", for the middle of a sentence or a title.
     static std::wstring  NameInDrive (const std::string & imagePath, int drive);
+
+    //  "The disk Loader.dsk in Drive 1", for the START of one.
+    //
+    //  A SENTENCE MAY NOT OPEN WITH A FILENAME. Capitalizing the name would be
+    //  a lie about what the file is called, and leaving it lower-case opens
+    //  every notice this feature shows with a small letter. The article carries
+    //  the capital so the name stays exactly as it is on disk.
+    static std::wstring  SentenceSubject (const std::string & imagePath, int drive);
 };

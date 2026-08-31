@@ -207,6 +207,13 @@ public:
 
     //  Showing a report that does not block the machine. Given the bay it is
     //  about and everything to draw.
+    //
+    //  THE SINK REPLACES, IT DOES NOT APPEND. A report is emitted for every
+    //  change acted on, and a notice already up for that bay is re-worded
+    //  rather than joined by a second one. Emitting only the first would keep
+    //  one notice at the cost of it going stale: measured, a `reload` followed
+    //  by a `restart` left the bar still advising a reboot that had already
+    //  happened.
     using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
 
     void          SetChangeReportSink (ReportSink sink) { m_reportSink = std::move (sink); }

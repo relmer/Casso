@@ -24,16 +24,47 @@
 
 std::wstring ChangePrompt::NameInDrive (const std::string & imagePath, int drive)
 {
-    std::wstring  name = fs::path (imagePath).filename().wstring();
+    std::wstring  leaf  = fs::path (imagePath).filename().wstring();
+    std::wstring  where = L"Drive " + std::to_wstring (drive + 1);
 
 
 
-    if (name.empty())
-    {
-        name = L"The disk";
-    }
+    //  A disk with no name is named by where it is, rather than by a
+    //  placeholder that says nothing -- and the sentence form below then reads
+    //  "The disk in Drive 1" instead of doubling the article.
+    return leaf.empty() ? where
+                        : (leaf + L" in " + where);
+}
 
-    return name + L" in Drive " + std::to_wstring (drive + 1);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangePrompt::SentenceSubject
+//
+//  The same thing NameInDrive names, in a form a sentence can start with.
+//
+//  THE ARTICLE EXISTS TO CARRY THE CAPITAL. Opening with the filename would
+//  either start a sentence in lower case or require capitalizing a name that is
+//  not spelled that way on disk, and a message about a specific file must not
+//  misspell it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ChangePrompt::SentenceSubject (const std::string & imagePath, int drive)
+{
+    std::wstring  leaf = fs::path (imagePath).filename().wstring();
+
+
+
+    //  "The disk work.dsk in Drive 1", or "The disk in Drive 1" where there is
+    //  no name to give. Built from the parts rather than by prefixing the
+    //  mid-sentence form, which would read "The disk Drive 1" for the unnamed
+    //  case.
+    return leaf.empty() ? (L"The disk in " + NameInDrive (imagePath, drive))
+                        : (L"The disk "    + NameInDrive (imagePath, drive));
 }
 
 
@@ -85,7 +116,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
                                     ChangeAction action)
 {
     ChangePrompt  prompt;
-    std::wstring  what = NameInDrive (imagePath, drive);
+    std::wstring  what = SentenceSubject (imagePath, drive);
 
 
 
@@ -151,7 +182,7 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
                                                 bool machineRestarted)
 {
     ChangePrompt  prompt;
-    std::wstring  what = NameInDrive (imagePath, drive);
+    std::wstring  what = SentenceSubject (imagePath, drive);
 
 
 
@@ -211,14 +242,14 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 
     if (keptWhatTheGuestWrote)
     {
-        prompt.message = name +
+        prompt.message = SentenceSubject (imagePath, drive) +
             L" was changed externally, and also within Casso. What Casso wrote is "
             L"now in the file, and we've saved the external version to " +
             preserved + L".";
     }
     else
     {
-        prompt.message = name +
+        prompt.message = SentenceSubject (imagePath, drive) +
             L" was changed externally, and also within Casso. The external changes "
             L"are already mounted, and we've saved your changes within Casso to " +
             preserved + L".";
@@ -248,12 +279,11 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 ChangePrompt ChangePrompt::ComposePreserveFailure (const std::string & imagePath, int drive)
 {
     ChangePrompt  prompt;
-    std::wstring  what = NameInDrive (imagePath, drive);
 
 
 
-    prompt.title   = L"Could not save a second copy of " + what;
-    prompt.message = what +
+    prompt.title   = L"Could not save a second copy of " + NameInDrive (imagePath, drive);
+    prompt.message = SentenceSubject (imagePath, drive) +
         L" was changed externally, and also within Casso. Neither version has "
         L"been touched: Casso could not write the second copy, so it did not "
         L"replace anything.\n\n"
@@ -289,7 +319,7 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                                             ChangeAction action)
 {
     ChangePrompt  prompt;
-    std::wstring  what = NameInDrive (imagePath, drive);
+    std::wstring  what = SentenceSubject (imagePath, drive);
 
 
 

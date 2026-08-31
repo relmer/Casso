@@ -457,6 +457,52 @@ public:
 
 
 
+    TEST_METHOD (EveryMessageStartsItsSentenceWithACapital)
+    {
+        std::vector<ChangePrompt>  prompts;
+
+
+
+        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Ask));
+        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Deleted));
+        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Unusable));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\work\loader.dsk", 0, false));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\work\loader.dsk", 0, true));
+        prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\work\loader.dsk", 0,
+                                                                "C:\work\loader.x.dsk", false));
+        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\work\loader.dsk", 0));
+
+        //  THE FILENAME IS LOWER CASE ON PURPOSE. A sentence may not open with
+        //  it: capitalizing would misspell the file, and leaving it would open
+        //  every notice with a small letter. The article carries the capital.
+        for (const ChangePrompt & prompt : prompts)
+        {
+            Assert::IsFalse (prompt.message.empty());
+            Assert::IsTrue (iswupper (prompt.message[0]) != 0,
+                            (L"sentence starts lower case: " + prompt.message).c_str());
+
+            //  And the name is still spelled the way it is on disk.
+            Assert::IsTrue (prompt.message.find (L"loader.dsk") != std::wstring::npos
+                         || prompt.title.find   (L"loader.dsk") != std::wstring::npos);
+        }
+    }
+
+
+
+    TEST_METHOD (AnUnnamedImageDoesNotDoubleTheArticle)
+    {
+        std::wstring  subject = ChangePrompt::SentenceSubject ("", 0);
+
+
+
+        //  Building the sentence form by prefixing the mid-sentence one would
+        //  read "The disk Drive 1" here.
+        Assert::IsTrue (subject == std::wstring (L"The disk in Drive 1"), subject.c_str());
+        Assert::IsTrue (ChangePrompt::NameInDrive ("", 0) == std::wstring (L"Drive 1"));
+    }
+
+
+
     TEST_METHOD (AnUnnamedImageStillProducesAReadableMessage)
     {
         ChangePrompt  prompt = ChangePrompt::Compose ("", 0, ChangeAction::Ask);

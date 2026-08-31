@@ -962,11 +962,17 @@ public:
         rig.WriteImage (kImagePath, 0x44);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-        //  Three builds before the developer turns back to the emulator are
-        //  three pick-ups and one report: three reports about one disk say
-        //  nothing three times.
-        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        //  THE NOTICE STAYS STANDING, which is what tells the shell to re-word
+        //  the one already up rather than raise a second. Three builds before
+        //  the developer looks back at the emulator are three pick-ups and one
+        //  notice.
         Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->IsReportStanding());
+
+        //  AND EVERY ONE OF THEM IS REPORTED, so the wording can follow what
+        //  actually happened. Emitting only the first kept one notice at the
+        //  cost of it going stale -- measured, a reload followed by a restart
+        //  left it advising a reboot that had already been done.
+        Assert::AreEqual ((size_t) 3, rig.reports.size());
 
         //  And the contents taken up are the most recent, not those current
         //  when the report first appeared.
@@ -975,6 +981,39 @@ public:
 
         rig.store.ClearChangeReport (kSlot, kDrive);
         Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->IsReportStanding());
+    }
+
+
+
+    TEST_METHOD (AStandingReportFollowsWhatActuallyHappened)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Taken up with the machine left running: the notice says why a
+        //  reboot might be wanted.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (ChangePrompt::StaleDirectoryWarning())
+                            != std::wstring::npos);
+
+        //  Then one that reboots. The notice must stop advising a reboot that
+        //  has now been done for the user.
+        rig.WriteImage (kImagePath, 0x33);
+        rig.FireAndSettle (kImagePath, PickUpIntent::Restart);
+
+        Assert::AreEqual (1, rig.restarts);
+        Assert::AreEqual ((size_t) 2, rig.reports.size());
+        Assert::IsTrue (rig.reports[1].message.find (ChangePrompt::StaleDirectoryWarning())
+                            == std::wstring::npos,
+                        L"the machine was just rebooted; telling the user to reboot "
+                        L"is telling them to do what was done for them");
     }
 
 
