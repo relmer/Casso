@@ -1531,13 +1531,24 @@ CZ0, CZ1    = MZ0 + FUNNEL_BITE, MZ1 - FUNNEL_BITE
 CONTACT_RR  = max(MOUTH_RR - FUNNEL_BITE, 0.2)
 CONTACT_Y   = -PROTRUDE + TUBE_DROP + GLASS_SET
 
-funnel = cq.Solid.makeLoft([
+# TWO RULED LOFTS, NOT ONE THREE-SECTION LOFT. Lofting band -> mouth ->
+# contact in a single call makes the wall a spline through three sections,
+# and OCCT meshes that far more coarsely than the simple ruled patch it
+# replaced at the same angular tolerance: the funnel's rounded corners came
+# out visibly scalloped. Two lofts between matching pairs are each ruled
+# again, and cutting them one after the other leaves the same cavity.
+funnel_face = cq.Solid.makeLoft([
     round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
     round_rect_wire(-PROTRUDE + TUBE_DROP, MX0,     MX1,     MZ0,     MZ1,     MOUTH_RR),
-    round_rect_wire(CONTACT_Y,             CX0,     CX1,     CZ0,     CZ1,     CONTACT_RR),
 ])
 
-bezel = bezel.cut(cq.Workplane(obj=funnel))
+funnel_reach = cq.Solid.makeLoft([
+    round_rect_wire(-PROTRUDE + TUBE_DROP, MX0, MX1, MZ0, MZ1, MOUTH_RR),
+    round_rect_wire(CONTACT_Y,             CX0, CX1, CZ0, CZ1, CONTACT_RR),
+])
+
+bezel = bezel.cut(cq.Workplane(obj=funnel_face))
+bezel = bezel.cut(cq.Workplane(obj=funnel_reach))
 
 # The tunnel behind the mouth carries the SAME rounded profile. Cut square,
 # its corners stood proud of the funnel's rounded ones and left a wedge of
@@ -1572,49 +1583,93 @@ m.add_triangles("glass",
 
 # ------------------------------------------------------------- tube skirt
 
-# THE FACEPLATE DOES NOT STOP AT THE PICTURE. A real tube's glass runs on
-# past the bezel and dies inside the cabinet; ours stopped a hair outside the
+# THE FACEPLATE DOES NOT STOP AT THE PICTURE. A real tube's glass runs past
+# the bezel and turns back into the cabinet; ours stopped a hair outside the
 # mouth, and a surface that stops has an edge you can see past.
 #
 # That edge is the fault. The rim is seated GLASS_SET back at the corners but
 # bulges FORWARD of the mouth everywhere else -- 9.67mm proud at the top and
-# bottom midpoints -- so along those edges it floats in the middle of the
-# funnel opening with nothing sealing it. From a steep angle the line of
-# sight goes over the rim and straight into the monitor's interior, above the
-# top edge of the picture and below the bottom edge of it. No lap on the
+# bottom midpoints -- so along those edges it floated in the middle of the
+# funnel opening with nothing sealing it, and from a steep angle the line of
+# sight went over the rim straight into the monitor's interior. No lap on the
 # BEZEL can close that, because the thing with the hole in it is the tube.
 #
-# So the sheet is continued outward to the funnel's front opening, where it
-# is buried in bezel however you look at it. It is a SEPARATE PART on
-# purpose: the scene derives its display sphere and its picture band from the
-# bounding box of the part named "glass", so growing that part would grow the
-# raster with it and push the picture under the bezel.
+# A LIP AND A WALL, not a wide sheet. Continuing the dome outward to the
+# funnel's mouth was the first try and it was wrong: a shallow sphere and a
+# 60 degree funnel run nearly parallel, so the two surfaces met along a broad
+# near-tangent band and fought there -- ragged corners, and a gray sliver
+# lying along the top of the picture. Carrying the dome just far enough to
+# clear the mouth and then turning it STRAIGHT BACK crosses the funnel at a
+# steep angle instead, so the intersection is a clean line and the wall is
+# behind bezel a millimeter later.
 #
-# Same sphere, not merely a similar one. sag_sheet measures front_y at the
-# CORNERS and bulges forward from there, so a wider sheet on one sphere needs
-# its corners set back by the difference of the two sags -- otherwise it is a
-# different, deeper dome that would burst through the glass it hides behind.
-SKIRT_X0, SKIRT_X1 = BAND_X0, BAND_X1
-SKIRT_Z0, SKIRT_Z1 = BAND_Z0, BAND_Z1
-SKIRT_BURY         = 0.3          # behind the glass, so the two never fight
+# It is a SEPARATE PART because the scene derives its display sphere and its
+# picture band from the bounding box of the part named "glass"; growing that
+# part would grow the raster with it and push the picture under the bezel.
+SKIRT_OUT     = 5.0        # how far past the glass rim the dome carries on
+SKIRT_BACK    = 30.0       # how far the wall then dives into the cabinet
+SKIRT_BURY    = 0.25       # behind the glass, so the two never fight
+SKIRT_UNDER   = 0.5        # started inside the rim, so the seam cannot crack
+SKIRT_PER_SIDE = 48
 
-SKIRT_HALF_DIAG = math.hypot((SKIRT_X1 - SKIRT_X0) * 0.5,
-                             (SKIRT_Z1 - SKIRT_Z0) * 0.5)
+GLASS_X0, GLASS_X1 = GX0 + GLASS_INSET, GX1 - GLASS_INSET
+GLASS_Z0, GLASS_Z1 = GZ0 + GLASS_INSET, GZ1 - GLASS_INSET
+GLASS_CX, GLASS_CZ = (GLASS_X0 + GLASS_X1) * 0.5, (GLASS_Z0 + GLASS_Z1) * 0.5
 
 
 def _sag(rr):
     return FACE_R - math.sqrt(max(FACE_R ** 2 - rr * rr, 0.0))
 
 
-SKIRT_FRONT_Y = (-PROTRUDE + TUBE_DROP + GLASS_SET
-                 + _sag(SKIRT_HALF_DIAG) - _sag(GLASS_HALF_DIAG)
-                 + SKIRT_BURY)
+def skirt_y(x, z):
+    """The tube's own sphere, the one sag_sheet lays the glass on -- so the
+    lip continues the faceplate rather than approximating it."""
+    rr = math.hypot(x - GLASS_CX, z - GLASS_CZ)
 
-m.add_triangles("tube_skirt",
-                sag_sheet(SKIRT_X0, SKIRT_X1, SKIRT_Z0, SKIRT_Z1,
-                          front_y=SKIRT_FRONT_Y,
-                          radius_scale=FACE_R / SKIRT_HALF_DIAG),
-                CAVITY)
+    return (-PROTRUDE + TUBE_DROP + GLASS_SET
+            - (_sag(GLASS_HALF_DIAG) - _sag(rr)) + SKIRT_BURY)
+
+
+def rect_ring(x0, x1, z0, z1, per_side):
+    """A rectangle's perimeter as points. Two rings sampled this way
+    correspond point for point, so the band between them cannot twist."""
+    pts = []
+
+    for i in range(per_side):
+        pts.append((x0 + (x1 - x0) * i / per_side, z1))
+
+    for i in range(per_side):
+        pts.append((x1, z1 + (z0 - z1) * i / per_side))
+
+    for i in range(per_side):
+        pts.append((x1 + (x0 - x1) * i / per_side, z0))
+
+    for i in range(per_side):
+        pts.append((x0, z0 + (z1 - z0) * i / per_side))
+
+    return pts
+
+
+_inner = rect_ring(GLASS_X0 + SKIRT_UNDER, GLASS_X1 - SKIRT_UNDER,
+                   GLASS_Z0 + SKIRT_UNDER, GLASS_Z1 - SKIRT_UNDER, SKIRT_PER_SIDE)
+_outer = rect_ring(GLASS_X0 - SKIRT_OUT, GLASS_X1 + SKIRT_OUT,
+                   GLASS_Z0 - SKIRT_OUT, GLASS_Z1 + SKIRT_OUT, SKIRT_PER_SIDE)
+
+_lip  = [(x, skirt_y(x, z), z) for (x, z) in _inner]
+_edge = [(x, skirt_y(x, z), z) for (x, z) in _outer]
+_back = [(x, y + SKIRT_BACK, z) for (x, y, z) in _edge]
+
+_skirt_tris = []
+
+for _i in range(len(_lip)):
+    _j = (_i + 1) % len(_lip)
+
+    _skirt_tris.append((_lip[_i],  _edge[_i], _edge[_j]))
+    _skirt_tris.append((_lip[_i],  _edge[_j], _lip[_j]))
+    _skirt_tris.append((_edge[_i], _back[_i], _back[_j]))
+    _skirt_tris.append((_edge[_i], _back[_j], _edge[_j]))
+
+m.add_triangles("tube_skirt", _skirt_tris, CAVITY)
 
 # ------------------------------------------------------- power button + LED
 

@@ -1621,10 +1621,12 @@ HRESULT EmulatorShell::InitializeDeskScene()
     //
     // Same five numbers the readout prints, same order, comma separated:
     //
-    //     CASSO_SCENE_POSE=yaw,pitch,zoom,panX,panY
+    //     CASSO_SCENE_POSE=yaw,pitch,zoom,panX,panY[,bezelTilt]
     //
     // Degrees in, radians stored, because degrees are what the readout shows.
-    // Absent or unparseable leaves the composed pose alone.
+    // Absent or unparseable leaves the composed pose alone. The bezel's lean
+    // is optional and last: it is not part of the orbit, but a fault that
+    // only shows while the bezel is tilted needs it reproducible too.
     {
         wchar_t   poseValue[128] = {};
 
@@ -1635,8 +1637,10 @@ HRESULT EmulatorShell::InitializeDeskScene()
             float  zoom     = 1.0f;
             float  panX     = 0.0f;
             float  panY     = 0.0f;
-            int    got      = swscanf_s (poseValue, L"%f,%f,%f,%f,%f",
-                                         &yawDeg, &pitchDeg, &zoom, &panX, &panY);
+            float  tiltDeg  = 0.0f;
+            int    got      = swscanf_s (poseValue, L"%f,%f,%f,%f,%f,%f",
+                                         &yawDeg, &pitchDeg, &zoom, &panX, &panY,
+                                         &tiltDeg);
 
             if (got >= 2)
             {
@@ -1645,6 +1649,14 @@ HRESULT EmulatorShell::InitializeDeskScene()
                 m_sceneView.zoom          = (got >= 3 && zoom > 0.0f) ? zoom : 1.0f;
                 m_sceneView.panX          = (got >= 4) ? panX : 0.0f;
                 m_sceneView.panY          = (got >= 5) ? panY : 0.0f;
+
+                // The bezel leans independently of the orbit, and a fault
+                // that only shows while it is leaning needs it reproducible
+                // too. Optional, so a five-value pose still reads.
+                if (got >= 6)
+                {
+                    m_deskScene.SetBezelTilt (tiltDeg * 3.14159265f / 180.0f);
+                }
 
                 InvalidateSceneComposition();
             }
