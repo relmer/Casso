@@ -759,3 +759,18 @@ rediscovered.** PowerShell mangles a glued flag typed inline: `& $cli pg.a65
 gone. Passing the arguments as an array (`& $cli @args`) or going through
 `cmd /c` delivers them verbatim. Any command-line measurement on this project
 has to use one of those two forms, or it measures PowerShell.
+
+## Where this layer's defects actually live
+
+Every data-loss fix in the disk layer has been on a DEGRADED path -- damaged
+sectors, an undecodable track, a refused mount, a partial write -- never on a
+good disk. A round-trip test over a healthy image passes either way, which is
+why the defects were found by reading code or by a guest hitting them rather
+than by the suite.
+
+The cost is not what has kept that coverage thin. A unit test for this class
+builds a damaged `DiskImage` in memory and asserts the caller refuses; it needs
+no checked-in corrupt image. Worth a small builder that produces an image
+broken in a named way -- undecodable sector, duplicate sector claiming a slot,
+truncated track, missing address field -- and tests over the paths that consume
+it: `Denibblize`, `DiskImage::Serialize`, the mount path, and salvage.
