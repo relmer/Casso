@@ -356,6 +356,27 @@ except Exception as exc:
           f"({type(exc).__name__}: {exc}) -- shipping it SHARP",
           file=sys.stderr)
 
+# THE NOTCH HAS TWO MOUTHS. It is cut from the front AND through the top, so
+# the top face carries an opening of its own, and the slab above reaches only
+# 1.5 mm back from the front face -- it rounds the front opening and the first
+# sliver of the top one, and never sees the edge where the notch's BACK WALL
+# meets the top of the case, 25 mm behind it. That edge shipped as a knife
+# edge while the sides around it were broken over, which is exactly how it
+# read: soft everywhere but across the back.
+#
+# Its own selector and its own try, for the reason the first one has: the case
+# has no edge set that names this opening, and a refusal should say so rather
+# than take the front's round-over down with it.
+try:
+    case = (case.edges(cq.selectors.BoxSelector(
+                (NX0 - 2.0, NOTCH_REAR_Y - 1.5, H - 1.5),
+                (NX0 + NOTCH_W + 2.0, NOTCH_REAR_Y + 1.5, H + 1.5)))
+                .fillet(NOTCH_EDGE_R))
+except Exception as exc:
+    print(f"WARNING: power notch rear top: round-over FAILED "
+          f"({type(exc).__name__}: {exc}) -- shipping it SHARP",
+          file=sys.stderr)
+
 # The brand recess, down the strip below the icons: a shallow rounded-corner
 # pocket exactly RIDGE_H deep. The scene stands the cassowary in it at the
 # same RIDGE_H thickness, so the mark's face finishes FLUSH with the frame
