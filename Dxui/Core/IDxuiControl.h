@@ -101,7 +101,7 @@ public:
     // divider) for a client-space point, or nullptr for "no preference"
     // (host uses the default arrow). Panels fan this to children like
     // OnMouse; the host queries the tree on WM_SETCURSOR.
-    virtual LPCWSTR  CursorForPoint  (POINT clientPx) const                       { (void) clientPx; return nullptr; }
+    virtual LPCWSTR  GetCursorForPoint  (POINT clientPx) const                       { (void) clientPx; return nullptr; }
 
     virtual void  OnFocusChanged  (bool focused)                                { (void) focused; }
     virtual void  OnThemeChanged  ()                                            {}
@@ -109,29 +109,29 @@ public:
 
     virtual DxuiHitTestKind  ClassifyHit  (POINT clientDip) const               { (void) clientDip; return DxuiHitTestKind::Client; }
 
-    virtual std::wstring        AccessibleName  () const                        { return L""; }
-    virtual DxuiAccessibleRole  AccessibleRole  () const                        { return DxuiAccessibleRole::Generic; }
+    virtual std::wstring        GetAccessibleName () const                        { return L""; }
+    virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 
-    RECT  Bounds      () const                                                  { return m_boundsDip; }
-    void  SetBounds   (RECT boundsDip);
+    RECT  GetBounds    () const                                                  { return m_boundsDip; }
+    void  SetBounds    (RECT boundsDip);
 
-    bool  Visible     () const                                                  { return m_visible; }
-    void  SetVisible  (bool visible);
+    bool  IsVisible    () const                                                  { return m_visible; }
+    void  SetVisible   (bool visible);
 
-    bool  Enabled     () const                                                  { return m_enabled; }
-    void  SetEnabled  (bool enabled);
+    bool  IsEnabled    () const                                                  { return m_enabled; }
+    void  SetEnabled   (bool enabled);
 
-    bool  Focusable   () const                                                  { return m_focusable; }
-    void  SetFocusable(bool focusable);
+    bool  IsFocusable  () const                                                  { return m_focusable; }
+    void  SetFocusable (bool focusable);
 
-    int   TabIndex    () const                                                  { return m_tabIndex; }
-    void  SetTabIndex (int tabIndex);
+    int   GetTabIndex  () const                                                  { return m_tabIndex; }
+    void  SetTabIndex  (int tabIndex);
 
-    IDxuiControl *  Parent     () const                                         { return m_parent; }
-    void            SetParent  (IDxuiControl * parent)                          { m_parent = parent; }
+    IDxuiControl *  GetParent () const                                         { return m_parent; }
+    void            SetParent (IDxuiControl * parent)                          { m_parent = parent; }
 
-    virtual size_t          ChildCount  () const                                { return 0; }
-    virtual IDxuiControl *  Child       (size_t index) const                    { (void) index; return nullptr; }
+    virtual size_t          GetChildCount () const                                { return 0; }
+    virtual IDxuiControl *  GetChild      (size_t index) const                    { (void) index; return nullptr; }
 
 protected:
     virtual void  OnVisibilityChanged()                                        {}

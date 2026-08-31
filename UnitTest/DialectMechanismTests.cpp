@@ -205,7 +205,7 @@ namespace DialectMechanismTests
             Assert::IsTrue (result.bytes == expected, L"a third grammar must reach the same encoder");
             Assert::AreEqual (0x0400, (int) result.startAddress,
                               L"and take its own default origin, which is neither shipped dialect's");
-            Assert::AreEqual (0x0400, (int) result.symbols.at ("START"), L"with its labels bound where it says");
+            Assert::AreEqual (0x0400, (int) result.symbols.at ("START"), L"with its labels bound where it declares them");
         }
 
 
@@ -282,7 +282,7 @@ namespace DialectMechanismTests
             for (const DialectRegistry::Entry & entry : DialectRegistry::GetAllDialects())
             {
                 Assert::IsFalse (entry.id == DialectId::Count,
-                                 L"and no registry row may claim the sentinel it answers to");
+                                 L"and no registry row may claim the sentinel it resolves to");
             }
         }
 
@@ -415,7 +415,7 @@ namespace DialectMechanismTests
                 for (size_t j = i + 1; j < dialects.size(); j++)
                 {
                     Assert::AreNotEqual (std::string (dialects[i].name), std::string (dialects[j].name),
-                                         L"two dialects must not answer to the same name");
+                                         L"two dialects must not resolve to the same name");
                 }
             }
         }
@@ -487,7 +487,7 @@ namespace DialectMechanismTests
 
             Assert::IsTrue (as65.GetCpuSelectionSource() == CpuSelectionSource::CommandLine);
             Assert::AreEqual (std::string (""), std::string (as65.GetCpuDirectiveName()),
-                              L"a command-line dialect has no in-source directive to name");
+                              L"a command-line dialect has no in-source directive to declare");
         }
     };
 
@@ -661,13 +661,13 @@ namespace DialectMechanismTests
                     {
                         std::string   spelling = alias.spelling;
                         std::string   target   = alias.instruction;
-                        std::wstring  message  = L"an alias must name an instruction the base table carries";
+                        std::wstring  message  = L"an alias must resolve to an instruction the base table carries";
 
                         aliasCount++;
 
                         Assert::IsTrue (table.IsMnemonic (target), message.c_str());
                         Assert::IsFalse (table.IsMnemonic (spelling),
-                                         L"an alias spelled the same as a real instruction would shadow it");
+                                         L"an alias written the same as a real instruction would shadow it");
                     }
                 }
             }
@@ -686,7 +686,7 @@ namespace DialectMechanismTests
             const DialectProfile & as65 = DialectRegistry::Get (DialectId::As65);
 
             Assert::AreEqual (static_cast<size_t> (0), as65.GetMnemonicAliases().size(),
-                              L"as65 spells every instruction the way the opcode table does");
+                              L"as65 writes every instruction the way the opcode table does");
         }
 
 
@@ -790,7 +790,7 @@ namespace DialectMechanismTests
             ParsedLine             parsed = Parser::ParseLine (" <<<", 1, merlin);
 
             Assert::IsTrue (parsed.directiveToken == Directive::MacroEnd, L"<<< resolves to the macro-end token");
-            Assert::AreNotEqual (std::string (".ENDM"), parsed.directive, L"and is spelled nothing like as65's");
+            Assert::AreNotEqual (std::string (".ENDM"), parsed.directive, L"and is written nothing like as65's");
         }
 
 
@@ -889,13 +889,13 @@ namespace DialectMechanismTests
                 OpcodeTable  base     (cpu.GetInstructionSet());
                 OpcodeTable  extended (cmos.GetInstructionSet());
 
-                AssertNoDialectClaims (base,     L"the base instruction table answered to no mnemonic at all",     asked);
-                AssertNoDialectClaims (extended, L"the extended instruction table answered to no mnemonic at all", asked);
+                AssertNoDialectClaims (base,     L"the base instruction table matched no mnemonic at all",     asked);
+                AssertNoDialectClaims (extended, L"the extended instruction table matched no mnemonic at all", asked);
             }
 
             //  A sweep over an empty registry passes while asking nothing, and
             //  reads in the output exactly like a full one.
-            Assert::IsTrue (asked > 0, L"no dialect was asked about any mnemonic");
+            Assert::IsTrue (asked > 0, L"no dialect was queried for any mnemonic");
         }
 
 
@@ -996,7 +996,7 @@ namespace DialectMechanismTests
                 const Specimen *  specimen = FindSpecimen (entry.id);
                 AssemblyResult    result;
 
-                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been asked this question");
+                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been exercised");
 
                 result = AssembleWith (entry.id, specimen->source);
 
@@ -1014,7 +1014,7 @@ namespace DialectMechanismTests
             //  empty registry agrees with itself and reads exactly like a full
             //  one; the enumerator count is the independent number.
             Assert::AreEqual ((size_t) DialectId::Count, swept,
-                              L"every dialect that exists must have been asked");
+                              L"every dialect that exists must have been exercised");
         }
 
 
@@ -1039,12 +1039,12 @@ namespace DialectMechanismTests
                 const Specimen *  specimen = FindSpecimen (entry.id);
                 AssemblyResult    result;
 
-                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been asked this question");
+                Assert::IsNotNull (specimen, L"a dialect with no specimen here has never been exercised");
 
                 result = AssembleWith (entry.id, specimen->corrected);
 
                 Assert::IsTrue (result.errors.empty(),
-                                L"the corrected source must assemble, or the rejection above says nothing");
+                                L"the corrected source must assemble, or the rejection above proves nothing");
                 Assert::AreEqual ((size_t) 2, result.bytes.size(),
                                   L"and emit the two bytes the misspelled line was silently costing");
 
@@ -1052,7 +1052,7 @@ namespace DialectMechanismTests
             }
 
             Assert::AreEqual ((size_t) DialectId::Count, swept,
-                              L"every dialect that exists must have been asked");
+                              L"every dialect that exists must have been exercised");
         }
 
     private:

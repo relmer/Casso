@@ -19,7 +19,7 @@
 //  strike history is never lost.
 //
 //  Positioning: the raster owns the paper feed position. Strikes address an
-//  absolute strip row (the interpreter strikes at PaperRow() plus the dot's
+//  absolute strip row (the interpreter strikes at GetPaperRow() plus the dot's
 //  vertical offset); AdvanceRows feeds the paper, extending the used extent
 //  even across blank line feeds; MarkFormFeed advances to the next form-length
 //  boundary and records it for pagination. Growth is chunked by page length.
@@ -49,17 +49,17 @@ public:
     // (rebased). Bounded by the span, never the whole strip -- this is the
     // live preview's per-refresh snapshot (FR-033), so a 60-page banner costs
     // the same to snapshot as a receipt. Out-of-range spans yield an empty out.
-    void    CopyRowSpan       (int firstRow, int lastRow, PrintRaster & out) const;
+    void    CopyRowSpan   (int firstRow, int lastRow, PrintRaster & out) const;
 
-    int     PaperRow          () const { return m_paperRow; }
-    int     RowsUsed          () const { return m_rowsUsed; }
-    bool    CapReached        () const { return m_capReached; }
+    int     GetPaperRow   () const { return m_paperRow; }
+    int     GetRowsUsed   () const { return m_rowsUsed; }
+    bool    HasReachedCap () const { return m_capReached; }
 
-    const vector<int> & PageBoundaryRows () const { return m_pageBoundaryRows; }
+    const vector<int> & GetPageBoundaryRows () const { return m_pageBoundaryRows; }
 
     // Ink bitfield at a cell; 0 (paper white) for any out-of-range or
     // never-allocated position.
-    Byte    CellAt            (int columnDot, int row) const;
+    Byte    GetCell            (int columnDot, int row) const;
 
 private:
     void    EnsureRowAllocated (int row);

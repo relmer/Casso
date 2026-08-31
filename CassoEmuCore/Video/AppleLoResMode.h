@@ -32,7 +32,7 @@ public:
     const char * GetModeName () const override { return "apple2-lores"; }
 
 private:
-    static Word RowBaseAddress (int row, Word pageBase);
+    static Word GetRowBaseAddress (int row, Word pageBase);
 
     MemoryBus & m_bus;
 };

@@ -166,8 +166,8 @@ bool DxuiTextInput::OnKey (WPARAM vk)
 {
     HRESULT  hr       = S_OK;
     bool     consumed = false;
-    bool     shift    = Shift   ();
-    bool     ctrl     = Control();
+    bool     shift    = IsShiftKeyDown    ();
+    bool     ctrl     = IsControlKeyDown  ();
     bool     isActive = m_focused && m_enabled;
 
 
@@ -179,7 +179,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
         case VK_LEFT:
             if (ctrl)
             {
-                m_caret = WordBoundary (m_caret, false);
+                m_caret = GetWordBoundary (m_caret, false);
             }
             else if (m_caret > 0)
             {
@@ -197,7 +197,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
         case VK_RIGHT:
             if (ctrl)
             {
-                m_caret = WordBoundary (m_caret, true);
+                m_caret = GetWordBoundary (m_caret, true);
             }
             else if (m_caret < m_text.size())
             {
@@ -393,9 +393,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        y         = (float) m_boundsDip.top;
     float        w         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float        padL      = m_scaler.Pxf (s_kPadLeftDip);
-    float        padR      = m_scaler.Pxf (s_kPadRightDip);
-    float        fontPx    = m_scaler.Pxf (s_kFontDip);
+    float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
+    float        padR      = m_scaler.ToPxf (s_kPadRightDip);
+    float        fontPx    = m_scaler.ToPxf (s_kFontDip);
     float        innerW    = w - padL - padR;
     uint32_t     bgArgb    = s_kFallbackBg;
     uint32_t     fgArgb    = s_kFallbackFg;
@@ -563,14 +563,14 @@ void DxuiTextInput::ClampCaret()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WordBoundary
+//  GetWordBoundary
 //
 //  Ctrl+arrow target: the start of the previous / next word, where a word
 //  is a run of alphanumerics or underscores.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DxuiTextInput::WordBoundary (size_t from, bool forward) const
+size_t DxuiTextInput::GetWordBoundary (size_t from, bool forward) const
 {
     size_t  i = from;
 
@@ -624,8 +624,8 @@ size_t DxuiTextInput::WordBoundary (size_t from, bool forward) const
 size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
-    float         padL     = m_scaler.Pxf (s_kPadLeftDip);
-    float         fontPx   = m_scaler.Pxf (s_kFontDip);
+    float         padL     = m_scaler.ToPxf (s_kPadLeftDip);
+    float         fontPx   = m_scaler.ToPxf (s_kFontDip);
     float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;
     float         h        = 0.0f;
@@ -908,7 +908,7 @@ void DxuiTextInput::FireChange()
 void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 

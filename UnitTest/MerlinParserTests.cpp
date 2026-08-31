@@ -439,7 +439,7 @@ namespace MerlinParserTests
             ParsedLine     line = merlin.ParseLine (" HEX 0A0B", 1);
 
             Assert::IsTrue (line.isDirective, L"HEX is a Merlin directive");
-            Assert::AreEqual (std::string ("HEX"), line.directive, L"and is quoted back the way Merlin spells it");
+            Assert::AreEqual (std::string ("HEX"), line.directive, L"and is quoted back the way Merlin writes it");
         }
 
 
@@ -476,7 +476,7 @@ namespace MerlinParserTests
                 std::wstring  what (name.begin(), name.end());
 
                 Assert::IsFalse (name.empty(), L"a spelling with no characters cannot be written at all");
-                Assert::AreNotEqual ('.', name[0], (what + L" is spelled the way as65 spells a directive").c_str());
+                Assert::AreNotEqual ('.', name[0], (what + L" is written the way as65 writes a directive").c_str());
             }
         }
     };
@@ -498,7 +498,7 @@ namespace MerlinParserTests
             const DialectProfile  &  byId   = DialectRegistry::Get (DialectId::Merlin);
             DialectId                byName = DialectId::As65;
 
-            Assert::IsTrue (DialectRegistry::TryLookUpByName ("merlin", byName), L"'merlin' must name a dialect");
+            Assert::IsTrue (DialectRegistry::TryLookUpByName ("merlin", byName), L"'merlin' must resolve to a dialect");
             Assert::IsTrue (byName == DialectId::Merlin, L"and resolve to the Merlin enumerator");
             Assert::AreEqual ("merlin", byId.GetName(), L"the profile names itself the way it is selected");
         }

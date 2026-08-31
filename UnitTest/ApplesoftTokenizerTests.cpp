@@ -82,7 +82,7 @@ public:
             L"one missing check away from placing a program that was rejected");
 
         Assert::IsFalse (error.reason.empty(),
-            L"and must say what is wrong with it");
+            L"and must state what is wrong with it");
 
         return error;
     }
@@ -474,7 +474,7 @@ public:
         ApplesoftListingError  error = RefusalFor ("10 PRINT 1\nPRINT 2\n");
 
         Assert::IsFalse (error.hasLineNumber,
-            L"there is no number to name, and inventing one would point at the wrong line");
+            L"there is no number to report, and inventing one would point at the wrong line");
         Assert::AreEqual (std::string ("PRINT 2"), error.sourceLine,
             L"so the text is what identifies it");
         Assert::AreEqual ((size_t) 2, error.sourceLineIndex,
@@ -519,7 +519,7 @@ public:
 
         Assert::AreEqual ((uint32_t) 10, error.lineNumber);
         Assert::IsTrue (error.reason.find ("Apple II") != std::string::npos,
-            L"and says what is wrong with the character rather than only that something is");
+            L"and states what is wrong with the character rather than only that something is");
     }
 
 
@@ -629,7 +629,7 @@ public:
         ApplesoftListingError  error;
 
         AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error),
-            L"an empty listing and a file that could not be read are not the same answer");
+            L"an empty listing and a file that could not be read are not the same outcome");
     }
 
 

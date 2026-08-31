@@ -149,11 +149,11 @@ void AppleKeyboard::SoftReset()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  KeyPress
+//  PressKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleKeyboard::KeyPress (Byte asciiChar)
+void AppleKeyboard::PressKey (Byte asciiChar)
 {
     // Store key with bit 7 set (strobe) in a single atomic write
     m_latchedKey.store (
@@ -311,7 +311,7 @@ void AppleKeyboard::Tick (uint32_t cpuCycles)
         {
             m_repeatAccumCycles -= threshold;
             m_repeatStarted      = true;
-            KeyPress (key);
+            PressKey (key);
 
             if (m_inputSink != nullptr)
             {

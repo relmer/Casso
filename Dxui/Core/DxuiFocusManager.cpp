@@ -75,7 +75,7 @@ void DxuiFocusManager::SetTheme (const IDxuiTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowEpsilonDip
+//  GetRowEpsilonDip
 //
 //  Returns the explicit test-seam override if set, otherwise pulls
 //  BodyLineHeightDip() from the attached theme, otherwise falls back
@@ -83,7 +83,7 @@ void DxuiFocusManager::SetTheme (const IDxuiTheme * theme)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiFocusManager::RowEpsilonDip() const
+float DxuiFocusManager::GetRowEpsilonDip() const
 {
     constexpr float  s_kDefaultRowEpsilonDip = 16.0f;
     float            eps                     = s_kDefaultRowEpsilonDip;
@@ -125,16 +125,16 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 
     // Hiding or disabling a container takes its whole subtree out of the tab
     // order, so this prunes rather than merely skipping the node itself.
-    if (root != nullptr && root->Visible() && root->Enabled())
+    if (root != nullptr && root->IsVisible() && root->IsEnabled())
     {
-        if (root->Focusable() && root->TabIndex() != IDxuiControl::kTabIndexExcluded)
+        if (root->IsFocusable() && root->GetTabIndex() != IDxuiControl::kTabIndexExcluded)
         {
             out.push_back (root);
         }
 
-        for (i = 0; i < root->ChildCount(); ++i)
+        for (i = 0; i < root->GetChildCount(); ++i)
         {
-            CollectFocusables (root->Child (i), out);
+            CollectFocusables (root->GetChild (i), out);
         }
     }
 }
@@ -148,7 +148,7 @@ void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxui
 //  Rebuild
 //
 //  Rebuilds the tab order. Controls with explicit non-negative
-//  TabIndex() values sort first by ascending index. Remaining
+//  GetTabIndex() values sort first by ascending index. Remaining
 //  geometry-mode controls sort by (top / rowEpsilon, left).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +177,7 @@ void DxuiFocusManager::Rebuild()
 
         CollectFocusables (scopeRoot, raw);
 
-        eps = RowEpsilonDip();
+        eps = GetRowEpsilonDip();
         if (eps <= 0.0f)
         {
             eps = 1.0f;
@@ -186,8 +186,8 @@ void DxuiFocusManager::Rebuild()
         std::sort (raw.begin(), raw.end(),
             [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
             {
-                int   taIdx = a->TabIndex();
-                int   tbIdx = b->TabIndex();
+                int   taIdx = a->GetTabIndex();
+                int   tbIdx = b->GetTabIndex();
                 bool  aExpl = (taIdx >= 0);
                 bool  bExpl = (tbIdx >= 0);
                 RECT  ra    = {};
@@ -205,8 +205,8 @@ void DxuiFocusManager::Rebuild()
                     return aExpl;  // explicit indices come first
                 }
 
-                ra = a->Bounds();
-                rb = b->Bounds();
+                ra = a->GetBounds();
+                rb = b->GetBounds();
                 ba = (int) ((float) ra.top / eps);
                 bb = (int) ((float) rb.top / eps);
                 if (ba != bb)
@@ -364,7 +364,7 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
     }
     else
     {
-        curR  = m_focused->Bounds();
+        curR  = m_focused->GetBounds();
         curCx = (curR.left + curR.right)  / 2;
         curCy = (curR.top  + curR.bottom) / 2;
 
@@ -383,7 +383,7 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
                 continue;
             }
 
-            rr = candidate->Bounds();
+            rr = candidate->GetBounds();
             cx = (rr.left + rr.right)  / 2;
             cy = (rr.top  + rr.bottom) / 2;
             dx = cx - curCx;

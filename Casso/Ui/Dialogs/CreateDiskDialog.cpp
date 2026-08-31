@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Devices/Disk/MountDiagnosis.h"
+
 #include "CreateDiskDialog.h"
 
 #include "Window/DxuiButtonRow.h"
@@ -69,7 +71,7 @@ void CreateDiskDialog::OnCreate()
     m_list.SetAlwaysShowSelection (true);
     m_list.SetOnSelectionChanged ([this] (int row)
     {
-        const auto &  entries = m_model->Entries();
+        const auto &  entries = m_model->GetEntries();
 
         if (row >= 0 && row < (int) entries.size() && !entries[(size_t) row].isFolder)
         {
@@ -83,10 +85,10 @@ void CreateDiskDialog::OnCreate()
     m_formatLabel.SetText      (L"Format:");
     m_formatLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_formatDropdown.SetPopupHost (PopupHost());
-    m_formatDropdown.SetItems     ({ FormatCaption (BlankDiskContents::Dos33),
-                                     FormatCaption (BlankDiskContents::ProDos),
-                                     FormatCaption (BlankDiskContents::Unformatted) });
+    m_formatDropdown.SetPopupHost (GetPopupHost());
+    m_formatDropdown.SetItems     ({ BlankDiskBuilder::GetContentsCaption (BlankDiskContents::Dos33),
+                                     BlankDiskBuilder::GetContentsCaption (BlankDiskContents::ProDos),
+                                     BlankDiskBuilder::GetContentsCaption (BlankDiskContents::Unformatted) });
     m_formatDropdown.SetSelected  (0);
     m_formatDropdown.SetSelect    ([this] (int index) { OnFormatChanged (index); });
 
@@ -94,7 +96,7 @@ void CreateDiskDialog::OnCreate()
     m_imageTypeLabel.SetText      (L"Image type:");
     m_imageTypeLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_imageTypeDropdown.SetPopupHost (PopupHost());
+    m_imageTypeDropdown.SetPopupHost (GetPopupHost());
     m_imageTypeDropdown.SetSelect    ([this] (int index) { OnImageTypeChanged (index); });
 
     RebuildImageTypeChoices();
@@ -110,9 +112,9 @@ void CreateDiskDialog::OnCreate()
     m_nameLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_nameInput.SetTheme (m_theme);
-    m_nameInput.SetHwnd  (Hwnd());
+    m_nameInput.SetHwnd  (GetHwnd());
     m_nameInput.SetMaxLength (128);
-    m_nameInput.SetTextRenderer (TextRenderer());
+    m_nameInput.SetTextRenderer (GetTextRenderer());
 
     {
         CreateDiskBodyPanel::Children  kids;
@@ -170,11 +172,11 @@ void CreateDiskDialog::RefreshListing()
         return;
     }
 
-    m_pathLabel.SetText (m_model->CurrentFolder());
+    m_pathLabel.SetText (m_model->GetCurrentFolder());
 
-    rows.reserve (m_model->Entries().size());
+    rows.reserve (m_model->GetEntries().size());
 
-    for (const FileBrowseEntry & entry : m_model->Entries())
+    for (const FileBrowseEntry & entry : m_model->GetEntries())
     {
         rows.push_back ({ { entry.name,                     false, {} },
                           { FormatSize (entry),             true,  {} },
@@ -204,69 +206,9 @@ void CreateDiskDialog::RefreshFromModel()
 
     RefreshListing();
 
-    m_nameInput.SetText (m_model->UniqueDefaultName (L"Blank Disk"));
+    m_nameInput.SetText (m_model->GetUniqueDefaultName (L"Blank Disk"));
 
     Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatExtension
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CreateDiskDialog::FormatExtension (DiskFormat format)
-{
-    switch (format)
-    {
-        case DiskFormat::Dsk: return L".dsk";
-        case DiskFormat::Po:  return L".po";
-        default:              return L".woz";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ImageTypeCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CreateDiskDialog::ImageTypeCaption (DiskFormat imageType)
-{
-    switch (imageType)
-    {
-        case DiskFormat::Dsk: return L"DSK";
-        case DiskFormat::Po:  return L"PO";
-        default:              return L"WOZ";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CreateDiskDialog::FormatCaption (BlankDiskContents contents)
-{
-    switch (contents)
-    {
-        case BlankDiskContents::ProDos:      return L"ProDOS 1.1.1";
-        case BlankDiskContents::Unformatted: return L"Unformatted";
-        default:                             return L"DOS 3.3";
-    }
 }
 
 
@@ -297,10 +239,9 @@ std::wstring CreateDiskDialog::ReplaceExtension (const std::wstring & name, cons
 //  RebuildImageTypeChoices
 //
 //  The Format choice (the primary pick) drives which image types can carry
-//  it: DOS 3.3 fits WOZ or DSK, ProDOS fits WOZ or PO, and unformatted
-//  media fits anything -- so an illegal pairing is never even listed. The
-//  current image type is preserved by value when it stays legal and snaps
-//  to WOZ when not; a snap re-applies the name extension and filter.
+//  it, so an illegal pairing is never even listed. The current image type is
+//  preserved by value when it stays legal and snaps to the first offered when
+//  not; a snap re-applies the name extension and filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,24 +254,11 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 
 
-    switch (m_contents)
-    {
-        case BlankDiskContents::Dos33:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk };
-            break;
-
-        case BlankDiskContents::ProDos:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Po };
-            break;
-
-        default:
-            m_imageTypeChoices = { DiskFormat::Woz, DiskFormat::Dsk, DiskFormat::Po };
-            break;
-    }
+    m_imageTypeChoices = BlankDiskBuilder::GetContainers (m_contents);
 
     for (i = 0; i < m_imageTypeChoices.size(); i++)
     {
-        captions.push_back (ImageTypeCaption (m_imageTypeChoices[i]));
+        captions.push_back (MountDiagnosis::GetContainerCaption (m_imageTypeChoices[i]));
 
         if (m_imageTypeChoices[i] == m_imageType)
         {
@@ -364,11 +292,14 @@ void CreateDiskDialog::RebuildImageTypeChoices()
 
 void CreateDiskDialog::ApplyImageTypeExtension()
 {
-    m_nameInput.SetText (ReplaceExtension (m_nameInput.Text(), FormatExtension (m_imageType)));
+    m_nameInput.SetText (ReplaceExtension (
+        m_nameInput.GetText(),
+        MountDiagnosis::GetPrimaryExtensionText (m_imageType).c_str()));
 
     if (m_model != nullptr)
     {
-        m_model->SetExtensionFilter (FormatExtension (m_imageType));
+        m_model->SetExtensionFilter (
+            MountDiagnosis::GetPrimaryExtensionText (m_imageType).c_str());
         RefreshListing();
     }
 }
@@ -438,7 +369,7 @@ void CreateDiskDialog::UpdateBootableRow()
 {
     bool          formatted = (m_contents != BlankDiskContents::Unformatted);
     bool          available = false;
-    std::wstring  os        = FormatCaption (m_contents);
+    std::wstring  os        = BlankDiskBuilder::GetContentsCaption (m_contents);
 
 
 
@@ -511,7 +442,7 @@ void CreateDiskDialog::OnDownloadClicked()
 
     if (FAILED (hr))
     {
-        DxuiMessageBox (Hwnd(), m_theme,
+        DxuiMessageBox (GetHwnd(), m_theme,
                         L"The download failed. Check your connection and try again.",
                         L"Create New Disk", MB_OK | MB_ICONWARNING);
     }
@@ -545,12 +476,12 @@ void CreateDiskDialog::OnRowActivated (int row)
 
 
 
-    if (m_model == nullptr || row < 0 || row >= (int) m_model->Entries().size())
+    if (m_model == nullptr || row < 0 || row >= (int) m_model->GetEntries().size())
     {
         return;
     }
 
-    if (!m_model->Entries()[(size_t) row].isFolder)
+    if (!m_model->GetEntries()[(size_t) row].isFolder)
     {
         // Activating a file row is choosing it, save-dialog style: its name
         // is already in the field (selection copied it), so run Create --
@@ -559,11 +490,11 @@ void CreateDiskDialog::OnRowActivated (int row)
         return;
     }
 
-    up = (m_model->Entries()[(size_t) row].name == L"..");
+    up = (m_model->GetEntries()[(size_t) row].name == L"..");
 
     if (up)
     {
-        cameFrom = std::filesystem::path (m_model->CurrentFolder()).filename().wstring();
+        cameFrom = std::filesystem::path (m_model->GetCurrentFolder()).filename().wstring();
     }
 
     hr = m_model->NavigateInto ((size_t) row);
@@ -577,7 +508,7 @@ void CreateDiskDialog::OnRowActivated (int row)
 
     if (up)
     {
-        const auto &  entries = m_model->Entries();
+        const auto &  entries = m_model->GetEntries();
         size_t        i       = 0;
 
         for (i = 0; i < entries.size(); i++)
@@ -616,7 +547,7 @@ void CreateDiskDialog::OnRowActivated (int row)
 
 void CreateDiskDialog::OnCreateClicked()
 {
-    std::wstring   name    = m_nameInput.Text();
+    std::wstring   name    = m_nameInput.GetText();
     int            drive   = -1;
     TargetVerdict  verdict = TargetVerdict::InvalidName;
     std::wstring   message;
@@ -631,7 +562,8 @@ void CreateDiskDialog::OnCreateClicked()
 
     // The file's extension always matches the chosen format.
     {
-        const wchar_t * ext     = FormatExtension (m_imageType);
+        std::wstring    extText = MountDiagnosis::GetPrimaryExtensionText (m_imageType);
+        const wchar_t * ext     = extText.c_str();
         size_t          extLen  = wcslen (ext);
         bool            matches = name.size() >= extLen;
         size_t          i       = 0;
@@ -654,7 +586,7 @@ void CreateDiskDialog::OnCreateClicked()
     {
         case TargetVerdict::InvalidName:
             message = L"\"" + name + L"\" is not a valid file name.";
-            DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                             L"Create New Disk", MB_OK | MB_ICONWARNING);
             break;
 
@@ -662,13 +594,13 @@ void CreateDiskDialog::OnCreateClicked()
             message = L"\"" + name + L"\" is mounted in Drive "
                     + std::to_wstring (drive + 1)
                     + L". Eject it before overwriting it with a new disk.";
-            DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                             L"Create New Disk", MB_OK | MB_ICONWARNING);
             break;
 
         case TargetVerdict::Exists:
             message = L"\"" + name + L"\" already exists. Replace it?";
-            choice  = DxuiMessageBox (Hwnd(), m_theme, message.c_str(),
+            choice  = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(),
                                       L"Create New Disk",
                                       MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
@@ -682,7 +614,7 @@ void CreateDiskDialog::OnCreateClicked()
         case TargetVerdict::Ok:
             m_result.spec.format   = m_imageType;
             m_result.spec.contents = m_contents;
-            m_result.spec.bootable = m_bootableCheck.Enabled() && m_bootableCheck.Checked();
+            m_result.spec.bootable = m_bootableCheck.IsEnabled() && m_bootableCheck.IsChecked();
             m_result.targetPath    = m_model->ComposeTargetPath (name);
             m_result.confirmed     = true;
             EndDialog (IDOK);

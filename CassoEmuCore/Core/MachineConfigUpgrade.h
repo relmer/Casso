@@ -128,6 +128,22 @@ public:
         string       & outMigrated,
         bool         & outChanged);
 
+    // As above, plus the fold of the legacy `externalDriveConnected` UI
+    // boolean into the machine's named `disk` port.
+    //
+    // THE DEFAULT'S PORT LIST IS REQUIRED, not a convenience. A user array
+    // replaces the default's wholesale, so writing just the one port would
+    // silently drop every other connector the machine has -- the //c would
+    // come back with a disk port and no serial or joystick ports at all.
+    // The fold therefore materializes the default's whole list and occupies
+    // one entry of it. Pass nullptr (or the three-argument overload) to skip
+    // the fold entirely.
+    static HRESULT MigrateUserConfig (
+        const string     & content,
+        const JsonValue  * defaultPorts,
+        string           & outMigrated,
+        bool             & outChanged);
+
 private:
     // Schema keys and the JSON-rewriting helpers that consume them.
     // Every reader is MigrateUserConfig, directly or through another of
@@ -146,12 +162,18 @@ private:
     static constexpr const char *  kpszDeviceKey          = "device";
     static constexpr const char *  kpszPrinterDevice      = "parallel-printer";
     static constexpr int           kPrinterDefaultSlot    = 1;
+    static constexpr const char *  kpszPortsKey           = "ports";
+    static constexpr const char *  kpszPortNameKey        = "name";
+    static constexpr const char *  kpszUiPrefsKey         = "$cassoUiPrefs";
+    static constexpr const char *  kpszExternalDrivePref  = "externalDriveConnected";
+    static constexpr const char *  kpszDiskPortName       = "disk";
+    static constexpr const char *  kpszDiskIicDrive       = "disk-iic-drive";
 
     static int  FindKey (
         const vector<pair<string, JsonValue>> & entries,
         const string                          & key);
 
-    static bool  EntryHasKey (
+    static bool  HasKey (
         const JsonValue & entry,
         const string    & key);
 
@@ -160,6 +182,12 @@ private:
         const char  * defaultFlag);
 
     static bool  TryInjectPrinterSlot (JsonValue & arr);
+
+    static bool  TryInjectDiskPorts (JsonValue & arr);
+
+    static bool  TryFoldExternalDriveIntoDiskPort (
+        vector<pair<string, JsonValue>> & root,
+        const JsonValue                 * defaultPorts);
 
     static JsonValue  RewriteTopLevel (
         const JsonValue & root,

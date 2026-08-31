@@ -83,10 +83,10 @@ namespace PrinterEngineTests
             engine.Start (*ring);
 
             Assert::IsFalse  (engine.HasContent(),   L"fresh sheet has no content");
-            Assert::AreEqual (0, engine.RowsUsed(),  L"fresh sheet has no rows");
-            Assert::AreEqual ((uint64_t) 0, engine.ActivityCount(), L"no bytes drained yet");
-            Assert::IsFalse  (engine.HeadMoving(),   L"head is parked");
-            Assert::AreEqual (0, engine.CarriageCol(), L"carriage at the left margin");
+            Assert::AreEqual (0, engine.GetRowsUsed(),  L"fresh sheet has no rows");
+            Assert::AreEqual ((uint64_t) 0, engine.GetActivityCount(), L"no bytes drained yet");
+            Assert::IsFalse  (engine.IsHeadMoving(),   L"head is parked");
+            Assert::AreEqual (0, engine.GetCarriageCol(), L"carriage at the left margin");
         }
 
 
@@ -101,10 +101,10 @@ namespace PrinterEngineTests
 
             TickFor (engine, nowMs, 4, 100);   // ~0.3 s of print time
 
-            Assert::IsTrue   (engine.ActivityCount() > 0, L"Tick drained guest bytes");
+            Assert::IsTrue   (engine.GetActivityCount() > 0, L"Tick drained guest bytes");
             Assert::IsTrue   (engine.HasContent(),        L"the strip now holds content");
-            Assert::IsTrue   (engine.RowsUsed() > 0,      L"the interpreter built rows");
-            Assert::AreEqual ((Byte) InkPrimary::Black, engine.Job()->Raster().CellAt (0, 0),
+            Assert::IsTrue   (engine.GetRowsUsed() > 0,      L"the interpreter built rows");
+            Assert::AreEqual ((Byte) InkPrimary::Black, engine.GetJob()->GetRaster().GetCell (0, 0),
                               L"the drained graphics landed on the strip");
         }
 
@@ -124,11 +124,11 @@ namespace PrinterEngineTests
             {
                 nowMs += 100;
                 engine.Tick (nowMs);
-                peakCarr = (std::max) (peakCarr, engine.CarriageCol());
+                peakCarr = (std::max) (peakCarr, engine.GetCarriageCol());
             }
 
             Assert::IsTrue  (peakCarr > 1000, L"the carriage swept most of a full-width line");
-            Assert::IsFalse (engine.HeadMoving(), L"the head parks once the line is printed");
+            Assert::IsFalse (engine.IsHeadMoving(), L"the head parks once the line is printed");
         }
 
 
@@ -147,11 +147,11 @@ namespace PrinterEngineTests
 
             // The cycle cap pins the advance to 0, so the head is frozen even though
             // wall time marched on -- pausing the emulator freezes the printer.
-            Assert::AreEqual (0, engine.CarriageCol(), L"a paused guest freezes the carriage");
+            Assert::AreEqual (0, engine.GetCarriageCol(), L"a paused guest freezes the carriage");
 
             // But the interpreter still drained the pre-buffered bytes into the strip.
-            Assert::IsTrue (engine.RowsUsed() > 0, L"the strip still built from the buffered bytes");
-            Assert::IsTrue (engine.HeadMoving(),   L"motion is queued, just not advancing");
+            Assert::IsTrue (engine.GetRowsUsed() > 0, L"the strip still built from the buffered bytes");
+            Assert::IsTrue (engine.IsHeadMoving(),   L"motion is queued, just not advancing");
         }
 
 
@@ -172,7 +172,7 @@ namespace PrinterEngineTests
 
             engine.Tick (1000);   // a single step: drains only up to the buffer, then stops
 
-            Assert::IsTrue (engine.Job()->Pending() > 0,
+            Assert::IsTrue (engine.GetJob()->GetPendingBytes() > 0,
                             L"backpressure leaves the rest queued in the ring");
         }
 
@@ -190,9 +190,9 @@ namespace PrinterEngineTests
 
             TickFor (engine, nowMs, 60, 100);  // slew the whole page in
 
-            engine.HeadPosition (row, col);
+            engine.GetHeadPosition (row, col);
             Assert::IsTrue  (row > 500, L"the host form feed slews the platen up the page");
-            Assert::IsFalse (engine.HeadMoving(), L"the feed finishes and the head parks");
+            Assert::IsFalse (engine.IsHeadMoving(), L"the feed finishes and the head parks");
         }
 
 
@@ -208,8 +208,8 @@ namespace PrinterEngineTests
             TickFor (engine, nowMs, 4, 100);
 
             Assert::IsTrue (engine.TrySnapshotStrip (strip), L"snapshot succeeds with an active job");
-            Assert::IsTrue (strip.RowsUsed() > 0,         L"the snapshot carries the printed rows");
-            Assert::IsTrue (engine.SpanInkExtent (0, PrinterGrid::kPinBandRows - 1) > 0,
+            Assert::IsTrue (strip.GetRowsUsed() > 0,         L"the snapshot carries the printed rows");
+            Assert::IsTrue (engine.GetSpanInkExtent (0, PrinterGrid::kPinBandRows - 1) > 0,
                             L"the live pin band reports ink for the audio gate");
         }
     };

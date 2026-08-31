@@ -238,8 +238,8 @@ std::span<const DiskHelpPage::DiskCommandHelp> DiskHelpPage::GetCommandHelp()
 
 std::string DiskHelpPage::ApplyPrefixes (const std::string & text, char flagPrefix)
 {
-    std::string  longPrefix  = CommandLineHelp::LongPrefix  (flagPrefix);
-    std::string  shortPrefix = CommandLineHelp::ShortPrefix (flagPrefix);
+    std::string  longPrefix  = CommandLineHelp::GetLongPrefix  (flagPrefix);
+    std::string  shortPrefix = CommandLineHelp::GetShortPrefix (flagPrefix);
     std::string  out;
 
 
@@ -324,13 +324,13 @@ std::string DiskHelpPage::BuildSubcommandHelp (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskHelpPage::AsProse
+//  DiskHelpPage::FormatAsProse
 //
 //  A paragraph with its runs of spaces collapsed to one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskHelpPage::AsProse (const std::string & text)
+std::string DiskHelpPage::FormatAsProse (const std::string & text)
 {
     std::string  out;
     bool         wasSpace = false;
@@ -390,7 +390,7 @@ std::string DiskHelpPage::BuildOneBlock (const DiskCommandHelp & entry, char fla
     if (entry.discussion != nullptr)
     {
         text += "\n  ";
-        text += AsProse (ApplyPrefixes (entry.discussion, flagPrefix));
+        text += FormatAsProse (ApplyPrefixes (entry.discussion, flagPrefix));
         text += "\n";
     }
 
@@ -555,8 +555,8 @@ std::string DiskHelpPage::BuildOptionsHelp (char flagPrefix)
 
 std::string DiskHelpPage::BuildExampleHelp (char flagPrefix)
 {
-    std::string  lp = CommandLineHelp::LongPrefix (flagPrefix);
-    std::string  sp = CommandLineHelp::ShortPrefix (flagPrefix);
+    std::string  lp = CommandLineHelp::GetLongPrefix (flagPrefix);
+    std::string  sp = CommandLineHelp::GetShortPrefix (flagPrefix);
 
 
 
@@ -591,7 +591,7 @@ std::string DiskHelpPage::BuildHelpText (char flagPrefix, const std::string & ba
 {
     return (banner.empty() ? std::string() : banner + "\n")
          + "Usage:\n"
-         + CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk) + "\n"
+         + CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand::Disk) + "\n"
            "\n"
            "Disk commands:\n"
          + BuildSubcommandHelp (flagPrefix)

@@ -152,7 +152,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     //  called. The executable kept an older mapper with no status 3 in it at
     //  all, so every page in the help described a numbering the tool did not
     //  use: an assembly error exited 2 and a warning exited 1.
-    exitCode = As65ExitStatus::ForAssembly (ar.sourceRead, ar.ok, !ar.result.warnings.empty());
+    exitCode = As65ExitStatus::GetAssemblyStatus (ar.sourceRead, ar.ok, !ar.result.warnings.empty());
 
     CBREx (ar.ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

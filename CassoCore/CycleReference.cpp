@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CycleReference.h"
+#include "Utils.h"
 
 #include "Microcode.h"
 #include "OpcodeTable.h"
@@ -271,7 +272,8 @@ std::string CycleReference::FormatTimingDiffs (const Microcode nmos[kOpcodeCount
 
     text += "## Where the two cores bill the same instruction differently\n";
     text += "\n";
-    text += std::format ("{} opcode(s), found by comparing the two tables rather than by hand.\n", count);
+    text += std::format ("{} {}, found by comparing the two tables rather than by hand.\n",
+                         count, Utils::GetSingularOrPluralForm (count, "opcode", "opcodes"));
     text += "\n";
     text += "| Op  | Mnem   | Mode     | NMOS  | 65C02 |\n";
     text += "| --- | ------ | -------- | ----- | ----- |\n";
@@ -341,9 +343,12 @@ std::string CycleReference::FormatCmosOnly (const Microcode nmos[kOpcodeCount], 
 
     text += "## Instructions the 65C02 adds\n";
     text += "\n";
-    text += std::format ("{} opcode(s) the assembler can write for the 65C02 and not for the NMOS\n", added);
-    text += std::format ("core. Another {} CMOS slot(s) are opcode-map fill that executes as a NOP,\n", fillers);
-    text += std::format ("marked `*` in the main table, and {} opcode(s) the NMOS assembler can write\n", nmosOnly);
+    text += std::format ("{} {} the assembler can write for the 65C02 and not for the NMOS\n",
+                         added, Utils::GetSingularOrPluralForm (added, "opcode", "opcodes"));
+    text += std::format ("core. Another {} {} are opcode-map fill that executes as a NOP,\n",
+                         fillers, Utils::GetSingularOrPluralForm (fillers, "CMOS slot", "CMOS slots"));
+    text += std::format ("marked `*` in the main table, and {} {} the NMOS assembler can write\n",
+                         nmosOnly, Utils::GetSingularOrPluralForm (nmosOnly, "opcode", "opcodes"));
     text += "have no writable 65C02 equivalent.\n";
     text += "\n";
     text += "| Op  | Mnem   | Mode     | Len | Cyc |\n";
@@ -462,7 +467,7 @@ std::string CycleReference::DescribeMode (const Microcode & entry)
 
     if (entry.isLegal)
     {
-        mode = ModeSyntax (entry.globalAddressingMode);
+        mode = GetModeSyntax (entry.globalAddressingMode);
     }
 
     return mode;
@@ -554,7 +559,7 @@ std::string CycleReference::PadRight (const std::string & text, int width)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ModeSyntax
+//  GetModeSyntax
 //
 //  The operand form an assembler accepts, rather than the prose name in
 //  GlobalAddressingMode. A cycle reference is read next to source, and
@@ -562,7 +567,7 @@ std::string CycleReference::PadRight (const std::string & text, int width)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * CycleReference::ModeSyntax (GlobalAddressingMode::AddressingMode mode)
+const char * CycleReference::GetModeSyntax (GlobalAddressingMode::AddressingMode mode)
 {
     const char * syntax = "impl";
 

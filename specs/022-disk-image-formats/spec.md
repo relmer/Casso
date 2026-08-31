@@ -57,7 +57,15 @@ image.
 
 ---
 
-### User Story 2 - Open a nibble image (Priority: P2)
+### User Story 2 - Open a nibble image (Priority: P2) -- DELIVERED in 027
+
+**Delivered by `specs/027-nibble-images`**, which was split out of this story the
+way 023 was split out of 019. `.nib` and `.nb2` mount, boot and write back; all
+nine `disk` commands take them. The acceptance scenarios below stand as written,
+including the second one's wording about protection surviving only as far as the
+format preserved it, which turned out to be exactly right. FR-003 below is
+likewise delivered there and is not this feature's to do again.
+
 
 A user opens a `.nib` image and it mounts and boots.
 
@@ -200,7 +208,7 @@ and confirm the guest can catalog and load from it.
   sector ordering, volume number, and write-protect flag.
 - **FR-002**: The system MUST write 2MG images back preserving their header.
 - **FR-003**: The system MUST mount nibble images and write them back without
-  altering tracks the guest did not write.
+  altering tracks the guest did not write. **DELIVERED in `specs/027-nibble-images`.**
 - **FR-004**: The system MUST identify an image's format from its content where
   possible, and MUST report any disagreement between content and file extension.
 - **FR-005**: The system MUST refuse an image whose declared geometry is

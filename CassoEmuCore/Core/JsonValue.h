@@ -85,8 +85,8 @@ public:
     const string & GetString () const { return m_string; }
 
     // Array access
-    size_t             ArraySize  () const             { return m_array.size(); }
-    const JsonValue &  ArrayAt    (size_t index) const { return m_array[index]; }
+    size_t             GetArraySize    () const             { return m_array.size(); }
+    const JsonValue &  GetArrayElement (size_t index) const { return m_array[index]; }
 
     // Typed object accessors — key lookup + type check + value extraction
     HRESULT GetString (const string & key, string &           outValue) const { return GetValue (key, JsonType::String, outValue); }

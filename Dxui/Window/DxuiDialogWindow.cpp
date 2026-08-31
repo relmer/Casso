@@ -75,8 +75,8 @@ DxuiButton * DxuiDialogWindow::AddDialogButton (const std::wstring &  label,
 
 void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int   pad     = scaler.Px (DxuiButtonRow::kEdgePadDip);
-    int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
+    int   pad     = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
+    int   rowH    = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
     bool  hasRow  = !m_dialogButtons.empty();
     RECT  content = boundsPx;
 
@@ -110,8 +110,8 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     std::stable_sort (right.begin(), right.end(),
                       [] (const ButtonEntry * a, const ButtonEntry * b)
                       {
-                          return DxuiButtonRow::StandardRank (a->commandId) <
-                                 DxuiButtonRow::StandardRank (b->commandId);
+                          return DxuiButtonRow::GetStandardRank (a->commandId) <
+                                 DxuiButtonRow::GetStandardRank (b->commandId);
                       });
 
     {
@@ -122,12 +122,12 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
         // longer than a short verb.
         for (i = 0; i < right.size(); ++i)
         {
-            rWidths[i] = DxuiButtonRow::WidthForLabel (right[i]->button->AccessibleName());
+            rWidths[i] = DxuiButtonRow::GetWidthForLabel (right[i]->button->GetAccessibleName());
         }
 
         for (i = 0; i < left.size(); ++i)
         {
-            lWidths[i] = DxuiButtonRow::WidthForLabel (left[i]->button->AccessibleName());
+            lWidths[i] = DxuiButtonRow::GetWidthForLabel (left[i]->button->GetAccessibleName());
         }
 
         std::vector<RECT>  rRects  (right.size());
@@ -139,13 +139,13 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
         for (i = 0; i < right.size(); ++i)
         {
             right[i]->button->Layout (rRects[i]);
-            right[i]->button->SetDpi  (scaler.Dpi());
+            right[i]->button->SetDpi  (scaler.GetDpi());
         }
 
         for (i = 0; i < left.size(); ++i)
         {
             left[i]->button->Layout (lRects[i]);
-            left[i]->button->SetDpi  (scaler.Dpi());
+            left[i]->button->SetDpi  (scaler.GetDpi());
         }
     }
 }

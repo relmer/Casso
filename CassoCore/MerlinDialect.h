@@ -69,7 +69,7 @@ public:
     //
     // Returns Plain for a spelling that is not a string directive, which callers
     // must not reach -- resolve the token first.
-    static StringEncodingMode  EncodingModeForSpelling (const std::string & spelling);
+    static StringEncodingMode  GetEncodingModeForSpelling (const std::string & spelling);
 };
 
 

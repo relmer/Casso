@@ -5,6 +5,7 @@
 #include "../../EmulatorShell.h"
 #include "../../Config/GlobalUserPrefs.h"
 #include "Ui/Chrome/ChromeMetrics.h"
+#include "Ui/PrinterPanel.h"
 #include "Widgets/DxuiLabel.h"
 #include "Window/DxuiButtonRow.h"
 #include "resource.h"
@@ -38,9 +39,9 @@ static constexpr int    s_kSheetHeightDip    = 760;
 
 SettingsSheet::~SettingsSheet()
 {
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        PopupHost()->SetComposeHook (nullptr);
+        GetPopupHost()->SetComposeHook (nullptr);
     }
 
     m_compositor.Shutdown();
@@ -188,16 +189,21 @@ HRESULT SettingsSheet::OpenModeless (
     // compositor blurs / reveals / composes onto the back buffer. The device is
     // borrowed from the window's DxuiHwndSource (non-owning); m_compositor
     // releases its own D3D resources in the sheet dtor while it is still alive.
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        hr = m_compositor.Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+        hr = m_compositor.Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
         CHRA (hr);
-        PopupHost()->SetComposeHook (
+        GetPopupHost()->SetComposeHook (
             [this] (ID3D11ShaderResourceView * contentSrv,
                     ID3D11RenderTargetView   * backBufferRtv,
                     int widthPx, int heightPx)
             {
                 m_compositor.Compose (contentSrv, backBufferRtv, widthPx, heightPx);
+
+                // After Compose, and not from an after-paint hook: a window
+                // that composes never runs one. The finished 2D frame is on
+                // the back buffer now, which is what the scene draws over.
+                RenderThemePreviewScene (backBufferRtv, widthPx, heightPx);
             });
     }
 
@@ -237,16 +243,24 @@ HRESULT SettingsSheet::OpenModeless (
     // for OK; a later Cancel reverts to the theme active at open).
     m_themePage->SetOnApplyThemeNow ([this] ()
     {
-        m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
+        m_apply.ApplyThemeLive (m_themePage->GetSelectedThemeId());
     });
 
-    // Skeuo desk-scene opt-in: applies + persists immediately (the monitor
-    // framing appears/disappears on the live chrome behind the sheet), so
+    // The 3D desk-scene opt in/out: applies + persists immediately (the
+    // scene appears/disappears on the live chrome behind the sheet), so
     // there is no staged state to revert on Cancel.
-    m_themePage->SetMonitorFrameChecked (prefs.skeuoMonitorFrame);
-    m_themePage->SetOnMonitorFrameToggled ([this] (bool enabled)
+    m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
+    m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->SetSkeuoMonitorFrame (enabled);
+        m_emuShell->SetCrtMonitorEnabled (enabled);
+    });
+
+    // Scene antialiasing rides the same live-and-persist channel: the cost is
+    // what the user is judging, so they need to see it change while they drag.
+    m_themePage->SetAntiAliasingSamples (prefs.sceneAntiAliasing);
+    m_themePage->SetOnAntiAliasingChanged ([this] (int samples)
+    {
+        m_emuShell->SetSceneAntiAliasing (samples);
     });
 
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
@@ -308,7 +322,7 @@ HRESULT SettingsSheet::OpenModeless (
     {
         if (m_prefs != nullptr && (ColorMonitorTextMode) idx == ColorMonitorTextMode::Custom)
         {
-            m_colorPicker.SetHwnd (Hwnd());
+            m_colorPicker.SetHwnd (GetHwnd());
             m_colorPicker.Open (m_prefs->colorMonitorTextCustomArgb);
             Invalidate();
         }
@@ -348,15 +362,15 @@ HRESULT SettingsSheet::OpenModeless (
     {
         outW = ChromeMetrics::kFramebufferWidthPx;
         outH = ChromeMetrics::kFramebufferHeightPx;
-        return m_emuShell->UiFramebufferPixels();
+        return m_emuShell->GetUiFramebufferPixels();
     });
     m_themePage->SetMountedPathSource ([this] (int driveIndex) -> std::wstring
     {
-        return m_emuShell->MountedImagePath (driveIndex);
+        return m_emuShell->GetMountedImagePath (driveIndex);
     });
     m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
     {
-        return m_emuShell->DriveWriteProtect (driveIndex);
+        return m_emuShell->GetDriveWriteProtect (driveIndex);
     });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
@@ -369,17 +383,17 @@ HRESULT SettingsSheet::OpenModeless (
 
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
-    m_hardwarePage->SetPopupHost (PopupHost());
-    m_diskPage->SetPopupHost     (PopupHost());
-    m_themePage->SetPopupHost    (PopupHost());
-    m_displayPage->SetPopupHost  (PopupHost());
-    m_printingPage->SetPopupHost (PopupHost());
+    m_hardwarePage->SetPopupHost (GetPopupHost());
+    m_diskPage->SetPopupHost     (GetPopupHost());
+    m_themePage->SetPopupHost    (GetPopupHost());
+    m_displayPage->SetPopupHost  (GetPopupHost());
+    m_printingPage->SetPopupHost (GetPopupHost());
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->PrinterBannerMessage());
+    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
@@ -486,6 +500,170 @@ void SettingsSheet::OnDialogTick()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RenderThemePreviewScene
+//
+//  Draws the desk scene into the theme preview's mock window, so a skeuo theme
+//  previews as what it actually is. The 2D paint deliberately left the screen
+//  and the drive row out for exactly this.
+//
+//  The models load a SECOND time here. The shell's scene belongs to the
+//  emulator window's device and this sheet is its own window with its own
+//  device, so there is nothing to borrow -- and a few thousand triangles is a
+//  cheap price for not advertising a presentation the app retired.
+//
+//  Clipped, because the theme dropdown is allowed to cover the preview and
+//  this pass runs after the whole panel tree. The scissor crops rather than
+//  re-projects: shrinking the viewport instead would squash the scene into
+//  whatever is left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int widthPx, int heightPx)
+{
+    ThemePage::PreviewSceneRequest  request;
+    DeskSceneComposition            comp;
+    HRESULT                         hr       = S_OK;
+    int                             fbW      = 0;
+    int                             fbH      = 0;
+    const uint32_t                * fbPixels = nullptr;
+    CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
+
+
+
+    if (m_themePage == nullptr || rtv == nullptr || widthPx <= 0 || heightPx <= 0)
+    {
+        return;
+    }
+
+    request = m_themePage->TakeSceneRequest();
+
+    if (request.mode == ThemePage::PreviewSceneMode::None ||
+        request.rectPx.right <= request.rectPx.left ||
+        request.clipPx.bottom <= request.clipPx.top)
+    {
+        return;
+    }
+
+    // First frame that wants it: stand the scene up. Tried-once, because a
+    // device that cannot carry it will not start working later, and retrying
+    // every frame would just burn the failure over and over.
+    if (!m_previewSceneReady && !m_previewSceneTried)
+    {
+        m_previewSceneTried = true;
+
+        if (GetPopupHost() != nullptr)
+        {
+            hr = m_previewScene.Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
+
+            if (SUCCEEDED (hr))
+            {
+                HRESULT  hrModels = LoadPreviewSceneModels();
+
+                m_previewSceneReady = SUCCEEDED (hrModels);
+            }
+        }
+    }
+
+    if (!m_previewSceneReady)
+    {
+        return;
+    }
+
+    // The machine can change under a staged pick, and the desk wears what the
+    // machine wore.
+    if (m_emuShell != nullptr && m_emuShell->IsApple2c() != m_previewSceneIsC)
+    {
+        hr = LoadPreviewSceneModels();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    // The DPI does not set the scene's size -- SolveComposition contain-fits
+    // the scene's corners to the viewport and never consults it -- so this
+    // only feeds the layout's own dp-based reservations.
+    hr = (request.mode == ThemePage::PreviewSceneMode::Full)
+       ? DeskSceneLayout::Compute      (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp)
+       : DeskSceneLayout::ComputeStrip (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
+
+    if (FAILED (hr) || hr == S_FALSE)
+    {
+        return;
+    }
+
+    m_previewScene.SetComposition (comp);
+    m_previewScene.SetClipRect    (&request.clipPx);
+
+    if (request.mode == ThemePage::PreviewSceneMode::Full)
+    {
+        // The picture comes from the emulator's framebuffer bytes: this
+        // device has no CRT chain of its own, and the preview already has the
+        // pixels for the flat blit it used to do.
+        fbPixels = m_themePage->FramebufferPixels (fbW, fbH);
+
+        if (fbPixels != nullptr && fbW > 0 && fbH > 0)
+        {
+            hr = m_previewScene.UploadPicture (fbPixels, fbW, fbH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        hr = m_previewScene.Render (rtv, m_previewScene.PictureSrv(), uv, fbW, fbH);
+    }
+    else
+    {
+        hr = m_previewScene.RenderStrip (rtv, comp);
+    }
+
+    m_previewScene.SetClipRect (nullptr);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadPreviewSceneModels
+//
+//  The same pairing rule the shell uses: the //c gets its platinum monitor
+//  over matching drives, everything else the beige Monitor II over Disk IIs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsSheet::LoadPreviewSceneModels()
+{
+    HRESULT  hr  = S_OK;
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->IsApple2c();
+
+
+
+    // The shell has already parsed and baked the pair this machine wears, and
+    // the result is device-independent, so take it rather than doing all of
+    // that again on the way into the Theme tab.
+    CBRA (m_emuShell != nullptr);
+
+    {
+        bool  shellHasModels = m_emuShell->m_deskScene.HasModels();
+
+        CBRA (shellHasModels);
+    }
+
+    hr = m_previewScene.AdoptModelsFrom (m_emuShell->m_deskScene);
+    CHRA (hr);
+
+    m_previewScene.SetPowerLampOn (true);
+    m_previewSceneIsC = isC;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdatePreviewCompose
 //
 //  Push this frame's transparency state into the compositor: whether a Display
@@ -509,7 +687,7 @@ void SettingsSheet::UpdatePreviewCompose()
         return;
     }
 
-    hwnd = Hwnd();
+    hwnd = GetHwnd();
 
     if (m_previewActive && hwnd != nullptr)
     {
@@ -517,7 +695,7 @@ void SettingsSheet::UpdatePreviewCompose()
         // client pixels. No overlap => empty rect => blur + dim only (still
         // focuses attention on the control), no see-through zone.
         RECT  winRect   = {};
-        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->EmulatorContentScreenRect() : RECT{};
+        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetEmulatorContentScreenRect() : RECT{};
         RECT  inter     = {};
         if (GetWindowRect (hwnd, &winRect) && IntersectRect (&inter, &winRect, &emuScreen))
         {
@@ -529,7 +707,7 @@ void SettingsSheet::UpdatePreviewCompose()
 
         if (m_displayPage != nullptr)
         {
-            focusClient = m_displayPage->FocusedControlRect (m_previewFocusId);
+            focusClient = m_displayPage->GetFocusedControlRect (m_previewFocusId);
         }
     }
 
@@ -563,7 +741,7 @@ void SettingsSheet::UpdatePreviewCompose()
 
 void SettingsSheet::RaiseOwnerBehindSheet()
 {
-    HWND  sheet = Hwnd();
+    HWND  sheet = GetHwnd();
     HWND  owner = (sheet != nullptr) ? GetWindow (sheet, GW_OWNER) : nullptr;
 
 
@@ -592,7 +770,7 @@ void SettingsSheet::RefreshOkLabel()
 
 
 
-    if (OkText() != want)   // only reflow on an actual change, not every tick
+    if (GetOkText() != want)   // only reflow on an actual change, not every tick
     {
         SetOkText (std::move (want));
         SetOkWidthDip (reboot ? 132 : 0);   // 0 => standard width, == Cancel
@@ -623,11 +801,11 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     // the OK / Cancel group (reserve the widest OK, "OK (reboot)").
     if (m_restartNotice != nullptr)
     {
-        int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
-        int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        int   rowH    = scaler.ToPx (DxuiButtonRow::kRowHeightDip);
+        int   edge    = scaler.ToPx (DxuiButtonRow::kEdgePadDip);
         RECT  r;
-        int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
-                                   + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
+        int   reserve = scaler.ToPx (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
+                                     + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
 
         r.left   = boundsPx.left   + edge;
         r.top    = boundsPx.bottom - rowH;
@@ -636,7 +814,7 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
         if (r.right < r.left) { r.right = r.left; }
 
         m_restartNotice->SetRect (r);
-        m_restartNotice->SetDpi  (scaler.Dpi());
+        m_restartNotice->SetDpi  (scaler.GetDpi());
     }
 }
 
@@ -662,7 +840,7 @@ void SettingsSheet::UpdateRestartNotice()
 
     if (m_apply.WillMachineChange())
     {
-        std::wstring  name = (m_hardwarePage != nullptr) ? m_hardwarePage->SelectedMachineDisplayName()
+        std::wstring  name = (m_hardwarePage != nullptr) ? m_hardwarePage->GetSelectedMachineDisplayName()
                                                          : std::wstring();
 
         notice  = L"Pending. Press OK to boot ";
@@ -849,7 +1027,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
     char                     test[16] = {};
     float                    pan0     = 0.0f;
     float                    pan1     = 0.0f;
-    const SettingsUiPrefs  & prefs    = m_state.Prefs();
+    const SettingsUiPrefs  & prefs    = m_state.GetPrefs();
 
 
 
@@ -899,7 +1077,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 
 void SettingsSheet::SnapshotDriveAudioBaseline()
 {
-    const SettingsUiPrefs &  prefs = m_state.Prefs();
+    const SettingsUiPrefs &  prefs = m_state.GetPrefs();
 
 
 

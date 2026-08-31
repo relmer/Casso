@@ -41,9 +41,9 @@ public:
     void SetBankImages (vector<Byte> bank0, vector<Byte> bank1);
 
     void ToggleRomBank() override;
-    void ResetRomBank  () override;
+    void ResetRomBank   () override;
 
-    int  CurrentBank   () const { return m_current; }
+    int  GetCurrentBank () const { return m_current; }
 
 private:
     void ApplyBank     (int bank);

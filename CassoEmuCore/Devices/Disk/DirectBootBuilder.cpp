@@ -185,8 +185,8 @@ std::string DirectBootBuilder::DescribeWindow (Word loadAddress)
 
 
     snprintf (text, sizeof (text),
-              "a direct-boot payload must load between %s and %s, because page $08 carries "
-              "the loader and $C000 is not memory, and %s was asked for",
+              "a direct-boot payload must load between %s and %s. Page $08 contains the "
+              "loader and $C000 is not memory. %s was requested",
               FormatAddress (kLowestLoadAddress).c_str(),
               FormatAddress ((Word) (kMemoryCeiling - 1)).c_str(),
               FormatAddress (loadAddress).c_str());
@@ -211,7 +211,7 @@ std::string DirectBootBuilder::DescribeWindow (Word loadAddress)
 
 std::string DirectBootBuilder::DescribeTooLarge (Word loadAddress, size_t payloadBytes)
 {
-    size_t  capacity   = CapacityFor (loadAddress);
+    size_t  capacity   = GetCapacity (loadAddress);
 
 
 
@@ -261,7 +261,7 @@ std::string DirectBootBuilder::DescribeEntry (const DirectBootSpec & spec, size_
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DirectBootBuilder::CapacityFor
+//  DirectBootBuilder::GetCapacity
 //
 //  What the boot path can load, which is the distance from the payload's
 //  first byte to the top of memory. The media never binds -- see the
@@ -270,7 +270,7 @@ std::string DirectBootBuilder::DescribeEntry (const DirectBootSpec & spec, size_
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DirectBootBuilder::CapacityFor (Word loadAddress)
+size_t DirectBootBuilder::GetCapacity (Word loadAddress)
 {
     static_assert (kMostSectors <=
                    (size_t) ((NibblizationLayer::kTrackCount - kFirstPayloadTrack)
@@ -296,7 +296,7 @@ size_t DirectBootBuilder::CapacityFor (Word loadAddress)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DirectBootBuilder::SectorsNeededFor
+//  DirectBootBuilder::GetSectorsNeeded
 //
 //  The ROM reads whole pages into page-aligned buffers, so a payload whose
 //  load address is not page-aligned is carried with its own lead-in: the
@@ -305,7 +305,7 @@ size_t DirectBootBuilder::CapacityFor (Word loadAddress)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DirectBootBuilder::SectorsNeededFor (Word loadAddress, size_t payloadBytes)
+size_t DirectBootBuilder::GetSectorsNeeded (Word loadAddress, size_t payloadBytes)
 {
     constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
     size_t            leadIn       = (size_t) (loadAddress % kSectorBytes);
@@ -349,7 +349,7 @@ HRESULT DirectBootBuilder::Validate (
             HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
             outRefusal = "there is nothing to boot into: the payload is empty");
 
-    capacity = CapacityFor (spec.loadAddress);
+    capacity = GetCapacity (spec.loadAddress);
     inWindow = capacity > 0;
 
     CBRFEx (inWindow,
@@ -397,7 +397,7 @@ void DirectBootBuilder::WriteLoader (
 {
     size_t  at = Dos33Skeleton::SectorOffset (
                      kLoaderTrack,
-                     NibblizationLayer::DosFileIndexForPhysicalSector (kLoaderSector));
+                     NibblizationLayer::GetDosFileIndexForPhysicalSector (kLoaderSector));
 
 
 
@@ -448,7 +448,7 @@ void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> 
         int     physical = (int) (index % (size_t) NibblizationLayer::kSectorsPerTrack);
         size_t  at       = Dos33Skeleton::SectorOffset (
                                track,
-                               NibblizationLayer::DosFileIndexForPhysicalSector (physical));
+                               NibblizationLayer::GetDosFileIndexForPhysicalSector (physical));
         size_t  from     = index * kSectorBytes;
         size_t  span     = (std::min) (kSectorBytes, onDisk.size() - from);
 
@@ -496,7 +496,7 @@ HRESULT DirectBootBuilder::Build (
     onDisk.assign (leadIn, (Byte) 0);
     onDisk.insert (onDisk.end(), payload.begin(), payload.end());
 
-    sectorCount = SectorsNeededFor (spec.loadAddress, payload.size());
+    sectorCount = GetSectorsNeeded (spec.loadAddress, payload.size());
 
     built.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
 

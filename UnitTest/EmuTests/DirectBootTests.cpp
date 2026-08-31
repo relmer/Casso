@@ -156,18 +156,18 @@ public:
             int  physical = (int) kDos33SkewFromTheMaster[logical];
 
             Assert::IsTrue (physical < (int) kSectorsTrack,
-                L"every entry in DOS's own skew table must name a sector on the track");
+                L"every entry in DOS's own skew table must map to a sector on the track");
 
             Assert::IsFalse (seen[(size_t) physical],
-                L"and must name a different one, or it is not a permutation and cannot be "
+                L"and must map to a different one, or it is not a permutation and cannot be "
                 L"the mapping anything reads through");
 
             seen[(size_t) physical] = true;
 
             Assert::AreEqual ((int) logical,
-                              NibblizationLayer::DosFileIndexForPhysicalSector (physical),
+                              NibblizationLayer::GetDosFileIndexForPhysicalSector (physical),
                 L"the sector the drive presents at a physical position must be the one DOS "
-                L"3.3's own boot table says lives there");
+                L"3.3's own boot table places there");
 
             if (physical != (int) logical)
             {
@@ -190,32 +190,32 @@ public:
 
 
 
-        Assert::AreEqual (kBytesAtLowest, DirectBootBuilder::CapacityFor (0x0900),
+        Assert::AreEqual (kBytesAtLowest, DirectBootBuilder::GetCapacity (0x0900),
             L"a payload at the lowest address it may load at can fill memory to the top");
 
         Assert::AreEqual (kSectorsAtLowest, DirectBootBuilder::kMostSectors,
             L"which is one hundred and eighty-three sectors, and that is the number a "
             L"refusal has to be able to state");
 
-        Assert::AreEqual (kTopOfMemory - 0x6000, DirectBootBuilder::CapacityFor (0x6000),
+        Assert::AreEqual (kTopOfMemory - 0x6000, DirectBootBuilder::GetCapacity (0x6000),
             L"and a payload loading higher can carry proportionally less");
 
-        Assert::AreEqual (kSectorBytes, DirectBootBuilder::CapacityFor (0xBF00),
+        Assert::AreEqual (kSectorBytes, DirectBootBuilder::GetCapacity (0xBF00),
             L"down to the last page below the ceiling");
     }
 
     TEST_METHOD (Capacity_IsZeroForAnyAddressTheBootPathCannotLoadAt)
     {
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x0800),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x0800),
             L"the loader's own page is not available to a payload");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x08FF),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x08FF),
             L"nor is any part of it");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0x0300),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0x0300),
             L"nor is the boot ROM's decode table");
 
-        Assert::AreEqual (size_t (0), DirectBootBuilder::CapacityFor (0xC000),
+        Assert::AreEqual (size_t (0), DirectBootBuilder::GetCapacity (0xC000),
             L"and $C000 is not memory at all");
     }
 
@@ -288,8 +288,8 @@ public:
         //  call. Only the first is worth saying: two candidate explanations
         //  for one refusal is what leaves a reader guessing.
         Assert::AreEqual (std::string ("a direct-boot payload must load between $0900 and "
-                                       "$BFFF, because page $08 carries the loader and "
-                                       "$C000 is not memory, and $0300 was asked for"),
+                                       "$BFFF. Page $08 contains the loader and $C000 is "
+                                       "not memory. $0300 was requested"),
             refusal,
             L"the address is the reason; the size is a consequence of it");
 
@@ -360,7 +360,7 @@ public:
         //  then reads on for as long as the next sector number is below the
         //  byte it just landed at offset zero.
         Assert::AreEqual ((int) kRomReadsOnlyTheLoader, (int) built[0],
-            L"so the loader sector must ask the ROM for itself and nothing else -- a "
+            L"so the loader sector must request itself from the ROM and nothing else -- a "
             L"larger number here would have the ROM overwrite the loader with payload");
 
         Assert::AreEqual (3, (int) built[kSectorsLeftAt],
@@ -396,7 +396,7 @@ public:
             L"the loader finishes with an absolute jump");
 
         Assert::AreEqual ((int) (entry & 0xFF), (int) built[kEntryLowAt],
-            L"whose target is the entry that was asked for");
+            L"whose target is the entry that was requested");
 
         Assert::AreEqual ((int) (entry >> 8), (int) built[kEntryHighAt],
             L"both halves of it, and not the load address");
@@ -435,7 +435,7 @@ public:
 
             Assert::AreEqual ((int) page, (int) built[at],
                 L"page N has to sit in the sector the drive hands back Nth, which is what "
-                L"the loader asks for -- not in the Nth sector of the buffer");
+                L"the loader requests -- not in the Nth sector of the buffer");
 
             if (at != straight)
             {
@@ -468,7 +468,7 @@ public:
         spec.entryAddress = spec.loadAddress;
 
         Assert::AreEqual (size_t (1),
-            DirectBootBuilder::SectorsNeededFor (spec.loadAddress, payload.size()),
+            DirectBootBuilder::GetSectorsNeeded (spec.loadAddress, payload.size()),
             L"one byte behind a lead-in is still one sector");
 
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, built, refusal));

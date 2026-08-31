@@ -26,19 +26,22 @@ On the horizon:
 - Atari 400/800
 - Commodore VIC-20, 64
 
-Two of the three built-in themes booting the
-[casso-rocks demo disk](Apple2/Demos), same Apple //e core, different chrome:
+The [casso-rocks demo disk](Apple2/Demos) asks which monitor you have and shows
+the cassowary drawn for it. Same photo, same Apple //e core, encoded twice —
+because the same DHGR framebuffer means different things to a color monitor and
+a monochrome one, and an image authored for either reads as noise on the other:
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/theme-darkmodern-dhgr.png" alt="Casso Dark Modern theme booting the casso-rocks DHGR demo" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-color.png" alt="The casso-rocks demo on a color monitor: the cassowary in 16-color DHGR, 140 color cells across" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same disk on a green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
 </tr></table>
 
 `CassoCli` accelerates the retro development loop, with no third-party tool in it:
 
 - **Assembler** — from-scratch, AS65-compatible, and assembles Merlin; ca65 next
 - **Disk management** — create, initialize, catalog, read and write files,
-  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do` and `.po`
+  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do`,
+  `.po`, `.nib` and `.nb2`
 - **Headless execution** — assemble and run 6502 code with no GUI
 - **Launches the emulator** — with a machine and disks already selected
 
@@ -60,6 +63,79 @@ Two of the three built-in themes booting the
 
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
+
+### The skeuomorphic theme goes to 11 (1.21)
+
+The skeuomorphic theme used to be a picture of a monitor drawn around the
+emulator's output. It is now a room: four period devices modeled in CAD at
+their real dimensions, standing on a desk, lit and shadowed, seen from a
+seated person's eye about thirty inches from the screen. The perspective is
+not a set of tuned constants; it falls out of where the hardware actually
+is.
+
+![The Apple //e desk scene](Assets/feat-desk-scene.png)
+
+**Four devices, built from photographs.** An Apple Monitor II and Disk II
+drives for the //e Enhanced, //e, ][+ and ][; a Monitor //c over Disk IIc
+drives for the //c. Switching machines swaps the whole stack. Every part is a
+3D CAD object rather than a mesh sculpted to look like one, so openings are
+cuts through the case and every edge that should break over does. The marks
+are modeled too, not painted on: the embossed tilt and brightness icons on the
+bezel, the cassowary inlaid into its recess, DRIVE 1 and IN USE and the
+`disk ][` logotype, the raised ribs on a drive's lid.
+
+**The picture lies on the glass.** The emulator's output maps onto a
+spherical-sag surface with the same curvature the actual tube has, with a
+rounded faceplate mask and a dark border where the raster stops short of
+the bezel. Input is inverse-projected back through that curvature, so a
+click on a curved, foreshortened, possibly tilted screen still lands on the
+exact emulated pixel underneath it.
+
+| | |
+|---|---|
+| ![Three-quarter view](Assets/feat-desk-angle.png) | ![The modeled rear](Assets/feat-desk-rear.png) |
+
+**You can walk around it.** Mouse, touch or trackpad, with the gestures you
+would expect: drag to rotate, two fingers to pan, pinch to zoom. A compass
+in the corner does the same for anyone who would rather click than drag--its
+arrows rotate, hold one to keep going, and the orb squares everything back up.
+Ctrl+0 resets.
+
+That's why the backs are fully modeled too. The Monitor II's rear is one
+piece of dark plastic running from the vent recess down over the control
+panel, with the bell emerging through it, the vents looking into an unlit
+interior, and the knobs, the AC receptacle and the video jacks where they
+belong. The Monitor //c's rear panel is modeled control for control. You
+may rarely look at either, but the scene lets you, so they had to be right.
+
+![The Monitor II's control panel](Assets/feat-desk-panel.png)
+
+**The tilt bezel works.** Drag the up and down marks molded into the
+Monitor II's bezel, and the bezel and tube pivot together, stopping flush
+with the frame, just like the real one. Shadows and a subtle glare are
+modeled across the tube's curved face and move with it. Where you leave the
+tilt is remembered per monitor.
+
+**The lamps are real lights.** The power indicator and the drives' activity
+LEDs are light sources in the shading pass, not bright dots painted on:
+they cast onto the housings around them and are occluded by the parts in
+front of them. It's the little things....
+
+![The Apple //c stack](Assets/feat-desk-2c.png)
+
+**The monitor decides the phosphor.** Green, amber, and white used to be a
+display setting applied across every machine. Monitors are now the owners of
+that setting, and machines are assigned period-accurate monitors by default.
+Phosphor color and full color are still yours to change, and that change is
+preserved per machine.
+
+**Lit, shadowed, and GPU-efficient.** Two lights, a specular highlight and
+per-pixel shading, with the power and drive LEDs acting as real lights rather
+than a glow painted on nearby faces; shadows cast across the desk and a
+contact shadow under each device. Drive doors animate on mount and eject, the
+Disk II swings on its cantilever, the Disk IIc slides back and lifts clear of
+the slot. To keep GPU use low the scene is cached, and when the screen stops
+changing Casso stops drawing altogether.
 
 ### Disk file access from the command line (1.20)
 
@@ -151,7 +227,7 @@ The command line states the dialect rather than guessing it — `CassoCli as65
 input.a65` and `CassoCli merlin PROG.S`. The bare `CassoCli input.a65` form is
 gone. Under `as65` the CPU is chosen with AS65's own `-x`; under `merlin` the
 source chooses it with `XC`. Where support ends is stated by name rather than
-failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md).
+failing as a syntax error; see [docs/Assembler.md](docs/Assembler.md#where-merlin-support-ends).
 
 ### Salvage a damaged .woz (1.17)
 
@@ -256,9 +332,10 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do` and `.po` images all mount. Casso can **create
-blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK
-and PO, optionally bootable from the stock masters — and a created disk is
+`.woz`, `.dsk`, `.do`, `.po`, `.nib` and `.nb2` images all mount — drag one onto a
+drive, pick it from the dialog, or name it on the command line. Casso can **create
+blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK,
+PO and NIB, optionally bootable from the stock masters — and a created disk is
 usable immediately, with no `INIT` step.
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
@@ -345,7 +422,8 @@ tables — so the next dialect is a profile, not a second assembler.
 Beyond assembling, a `run` subcommand loads and executes a binary or source, and a
 `disk` subcommand closes the build loop: `create`, `init`, `list`, `get`, `put`,
 `delete`, `boot`, `sectorread`, `sectorwrite`, `blockread` and `blockwrite`, on
-DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po` and `.woz` alike.
+DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po`, `.woz`, `.nib` and `.nb2`
+alike.
 
 Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
@@ -463,8 +541,8 @@ CassoCli as65 input.a65c -x -ooutput.bin
 CassoCli merlin SOURCE.S
 CassoCli merlin SOURCE.S -o OBJECT
 
-# Assemble and run in one step. `run` names its assembler for the same reason
-# assembling does -- a source with neither flag is refused, not guessed at.
+# Assemble and run in one step. `run` specifies its assembler for the same reason
+# assembling does: a source with neither flag is refused, not guessed at.
 CassoCli run input.a65 --as65
 CassoCli run PROG.S --merlin
 

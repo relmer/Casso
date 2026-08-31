@@ -22,7 +22,7 @@ static const Byte  s_kSevenBitMask     = 0x7F;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StringEncoding::HighBitFromDelimiter
+//  StringEncoding::IsHighBitDelimiter
 //
 //  Merlin reads the encoding off the quoting rather than off a second
 //  directive, so the delimiter is data about the string and not punctuation.
@@ -41,7 +41,7 @@ static const Byte  s_kSevenBitMask     = 0x7F;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool StringEncoding::HighBitFromDelimiter (char delimiter)
+bool StringEncoding::IsHighBitDelimiter (char delimiter)
 {
     return (delimiter != s_kLowAsciiDelimiter);
 }

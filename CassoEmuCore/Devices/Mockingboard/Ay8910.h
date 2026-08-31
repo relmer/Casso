@@ -103,19 +103,19 @@ public:
     int      GetEnvLevel   () const { return m_envLevel; }
     bool     IsEnvHolding  () const { return m_envHolding; }
 
-    static float VolumeForLevel (int level);
+    static float GetVolumeForLevel (int level);
 
 private:
     void    AdvanceBaseTick  ();
     void    StepLfsr         ();
-    void    EnvelopeStep     ();
+    void    StepEnvelope     ();
     void    RestartEnvelope  (Byte shape);
-    float   CurrentOutput    () const;
+    float   GetCurrentOutput () const;
     bool    IsSilent         () const;
 
-    int     TonePeriod  (int channel) const;
-    int     NoisePeriod () const;
-    int     EnvPeriod   () const;
+    int     GetTonePeriod  (int channel) const;
+    int     GetNoisePeriod () const;
+    int     GetEnvPeriod   () const;
 
     // Logarithmic DAC: 16 levels, ~3 dB per step (sqrt(2) ratio),
     // level 0 == silence, level 15 == full scale. Derived from the

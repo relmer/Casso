@@ -48,7 +48,7 @@ public:
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
-        Assert::AreEqual (false, prefs.skeuoMonitorFrame);   // desk scene is opt-IN
+        Assert::AreEqual (true, prefs.crtMonitor);            // desk scene default ON; checkbox is the opt-out
         Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
         Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
@@ -62,7 +62,7 @@ public:
 
         hr = prefs.Load (L"C:\\Casso", fs);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr,
-            L"First run must name the reason -- there is no prefs file yet");
+            L"First run must give the reason -- there is no prefs file yet");
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
     }
 
@@ -75,7 +75,7 @@ public:
         HRESULT             hr;
 
         orig.activeTheme            = "Retro Terminal";
-        orig.skeuoMonitorFrame      = true;
+        orig.crtMonitor              = false;
         orig.lastSelectedMachine    = "Apple2e";
         orig.lastDiskCreateFolder   = "C:\\Users\\me\\Disks";
         orig.arrowsToJoystick       = true;
@@ -89,7 +89,7 @@ public:
         orig.crtByMode[0].bloomStrength      = 0.6f;
         orig.crtByMode[0].colorBleedEnabled  = true;
         orig.crtByMode[0].colorBleedWidth    = 1.5f;
-        orig.window.placements["topology-A"] = { 100, 50, 1280, 720 };
+        orig.window.placements["topology-A"] = { 100, 50, 1280, 720, true };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
         orig.printOutputDpi         = 288;
@@ -108,7 +108,7 @@ public:
         AssertSucceeded (hr);
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
-        Assert::AreEqual (orig.skeuoMonitorFrame,   loaded.skeuoMonitorFrame);
+        Assert::AreEqual (orig.crtMonitor,           loaded.crtMonitor);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
         Assert::AreEqual (orig.lastDiskCreateFolder, loaded.lastDiskCreateFolder);
         Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
@@ -127,6 +127,10 @@ public:
         Assert::AreEqual (100, loaded.window.placements["topology-A"].x);
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
+        Assert::IsTrue   (loaded.window.placements["topology-A"].maximized,
+                          L"maximized state round-trips with its normal rect");
+        Assert::IsFalse  (loaded.window.placements["topology-B"].maximized,
+                          L"an unflagged placement stays windowed");
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
         Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
         Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
@@ -197,7 +201,7 @@ public:
         GlobalUserPrefs     prefs;
         HRESULT             hr;
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
         AssertSucceeded (hr);
 
@@ -220,7 +224,7 @@ public:
             GlobalUserPrefs     p;
             std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
             AssertSucceeded (fs.WriteAllText (
-                GlobalUserPrefs::FilePath (L"C:\\Casso"), json));
+                GlobalUserPrefs::GetFilePath (L"C:\\Casso"), json));
             AssertSucceeded (p.Load (L"C:\\Casso", fs));
             return p;
         };
@@ -250,7 +254,7 @@ public:
         HRESULT             hr;
         std::string         text;
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
         AssertSucceeded (hr);
 
@@ -260,7 +264,7 @@ public:
         hr = prefs.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("futureKey")  != std::string::npos);
         Assert::IsTrue (text.find ("\"keep me\"") != std::string::npos);
     }
@@ -292,7 +296,7 @@ public:
               "}"
             "}";
 
-        hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"), seed);
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"), seed);
         AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
@@ -304,7 +308,7 @@ public:
         hr = prefs.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("Apple2e")      != std::string::npos, L"Apple2e machine entry was wiped by Save");
         Assert::IsTrue (text.find ("disk1Path")    != std::string::npos, L"disk1Path was wiped by Save");
         Assert::IsTrue (text.find ("D:\\\\boot.dsk") != std::string::npos, L"disk1Path value was wiped by Save");

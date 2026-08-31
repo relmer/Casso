@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ForAssembly
+//  GetAssemblyStatus
 //
 //  The status for one attempt to assemble one source file.
 //
@@ -29,7 +29,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int As65ExitStatus::ForAssembly (bool inputWasRead, bool assembled, bool warned)
+int As65ExitStatus::GetAssemblyStatus (bool inputWasRead, bool assembled, bool warned)
 {
     int  status = kClean;
 

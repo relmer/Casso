@@ -26,12 +26,12 @@
 //
 //   - Following (default): the bottom tracks the newest printed row, so the
 //     view rides the print head and fresh rows appear at the bottom. The panel
-//     drives panZoom's panY target to LiveRow each frame.
+//     drives panZoom's panY target to GetLiveRow each frame.
 //   - Scrolled: the user panned away (NotifyUserScroll); the panel stops
 //     driving the target, so panZoom holds the parked position. The legal
 //     range runs from topClearanceRows of blank feed past the top of the
-//     paper (MinBottomRow -- so row 0 clears the 3D curl and reads flat)
-//     forward to the live row itself (MaxBottomRow -- the bottom is LOCKED to
+//     paper (GetMinBottomRow -- so row 0 clears the 3D curl and reads flat)
+//     forward to the live row itself (GetMaxBottomRow -- the bottom is LOCKED to
 //     the last printed row, never scrolling blank in past it).
 //
 //  Snap-to-live: after snapDelayMs of scroll idle the view returns to
@@ -70,22 +70,22 @@ public:
     void   NotifyUserScroll (int64_t nowMs);
 
     // Per-frame clock tick: performs the idle snap back to the live row.
-    void   Tick          (int64_t nowMs);
+    void   Tick            (int64_t nowMs);
 
-    bool   FollowingLive () const { return m_following; }
-    int    LiveRow       () const { return m_liveRow; }
-    int    ViewportRows  () const { return m_cfg.viewportRows; }
+    bool   IsFollowingLive () const { return m_following; }
+    int    GetLiveRow      () const { return m_liveRow; }
+    int    GetViewportRows () const { return m_cfg.viewportRows; }
 
     // Legal scroll range for the bottom row, the bounds panZoom clamps panY to.
-    // MinBottomRow: furthest back -- a full viewport against the top of the
+    // GetMinBottomRow: furthest back -- a full viewport against the top of the
     // paper plus topClearanceRows so row 0 clears the 3D curl, unless the strip
-    // is still shorter than that (then it pins to the live row). MaxBottomRow:
+    // is still shorter than that (then it pins to the live row). GetMaxBottomRow:
     // furthest forward -- the live row itself (the bottom is locked there).
-    int    MinBottomRow  () const;
-    int    MaxBottomRow  () const { return m_liveRow; }
+    int    GetMinBottomRow () const;
+    int    GetMaxBottomRow () const { return m_liveRow; }
 
     // Forget history (machine switch / discard): back to Following at row 0.
-    void   Reset         ();
+    void   Reset           ();
 
 private:
     Config    m_cfg;

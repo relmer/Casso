@@ -486,8 +486,8 @@ public:
                     "DIAG: x=%d y=%d PC=%04X xyEn=%d vblEn=%d xInt=%02X yInt=%02X "
                     "mode07FF=%02X status077F=%02X anyIrq=%d",
                     x, y, core.cpu->GetPC(),
-                    core.mouse->XyInterruptsEnabled() ? 1 : 0,
-                    core.mouse->VblInterruptsEnabled() ? 1 : 0,
+                    core.mouse->AreXyInterruptsEnabled() ? 1 : 0,
+                    core.mouse->AreVblInterruptsEnabled() ? 1 : 0,
                     core.mouse->ReadXInterruptStatus(),
                     core.mouse->ReadYInterruptStatus(),
                     core.cpu->ReadByte (0x07FF),
@@ -582,7 +582,7 @@ public:
             core.RunCycles (2'000'000);
             dump ("---- screen after RUN + motion ----");
             sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
-                       core.mouse->XyInterruptsEnabled() ? 1 : 0,
+                       core.mouse->AreXyInterruptsEnabled() ? 1 : 0,
                        core.cpu->ReadByte (0x07FF), core.cpu->GetPC());
             Logger::WriteMessage (st);
         }

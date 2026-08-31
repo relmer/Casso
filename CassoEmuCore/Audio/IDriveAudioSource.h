@@ -34,7 +34,7 @@ public:
     ~IDriveAudioSource() override = default;
 
     // Produce `numSamples` of mono float PCM into `outMono`. The mixer
-    // pans the output per-channel via PanLeft() / PanRight(). The source
+    // pans the output per-channel via GetPanLeft() / GetPanRight(). The source
     // is responsible for clearing the buffer (the mixer assumes the
     // returned values are additive contributions only, not pre-mixed
     // with anything else).
@@ -42,8 +42,8 @@ public:
 
     // Per-drive equal-power pan coefficients (panL^2 + panR^2 == 1).
     // Centered: panL == panR == sqrt(0.5) ~= 0.707.
-    virtual float PanLeft     () const = 0;
-    virtual float PanRight    () const = 0;
+    virtual float GetPanLeft  () const = 0;
+    virtual float GetPanRight () const = 0;
 
     // Caller-provided pan: stores the precomputed coefficients
     // directly. Callers that want angle-based placement compute

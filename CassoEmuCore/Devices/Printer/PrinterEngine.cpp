@@ -36,17 +36,17 @@ static constexpr size_t   s_kDrainSliceBytes = 4096;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RasterInkExtent
+//  GetRasterInkExtent
 //
 //  Non-locking rightmost-ink probe over rows [firstRow, lastRow]: one past the
-//  rightmost inked dot, 0 for a blank span. The locking SpanInkExtent shares it.
+//  rightmost inked dot, 0 for a blank span. The locking GetSpanInkExtent shares it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, int lastRow)
+int PrinterEngine::GetRasterInkExtent (const PrintRaster & raster, int firstRow, int lastRow)
 {
     int  extent = 0;
-    int  last   = (std::min) (lastRow, raster.RowsUsed() - 1);
+    int  last   = (std::min) (lastRow, raster.GetRowsUsed() - 1);
 
 
 
@@ -54,7 +54,7 @@ int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, in
     {
         for (int col = PrinterGrid::kDotsPerRow - 1; col >= extent; col--)
         {
-            if (raster.CellAt (col, row) != 0)
+            if (raster.GetCell (col, row) != 0)
             {
                 extent = col + 1;
                 break;
@@ -89,26 +89,26 @@ void PrinterEngine::Start (PrinterByteRing & ring, PrintRaster seed)
 
     // Restore a persisted pending strip before any stepping, so new strikes
     // continue on the restored paper at its saved feed position.
-    if (seed.RowsUsed() > 0)
+    if (seed.GetRowsUsed() > 0)
     {
-        m_job->Raster() = std::move (seed);
+        m_job->GetRaster() = std::move (seed);
     }
 
     // The presented layer starts as the restored strip fully laid (that paper is
     // already printed); the head then paints only the new rows it sweeps.
-    m_presented = m_job->Raster();
+    m_presented = m_job->GetRaster();
 
     // Reflect any restored strip so the indicator shows Pending immediately.
     m_hasContent.store (m_job->HasContent(), std::memory_order_relaxed);
-    m_rowsUsed.store   (m_job->Raster().RowsUsed(), std::memory_order_relaxed);
-    m_headPos.store    (((uint64_t) (uint32_t) m_job->HeadRow() << 32)
-                        | (uint32_t) m_job->HeadColumnDots(), std::memory_order_relaxed);
+    m_rowsUsed.store   (m_job->GetRaster().GetRowsUsed(), std::memory_order_relaxed);
+    m_headPos.store    (((uint64_t) (uint32_t) m_job->GetHeadRow() << 32)
+                        | (uint32_t) m_job->GetHeadColumnDots(), std::memory_order_relaxed);
 
     // Re-seed the event head so the new strip starts throttled from cycle zero.
     // Park it at the bottom of any restored strip so the head resumes below the
     // restored paper rather than replaying it.
     m_pacingSeeded = false;
-    m_head.Reset (m_job->Raster().RowsUsed());
+    m_head.Reset (m_job->GetRaster().GetRowsUsed());
     m_carriageCol.store   (0, std::memory_order_relaxed);
     m_hostFormFeeds.store (0, std::memory_order_relaxed);
 }
@@ -155,7 +155,7 @@ bool PrinterEngine::TrySnapshotStrip (PrintRaster & out)
     // No job means no strip to copy, and `out` is left as the caller had it.
     if (m_job != nullptr)
     {
-        out = m_job->Raster();   // copy under lock
+        out = m_job->GetRaster();   // copy under lock
         ok  = true;
     }
 
@@ -186,7 +186,7 @@ bool PrinterEngine::TrySnapshotStripSpan (int firstRow, int lastRow, PrintRaster
 
     if (m_job != nullptr)
     {
-        m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
+        m_job->GetRaster().CopyRowSpan (firstRow, lastRow, out);
         ok = true;
     }
 
@@ -231,14 +231,14 @@ bool PrinterEngine::TrySnapshotPresentedSpan (int firstRow, int lastRow, PrintRa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SpanInkExtent
+//  GetSpanInkExtent
 //
 //  Rightmost-ink probe over rows [firstRow, lastRow] under the raster lock:
 //  returns one past the rightmost inked dot (0 == blank span).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
+int PrinterEngine::GetSpanInkExtent (int firstRow, int lastRow)
 {
     int  extent = 0;
 
@@ -249,7 +249,7 @@ int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
     // 0 is both "no job" and "blank span" -- callers treat them the same.
     if (m_job != nullptr)
     {
-        extent = RasterInkExtent (m_job->Raster(), firstRow, lastRow);
+        extent = GetRasterInkExtent (m_job->GetRaster(), firstRow, lastRow);
     }
 
     return extent;
@@ -330,7 +330,7 @@ void PrinterEngine::Tick (int64_t nowMs)
 
         // 1. Keep the line buffer full: run the interpreter ahead until a
         //    buffer's worth of print is queued, then stop (backpressure).
-        while (m_head.PendingSeconds() < s_kBufferSeconds)
+        while (m_head.GetPendingSeconds() < s_kBufferSeconds)
         {
             size_t   got = 0;
 
@@ -376,7 +376,7 @@ void PrinterEngine::Tick (int64_t nowMs)
             if (timeSec > s_kMaxTickSec) { timeSec = s_kMaxTickSec; }
             if (timeSec < 0.0)           { timeSec = 0.0; }
 
-            m_head.Advance (timeSec, m_job->Raster(), m_presented);
+            m_head.Advance (timeSec, m_job->GetRaster(), m_presented);
         }
 
         // Snapshot the head's published state under the lock. The platen is where
@@ -384,18 +384,18 @@ void PrinterEngine::Tick (int64_t nowMs)
         // being laid, held one band back through a feed so freshly fed paper reads
         // blank; the carriage glyph parks where the last pass ended rather than
         // snapping to the left margin.
-        platenRow  = m_head.PlatenRow();
-        maskCol    = m_head.MaskCol();
-        revealTop  = m_head.RevealTop();
-        sweepLtr   = m_head.SweepLtr();
-        moving     = m_head.Moving();
-        carriage   = m_head.CarriageCol();
-        rasterRows = m_job->Raster().RowsUsed();
+        platenRow  = m_head.GetPlatenRow();
+        maskCol    = m_head.GetMaskCol();
+        revealTop  = m_head.GetRevealTop();
+        sweepLtr   = m_head.IsSweepLtr();
+        moving     = m_head.IsMoving();
+        carriage   = m_head.GetCarriageCol();
+        rasterRows = m_job->GetRaster().GetRowsUsed();
         content    = m_job->HasContent();
     }
 
     // Publish activity (guest bytes consumed) + content + platen + reveal frontier
-    // + strip height. RowsUsed stays the raster's real built height (the panel
+    // + strip height. GetRowsUsed stays the raster's real built height (the panel
     // clamps the viewport and detects a tear against it).
     if (drained > 0)
     {

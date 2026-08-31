@@ -48,7 +48,7 @@ public:
     void ApplyMouseConnected         (bool connected)                        override;
     void QueueMachineReset           ()                                      override { m_resetQueued = true; }
 
-    bool ResetQueued () const { return m_resetQueued; }
+    bool IsResetQueued () const { return m_resetQueued; }
 
 private:
     EmulatorShell & m_shell;

@@ -49,7 +49,7 @@ void PrintRaster::EnsureRowAllocated (int row)
 //  Strike
 //
 //  ORs an ink primary into a cell. Out-of-range columns are ignored; a row at
-//  or beyond the 60-page cap is dropped and latches CapReached.
+//  or beyond the 60-page cap is dropped and latches HasReachedCap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +59,7 @@ void PrintRaster::Strike (int columnDot, int row, InkPrimary ink)
 
 
 
-    // Only a row past the 60-page cap latches CapReached -- an out-of-range
+    // Only a row past the 60-page cap latches HasReachedCap -- an out-of-range
     // COLUMN is a clipped strike, not a paper-length problem, so it is
     // silently dropped.
     if (inBounds && row >= s_kMaxRows)
@@ -278,11 +278,11 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CellAt
+//  GetCell
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte PrintRaster::CellAt (int columnDot, int row) const
+Byte PrintRaster::GetCell (int columnDot, int row) const
 {
     bool     inBounds = (columnDot >= 0 && columnDot < s_kColumns && row >= 0);
     size_t   index    = inBounds ? ((size_t) row * s_kColumns + columnDot) : m_cells.size();

@@ -40,7 +40,7 @@ struct CassoTheme;
 //  (via the inherited CreateChild<T> factory) so the base paint pump
 //  walks and paints them; the panel keeps its own focus manager,
 //  tooltip, and column menu (the latter two escape the client via the
-//  host popup pool exposed through PopupHost()).
+//  host popup pool exposed through GetPopupHost()).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,11 +87,11 @@ public:
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
 
     // DxuiPanel cursor hook. The generic panel fan-out hands children
-    // client-px, but DxuiListView::CursorForPoint expects list-local
+    // client-px, but DxuiListView::GetCursorForPoint expects list-local
     // coords, so translate before delegating (and hold the resize cursor
     // through an active column drag even if the pointer drifts off the
     // header strip).
-    LPCWSTR CursorForPoint (POINT clientPx) const                   override;
+    LPCWSTR GetCursorForPoint (POINT clientPx) const                   override;
 
     // DxuiPanel layout hook. DxuiWindow calls this with the client
     // bounds / DPI scaler after the OS window resizes; caches the size
@@ -148,7 +148,7 @@ private:
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
     void    ApplySort            ();
-    int64_t NowMs                () const;
+    int64_t GetNowMs             () const;
 
     static void               ArgbToFloat4              (uint32_t argb, float (& outRgba)[4]) noexcept;
     static void               FormatCycleWithSeparators (uint64_t value, wchar_t * out, size_t cap);
@@ -156,12 +156,12 @@ private:
     static void               FormatUptime              (std::chrono::steady_clock::time_point anchor,
                                                          wchar_t * out,
                                                          size_t cap);
-    static wchar_t            PrintableChar             (Byte value) noexcept;
-    static std::wstring       FormatByteChar            (Byte value);
-    static std::wstring       SourceLabel               (InputEventCategory category);
-    static LPCWSTR            ButtonAnnotation          (Word address, bool mouseButtonAtC063) noexcept;
-    static InputGamePortClass ClassifyGamePort          (InputEventType type, Word address) noexcept;
-    static void               FormatInputEvent          (const InputEvent & src,
+    static wchar_t            GetPrintableChar    (Byte value) noexcept;
+    static std::wstring       FormatByteChar      (Byte value);
+    static std::wstring       GetSourceLabel      (InputEventCategory category);
+    static LPCWSTR            GetButtonAnnotation (Word address, bool mouseButtonAtC063) noexcept;
+    static InputGamePortClass ClassifyGamePort    (InputEventType type, Word address) noexcept;
+    static void               FormatInputEvent    (const InputEvent & src,
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
                                                          const InputFilterState & filter,
                                                          InputEventDisplay & out,

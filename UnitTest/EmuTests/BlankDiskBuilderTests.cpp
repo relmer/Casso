@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/Dos33Skeleton.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/ProDosSkeleton.h"
@@ -60,58 +61,114 @@ public:
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted)));
     }
 
-    //  The container no longer constrains the filesystem.
-    //
-    //  IT USED TO, AND THE RESTRICTION WAS ARBITRARY. Sector order and
-    //  filesystem are independent: the builder lays every skeleton down in DOS
-    //  logical order and orders it per container afterwards, and the reader
-    //  identifies the filesystem from the decoded bytes without consulting the
-    //  extension. A ProDOS volume in DOS order is an ordinary artifact.
-    TEST_METHOD (ValidateSpec_AnySectorContainerTakesAnyFilesystem)
+    TEST_METHOD (ValidateSpec_DskPairsWithDosOrRaw)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Dos33)));
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::ProDos)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted)));
-
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::ProDos)));
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::Dos33)));
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po,  BlankDiskContents::Unformatted)));
+        AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Dsk, BlankDiskContents::ProDos)));
+        expect.RequireCount (1);
     }
 
-    //  A container that WAS refused outright, for no reason its own comment
-    //  gave. It produces byte-identical output to the one beside it, so the
-    //  rule was one a rename defeated.
-    TEST_METHOD (ValidateSpec_DoIsCreatableLikeDsk)
+    TEST_METHOD (ValidateSpec_PoPairsWithProDosOrRaw)
     {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos)));
+        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Unformatted)));
+        AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Po, BlankDiskContents::Dos33)));
+        expect.RequireCount (1);
+    }
+
+    //  .do IS .dsk UNDER THE OTHER NAME, and Build has always treated the two
+    //  as one container. Only the validator disagreed, so `disk create foo.do`
+    //  -- a word the command line offers -- asserted on the way in.
+    TEST_METHOD (ValidateSpec_DoPairsWithDosOrRaw_TheSameAsDsk)
+    {
+        UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Dos33)));
-        AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::ProDos)));
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::Unformatted)));
+        AssertFailed    (BlankDiskBuilder::ValidateSpec (MakeSpec (DiskFormat::Do, BlankDiskContents::ProDos)));
+        expect.RequireCount (1);
     }
 
-    //  Each refusal says its OWN reason. One catch-all sentence answered a bad
-    //  ProDOS volume name with a paragraph about container pairings.
-    TEST_METHOD (DescribeSpecProblem_NamesTheReasonItFound)
+    //
+    //  EVERY CONTAINER THE COMMAND LINE OFFERS MUST BE ONE THE BUILDER WILL
+    //  WRITE, and the list is swept rather than restated so that a row added
+    //  to it without a matching arm here fails this test instead of asserting
+    //  in front of whoever typed the new word.
+    //
+    //  Raw media is the case every container has in common: it is the one
+    //  contents that carries no sector order, so any container that cannot
+    //  take it cannot be written at all.
+    //
+    TEST_METHOD (CheckSpec_AcceptsEveryContainerTheCommandLineAdvertises)
     {
-        BlankDiskSpec  badName = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
-        BlankDiskSpec  raw     = MakeSpec (DiskFormat::Dsk, BlankDiskContents::Unformatted);
-        std::string    nameProblem;
-        std::string    bootProblem;
+        const DiskCommandRunner::ContainerName *  containers = nullptr;
+        size_t                                    count      = 0;
+        size_t                                    i          = 0;
 
-        badName.volumeName = "9BAD";
-        raw.bootable       = true;
 
-        nameProblem = BlankDiskBuilder::DescribeSpecProblem (badName);
-        bootProblem = BlankDiskBuilder::DescribeSpecProblem (raw);
 
-        Assert::IsTrue (nameProblem.find ("volume name") != std::string::npos,
-                        L"a bad name is answered with the name rule");
-        Assert::IsTrue (bootProblem.find ("bootable") != std::string::npos,
-                        L"and an unbootable spec with the bootable rule");
-        Assert::IsTrue (nameProblem != bootProblem, L"two problems, two answers");
+        containers = DiskCommandRunner::GetAdvertisedContainers (count);
 
-        Assert::IsTrue (BlankDiskBuilder::DescribeSpecProblem (
-                            MakeSpec (DiskFormat::Do, BlankDiskContents::ProDos)).empty(),
-                        L"and a buildable spec reports nothing");
+        Assert::IsTrue (count > 0, L"the command line advertises at least one container");
+
+        for (i = 0; i < count; i++)
+        {
+            BlankDiskSpec  spec  = MakeSpec (containers[i].format, BlankDiskContents::Unformatted);
+            std::string    which = containers[i].name;
+            vector<Byte>   bytes;
+
+            Assert::IsTrue (BlankDiskVerdict::Ok == BlankDiskBuilder::CheckSpec (spec),
+                (std::wstring (L"the builder refuses a container the command line offers: ")
+                     + std::wstring (which.begin(), which.end())).c_str());
+
+            AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload(), bytes));
+            Assert::IsFalse (bytes.empty(),
+                (std::wstring (L"and writes nothing for: ")
+                     + std::wstring (which.begin(), which.end())).c_str());
+        }
+    }
+
+    //  THE VERDICT REPORTS WHICH RULE, which is the whole reason it is not an
+    //  HRESULT: `disk create` puts the broken rule into a sentence, and one
+    //  failure code for all three made it recite all three.
+    TEST_METHOD (CheckSpec_ReportsTheRuleThatWasBroken)
+    {
+        BlankDiskSpec  badPairing  = MakeSpec (DiskFormat::Po,  BlankDiskContents::Dos33);
+        BlankDiskSpec  badBootable = MakeSpec (DiskFormat::Woz, BlankDiskContents::Unformatted, true);
+        BlankDiskSpec  badName     = MakeSpec (DiskFormat::Po,  BlankDiskContents::ProDos);
+
+
+
+        badName.volumeName = "1LEADINGDIGIT";
+
+        Assert::IsTrue (BlankDiskVerdict::ContentsNotInContainer  == BlankDiskBuilder::CheckSpec (badPairing));
+        Assert::IsTrue (BlankDiskVerdict::BootableNeedsFilesystem == BlankDiskBuilder::CheckSpec (badBootable));
+        Assert::IsTrue (BlankDiskVerdict::ProDosNameUnusable      == BlankDiskBuilder::CheckSpec (badName));
+    }
+
+    //  CheckSpec ANSWERS WITHOUT ASSERTING. It is what stands between user
+    //  input and ValidateSpec's E_INVALIDARG, so it has to be callable on a
+    //  spec that is wrong in every way at once.
+    TEST_METHOD (CheckSpec_DoesNotAssertOnASpecItRefuses)
+    {
+        BlankDiskSpec  spec = MakeSpec (DiskFormat::Po, BlankDiskContents::Dos33, true);
+
+
+
+        spec.volumeName = "";
+
+        Assert::IsFalse (BlankDiskVerdict::Ok == BlankDiskBuilder::CheckSpec (spec));
     }
 
     TEST_METHOD (ValidateSpec_BootableRequiresFormattedContents)

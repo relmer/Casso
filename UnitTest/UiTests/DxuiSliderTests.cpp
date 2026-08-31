@@ -63,21 +63,21 @@ public:
         DxuiSlider  s = MakeUnitSlider();
 
         s.SetValue (0.347f);
-        Assert::IsTrue (NearlyEqual (0.3f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.3f, s.GetValue()));
 
         s.SetValue (-1.0f);
-        Assert::IsTrue (NearlyEqual (0.0f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()));
 
         s.SetValue (10.0f);
-        Assert::IsTrue (NearlyEqual (1.0f, s.Value()));
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetValue()));
     }
 
     TEST_METHOD (SetRange_SwapsReversed)
     {
         DxuiSlider  s;
         s.SetRange (1.0f, 0.0f);
-        Assert::IsTrue (NearlyEqual (0.0f, s.Min()));
-        Assert::IsTrue (NearlyEqual (1.0f, s.Max()));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetMin()));
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetMax()));
     }
 
     TEST_METHOD (MouseDown_JumpsAndDrags)
@@ -87,8 +87,8 @@ public:
         s.SetOnChange ([&] (float v) { last = v; });
 
         Assert::IsTrue (s.OnLButtonDown (50, 8));
-        Assert::IsTrue (s.Dragging());
-        Assert::IsTrue (NearlyEqual (0.5f, s.Value()));
+        Assert::IsTrue (s.IsDragging());
+        Assert::IsTrue (NearlyEqual (0.5f, s.GetValue()));
         Assert::IsTrue (NearlyEqual (0.5f, last));
     }
 
@@ -97,14 +97,14 @@ public:
         DxuiSlider  s = MakeUnitSlider();
 
         Assert::IsFalse (s.OnMouseMove (30, 8));
-        Assert::IsTrue  (NearlyEqual (0.0f, s.Value()));
+        Assert::IsTrue  (NearlyEqual (0.0f, s.GetValue()));
 
         Assert::IsTrue (s.OnLButtonDown (10, 8));
         Assert::IsTrue (s.OnMouseMove   (80, 8));
-        Assert::IsTrue (NearlyEqual (0.8f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.8f, s.GetValue()));
 
         Assert::IsTrue (s.OnLButtonUp (80, 8));
-        Assert::IsFalse (s.Dragging());
+        Assert::IsFalse (s.IsDragging());
     }
 
     TEST_METHOD (Key_FocusedSteps)
@@ -114,26 +114,26 @@ public:
         s.SetValue (0.5f);
 
         Assert::IsTrue (s.OnKey (VK_LEFT));
-        Assert::IsTrue (NearlyEqual (0.4f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.4f, s.GetValue()));
 
         Assert::IsTrue (s.OnKey (VK_RIGHT));
-        Assert::IsTrue (NearlyEqual (0.5f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.5f, s.GetValue()));
 
         Assert::IsTrue (s.OnKey (VK_PRIOR));
-        Assert::IsTrue (NearlyEqual (1.0f, s.Value()));   // clamped
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetValue()));   // clamped
 
         Assert::IsTrue (s.OnKey (VK_HOME));
-        Assert::IsTrue (NearlyEqual (0.0f, s.Value()));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()));
 
         Assert::IsTrue (s.OnKey (VK_END));
-        Assert::IsTrue (NearlyEqual (1.0f, s.Value()));
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetValue()));
     }
 
     TEST_METHOD (Key_UnfocusedNoOp)
     {
         DxuiSlider  s = MakeUnitSlider();
         Assert::IsFalse (s.OnKey (VK_RIGHT));
-        Assert::IsTrue  (NearlyEqual (0.0f, s.Value()));
+        Assert::IsTrue  (NearlyEqual (0.0f, s.GetValue()));
     }
 
     TEST_METHOD (Disabled_RejectsMouse)
@@ -155,5 +155,79 @@ public:
         Assert::AreEqual (0, callCount,
             L"Stepping below min must not fire OnChange once value is already at min.");
     }
-};
 
+
+    //
+    //  Vertical orientation. The mapping flips axis AND direction -- max at
+    //  the TOP, the fader convention -- and the readout area moves from the
+    //  right edge to the bottom, so the track shortens vertically when a
+    //  suffix is set. Asserted through the public mouse path, exactly like
+    //  the horizontal cases above.
+    //
+
+    DxuiSlider  MakeVerticalSlider()
+    {
+        DxuiSlider  s;
+        s.SetRect     (MakeRect (0, 0, 28, 100));
+        s.SetVertical (true);
+        s.SetRange    (0.0f, 1.0f);
+        s.SetStep     (0.1f);
+        s.SetValue    (0.0f);
+        return s;
+    }
+
+    TEST_METHOD (Vertical_TopIsMax_BottomIsMin)
+    {
+        DxuiSlider  s = MakeVerticalSlider();
+
+        Assert::IsTrue (s.OnLButtonDown (14, 0));
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetValue()), L"the top of the track is max");
+        s.OnLButtonUp (14, 0);
+
+        Assert::IsTrue (s.OnLButtonDown (14, 100));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()), L"the bottom of the track is min");
+    }
+
+    TEST_METHOD (Vertical_MidTrack_IsMidValue)
+    {
+        DxuiSlider  s = MakeVerticalSlider();
+
+        Assert::IsTrue (s.OnLButtonDown (14, 50));
+        Assert::IsTrue (NearlyEqual (0.5f, s.GetValue()));
+    }
+
+    TEST_METHOD (Vertical_DragBeyondRails_Clamps)
+    {
+        DxuiSlider  s = MakeVerticalSlider();
+
+        Assert::IsTrue (s.OnLButtonDown (14, 50));
+        s.OnMouseMove (14, -40);
+        Assert::IsTrue (NearlyEqual (1.0f, s.GetValue()), L"above the track clamps to max");
+        s.OnMouseMove (14, 300);
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()), L"below the track clamps to min");
+    }
+
+    TEST_METHOD (Vertical_SuffixReservesTheBottom_ForTheReadout)
+    {
+        // With a readout, the track ends above the value area: the mapping
+        // must reach min at the SHORTENED track's bottom, not the bounds'.
+        DxuiSlider  s = MakeVerticalSlider();
+
+        s.SetSuffix (L"%");
+
+        Assert::IsTrue (s.OnLButtonDown (14, 76));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()),
+                        L"the shortened track bottom must map exactly to min");
+    }
+
+    TEST_METHOD (Vertical_Keys_UpIncreases)
+    {
+        DxuiSlider  s = MakeVerticalSlider();
+
+        s.SetFocused (true);
+        Assert::IsTrue (s.OnKey (VK_UP));
+        Assert::IsTrue (NearlyEqual (0.1f, s.GetValue()));
+        Assert::IsTrue (s.OnKey (VK_DOWN));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()));
+    }
+};

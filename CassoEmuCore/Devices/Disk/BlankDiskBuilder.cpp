@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "BlankDiskBuilder.h"
+#include "NibbleImageCodec.h"
 
 #include "Dos33Skeleton.h"
 #include "ProDosSkeleton.h"
@@ -12,55 +13,154 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DescribeSpecProblem
+//  GetWritableContainers
 //
-//  Why a spec cannot be built, in the words a reader sees. Empty when it can.
-//
-//  ONE REASON PER PROBLEM, which is the whole point of it being here rather
-//  than folded into the yes-or-no check below. A single catch-all sentence told
-//  somebody whose ProDOS volume name began with a digit that dsk carries
-//  DOS 3.3 and po carries ProDOS, which is true, unrelated, and no help at all.
-//
-//  NON-ASSERTING, because every condition here is reachable by typing. The
-//  check below keeps its assertions for a caller that skipped this.
-//
-//  THE CONTAINER NO LONGER CONSTRAINS THE FILESYSTEM. It used to: dsk accepted
-//  only DOS 3.3, po only ProDOS, and do nothing at all. Sector order and
-//  filesystem are independent -- a ProDOS volume in DOS order is an ordinary
-//  thing, this builder already lays every skeleton down in DOS logical order
-//  and orders it per container afterwards, and the reader identifies the
-//  filesystem from the decoded bytes without consulting the extension. The dsk
-//  and do restriction was doubly arbitrary: the two produce byte-identical
-//  output, so refusing to create one while creating the other was a rule a
-//  rename defeated.
+//  In the order a chooser should offer them: WOZ first, being the one that
+//  carries any filesystem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BlankDiskBuilder::DescribeSpecProblem (const BlankDiskSpec & spec)
+const DiskFormat * BlankDiskBuilder::GetWritableContainers (size_t & outCount)
+{
+    static constexpr DiskFormat  kContainers[] =
+    {
+        DiskFormat::Woz,
+        DiskFormat::Dsk,
+        DiskFormat::Do,
+        DiskFormat::Po,
+        DiskFormat::Nib,
+    };
+
+
+
+    outCount = _countof (kContainers);
+
+    return kContainers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetContainers
+//
+//  Which containers can carry a filling.
+//
+//  IN CORE RATHER THAN IN THE DIALOG THAT ASKS. The create dialog used to
+//  hold this as a switch restating the pairing matrix by hand, where no test
+//  could reach it -- and it went stale the moment the builder learned a
+//  fourth container: `.do` could be written from the command line and was
+//  missing from the dropdown. Derived from CheckSpec, it cannot drift.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DiskFormat> BlankDiskBuilder::GetContainers (BlankDiskContents contents)
+{
+    std::vector<DiskFormat>   usable;
+    const DiskFormat        * containers = nullptr;
+    size_t                    count      = 0;
+    size_t                    i          = 0;
+    BlankDiskSpec             spec;
+
+
+
+    containers    = GetWritableContainers (count);
+    spec.contents = contents;
+
+    for (i = 0; i < count; i++)
+    {
+        spec.format = containers[i];
+
+        if (CheckSpec (spec) == BlankDiskVerdict::Ok)
+        {
+            usable.push_back (containers[i]);
+        }
+    }
+
+    return usable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CheckSpec
+//
+//  Why a spec cannot be written, or Ok.
+//
+//  The pairing matrix:
+//
+//      Woz  pairs with anything (order-agnostic bit stream)
+//      Dsk  pairs with DOS 3.3 or unformatted (DOS sector order)
+//      Do   pairs with DOS 3.3 or unformatted, the same as Dsk -- the two
+//           extensions name one container, and Build has always treated them
+//           as one
+//      Po   pairs with ProDOS or unformatted (ProDOS sector order)
+//
+//  Bootable requires formatted contents -- there is no OS to install on raw
+//  media. A ProDOS spec also needs a legal volume name (1-15 chars, leading
+//  letter, letters / digits / periods) since it lands in the directory
+//  header verbatim.
+//
+//  ANSWERS IN VERDICTS RATHER THAN HRESULTS so that the command line can put
+//  the broken rule into a sentence without going through E_INVALIDARG, which
+//  asserts because it means a caller has a bug. Every rule here is one a
+//  reader can break by typing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
 {
     constexpr size_t  kMaxProDosNameLength = 15;
-    bool              known                = spec.format == DiskFormat::Woz || spec.format == DiskFormat::Dsk
-                                          || spec.format == DiskFormat::Do  || spec.format == DiskFormat::Po;
+
+
+
+    HRESULT           hr                   = S_OK;   // vestigial, for the bails
+    BlankDiskVerdict  verdict              = BlankDiskVerdict::Ok;
+    bool              formatOk             = false;
+    bool              bootableOk           = false;
     bool              nameOk               = true;
+    bool              isProDos             = spec.contents == BlankDiskContents::ProDos;
     size_t            i                    = 0;
 
 
 
-    if (!known)
+    switch (spec.format)
     {
-        return "that container type cannot be created: dsk, do, po and woz can";
+        case DiskFormat::Woz:
+        case DiskFormat::Nib:
+            //  Both store tracks rather than sectors, so either filesystem
+            //  goes in and unformatted media is expressible too.
+            formatOk = true;
+            break;
+
+        case DiskFormat::Dsk:
+        case DiskFormat::Do:
+            formatOk = (spec.contents == BlankDiskContents::Dos33 ||
+                        spec.contents == BlankDiskContents::Unformatted);
+            break;
+
+        case DiskFormat::Po:
+            formatOk = (spec.contents == BlankDiskContents::ProDos ||
+                        spec.contents == BlankDiskContents::Unformatted);
+            break;
+
+        default:
+            formatOk = false;
+            break;
     }
 
-    if (spec.bootable && spec.contents == BlankDiskContents::Unformatted)
-    {
-        return "an unformatted disk cannot be made bootable: there is no filesystem "
-               "for an operating system to be installed into";
-    }
+    CBRF (formatOk, verdict = BlankDiskVerdict::ContentsNotInContainer);
 
-    if (spec.contents != BlankDiskContents::ProDos)
-    {
-        return std::string();
-    }
+    bootableOk = !spec.bootable || spec.contents != BlankDiskContents::Unformatted;
+    CBRF (bootableOk, verdict = BlankDiskVerdict::BootableNeedsFilesystem);
+
+    //  The rest is the ProDOS volume name, so a disk that has none is done.
+    BAIL_OUT_IF (!isProDos, S_OK);
 
     nameOk = !spec.volumeName.empty()
           && spec.volumeName.size() <= kMaxProDosNameLength
@@ -73,13 +173,10 @@ std::string BlankDiskBuilder::DescribeSpecProblem (const BlankDiskSpec & spec)
         nameOk = isalnum (c) != 0 || c == '.';
     }
 
-    if (!nameOk)
-    {
-        return "a ProDOS volume name is 1 to 15 characters, begins with a letter, "
-               "and holds only letters, digits and periods";
-    }
+    CBRF (nameOk, verdict = BlankDiskVerdict::ProDosNameUnusable);
 
-    return std::string();
+Error:
+    return verdict;
 }
 
 
@@ -90,24 +187,24 @@ std::string BlankDiskBuilder::DescribeSpecProblem (const BlankDiskSpec & spec)
 //
 //  ValidateSpec
 //
-//  The same rules as a yes or no, for the build path itself.
+//  CheckSpec's rules as Build's own precondition.
 //
-//  Asserting variants on purpose: every caller is expected to have asked the
-//  routine above first, so a spec arriving here invalid is a caller that
-//  skipped it rather than a user outcome. That was already the intent; what
-//  changed is that there is now something for a caller to ask.
+//  ASSERTING ON PURPOSE, and the assert is the whole difference between the
+//  two functions. A caller that takes a spec from a person settles the
+//  combination before it gets here -- the create dialog by construction, the
+//  `disk` subcommand through CheckSpec -- so an illegal one arriving is a
+//  caller that skipped its own gate, not a reader who typed something.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlankDiskBuilder::ValidateSpec (const BlankDiskSpec & spec)
 {
-    HRESULT      hr      = S_OK;
-    std::string  problem = DescribeSpecProblem (spec);
-    bool         valid   = problem.empty();
+    HRESULT           hr      = S_OK;
+    BlankDiskVerdict  verdict = CheckSpec (spec);
 
 
 
-    CBRAEx (valid, E_INVALIDARG);
+    CBRAEx (verdict == BlankDiskVerdict::Ok, E_INVALIDARG);
 
 Error:
     return hr;
@@ -246,7 +343,8 @@ HRESULT BlankDiskBuilder::Build (
         }
     }
 
-    hr = WrapInContainer (spec.format, spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
+    hr = WrapInContainer (spec.format, spec.nibbleTrackSize,
+                          spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
     CHR (hr);
 
 Error:
@@ -276,6 +374,7 @@ Error:
 
 HRESULT BlankDiskBuilder::WrapInContainer (
     DiskFormat            format,
+    size_t                nibbleTrackSize,
     bool                  unformatted,
     const vector<Byte> &  sectors,
     vector<Byte>       &  outBytes)
@@ -317,6 +416,32 @@ HRESULT BlankDiskBuilder::WrapInContainer (
             ReorderDosToPo (sectors, built);
             break;
 
+        case DiskFormat::Nib:
+            if (unformatted)
+            {
+                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                {
+                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                }
+            }
+            else
+            {
+                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                CHR (hr);
+            }
+
+            //  Zero means the caller did not name a size, which is every
+            //  caller but the command line's two nibble words. The standard
+            //  size is what an unnamed one is, and Build refuses anything that
+            //  is neither -- so a wrong value is still a bug rather than a
+            //  silently odd disk.
+            hr = NibbleImageCodec::Build (img,
+                                          nibbleTrackSize != 0 ? nibbleTrackSize
+                                                               : NibbleImageCodec::kNibTrackSize,
+                                          built);
+            CHR (hr);
+            break;
+
         default:
             CBRAEx (false, E_UNEXPECTED);
             break;
@@ -326,4 +451,36 @@ HRESULT BlankDiskBuilder::WrapInContainer (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlankDiskBuilder::GetContentsCaption
+//
+//  What a chooser calls a filling.
+//
+//  NO DEFAULT ARM. Every enumerator is named, and one added later fails to
+//  compile here rather than being quietly labeled DOS 3.3 -- which is what the
+//  version of this in the create dialog did, where no test could see it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlankDiskBuilder::GetContentsCaption (BlankDiskContents contents)
+{
+    std::wstring  caption;
+
+
+
+    switch (contents)
+    {
+        case BlankDiskContents::Unformatted: caption = L"Unformatted";   break;
+        case BlankDiskContents::Dos33:       caption = L"DOS 3.3";       break;
+        case BlankDiskContents::ProDos:      caption = L"ProDOS 1.1.1";  break;
+    }
+
+    return caption;
 }

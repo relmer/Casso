@@ -42,6 +42,16 @@ public:
     ~DxuiSlider() override = default;
 
     void   SetRect    (const RECT & rect) { SetBounds (rect); }
+
+    // Vertical orientation (opt-in; default horizontal): the track runs
+    // bottom-to-top with MAX AT THE TOP -- the direction a physical fader
+    // and every OS volume flyout agree on -- ticks sit to the track's right,
+    // and the value readout moves under the track. Keyboard bindings need no
+    // change: both axes were already bound because the widget never knew its
+    // host's layout.
+    void   SetVertical (bool vertical) { m_vertical = vertical; }
+    bool   Vertical    () const        { return m_vertical; }
+
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
     //  Granularity a mouse drag snaps to. 0 (default) reuses the keyboard step;
@@ -68,15 +78,15 @@ public:
     void   SetOnDragEnd   (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
     void   SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
 
-    const RECT & Rect      () const { return m_boundsDip;     }
-    float        Min       () const { return m_min;      }
-    float        Max       () const { return m_max;      }
-    float        Step      () const { return m_step;     }
-    float        Value     () const { return m_value;    }
-    bool         Enabled   () const { return m_enabled;  }
-    bool         Focused   () const { return m_focused;  }
-    bool         Hover     () const { return m_hover;    }
-    bool         Dragging  () const { return m_dragging; }
+    const RECT & GetRect    () const { return m_boundsDip;     }
+    float        GetMin     () const { return m_min;      }
+    float        GetMax     () const { return m_max;      }
+    float        Step       () const { return m_step;     }
+    float        GetValue   () const { return m_value;    }
+    bool         IsEnabled  () const { return m_enabled;  }
+    bool         IsFocused  () const { return m_focused;  }
+    bool         IsHovered  () const { return m_hover;    }
+    bool         IsDragging () const { return m_dragging; }
 
     bool   HitTest        (int x, int y) const;
     void   SetMouseHover  (int x, int y);
@@ -88,22 +98,26 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
     static float  Clamp          (float v, float lo, float hi);
     static float  QuantizeToStep (float value, float minValue, float step);
 
-    void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void   ApplyValue         (float v);
-    void   ApplyValueWithStep (float v, float step);
+    void   PaintInternal         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void   PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void   ApplyValue            (float v);
+    void   ApplyValueWithStep    (float v, float step);
     float  DragStep       () const { return m_dragStep > 0.0f ? m_dragStep : m_step; }
     float  ValueFromX     (int x) const;
+    float  ValueFromY     (int y) const;
+    float  ValueFromPoint (int x, int y) const { return m_vertical ? ValueFromY (y) : ValueFromX (x); }
+    void   FormatValue    (wchar_t (&buf)[32]) const;
     ChangeFn       m_change;
     InteractionFn  m_onDragStart;
     InteractionFn  m_onDragEnd;
@@ -125,5 +139,6 @@ private:
     bool           m_showValue         = false;
     bool           m_explicitShowValue = false;
     bool           m_centerOriginFill  = false;
+    bool           m_vertical          = false;
     int            m_decimalPlaces     = 0;
 };

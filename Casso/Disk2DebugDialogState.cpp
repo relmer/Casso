@@ -265,7 +265,7 @@ bool MatchesFilter (const Disk2EventDisplay & e, const FilterState & f) noexcept
 //
 //  Append a single row's value for the logical column id to `out`.
 //  Wall / Uptime / Cycle / Detail come straight off the display
-//  record; Event resolves via DebugDialogProjection::EventLabel.
+//  record; Event resolves via DebugDialogProjection::GetEventLabel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +290,7 @@ void AppendColumnText (std::wstring & out, const Disk2EventDisplay & e, int logi
 
             break;
         case 4:
-            label = DebugDialogProjection::EventLabel (e.category, e.type);
+            label = DebugDialogProjection::GetEventLabel (e.category, e.type);
             out.append (label);
             break;
         case 5: out.append (e.detail); break;

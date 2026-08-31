@@ -167,6 +167,72 @@ public:
     }
 
 
+    //
+    //  Regression, SECOND failure of the same corner: classifying the point
+    //  as HTTOPRIGHT (above) is only half the contract. The press that
+    //  follows arrives as WM_NCLBUTTONDOWN over the SAME point, and the NC
+    //  mouse path finds the close button there -- because the corner grab
+    //  zone deliberately reaches under it. Routing the press to that button
+    //  and consuming the message left DefWindowProc without a resize to
+    //  start: the cursor showed the diagonal arrow and the window would not
+    //  drag, which is exactly what the classification test above cannot see.
+    //
+    //  So this asserts the two layers TOGETHER: the point classifies as the
+    //  corner, and the hit code that classification produces is one no
+    //  system button may claim.
+    //
+    TEST_METHOD (ResizeCorner_TopRightOverCloseButton_PressGoesToTheWindowManager)
+    {
+        SyntheticHost    sh   = BuildSyntheticHost();
+        POINT            pt   = MakePoint (s_kClientWidthDip - 10, 10);
+        DxuiHitTestKind  kind = {};
+        LRESULT          ht   = 0;
+
+        Assert::IsTrue (pt.x >= sh.closeRectDip.left && pt.x < sh.closeRectDip.right &&
+                        pt.y >= sh.closeRectDip.top  && pt.y < sh.closeRectDip.bottom,
+                        L"guard: the test point must lie within the close button rect");
+
+        kind = sh.host->ClassifyHitForTest (pt);
+        ht   = DxuiHwndSource::KindToHt (kind);
+
+        Assert::AreEqual ((int) HTTOPRIGHT, (int) ht,
+                          L"guard: the point must still classify as the resize corner");
+
+        Assert::IsFalse (DxuiHwndSource::NcMouseMayHitSystemButton (true, (WPARAM) ht),
+                         L"a press on the resize corner must be left to the window manager, "
+                         L"not handed to the close button underneath it");
+    }
+
+
+    //
+    //  The rest of that table. Every resize code defers; everything a caption
+    //  legitimately owns still routes to its button, or min / max / close stop
+    //  responding. A window that cannot be resized has no resize codes to
+    //  honor, so it keeps the whole caption.
+    //
+    TEST_METHOD (NcMouseRouting_DefersEveryResizeCode_AndKeepsTheCaptionCodes)
+    {
+        const WPARAM  resizeCodes[] = { HTTOPLEFT, HTTOP, HTTOPRIGHT, HTLEFT,
+                                        HTRIGHT, HTBOTTOMLEFT, HTBOTTOM, HTBOTTOMRIGHT };
+        const WPARAM  captionCodes[] = { HTCLIENT, HTCAPTION, HTMINBUTTON,
+                                         HTMAXBUTTON, HTCLOSE, HTSYSMENU };
+
+        for (WPARAM ht : resizeCodes)
+        {
+            Assert::IsFalse (DxuiHwndSource::NcMouseMayHitSystemButton (true, ht),
+                             L"a resize code must never be claimed by a system button");
+            Assert::IsTrue (DxuiHwndSource::NcMouseMayHitSystemButton (false, ht),
+                            L"a fixed-size window has no resize to protect");
+        }
+
+        for (WPARAM ht : captionCodes)
+        {
+            Assert::IsTrue (DxuiHwndSource::NcMouseMayHitSystemButton (true, ht),
+                            L"caption codes must keep routing to their buttons");
+        }
+    }
+
+
     TEST_METHOD (ResizeEdges_BottomLeftCorner_ReturnsHtBottomLeft)
     {
         SyntheticHost    sh   = BuildSyntheticHost();
@@ -418,9 +484,9 @@ public:
         DxuiSystemButton  closeBtn (DxuiSystemButtonKind::Close);
 
 
-        Assert::AreEqual (std::wstring (L"Minimize"), minBtn.AccessibleName());
-        Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.AccessibleName());
-        Assert::AreEqual (std::wstring (L"Close"),    closeBtn.AccessibleName());
+        Assert::AreEqual (std::wstring (L"Minimize"), minBtn.GetAccessibleName());
+        Assert::AreEqual (std::wstring (L"Maximize"), maxBtn.GetAccessibleName());
+        Assert::AreEqual (std::wstring (L"Close"),    closeBtn.GetAccessibleName());
     }
 
 
@@ -568,9 +634,9 @@ public:
         host.SetContentPanel (std::move (replacement));
 
         Assert::AreEqual ((const void *) replacementRaw,
-                          (const void *) &host.Root());
+                          (const void *) &host.GetRoot());
 
-        bounds = host.Root().Bounds();
+        bounds = host.GetRoot().GetBounds();
 
         Assert::AreEqual ((LONG) 0,                  bounds.left);
         Assert::AreEqual ((LONG) 0,                  bounds.top);
@@ -592,7 +658,7 @@ public:
 
         host.SetContentPanel (std::move (replacement));
 
-        Assert::AreEqual ((size_t) 1, host.Root().ChildCount());
+        Assert::AreEqual ((size_t) 1, host.GetRoot().GetChildCount());
     }
 };
 

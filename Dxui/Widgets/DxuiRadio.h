@@ -46,11 +46,11 @@ public:
     void  SetOnChange (ChangeFn fn)  { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi)     { m_scaler.SetDpi (dpi); }
 
-    const std::vector<DxuiRadioOption> & Options    () const { return m_options;  }
-    int                              Selected   () const { return m_selected; }
-    bool                             Enabled    () const { return m_enabled;  }
-    bool                             Focused    () const { return m_focused;  }
-    int                              HoverIndex () const { return m_hover;    }
+    const std::vector<DxuiRadioOption> & GetOptions    () const { return m_options;  }
+    int                              GetSelected   () const { return m_selected; }
+    bool                             IsEnabled     () const { return m_enabled;  }
+    bool                             IsFocused     () const { return m_focused;  }
+    int                              GetHoverIndex () const { return m_hover;    }
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
@@ -61,13 +61,13 @@ public:
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged (bool focused) override { SetFocused (focused); }
-    std::wstring        AccessibleName () const override;
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Radio; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    std::wstring        GetAccessibleName () const override;
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Radio; }
 
 private:
     void  Commit (int newIndex);

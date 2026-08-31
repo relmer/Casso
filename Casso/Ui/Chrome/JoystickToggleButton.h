@@ -44,28 +44,28 @@ public:
     //
     void                  SetTextRenderer  (IDxuiTextRenderer * pText) { m_textRenderer = pText; }
 
-    void                  Hide         ()              { m_bounds = {}; }
-    void                  SetOn        (bool on)       { m_on      = on; }
-    bool                  IsOn         () const        { return m_on; }
+    void                  Hide       ()              { m_bounds = {}; }
+    void                  SetOn      (bool on)       { m_on      = on; }
+    bool                  IsOn       () const        { return m_on; }
 
     // Tri-state input-mode adapter: Off shows dark/off; Joystick and Paddle
     // both light the LED and drive the label ("Joystick Mode" / "Paddle
     // Mode") so the widget reflects which mapping is active.
-    void                  SetMode      (InputMappingMode mode) { m_mode = mode; m_on = (mode != InputMappingMode::Off); }
-    InputMappingMode      Mode         () const        { return m_mode; }
+    void                  SetMode    (InputMappingMode mode) { m_mode = mode; m_on = (mode != InputMappingMode::Off); }
+    InputMappingMode      GetMode    () const        { return m_mode; }
 
     // The displayed label for the current mode. Paddle uses "Paddle Mode";
     // Off and Joystick both use "Joystick Mode" (the widget's resting name).
-    const wchar_t *       Label        () const;
-    void                  SetHovered   (bool hovered)  { m_hovered = hovered; }
-    bool                  IsHovered    () const        { return m_hovered; }
-    void                  SetFocused   (bool focused)  { m_focused = focused; }
-    bool                  IsFocused    () const        { return m_focused; }
-    void                  SetPressed   (bool pressed)  { m_pressed = pressed; }
-    bool                  HitTest      (int x, int y) const;
-    RECT                  Bounds       () const        { return m_bounds; }
+    const wchar_t *       GetLabel   () const;
+    void                  SetHovered (bool hovered)  { m_hovered = hovered; }
+    bool                  IsHovered  () const        { return m_hovered; }
+    void                  SetFocused (bool focused)  { m_focused = focused; }
+    bool                  IsFocused  () const        { return m_focused; }
+    void                  SetPressed (bool pressed)  { m_pressed = pressed; }
+    bool                  HitTest    (int x, int y) const;
+    RECT                  GetBounds  () const        { return m_bounds; }
 
-    void                  Paint        (IDxuiPainter      & painter,
+    void                  Paint      (IDxuiPainter      & painter,
                                         IDxuiTextRenderer & text,
                                         const IDxuiTheme  & theme) override;
 
@@ -82,7 +82,7 @@ public:
     void                  Layout       (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
 
-    const wchar_t * TooltipText () const;
+    const wchar_t * GetTooltipText () const;
 
 private:
     RECT                  m_bounds        = {};

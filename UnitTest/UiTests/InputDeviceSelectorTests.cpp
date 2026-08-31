@@ -47,8 +47,8 @@ public:
         InputDeviceSelector  two   = MakeLaidOut (false);
         InputDeviceSelector  three = MakeLaidOut (true);
 
-        RECT  b2 = two.Bounds();
-        RECT  b3 = three.Bounds();
+        RECT  b2 = two.GetBounds();
+        RECT  b3 = three.GetBounds();
 
         Assert::AreEqual (200L, (b2.left + b2.right) / 2,  L"2-seg centered X");
         Assert::AreEqual (100L, (b2.top + b2.bottom) / 2,  L"2-seg centered Y");
@@ -61,7 +61,7 @@ public:
     {
         InputDeviceSelector  sel   = MakeLaidOut (true);
         InputDeviceSelector  two   = MakeLaidOut (false);
-        RECT                 b     = sel.Bounds();
+        RECT                 b     = sel.GetBounds();
         RECT                 c     = {};
         bool                 sawM2 = false;
 
@@ -71,7 +71,7 @@ public:
 
         for (int x = b.left; x < b.right; ++x)
         {
-            switch (sel.SegmentAt (x, midY))
+            switch (sel.GetSegmentAt (x, midY))
             {
                 case InputDeviceSelector::Segment::Joystick: sawJ = true; break;
                 case InputDeviceSelector::Segment::Paddle:   sawP = true; break;
@@ -82,14 +82,14 @@ public:
 
         Assert::IsTrue (sawJ && sawP && sawM, L"all three segments hit-testable");
         Assert::IsTrue (sawGap,               L"group gap yields Segment::None");
-        Assert::IsTrue (sel.SegmentAt (b.left - 5, midY) == InputDeviceSelector::Segment::None,
+        Assert::IsTrue (sel.GetSegmentAt (b.left - 5, midY) == InputDeviceSelector::Segment::None,
             L"outside bounds -> None");
 
         // Without the mouse, the third segment must be gone.
-        c = two.Bounds();
+        c = two.GetBounds();
         for (int x = c.left; x < c.right; ++x)
         {
-            if (two.SegmentAt (x, (c.top + c.bottom) / 2) == InputDeviceSelector::Segment::Mouse)
+            if (two.GetSegmentAt (x, (c.top + c.bottom) / 2) == InputDeviceSelector::Segment::Mouse)
             {
                 sawM2 = true;
             }
@@ -114,16 +114,16 @@ public:
         InputDeviceSelector::Segment  last       = {};
 
         sel.SetState (false, InputMappingMode::Off, true);
-        off = sel.TooltipText();
+        off = sel.GetTooltipText();
 
         sel.SetState (true, InputMappingMode::Off, true);
-        joy = sel.TooltipText();
+        joy = sel.GetTooltipText();
 
         sel.SetState (true, InputMappingMode::Mouse, true);
-        mouse = sel.TooltipText();
+        mouse = sel.GetTooltipText();
 
         sel.SetState (false, InputMappingMode::Paddle, true);
-        paddle = sel.TooltipText();
+        paddle = sel.GetTooltipText();
 
         Assert::IsTrue (off != joy && joy != mouse && mouse != paddle,
             L"each state maps to a distinct tooltip");
@@ -132,15 +132,15 @@ public:
 
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
-        b = laid.Bounds();
+        b = laid.GetBounds();
         midY = (b.top + b.bottom) / 2;
         last = InputDeviceSelector::Segment::None;
         for (int x = b.left; x < b.right && found < 3; ++x)
         {
-            InputDeviceSelector::Segment  seg = laid.SegmentAt (x, midY);
+            InputDeviceSelector::Segment  seg = laid.GetSegmentAt (x, midY);
             if (seg != InputDeviceSelector::Segment::None && seg != last)
             {
-                segTips[found++] = laid.TooltipTextAt (x, midY);
+                segTips[found++] = laid.GetTooltipTextAt (x, midY);
                 last = seg;
             }
         }

@@ -78,7 +78,7 @@ struct StartupDownloadSet
 {
     std::vector<StartupAssetEntry>  entries;
 
-    bool  Empty        () const { return entries.empty(); }
+    bool  IsEmpty      () const { return entries.empty(); }
     bool  RequiresRoms () const
     {
         for (const StartupAssetEntry & entry : entries)
@@ -122,12 +122,12 @@ private:
     struct      RowMetrics;
 
 
-    static void                WorkerThreadProc      (DialogState * state, size_t index);
-    static void                StartWorkers          (DialogState & state);
-    static void                JoinAllWorkers        (DialogState & state);
-    static void                RemovePartialFiles    (DialogState & state);
-    static std::wstring        StatusText            (const EntryRuntime & rt, std::uint64_t expected);
-    static void                PaintGroupHeader      (DialogPaintContext  & ctx,
+    static void                WorkerThreadProc   (DialogState * state, size_t index);
+    static void                StartWorkers       (DialogState & state);
+    static void                JoinAllWorkers     (DialogState & state);
+    static void                RemovePartialFiles (DialogState & state);
+    static std::wstring        FormatStatusText   (const EntryRuntime & rt, std::uint64_t expected);
+    static void                PaintGroupHeader   (DialogPaintContext  & ctx,
                                                       DxuiLabel               & hdrLabel,
                                                       const std::wstring  & groupLabel,
                                                       const RowMetrics    & m,

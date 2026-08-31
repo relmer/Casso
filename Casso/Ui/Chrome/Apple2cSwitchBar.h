@@ -34,7 +34,7 @@ class IDxuiTheme;
 //
 //  Like the other Casso chrome (DriveWidget, InputDeviceSelector), this control
 //  is manually hit-tested and actioned by EmulatorShell rather than through the
-//  Dxui auto-input path; it exposes PartAt/HitTest for that routing. It reads
+//  Dxui auto-input path; it exposes GetPartAt/HitTest for that routing. It reads
 //  CassoTheme only for text color fallbacks; the case palette is fixed so the
 //  strip always reads as the //c case regardless of the active UI theme.
 //
@@ -74,14 +74,14 @@ public:
 
     // Interaction state (mirrors InputDeviceSelector's owner-driven model).
     void  SetHovered    (bool hovered)   { m_hovered = hovered; if (!hovered) { m_hoverPart = Part::None; } }
-    void  SetHoverPoint (int x, int y)   { m_hoverPart = PartAt (x, y); }
+    void  SetHoverPoint (int x, int y)   { m_hoverPart = GetPartAt (x, y); }
     void  SetPressedPart (Part part)     { m_pressedPart = part; }
 
-    Part  PartAt   (int x, int y) const;
-    bool  HitTest  (int x, int y) const  { return PartAt (x, y) != Part::None; }
-    RECT  Bounds   () const              { return m_bounds; }
+    Part  GetPartAt (int x, int y) const;
+    bool  HitTest   (int x, int y) const  { return GetPartAt (x, y) != Part::None; }
+    RECT  GetBounds () const              { return m_bounds; }
 
-    const wchar_t * TooltipTextAt (int x, int y) const;
+    const wchar_t * GetTooltipTextAt (int x, int y) const;
 
     // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom),
     // unlike InputDeviceSelector's center-anchor contract — the strip fills the

@@ -67,6 +67,20 @@ public:
     // hook (chrome paints via the host's panel-tree walk afterward).
     HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
 
+    // The desk-scene variant: identical upload + CRT chain, but the
+    // finished image lands in this renderer's own offscreen target
+    // (created/resized on demand to the back-buffer size, cleared to
+    // opaque black first -- no host clear covers it) instead of the back
+    // buffer, positioned by the caller-supplied `pictureRect` -- the scene
+    // passes an exact-aspect rect so its glass UV mapping aligns to the
+    // texel, free of the projected bounding box's keystone slop. The scene
+    // then samples GetSceneContentSrv() through that rect's UV subrect.
+    HRESULT UploadAndCompositeOffscreen (const uint32_t * framebuffer, const RECT & pictureRect);
+
+    // The offscreen target's SRV (null until UploadAndCompositeOffscreen
+    // has run). Non-owning; valid until Shutdown or the next resize.
+    ID3D11ShaderResourceView * GetSceneContentSrv () const { return m_sceneSrv.Get(); }
+
     HRESULT ToggleFullscreen (HWND hwnd);
 
     // Live-wire path for CRT params (brightness, scanlines, bloom,
@@ -116,6 +130,7 @@ public:
     // can't tell on its own; pass true whenever the emulator produced a
     // new frame.
     bool NeedsPresent     (bool framebufferDirty) const;
+
     void MarkRedrawNeeded ()                            { m_redrawForced = true; }
 
     bool IsFullscreen() const { return m_fullscreen; }
@@ -149,7 +164,16 @@ private:
     // Aspect-fits the emulator content into `contentRect`, caches the
     // resulting on-screen rect, and runs the CRT post-process pass into
     // `dstRtv`. Timed as "D3DRenderer.CrtPostProcess".
-    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect);
+    // targetW/H are the render target's own size, which is NOT always the back
+    // buffer's: the desk scene's chain runs at the picture's size.
+    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
+                            const RECT             & contentRect,
+                            int                      targetW,
+                            int                      targetH);
+
+    // Creates (or resizes) the offscreen scene-content target. Sized to the
+    // PICTURE, not the window -- see UploadAndCompositeOffscreen.
+    HRESULT EnsureSceneContentTarget (int width, int height);
 
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
@@ -162,6 +186,14 @@ private:
     ComPtr<IDXGISwapChain2>          m_swapChain;
     ComPtr<ID3D11Texture2D>          m_texture;
     ComPtr<ID3D11ShaderResourceView> m_srv;
+
+    // Offscreen scene-content target: the CRT chain's finished output when
+    // the desk scene is compositing (the scene samples this on the glass).
+    ComPtr<ID3D11Texture2D>          m_sceneTex;
+    ComPtr<ID3D11RenderTargetView>   m_sceneRtv;
+    ComPtr<ID3D11ShaderResourceView> m_sceneSrv;
+    int                              m_sceneTexW = 0;
+    int                              m_sceneTexH = 0;
     ComPtr<ID3D11SamplerState>       m_sampler;
     ComPtr<ID3D11VertexShader>       m_vertexShader;
     ComPtr<ID3D11PixelShader>        m_pixelShader;

@@ -106,11 +106,11 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     (void) text;
 
-    bounds   = Bounds();
-    xPx      = (float) m_scaler.Px (bounds.left);
-    yPx      = (float) m_scaler.Px (bounds.top);
-    widthPx  = (float) m_scaler.Px (bounds.right  - bounds.left);
-    heightPx = (float) m_scaler.Px (bounds.bottom - bounds.top);
+    bounds   = GetBounds();
+    xPx      = (float) m_scaler.ToPx (bounds.left);
+    yPx      = (float) m_scaler.ToPx (bounds.top);
+    widthPx  = (float) m_scaler.ToPx (bounds.right  - bounds.left);
+    heightPx = (float) m_scaler.ToPx (bounds.bottom - bounds.top);
 
     // Hover / pressed background fill.
     if (m_hovered || m_pressed)
@@ -136,7 +136,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         fg = 0xFFFFFFFF;
     }
 
-    strokePx    = m_scaler.Pxf (kGlyphThicknessDip);
+    strokePx    = m_scaler.ToPxf (kGlyphThicknessDip);
     if (strokePx < 1.0f)
     {
         strokePx = 1.0f;
@@ -145,14 +145,14 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     // Win11 caption glyphs are a small fixed square centered in the
     // button -- NOT scaled to the button bounds. A ~10 DIP glyph in a
     // 46x32 DIP button matches the system chrome.
-    glyphSizePx = m_scaler.Pxf (kGlyphSizeDip);
+    glyphSizePx = m_scaler.ToPxf (kGlyphSizeDip);
     midX        = xPx + widthPx  * 0.5f;
     midY        = yPx + heightPx * 0.5f;
     glyphLeft   = midX - glyphSizePx * 0.5f;
     glyphTop    = midY - glyphSizePx * 0.5f;
     glyphRight      = midX + glyphSizePx * 0.5f;
     glyphBottom     = midY + glyphSizePx * 0.5f;
-    restoreOffsetPx = m_scaler.Pxf (kRestoreOffsetDip);
+    restoreOffsetPx = m_scaler.ToPxf (kRestoreOffsetDip);
 
     switch (m_kind)
     {
@@ -251,7 +251,7 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
 
     DXUI_ASSERT_UI_THREAD();
 
-    bounds = Bounds();
+    bounds = GetBounds();
     inside = (ev.positionDip.x >= bounds.left && ev.positionDip.x < bounds.right &&
               ev.positionDip.y >= bounds.top  && ev.positionDip.y < bounds.bottom);
 
@@ -342,11 +342,11 @@ DxuiHitTestKind DxuiSystemButton::ClassifyHit (POINT clientDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AccessibleName
+//  GetAccessibleName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiSystemButton::AccessibleName() const
+std::wstring DxuiSystemButton::GetAccessibleName() const
 {
     std::wstring  name;
 

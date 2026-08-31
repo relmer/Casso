@@ -46,7 +46,7 @@ public:
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
     Severity  GetSeverity () const { return m_severity; }
-    const std::wstring & Text () const { return m_text; }
+    const std::wstring & GetText () const { return m_text; }
 
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }
@@ -56,27 +56,27 @@ public:
     // height, plus vertical padding, never shorter than the icon. Estimated from
     // an average glyph width (Layout has no text renderer) and rounded up so text
     // never clips.
-    float  PreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const;
+    float  GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const;
 
     // The height the banner ACTUALLY needs, measured rather than estimated.
     // PreferredHeightPx is deliberately generous -- it has no text renderer,
     // so it rounds up and never clips -- but on a fixed-size dialog that
     // slack shows as an empty line inside the box. A caller that has a
     // renderer can ask for the real height instead.
-    float  MeasuredHeightPx (IDxuiTextRenderer   &  text,
-                             float                  widthPx,
-                             const DxuiDpiScaler &  scaler) const;
+    float  GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
+                                float                  widthPx,
+                                const DxuiDpiScaler &  scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
     {
         SetBounds (boundsDip);
-        m_scaler.SetDpi (scaler.Dpi());
+        m_scaler.SetDpi (scaler.GetDpi());
     }
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    std::wstring        AccessibleName () const override { return m_text; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
+    std::wstring        GetAccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
     Severity  m_severity = Severity::Info;

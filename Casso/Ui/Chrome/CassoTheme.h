@@ -47,7 +47,7 @@ struct CassoTheme : public DxuiTheme
     uint32_t  ledActive  = 0;
     uint32_t  ledHalo    = 0;
 
-    static CassoTheme Skeuomorphic()
+    static CassoTheme MakeSkeuomorphic()
     {
         CassoTheme  theme = {};
 
@@ -107,7 +107,7 @@ struct CassoTheme : public DxuiTheme
     }
 
 
-    static CassoTheme DarkModern()
+    static CassoTheme MakeDarkModern()
     {
         CassoTheme  theme = {};
 
@@ -156,7 +156,7 @@ struct CassoTheme : public DxuiTheme
     }
 
 
-    static CassoTheme RetroTerminal()
+    static CassoTheme MakeRetroTerminal()
     {
         CassoTheme  theme = {};
 
@@ -205,18 +205,18 @@ struct CassoTheme : public DxuiTheme
     }
 
 
-    static CassoTheme ForName (const std::string & name)
+    static CassoTheme MakeByName (const std::string & name)
     {
         if (name == "DarkModern")
         {
-            return DarkModern();
+            return MakeDarkModern();
         }
 
         if (name == "RetroTerminal")
         {
-            return RetroTerminal();
+            return MakeRetroTerminal();
         }
 
-        return Skeuomorphic();
+        return MakeSkeuomorphic();
     }
 };

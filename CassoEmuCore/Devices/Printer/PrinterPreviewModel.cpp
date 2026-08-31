@@ -48,11 +48,11 @@ bool PrinterPreviewModel::StripTornOff (int rowsUsed, int viewportLiveRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPreviewModel::LiveBandOutsideSpan
+//  PrinterPreviewModel::IsLiveBandOutsideSpan
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterPreviewModel::LiveBandOutsideSpan (int platenRow, int spanFirstRow, int spanLastRow)
+bool PrinterPreviewModel::IsLiveBandOutsideSpan (int platenRow, int spanFirstRow, int spanLastRow)
 {
     return (platenRow + PrinterGrid::kPinBandRows - 1 > spanLastRow)
         || (platenRow < spanFirstRow);
@@ -64,11 +64,11 @@ bool PrinterPreviewModel::LiveBandOutsideSpan (int platenRow, int spanFirstRow, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPreviewModel::DirtyFromRow
+//  PrinterPreviewModel::GetDirtyFromRow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterPreviewModel::DirtyFromRow (bool hasRendered, int platenRow, int renderedPlaten)
+int PrinterPreviewModel::GetDirtyFromRow (bool hasRendered, int platenRow, int renderedPlaten)
 {
     // -1 is at-or-above any span top, which RenderSpan reads as "whole span
     // dirty" -- the right answer for a panel that has never rendered.
@@ -84,11 +84,11 @@ int PrinterPreviewModel::DirtyFromRow (bool hasRendered, int platenRow, int rend
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPreviewModel::SpanMoved
+//  PrinterPreviewModel::HasSpanMoved
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterPreviewModel::SpanMoved (int firstRow, int lastRow, int renderedFirstRow, int renderedLastRow)
+bool PrinterPreviewModel::HasSpanMoved (int firstRow, int lastRow, int renderedFirstRow, int renderedLastRow)
 {
     return firstRow != renderedFirstRow || lastRow != renderedLastRow;
 }
@@ -114,7 +114,7 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPreviewModel::AudioSampleWindow
+//  PrinterPreviewModel::GetAudioSampleWindow
 //
 //  Picks the column span to check for ink when deciding whether the head is
 //  currently PRINTING or merely traversing -- which is what selects the print
@@ -139,8 +139,8 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
-                                                                       int revealRow, int renderedRevealRow)
+PrinterPreviewModel::InkSample PrinterPreviewModel::GetAudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
+                                                                          int revealRow, int renderedRevealRow)
 {
     constexpr int   kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
 
@@ -180,11 +180,11 @@ PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool swee
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPreviewModel::BandHasInk
+//  PrinterPreviewModel::HasBandInk
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterPreviewModel::BandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
+bool PrinterPreviewModel::HasBandInk (const PrintRaster & spanRaster, int spanFirstRow,
                                       int revealRow, int loCol, int hiCol)
 {
     int   topRow  = (std::max) (0, revealRow - spanFirstRow);   // span-relative
@@ -201,7 +201,7 @@ bool PrinterPreviewModel::BandHasInk (const PrintRaster & spanRaster, int spanFi
     {
         for (c = loCol; !hasInk && c <= hiCol; c++)
         {
-            hasInk = (spanRaster.CellAt (c, r) != 0);
+            hasInk = (spanRaster.GetCell (c, r) != 0);
         }
     }
 

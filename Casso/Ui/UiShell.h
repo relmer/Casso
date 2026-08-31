@@ -37,30 +37,30 @@ public:
                                   int viewportHeightPx,
                                   UINT dpi);
 
-    HRESULT  OnDeviceLost       ();
-    HRESULT  OnDeviceRestored   ();
+    HRESULT  OnDeviceLost               ();
+    HRESULT  OnDeviceRestored           ();
 
-    void     SetMainMenu        (MainMenu * mainMenu)           { m_mainMenu      = mainMenu; }
-    void     SetTheme           (const CassoTheme * theme)      { m_theme         = theme; }
+    void     SetMainMenu                (MainMenu * mainMenu)           { m_mainMenu      = mainMenu; }
+    void     SetTheme                   (const CassoTheme * theme)      { m_theme         = theme; }
 
-    bool     OnMouseMove        (int x, int y, bool leftDown);
-    void     OnMouseLeave       ();
-    bool     OnLButtonDown      (int x, int y);
-    bool     OnLButtonUp        (int x, int y);
-    bool     HandleKey          (WPARAM vk);
-    bool     IsCapturingInput   () const;
+    bool     OnMouseMove                (int x, int y, bool leftDown);
+    void     OnMouseLeave               ();
+    bool     OnLButtonDown              (int x, int y);
+    bool     OnLButtonUp                (int x, int y);
+    bool     HandleKey                  (WPARAM vk);
+    bool     IsCapturingInput           () const;
 
-    DxuiTextRenderer  & Text    ()       { return m_text; }
-    DxuiHitTester     & HitTest ()       { return m_hitTest; }
+    DxuiTextRenderer  & GetTextRenderer ()       { return m_text; }
+    DxuiHitTester     & GetHitTester    ()       { return m_hitTest; }
 
-    int    ViewportWidth  () const { return m_viewportWidthPx; }
-    int    ViewportHeight () const { return m_viewportHeightPx; }
+    int    GetViewportWidth  () const { return m_viewportWidthPx; }
+    int    GetViewportHeight () const { return m_viewportHeightPx; }
 
-    const DxuiDpiScaler  & Scaler () const { return m_scaler; }
+    const DxuiDpiScaler  & GetScaler () const { return m_scaler; }
 
-    const CassoTheme & Theme () const
+    const CassoTheme & GetTheme () const
     {
-        static const CassoTheme s_kFallback = CassoTheme::Skeuomorphic();
+        static const CassoTheme s_kFallback = CassoTheme::MakeSkeuomorphic();
         return (m_theme != nullptr) ? *m_theme : s_kFallback;
     }
 

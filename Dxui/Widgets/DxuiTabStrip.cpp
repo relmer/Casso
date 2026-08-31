@@ -268,12 +268,12 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     HRESULT  hr          = S_OK;
     int      i           = 0;
     size_t   n           = m_tabs.size();
-    float    focusThick  = m_scaler.Pxf (s_kFocusThickDip);
-    float    focusInset  = m_scaler.Pxf (s_kFocusInsetDip);
-    float    padX        = m_scaler.Pxf (s_kPadXDp);
-    float    padY        = m_scaler.Pxf (s_kPadYDp);
-    float    fontDip     = m_scaler.Pxf (s_kFontDip);
-    float    underline   = m_scaler.Pxf (s_kUnderlineDip);
+    float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
+    float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
+    float    padX        = m_scaler.ToPxf (s_kPadXDp);
+    float    padY        = m_scaler.ToPxf (s_kPadYDp);
+    float    fontDip     = m_scaler.ToPxf (s_kFontDip);
+    float    underline   = m_scaler.ToPxf (s_kUnderlineDip);
     uint32_t mutedText   = DxuiColor::Scale (textArgb, s_kMutedTextScale);
 
     UNREFERENCED_PARAMETER (idleArgb);   // idle + selected tabs blend with the page
@@ -341,14 +341,14 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 //  DxuiTabStrip::Layout  (IDxuiControl override)
 //
 //  Per-tab rects are populated by the caller via SetTabs; the override
-//  records the group bounds for IDxuiControl::Bounds() consumers.
+//  records the group bounds for IDxuiControl::GetBounds() consumers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -463,13 +463,13 @@ bool DxuiTabStrip::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTabStrip::AccessibleName  (IDxuiControl override)
+//  DxuiTabStrip::GetAccessibleName  (IDxuiControl override)
 //
 //  Returns the label of the selected tab (or empty if none).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiTabStrip::AccessibleName() const
+std::wstring DxuiTabStrip::GetAccessibleName() const
 {
     std::wstring  name;
     bool          hasSelection = false;

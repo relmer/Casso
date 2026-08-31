@@ -110,6 +110,21 @@ public:
     }
 
 
+    // Compact-serialize emitted JSON so a test can assert on structural shape
+    // by substring.
+    std::string WriteCompactOrFail (const JsonValue & value)
+    {
+        std::string          text;
+        JsonWriter::Options  opts;
+
+        opts.fPretty = false;
+        AssertSucceeded (JsonWriter::Write (value, opts, text),
+                         L"emitted JSON must serialize");
+
+        return text;
+    }
+
+
     const char * kFixtureJson = R"JSON({
         "$cassoMachineVersion": 1,
         "name": "TestMachine",
@@ -158,15 +173,15 @@ public:
         AssertSucceeded (hr);
         Assert::IsFalse (st.IsDirty(),       L"fresh load -> not dirty");
         Assert::IsFalse (st.RequiresReset(), L"fresh load -> no reset needed");
-        Assert::AreEqual (std::string ("TestMachine"), st.MachineName());
-        Assert::AreEqual (std::string ("TestMachine"), st.MachineInfo().name);
-        Assert::AreEqual (s_kFixtureClockSpeedHz,  st.MachineInfo().clockSpeed);
+        Assert::AreEqual (std::string ("TestMachine"), st.GetMachineName());
+        Assert::AreEqual (std::string ("TestMachine"), st.GetMachineInfo().name);
+        Assert::AreEqual (s_kFixtureClockSpeedHz,  st.GetMachineInfo().clockSpeed);
         // Memory regions now a list of formatted strings (one per RAM
         // bank + systemRom if present). Fixture has 1 RAM entry, no
         // systemRom block.
-        Assert::AreEqual (size_t (1), st.MachineInfo().memoryRegions.size());
+        Assert::AreEqual (size_t (1), st.GetMachineInfo().memoryRegions.size());
         // Devices counts internal + slot entries.
-        Assert::AreEqual (s_kFixtureDevices, st.MachineInfo().devices);
+        Assert::AreEqual (s_kFixtureDevices, st.GetMachineInfo().devices);
     }
 
 
@@ -214,7 +229,7 @@ public:
 
         cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
-        cRom = romRegion (cSt.MachineInfo());
+        cRom = romRegion (cSt.GetMachineInfo());
         Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
         Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
         Assert::AreEqual (std::string ("$C000-$FFFF"),          cRom.addressRange, L"//c banks share one window");
@@ -230,7 +245,7 @@ public:
 
         ev = ParseOrFail (eJson);
         AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
-        eRom = romRegion (eSt.MachineInfo());
+        eRom = romRegion (eSt.GetMachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
         Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
         Assert::AreEqual (std::string ("$C000-$FFFF"), eRom.addressRange, L"//e ROM range");
@@ -246,7 +261,7 @@ public:
 
         tv = ParseOrFail (twoJson);
         AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
-        twoRom = romRegion (twoSt.MachineInfo());
+        twoRom = romRegion (twoSt.GetMachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
         Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
         Assert::AreEqual (std::string ("$D000-$FFFF"), twoRom.addressRange, L"][ ROM range");
@@ -281,7 +296,7 @@ public:
 
         cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
-        Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
+        Assert::AreEqual (std::string ("128K RAM"), cSt.GetMachineInfo().ramSummary,
             L"48+48+16+16 = 128K; the 32K ROM must not be counted");
 
         // 48K ][: single main bank, no aux, no language card.
@@ -295,7 +310,7 @@ public:
 
         tv = ParseOrFail (twoJson);
         AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
-        Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
+        Assert::AreEqual (std::string ("48K RAM"), twoSt.GetMachineInfo().ramSummary,
             L"single 48K main bank");
     }
 
@@ -345,11 +360,11 @@ public:
         st.Cancel();
 
         Assert::IsFalse (st.IsDirty());
-        Assert::IsTrue  (st.Prefs().speedMode          == SettingsSpeedMode::Authentic);
-        Assert::IsTrue  (st.Prefs().colorMode          == SettingsColorMode::Color);
-        Assert::IsTrue  (st.Prefs().writeMode          == SettingsWriteMode::BufferAndFlush);
-        Assert::IsTrue  (st.Prefs().floppySoundEnabled == true);
-        Assert::IsFalse (st.Prefs().writeProtect[1]);
+        Assert::IsTrue  (st.GetPrefs().speedMode          == SettingsSpeedMode::Authentic);
+        Assert::IsTrue  (st.GetPrefs().colorMode          == SettingsColorMode::Color);
+        Assert::IsTrue  (st.GetPrefs().writeMode          == SettingsWriteMode::BufferAndFlush);
+        Assert::IsTrue  (st.GetPrefs().floppySoundEnabled == true);
+        Assert::IsFalse (st.GetPrefs().writeProtect[1]);
     }
 
 
@@ -359,13 +374,13 @@ public:
         JsonValue           v = ParseOrFail (kFixtureJsonWithFlags);
         st.LoadFromMachine ("X", v, v);
 
-        Assert::IsTrue  (st.Prefs().speedMode          == SettingsSpeedMode::Double);
-        Assert::IsTrue  (st.Prefs().colorMode          == SettingsColorMode::Green);
-        Assert::IsTrue  (st.Prefs().writeMode          == SettingsWriteMode::CopyOnWrite);
-        Assert::IsFalse (st.Prefs().floppySoundEnabled);
-        Assert::AreEqual (std::string ("alps"), st.Prefs().floppyMechanism);
-        Assert::IsTrue  (st.Prefs().writeProtect[0]);
-        Assert::IsFalse (st.Prefs().writeProtect[1]);
+        Assert::IsTrue  (st.GetPrefs().speedMode          == SettingsSpeedMode::Double);
+        Assert::IsTrue  (st.GetPrefs().colorMode          == SettingsColorMode::Green);
+        Assert::IsTrue  (st.GetPrefs().writeMode          == SettingsWriteMode::CopyOnWrite);
+        Assert::IsFalse (st.GetPrefs().floppySoundEnabled);
+        Assert::AreEqual (std::string ("alps"), st.GetPrefs().floppyMechanism);
+        Assert::IsTrue  (st.GetPrefs().writeProtect[0]);
+        Assert::IsFalse (st.GetPrefs().writeProtect[1]);
         Assert::IsFalse (st.IsDirty(), L"loaded prefs are the baseline");
     }
 
@@ -379,9 +394,9 @@ public:
         st.LoadFromMachine ("X", v, v);
 
         // Find the keyboard entry (required) and try to disable it.
-        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        for (size_t i = 0; i < st.GetHardware().size(); ++i)
         {
-            if (st.Hardware()[i].type == "keyboard")
+            if (st.GetHardware()[i].type == "keyboard")
             {
                 kbdIdx = i;
                 break;
@@ -391,7 +406,7 @@ public:
         hr = st.SetHardwareEnabled (kbdIdx, false);
 
         AssertFailed (hr,  L"required entry cannot be disabled");
-        Assert::IsTrue  (st.Hardware()[kbdIdx].enabled);
+        Assert::IsTrue  (st.GetHardware()[kbdIdx].enabled);
         Assert::IsFalse (st.IsDirty());
     }
 
@@ -404,9 +419,9 @@ public:
         HRESULT             hr        = S_OK;
         st.LoadFromMachine ("X", v, v);
 
-        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        for (size_t i = 0; i < st.GetHardware().size(); ++i)
         {
-            if (st.Hardware()[i].type == "80col-card")
+            if (st.GetHardware()[i].type == "80col-card")
             {
                 lockedIdx = i;
                 break;
@@ -416,7 +431,7 @@ public:
         hr = st.SetHardwareEnabled (lockedIdx, false);
 
         AssertFailed (hr, L"platform-locked entry cannot be disabled");
-        Assert::IsTrue  (st.Hardware()[lockedIdx].enabled);
+        Assert::IsTrue  (st.GetHardware()[lockedIdx].enabled);
     }
 
 
@@ -428,9 +443,9 @@ public:
         HRESULT             hr    = S_OK;
         st.LoadFromMachine ("X", v, v);
 
-        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        for (size_t i = 0; i < st.GetHardware().size(); ++i)
         {
-            if (st.Hardware()[i].type == "mockingboard")
+            if (st.GetHardware()[i].type == "mockingboard")
             {
                 mbIdx = i;
                 break;
@@ -502,9 +517,9 @@ public:
         HRESULT             hr      = S_OK;
         st.LoadFromMachine ("X", v, v);
 
-        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        for (size_t i = 0; i < st.GetHardware().size(); ++i)
         {
-            if (st.Hardware()[i].type == "mockingboard")
+            if (st.GetHardware()[i].type == "mockingboard")
             {
                 (void) st.SetHardwareEnabled (i, false);
                 break;
@@ -556,11 +571,11 @@ public:
         SettingsUiPrefs     reloaded;
         st.LoadFromMachine ("X", v, v);
 
-        Assert::IsFalse (st.Prefs().externalDriveConnected, L"defaults to not-connected");
+        Assert::IsFalse (st.GetPrefs().externalDriveConnected, L"defaults to not-connected");
         Assert::IsFalse (st.IsDirty());
 
         st.SetExternalDriveConnected (true);
-        Assert::IsTrue  (st.Prefs().externalDriveConnected);
+        Assert::IsTrue  (st.GetPrefs().externalDriveConnected);
         Assert::IsTrue  (st.IsDirty(), L"toggling connect makes the panel dirty");
         Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset required");
 
@@ -572,6 +587,225 @@ public:
         // re-loading that JSON restores it.
         AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
+    }
+
+
+    // A //c-shaped machine: no slots, a back panel instead. Its disk port is
+    // where the external drive lives now.
+    const char * kFixtureCcJson = R"JSON({
+        "$cassoMachineVersion": 2,
+        "name": "TestCc",
+        "cpu": "65C02",
+        "timing": { "clockSpeed": 1023000 },
+        "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+        "systemRom": { "address": "0xC000", "file": "x.rom", "romBankSize": "0x4000" },
+        "internalDevices": [ { "type": "keyboard" } ],
+        "ports": [
+            { "name": "disk",     "device": "" },
+            { "name": "serial1",  "device": "" },
+            { "name": "joystick", "device": "" }
+        ]
+    })JSON";
+
+
+    // The disk port is the answer once the machine declares one. Both it and
+    // the legacy boolean can be on disk at the same time -- the fold that
+    // retires the boolean only runs on a version bump -- so the precedence
+    // has to be explicit rather than incidental.
+    TEST_METHOD (DiskPortOutranksTheLegacyExternalDriveBoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 2,
+            "name": "TestCc",
+            "cpu": "65C02",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [],
+            "internalDevices": [],
+            "ports": [ { "name": "disk", "device": "disk-iic-drive" } ],
+            "$cassoUiPrefs": { "externalDriveConnected": false }
+        })JSON");
+
+        st.LoadFromMachine ("TestCc", v, v);
+
+        Assert::IsTrue (st.GetPrefs().externalDriveConnected,
+            L"an occupied disk port means attached, whatever the stale "
+            L"boolean beside it holds.");
+        Assert::IsFalse (st.IsDirty(),
+            L"reading the port is not a user edit.");
+    }
+
+
+    // The port is what gets written now. The legacy key must not come back
+    // alongside it, or there are two answers to one question on disk again.
+    TEST_METHOD (ExternalDriveTogglePersistsAsAPortNotABoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("TestCc", v, v);
+        Assert::IsFalse (st.GetPrefs().externalDriveConnected, L"starts unoccupied");
+
+        st.SetExternalDriveConnected (true);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"disk-iic-drive\"") != std::string::npos,
+            L"the attached drive is written onto the disk port.");
+        Assert::IsTrue (text.find ("\"externalDriveConnected\"") == std::string::npos,
+            L"the legacy boolean must NOT be written when a disk port exists.");
+        Assert::IsTrue (text.find ("\"serial1\"")  != std::string::npos &&
+                        text.find ("\"joystick\"") != std::string::npos,
+            L"the whole back panel is written back -- a user ports array "
+            L"replaces the default's wholesale.");
+        Assert::IsTrue (sink.lastExternalDriveConnected,
+            L"still pushed live through the sink; no reset.");
+        Assert::AreEqual (0, sink.queuedResetCount);
+    }
+
+
+    // Round-trip: what Apply emitted must load back as the same answer.
+    TEST_METHOD (ExternalDrivePortRoundTripsThroughLoad)
+    {
+        SettingsPanelState  first;
+        SettingsPanelState  second;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        first.LoadFromMachine ("TestCc", v, v);
+        first.SetExternalDriveConnected (true);
+        AssertSucceeded (first.Apply (sink, outJson));
+
+        second.LoadFromMachine ("TestCc", outJson, outJson);
+
+        Assert::IsTrue (second.GetPrefs().externalDriveConnected,
+            L"the attached drive survives a save/load round trip.");
+    }
+
+
+    // A machine with no back panel keeps the boolean, because there is no
+    // port to hold the answer instead. This is what stops the //e family
+    // losing a setting they never had anywhere else to put.
+    TEST_METHOD (AMachineWithNoDiskPortStillWritesTheBoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetExternalDriveConnected (true);
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"externalDriveConnected\"") != std::string::npos,
+            L"no disk port means the boolean is still the only home.");
+    }
+
+
+    // A carded machine's second drive is the Disk ][ card's second connector.
+    // An UNDECLARED port list means the card has not been described rather
+    // than emptied, so it must read as attached -- the two drives every such
+    // config has always behaved as having.
+    TEST_METHOD (SecondDrive_UndeclaredPortsReadAsAttached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.SecondDriveAttached(),
+            L"a Disk ][ with no ports declared has both drives.");
+    }
+
+
+    // Detaching must write BOTH connectors. A one-element list would take
+    // drive 1 away as a side effect of removing drive 2.
+    TEST_METHOD (SecondDrive_DetachingWritesBothConnectors)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+
+        Assert::IsFalse (st.SecondDriveAttached());
+        Assert::IsTrue  (st.IsDirty(), L"detaching a drive is an edit");
+        Assert::IsFalse (st.RequiresReset(),
+            L"attaching a drive is a live change, not a machine rebuild");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("[\"disk-ii-drive\",\"\"]") != std::string::npos,
+            L"drive 1 stays attached and drive 2 goes -- both written, or "
+            L"removing the second would silently remove the first.");
+    }
+
+
+    TEST_METHOD (SecondDrive_ReattachingRestoresTheDrive)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  reloaded;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        reloaded.LoadFromMachine ("X", outJson, outJson);
+        Assert::IsFalse (reloaded.SecondDriveAttached(), L"detached survives a round trip");
+
+        reloaded.SetSecondDriveAttached (true);
+        Assert::IsTrue (reloaded.SecondDriveAttached(), L"and can be put back");
+    }
+
+
+    // The //c answers from its back-panel disk port, not from a card. Its
+    // second drive is an external unit on a cable, so the two stores must not
+    // be confused for one another.
+    TEST_METHOD (SecondDrive_OnACcReadsTheBackPanelPort)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+
+        st.LoadFromMachine ("TestCc", v, v);
+        Assert::IsFalse (st.SecondDriveAttached(), L"//c disk port starts empty");
+
+        st.SetSecondDriveAttached (true);
+        Assert::IsTrue (st.SecondDriveAttached());
+        Assert::IsTrue (st.GetPrefs().externalDriveConnected,
+            L"the //c's second drive IS its external drive -- one question.");
+    }
+
+
+    // A card the user turned off has no drives to attach anything to.
+    TEST_METHOD (SecondDrive_ADisabledCardReportsDetached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false }
+            ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.SecondDriveAttached(),
+            L"a disabled Disk ][ is not present, so neither are its drives.");
     }
 
 
@@ -605,11 +839,11 @@ public:
 
         cv = ParseOrFail (cJson);
         AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
-        Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
+        Assert::IsTrue (cSt.GetMachineInfo().supportsExternalDrive, L"//c has optional external drive");
 
         ev = ParseOrFail (eJson);
         AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
-        Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
+        Assert::IsFalse (eSt.GetMachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
     }
 
 
@@ -650,7 +884,7 @@ public:
         SettingsUiPrefs     reloaded;
         st.LoadFromMachine ("X", v, v);
 
-        Assert::IsTrue  (st.Prefs().mouseConnected, L"defaults to connected");
+        Assert::IsTrue  (st.GetPrefs().mouseConnected, L"defaults to connected");
         st.SetMouseConnected (false);
         Assert::IsTrue  (st.IsDirty());
         Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset");
@@ -677,10 +911,10 @@ public:
         // Switching machines reloads -- existing edits are discarded.
         st.LoadFromMachine ("machineB", b, b);
 
-        Assert::AreEqual (std::string ("machineB"), st.MachineName());
+        Assert::AreEqual (std::string ("machineB"), st.GetMachineName());
         Assert::IsFalse  (st.IsDirty(),
                           L"snapshot reset to new machine's baseline");
-        Assert::IsTrue   (st.Prefs().speedMode == SettingsSpeedMode::Double,
+        Assert::IsTrue   (st.GetPrefs().speedMode == SettingsSpeedMode::Double,
                           L"baseline pulled from machineB's $cassoUiPrefs");
     }
 
@@ -699,12 +933,12 @@ public:
 
         // Rebind to machineB merged data that still carries "double".
         st.LoadFromMachine ("machineB", machineB, machineB);
-        Assert::IsTrue (st.Prefs().speedMode == SettingsSpeedMode::Double);
+        Assert::IsTrue (st.GetPrefs().speedMode == SettingsSpeedMode::Double);
 
         // Rebind back to machineA using the applied JSON snapshot and
         // verify it restores machineA's saved speed only.
         st.LoadFromMachine ("machineA", machineA, outA);
-        Assert::IsTrue (st.Prefs().speedMode == SettingsSpeedMode::Maximum);
+        Assert::IsTrue (st.GetPrefs().speedMode == SettingsSpeedMode::Maximum);
     }
 
 
@@ -731,23 +965,23 @@ public:
         page.Layout (rect, scaler);
         page.Rebuild();
 
-        Assert::AreEqual ((size_t) 2, page.Machines().size());
-        Assert::AreEqual (0, page.ActiveMachineIndex());
-        Assert::AreEqual (0, page.MachineDropdown().SelectedIndex());
+        Assert::AreEqual ((size_t) 2, page.GetMachines().size());
+        Assert::AreEqual (0, page.GetActiveMachineIndex());
+        Assert::AreEqual (0, page.GetMachineDropdown().GetSelectedIndex());
 
         // Drive the dropdown directly: production routes the popup
         // through DxuiPopupHost (out-of-panel HWND), so the panel's
         // auto fan-out never sees clicks on an open menu. This test
         // exercises the dropdown's selection wiring, not the dispatch
         // path, so we hit the dropdown's legacy entry points directly.
-        page.MachineDropdown().OnLButtonDown (180, 20);
-        page.MachineDropdown().OnLButtonUp   (180, 20);
-        page.MachineDropdown().OnLButtonDown (180, 80);
-        page.MachineDropdown().OnLButtonUp   (180, 80);
+        page.GetMachineDropdown().OnLButtonDown (180, 20);
+        page.GetMachineDropdown().OnLButtonUp   (180, 20);
+        page.GetMachineDropdown().OnLButtonDown (180, 80);
+        page.GetMachineDropdown().OnLButtonUp   (180, 80);
 
-        Assert::AreEqual (std::string ("machineB"), st.MachineName());
-        Assert::AreEqual (1, page.ActiveMachineIndex());
-        Assert::IsTrue   (st.Prefs().speedMode == SettingsSpeedMode::Double);
+        Assert::AreEqual (std::string ("machineB"), st.GetMachineName());
+        Assert::AreEqual (1, page.GetActiveMachineIndex());
+        Assert::IsTrue   (st.GetPrefs().speedMode == SettingsSpeedMode::Double);
     }
 
 
@@ -767,7 +1001,7 @@ public:
 
         // Locate the disk-ii entry and disable it; the controller must vanish
         // (this is exactly what hides the settings sheet's Disk tab, #84 B).
-        const std::vector<HardwareEntry>  & hw      = st.Hardware();
+        const std::vector<HardwareEntry>  & hw      = st.GetHardware();
         diskIdx = hw.size();
         for (size_t i = 0; i < hw.size(); ++i)
         {
@@ -864,21 +1098,21 @@ public:
         v = ParseOrFail (j);
         st.LoadFromMachine ("X", v, v);
 
-        for (size_t i = 0; i < st.Hardware().size(); ++i)
+        for (size_t i = 0; i < st.GetHardware().size(); ++i)
         {
-            if (st.Hardware()[i].displayName == "Slot 4: Mockingboard C (sound + speech)")
+            if (st.GetHardware()[i].displayName == "Slot 4: Mockingboard C (sound + speech)")
             {
                 sawC = true;
             }
 
-            if (st.Hardware()[i].displayName == "Slot 5: Mockingboard A (sound)")
+            if (st.GetHardware()[i].displayName == "Slot 5: Mockingboard A (sound)")
             {
                 sawA = true;
             }
         }
 
-        Assert::IsTrue (sawC, L"The sound+speech model must be named as the product");
-        Assert::IsTrue (sawA, L"The sound-only model must be named as the product");
+        Assert::IsTrue (sawC, L"The sound+speech model must be identified as the product");
+        Assert::IsTrue (sawA, L"The sound-only model must be identified as the product");
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
         st.Apply (sink, outJson);

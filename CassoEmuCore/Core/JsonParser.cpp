@@ -45,7 +45,7 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
 
     parser.SkipWhitespace();
 
-    consumedAll = parser.AtEnd();
+    consumedAll = parser.IsAtEnd();
     CBRF (consumedAll, parser.SetError ("Unexpected content after JSON value"));
 
 Error:
@@ -95,7 +95,7 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
 
     SkipWhitespace();
 
-    hasInput = !AtEnd();
+    hasInput = !IsAtEnd();
     CBR (hasInput);
 
     ch = Peek();
@@ -198,7 +198,7 @@ HRESULT JsonParser::ParseString (string & outStr)
 
     outStr.clear();
 
-    while (!AtEnd() && !done)
+    while (!IsAtEnd() && !done)
     {
         ch = Advance();
 
@@ -217,7 +217,7 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
 
         // Escape sequence
-        hasInput = !AtEnd();
+        hasInput = !IsAtEnd();
         CBR (hasInput);
 
         esc = Advance();
@@ -238,7 +238,7 @@ HRESULT JsonParser::ParseString (string & outStr)
 
                 for (int i = 0; i < 4; i++)
                 {
-                    hasInput = !AtEnd();
+                    hasInput = !IsAtEnd();
                     CBR (hasInput);
 
                     hex += Advance();
@@ -319,7 +319,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         Advance();  // '0'
         Advance();  // 'x'
 
-        while (!AtEnd() && isxdigit (static_cast<unsigned char> (Peek())))
+        while (!IsAtEnd() && isxdigit (static_cast<unsigned char> (Peek())))
         {
             Advance();
         }
@@ -338,31 +338,31 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+        while (!IsAtEnd() && isdigit (static_cast<unsigned char> (Peek())))
         {
             Advance();
         }
 
-        if (!AtEnd() && Peek() == '.')
+        if (!IsAtEnd() && Peek() == '.')
         {
             Advance();
 
-            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            while (!IsAtEnd() && isdigit (static_cast<unsigned char> (Peek())))
             {
                 Advance();
             }
         }
 
-        if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
+        if (!IsAtEnd() && (Peek() == 'e' || Peek() == 'E'))
         {
             Advance();
 
-            if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+            if (!IsAtEnd() && (Peek() == '+' || Peek() == '-'))
             {
                 Advance();
             }
 
-            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            while (!IsAtEnd() && isdigit (static_cast<unsigned char> (Peek())))
             {
                 Advance();
             }
@@ -427,7 +427,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         SkipWhitespace();
 
-        isEmpty = !AtEnd() && Peek() == '}';
+        isEmpty = !IsAtEnd() && Peek() == '}';
 
         if (isEmpty)
         {
@@ -441,7 +441,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             SkipWhitespace();
 
-            hasInput = !AtEnd();
+            hasInput = !IsAtEnd();
             CBR (hasInput);
 
             isQuote = (Peek() == '"');
@@ -452,7 +452,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             SkipWhitespace();
 
-            hasColon = !AtEnd() && Peek() == ':';
+            hasColon = !IsAtEnd() && Peek() == ':';
             CBR (hasColon);
 
             Advance();
@@ -464,7 +464,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
             SkipWhitespace();
 
-            hasInput = !AtEnd();
+            hasInput = !IsAtEnd();
             CBR (hasInput);
 
             if (Peek() == '}')
@@ -527,7 +527,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
         SkipWhitespace();
 
-        isEmpty = !AtEnd() && Peek() == ']';
+        isEmpty = !IsAtEnd() && Peek() == ']';
 
         if (isEmpty)
         {
@@ -544,7 +544,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
             SkipWhitespace();
 
-            hasInput = !AtEnd();
+            hasInput = !IsAtEnd();
             CBR (hasInput);
 
             if (Peek() == ']')
@@ -592,7 +592,7 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 
     for (size_t i = 0; i < len; i++)
     {
-        matchesCh = !AtEnd() && Peek() == keyword[i];
+        matchesCh = !IsAtEnd() && Peek() == keyword[i];
         CBRF (matchesCh, SetError (format ("Expected '{}'", keyword)));
 
         Advance();
@@ -631,7 +631,7 @@ Error:
 
 void JsonParser::SkipWhitespace()
 {
-    while (!AtEnd())
+    while (!IsAtEnd())
     {
         char ch = Peek();
 
@@ -642,7 +642,7 @@ void JsonParser::SkipWhitespace()
         else if (ch == '/' && m_pos + 1 < m_input.size() && m_input[m_pos + 1] == '/')
         {
             // Line comment support for config files
-            while (!AtEnd() && Peek() != '\n')
+            while (!IsAtEnd() && Peek() != '\n')
             {
                 Advance();
             }
@@ -704,11 +704,11 @@ char JsonParser::Advance()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  JsonParser::AtEnd
+//  JsonParser::IsAtEnd
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool JsonParser::AtEnd() const
+bool JsonParser::IsAtEnd() const
 {
     return m_pos >= m_input.size();
 }

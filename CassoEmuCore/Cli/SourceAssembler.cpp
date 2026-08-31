@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SourceAssembler.h"
+#include "Utils.h"
 #include "HostFile.h"
 #include "Assembler.h"
 #include "DiagnosticFormatter.h"
@@ -157,7 +158,10 @@ void SourceAssembler::ReportDiagnostics (const SourceAssembler::Result & ar)
     //  failure has already said everything there is to say.
     if (!ar.ok && !ar.result.errors.empty())
     {
-        std::println (stderr, "Assembly failed with {} error(s)", ar.result.errors.size());
+        std::println (stderr, "Assembly failed with {} {}",
+                      ar.result.errors.size(),
+                      Utils::GetSingularOrPluralForm ((long long) ar.result.errors.size(),
+                                                      "error", "errors"));
     }
     else if (!ar.ok && ar.sourceRead)
     {

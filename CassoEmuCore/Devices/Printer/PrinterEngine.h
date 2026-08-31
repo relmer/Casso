@@ -29,9 +29,9 @@ class PrinterByteRing;
 //  thread that reads the clock and calls Tick (Constitution VI: the platform edge
 //  is the thread; the pipeline is testable core).
 //
-//  Threading: Tick and the Snapshot* / SpanInkExtent readers all take the raster
+//  Threading: Tick and the Snapshot* / GetSpanInkExtent readers all take the raster
 //  mutex, so the owning thread may Tick while another thread snapshots for the
-//  preview. The caller must stop that thread before Job()/FlushNow() touch the
+//  preview. The caller must stop that thread before GetJob()/FlushNow() touch the
 //  raster for eject or persistence.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ public:
 
     // The job, valid from Start() onward. Touch the raster only while no thread
     // is Ticking.
-    PrinterJob *  Job () { return m_job.get (); }
+    PrinterJob *  GetJob () { return m_job.get (); }
 
     // Synchronous drain of any bytes still in the ring; call only while no thread
     // is Ticking.
@@ -75,7 +75,7 @@ public:
     // One past the rightmost inked dot over rows [firstRow, lastRow] of the built
     // strip (0 == blank), under the raster mutex. Drives the preview's audio ink
     // gate for the live pin band.
-    int           SpanInkExtent (int firstRow, int lastRow);
+    int           GetSpanInkExtent (int firstRow, int lastRow);
 
     // Host form feed (the preview's Form Feed button): records the request; the
     // next Tick performs the feed on the Ticking thread so the interpreter, raster
@@ -84,11 +84,11 @@ public:
 
     // Published state (lock-free reads for the UI thread)
 
-    uint64_t      ActivityCount () const { return m_activity.load    (std::memory_order_relaxed); }
-    bool          HasContent    () const { return m_hasContent.load (std::memory_order_relaxed); }
-    int           RowsUsed      () const { return m_rowsUsed.load   (std::memory_order_relaxed); }
+    uint64_t      GetActivityCount () const { return m_activity.load    (std::memory_order_relaxed); }
+    bool          HasContent       () const { return m_hasContent.load (std::memory_order_relaxed); }
+    int           GetRowsUsed      () const { return m_rowsUsed.load   (std::memory_order_relaxed); }
 
-    void          HeadPosition  (int & row, int & colDots) const
+    void          GetHeadPosition  (int & row, int & colDots) const
     {
         uint64_t   packed = m_headPos.load (std::memory_order_relaxed);
 
@@ -96,15 +96,15 @@ public:
         colDots = (int) (packed & 0xFFFFFFFFu);
     }
 
-    bool          HeadSweepLtr  () const { return m_headLtr.load      (std::memory_order_relaxed) != 0; }
-    int           RevealBandTop () const { return m_revealTop.load    (std::memory_order_relaxed); }
-    bool          HeadMoving    () const { return m_headMoving.load   (std::memory_order_relaxed) != 0; }
-    int           CarriageCol   () const { return m_carriageCol.load  (std::memory_order_relaxed); }
+    bool          IsHeadSweepLtr   () const { return m_headLtr.load      (std::memory_order_relaxed) != 0; }
+    int           GetRevealBandTop () const { return m_revealTop.load    (std::memory_order_relaxed); }
+    bool          IsHeadMoving     () const { return m_headMoving.load   (std::memory_order_relaxed) != 0; }
+    int           GetCarriageCol   () const { return m_carriageCol.load  (std::memory_order_relaxed); }
 
 private:
     // Non-locking rightmost-ink probe over [firstRow, lastRow]; shared by
-    // SpanInkExtent (which holds the lock) and any in-Tick caller.
-    static int    RasterInkExtent (const PrintRaster & raster, int firstRow, int lastRow);
+    // GetSpanInkExtent (which holds the lock) and any in-Tick caller.
+    static int    GetRasterInkExtent (const PrintRaster & raster, int firstRow, int lastRow);
 
     unique_ptr<PrinterJob>   m_job;
     PrinterHead              m_head;          // pure mechanical carriage + feed model (tested)

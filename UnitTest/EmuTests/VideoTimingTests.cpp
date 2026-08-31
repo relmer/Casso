@@ -39,11 +39,11 @@ public:
 
         vt.Tick (65);
 
-        Assert::AreEqual (static_cast<uint32_t> (65), vt.GetCycleInFrame    (),
+        Assert::AreEqual (static_cast<uint32_t> (65), vt.GetCycleInFrame     (),
             L"Tick(65) advances cycle-in-frame to 65");
-        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline(),
+        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline  (),
             L"Tick(65) advances exactly one scanline");
-        Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetHorizontalPos   (),
+        Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetHorizontalPos    (),
             L"Tick(65) lands at horizontal position 0 of scanline 1");
 
         vt.Tick (10);

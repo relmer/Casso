@@ -40,11 +40,11 @@ static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RectContains
+//  IsPointInRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::RectContains (const RECT & rect, int x, int y)
+bool DxuiDropdown::IsPointInRect (const RECT & rect, int x, int y)
 {
     return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 }
@@ -112,7 +112,7 @@ void DxuiDropdown::SetSelected (int index)
 //
 //  The two coordinate conversions run in opposite directions and are easy to
 //  get backwards. m_boundsDip holds physical CLIENT pixels despite the name
-//  (the page lays out through DxuiDpiScaler::Px), so the anchor maps straight
+//  (the page lays out through DxuiDpiScaler::ToPx), so the anchor maps straight
 //  to screen with ClientToScreen and needs no DPI scaling -- while Show scales
 //  sizeDip by the owner's DPI, so the size must be converted BACK to DIPs
 //  first.
@@ -148,14 +148,14 @@ void DxuiDropdown::Open()
     // no host, the menu falls back to the in-window PaintMenu path.
     BAIL_OUT_IF (m_popupHost == nullptr || m_activePopup != nullptr, S_OK);
 
-    owner         = m_popupHost->Hwnd();
+    owner         = m_popupHost->GetHwnd();
     m_activePopup = m_popupHost->AcquirePopup();
     acquired      = (m_activePopup != nullptr);
 
     BAIL_OUT_IF (!acquired, S_OK);
 
     // Anchor in screen physical pixels. m_boundsDip holds physical
-    // CLIENT pixels (the page lays out via DxuiDpiScaler::Px), so map
+    // CLIENT pixels (the page lays out via DxuiDpiScaler::ToPx), so map
     // straight to screen with ClientToScreen — no extra DPI scaling.
     tl.x = m_boundsDip.left;
     tl.y = m_boundsDip.top;
@@ -176,7 +176,7 @@ void DxuiDropdown::Open()
     // constant directly for the column.
     showParams.sizeDip.cx       = MulDiv (m_boundsDip.right - m_boundsDip.left,
                                           DxuiDpiScaler::kBaseDpi,
-                                          (int) m_scaler.Dpi());
+                                          (int) m_scaler.GetDpi());
     showParams.sizeDip.cy       = (int) m_items.size() * s_kRowHeightDip;
     showParams.backgroundArgb   = s_kMenuArgb;
     showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
@@ -242,7 +242,7 @@ void DxuiDropdown::Close()
 
 void DxuiDropdown::OnPopupMove (POINT localPx)
 {
-    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
     int   row       = -1;
     bool  onRow     = false;
 
@@ -287,7 +287,7 @@ void DxuiDropdown::OnPopupMove (POINT localPx)
 
 void DxuiDropdown::OnPopupClick (POINT localPx)
 {
-    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
     int   row       = -1;
     bool  onRow     = false;
 
@@ -320,7 +320,7 @@ void DxuiDropdown::OnPopupClick (POINT localPx)
 
 bool DxuiDropdown::HitTest (int x, int y) const
 {
-    return RectContains (m_boundsDip, x, y);
+    return IsPointInRect (m_boundsDip, x, y);
 }
 
 
@@ -329,7 +329,41 @@ bool DxuiDropdown::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ItemHitTest
+//  GetInWindowMenuRect
+//
+//  What the open menu covers of this window. Derived from the box the same
+//  way HitTestItem derives it, for the same reason: the fallback menu is laid
+//  out immediately below the box, and deriving keeps both from drifting out of
+//  step with the paint.
+//
+//  Empty for a live popup, which is a separate HWND covering the desktop
+//  rather than anything in this window's frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDropdown::GetInWindowMenuRect() const
+{
+    RECT  menuRect = {};
+
+
+
+    if (m_open && m_activePopup == nullptr && !m_items.empty())
+    {
+        menuRect        = m_boundsDip;
+        menuRect.top    = m_boundsDip.bottom;
+        menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * m_scaler.ToPx (s_kRowHeightDip);
+    }
+
+    return menuRect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestItem
 //
 //  Which list row a point falls on, for the IN-WINDOW fallback menu only.
 //
@@ -338,19 +372,15 @@ bool DxuiDropdown::HitTest (int x, int y) const
 //  a miss whenever one is up. Hit-testing both would double-handle every click
 //  on a hosted dropdown.
 //
-//  The fallback menu is laid out immediately below the box, so its rect is
-//  derived here rather than stored: nothing else needs it, and deriving keeps
-//  it from drifting out of step with the paint.
-//
 //  A point below the last row is a miss, not the last row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiDropdown::ItemHitTest (int x, int y) const
+int DxuiDropdown::HitTestItem (int x, int y) const
 {
     RECT  menuRect  = m_boundsDip;
     int   index     = -1;
-    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
     bool  inMenu    = false;
 
 
@@ -361,7 +391,7 @@ int DxuiDropdown::ItemHitTest (int x, int y) const
     {
         menuRect.top    = m_boundsDip.bottom;
         menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * rowHeight;
-        inMenu          = m_open && RectContains (menuRect, x, y);
+        inMenu          = m_open && IsPointInRect (menuRect, x, y);
     }
 
     if (inMenu)
@@ -389,7 +419,7 @@ int DxuiDropdown::ItemHitTest (int x, int y) const
 
 void DxuiDropdown::SetMouseHover (int x, int y)
 {
-    int  item = ItemHitTest (x, y);
+    int  item = HitTestItem (x, y);
 
 
 
@@ -425,7 +455,7 @@ void DxuiDropdown::SetMouseHover (int x, int y)
 bool DxuiDropdown::OnLButtonDown (int x, int y)
 {
     bool  onBox     = m_enabled && HitTest (x, y);
-    bool  onItem    = m_enabled && !onBox && ItemHitTest (x, y) >= 0;
+    bool  onItem    = m_enabled && !onBox && HitTestItem (x, y) >= 0;
     bool  consumed  = onBox || onItem;
 
 
@@ -472,7 +502,7 @@ bool DxuiDropdown::OnLButtonDown (int x, int y)
 
 bool DxuiDropdown::OnLButtonUp (int x, int y)
 {
-    int   item     = ItemHitTest (x, y);
+    int   item     = HitTestItem (x, y);
     bool  wasArmed = m_armed;
     bool  onItem   = m_enabled && item >= 0;
     bool  onBox    = false;
@@ -730,12 +760,12 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
     textColor = m_enabled ? c.text : c.textDisabled;
     edgeColor = m_enabled ? c.edge : c.edgeDisabled;
-    edgePx = m_scaler.Pxf (s_kEdgePx);
-    fontDip = m_scaler.Pxf (s_kFontDip);
-    textInset = m_scaler.Px (s_kTextInsetDip);
-    chevronW = m_scaler.Px (s_kChevronWidthDip);
-    chevronH = m_scaler.Px (s_kChevronHeightDip);
-    chevronRight = m_scaler.Px (s_kChevronRightDip);
+    edgePx = m_scaler.ToPxf (s_kEdgePx);
+    fontDip = m_scaler.ToPxf (s_kFontDip);
+    textInset = m_scaler.ToPx (s_kTextInsetDip);
+    chevronW = m_scaler.ToPx (s_kChevronWidthDip);
+    chevronH = m_scaler.ToPx (s_kChevronHeightDip);
+    chevronRight = m_scaler.ToPx (s_kChevronRightDip);
     chevronX = m_boundsDip.right - chevronRight - chevronW;
     chevronY = (m_boundsDip.top + m_boundsDip.bottom) / 2 - chevronH / 2;
     textWidth = (m_boundsDip.right - m_boundsDip.left) - textInset - (chevronRight + chevronW);
@@ -790,8 +820,8 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
     if (m_focused)
     {
-        float  focusInset = m_scaler.Pxf (s_kFocusInsetPx);
-        float  focusThick = m_scaler.Pxf (s_kFocusRingPx);
+        float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
+        float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
 
         painter.OutlineRect ((float) m_boundsDip.left + focusInset,
                              (float) m_boundsDip.top  + focusInset,
@@ -820,9 +850,9 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 {
     HRESULT         hr        = S_OK;
     int             i         = 0;
-    int             rowHeight = m_scaler.Px (s_kRowHeightDip);
-    int             textInset = m_scaler.Px (s_kTextInsetDip);
-    float           fontDip   = m_scaler.Pxf (s_kFontDip);
+    int             rowHeight = m_scaler.ToPx (s_kRowHeightDip);
+    int             textInset = m_scaler.ToPx (s_kTextInsetDip);
+    float           fontDip   = m_scaler.ToPxf (s_kFontDip);
     ResolvedColors  c         = ResolveColors();
 
 
@@ -883,10 +913,10 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 {
     HRESULT         hr        = S_OK;
     int             i         = 0;
-    int             rowHeight = m_scaler.Px (s_kRowHeightDip);
-    int             textInset = m_scaler.Px (s_kTextInsetDip);
+    int             rowHeight = m_scaler.ToPx (s_kRowHeightDip);
+    int             textInset = m_scaler.ToPx (s_kTextInsetDip);
     int             width     = m_boundsDip.right - m_boundsDip.left;
-    float           fontPx    = m_scaler.Pxf (s_kFontDip);
+    float           fontPx    = m_scaler.ToPxf (s_kFontDip);
     ResolvedColors  c         = ResolveColors();
 
 
@@ -931,7 +961,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 
@@ -1034,13 +1064,13 @@ bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::AccessibleName  (IDxuiControl override)
+//  DxuiDropdown::GetAccessibleName  (IDxuiControl override)
 //
 //  Returns the label of the selected item (or empty if no selection).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiDropdown::AccessibleName() const
+std::wstring DxuiDropdown::GetAccessibleName() const
 {
     std::wstring  name;
     bool          hasSelection = m_selected >= 0 && m_selected < (int) m_items.size();

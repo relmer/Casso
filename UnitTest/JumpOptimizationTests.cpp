@@ -542,7 +542,7 @@ namespace JumpOptimizationTests
             Assert::IsTrue (result.success,
                 (L"the source must assemble: " + JumpOptimizationFixture::Diagnostics (result)).c_str());
             Assert::AreEqual ((size_t) 4, result.bytes.size(),
-                L"Merlin writes the three-byte jump the source asked for");
+                L"Merlin writes the three-byte jump the source wrote");
             Assert::AreEqual ((int) 0x4C, (int) result.bytes[1], L"JMP absolute is $4C");
         }
     };

@@ -161,7 +161,7 @@ namespace CliSwitchCoverageTests
 
             { "as65", "p", { "CassoCli", "as65", "p.a65", "-p" },
               [] (const CommandLineOptions & o) { return o.pass1Listing; },
-              "-p asks for the pass 1 listing" },
+              "-p writes the pass 1 listing" },
 
             { "as65", "c", { "CassoCli", "as65", "p.a65", "-c" },
               [] (const CommandLineOptions & o) { return o.cycleCounts; },
@@ -181,11 +181,11 @@ namespace CliSwitchCoverageTests
 
             { "as65", "t", { "CassoCli", "as65", "p.a65", "-t" },
               [] (const CommandLineOptions & o) { return o.symbolTable; },
-              "-t asks for the symbol table" },
+              "-t generates the symbol table" },
 
             { "as65", "g", { "CassoCli", "as65", "p.a65", "-g" },
               [] (const CommandLineOptions & o) { return o.debugInfo; },
-              "-g asks for debug information" },
+              "-g writes debug information" },
 
             { "as65", "v", { "CassoCli", "as65", "p.a65", "-v" },
               [] (const CommandLineOptions & o) { return o.verbose; },
@@ -247,7 +247,7 @@ namespace CliSwitchCoverageTests
                   auto  found = o.predefinedSymbols.find ("HOURS");
                   return found != o.predefinedSymbols.end() && found->second == 12;
               },
-              "-d answers the question the source would have asked the operator" },
+              "-d predefines the symbol the source would otherwise prompt for" },
 
             { "merlin", "flat", { "CassoCli", "merlin", "p.s", "--flat" },
               [] (const CommandLineOptions & o)
@@ -308,7 +308,7 @@ namespace CliSwitchCoverageTests
             { "run", "warn", { "CassoCli", "run", "p.a65", "--as65", "--warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::Warn; },
-              "--warn asks for warnings, which is also the default" },
+              "--warn enables warnings, which is also the default" },
 
             { "run", "no-warn", { "CassoCli", "run", "p.a65", "--as65", "--no-warn" },
               [] (const CommandLineOptions & o)
@@ -792,7 +792,7 @@ namespace CliSwitchCoverageTests
     //  The statuses an assembly earns, asserted against the assembler rather
     //  than against the function that maps them.
     //
-    //  As65ExitStatus::ForAssembly is tested for all five values and always
+    //  As65ExitStatus::GetAssemblyStatus is tested for all five values and always
     //  was. So was the mapper it replaced, which is the whole problem: two
     //  mappers, two green suites, and nothing showing which one the tool
     //  reached for. It reached for the wrong one, and every page of the help
@@ -922,7 +922,7 @@ namespace CliSwitchCoverageTests
             MemorySink  sink;
 
             Assert::AreEqual (0, StatusUsing (clean, sink));
-            Assert::IsTrue (sink.wroteBinary, L"and the object was asked for");
+            Assert::IsTrue (sink.wroteBinary, L"and the object was written");
             Assert::IsTrue (sink.bytes > 0,   L"with something in it");
         }
 
@@ -1094,8 +1094,8 @@ namespace CliSwitchCoverageTests
 
             for (CommandLineOptions::Subcommand mode : kModes)
             {
-                std::string               usage    = CommandLineHelp::UsageLineFor (mode);
-                std::vector<std::string>  required = CommandLineHelp::RequiredOperandsIn (usage);
+                std::string               usage    = CommandLineHelp::GetUsageLine (mode);
+                std::vector<std::string>  required = CommandLineHelp::GetRequiredOperands (usage);
 
                 Assert::AreEqual (size_t (1), required.size(),
                                   Widen ("one required operand in: " + usage).c_str());
@@ -1113,8 +1113,8 @@ namespace CliSwitchCoverageTests
         //  and disk's own line requires two.
         TEST_METHOD (RequiredOperands_SkipOptionalGroupsAndOptionValues)
         {
-            std::vector<std::string>  disk = CommandLineHelp::RequiredOperandsIn (
-                CommandLineHelp::UsageLineFor (CommandLineOptions::Subcommand::Disk));
+            std::vector<std::string>  disk = CommandLineHelp::GetRequiredOperands (
+                CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand::Disk));
 
             Assert::AreEqual (size_t (2), disk.size(), L"disk takes a command and an image");
             Assert::AreEqual (std::string ("<command>"), disk[0]);
@@ -1122,7 +1122,7 @@ namespace CliSwitchCoverageTests
 
             //  An option's value is not an operand, and `<binary | source>` is
             //  ONE operand: the angle brackets bound it, not the spaces.
-            std::vector<std::string>  contrived = CommandLineHelp::RequiredOperandsIn (
+            std::vector<std::string>  contrived = CommandLineHelp::GetRequiredOperands (
                 "CassoCli x <binary | source> --track <n> [--out <file>]");
 
             Assert::AreEqual (size_t (1), contrived.size(),
@@ -1147,18 +1147,18 @@ namespace CliSwitchCoverageTests
         //  one of these guards as their first statement.
         TEST_METHOD (TheUsageStreamFollowsTheGuard_AndIsRestored)
         {
-            Assert::IsTrue (CommandLine::UsageStream() == stdout,
+            Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
                             L"usage is ordinary output by default");
 
             {
                 CommandLine::UsageOnErrorStream  toTheErrorStream;
 
-                Assert::IsTrue (CommandLine::UsageStream() == stderr,
+                Assert::IsTrue (CommandLine::GetUsageStream() == stderr,
                                 L"and goes where the reason goes while a refusal is printing");
             }
 
-            Assert::IsTrue (CommandLine::UsageStream() == stdout,
-                            L"and is put back, so an asked-for page stays pipeable");
+            Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
+                            L"and is put back, so a requested page stays pipeable");
         }
 
         //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it

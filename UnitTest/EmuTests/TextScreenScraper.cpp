@@ -7,7 +7,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RowBaseAddress
+//  GetRowBaseAddress
 //
 //  Row Y (0..23) decomposes into (group=Y/8, sub=Y%8). Base address is
 //  pageBase + sub*0x80 + group*0x28. This is the canonical Apple ][
@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word TextScreenScraper::RowBaseAddress (Word pageBase, int row)
+Word TextScreenScraper::GetRowBaseAddress (Word pageBase, int row)
 {
     constexpr int  kRowGroupSize      = 8;
     constexpr int  kRowsPerGroupBytes = 0x80;
@@ -91,7 +91,7 @@ std::vector<std::string> TextScreenScraper::Scrape40 (MemoryBus & bus, Word page
     for (row = 0; row < kRows; row++)
     {
         std::string   line;
-        Word          base = RowBaseAddress (pageBase, row);
+        Word          base = GetRowBaseAddress (pageBase, row);
 
         line.resize (kCols40);
 
@@ -138,7 +138,7 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
     for (row = 0; row < kRows; row++)
     {
         std::string   line;
-        Word          base = RowBaseAddress (pageBase, row);
+        Word          base = GetRowBaseAddress (pageBase, row);
 
         line.resize (kCols80);
 
@@ -172,8 +172,8 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
 {
     const Byte *   auxRam   = core.mmu->GetAuxBuffer();
-    bool           col80    = core.softSwitches->Is80ColMode();
-    bool           page2    = core.softSwitches->IsPage2     ();
+    bool           col80    = core.softSwitches->Is80ColMode  ();
+    bool           page2    = core.softSwitches->IsPage2      ();
     Word           pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
 
 

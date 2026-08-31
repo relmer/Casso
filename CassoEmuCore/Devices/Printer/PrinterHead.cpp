@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormFeedDurationSec
+//  GetFormFeedDurationSec
 //
 //  The page-feed sound grain a feed of `rows` selects: short below 1/3 of a
 //  page, medium below 2/3, long beyond. The feed rate (rows / duration) then
@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double PrinterHead::FormFeedDurationSec (int rows)
+double PrinterHead::GetFormFeedDurationSec (int rows)
 {
     double   frac = (double) rows / (double) PrinterGrid::kPageRows;
     int      slot = (frac < 1.0 / 3.0) ? 0 : (frac < 2.0 / 3.0) ? 1 : 2;
@@ -89,14 +89,14 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PendingSeconds
+//  GetPendingSeconds
 //
 //  Print time still queued: the remainder of the in-progress motion plus every
 //  event waiting in the timeline, each at its own speed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double PrinterHead::PendingSeconds() const
+double PrinterHead::GetPendingSeconds() const
 {
     double   seconds = 0.0;
 
@@ -119,7 +119,7 @@ double PrinterHead::PendingSeconds() const
         }
         else if (ev.type == PrinterEventType::FormFeed)
         {
-            seconds += (ev.rows > 0) ? FormFeedDurationSec (ev.rows) : 0.0;
+            seconds += (ev.rows > 0) ? GetFormFeedDurationSec (ev.rows) : 0.0;
         }
         else if (ev.type == PrinterEventType::LineFeed)
         {
@@ -247,7 +247,7 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
                 if (ev.type == PrinterEventType::FormFeed && ev.rows > 0)
                 {
                     // Match the paper to its sound: finish exactly at the grain end.
-                    m_feedRate = (double) ev.rows / FormFeedDurationSec (ev.rows);
+                    m_feedRate = (double) ev.rows / GetFormFeedDurationSec (ev.rows);
                 }
                 else
                 {
@@ -317,7 +317,7 @@ void PrinterHead::PaintPresented (double fromP, double toP,
     {
         for (int c = c0; c <= c1; c++)
         {
-            Byte   lay = (Byte) (built.CellAt (c, r) & m_sweepColor);
+            Byte   lay = (Byte) (built.GetCell (c, r) & m_sweepColor);
 
             if (lay != 0)
             {

@@ -97,7 +97,7 @@ public:
     // Video-dirty tracking. Pages the renderer reads (text/hi-res, main +
     // aux, since aux is re-pointed at the same page index) are marked
     // "watched"; a write into any of them, or any banking change, raises
-    // m_videoDirty. The render loop consults VideoDirty() to skip
+    // m_videoDirty. The render loop consults IsVideoDirty() to skip
     // re-rasterizing an unchanged screen, then ClearVideoDirty() after a
     // render. Starts dirty so the very first frame paints.
     void SetVideoWatchPage (int pageIndex, bool watched)
@@ -108,7 +108,7 @@ public:
         }
     }
 
-    bool VideoDirty      () const { return m_videoDirty; }
+    bool IsVideoDirty    () const { return m_videoDirty; }
     void MarkVideoDirty  ()       { m_videoDirty = true; }
     void ClearVideoDirty ()       { m_videoDirty = false; }
 

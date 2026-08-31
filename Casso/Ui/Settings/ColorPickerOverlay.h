@@ -39,7 +39,7 @@ public:
     void      Open        (uint32_t initialArgb);
     void      Close()                 { m_open = false; }
     bool      IsOpen() const          { return m_open; }
-    uint32_t  Argb() const            { return m_argb; }
+    uint32_t  GetArgb() const            { return m_argb; }
 
     void      Layout        (const RECT & panelRect, const DxuiDpiScaler & scaler);
     void      OnLButtonDown (int x, int y);
@@ -50,7 +50,7 @@ public:
     bool      OnChar        (wchar_t ch);
     void      Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
-    const RECT & DialogRect() const { return m_dialogRect; }
+    const RECT & GetDialogRect() const { return m_dialogRect; }
 
 private:
     void  SyncFromHsv();

@@ -58,11 +58,11 @@ static constexpr wchar_t  s_kMouseTooltip[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Label
+//  GetLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::Label() const
+const wchar_t * JoystickToggleButton::GetLabel() const
 {
     const wchar_t *  label = s_kLabel;      // the disabled / off state
 
@@ -99,7 +99,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 {
     int    centerXPx = (boundsDip.left + boundsDip.right)  / 2;
     int    centerYPx = (boundsDip.top  + boundsDip.bottom) / 2;
-    UINT   dpi       = scaler.Dpi();
+    UINT   dpi       = scaler.GetDpi();
     UINT   eDpi      = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     int    padX      = MulDiv (s_kPadXDp,   (int) eDpi, s_kBaseDpi);
     int    padY      = MulDiv (s_kPadYDp,   (int) eDpi, s_kBaseDpi);
@@ -127,7 +127,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
     if (m_textRenderer != nullptr)
     {
-        HRESULT  hrM = m_textRenderer->MeasureString (Label(), fontDip, s_kFontFamily, textW, textH);
+        HRESULT  hrM = m_textRenderer->MeasureString (GetLabel(), fontDip, s_kFontFamily, textW, textH);
 
         if (FAILED (hrM))
         {
@@ -141,7 +141,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
     // button still reserves a sane width on the very first layout.
     if (textW <= 0.0f)
     {
-        textW = (float) wcslen (Label()) *
+        textW = (float) wcslen (GetLabel()) *
                 s_kFallbackCharPx * (float) eDpi / (float) s_kBaseDpi;
     }
 
@@ -259,7 +259,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_led.Paint (painter, coreArgb, haloArgb);
 
-    hr = text.DrawString (Label(),
+    hr = text.DrawString (GetLabel(),
                           textX,
                           bt,
                           (float) m_bounds.right - textX,
@@ -278,13 +278,13 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipText
+//  GetTooltipText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::TooltipText() const
+const wchar_t * JoystickToggleButton::GetTooltipText() const
 {
-    const wchar_t *  tip = s_kTooltip;      // matches Label()'s default arm
+    const wchar_t *  tip = s_kTooltip;      // matches GetLabel()'s default arm
 
 
 

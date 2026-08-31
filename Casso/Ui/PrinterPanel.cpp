@@ -202,6 +202,51 @@ std::string PrinterPanel::LoadTextResource (int resourceId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrinterPanel::LoadBinaryResource
+//
+//  As above, without the copy. RCDATA is mapped into the image, so the
+//  returned view stays valid for the life of the process and the caller
+//  reads a baked mesh straight out of the executable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const uint8_t> PrinterPanel::LoadBinaryResource (int resourceId)
+{
+    HINSTANCE    hInstance = GetModuleHandleW (nullptr);
+    HRSRC        hRes      = nullptr;
+    HGLOBAL      hMem      = nullptr;
+    DWORD        cbData    = 0;
+    void       * pData     = nullptr;
+
+
+
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+
+    if (hRes != nullptr)
+    {
+        cbData = SizeofResource (hInstance, hRes);
+        hMem   = LoadResource (hInstance, hRes);
+    }
+
+    if (cbData != 0 && hMem != nullptr)
+    {
+        pData = LockResource (hMem);
+    }
+
+    if (pData == nullptr)
+    {
+        return {};
+    }
+
+    return std::span<const uint8_t> (static_cast<const uint8_t *> (pData), cbData);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrinterPanel ctor / dtor
 //
 //  Defined here (not defaulted in the header) so unique_ptr<Printer3DScene>
@@ -210,7 +255,7 @@ std::string PrinterPanel::LoadTextResource (int resourceId)
 ////////////////////////////////////////////////////////////////////////////////
 
 PrinterPanel::PrinterPanel()
-    : m_panZoom (PanZoomConfig())
+    : m_panZoom (GetPanZoomConfig())
 {
 }
 
@@ -222,7 +267,7 @@ PrinterPanel::~PrinterPanel() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPanel::PanZoomConfig
+//  PrinterPanel::GetPanZoomConfig
 //
 //  Tunes the reusable controller for the printer preview: zoom range + step
 //  match the old toolbar, a wheel notch scrolls 2/3" (96 native rows) or pans
@@ -231,7 +276,7 @@ PrinterPanel::~PrinterPanel() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPanZoom::Config PrinterPanel::PanZoomConfig()
+DxuiPanZoom::Config PrinterPanel::GetPanZoomConfig()
 {
     DxuiPanZoom::Config   cfg;
 
@@ -359,12 +404,12 @@ HRESULT PrinterPanel::Create (
     // touchpad's wheel-message flood would otherwise spawn a synchronous 3D
     // repaint per message and starve the loop's own paint pump, freezing the
     // view mid-scroll. Let the loop own paint pacing.
-    if (PopupHost() != nullptr)
+    if (GetPopupHost() != nullptr)
     {
-        PopupHost()->SetSuppressInputInvalidate (true);
+        GetPopupHost()->SetSuppressInputInvalidate (true);
     }
 
-    m_tooltip.SetPopupHost (PopupHost());
+    m_tooltip.SetPopupHost (GetPopupHost());
 
     // 3D presentation (FR-032): build the scene on THIS window's own device
     // (its swap chain does not live on the emulator renderer's device) and
@@ -375,29 +420,28 @@ HRESULT PrinterPanel::Create (
         std::unique_ptr<Printer3DScene>   scene   = std::make_unique<Printer3DScene> ();
         HRESULT                           hrScene = E_FAIL;
 
-        if (PopupHost() != nullptr)
+        if (GetPopupHost() != nullptr)
         {
-            hrScene = scene->Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+            hrScene = scene->Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
         }
 
         if (SUCCEEDED (hrScene))
         {
             m_scene = std::move (scene);
 
-            // The user's ImageWriter CAD model, embedded as OBJ+MTL. Failure
-            // silently keeps the procedural body.
+            // The user's ImageWriter CAD model, embedded as a baked mesh.
+            // Failure silently keeps the procedural body.
             {
-                std::string   obj = LoadTextResource (IDR_MODEL_IMAGEWRITER_OBJ);
-                std::string   mtl = LoadTextResource (IDR_MODEL_IMAGEWRITER_MTL);
+                std::span<const uint8_t>   mesh = LoadBinaryResource (IDR_MODEL_IMAGEWRITER_MESH);
 
-                if (!obj.empty())
+                if (!mesh.empty())
                 {
-                    hr = m_scene->SetModel (obj, mtl);
+                    hr = m_scene->SetModel (mesh);
                     IGNORE_RETURN_VALUE (hr, S_OK);
                 }
             }
 
-            PopupHost()->SetBeforePresentHook ([this] ()
+            GetPopupHost()->SetBeforePresentHook ([this] ()
             {
                 if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
                 {
@@ -486,7 +530,7 @@ void PrinterPanel::OnCreate()
     // would fire a synchronous 3D redraw for every one of the message flood a
     // trackpad scroll produces -- clogging the message pump and freezing the
     // view until the fingers stop (the paint pacing stays owned by the loop).
-    m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (NowMs()); });
+    m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (GetNowMs()); });
 
     // A freshly opened panel has nothing on the paper yet, so the delivery
     // actions start disabled; RefreshLive enables them the moment content
@@ -538,13 +582,13 @@ HRESULT PrinterPanel::RenderFrame()
 
     BAIL_OUT_IF (!isCreated, S_OK);
 
-    m_tooltip.Tick (NowMs());
+    m_tooltip.Tick (GetNowMs());
 
     // Advance the pan/zoom glide and push the transform to the scene every
     // frame (runs even with no printer card, so zooming a blank sheet still
     // animates). RefreshLive layers the follow-mode panY target on top. The
     // Tick return keeps the frame cadence hot while a glide is still in flight.
-    m_panZoomEasing = m_panZoom.Tick ((double) NowMs() / 1000.0);
+    m_panZoomEasing = m_panZoom.Tick ((double) GetNowMs() / 1000.0);
     SyncTransform();
 
     Invalidate();
@@ -569,7 +613,7 @@ Error:
 
 void PrinterPanel::UpdateTooltip (int x, int y)
 {
-    int64_t   now   = NowMs();
+    int64_t   now   = GetNowMs();
     bool      shown = false;
 
 
@@ -615,8 +659,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
     {
         if (!shown && tip.button != nullptr && tip.button->HitTest (x, y))
         {
-            m_tooltip.RequestShow (tip.button->Bounds(),
-                                   tip.button->Enabled() ? tip.enabledText : tip.disabledText,
+            m_tooltip.RequestShow (tip.button->GetBounds(),
+                                   tip.button->IsEnabled() ? tip.enabledText : tip.disabledText,
                                    now);
             shown = true;
         }
@@ -680,7 +724,7 @@ void PrinterPanel::SyncTransform()
     }
 
     // Cursor-anchored zoom needs the paper rect's center in the same space as
-    // event positions (PaperHit compares them directly, so m_paperRectPx is it).
+    // event positions (IsPaperHit compares them directly, so m_paperRectPx is it).
     m_panZoom.SetViewCenter ((float) (m_paperRectPx.left + m_paperRectPx.right) * 0.5f,
                              (float) (m_paperRectPx.top  + m_paperRectPx.bottom) * 0.5f);
 
@@ -693,9 +737,9 @@ void PrinterPanel::SyncTransform()
     if (m_scene != nullptr)
     {
         m_scene->SetZoom (zoom);
-        m_scene->SetPanX (m_panZoom.PanX() / ((float) s_kStockWidthPx * 0.5f));
-        m_scene->SetCameraPanY (m_panZoom.PanYCam());
-        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY() / overMax) : 0.0f);
+        m_scene->SetPanX (m_panZoom.GetPanX() / ((float) s_kStockWidthPx * 0.5f));
+        m_scene->SetCameraPanY (m_panZoom.GetPanYCam());
+        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.GetOverscrollY() / overMax) : 0.0f);
     }
 
     // Zoom chrome changes rarely; refresh it only when the target moves.
@@ -721,7 +765,7 @@ void PrinterPanel::SyncTransform()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPanel::PaperHit
+//  PrinterPanel::IsPaperHit
 //
 //  True when (x,y) DIP lands on the paper area (the 3D scene / paper view),
 //  where a left-press begins a pan-drag. Toolbar bands sit outside this rect,
@@ -729,7 +773,7 @@ void PrinterPanel::SyncTransform()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterPanel::PaperHit (int x, int y) const
+bool PrinterPanel::IsPaperHit (int x, int y) const
 {
     return x >= m_paperRectPx.left && x < m_paperRectPx.right &&
            y >= m_paperRectPx.top  && y < m_paperRectPx.bottom;
@@ -741,11 +785,11 @@ bool PrinterPanel::PaperHit (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPanel::NowMs
+//  PrinterPanel::GetNowMs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t PrinterPanel::NowMs()
+int64_t PrinterPanel::GetNowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -769,8 +813,8 @@ int64_t PrinterPanel::NowMs()
 
 void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool force)
 {
-    int                    rows         = worker.RowsUsed();
-    uint64_t               activity     = worker.ActivityCount();
+    int                    rows         = worker.GetRowsUsed();
+    uint64_t               activity     = worker.GetActivityCount();
     double                 nowSec       = (double) nowMs / 1000.0;
     int                    headRow      = 0;
     int                    headCol      = 0;
@@ -797,7 +841,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     {
         int  platenRow = 0;
 
-        worker.HeadPosition (headRow, headCol);
+        worker.GetHeadPosition (headRow, headCol);
 
         // Adopt the worker's current activity count on the first refresh so that
         // opening the panel over a restored / pending strip does NOT read the
@@ -836,7 +880,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
         // A shrunk strip means eject/discard tore the paper off: rewind the view to
         // the fresh sheet instead of staring past its end.
-        if (PrinterPreviewModel::StripTornOff (rows, m_viewport.LiveRow()))
+        if (PrinterPreviewModel::StripTornOff (rows, m_viewport.GetLiveRow()))
         {
             m_viewport.Reset();
             m_spanImgValid = false;
@@ -845,9 +889,9 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
         // The worker replays the interpreter's real carriage timeline off the guest
         // clock (a pass per printed line, a feed per paper advance) at draft speed.
-        // It publishes two rows: the PLATEN (HeadPosition row), where the head sits --
+        // It publishes two rows: the PLATEN (GetHeadPosition row), where the head sits --
         // it slews down through a feed, so the viewport follows it and the paper
-        // scrolls -- and the reveal FRONTIER (RevealBandTop), the line being laid,
+        // scrolls -- and the reveal FRONTIER (GetRevealBandTop), the line being laid,
         // which holds one band back through a feed so freshly fed paper reads blank
         // even though the raster already holds the next line (drained ahead to keep
         // the buffer full). Ink at or below the frontier shows only within the swept
@@ -861,12 +905,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // audio (which ink the head just crossed) and the re-render change detection.
         platenRow = (std::max) (0, headRow);
 
-        sweepLtr     = worker.HeadSweepLtr();
-        revealRow    = (std::max) (0, worker.RevealBandTop());   // print frontier (change-detect)
+        sweepLtr     = worker.IsHeadSweepLtr();
+        revealRow    = (std::max) (0, worker.GetRevealBandTop());   // print frontier (change-detect)
         revealBehind = false;
         bandBottom   = (std::min) (platenRow + s_kPinBandRows - 1, rows - 1);   // viewport follows the platen
 
-        revealCol = worker.CarriageCol();   // physical carriage column, over the actual ink
+        revealCol = worker.GetCarriageCol();   // physical carriage column, over the actual ink
 
         {
             PrinterPreviewModel::RevealSpan   rs = PrinterPreviewModel::RevealColumnSpan (sweepLtr, revealCol);
@@ -881,12 +925,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // silent under its own feed one-shot instead of buzzing.
         m_liveRevealRow     = platenRow;
         m_liveRevealColDots = headCol;
-        m_revealInk = worker.SpanInkExtent (platenRow, platenRow + s_kPinBandRows - 1) > 0;
+        m_revealInk = worker.GetSpanInkExtent (platenRow, platenRow + s_kPinBandRows - 1) > 0;
 
         // Keep requesting animation frames while the carriage sweeps or the paper
-        // feeds (HeadMoving covers a host Form Feed, which does not bump activity);
+        // feeds (IsHeadMoving covers a host Form Feed, which does not bump activity);
         // m_printingActive holds the cadence hot across the guest's brief byte gaps.
-        m_sweeping = m_printingActive || worker.HeadMoving();
+        m_sweeping = m_printingActive || worker.IsHeadMoving();
 
         if (m_scene != nullptr)
         {
@@ -895,7 +939,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
             // never snaps back to the left margin during a feed (the reveal mask does
             // close to 0 there, to blank the paper scrolling in, but the carriage must
             // not follow it).
-            m_scene->SetHeadColumn01 ((float) worker.CarriageCol() / (float) PrinterGrid::kDotsPerRow);
+            m_scene->SetHeadColumn01 ((float) worker.GetCarriageCol() / (float) PrinterGrid::kDotsPerRow);
 
             // Front-panel status lamps carry fixed per-lamp meanings (see
             // Printer3DScene::LampRole): Power + Select sit steady-lit while the
@@ -919,12 +963,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // NotifyUserScroll) instead leaves it parked where they put it. panZoom
         // clamps to the viewport's legal bounds and eases the position (glided in
         // RenderFrame's Tick), and the eased bottom row is what we render.
-        m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow(),
-                                 (float) m_viewport.MaxBottomRow());
+        m_panZoom.SetPanYBounds ((float) m_viewport.GetMinBottomRow(),
+                                 (float) m_viewport.GetMaxBottomRow());
 
-        if (m_viewport.FollowingLive())
+        if (m_viewport.IsFollowingLive())
         {
-            m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow());
+            m_panZoom.SetPanYTarget ((float) m_viewport.GetLiveRow());
         }
 
         // Seed the eased position onto the target on the first content frame (and
@@ -932,21 +976,21 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // instead of scrolling down to it from row 0.
         if (!m_panYSeeded && rows > 0)
         {
-            m_panZoom.SnapPanY (m_panZoom.PanYTarget());
+            m_panZoom.SnapPanY (m_panZoom.GetPanYTarget());
             m_panYSeeded = true;
         }
 
-        span.lastRow  = (int) std::lround (m_panZoom.PanY());
-        span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
+        span.lastRow  = (int) std::lround (m_panZoom.GetPanY());
+        span.firstRow = (std::max) (0, span.lastRow - m_viewport.GetViewportRows() + 1);
 
         // The eased viewport pan lags a fast print (text catch-up), so the live band
         // can sit BELOW the snapshotted span -- there the span-sample ink gate reads
         // blank paper and drops the buzz (the missing CATALOG ink). When the head is
         // ahead of the snapshot, keep the pacing block's worker-raster gate instead.
-        revealBehind = PrinterPreviewModel::LiveBandOutsideSpan (platenRow, span.firstRow, span.lastRow);
+        revealBehind = PrinterPreviewModel::IsLiveBandOutsideSpan (platenRow, span.firstRow, span.lastRow);
 
-        moved       = PrinterPreviewModel::SpanMoved (span.firstRow, span.lastRow,
-                                                      m_renderedSpan.firstRow, m_renderedSpan.lastRow);
+        moved       = PrinterPreviewModel::HasSpanMoved (span.firstRow, span.lastRow,
+                                                         m_renderedSpan.firstRow, m_renderedSpan.lastRow);
         revealMoved = PrinterPreviewModel::RevealMoved (revealRow, revealCol,
                                                         m_renderedRevealRow, m_renderedRevealCol);
 
@@ -985,7 +1029,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                 // pixels (an overprint that finished during the freeze reads as its first
                 // pass only -- green shows as yellow). The reveal is baked into the
                 // presented pixels, so RenderSpan's mask stays off (-1).
-                int   dirtyFromAbs = PrinterPreviewModel::DirtyFromRow (m_hasRendered, platenRow, m_renderedPlaten);
+                int   dirtyFromAbs = PrinterPreviewModel::GetDirtyFromRow (m_hasRendered, platenRow, m_renderedPlaten);
 
                 RenderSpan (spanRaster, span.firstRow, span.lastRow, dirtyFromAbs, -1, revealLo, revealHi);
 
@@ -994,7 +1038,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                 // the pacing block above already set m_revealInk from the live band's
                 // WORKER-raster extent: this span snapshot cannot serve there, because
                 // at catch-up speed the reveal races ahead of the EASED viewport pan,
-                // the live band falls outside the snapshot, and CellAt reads blank --
+                // the live band falls outside the snapshot, and GetCell reads blank --
                 // the missing CATALOG buzz. Caught up, the span IS the live region, so
                 // sample the FULL column span the head swept SINCE THE LAST FRAME, not
                 // a fixed lookback: at carriage speed the head advances more dots per
@@ -1008,7 +1052,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                 // a blank band (line / form feed) stays silent.
                 if (!revealBehind)
                 {
-                    PrinterPreviewModel::InkSample   sample = PrinterPreviewModel::AudioSampleWindow (
+                    PrinterPreviewModel::InkSample   sample = PrinterPreviewModel::GetAudioSampleWindow (
                         sweepLtr, m_renderedRevealCol, revealCol, revealRow, m_renderedRevealRow);
 
                     // Sample where the HEAD physically is (platenRow), not the reveal
@@ -1016,7 +1060,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                     // re-strikes the SAME row R>L in the next primary) sits at row R while
                     // the monotonic frontier already advanced a band past it, so sampling
                     // the frontier would read the blank row below and drop the buzz.
-                    m_revealInk = PrinterPreviewModel::BandHasInk (spanRaster, span.firstRow, platenRow,
+                    m_revealInk = PrinterPreviewModel::HasBandInk (spanRaster, span.firstRow, platenRow,
                                                                    sample.loCol, sample.hiCol);
                 }
             }
@@ -1054,7 +1098,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
 void PrinterPanel::SetStrip (const PrintRaster & raster)
 {
-    int                     rows = raster.RowsUsed();
+    int                     rows = raster.GetRowsUsed();
     PrinterViewport::Span   span;
     PrintRaster             spanRaster;
 
@@ -1065,7 +1109,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
     {
         // A shorter raster than last time means the strip was replaced, not
         // appended to, so the viewport's live row no longer exists.
-        if (rows - 1 < m_viewport.LiveRow())
+        if (rows - 1 < m_viewport.GetLiveRow())
         {
             m_viewport.Reset();
         }
@@ -1080,18 +1124,18 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
             // One-shot push: place panZoom's eased position on the follow
             // target (no glide) and render that bottom-anchored span.
-            m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow(), (float) m_viewport.MaxBottomRow());
+            m_panZoom.SetPanYBounds ((float) m_viewport.GetMinBottomRow(), (float) m_viewport.GetMaxBottomRow());
 
-            if (m_viewport.FollowingLive())
+            if (m_viewport.IsFollowingLive())
             {
-                m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow());
+                m_panZoom.SetPanYTarget ((float) m_viewport.GetLiveRow());
             }
 
-            m_panZoom.SnapPanY (m_panZoom.PanYTarget());
+            m_panZoom.SnapPanY (m_panZoom.GetPanYTarget());
             m_panYSeeded = true;
 
-            span.lastRow  = (int) std::lround (m_panZoom.PanY());
-            span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
+            span.lastRow  = (int) std::lround (m_panZoom.GetPanY());
+            span.firstRow = (std::max) (0, span.lastRow - m_viewport.GetViewportRows() + 1);
             raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
             RenderSpan (spanRaster, span.firstRow, span.lastRow, -1, -1, 0, 0);   // dirtyFromAbs -1: full render, no live head
 
@@ -1194,7 +1238,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
                 if (delta > 0)
                 {
-                    memmove (m_spanImg.PixelAt (0, 0), m_spanImg.PixelAt (0, delta),
+                    memmove (m_spanImg.GetPixel (0, 0), m_spanImg.GetPixel (0, delta),
                              rowBytes * (spanRows - delta));   // shift retained rows up
                 }
 
@@ -1218,7 +1262,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
                     if (SUCCEEDED (hr) && tail.width == m_spanImg.width && tail.height == tailRows)
                     {
-                        memcpy (m_spanImg.PixelAt (0, renderFirst), tail.PixelAt (0, 0), rowBytes * tailRows);
+                        memcpy (m_spanImg.GetPixel (0, renderFirst), tail.GetPixel (0, 0), rowBytes * tailRows);
                         m_spanImgFirstAbsRow = firstAbsRow;
                         haveImg              = true;
                     }
@@ -1232,13 +1276,13 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
                 int         newCount = -delta;
                 RgbaImage   edge;
 
-                memmove (m_spanImg.PixelAt (0, newCount), m_spanImg.PixelAt (0, 0), rowBytes * (spanRows - newCount));
+                memmove (m_spanImg.GetPixel (0, newCount), m_spanImg.GetPixel (0, 0), rowBytes * (spanRows - newCount));
 
                 hr = renderer.Render (spanRaster, 0, newCount - 1, opt, edge);
 
                 if (SUCCEEDED (hr) && edge.width == m_spanImg.width && edge.height == newCount)
                 {
-                    memcpy (m_spanImg.PixelAt (0, 0), edge.PixelAt (0, 0), rowBytes * newCount);
+                    memcpy (m_spanImg.GetPixel (0, 0), edge.GetPixel (0, 0), rowBytes * newCount);
                     m_spanImgFirstAbsRow = firstAbsRow;
                     haveImg              = true;
                 }
@@ -1263,7 +1307,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
         }
 
         // Span larger than the canvas: also keep the previous frame.
-        if (m_spanImg.height > m_viewport.ViewportRows())
+        if (m_spanImg.height > m_viewport.GetViewportRows())
         {
             composes = false;
         }
@@ -1306,7 +1350,7 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 {
     HRESULT  hr        = S_OK;
     int      canvasW   = s_kStockWidthPx;
-    int      canvasH   = m_viewport.ViewportRows();   // px == rows at 144 dpi
+    int      canvasH   = m_viewport.GetViewportRows();   // px == rows at 144 dpi
     int      topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
     int      holeR     = s_kHoleRadiusPx;
     int      delta     = 0;
@@ -1359,7 +1403,7 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
                 }
 
                 dst = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
-                src = content->PixelAt (0, y);
+                src = content->GetPixel (0, y);
                 xEnd = content->width;
 
                 // Rows in the live pin band reveal only the swept column span in
@@ -1564,7 +1608,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
     bool  handled   = false;
     bool  isPaperLb = isDown
                       && ev.button == DxuiMouseButton::Left
-                      && PaperHit (ev.positionDip.x, ev.positionDip.y);
+                      && IsPaperHit (ev.positionDip.x, ev.positionDip.y);
 
 
 
@@ -1577,7 +1621,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         // A left-press on the paper begins a pan-drag; presses on the toolbar
         // fall through so the buttons get their clicks.
-        m_tooltip.RequestHide (NowMs());
+        m_tooltip.RequestHide (GetNowMs());
         m_panZoom.OnMouse (ev);
         handled = true;
     }
@@ -1596,7 +1640,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (isDown)
         {
-            m_tooltip.RequestHide (NowMs());
+            m_tooltip.RequestHide (GetNowMs());
         }
 
         handled = DxuiWindow::OnMouse (ev);
@@ -1690,10 +1734,10 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  pad        = scaler.Px (kPadDip);
-    int  gap        = scaler.Px (6);
-    int  captionH   = CaptionHeightPx();
-    int  toolbarH   = scaler.Px (kToolbarHDip);
+    int  pad        = scaler.ToPx (kPadDip);
+    int  gap        = scaler.ToPx (6);
+    int  captionH   = GetCaptionHeightPx();
+    int  toolbarH   = scaler.ToPx (kToolbarHDip);
     int  topBandTop = 0;
     int  topBy      = 0;
     int  botBandTop = 0;
@@ -1703,11 +1747,11 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // renderer to measure with, and sizing it per-frame would make the paper
     // area jump as the window crosses the wrap threshold. A single line simply
     // centers in the taller box.
-    int  hintH      = scaler.Px (kHintHDip);
-    int  btnH       = scaler.Px (30);
-    int  btnW       = scaler.Px (84);   // Print... / Save... / Copy / Form Feed / Discard
-    int  zoomW      = scaler.Px (42);   // [-] and [+]
-    int  zoomResetW = scaler.Px (54);   // [nnn%]
+    int  hintH      = scaler.ToPx (kHintHDip);
+    int  btnH       = scaler.ToPx (30);
+    int  btnW       = scaler.ToPx (84);   // Print... / Save... / Copy / Form Feed / Discard
+    int  zoomW      = scaler.ToPx (42);   // [-] and [+]
+    int  zoomResetW = scaler.ToPx (54);   // [nnn%]
 
 
 
@@ -1759,7 +1803,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         }
     }
 
-    m_hintFontPx = scaler.Pxf (11.0f);
+    m_hintFontPx = scaler.ToPxf (11.0f);
     m_hintRect   = { boundsDip.left + pad,
                      botBandTop - hintH,
                      boundsDip.right - pad,
@@ -1816,7 +1860,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT  hr = S_OK;
-    RECT     b  = Bounds();
+    RECT     b  = GetBounds();
 
 
 

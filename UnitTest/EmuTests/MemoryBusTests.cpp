@@ -428,7 +428,7 @@ public:
     {
         MemoryBus bus;
 
-        Assert::IsTrue (bus.VideoDirty(),
+        Assert::IsTrue (bus.IsVideoDirty(),
             L"A fresh bus must start dirty so the first frame renders");
     }
 
@@ -443,7 +443,7 @@ public:
 
         bus.WriteByte (0x0400, 0x41);
 
-        Assert::IsTrue (bus.VideoDirty(),
+        Assert::IsTrue (bus.IsVideoDirty(),
             L"Write into a watched display page must raise video-dirty");
     }
 
@@ -457,7 +457,7 @@ public:
 
         bus.WriteByte (0x6000, 0x41);
 
-        Assert::IsFalse (bus.VideoDirty(),
+        Assert::IsFalse (bus.IsVideoDirty(),
             L"Write outside any watched page must not raise video-dirty");
     }
 
@@ -474,7 +474,7 @@ public:
 
         bus.WriteByte (0x0400, 0x41);         // same value re-stored
 
-        Assert::IsFalse (bus.VideoDirty(),
+        Assert::IsFalse (bus.IsVideoDirty(),
             L"Re-storing the identical byte must not raise video-dirty");
     }
 
@@ -489,12 +489,12 @@ public:
 
         // $0478 is a screen hole (block offset $78) -- undisplayed scratch.
         bus.WriteByte (0x0478, 0xAB);
-        Assert::IsFalse (bus.VideoDirty(),
+        Assert::IsFalse (bus.IsVideoDirty(),
             L"A changing write to a screen-hole byte must not dirty the frame");
 
         // $0477 is displayed (block offset $77) -- must dirty.
         bus.WriteByte (0x0477, 0xCD);
-        Assert::IsTrue (bus.VideoDirty(),
+        Assert::IsTrue (bus.IsVideoDirty(),
             L"A changing write to a displayed byte must dirty the frame");
     }
 
@@ -505,7 +505,7 @@ public:
         bus.ClearVideoDirty();
         bus.NotifyBankingChanged();
 
-        Assert::IsTrue (bus.VideoDirty(),
+        Assert::IsTrue (bus.IsVideoDirty(),
             L"A banking change can swap the displayed buffer, so it must "
             L"raise video-dirty");
     }
@@ -517,7 +517,7 @@ public:
         bus.ClearVideoDirty();
         bus.Reset();
 
-        Assert::IsTrue (bus.VideoDirty(),
+        Assert::IsTrue (bus.IsVideoDirty(),
             L"Reset changes the screen, so it must raise video-dirty");
     }
 
@@ -528,7 +528,7 @@ public:
         bus.MarkVideoDirty();
         bus.ClearVideoDirty();
 
-        Assert::IsFalse (bus.VideoDirty(),
+        Assert::IsFalse (bus.IsVideoDirty(),
             L"ClearVideoDirty must reset the flag");
     }
 };

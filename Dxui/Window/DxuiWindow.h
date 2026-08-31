@@ -174,20 +174,20 @@ public:
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
-    bool     IsCreated   () const { return m_source != nullptr; }
-    HWND     Hwnd        () const { return m_source != nullptr ? m_source->Hwnd() : nullptr; }
+    bool     IsCreated  () const { return m_source != nullptr; }
+    HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
 
     //
     //  Request a repaint of the window (the backend's WM_PAINT pump
     //  walks this panel tree). Consumers with a per-frame data model
     //  call this after mutating state.
     //
-    void     Invalidate  ();
+    void     Invalidate ();
 
-    void     SetTheme    (const IDxuiTheme * theme);
-    void     SetTitle    (const std::wstring & title);
-    int      CaptionHeightPx () const { return m_source != nullptr ? m_source->CaptionHeightPx() : 0; }
-    UINT     Dpi         () const { return m_source != nullptr ? m_source->Scaler().Dpi() : USER_DEFAULT_SCREEN_DPI; }
+    void     SetTheme   (const IDxuiTheme * theme);
+    void     SetTitle   (const std::wstring & title);
+    int      GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
+    UINT     GetDpi         () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
     //
     //  Popup backend for DxuiPopupMenu / DxuiTooltip owned by content
@@ -195,8 +195,8 @@ public:
     //  surfaces) plus the shared text renderer used to size popups.
     //  Null before Create() / after Close().
     //
-    DxuiHwndSource    *  PopupHost    () const { return m_source.get(); }
-    IDxuiTextRenderer *  TextRenderer () const { return m_source != nullptr ? m_source->GetTextRenderer() : nullptr; }
+    DxuiHwndSource    *  GetPopupHost    () const { return m_source.get(); }
+    IDxuiTextRenderer *  GetTextRenderer () const { return m_source != nullptr ? m_source->GetTextRenderer() : nullptr; }
 
 
 protected:
@@ -293,9 +293,9 @@ private:
     //  button-row panel.
     //
     void          BeginDialogMode  (int defaultButtonId, bool modal);
-    void          WireDialogButtons ();
-    bool          RouteKeyToFocused (WPARAM vk, bool shift);
-    bool          TriggerButtonById (int commandId);
+    void          WireDialogButtons   ();
+    bool          RouteKeyToFocused   (WPARAM vk, bool shift);
+    bool          IsTriggerButtonById (int commandId);
     static DxuiButton *  FindButtonById   (IDxuiControl * node, int commandId);
     static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 

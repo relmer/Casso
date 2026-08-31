@@ -130,11 +130,24 @@ bool DxuiSlider::HitTest (int x, int y) const
 
     if (m_enabled)
     {
-        puckExtPx = m_scaler.Px (s_kPuckRadiusMaxDip);
-        isHit     = x >= (m_boundsDip.left  - puckExtPx) &&
+        puckExtPx = m_scaler.ToPx (s_kPuckRadiusMaxDip);
+
+        // The puck bulges past the bounds along the TRACK axis; the cross
+        // axis stays exact so neighbors are not shadowed.
+        if (m_vertical)
+        {
+            isHit = x >= m_boundsDip.left &&
+                    x <  m_boundsDip.right &&
+                    y >= (m_boundsDip.top    - puckExtPx) &&
+                    y <  (m_boundsDip.bottom + puckExtPx);
+        }
+        else
+        {
+            isHit = x >= (m_boundsDip.left  - puckExtPx) &&
                     x <  (m_boundsDip.right + puckExtPx) &&
                     y >= m_boundsDip.top &&
                     y <  m_boundsDip.bottom;
+        }
     }
 
     return isHit;
@@ -176,13 +189,49 @@ float DxuiSlider::ValueFromX (int x) const
     // puck draw position and the click-to-value mapping disagree and
     // a click on the puck snaps to a different value.
     bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
-    int    valueAreaPx  = showValue ? (m_scaler.Px (s_kValueWidthDip) + m_scaler.Px (s_kValueGapDip)) : 0;
+    int    valueAreaPx  = showValue ? (m_scaler.ToPx (s_kValueWidthDip) + m_scaler.ToPx (s_kValueGapDip)) : 0;
     int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.right - m_boundsDip.left) - valueAreaPx));
     float  t            = 0.0f;
 
 
 
     t = (float) (x - m_boundsDip.left) / (float) trackAvailPx;
+    t = Clamp (t, 0.0f, 1.0f);
+
+    return m_min + t * (m_max - m_min);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ValueFromY
+//
+//  The vertical counterpart: max at the TOP, so t runs from the bottom of
+//  the track upward. The value readout sits under the track in this
+//  orientation, so its reserved area comes off the bottom -- and as with
+//  ValueFromX, this must match the paint geometry exactly or a click on the
+//  puck snaps the value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiSlider::ValueFromY (int y) const
+{
+    constexpr int  s_kValueGapDip    = 6;
+    constexpr int  s_kValueHeightDip = 18;
+
+
+
+    bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
+    int    valueAreaPx  = showValue ? (m_scaler.ToPx (s_kValueHeightDip) + m_scaler.ToPx (s_kValueGapDip)) : 0;
+    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.bottom - m_boundsDip.top) - valueAreaPx));
+    float  t            = 0.0f;
+
+
+
+    t = (float) ((m_boundsDip.top + trackAvailPx) - y) / (float) trackAvailPx;
     t = Clamp (t, 0.0f, 1.0f);
 
     return m_min + t * (m_max - m_min);
@@ -241,7 +290,7 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
     {
         startedDrag = !m_dragging;
         m_dragging  = true;
-        ApplyValueWithStep (ValueFromX (x), DragStep());
+        ApplyValueWithStep (ValueFromPoint (x, y), DragStep());
 
         if (startedDrag && m_onDragStart)
         {
@@ -298,11 +347,9 @@ bool DxuiSlider::OnMouseMove (int x, int y)
 
 
 
-    UNREFERENCED_PARAMETER (y);
-
     if (isDragging)
     {
-        ApplyValueWithStep (ValueFromX (x), DragStep());
+        ApplyValueWithStep (ValueFromPoint (x, y), DragStep());
     }
 
     return isDragging;
@@ -414,8 +461,14 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 
 
+    if (m_vertical)
+    {
+        PaintVerticalInternal (painter, text, theme);
+        return;
+    }
+
     uint32_t  accentArgb     = theme.Accent();
-    uint32_t  s_kTrack       = DxuiColor::TintForContrast (theme.Background(), s_kInactiveTrackContrast);
+    uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
     uint32_t  s_kTick        = theme.ForegroundMuted();
     uint32_t  s_kPuckBody    = 0xFFFFFFFF;
     uint32_t  s_kPuckRing    = theme.Border();
@@ -440,12 +493,12 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
     HRESULT  hr            = S_OK;
     bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();
-    float    trackHeight   = m_scaler.Pxf (s_kTrackHeightDip);
-    float    tickHeight    = m_scaler.Pxf (s_kTickHeightDip);
-    float    tickGap       = m_scaler.Pxf (s_kTickGapDip);
-    float    valueGap      = m_scaler.Pxf (s_kValueGapDip);
-    float    valueFontDip  = m_scaler.Pxf (s_kValueFontDip);
-    float    valueWidth    = m_scaler.Pxf (s_kValueWidthDip);
+    float    trackHeight   = m_scaler.ToPxf (s_kTrackHeightDip);
+    float    tickHeight    = m_scaler.ToPxf (s_kTickHeightDip);
+    float    tickGap       = m_scaler.ToPxf (s_kTickGapDip);
+    float    valueGap      = m_scaler.ToPxf (s_kValueGapDip);
+    float    valueFontDip  = m_scaler.ToPxf (s_kValueFontDip);
+    float    valueWidth    = m_scaler.ToPxf (s_kValueWidthDip);
     float    valueAreaW    = showValue ? (valueWidth + valueGap) : 0.0f;
     float    rectW         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float    rectH         = (float) (m_boundsDip.bottom - m_boundsDip.top);
@@ -457,8 +510,8 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    fillLeft      = 0.0f;
     float    trackMid      = 0.0f;
     float    puckCx        = 0.0f;
-    float    puckR         = m_scaler.Pxf (s_kPuckRadiusDip);
-    uint32_t coreColor     = m_enabled ? DxuiColor::AccentForWhiteContrast (accentArgb, s_kPuckCoreRatio) : s_kPuckCoreDis;
+    float    puckR         = m_scaler.ToPxf (s_kPuckRadiusDip);
+    uint32_t coreColor     = m_enabled ? DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPuckCoreRatio) : s_kPuckCoreDis;
 
 
 
@@ -480,9 +533,9 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         fillWidth = std::fabs (puckCx - trackMid);
     }
 
-    if (m_focused)       { puckR = m_scaler.Pxf (s_kPuckRadiusFocDip); }
+    if (m_focused)       { puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip); }
     else if (m_hover ||
-             m_dragging) { puckR = m_scaler.Pxf (s_kPuckRadiusHovDip); }
+             m_dragging) { puckR = m_scaler.ToPxf (s_kPuckRadiusHovDip); }
 
     // Track (background + filled portion).
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
@@ -520,23 +573,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     {
         wchar_t  buf[32] = {};
 
-        if (m_formatter)
-        {
-            std::wstring  formatted = m_formatter (m_value);
-
-            wcsncpy_s (buf, formatted.c_str(), _TRUNCATE);
-        }
-        else if (m_decimalPlaces > 0)
-        {
-            wchar_t  fmt[16] = {};
-            swprintf_s (fmt, L"%%.%dlf%%ls", m_decimalPlaces);
-            swprintf_s (buf, fmt, (double) m_value, m_suffix.c_str());
-        }
-        else
-        {
-            int  pct = (int) std::round (m_value);
-            swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
-        }
+        FormatValue (buf);
 
         hr = text.DrawString (buf,
                               trackLeft + trackAvailW + valueGap,
@@ -558,6 +595,169 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatValue
+//
+//  One formatter for both orientations: custom formatter, fixed decimals, or
+//  integer + suffix -- exactly what the horizontal readout always printed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSlider::FormatValue (wchar_t (&buf)[32]) const
+{
+    if (m_formatter)
+    {
+        std::wstring  formatted = m_formatter (m_value);
+
+        wcsncpy_s (buf, formatted.c_str(), _TRUNCATE);
+    }
+    else if (m_decimalPlaces > 0)
+    {
+        wchar_t  fmt[16] = {};
+        swprintf_s (fmt, L"%%.%dlf%%ls", m_decimalPlaces);
+        swprintf_s (buf, fmt, (double) m_value, m_suffix.c_str());
+    }
+    else
+    {
+        int  pct = (int) std::round (m_value);
+        swprintf_s (buf, L"%d%ls", pct, m_suffix.c_str());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintVerticalInternal
+//
+//  The vertical body: track centered on the bounds' X, filled from the
+//  BOTTOM up to the puck (max at the top, the fader convention), ticks to
+//  the track's right, and the value readout centered UNDER the track --
+//  which is where a narrow flyout has room for it. Geometry mirrors
+//  ValueFromY exactly; the two disagreeing is the classic snapping bug.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    constexpr float  s_kInactiveTrackContrast = 1.6f;
+
+
+
+    uint32_t  accentArgb     = theme.Accent();
+    uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
+    uint32_t  s_kTick        = theme.ForegroundMuted();
+    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
+    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
+    uint32_t  s_kValueText   = theme.Foreground();
+
+    constexpr int              s_kTrackWidthDip    = 4;
+    constexpr int              s_kPuckRadiusDip    = 8;
+    constexpr int              s_kPuckRadiusHovDip = 10;
+    constexpr int              s_kPuckRadiusFocDip = 11;
+    constexpr float            s_kPuckCoreShare    = 0.45f;
+    constexpr float            s_kPuckCoreRatio    = 3.0f;
+    constexpr int              s_kTickWidthDip     = 4;
+    constexpr int              s_kTickGapDip       = 4;
+    constexpr int              s_kValueGapDip      = 6;
+    constexpr int              s_kValueHeightDip   = 18;
+    constexpr int              s_kValueFontDip     = 13;
+    constexpr const wchar_t  * s_kFont             = DxuiTheme::kBodyFace;
+
+    HRESULT   hr          = S_OK;
+    bool      showValue   = m_explicitShowValue ? m_showValue : !m_suffix.empty();
+    float     trackWidth  = m_scaler.ToPxf (s_kTrackWidthDip);
+    float     tickWidth   = m_scaler.ToPxf (s_kTickWidthDip);
+    float     tickGap     = m_scaler.ToPxf (s_kTickGapDip);
+    float     valueGap    = m_scaler.ToPxf (s_kValueGapDip);
+    float     valueFont   = m_scaler.ToPxf (s_kValueFontDip);
+    float     valueAreaH  = showValue ? (m_scaler.ToPxf (s_kValueHeightDip) + valueGap) : 0.0f;
+    float     rectH       = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float     trackTop    = (float) m_boundsDip.top;
+    float     trackAvailH = std::max (0.0f, rectH - valueAreaH);
+    float     centerX     = (float) m_boundsDip.left +
+                            (float) (m_boundsDip.right - m_boundsDip.left) * 0.5f;
+    float     t           = 0.0f;
+    float     puckCy      = 0.0f;
+    float     puckR       = m_scaler.ToPxf (s_kPuckRadiusDip);
+    float     tickStep    = 0.0f;
+    uint32_t  coreColor   = m_enabled ? DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPuckCoreRatio)
+                                      : s_kPuckCoreDis;
+
+
+
+    if (m_max - m_min > s_kEpsilon)
+    {
+        t = (m_value - m_min) / (m_max - m_min);
+    }
+
+    // Max at the top: the puck rides down as the value falls, and the fill
+    // spans puck to bottom.
+    puckCy = trackTop + trackAvailH * (1.0f - t);
+
+    if (m_focused)
+    {
+        puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip);
+    }
+    else if (m_hover || m_dragging)
+    {
+        puckR = m_scaler.ToPxf (s_kPuckRadiusHovDip);
+    }
+
+    painter.FillRect (centerX - trackWidth * 0.5f, trackTop,
+                      trackWidth, trackAvailH, s_kTrack);
+    painter.FillRect (centerX - trackWidth * 0.5f, puckCy,
+                      trackWidth, trackTop + trackAvailH - puckCy, accentArgb);
+
+    tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
+
+    if (m_showTicks && tickStep > s_kEpsilon && trackAvailH > 0.0f)
+    {
+        int    tickCount = (int) std::round ((m_max - m_min) / tickStep) + 1;
+        float  tickLeft  = centerX + trackWidth * 0.5f + tickGap;
+
+        for (int i = 0; i < tickCount; i++)
+        {
+            float  tickT  = (float) i / (float) (tickCount - 1);
+            float  tickCy = trackTop + trackAvailH * tickT;
+
+            painter.FillRect (tickLeft, tickCy - 0.5f, tickWidth, 1.0f, s_kTick);
+        }
+    }
+
+    painter.FillCircleApprox (centerX, puckCy, puckR,                    s_kPuckBody);
+    painter.FillCircleApprox (centerX, puckCy, puckR,                    s_kPuckRing);
+    painter.FillCircleApprox (centerX, puckCy, puckR - 1.0f,             s_kPuckBody);
+    painter.FillCircleApprox (centerX, puckCy, puckR * s_kPuckCoreShare, coreColor);
+
+    if (showValue)
+    {
+        wchar_t  buf[32] = {};
+
+        FormatValue (buf);
+
+        hr = text.DrawString (buf,
+                              (float) m_boundsDip.left,
+                              trackTop + trackAvailH + valueGap,
+                              (float) (m_boundsDip.right - m_boundsDip.left),
+                              m_scaler.ToPxf (s_kValueHeightDip),
+                              s_kValueText,
+                              valueFont,
+                              s_kFont,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiSlider::Layout  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -565,7 +765,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 void DxuiSlider::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 

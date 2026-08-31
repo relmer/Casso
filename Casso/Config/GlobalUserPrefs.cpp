@@ -38,7 +38,8 @@ static constexpr const char *  s_kpszCrtModeKeys[GlobalUserPrefs::kCrtModeCount]
 static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
-    "skeuoMonitorFrame",
+    "crtMonitor",
+    "sceneAntiAliasing",
     "lastSelectedMachine",
     "lastDiskCreateFolder",
     "audioDownloadConsent",
@@ -480,6 +481,7 @@ JsonValue GlobalUserPrefs::PlacementsToJson (const std::map<std::string, WindowB
         bounds.emplace_back ("y", JsonValue ((double) kv.second.y));
         bounds.emplace_back ("w", JsonValue ((double) kv.second.w));
         bounds.emplace_back ("h", JsonValue ((double) kv.second.h));
+        bounds.emplace_back ("max", JsonValue (kv.second.maximized));
         placementsObj.emplace_back (kv.first, JsonValue (std::move (bounds)));
     }
 
@@ -634,7 +636,8 @@ void GlobalUserPrefs::PlacementsFromJson (
         b.x = GetIntOpt (kv.second, "x", 0);
         b.y = GetIntOpt (kv.second, "y", 0);
         b.w = GetIntOpt (kv.second, "w", 0);
-        b.h = GetIntOpt (kv.second, "h", 0);
+        b.h         = GetIntOpt (kv.second, "h", 0);
+        b.maximized = TryGetBoolOpt (kv.second, "max", false);
         placements[kv.first] = b;
     }
 }
@@ -659,10 +662,10 @@ void GlobalUserPrefs::RecentDisksFromJson (
 
 
 
-    recentDisks.reserve (recentArr.ArraySize());
-    for (ri = 0; ri < recentArr.ArraySize(); ri++)
+    recentDisks.reserve (recentArr.GetArraySize());
+    for (ri = 0; ri < recentArr.GetArraySize(); ri++)
     {
-        const JsonValue   &  entry = recentArr.ArrayAt (ri);
+        const JsonValue   &  entry = recentArr.GetArrayElement (ri);
         // GetString is a plain accessor (empty for non-strings), so the
         // binding is safe before the type test.
         const std::string &  s     = entry.GetString();
@@ -703,10 +706,10 @@ void GlobalUserPrefs::RecentDiskTimesFromJson (
 
 
 
-    loadedAtUnix.reserve (loadedArr.ArraySize());
-    for (ti = 0; ti < loadedArr.ArraySize(); ti++)
+    loadedAtUnix.reserve (loadedArr.GetArraySize());
+    for (ti = 0; ti < loadedArr.GetArraySize(); ti++)
     {
-        const JsonValue &  entry = loadedArr.ArrayAt (ti);
+        const JsonValue &  entry = loadedArr.GetArrayElement (ti);
         std::int64_t       when  = 0;
 
         if (entry.GetType() == JsonType::Number)
@@ -724,11 +727,11 @@ void GlobalUserPrefs::RecentDiskTimesFromJson (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::FilePath
+//  GlobalUserPrefs::GetFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
+std::wstring GlobalUserPrefs::GetFilePath (const std::wstring & baseDir)
 {
     std::wstring  result = baseDir;
 
@@ -785,7 +788,7 @@ HRESULT GlobalUserPrefs::Load (
     IFileSystem         & fs)
 {
     HRESULT          hr      = S_OK;
-    std::wstring     path    = FilePath (baseDir);
+    std::wstring     path    = GetFilePath (baseDir);
     std::string      text;
     JsonValue        root;
     JsonParseError   err;
@@ -844,7 +847,7 @@ HRESULT GlobalUserPrefs::Save (
     IFileSystem         & fs) const
 {
     HRESULT              hr               = S_OK;
-    std::wstring         path             = FilePath (baseDir);
+    std::wstring         path             = GetFilePath (baseDir);
     std::string          text;
     std::string          existingText;
     JsonValue            existing;
@@ -939,7 +942,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back (s_kpszVersionKey, JsonValue ((double) version));
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
-    root.emplace_back ("skeuoMonitorFrame",    JsonValue (skeuoMonitorFrame));
+    root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
+    root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
@@ -965,6 +969,19 @@ JsonValue GlobalUserPrefs::ToJson() const
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
+
+    // monitorTilt: radians by monitor name. Written only for monitors the
+    // user has actually moved, so an untouched install carries none.
+    {
+        JsonObject  tiltObj;
+
+        for (const auto & kv : monitorTilt)
+        {
+            tiltObj.emplace_back (kv.first, JsonValue ((double) kv.second));
+        }
+
+        root.emplace_back ("monitorTilt", JsonValue (std::move (tiltObj)));
+    }
 
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
@@ -1059,7 +1076,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
-    skeuoMonitorFrame    = TryGetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
+    crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
+
+    // Samples, not a quality index: 1, 2 or 4 only. Anything else is a
+    // hand-edited file or a value from a build that knows more counts than
+    // this one, and rounding DOWN to a supported count is the safe direction
+    // -- it can only ever cost less than what was asked for.
+    {
+        int  aa = GetIntOpt (v, "sceneAntiAliasing", sceneAntiAliasing);
+
+        sceneAntiAliasing = (aa >= 4) ? 4 : ((aa >= 2) ? 2 : 1);
+    }
+
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     lastDiskCreateFolder = GetStringOpt (v, "lastDiskCreateFolder",   lastDiskCreateFolder);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
@@ -1117,6 +1145,23 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             if (crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
             {
                 CrtModeFromJson (*modeObj, crtByMode[i]);
+            }
+        }
+    }
+
+    {
+        const JsonValue *  tiltObj = nullptr;
+
+        if (v.HasObject ("monitorTilt", tiltObj) && tiltObj != nullptr)
+        {
+            monitorTilt.clear();
+
+            for (const auto & kv : tiltObj->GetObjectEntries())
+            {
+                if (kv.second.GetType() == JsonType::Number)
+                {
+                    monitorTilt[kv.first] = (float) kv.second.GetNumber();
+                }
             }
         }
     }

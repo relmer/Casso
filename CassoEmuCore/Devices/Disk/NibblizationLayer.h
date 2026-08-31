@@ -99,6 +99,14 @@ public:
     static constexpr Byte   kDefaultVolume     = 254;
     static constexpr size_t kTrackBitCapacity  = 6400 * 8;
 
+    //  The marks that begin a field. Public because finding a real gap means
+    //  finding what FOLLOWS one, and a second copy of these bytes elsewhere is
+    //  a second answer waiting to disagree with the encoder's.
+    static constexpr Byte   kProlog0           = 0xD5;
+    static constexpr Byte   kProlog1           = 0xAA;
+    static constexpr Byte   kAddressProlog2    = 0x96;
+    static constexpr Byte   kDataProlog2       = 0xAD;
+
     static HRESULT  Nibblize    (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out);
     static HRESULT  NibblizeDsk (const vector<Byte> & raw, DiskImage & out);
     static HRESULT  NibblizeDo  (const vector<Byte> & raw, DiskImage & out);
@@ -157,6 +165,12 @@ public:
                                       std::span<const int>    tracks,
                                       DiskImage             & inOutImage);
 
+    //  One nibble read off a track: shift bits until the high bit sets, which
+    //  is the sequencer's own rule for a complete nibble. Advances bitPos;
+    //  returns 0 when a whole revolution carries none. Shared with the nibble
+    //  image codec so both agree where a nibble ends.
+    static Byte     ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos);
+
     //  Where DOS logical sector L sits within a ProDOS-ordered file's track.
     //
     //  COMPOSED from the two interleave tables above rather than restated. Both
@@ -164,7 +178,7 @@ public:
     //  indexed by logical sector is how a file reorder comes to disagree with
     //  the layout the drive would actually see -- an image that reads back
     //  perfectly through the same wrong table and is garbage on real hardware.
-    static int      PoFileIndexForDosLogicalSector (int logicalSector);
+    static int      GetPoFileIndexForDosLogicalSector (int logicalSector);
 
     //  Which sector of a DOS-ordered buffer the drive presents at physical
     //  position P -- equivalently, which one answers to the address field
@@ -183,7 +197,7 @@ public:
     //  sector commands routed their numbers through -- the twin's name
     //  claimed the inverse of what the shared table does, and following the
     //  name put user bytes on the wrong sector. The twin is gone.
-    static int      DosFileIndexForPhysicalSector (int physicalSector);
+    static int      GetDosFileIndexForPhysicalSector (int physicalSector);
 
 private:
     //  The walk shared by every entry point above. keepRecovered decides what

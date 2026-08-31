@@ -316,7 +316,7 @@ std::span<const MerlinDirectiveTable::Spelling> MerlinDirectiveTable::GetAllSpel
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MerlinDirectiveTable::EncodingModeForSpelling
+//  MerlinDirectiveTable::GetEncodingModeForSpelling
 //
 //  Which of the six encodings a string spelling selects.
 //
@@ -327,7 +327,7 @@ std::span<const MerlinDirectiveTable::Spelling> MerlinDirectiveTable::GetAllSpel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-StringEncodingMode MerlinDirectiveTable::EncodingModeForSpelling (const std::string & spelling)
+StringEncodingMode MerlinDirectiveTable::GetEncodingModeForSpelling (const std::string & spelling)
 {
     struct ModeRow
     {
@@ -1286,7 +1286,7 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     // dialect-independent and belongs to StringEncoding.
     if (result.directiveToken == Directive::StringData)
     {
-        result.stringMode = MerlinDirectiveTable::EncodingModeForSpelling (Parser::ToUpper (result.mnemonic));
+        result.stringMode = MerlinDirectiveTable::GetEncodingModeForSpelling (Parser::ToUpper (result.mnemonic));
     }
 
     // Everything from here is the comment field, and is discarded: nothing

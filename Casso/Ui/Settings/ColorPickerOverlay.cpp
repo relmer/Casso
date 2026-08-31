@@ -120,18 +120,18 @@ void ColorPickerOverlay::Open (uint32_t initialArgb)
 
 void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & scaler)
 {
-    int   dialogW   = scaler.Px (s_kDialogWidthDp);
-    int   dialogH   = scaler.Px (s_kDialogHeightDp);
-    int   pad       = scaler.Px (s_kPadDp);
-    int   rowH      = scaler.Px (s_kRowHeightDp);
-    int   rowGap    = scaler.Px (s_kRowGapDp);
-    int   labelW    = scaler.Px (s_kLabelWidthDp);
-    int   sliderW   = scaler.Px (s_kSliderWidthDp);
-    int   hexW      = scaler.Px (s_kHexWidthDp);
-    int   previewW  = scaler.Px (s_kPreviewWidthDp);
-    int   btnW      = scaler.Px (s_kButtonWidthDp);
-    int   btnGap    = scaler.Px (s_kButtonGapDp);
-    int   copyGap   = scaler.Px (s_kCopyGapDp);
+    int   dialogW   = scaler.ToPx (s_kDialogWidthDp);
+    int   dialogH   = scaler.ToPx (s_kDialogHeightDp);
+    int   pad       = scaler.ToPx (s_kPadDp);
+    int   rowH      = scaler.ToPx (s_kRowHeightDp);
+    int   rowGap    = scaler.ToPx (s_kRowGapDp);
+    int   labelW    = scaler.ToPx (s_kLabelWidthDp);
+    int   sliderW   = scaler.ToPx (s_kSliderWidthDp);
+    int   hexW      = scaler.ToPx (s_kHexWidthDp);
+    int   previewW  = scaler.ToPx (s_kPreviewWidthDp);
+    int   btnW      = scaler.ToPx (s_kButtonWidthDp);
+    int   btnGap    = scaler.ToPx (s_kButtonGapDp);
+    int   copyGap   = scaler.ToPx (s_kCopyGapDp);
     int   left      = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / s_kHalfDivisor;
     int   top       = panelRect.top  + (panelRect.bottom - panelRect.top  - dialogH) / s_kHalfDivisor;
     int   x         = left + pad;
@@ -139,7 +139,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     int   controlsX = x + labelW;
     int   by        = top + dialogH - pad - rowH;
     int   bx        = left + dialogW - pad - btnW;
-    UINT  dpi       = scaler.Dpi();
+    UINT  dpi       = scaler.GetDpi();
 
 
 
@@ -154,7 +154,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_title.SetTextRole (DxuiTextRole::Heading);
     y += rowH + rowGap;
 
-    m_previewRect = MakeRect (controlsX + sliderW + scaler.Px (s_kPreviewGapDp), y, previewW, rowH * s_kSliderRowCount + rowGap * s_kSliderGapCount);
+    m_previewRect = MakeRect (controlsX + sliderW + scaler.ToPx (s_kPreviewGapDp), y, previewW, rowH * s_kSliderRowCount + rowGap * s_kSliderGapCount);
 
     m_hueLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_hueLabel.SetText (L"Hue");
@@ -288,7 +288,7 @@ void ColorPickerOverlay::SyncFromHex()
 
     BAIL_OUT_IF (m_syncing, S_OK);
 
-    ok = ColorUtil::TryParseHexColor (m_hex.Text(), parsed);
+    ok = ColorUtil::TryParseHexColor (m_hex.GetText(), parsed);
     BAIL_OUT_IF (!ok, S_OK);
 
     m_syncing = true;
@@ -545,7 +545,7 @@ void ColorPickerOverlay::OnLButtonDown (int x, int y)
     }
     else if (CopyHit (x, y))
     {
-        CopyTextToClipboard (m_hex.Text());
+        CopyTextToClipboard (m_hex.GetText());
         m_copyFlashMs = (int64_t) GetTickCount64();
     }
 }
@@ -713,7 +713,7 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
 void ColorPickerOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT  hr       = S_OK;
-    float    borderPx = m_scaler.Pxf (s_kBorderDip);
+    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
     float    dl       = (float) m_dialogRect.left;
     float    dt       = (float) m_dialogRect.top;
     float    dw       = (float) (m_dialogRect.right  - m_dialogRect.left);
@@ -777,7 +777,7 @@ void ColorPickerOverlay::PaintCopyIcon (
     float            ct        = (float) m_copyRect.top;
     float            cw        = (float) (m_copyRect.right  - m_copyRect.left);
     float            ch        = (float) (m_copyRect.bottom - m_copyRect.top);
-    float            glyphDip  = m_scaler.Pxf (s_kCopyGlyphDip);
+    float            glyphDip  = m_scaler.ToPxf (s_kCopyGlyphDip);
     const wchar_t  * glyph     = nullptr;
     uint32_t         glyphArgb = 0;
     bool             flashing  = (m_copyFlashMs != 0) &&

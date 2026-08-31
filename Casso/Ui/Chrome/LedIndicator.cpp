@@ -96,7 +96,7 @@ void LedIndicator::PositionAt (int x, int y, UINT dpi)
 
 void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    PositionAt (boundsDip.left, boundsDip.top, scaler.Dpi());
+    PositionAt (boundsDip.left, boundsDip.top, scaler.GetDpi());
 }
 
 
@@ -105,11 +105,11 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CoreArgb
+//  GetCoreArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
+uint32_t LedIndicator::GetCoreArgb (const CassoTheme & theme) const
 {
     uint32_t  argb = theme.ledIdle;
 
@@ -127,11 +127,11 @@ uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HaloArgb
+//  GetHaloArgb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
+uint32_t LedIndicator::GetHaloArgb (const CassoTheme & theme) const
 {
     // Only an active LED glows; 0 is fully transparent, so the halo pass
     // draws nothing in the other states.
@@ -161,7 +161,7 @@ void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 
-    halo = HaloArgb (theme);
+    halo = GetHaloArgb (theme);
     cx = (float) (m_layout.coreRect.left + m_layout.coreRect.right) * 0.5f;
     cy = (float) (m_layout.coreRect.top  + m_layout.coreRect.bottom) * 0.5f;
     coreR = (float) (m_layout.coreRect.right - m_layout.coreRect.left) * 0.5f;
@@ -174,7 +174,7 @@ void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, 
         painter.FillCircleApprox (cx, cy, haloR, halo);
     }
 
-    painter.FillCircleApprox (cx, cy, coreR, CoreArgb (theme));
+    painter.FillCircleApprox (cx, cy, coreR, GetCoreArgb (theme));
 }
 
 

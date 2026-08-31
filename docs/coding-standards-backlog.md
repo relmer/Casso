@@ -28,6 +28,32 @@ it only stops *new* violations.
 | `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 0 |
 | `CS0016` | a declaration block is followed by exactly 3 blank lines | 0 |
 
+**`CS0001` checks one spelling, and that is correct, not a gap.** The pattern
+is `'\w \(\)'` -- a single space. Two or more never matches it. First-party
+`.cpp` has 0 sites with one space and 83 with two or more, across 24 files, so
+widening the pattern to `'\w +\(\)'` would appear to surface an 83-site
+backlog.
+
+It would not. Those 83 are **column alignment, which the standards require**:
+
+    Assert::IsFalse (f.mmu.GetAltZp     ());
+    prng.Fill (m_ramAuxHigh.data   (), m_ramAuxHigh.size   ());
+    DxuiMessageResult  OnPaint          () override
+
+`copilot-instructions.md` says NEVER break existing column alignment, and a
+run of padded empty parens is that rule being obeyed. The single space CS0001
+forbids is the accidental `fn ()` typo; a padded run is deliberate. Widening
+the pattern would arm the gate against the standard it serves. **Do not widen
+it.**
+
+Two things this leaves true and worth stating so nobody re-derives them. The
+`*External/*` exclusion (CheckStyle.ps1, in the file enumeration for every
+mode) is deliberate: the four one-space sites in `StbVorbisWrapper.cpp` are
+vendored stb_vorbis and correctly out of scope. And `-Mode Tree` is not
+diff-scoped -- it reports OK over all 1,146 tracked files -- so the zero is a
+real zero for what the rule means, not an artifact of the hook only reading
+the diff.
+
 `CS0011` now covers `SUCCEEDED` / `FAILED` / `IGNORE_RETURN_VALUE` as well as
 the `CHR`/`CBR`/`CWR`/`CPR` families, 246 sites, production and tests, all
 converted. Two notes on how it got there:
@@ -770,6 +796,21 @@ converted.
 A function may return `bool` only when its name makes `true`/`false` obvious:
 `IsXxx`, `HasXxx`, `TryXxx`, `CanXxx`, and similar.
 
+**A past-tense verb with the subject elided counts as "and similar."**
+`SawCycle()`, `HitBound()`, `ExceededLength()` on `ChainWalkGuard` each read as
+a question with a true/false answer -- did the walk see a cycle, hit a bound,
+run past the length -- so they satisfy this rule as they stand. They were
+briefly renamed to `HasSeenCycle` / `HasHitBound` / `HasExceededLength` during
+item 6 and put back. The prefix list is examples, not an allowlist; what the
+rule requires is a name that poses a yes/no question, and a past-tense verb
+does that.
+
+That is narrower than it sounds. Of the 38 bool queries item 6 renamed, those
+three were the only verb-first names. The rest are noun-first (`CapReached`,
+`SpanMoved`, `SegmentSelected`, `ResetQueued`, `RxIrqEnabled`) or a bare
+adjective (`Idle`, `Moving`, `Running`, `Empty`), and none of those poses a
+question on its own.
+
 Survey of bool-returning declarations in headers:
 
 | Prefix | Count |
@@ -788,3 +829,233 @@ versus artifacts of a crude regex (operators, `operator bool`, lambdas).
 
 **Applies now, not just at cleanup time:** anything converted to `bool` during
 items 1-4 must be named accordingly.
+
+**The `Has`/`Is`/`Did` half of this is done**, folded into item 6 rather than
+renamed twice: a name like `CapReached` is both a bool-return violation and a
+VerbNoun violation, and they have one fix. 38 renames, listed there.
+
+### 6. Function names are VerbNoun, mostly done
+
+A function name must begin with a verb. `GetPrimaryExtension`, not `ExtensionFor`;
+`HasReachedCap`, not `CapReached`. A noun-first name reads as a value rather
+than an action. `OnXxx` handlers are the standing exception. A *verb*-first name
+is fine whatever its tense: `SawCycle` is already VerbNoun, and item 5 accepts
+it as a bool query too.
+
+Approved prefixes, from what the tree already uses: `Get` / `Set` for lookups
+and accessors, `Is` / `Has` / `Are` / `Can` / `Should` / `Does` / `Did` for bool
+queries (item 5's rule, same fix), `Try` for fallible attempts, and any plain
+imperative verb otherwise.
+
+**279 renames landed** across `CassoEmuCore`, `CassoCore`, `Casso` and
+`CassoCli` (268 distinct names; 11 of them declared by sibling classes and
+renamed together). 261 files, 2,092 lines. By target prefix: 226 `Get`, 23
+`Is`, 7 `Has`, 5 `Are`, 4 `Make`, and 14 other verbs.
+
+Three sub-cases wanted different treatment, so classify before renaming:
+
+| Shape | Example | Becomes |
+|---|---|---|
+| lookup or accessor | `ExtensionFor`, `TrackOf`, `CellAt` | `Get...` |
+| noun-first bool query | `CapReached`, `EverTouched`, `SpanMoved` | `HasReachedCap`, `HasBeenTouched`, `HasSpanMoved` |
+| named constructor | `CassoTheme::Skeuomorphic` | `MakeSkeuomorphic` |
+
+The third row is the one worth arguing about. `Skeuomorphic()` is the standard
+C++ named-constructor idiom and `GetSkeuomorphic()` would be worse, so the idiom
+keeps its shape and the rule still gets a verb. The verb is `Make` rather than
+`Create` on the tree's own evidence:
+
+| | Returns | Examples |
+|---|---|---|
+| `Make...` | a plain value, by value, and cannot fail | `RECT MakeRect` (six of them), `CrtParams MakeCrtParams`, `Disk2Event MakeStampedEvent`, `wstring MakeExeRelativePath` |
+| `Create...` | an owned resource: an `HRESULT`, a `unique_ptr`, a raw owning handle, or owned state mutated in place | `CreateEmulatorWindow`, `CreateCpu`, `CreateShaders`, `CreateFactory`, `CreateFromFile`, `CreateSpeech`, `CreateChild`, `CreateDcFromDevNames` |
+
+Every `Create` in the tree has a failure path, hands back something the caller
+must release, or mutates owned state. Every `Make` hands back a value. The one
+wobble is `CreateInstructionSetProvider`, which returns by value. `CassoTheme`
+is a palette struct returned by value with no failure path, and its call sites
+are plain initializers (`CassoTheme m_chromeTheme = CassoTheme::MakeSkeuomorphic();`),
+so it sits on the `Make` side. The distinction was never written down; it is
+now, because the next person to add a factory has to pick one.
+
+**A leading-word verb allowlist is not enough to find the set, and that is the
+main lesson here.** The first survey classified a name by its first CamelCase
+word against a hand-written list of verbs. That list has to contain `Reveal`,
+`Sweep`, `Format`, `Render`, `Plan`, `Snapshot` to suppress false positives, and
+the moment it does it also suppresses `RevealTop`, `SweepLtr`, `RevealBandTop`
+and `FreeSpace`, which are accessors. Words are verbs *or* nouns depending on
+the name they start.
+
+What finds those is the declaration's **shape** rather than its first word: a
+`const` member function returning a value is an accessor, whatever it is called.
+Run both derivations and take the union. The shape pass flagged 144 const
+accessors and turned up eleven the word pass had hidden, `RevealTop` and
+`SweepLtr` among them. Run it again after the sweep: what is left standing is
+the deferred list below and nothing else, which is what makes the sweep
+finished rather than abandoned.
+
+Numbers to expect if this is re-run: 3,295 member function declarations in the
+four directories, 345 candidates from the word pass, 144 from the shape pass.
+Neither figure is the answer on its own; both need reading.
+
+**Exempt, decided rather than overlooked:**
+
+| Category | Examples |
+|---|---|
+| `OnXxx` handlers | `OnAddressMark`, `OnActivateApp` |
+| `XToY` / `XFromY` conversions | `ArgbToHsv`, `CrtModeFromJson`, `HrFromSpoolResult` |
+| CPU instruction methods | `And`, `Or`, `Xor`, `NoOperation`, `RotateLeft` |
+| printer control operations | `FormFeed` -- the operation's own name, same argument as the CPU ops |
+| platform and library conventions | `ThreadProc`, `CliMain`, `Instance`, `Stat`, `Next64` |
+| matrix helpers mirroring DirectXMath | `Mul44`, `PerspectiveFovRH`, `IdentityMvp`, `LookAtRH` |
+| EHM framework hooks | `EhmBreakpoint`, `EhmNotifyUser` |
+
+**A rename can reach further than the function.** `Cpu::TracePeek` became
+`PeekForTrace`, and `using Cpu::TracePeek;` in a test probe has no parentheses,
+so a call-shaped pass skips it and the probe silently loses access to a
+protected member. The build catches that one. Its probe class and test method
+were named for the function and moved with it.
+
+**Two renames the compiler chose for us.** `PrinterByteRing::FreeSpace` could
+not become `GetFreeSpace`: that is a Win16 leftover still declared by
+`winbase.h`, and the collision is a syntax error at the declaration, not a
+link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
+`AppleKeyboard::InputSink` had to be renamed with the call site in
+`UnitTest/Dxui/` excluded by name.
+
+**Still outstanding, and why:**
+
+* ~~**Anything `Dxui` also declares.**~~ DONE. `Bounds`, `Label`, `Text`,
+  `PreferredHeightDip`, `RectContains` and `CursorForPoint` moved on both sides
+  together in the Dxui sweep below.
+* **The seven files branch `027-nibble-images` is holding.** `MountDiagnosis`,
+  `BlankDiskBuilder`, `DiskCommandRunner`, `VolumeImage`, `DiskImage`,
+  `DiskImageStore` and `NibblizationLayer` were not touched, call sites
+  included. That defers `ExtensionFor` (027 renames it to `GetPrimaryExtension`
+  itself), `SectorRecordOffset`, `WithPrefix`, `Dos33TypeLetter`, `Session`,
+  `At`, `MountedSourcePaths`, `ChangedTracks`, and four more whose declarations
+  are elsewhere but whose callers are not: `ProDosSkeleton::BlockByteOffset`,
+  `Dos33Skeleton::SectorOffset`, `StockBootDisks::PathFor` / `FileNameFor`, and
+  `DiskCommandResult::Failure`.
+* **Master added five more while this branch was open**, all reachable only
+  through those same held files: `BlankDiskBuilder::WritableContainers` and
+  `ContainersFor`, `DiskCommandRunner::AdvertisedContainers` and
+  `ContainerWordList`, and `CountedNoun::Of`, whose 39 call sites include 20 in
+  `DiskCommandRunner.cpp`. `ContainersFor` is worth noting: 027's own plan
+  already names it as unacceptable, so 027 fixes it either way. `CountedNoun::Of`
+  is the only one with a real question attached -- `CountedNoun::Of (5, "sector")`
+  is a deliberate fluent reading, and `Format` is the verb if the rule wins.
+* **`NibblizationLayer`'s two index mappers**, `PoFileIndexForDosLogicalSector`
+  and `DosFileIndexForPhysicalSector`, are in that set. Whoever renames them:
+  the comment blocks above them record which direction each maps and why a
+  hand-written inverse table was dangerous. That is the reason those functions
+  exist. Move the prose intact; do not summarize it.
+
+**Proof that a rename sweep changed nothing else.** Line counts are identical in
+all 261 files, and every changed line was checked token by token: 2,059 tokens
+differ and every one of them is a pair in the rename table. Anything else --
+a reordered argument, a dropped `const`, a mangled format string -- fails that
+check. Worth doing, because three classes of damage do compile:
+
+* A rename inside a **string literal**. `L"User" + L"Prefs" + L".json"` builds a
+  filename; `GetPrefs` there renames the file.
+* A rename inside **prose**. "Settings > Hardware (slots[].enabled=false)" is
+  not a call, and `Hardware (` matches a call pattern anyway.
+* A rename of a **type** that shares a name with a method. `MachineInfo` and
+  `FilePath` are types in `CassoEmuCore`; `HardwareEntryKind::Slot` is an enum
+  value. All three were hit by a first cut and caught by reading the diff.
+
+The fix for the first two is to leave comments and string literals out of the
+mechanical pass and revisit them deliberately. 231 of the 2,092 changed lines
+are comments: 145 are function banners (CS0014 names the function, so a rename
+that skips the banner leaves the gate lying) and the other 86 are qualified
+references like `PrinterEngine::Job()` and plain prose, each one read before it
+was changed. The prose is where the judgment is. "the monitor's SceneScale"
+names a quantity and stays; "(PaperHit compares them directly)" names a function
+and moves.
+
+
+### 7. Dxui, same rule, one exemption
+
+249 renames across Dxui and its consumers, plus three done by hand because one
+name had two meanings. 155 files: 78 Dxui, 40 Casso, 37 UnitTest.
+
+The shape of the problem was visible before a single name was read: **246
+`SetXxx` against 35 `GetXxx`.** The setters had verbs and the getters were
+nouns, so `SetText` / `Text` is now `SetText` / `GetText` and `root->Visible()`
+is `root->IsVisible()`.
+
+**The theme colors are exempt, by owner decision.** `IDxuiTheme` and its
+implementations keep `Background()`, `ButtonIdle()`, `TooltipBackground()` and
+91 others. A theme is a bag of named colors and `theme.ButtonIdle()` reads as
+the property it is; prefixing 94 names would thicken every paint method in the
+framework to buy nothing. The better fix, if one is ever wanted, is at the call
+site rather than the declaration: rename the object to `themeColor`, so the
+qualifier carries the meaning. Parked, not merely allowed. `DxuiColor` is NOT part of the exemption:
+it is color math, so `RelativeLuminance` became `ComputeRelativeLuminance`.
+
+**Three names needed a class scope the by-name pass cannot express.**
+`DxuiFocusManager::Focused` returns the focused control while every widget's
+`Focused` returns a bool, so it became `GetFocusedControl` first and the rest
+became `IsFocused` after. `UiShell::Text` returns a text *renderer*, not text,
+so it is `GetTextRenderer` while the widgets' `Text` is `GetText`; its
+neighbour `HitTest` had the same bug and is `GetHitTester`.
+
+**A rename can collide with the platform, and the second time is not a
+coincidence.** `Maximized` -> `IsMaximized` compiled into nonsense because
+`IsMaximized` is a *function-like macro* in `shared/windowsx.h` (line 133 of
+the 10.0.26100.0 SDK) that expands to `IsZoomed(hwnd)`: the declaration `bool IsMaximized () const` preprocessed to
+`bool IsZoomed ()`, which then shadowed the real Win32 `IsZoomed` at a call
+site 340 lines away, and the error named a function that appears nowhere in the
+source. It is `IsWindowMaximized`. The previous sweep lost the same afternoon
+to `GetFreeSpace` in `winbase.h`.
+
+So check the whole target set against the SDK before applying, not after:
+
+```
+grep -rhoE '^\s*#\s*define\s+[A-Za-z_]\w*' "$SDK/um" "$SDK/shared" |
+    awk '{print $NF}' | sort -u > sdkdefs.txt
+```
+
+then intersect with the proposed names. Scan `ucrt/` as well as `um/` and
+`shared/`. Do it in Python, not `comm` -- `comm` needs both files in the same
+collation and silently reports nothing when they disagree. Of 146 new names,
+exactly one collided. Validate the scan by checking it reproduces the two
+known collisions (`IsMaximized`, `GetFreeSpace`) rather than trusting a green
+result.
+
+**Two real duplications fell out.** `DxuiHwndSource` had a public
+`GetBackBufferRtv()` and a private `BackBufferRtv()` override returning the
+identical expression; `DxuiListView` had a public `GetRowCount()` forwarding to
+a private `RowCount()`. Renaming collapsed each pair onto one name, which is
+the only reason anyone noticed. Both are single methods now. A sweep that
+normalizes names finds duplicates for free, because duplicates are usually two
+spellings of one idea.
+
+**What the by-name pass still cannot see**, both of which the compiler caught:
+a paren-less `using DxuiMenuBar::FocusedMenu;`, and `return DefWindowProc (...)`
+inside an inline body, which the declaration scanner read as a *declaration* of
+a method named `DefWindowProc` and duly renamed at every call site. Skip any
+candidate whose line begins with `return`.
+
+**A rename moves the opening paren, and continuation lines aligned to it go
+crooked -- invisibly.** The compiler does not care, the tests do not care, and
+the realigner in this sweep only handled *declaration* blocks, where sibling
+declarations share a `(` column. It did nothing for *call sites* whose
+arguments hang under the paren of the renamed function itself. 21 such sites
+survived both sweeps and were found only after the 027 session hit the same
+thing and reported it.
+
+The check: for every renamed call whose parenthesis does not close on its own
+line, compare the following lines' indent against the paren column. A
+continuation sitting at exactly `parenColumn - (len(new) - len(old))` is
+sitting where the paren used to be, which is proof rather than suspicion.
+Hanging indents are the false positive to discard -- they indent relative to
+the statement, so a rename never moves them.
+
+**Scope the comment pass the same way as the code pass.** It was not, and it
+rewrote three comments it had no business touching: an enum value
+(`SymbolKind::Label`), a prose mention of the Shift key, and -- worst -- the
+function banner over `StockBootDisks::PathFor`, whose code the `PathFor`
+scoping had correctly left alone for branch `027-nibble-images`. A comment pass
+that ignores the scoping quietly undoes it.

@@ -20,7 +20,7 @@
 
 void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi     = scaler.Dpi();
+    UINT   dpi     = scaler.GetDpi();
     UINT   eDpi    = (dpi == 0) ? 96u : dpi;
     int    icon    = MulDiv (kIconDp,    (int) eDpi, 96);
     int    pad     = MulDiv (kPadDp,     (int) eDpi, 96);
@@ -31,7 +31,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int    segGap  = MulDiv (kSegGapDp,  (int) eDpi, 96);
     int    gGap    = MulDiv (kGroupGapDp,(int) eDpi, 96);
     float  fontPx  = kFontDip * (float) eDpi / 96.0f;
-    int    n       = SegmentCount();
+    int    n       = GetSegmentCount();
     int    h       = icon + pad * 2;
     int    segW[3] = {};
     int    txtW[3] = {};
@@ -51,13 +51,13 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
         if (m_textRenderer != nullptr)
         {
-            HRESULT  hrM = m_textRenderer->MeasureString (SegmentLabel (i), fontPx, kFontFamily, tw, th);
+            HRESULT  hrM = m_textRenderer->MeasureString (GetSegmentLabel (i), fontPx, kFontFamily, tw, th);
             if (FAILED (hrM)) { tw = 0.0f; }
         }
 
         if (tw <= 0.0f)
         {
-            tw = (float) wcslen (SegmentLabel (i)) * kFallbackCharPx * (float) eDpi / 96.0f;
+            tw = (float) wcslen (GetSegmentLabel (i)) * kFallbackCharPx * (float) eDpi / 96.0f;
         }
 
         // Paddle carries a smaller "ESC to exit" hint line when active. Reserve
@@ -145,7 +145,7 @@ bool InputDeviceSelector::HitTest (int x, int y) const
 }
 
 
-InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
+InputDeviceSelector::Segment InputDeviceSelector::GetSegmentAt (int x, int y) const
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
 
@@ -155,7 +155,7 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
     int      i   = 0;
 
     // Segments do not overlap, so the first containing rect is the answer.
-    for (i = 0; hit == Segment::None && i < SegmentCount(); i++)
+    for (i = 0; hit == Segment::None && i < GetSegmentCount(); i++)
     {
         const RECT & r = m_segRects[i];
 
@@ -174,11 +174,11 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SegmentSelected
+//  IsSegmentSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InputDeviceSelector::SegmentSelected (int index) const
+bool InputDeviceSelector::IsSegmentSelected (int index) const
 {
     // The joystick segment is an independent toggle; paddle and mouse are
     // two states of the one pointer mode, so at most one of them lights.
@@ -203,11 +203,11 @@ bool InputDeviceSelector::SegmentSelected (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SegmentLabel
+//  GetSegmentLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
+const wchar_t * InputDeviceSelector::GetSegmentLabel (int index) const
 {
     return kLabels[(index >= 0 && index < 3) ? index : 0];
 }
@@ -218,14 +218,14 @@ const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipText
+//  GetTooltipText
 //
 //  What the control is doing right now, for a hover that is not over any
 //  one segment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * InputDeviceSelector::TooltipText() const
+const wchar_t * InputDeviceSelector::GetTooltipText() const
 {
     // Pointer mode outranks the joystick toggle: it is the more specific
     // thing the control is currently doing.
@@ -246,20 +246,20 @@ const wchar_t * InputDeviceSelector::TooltipText() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipTextAt
+//  GetTooltipTextAt
 //
-//  What clicking THIS point would do, falling back to TooltipText() for a
+//  What clicking THIS point would do, falling back to GetTooltipText() for a
 //  hover between segments.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
+const wchar_t * InputDeviceSelector::GetTooltipTextAt (int x, int y) const
 {
-    const wchar_t *  tip = TooltipText();
+    const wchar_t *  tip = GetTooltipText();
 
 
 
-    switch (SegmentAt (x, y))
+    switch (GetSegmentAt (x, y))
     {
         case Segment::Joystick: tip = kTipJoystickSeg; break;
         case Segment::Paddle:   tip = kTipPaddleSeg;   break;
@@ -301,10 +301,10 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     fontPx = kFontDip * (float) m_dpi / 96.0f;
     ledR = 4.0f * (float) m_dpi / 96.0f;
 
-    for (int i = 0; i < SegmentCount(); i++)
+    for (int i = 0; i < GetSegmentCount(); i++)
     {
         const RECT  & r   = m_segRects[i];
-        bool          sel = SegmentSelected (i);
+        bool          sel = IsSegmentSelected (i);
         float         tx  = 0.0f;
         float         ty  = 0.0f;
         float         tw  = 0.0f;
@@ -361,7 +361,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             // Active paddle: stack "Paddle mode" over a muted "ESC to exit"
             // hint around the band midline. Neither line has descenders, so
             // the split abuts cleanly.
-            HRESULT  hrL = text.DrawString (SegmentLabel (i), tx, ty, tw, bh * 0.52f,
+            HRESULT  hrL = text.DrawString (GetSegmentLabel (i), tx, ty, tw, bh * 0.52f,
                                             theme.ButtonText(), fontPx, kFontFamily,
                                             DxuiTextRenderer::HAlign::Left,
                                             DxuiTextRenderer::VAlign::Bottom,
@@ -376,7 +376,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
         else
         {
-            HRESULT  hrT = text.DrawString (SegmentLabel (i), tx, ty, tw, bh,
+            HRESULT  hrT = text.DrawString (GetSegmentLabel (i), tx, ty, tw, bh,
                                             theme.ButtonText(), fontPx, kFontFamily,
                                             DxuiTextRenderer::HAlign::Left,
                                             DxuiTextRenderer::VAlign::CenterOnCapHeight);

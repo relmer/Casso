@@ -121,7 +121,7 @@ void DxuiScrollbar::SetScrollPos (int pos)
 
 int DxuiScrollbar::GetMaxScrollPos() const
 {
-    return std::max (0, ContentExtent() - m_page);
+    return std::max (0, GetContentExtent() - m_page);
 }
 
 
@@ -136,7 +136,7 @@ int DxuiScrollbar::GetMaxScrollPos() const
 
 bool DxuiScrollbar::IsVisible() const
 {
-    return m_page > 0 && ContentExtent() > m_page && MainTrackLength() > 0 && m_thicknessPx > 0;
+    return m_page > 0 && GetContentExtent() > m_page && GetMainTrackLength() > 0 && m_thicknessPx > 0;
 }
 
 
@@ -145,11 +145,11 @@ bool DxuiScrollbar::IsVisible() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::ContentExtent
+//  DxuiScrollbar::GetContentExtent
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiScrollbar::ContentExtent() const
+int DxuiScrollbar::GetContentExtent() const
 {
     return m_max - m_min;
 }
@@ -160,11 +160,11 @@ int DxuiScrollbar::ContentExtent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::MainTrackStart
+//  DxuiScrollbar::GetMainTrackStart
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiScrollbar::MainTrackStart() const
+int DxuiScrollbar::GetMainTrackStart() const
 {
     return (m_orientation == Orientation::Vertical) ? m_track.top : m_track.left;
 }
@@ -175,11 +175,11 @@ int DxuiScrollbar::MainTrackStart() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::MainTrackLength
+//  DxuiScrollbar::GetMainTrackLength
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiScrollbar::MainTrackLength() const
+int DxuiScrollbar::GetMainTrackLength() const
 {
     return (m_orientation == Orientation::Vertical) ? (m_track.bottom - m_track.top)
                                                     : (m_track.right - m_track.left);
@@ -191,20 +191,20 @@ int DxuiScrollbar::MainTrackLength() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::ArrowExtent
+//  DxuiScrollbar::GetArrowExtent
 //
 //  Arrow buttons are square (one bar thickness) at each end of the track,
 //  dropped entirely when the bar is too short to host them plus a thumb.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiScrollbar::ArrowExtent() const
+int DxuiScrollbar::GetArrowExtent() const
 {
     int  extent = m_thicknessPx;
 
 
 
-    if (MainTrackLength() < m_thicknessPx * s_kArrowCount + m_minThumbPx + s_kArrowFitSlackPx)
+    if (GetMainTrackLength() < m_thicknessPx * s_kArrowCount + m_minThumbPx + s_kArrowFitSlackPx)
     {
         extent = 0;
     }
@@ -218,17 +218,17 @@ int DxuiScrollbar::ArrowExtent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::ThumbLength
+//  DxuiScrollbar::GetThumbLength
 //
 //  Thumb extent along the scroll axis: proportional to page / content,
 //  floored at the minimum thumb size and capped at the track length.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiScrollbar::ThumbLength() const
+float DxuiScrollbar::GetThumbLength() const
 {
-    int    trackLen = MainTrackLength() - ArrowExtent() * s_kArrowCount;
-    int    content  = ContentExtent();
+    int    trackLen = GetMainTrackLength() - GetArrowExtent() * s_kArrowCount;
+    int    content  = GetContentExtent();
     float  length   = 0.0f;
 
 
@@ -248,19 +248,19 @@ float DxuiScrollbar::ThumbLength() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::ThumbStart
+//  DxuiScrollbar::GetThumbStart
 //
 //  Thumb start along the scroll axis (widget-relative px): the track start
 //  plus the fraction of the travel corresponding to the current position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiScrollbar::ThumbStart() const
+float DxuiScrollbar::GetThumbStart() const
 {
-    int    arrowExt   = ArrowExtent();
-    int    trackStart = MainTrackStart() + arrowExt;
-    int    trackLen   = MainTrackLength() - arrowExt * s_kArrowCount;
-    float  thumbLen   = ThumbLength();
+    int    arrowExt   = GetArrowExtent();
+    int    trackStart = GetMainTrackStart() + arrowExt;
+    int    trackLen   = GetMainTrackLength() - arrowExt * s_kArrowCount;
+    float  thumbLen   = GetThumbLength();
     float  travel     = (float) trackLen - thumbLen;
     int    maxPos     = GetMaxScrollPos();
     float  start      = (float) trackStart;
@@ -281,14 +281,14 @@ float DxuiScrollbar::ThumbStart() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::MainRect
+//  DxuiScrollbar::GetMainRect
 //
 //  Builds a widget-relative rect spanning [mainStart, mainStart + extent)
 //  along the scroll axis and the full bar thickness across it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiScrollbar::MainRect (int mainStart, int mainExtent) const
+RECT DxuiScrollbar::GetMainRect (int mainStart, int mainExtent) const
 {
     RECT  r = {};
 
@@ -338,9 +338,9 @@ DxuiScrollbar::Metrics DxuiScrollbar::GetMetrics() const
 {
     HRESULT  hr        = S_OK;
     Metrics  m         = {};
-    int      arrowExt  = ArrowExtent();
-    int      mainStart = MainTrackStart();
-    int      mainLen   = MainTrackLength();
+    int      arrowExt  = GetArrowExtent();
+    int      mainStart = GetMainTrackStart();
+    int      mainLen   = GetMainTrackLength();
 
 
 
@@ -348,14 +348,14 @@ DxuiScrollbar::Metrics DxuiScrollbar::GetMetrics() const
 
     m.visible     = true;
     m.bar         = m_track;
-    m.track       = MainRect (mainStart + arrowExt, mainLen - arrowExt * s_kArrowCount);
-    m.thumbStart  = ThumbStart();
-    m.thumbLength = ThumbLength();
+    m.track       = GetMainRect (mainStart + arrowExt, mainLen - arrowExt * s_kArrowCount);
+    m.thumbStart  = GetThumbStart();
+    m.thumbLength = GetThumbLength();
 
     if (arrowExt > 0)
     {
-        m.arrowLess = MainRect (mainStart, arrowExt);
-        m.arrowMore = MainRect (mainStart + mainLen - arrowExt, arrowExt);
+        m.arrowLess = GetMainRect (mainStart, arrowExt);
+        m.arrowMore = GetMainRect (mainStart + mainLen - arrowExt, arrowExt);
     }
 
 Error:
@@ -463,10 +463,10 @@ bool DxuiScrollbar::OnMouseMove (int xPx, int yPx)
 {
     HRESULT  hr         = S_OK;
     bool     handled    = false;
-    int      arrowExt   = ArrowExtent();
+    int      arrowExt   = GetArrowExtent();
     float    mainPt     = (float) ((m_orientation == Orientation::Vertical) ? yPx : xPx);
-    float    trackStart = (float) (MainTrackStart() + arrowExt);
-    float    travel     = (float) (MainTrackLength() - arrowExt * s_kArrowCount) - ThumbLength();
+    float    trackStart = (float) (GetMainTrackStart() + arrowExt);
+    float    travel     = (float) (GetMainTrackLength() - arrowExt * s_kArrowCount) - GetThumbLength();
     int      maxPos     = GetMaxScrollPos();
     float    ratio      = 0.0f;
     int      newPos     = 0;

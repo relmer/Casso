@@ -53,8 +53,8 @@ public:
     {
         int  toggles = 0;
         int  resets  = 0;
-        void ToggleRomBank() override { ++toggles; }
-        void ResetRomBank  () override { ++resets; }
+        void ToggleRomBank  () override { ++toggles; }
+        void ResetRomBank   () override { ++resets; }
     };
 
     TEST_METHOD (AppliesBank0OnLoad)
@@ -66,7 +66,7 @@ public:
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
+        Assert::AreEqual<int>  (0,    romBank.GetCurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 
@@ -80,11 +80,11 @@ public:
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
         romBank.ToggleRomBank();
-        Assert::AreEqual<int>  (1,    romBank.CurrentBank());
+        Assert::AreEqual<int>  (1,    romBank.GetCurrentBank());
         Assert::AreEqual<Byte> (0xB1, lc.ReadRom (kLcWindow));
 
         romBank.ToggleRomBank();
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
+        Assert::AreEqual<int>  (0,    romBank.GetCurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 
@@ -98,10 +98,10 @@ public:
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
         romBank.ToggleRomBank();                  // -> bank 1
-        Assert::AreEqual<int> (1, romBank.CurrentBank());
+        Assert::AreEqual<int> (1, romBank.GetCurrentBank());
 
         romBank.ResetRomBank();                   // -> bank 0
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
+        Assert::AreEqual<int>  (0,    romBank.GetCurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 

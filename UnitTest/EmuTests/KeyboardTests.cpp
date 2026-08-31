@@ -35,7 +35,7 @@ public:
 
         // Apple II: 'A' = $41. With strobe bit 7 set: $C1.
         AppleKeyboard kbd;
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
 
         val = kbd.Read (0xC000);
 
@@ -47,7 +47,7 @@ public:
     {
         AppleKeyboard  kbd;
         Byte           val = 0;
-        kbd.KeyPress ('B');
+        kbd.PressKey ('B');
 
         // Read $C010 to clear strobe
         kbd.Read (0xC010);
@@ -69,8 +69,8 @@ public:
         // Press 'X', don't clear strobe, press 'Y'.
         // $C000 should show 'Y' with strobe, not 'X'.
         AppleKeyboard kbd;
-        kbd.KeyPress ('X');
-        kbd.KeyPress ('Y');
+        kbd.PressKey ('X');
+        kbd.PressKey ('Y');
 
         val = kbd.Read (0xC000);
 
@@ -84,7 +84,7 @@ public:
     {
         AppleKeyboard  kbd;
         Byte           val = 0;
-        kbd.KeyPress ('a');
+        kbd.PressKey ('a');
 
         val = kbd.Read (0xC000);
 
@@ -100,7 +100,7 @@ public:
             AppleKeyboard  kbd;
             Byte           val       = 0;
             Byte           asciiPart = 0;
-            kbd.KeyPress (ch);
+            kbd.PressKey (ch);
 
             val = kbd.Read (0xC000);
             asciiPart = val & 0x7F;
@@ -117,7 +117,7 @@ public:
     {
         AppleKeyboard  kbd;
         Byte           val = 0;
-        kbd.KeyPress (0x0D);  // Return/Enter
+        kbd.PressKey (0x0D);  // Return/Enter
 
         val = kbd.Read (0xC000);
 
@@ -131,7 +131,7 @@ public:
     {
         AppleKeyboard  kbd;
         Byte           val = 0;
-        kbd.KeyPress (0x1B);  // Escape
+        kbd.PressKey (0x1B);  // Escape
 
         val = kbd.Read (0xC000);
 
@@ -156,7 +156,7 @@ public:
         Byte           val2 = 0;
         Byte           val3 = 0;
         Byte           val4 = 0;
-        kbd.KeyPress ('Z');
+        kbd.PressKey ('Z');
 
         // Multiple reads of $C000 should all have strobe set
         val1 = kbd.Read (0xC000);
@@ -185,7 +185,7 @@ public:
         AppleKeyboard  kbd;
         bus.AddDevice (&kbd);
 
-        kbd.KeyPress ('H');
+        kbd.PressKey ('H');
         val = bus.ReadByte (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC8), val,
@@ -203,7 +203,7 @@ public:
         AppleKeyboard  kbd;
         Byte           val  = 0;
         Byte           val2 = 0;
-        kbd.KeyPress ('X');
+        kbd.PressKey ('X');
 
         // Clear strobe
         kbd.Read (0xC010);
@@ -226,7 +226,7 @@ public:
         AppleKeyboard    * basePtr = &iieKbd;
         Byte               val     = 0;
 
-        basePtr->KeyPress ('A');
+        basePtr->PressKey ('A');
         val = basePtr->Read (0xC000);
 
         Assert::AreEqual (static_cast<Byte> (0xC1), val,
@@ -277,8 +277,8 @@ public:
         {
             int toggles = 0;
             int resets  = 0;
-            void ToggleRomBank() override { ++toggles; }
-            void ResetRomBank  () override { ++resets;  }
+            void ToggleRomBank  () override { ++toggles; }
+            void ResetRomBank   () override { ++resets;  }
         };
 
         MemoryBus              bus;
@@ -302,7 +302,7 @@ public:
     {
         AppleKeyboard  kbd;
         Byte           val = 0;
-        kbd.KeyPress ('Z');
+        kbd.PressKey ('Z');
         kbd.SetKeyDown (true);
 
         kbd.Reset();
@@ -380,7 +380,7 @@ public:
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
 
-        kbd.KeyPress ('A');
+        kbd.PressKey ('A');
         Assert::IsFalse (kbd.IsStrobeClear(), L"Pre-condition: strobe set");
 
         // Read every status register $C011-$C01F — none should clear strobe.
@@ -404,7 +404,7 @@ public:
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
-        kbd.KeyPress ('K');
+        kbd.PressKey ('K');
 
         kbd.Read (0xC011);
 
@@ -419,7 +419,7 @@ public:
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
-        kbd.KeyPress ('M');
+        kbd.PressKey ('M');
 
         kbd.Read (0xC012);
 
@@ -434,7 +434,7 @@ public:
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
-        kbd.KeyPress ('Q');
+        kbd.PressKey ('Q');
 
         kbd.Read (0xC019);
 
@@ -449,7 +449,7 @@ public:
 
         kbd .SetSoftSwitchSibling (&bank);
         bank.SetKeyboard          (&kbd);
-        kbd.KeyPress ('Z');
+        kbd.PressKey ('Z');
 
         kbd.Read (0xC01E);
 
@@ -512,7 +512,7 @@ public:
     {
         AppleKeyboard kbd;
 
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.SetKeyDown    (true);
         kbd.BeginKeyRepeat('A');
 
@@ -535,7 +535,7 @@ public:
         AppleKeyboard  kbd;
         Byte           val = 0;
 
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.SetKeyDown    (true);
         kbd.BeginKeyRepeat('A');
 
@@ -558,7 +558,7 @@ public:
     {
         AppleKeyboard kbd;
 
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.SetKeyDown    (true);
         kbd.BeginKeyRepeat('A');
 
@@ -586,7 +586,7 @@ public:
     {
         AppleKeyboard kbd;
 
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.SetKeyDown    (true);
         kbd.BeginKeyRepeat('A');
 
@@ -611,7 +611,7 @@ public:
         AppleKeyboard kbd;
 
         // Armed but never marked physically down: nothing should repeat.
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.BeginKeyRepeat('A');
         kbd.Read (0xC010);
 
@@ -626,7 +626,7 @@ public:
     {
         AppleKeyboard kbd;
 
-        kbd.KeyPress      ('A');
+        kbd.PressKey      ('A');
         kbd.SetKeyDown    (true);
         kbd.BeginKeyRepeat('A');
 
@@ -778,14 +778,14 @@ public:
 
     TEST_METHOD (Dvorak_TypedThroughLatch_ReadsRemappedCharacter)
     {
-        // End-to-end: the shell would feed MapTypedChar's result to KeyPress.
+        // End-to-end: the shell would feed MapTypedChar's result to PressKey.
         // With the switch engaged, physically typing 'k' latches Dvorak 't'.
         Apple2eKeyboard kbd;
 
         kbd.SetApple2cMode          (true);
         kbd.SetKeyboardSwitchDvorak (true);
 
-        kbd.KeyPress (kbd.MapTypedChar ('k'));
+        kbd.PressKey (kbd.MapTypedChar ('k'));
 
         Assert::AreEqual<Byte> ('T', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
             L"typing 'k' with the Dvorak switch in must latch 't' (upcased at $C000)");

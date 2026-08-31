@@ -393,9 +393,9 @@ public:
         child.SetParentPopup (&parent);
 
         Assert::AreEqual (static_cast<void *> (&parent),
-                          static_cast<void *> (child.ParentPopup()));
+                          static_cast<void *> (child.GetParentPopup()));
         Assert::AreEqual (static_cast<void *> (&child),
-                          static_cast<void *> (parent.ActiveChildPopup()));
+                          static_cast<void *> (parent.GetActiveChildPopup()));
     }
 
 
@@ -413,9 +413,9 @@ public:
         child.SetParentPopup (&parentA);
         child.SetParentPopup (&parentB);
 
-        Assert::IsNull (parentA.ActiveChildPopup());
+        Assert::IsNull (parentA.GetActiveChildPopup());
         Assert::AreEqual (static_cast<void *> (&child),
-                          static_cast<void *> (parentB.ActiveChildPopup()));
+                          static_cast<void *> (parentB.GetActiveChildPopup()));
     }
 
 
@@ -434,12 +434,12 @@ public:
         child.SetParentPopup (&parent);
 
         Assert::AreEqual (static_cast<void *> (&child),
-                          static_cast<void *> (parent.ActiveChildPopup()));
+                          static_cast<void *> (parent.GetActiveChildPopup()));
 
         child.Close (42);
 
-        Assert::IsNull (parent.ActiveChildPopup());
-        Assert::IsNull (child.ParentPopup());
+        Assert::IsNull (parent.GetActiveChildPopup());
+        Assert::IsNull (child.GetParentPopup());
         Assert::IsFalse (child.IsOpen());
     }
 };
@@ -452,7 +452,7 @@ public:
 //
 //  DxuiPopupHostCompletionTests
 //
-//  Verifies the std::future<int> returned by Completion() resolves
+//  Verifies the std::future<int> returned by GetCompletion() resolves
 //  with the value passed to Close().
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +478,7 @@ public:
         showParams.anchorRectScreen = MakeRect (0, 0, 10, 10);
         Assert::AreEqual (S_OK, popup.Show (std::move (showParams)));
 
-        future = popup.Completion();
+        future = popup.GetCompletion();
 
         popup.Close (7);
 
@@ -499,7 +499,7 @@ public:
         popup.InitializeForTest();
         firstParams.anchorRectScreen = MakeRect (0, 0, 10, 10);
         Assert::AreEqual (S_OK, popup.Show (std::move (firstParams)));
-        firstFuture = popup.Completion();
+        firstFuture = popup.GetCompletion();
 
         secondParams.anchorRectScreen = MakeRect (0, 0, 10, 10);
         Assert::AreEqual (S_OK, popup.Show (std::move (secondParams)));
@@ -507,7 +507,7 @@ public:
         Assert::IsTrue (firstFuture.wait_for (std::chrono::seconds (1)) == std::future_status::ready);
         Assert::AreEqual (0, firstFuture.get());
 
-        secondFuture = popup.Completion();
+        secondFuture = popup.GetCompletion();
         popup.Close (99);
         Assert::AreEqual (99, secondFuture.get());
     }
@@ -582,10 +582,10 @@ public:
         DxuiPopupHost                  * popup = host->AcquirePopup();
 
         Assert::IsNotNull (popup);
-        Assert::AreEqual ((size_t) 3, host->PopupPoolSize());
-        Assert::AreEqual ((size_t) 1, host->PopupActiveCount());
-        Assert::AreEqual ((size_t) 1, host->PopupHits());
-        Assert::AreEqual ((size_t) 0, host->PopupMisses());
+        Assert::AreEqual ((size_t) 3, host->GetPopupPoolSize());
+        Assert::AreEqual ((size_t) 1, host->GetPopupActiveCount());
+        Assert::AreEqual ((size_t) 1, host->GetPopupHits());
+        Assert::AreEqual ((size_t) 0, host->GetPopupMisses());
     }
 
 
@@ -602,7 +602,7 @@ public:
 
         Assert::AreEqual (static_cast<void *> (a), static_cast<void *> (b),
                           L"Pool should return the same instance after release");
-        Assert::AreEqual ((size_t) 2, host->PopupHits());
+        Assert::AreEqual ((size_t) 2, host->GetPopupHits());
     }
 
 
@@ -617,10 +617,10 @@ public:
             Assert::IsNotNull (p[i]);
         }
 
-        Assert::AreEqual ((size_t) 4, host->PopupPoolSize(),
+        Assert::AreEqual ((size_t) 4, host->GetPopupPoolSize(),
                           L"Pool should have grown from 3 -> 4 on demand");
-        Assert::AreEqual ((size_t) 3, host->PopupHits());
-        Assert::AreEqual ((size_t) 1, host->PopupMisses());
+        Assert::AreEqual ((size_t) 3, host->GetPopupHits());
+        Assert::AreEqual ((size_t) 1, host->GetPopupMisses());
     }
 
 
@@ -640,9 +640,9 @@ public:
             host->ReleasePopup (popup);
         }
 
-        Assert::IsTrue (host->PopupHits() >= 4,
+        Assert::IsTrue (host->GetPopupHits() >= 4,
                         L"Five sequential acquire/release cycles must yield >= 4 pool hits (FR-055 / SC-008)");
-        Assert::AreEqual ((size_t) 0, host->PopupActiveCount());
+        Assert::AreEqual ((size_t) 0, host->GetPopupActiveCount());
     }
 };
 
@@ -654,8 +654,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Release build sentinel — every pool test above asserts on PopupHits() or
-//  PopupMisses(), and those counters are deliberately Debug-only (see the
+//  Release build sentinel — every pool test above asserts on GetPopupHits() or
+//  GetPopupMisses(), and those counters are deliberately Debug-only (see the
 //  #ifdef around m_popupHits++ in DxuiHwndSource::AcquirePopup). The pooling
 //  logic itself is not conditional, so Debug already proves it; exposing the
 //  counters in Release purely to even up a test count would be changing

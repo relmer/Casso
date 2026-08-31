@@ -180,7 +180,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsFalse (result.success, L"an unmatched endif must fail the assembly");
-            Assert::IsTrue  (result.errors.size() >= 1, L"and must say so");
+            Assert::IsTrue  (result.errors.size() >= 1, L"and must report it");
             Assert::IsTrue  (result.errors[0].message.find ("endif without matching if") != std::string::npos,
                              L"the message names the actual problem");
             Assert::AreEqual (2, result.errors[0].lineNumber, L"reported on the offending line");
@@ -209,7 +209,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsFalse (result.success, L"an unclosed if must fail the assembly");
-            Assert::IsTrue  (result.errors.size() >= 1, L"and must say so");
+            Assert::IsTrue  (result.errors.size() >= 1, L"and must report it");
             Assert::IsTrue  (result.errors[0].message.find ("Unclosed if block") != std::string::npos,
                              L"the message names the actual problem");
             Assert::AreEqual (3, result.errors[0].lineNumber,

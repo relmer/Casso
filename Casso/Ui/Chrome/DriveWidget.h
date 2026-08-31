@@ -19,6 +19,12 @@ enum class DriveWidgetRegion
     None,
     Body,
     Eject,
+
+    // The write-protect padlock stamped on the faceplate. Its own region
+    // because the tooltip that explains protection belongs to the badge that
+    // signals it, not to the whole drive: a dwell anywhere on the case was
+    // answering a question the user had not asked.
+    Padlock,
 };
 
 
@@ -83,9 +89,9 @@ public:
     //  IDxuiControl::Layout — treats boundsDip.left / boundsDip.top as
     //  the widget's anchor and computes its own body / face / slot /
     //  eject / label rects from per-DPI metrics scaled off
-    //  scaler.Dpi(). boundsDip.right / bottom are ignored (the widget
+    //  scaler.GetDpi(). boundsDip.right / bottom are ignored (the widget
     //  has an intrinsic size; SetBounds is overwritten with the
-    //  computed OuterRect at the end).
+    //  computed GetOuterRect at the end).
     //
     void               Layout          (const RECT          & boundsDip,
                                         const DxuiDpiScaler & scaler) override;
@@ -99,17 +105,17 @@ public:
     const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
     bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
 
-    RECT               BodyRect        () const { return m_bodyRect; }
-    RECT               OuterRect       () const
+    RECT               GetBodyRect  () const { return m_bodyRect; }
+    RECT               GetOuterRect () const
     {
         RECT  r = m_bodyRect;
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
         return r;
     }
 
-    RECT               EjectRect       () const { return m_ejectRect; }
-    LedState           Led             () const { return m_led.GetState(); }
-    int                Drive           () const { return m_drive; }
+    RECT               GetEjectRect () const { return m_ejectRect; }
+    LedState           GetLed       () const { return m_led.GetState(); }
+    int                GetDrive     () const { return m_drive; }
 
 private:
     // Widget geometry, palette, and the primitive-drawing helpers that
@@ -164,16 +170,20 @@ private:
     static constexpr int     kCompactCornerPx     = 4;
     static constexpr float   kCompactFontDip      = 12.0f;
 
-    // Write-protect padlock badge. A small brass lock stamped on the
-    // drive face (skeuomorphic) or beside the status LED (compact)
-    // whenever the mounted disk is write-protected by any source. Kept
-    // deliberately understated -- it reads as "locked" without competing
-    // with the LED for attention.
-    static constexpr int      kWpBadgeWidthPx   = 13;
-    static constexpr int      kWpBadgeHeightPx  = 15;
-    static constexpr uint32_t kWpBadgeFillArgb  = 0xFFD8B76A;   // warm brass body
-    static constexpr uint32_t kWpBadgeShadeArgb = 0xFF7A6026;   // darker brass edge / shackle
-    static constexpr uint32_t kWpBadgeHoleArgb  = 0xFF2A2109;   // keyhole
+    // Write-protect padlock badge. A small brass lock drawn beside the
+    // mounted disk's BASENAME whenever that disk is write-protected by any
+    // source -- in both paint paths, and mirrored by the 3D scene's own name
+    // strip. It sat on the faceplate and beside the compact LED before, which
+    // put a fact about the image on the picture of the drive; a Disk II has
+    // no such lamp, and swapping disks does not change the hardware. Kept
+    // deliberately understated -- it reads as "locked" without competing with
+    // the LED for attention.
+    static constexpr int       kWpBadgeWidthPx    = 13;
+    static constexpr int       kWpBadgeHeightPx   = 15;
+    static constexpr int       kWpBadgeLabelGapPx = 4;   // badge -> basename
+    static constexpr uint32_t  kWpBadgeFillArgb   = 0xFFD8B76A;   // warm brass body
+    static constexpr uint32_t  kWpBadgeShadeArgb  = 0xFF7A6026;   // darker brass edge / shackle
+    static constexpr uint32_t  kWpBadgeHoleArgb   = 0xFF2A2109;   // keyhole
 
     // Damaged-image badge, shown in the padlock's place when the mounted
     // image's stored checksum did not match its contents. A deliberately
@@ -187,9 +197,9 @@ private:
     static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
 
-    static bool  RectContains (const RECT & rect, int x, int y);
-    static int   Scale        (int value, UINT dpi);
-    static float Clamp01      (float v);
+    static bool  IsPointInRect (const RECT & rect, int x, int y);
+    static int   Scale         (int value, UINT dpi);
+    static float Clamp01       (float v);
 
     // Fills a trapezoid with parallel horizontal front and back edges
     // by stacking 1-px horizontal scanlines whose widths interpolate
@@ -223,7 +233,8 @@ private:
                                   float left, float top, float w, float h,
                                   uint32_t fill, uint32_t edge, uint32_t mark);
 
-    void                PaintBasenameLabel (IDxuiTextRenderer & text,
+    void                PaintBasenameLabel (IDxuiPainter      & painter,
+                                            IDxuiTextRenderer & text,
                                             const CassoTheme & theme,
                                             UINT                dpi);
 

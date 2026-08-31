@@ -269,7 +269,7 @@ public:
 
         Assert::IsFalse  (t.IsDragInProgress());
         Assert::IsFalse  (t.IsDragAcceptedType());
-        Assert::AreEqual (-1, t.HoveredTag());
+        Assert::AreEqual (-1, t.GetHoveredTag());
     }
 
     TEST_METHOD (DragEnter_SupportedFile_SetsInProgressAndAccepted)
@@ -331,7 +331,7 @@ public:
         Assert::AreEqual (S_OK, t.DragLeave());
         Assert::IsFalse  (t.IsDragInProgress(),    L"DragLeave must reset in-progress");
         Assert::IsFalse  (t.IsDragAcceptedType(),  L"DragLeave must reset accepted");
-        Assert::AreEqual (-1, t.HoveredTag(),      L"DragLeave must reset hovered tag");
+        Assert::AreEqual (-1, t.GetHoveredTag(),      L"DragLeave must reset hovered tag");
     }
 
     TEST_METHOD (Drop_ResetsState)
@@ -348,7 +348,7 @@ public:
         Assert::AreEqual (S_OK, t.Drop (&obj, 0, pt, &effect));
         Assert::IsFalse  (t.IsDragInProgress());
         Assert::IsFalse  (t.IsDragAcceptedType());
-        Assert::AreEqual (-1, t.HoveredTag());
+        Assert::AreEqual (-1, t.GetHoveredTag());
         Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect,
             L"Without a drive hit, Drop reports NONE and skips the mount callback");
     }
@@ -390,7 +390,8 @@ public:
         // this test that omitted SetFilter passed for `.nib` -- and would
         // have passed just as happily for `.exe`.
         const wchar_t *  exts[] = {
-            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.Woz", L"C:\\a.po"
+            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.Woz", L"C:\\a.po",
+            L"C:\\a.nib", L"C:\\a.NB2"
         };
 
         for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
@@ -409,7 +410,7 @@ public:
         }
     }
 
-    TEST_METHOD (DragEnter_NibbleImage_IsNotAccepted)
+    TEST_METHOD (DragEnter_NibbleImage_IsAccepted)
     {
         DxuiDragDropTarget  t;
         POINTL              pt     = {};
@@ -421,12 +422,25 @@ public:
         t.SetFilter (IsSupportedDiskImageExtension);
         (void) t.DragEnter (&obj, 0, pt, &effect);
 
-        // Accepting the drop was the bug: nothing loads a nibble image, so
-        // the mount failed afterwards on the CPU thread where its result is
-        // dropped, and the user saw no disk and no message.
-        Assert::IsFalse (t.IsDragAcceptedType(),
-            L"A nibble image must be refused at the filter, not after the drop");
-        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+        // INVERTED, NOT DELETED. This asserted the refusal for as long as
+        // nothing could load a nibble image, and the refusal was right then:
+        // the filter once accepted the drop, the mount then failed on the CPU
+        // thread where its result is dropped, and the user saw no disk and no
+        // message. A loader routes these now, so the same seam asserts the
+        // capability instead -- which is also what makes the drag-and-drop
+        // requirement in the UI overhaul spec satisfiable for the first time.
+        Assert::IsTrue (t.IsDragAcceptedType(),
+            L"a nibble image mounts, so the filter must offer it");
+
+        //  THE DROP EFFECT IS NOT ASSERTED HERE, and the reason is worth
+        //  recording. DragOver reports COPY only when the file is supported
+        //  AND the cursor is over a registered drive widget; this fixture
+        //  registers none, so the effect is NONE whatever the file is. The
+        //  refusing version of this test asserted NONE and passed for that
+        //  second reason as much as the first -- an assertion that would have
+        //  stayed green even if the filter had started accepting `.nib`.
+        //  IsDragAcceptedType is the file-type answer on its own, which is
+        //  what this test is named for.
     }
 };
 

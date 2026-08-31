@@ -29,6 +29,11 @@ class DxuiTooltip : public IDxuiControl
 public:
     ~DxuiTooltip() override = default;
 
+    // How long a hover tip stays up before dismissing itself. Matches the
+    // OS default: long enough to read two lines, short enough that a parked
+    // pointer does not leave a panel sitting over the control it describes.
+    static constexpr int  kMaxVisibleMs = 5000;
+
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
@@ -43,8 +48,8 @@ public:
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
-    DxuiHwndSource *  PopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
+    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -70,8 +75,8 @@ public:
     // pending, so a host that idle-blocks knows to keep calling Tick on a
     // timeout rather than sleeping until the next input/frame.
     bool                 WantsTick () const { return m_pending || (m_visible && m_hideAtMs != 0); }
-    const std::wstring & Text      () const { return m_text;    }
-    const RECT         & Anchor    () const { return m_anchor;  }
+    const std::wstring & GetText   () const { return m_text;    }
+    const RECT         & GetAnchor () const { return m_anchor;  }
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
@@ -80,10 +85,10 @@ public:
     //  appear in a DxuiPanel tree. Typical hosting is via
     //  DxuiPopupHost (WS_POPUP transparent overlay).
     //
-    void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    std::wstring        AccessibleName () const override { return m_text; }
-    DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Label; }
+    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    std::wstring        GetAccessibleName () const override { return m_text; }
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
     //

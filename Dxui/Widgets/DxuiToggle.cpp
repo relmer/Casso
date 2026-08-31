@@ -185,13 +185,13 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 
     HRESULT  hr         = S_OK;
-    float    pillW      = m_scaler.Pxf (s_kPillWidthDip);
-    float    pillH      = m_scaler.Pxf (s_kPillHeightDip);
-    float    thumbInset = m_scaler.Pxf (s_kThumbInsetDip);
-    float    focusInset = m_scaler.Pxf (s_kFocusInsetDip);
-    float    focusThick = m_scaler.Pxf (s_kFocusThickDip);
-    float    labelGap   = m_scaler.Pxf (s_kLabelGapDip);
-    float    fontDip    = m_scaler.Pxf (s_kFontDip);
+    float    pillW      = m_scaler.ToPxf (s_kPillWidthDip);
+    float    pillH      = m_scaler.ToPxf (s_kPillHeightDip);
+    float    thumbInset = m_scaler.ToPxf (s_kThumbInsetDip);
+    float    focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
+    float    focusThick = m_scaler.ToPxf (s_kFocusThickDip);
+    float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
+    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     float    pillLeft   = (float) m_boundsDip.left;
     float    pillTop    = (float) m_boundsDip.top + ((float) (m_boundsDip.bottom - m_boundsDip.top) - pillH) * 0.5f;
     float    capR       = pillH * 0.5f;
@@ -201,7 +201,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    thumbR     = capR - thumbInset;
     float    thumbCx    = m_checked ? rightCx : leftCx;
     uint32_t pillColor;
-    uint32_t accentBase = DxuiColor::AccentForWhiteContrast (accentArgb, s_kPillRatio);
+    uint32_t accentBase = DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPillRatio);
     uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
     uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
@@ -274,7 +274,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
 void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.Dpi());
+    m_scaler.SetDpi (scaler.GetDpi());
 }
 
 

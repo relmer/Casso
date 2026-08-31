@@ -1,0 +1,115 @@
+newmtl ac_liner
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl acpin-6
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl acpin0
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl acpin6
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl knobcup0
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl knob0
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl knobcup1
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl knob1
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl knobcup2
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl knob2
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl rca_cup
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl rca_body
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl rca_ring
+Ka 0 0 0 
+Kd 0.92 0.91 0.89
+d 1
+
+newmtl rca_bore
+Ka 0 0 0 
+Kd 0.1 0.1 0.11
+d 1
+
+newmtl pwr_moat
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl pwr_button
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl contrast_wheel
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl wheel_moat
+Ka 0 0 0 
+Kd 0.2 0.2 0.22
+d 1
+
+newmtl shell
+Ka 0 0 0 
+Kd 0.87 0.862 0.835
+d 1
+
+newmtl cavity
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl front_anchor
+Ka 0 0 0 
+Kd 0.98 0.01 0.24
+d 1
+
+newmtl glass
+Ka 0 0 0 
+Kd 0.05 0.09 0.07
+d 1
+
+newmtl lamp
+Ka 0 0 0 
+Kd 0.29 0.87 0.38
+d 1
+

@@ -136,8 +136,8 @@ public:
 
     // Inspectors (tests)
 
-    bool    XyInterruptsEnabled  () const { return m_xyEnabled; }
-    bool    VblInterruptsEnabled() const { return m_vblEnabled; }
+    bool    AreXyInterruptsEnabled  () const { return m_xyEnabled; }
+    bool    AreVblInterruptsEnabled() const { return m_vblEnabled; }
 
 private:
     void    UpdateIrqLines();

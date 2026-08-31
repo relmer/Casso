@@ -41,8 +41,30 @@ void DxuiCaptionBar::ConfigureButtons (Buttons buttons)
 {
     DXUI_ASSERT_UI_THREAD();
 
+    // Drop the OLD buttons out of the child list before replacing them. The
+    // unique_ptr assignments below destroy whatever is there, while the panel
+    // keeps NON-OWNING pointers from Adopt -- so without this a second call
+    // leaves the list pointing at freed controls and the next Layout walks
+    // into one. Adopt's own contract says as much; this is that contract
+    // being kept, so re-configuring is merely wasteful rather than fatal.
+    {
+        HRESULT  hrRemove = S_OK;
+
+        for (DxuiSystemButton * btn : { m_minBtn.get(), m_maxBtn.get(), m_closeBtn.get() })
+        {
+            if (btn != nullptr)
+            {
+                hrRemove = RemoveAdopted (*btn);
+                IGNORE_RETURN_VALUE (hrRemove, S_OK);
+            }
+        }
+    }
+
     m_buttons       = buttons;
     m_renderCaption = true;
+    m_minBtn.reset();
+    m_maxBtn.reset();
+    m_closeBtn.reset();
 
     if (buttons == Buttons::MinMaxClose)
     {
@@ -144,13 +166,13 @@ void DxuiCaptionBar::SetMaximized (bool maximized)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreferredHeightPx
+//  GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
+int DxuiCaptionBar::GetPreferredHeightPx (const DxuiDpiScaler & scaler) const
 {
-    return scaler.Px (kCaptionHeightDip);
+    return scaler.ToPx (kCaptionHeightDip);
 }
 
 
@@ -159,11 +181,11 @@ int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreferredHeightDip
+//  GetPreferredHeightDip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiCaptionBar::PreferredHeightDip() const
+int DxuiCaptionBar::GetPreferredHeightDip() const
 {
     return kCaptionHeightDip;
 }
@@ -174,11 +196,11 @@ int DxuiCaptionBar::PreferredHeightDip() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeightPxForDpi
+//  GetHeightPxForDpi
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiCaptionBar::HeightPxForDpi (UINT dpi)
+int DxuiCaptionBar::GetHeightPxForDpi (UINT dpi)
 {
     constexpr int      kBaseDpi          = 96;
 
@@ -289,17 +311,17 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    b   = Bounds();
-    xPx = (float) m_scaler.Px (b.left);
-    yPx = (float) m_scaler.Px (b.top);
-    wPx = (float) m_scaler.Px (b.right - b.left);
-    hPx = (float) m_scaler.Px (b.bottom - b.top);
+    b   = GetBounds();
+    xPx = (float) m_scaler.ToPx (b.left);
+    yPx = (float) m_scaler.ToPx (b.top);
+    wPx = (float) m_scaler.ToPx (b.right - b.left);
+    hPx = (float) m_scaler.ToPx (b.bottom - b.top);
 
     painter.FillGradientRect (xPx, yPx, wPx, hPx, theme.TitleBarTop(), theme.TitleBarBottom());
 
     iconPadPx    = hPx * kIconPadFraction;
     iconSizePx   = hPx - iconPadPx * 2.0f;
-    textOffsetPx = m_scaler.Pxf (kTitlePadDip);
+    textOffsetPx = m_scaler.ToPxf (kTitlePadDip);
 
     if (iconSizePx > 0.0f && !m_iconPixels.empty() && m_iconW > 0 && m_iconH > 0)
     {
@@ -309,20 +331,20 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                yPx + iconPadPx,
                                                iconSizePx, iconSizePx);
         IGNORE_RETURN_VALUE (hrIcon, S_OK);
-        textOffsetPx = m_scaler.Pxf (kTitlePadDip) + iconSizePx + iconPadPx;
+        textOffsetPx = m_scaler.ToPxf (kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
     buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
-    buttonStripPx = (float) buttonCount * m_scaler.Pxf ((float) kButtonWidthDip);
+    buttonStripPx = (float) buttonCount * m_scaler.ToPxf ((float) kButtonWidthDip);
 
     textLeftPx   = xPx + textOffsetPx;
-    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.Pxf (kTitlePadDip);
+    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (kTitlePadDip);
     if (titleWidthPx < 0.0f)
     {
         titleWidthPx = 0.0f;
     }
 
-    fontPx = m_scaler.Pxf (kTitleFontDip);
+    fontPx = m_scaler.ToPxf (kTitleFontDip);
 
     {
         HRESULT  hrText = text.DrawString (m_title.c_str(),
@@ -367,7 +389,7 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 
 
 
-    n = ChildCount();
+    n = GetChildCount();
 
     // Reverse order so visually-topmost children win. A child that reports
     // None declines the point and the walk continues past it, which is how a
@@ -377,11 +399,11 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
     // answer Caption, and that has to STOP the walk like any other answer.
     for (i = n; !classified && i > 0; --i)
     {
-        child = Child (i - 1);
+        child = GetChild (i - 1);
 
-        if (child != nullptr && child->Visible())
+        if (child != nullptr && child->IsVisible())
         {
-            rc = child->Bounds();
+            rc = child->GetBounds();
 
             if (clientDip.x >= rc.left && clientDip.x < rc.right &&
                 clientDip.y >= rc.top  && clientDip.y < rc.bottom)

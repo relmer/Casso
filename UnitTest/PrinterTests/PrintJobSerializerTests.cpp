@@ -55,18 +55,18 @@ namespace PrintJobSerializerTests
             AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
             AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, pixels, meta, rebuilt));
 
-            Assert::AreEqual (original.RowsUsed(),   rebuilt.RowsUsed());
-            Assert::AreEqual (original.PaperRow(),   rebuilt.PaperRow());
-            Assert::AreEqual (original.CapReached(), rebuilt.CapReached());
+            Assert::AreEqual (original.GetRowsUsed(),   rebuilt.GetRowsUsed());
+            Assert::AreEqual (original.GetPaperRow(),   rebuilt.GetPaperRow());
+            Assert::AreEqual (original.HasReachedCap(), rebuilt.HasReachedCap());
 
-            Assert::AreEqual (original.PageBoundaryRows().size(), rebuilt.PageBoundaryRows().size());
-            Assert::AreEqual (PrinterGrid::kPageRows, rebuilt.PageBoundaryRows()[0]);
+            Assert::AreEqual (original.GetPageBoundaryRows().size(), rebuilt.GetPageBoundaryRows().size());
+            Assert::AreEqual (PrinterGrid::kPageRows, rebuilt.GetPageBoundaryRows()[0]);
 
             // Struck cells (including the orange composite) survive intact.
-            Assert::AreEqual ((Byte) InkPrimary::Black, rebuilt.CellAt (0, 0));
-            Assert::AreEqual ((Byte) 0x6,               rebuilt.CellAt (100, 3));
-            Assert::AreEqual ((Byte) InkPrimary::Blue,  rebuilt.CellAt (1279, 5));
-            Assert::AreEqual ((Byte) 0,                 rebuilt.CellAt (50, 50));
+            Assert::AreEqual ((Byte) InkPrimary::Black, rebuilt.GetCell (0, 0));
+            Assert::AreEqual ((Byte) 0x6,               rebuilt.GetCell (100, 3));
+            Assert::AreEqual ((Byte) InkPrimary::Blue,  rebuilt.GetCell (1279, 5));
+            Assert::AreEqual ((Byte) 0,                 rebuilt.GetCell (50, 50));
         }
 
 

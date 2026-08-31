@@ -43,7 +43,7 @@ public:
 
     //  Where a continuation of this line should start: after its gutter if it
     //  has one, otherwise at its own indent.
-    static size_t                    ContinuationIndent (const std::string & line);
+    static size_t                    GetContinuationIndent (const std::string & line);
 
     //  The narrowest terminal worth folding to. Below this the gutter alone
     //  eats the line, so the reported width is ignored and the fallback stands.
@@ -69,7 +69,7 @@ public:
     //  run the tool, measure the longest line. It also gives a reader whose
     //  terminal reports the wrong size a way to say so.
     //
-    static size_t                    WidthFrom (const char * columnsEnv,
-                                                bool         hasConsole,
-                                                int          consoleColumns);
+    static size_t                    ResolveWidth (const char * columnsEnv,
+                                                   bool         hasConsole,
+                                                   int          consoleColumns);
 };

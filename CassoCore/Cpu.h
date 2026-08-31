@@ -251,10 +251,10 @@ public:
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:
-    void TracePush (Byte opcode);
+    void TracePush    (Byte opcode);
 
     // Side-effect-free read for the trace, routed through the same read-page
     // table the fetch uses so operands come from the bank that executed.
-    Byte TracePeek (Word address) const;
+    Byte PeekForTrace (Word address) const;
     void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
 };

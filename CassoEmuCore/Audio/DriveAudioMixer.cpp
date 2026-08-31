@@ -125,7 +125,7 @@ bool DriveAudioMixer::IsEnabled() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * DriveAudioMixer::CanonicalMechanism (const wstring & mechanism)
+const wchar_t * DriveAudioMixer::GetCanonicalMechanism (const wstring & mechanism)
 {
     const wchar_t *  result = nullptr;
 
@@ -155,7 +155,7 @@ const wchar_t * DriveAudioMixer::CanonicalMechanism (const wstring & mechanism)
 
 bool DriveAudioMixer::IsValidMechanism (const wstring & mechanism) const
 {
-    return CanonicalMechanism (mechanism) != nullptr;
+    return GetCanonicalMechanism (mechanism) != nullptr;
 }
 
 
@@ -200,7 +200,7 @@ void DriveAudioMixer::SetSampleLoadContext (
 HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
 {
     HRESULT          hr    = S_OK;
-    const wchar_t *  canon = CanonicalMechanism (mechanism);
+    const wchar_t *  canon = GetCanonicalMechanism (mechanism);
 
 
 
@@ -316,8 +316,8 @@ void DriveAudioMixer::GeneratePCM (float * stereoOut, uint32_t numSamples)
             memset (m_scratchMono.data(), 0, sizeof (float) * numSamples);
             src->GeneratePCM (m_scratchMono.data(), numSamples);
 
-            panL = src->PanLeft();
-            panR = src->PanRight();
+            panL = src->GetPanLeft();
+            panR = src->GetPanRight();
 
             // Help the analyzer see the loop bound matches the
             // documented 2 * numSamples capacity of stereoOut. The

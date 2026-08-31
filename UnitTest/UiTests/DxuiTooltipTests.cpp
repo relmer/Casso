@@ -55,7 +55,7 @@ public:
 
         t.Tick (500);
         Assert::IsTrue (t.IsVisible());
-        Assert::AreEqual (std::wstring (L"locked"), t.Text());
+        Assert::AreEqual (std::wstring (L"locked"), t.GetText());
     }
 
     TEST_METHOD (Request_HideAfterCloseDwell)
@@ -100,8 +100,55 @@ public:
 
         t.RequestShow (MakeRect (60, 0, 110, 20), L"b", 200);
         Assert::IsTrue (t.IsVisible());
-        Assert::AreEqual (std::wstring (L"b"), t.Text());
-        Assert::AreEqual ((LONG) 60, t.Anchor().left);
+        Assert::AreEqual (std::wstring (L"b"), t.GetText());
+        Assert::AreEqual ((LONG) 60, t.GetAnchor().left);
+    }
+
+    //
+    //  A tip left alone dismisses itself. Without this a pointer parked on a
+    //  control -- or captured by the guest, which parks it by force -- left
+    //  the balloon on screen for the rest of the session.
+    //
+    TEST_METHOD (Visible_DismissesAfterMaxLifetime)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+        Assert::IsTrue (t.IsVisible());
+
+        t.Tick (100 + DxuiTooltip::kMaxVisibleMs - 1);
+        Assert::IsTrue (t.IsVisible(),
+            L"DxuiTooltip must stay up for its full lifetime.");
+
+        t.Tick (100 + DxuiTooltip::kMaxVisibleMs);
+        Assert::IsFalse (t.IsVisible(),
+            L"DxuiTooltip must dismiss itself once its lifetime elapses.");
+    }
+
+    //
+    //  ...and re-requesting the SAME tip does not renew it. Consumers reissue
+    //  RequestShow on every mouse-move, so a deadline that reset on each one
+    //  could never be reached: the lifetime existed and never once fired.
+    //
+    TEST_METHOD (Visible_RepeatedRequestDoesNotRenewLifetime)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+
+        for (int64_t now = 110; now < 100 + DxuiTooltip::kMaxVisibleMs; now += 10)
+        {
+            t.RequestShow (MakeRect (0, 0, 50, 20), L"x", now);
+            t.Tick (now);
+        }
+
+        t.Tick (100 + DxuiTooltip::kMaxVisibleMs);
+        Assert::IsFalse (t.IsVisible(),
+            L"A resting pointer must not keep renewing the tooltip deadline.");
     }
 };
 

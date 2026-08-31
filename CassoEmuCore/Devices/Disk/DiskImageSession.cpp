@@ -549,7 +549,7 @@ HRESULT DiskImageSession::CommitImage (
     // attempt zero free at the same instant.
     for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
     {
-        tempPath      = CommitPlan::TemporaryPathFor (opened.imagePath, m_invocationTag, attempt);
+        tempPath      = CommitPlan::GetTemporaryPath (opened.imagePath, m_invocationTag, attempt);
         foundFreeName = !m_fileIo.Exists (tempPath);
 
         if (foundFreeName)

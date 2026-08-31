@@ -59,7 +59,7 @@ public:
         DxuiDockLayout   layout;
         MockDxuiControl  c;
 
-        Assert::IsTrue (layout.DockOf (c) == DxuiDock::Fill);
+        Assert::IsTrue (layout.GetDock (c) == DxuiDock::Fill);
     }
 
 
@@ -69,13 +69,13 @@ public:
         MockDxuiControl  c;
 
         layout.SetDock (c, DxuiDock::Top);
-        Assert::IsTrue (layout.DockOf (c) == DxuiDock::Top);
+        Assert::IsTrue (layout.GetDock (c) == DxuiDock::Top);
 
         layout.SetDock (c, DxuiDock::Bottom);
-        Assert::IsTrue (layout.DockOf (c) == DxuiDock::Bottom);
+        Assert::IsTrue (layout.GetDock (c) == DxuiDock::Bottom);
 
         layout.ClearDock (c);
-        Assert::IsTrue (layout.DockOf (c) == DxuiDock::Fill);
+        Assert::IsTrue (layout.GetDock (c) == DxuiDock::Fill);
     }
 
 
@@ -92,10 +92,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 0,   top.Bounds().left);
-        Assert::AreEqual ((LONG) 0,   top.Bounds().top);
-        Assert::AreEqual ((LONG) 200, top.Bounds().right);
-        Assert::AreEqual ((LONG) 24,  top.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,   top.GetBounds().left);
+        Assert::AreEqual ((LONG) 0,   top.GetBounds().top);
+        Assert::AreEqual ((LONG) 200, top.GetBounds().right);
+        Assert::AreEqual ((LONG) 24,  top.GetBounds().bottom);
     }
 
 
@@ -112,10 +112,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 0,   bottom.Bounds().left);
-        Assert::AreEqual ((LONG) 70,  bottom.Bounds().top);
-        Assert::AreEqual ((LONG) 200, bottom.Bounds().right);
-        Assert::AreEqual ((LONG) 100, bottom.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,   bottom.GetBounds().left);
+        Assert::AreEqual ((LONG) 70,  bottom.GetBounds().top);
+        Assert::AreEqual ((LONG) 200, bottom.GetBounds().right);
+        Assert::AreEqual ((LONG) 100, bottom.GetBounds().bottom);
     }
 
 
@@ -132,10 +132,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 0,   left.Bounds().left);
-        Assert::AreEqual ((LONG) 0,   left.Bounds().top);
-        Assert::AreEqual ((LONG) 40,  left.Bounds().right);
-        Assert::AreEqual ((LONG) 100, left.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,   left.GetBounds().left);
+        Assert::AreEqual ((LONG) 0,   left.GetBounds().top);
+        Assert::AreEqual ((LONG) 40,  left.GetBounds().right);
+        Assert::AreEqual ((LONG) 100, left.GetBounds().bottom);
     }
 
 
@@ -152,10 +152,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 1));
 
-        Assert::AreEqual ((LONG) 150, right.Bounds().left);
-        Assert::AreEqual ((LONG) 0,   right.Bounds().top);
-        Assert::AreEqual ((LONG) 200, right.Bounds().right);
-        Assert::AreEqual ((LONG) 100, right.Bounds().bottom);
+        Assert::AreEqual ((LONG) 150, right.GetBounds().left);
+        Assert::AreEqual ((LONG) 0,   right.GetBounds().top);
+        Assert::AreEqual ((LONG) 200, right.GetBounds().right);
+        Assert::AreEqual ((LONG) 100, right.GetBounds().bottom);
     }
 
 
@@ -178,10 +178,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 3));
 
-        Assert::AreEqual ((LONG) 0,   fill.Bounds().left);
-        Assert::AreEqual ((LONG) 24,  fill.Bounds().top);
-        Assert::AreEqual ((LONG) 400, fill.Bounds().right);
-        Assert::AreEqual ((LONG) 268, fill.Bounds().bottom);    // 300 - 32 bottom
+        Assert::AreEqual ((LONG) 0,   fill.GetBounds().left);
+        Assert::AreEqual ((LONG) 24,  fill.GetBounds().top);
+        Assert::AreEqual ((LONG) 400, fill.GetBounds().right);
+        Assert::AreEqual ((LONG) 268, fill.GetBounds().bottom);    // 300 - 32 bottom
     }
 
 
@@ -203,10 +203,10 @@ public:
 
         // The Bottom slab is reserved even though Fill was registered
         // first; Fill spans the region ABOVE it, not the whole rect.
-        Assert::AreEqual ((LONG) 256, bottom.Bounds().top);     // 300 - 44
-        Assert::AreEqual ((LONG) 300, bottom.Bounds().bottom);
-        Assert::AreEqual ((LONG) 0,   fill.Bounds().top);
-        Assert::AreEqual ((LONG) 256, fill.Bounds().bottom);
+        Assert::AreEqual ((LONG) 256, bottom.GetBounds().top);     // 300 - 44
+        Assert::AreEqual ((LONG) 300, bottom.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 0,   fill.GetBounds().top);
+        Assert::AreEqual ((LONG) 256, fill.GetBounds().bottom);
     }
 
 
@@ -227,10 +227,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
-        Assert::AreEqual ((LONG) 0,  top1.Bounds().top);
-        Assert::AreEqual ((LONG) 24, top1.Bounds().bottom);
-        Assert::AreEqual ((LONG) 24, top2.Bounds().top);
-        Assert::AreEqual ((LONG) 40, top2.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,  top1.GetBounds().top);
+        Assert::AreEqual ((LONG) 24, top1.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 24, top2.GetBounds().top);
+        Assert::AreEqual ((LONG) 40, top2.GetBounds().bottom);
     }
 
 
@@ -261,18 +261,18 @@ public:
 
         // Left was peeled after top/bottom shrank height, so it spans
         // the inner vertical band (20..270), not the full container.
-        Assert::AreEqual ((LONG) 0,   left.Bounds().left);
-        Assert::AreEqual ((LONG) 20,  left.Bounds().top);
-        Assert::AreEqual ((LONG) 40,  left.Bounds().right);
-        Assert::AreEqual ((LONG) 270, left.Bounds().bottom);
+        Assert::AreEqual ((LONG) 0,   left.GetBounds().left);
+        Assert::AreEqual ((LONG) 20,  left.GetBounds().top);
+        Assert::AreEqual ((LONG) 40,  left.GetBounds().right);
+        Assert::AreEqual ((LONG) 270, left.GetBounds().bottom);
 
-        Assert::AreEqual ((LONG) 350, right.Bounds().left);
-        Assert::AreEqual ((LONG) 400, right.Bounds().right);
+        Assert::AreEqual ((LONG) 350, right.GetBounds().left);
+        Assert::AreEqual ((LONG) 400, right.GetBounds().right);
 
-        Assert::AreEqual ((LONG) 40,  fill.Bounds().left);
-        Assert::AreEqual ((LONG) 20,  fill.Bounds().top);
-        Assert::AreEqual ((LONG) 350, fill.Bounds().right);
-        Assert::AreEqual ((LONG) 270, fill.Bounds().bottom);
+        Assert::AreEqual ((LONG) 40,  fill.GetBounds().left);
+        Assert::AreEqual ((LONG) 20,  fill.GetBounds().top);
+        Assert::AreEqual ((LONG) 350, fill.GetBounds().right);
+        Assert::AreEqual ((LONG) 270, fill.GetBounds().bottom);
     }
 
 
@@ -290,10 +290,10 @@ public:
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (kids, 2));
 
-        Assert::AreEqual ((LONG) 200, Width  (fill1.Bounds()));
-        Assert::AreEqual ((LONG) 100, Height (fill1.Bounds()));
-        Assert::AreEqual ((LONG) 0,   Width  (fill2.Bounds()));
-        Assert::AreEqual ((LONG) 0,   Height (fill2.Bounds()));
+        Assert::AreEqual ((LONG) 200, Width  (fill1.GetBounds()));
+        Assert::AreEqual ((LONG) 100, Height (fill1.GetBounds()));
+        Assert::AreEqual ((LONG) 0,   Width  (fill2.GetBounds()));
+        Assert::AreEqual ((LONG) 0,   Height (fill2.GetBounds()));
     }
 
 
@@ -303,7 +303,7 @@ public:
         SIZE                          desired = { 560, 384 };
         SIZE                          result  = {};
 
-        result = layout.ContainerSizeForFill (desired, std::span<IDxuiControl * const> ());
+        result = layout.GetContainerSizeForFill (desired, std::span<IDxuiControl * const> ());
 
         Assert::AreEqual ((LONG) 560, result.cx);
         Assert::AreEqual ((LONG) 384, result.cy);
@@ -324,8 +324,8 @@ public:
         layout.SetDock (top,    DxuiDock::Top);
         layout.SetDock (bottom, DxuiDock::Bottom);
 
-        result = layout.ContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+        result = layout.GetContainerSizeForFill (desired,
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 560,            result.cx);
         Assert::AreEqual ((LONG) 384 + 24 + 32,  result.cy);
@@ -346,8 +346,8 @@ public:
         layout.SetDock (left,  DxuiDock::Left);
         layout.SetDock (right, DxuiDock::Right);
 
-        result = layout.ContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+        result = layout.GetContainerSizeForFill (desired,
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 560 + 40 + 50, result.cx);
         Assert::AreEqual ((LONG) 384,           result.cy);
@@ -380,14 +380,14 @@ public:
         layout.SetDock (right,  DxuiDock::Right);
         layout.SetDock (fill,   DxuiDock::Fill);
 
-        container   = layout.ContainerSizeForFill (desiredFill,
-                                                   std::span<IDxuiControl * const> (nonFill, 4));
+        container   = layout.GetContainerSizeForFill (desiredFill,
+                                                      std::span<IDxuiControl * const> (nonFill, 4));
         bounds      = MakeRect (0, 0, container.cx, container.cy);
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (all, 5));
 
-        Assert::AreEqual ((LONG) 560, Width  (fill.Bounds()));
-        Assert::AreEqual ((LONG) 384, Height (fill.Bounds()));
+        Assert::AreEqual ((LONG) 560, Width  (fill.GetBounds()));
+        Assert::AreEqual ((LONG) 384, Height (fill.GetBounds()));
     }
 
 
@@ -405,8 +405,8 @@ public:
         layout.SetDock (top,   DxuiDock::Top);
         layout.SetDock (stray, DxuiDock::Fill);     // explicit Fill: must be ignored
 
-        result = layout.ContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+        result = layout.GetContainerSizeForFill (desired,
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 100,        result.cx);
         Assert::AreEqual ((LONG) 100 + 10,   result.cy);

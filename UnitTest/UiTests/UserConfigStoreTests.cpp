@@ -67,7 +67,7 @@ public:
         JsonValue          found;
 
 
-        hr = fs.ReadAllText (store.UserFilePath (machineName), text);
+        hr = fs.ReadAllText (store.GetUserFilePath (machineName), text);
         AssertSucceeded (hr);
 
         hr = JsonParser::Parse (text, root, err);
@@ -183,7 +183,7 @@ public:
         JsonValue   u = ParseOrFail ("{}");
         m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (d, m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (d, m));
     }
 
 
@@ -197,7 +197,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"a\":99}");
         m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":99,\"b\":2}"), m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (ParseOrFail ("{\"a\":99,\"b\":2}"), m));
     }
 
 
@@ -211,7 +211,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"crt\":{\"bloom\":{\"enabled\":true}}}");
         m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":true}}}"), m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (ParseOrFail ("{\"crt\":{\"brightness\":1.0,\"bloom\":{\"enabled\":true}}}"), m));
     }
 
 
@@ -225,7 +225,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"arr\":[9]}");
         m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"arr\":[9]}"), m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (ParseOrFail ("{\"arr\":[9]}"), m));
     }
 
 
@@ -239,7 +239,7 @@ public:
         JsonValue   u = ParseOrFail ("{\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}");
         m = UserConfigStore::MergeJson (d, u);
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (ParseOrFail ("{\"a\":1,\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}"), m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (ParseOrFail ("{\"a\":1,\"lastMountedImages\":{\"6\":{\"0\":\"/img.dsk\"}}}"), m));
     }
 
 
@@ -308,7 +308,7 @@ public:
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
         AssertSucceeded (hr);
-        Assert::IsTrue (UserConfigStore::JsonEqual (defaultJson, merged));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (defaultJson, merged));
     }
 
 
@@ -320,7 +320,7 @@ public:
         UserConfigStore     store (L"C:\\Casso\\User");
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\",\"a\":1}");
 
-        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
+        hr = fs.WriteAllText (store.GetUserFilePath ("Apple2e"),
                               "{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}");
         AssertSucceeded (hr);
 
@@ -328,7 +328,7 @@ public:
         AssertSucceeded (hr);
 
         JsonValue  expected = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\",\"a\":1}");
-        Assert::IsTrue (UserConfigStore::JsonEqual (expected, merged));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, merged));
     }
 
 
@@ -384,15 +384,15 @@ public:
         HRESULT             hr;
         UserConfigStore     store (L"C:\\Casso\\User");
 
-        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
+        hr = fs.WriteAllText (store.GetUserFilePath ("Apple2e"),
                               "{\"$cassoMachineVersion\":1}");
         AssertSucceeded (hr);
-        Assert::IsTrue (fs.Exists (store.UserFilePath ("Apple2e")));
+        Assert::IsTrue (fs.Exists (store.GetUserFilePath ("Apple2e")));
 
         hr = store.Reset ("Apple2e", fs);
         AssertSucceeded (hr);
-        Assert::IsTrue (fs.Exists (store.UserFilePath ("Apple2e")));
-        Assert::IsTrue (fs.PeekContent (store.UserFilePath ("Apple2e")).find ("Apple2e") == std::string::npos);
+        Assert::IsTrue (fs.Exists (store.GetUserFilePath ("Apple2e")));
+        Assert::IsTrue (fs.PeekContent (store.GetUserFilePath ("Apple2e")).find ("Apple2e") == std::string::npos);
     }
 
 
@@ -417,7 +417,7 @@ public:
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"a\":1}");
         std::string         original    = "{\"$cassoDefault\":1,\"a\":1}";
 
-        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"), original);
+        hr = fs.WriteAllText (store.GetUserFilePath ("Apple2e"), original);
         AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
@@ -440,7 +440,7 @@ public:
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":9,\"a\":1}");
         std::string         original = "{\"$cassoMachineVersion\":9,\"$cassoDefault\":4,\"a\":1}";
 
-        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"), original);
+        hr = fs.WriteAllText (store.GetUserFilePath ("Apple2e"), original);
         AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
@@ -463,7 +463,7 @@ public:
         JsonValue           d3 = ParseOrFail ("{\"$cassoMachineVersion\":3,\"newV2\":true,\"newV3\":true,\"$cassoUiPrefs\":{\"speedMode\":\"authentic\"}}");
         JsonValue           d4 = ParseOrFail ("{\"$cassoMachineVersion\":4,\"newV2\":true,\"newV3\":true,\"newV4\":true,\"$cassoUiPrefs\":{\"speedMode\":\"authentic\"}}");
 
-        hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
+        hr = fs.WriteAllText (store.GetUserFilePath ("Apple2e"),
                               "{\"$cassoDefault\":1,\"$cassoUiPrefs\":{\"speedMode\":\"maximum\"}}");
         AssertSucceeded (hr);
 
@@ -525,7 +525,7 @@ public:
             ]
         })JSON");
 
-        Assert::IsTrue (UserConfigStore::JsonEqual (expected, m));
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, m));
     }
 
 
@@ -561,10 +561,10 @@ public:
 
         AssertSucceeded (diff.GetArray ("internalDevices", internal));
         AssertSucceeded (diff.GetArray ("slots", slots));
-        Assert::AreEqual<size_t> (1u, internal->ArraySize());
-        Assert::AreEqual<size_t> (1u, slots->ArraySize());
-        const JsonValue & int0  = internal->ArrayAt (0);
-        const JsonValue & slot0 = slots->ArrayAt (0);
+        Assert::AreEqual<size_t> (1u, internal->GetArraySize());
+        Assert::AreEqual<size_t> (1u, slots->GetArraySize());
+        const JsonValue & int0  = internal->GetArrayElement (0);
+        const JsonValue & slot0 = slots->GetArrayElement (0);
         Assert::AreEqual<size_t> (2u, int0.GetObjectEntries().size());
         Assert::AreEqual<size_t> (2u, slot0.GetObjectEntries().size());
     }
@@ -599,8 +599,16 @@ public:
         AssertSucceeded (diff.GetObject ("$cassoUiPrefs", ui));
         Assert::IsTrue (ui != nullptr);
         if (ui == nullptr) { return; }
-        Assert::AreEqual<size_t> (1u, ui->GetObjectEntries().size());
+        // speedMode differs from the table, so it is written. colorMode
+        // MATCHES the table and is written anyway: its real default is a
+        // property of the machine's monitor, so a difference from the
+        // hardware-independent table says nothing about what the user wants
+        // and dropping it discards a deliberate choice. Everything else here
+        // matches the table and is dropped, which is the shadowing this test
+        // is about.
+        Assert::AreEqual<size_t> (2u, ui->GetObjectEntries().size());
         Assert::AreEqual (string ("speedMode"), ui->GetObjectEntries()[0].first);
+        Assert::AreEqual (string ("colorMode"), ui->GetObjectEntries()[1].first);
     }
 
 
@@ -646,8 +654,8 @@ public:
         m = UserConfigStore::MergeJson (d, u);
 
         AssertSucceeded (m.GetArray ("lastMountedImages", arr));
-        Assert::AreEqual (size_t (2), arr->ArraySize());
-        Assert::AreEqual (std::string ("C:\\disk0.dsk"), arr->ArrayAt (0).GetString());
+        Assert::AreEqual (size_t (2), arr->GetArraySize());
+        Assert::AreEqual (std::string ("C:\\disk0.dsk"), arr->GetArrayElement (0).GetString());
     }
 
 
@@ -662,7 +670,7 @@ public:
 
 
         // Valid up to the third line, then a bare word where a value belongs.
-        hr = fs.WriteAllText (store.UserPrefsFilePath(),
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(),
                               "{\n"
                               "    \"activeTheme\": \"Retro Terminal\",\n"
                               "    \"speedMode\": oops\n"
@@ -678,9 +686,9 @@ public:
             L"The caller needs somewhere to point the user -- an empty detail "
             L"leaves them with 'Casso lost my settings' and no reason");
         Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
-            L"The detail must name the line the parse broke on");
-        Assert::IsTrue (parseDetail.find (store.UserPrefsFilePath()) != std::wstring::npos,
-            L"The detail must name the file, so the user can go fix it");
+            L"The detail must identify the line the parse broke on");
+        Assert::IsTrue (parseDetail.find (store.GetUserPrefsFilePath()) != std::wstring::npos,
+            L"The detail must identify the file, so the user can go fix it");
     }
 
 
@@ -763,7 +771,7 @@ public:
         hr = store.LoadAll (prefs, fs, parseDetail);
         AssertSucceeded (hr);
         Assert::AreEqual (std::string ("DarkModern"), prefs.activeTheme);
-        Assert::IsTrue (fs.Exists (store.UserPrefsFilePath()));
+        Assert::IsTrue (fs.Exists (store.GetUserPrefsFilePath()));
         Assert::IsFalse (fs.Exists (LegacyGlobalPathForTest (baseDir)));
         Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Foo")));
         Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Bar")));
@@ -796,11 +804,11 @@ public:
 
         hr = store.LoadAll (prefs, fs, parseDetail);
         AssertSucceeded (hr);
-        firstText = fs.PeekContent (store.UserPrefsFilePath());
+        firstText = fs.PeekContent (store.GetUserPrefsFilePath());
 
         hr = secondStore.LoadAll (secondPrefs, fs, parseDetail);
         AssertSucceeded (hr);
-        secondText = fs.PeekContent (secondStore.UserPrefsFilePath());
+        secondText = fs.PeekContent (secondStore.GetUserPrefsFilePath());
 
         Assert::AreEqual (firstText, secondText);
         Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Foo")));

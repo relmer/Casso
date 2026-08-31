@@ -153,7 +153,7 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const std::vector<Byte> &
 
 
     AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image),
-        L"the container must nibblize before the drive can be asked what it reads");
+        L"the container must nibblize before the drive can report what it reads");
 
     return DecodeThroughTheDrive (image, report);
 }

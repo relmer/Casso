@@ -58,7 +58,7 @@ public:
     // null (handler). The pointer is into m_internal, which SetInternalRom
     // move-reassigns on a //c $C028 bank flip, so the MMU must re-query after
     // any AttachInternalCxxxRom.
-    Byte * FastMapReadPtr (int page);
+    Byte * GetFastMapReadPtr (int page);
 
     // Apple //c: there are no external card slots, so the whole $C100-$CFFF
     // window (including the $C800 expansion space) is always the internal
@@ -75,7 +75,7 @@ public:
 
 private:
     Byte           ResolveByte     (Word address);
-    MemoryDevice * SlotIoDeviceFor (Word address) const;
+    MemoryDevice * GetSlotIoDevice (Word address) const;
 
     Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;

@@ -194,7 +194,7 @@ std::wstring_view TrackSectorPredicate::TrimSpan (std::wstring_view expr, int & 
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ValueCap
+//  GetValueCap
 //
 //  Returns the exclusive upper bound for a parsed value given the
 //  parser mode and whether the value is a quarter-track. Sector
@@ -204,7 +204,7 @@ std::wstring_view TrackSectorPredicate::TrimSpan (std::wstring_view expr, int & 
 //
 ////////////////////////////////////////////////////////////////////////////
 
-int TrackSectorPredicate::ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
+int TrackSectorPredicate::GetValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
 {
     int  cap = 0;
 
@@ -287,7 +287,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                         TryParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
                         isQt == hiIsQt)
                     {
-                        cap = ValueCap (mode, isQt);
+                        cap = GetValueCap (mode, isQt);
 
                         // Both endpoints in range: accept the range.
                         // One endpoint out of range: clamp the in-
@@ -322,7 +322,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                 {
                     if (TryParseValue (trimmed, rawQt, val, isQt))
                     {
-                        cap = ValueCap (mode, isQt);
+                        cap = GetValueCap (mode, isQt);
 
                         if (val >= 0 && val < cap)
                         {

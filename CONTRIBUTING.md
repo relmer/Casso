@@ -85,7 +85,15 @@ outside designated `// ATTRIBUTION:` comment blocks.
 ## Changelog and README
 
 - **ALWAYS** update [CHANGELOG.md](CHANGELOG.md) when making user-visible changes (`feat`, `fix`, `perf`)
+- **The changelog is for code changes.** Checking in a spec, plan, or tasks
+  file changes nothing about what the software does, so `docs` commits get no
+  entry no matter how significant the spec is. The same goes for the rest of
+  the non-code types (`chore`, `build`, `test`, `ci`) unless a user would
+  actually notice the result.
 - Add entries under an `[Unreleased]` section at the top; they get moved to a versioned heading at release time
+- `[Unreleased]` means "on master, not yet released" — it is not one feature's
+  staging area. Do not retitle it after a feature; it will hold work from
+  several at once.
 - Follow [Keep a Changelog](https://keepachangelog.com/) categories: Added, Changed, Fixed, Removed
 - Update [README.md](README.md) when a change affects documented features, test counts, or the roadmap
 - Update the test count in README when adding or removing test methods

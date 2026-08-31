@@ -116,7 +116,7 @@ uint32_t InputEventRing::Drain (InputEvent * out, uint32_t maxCount) noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApproxSize
+//  GetApproxSize
 //
 //  Advisory diagnostic. The result may be stale by the time the caller
 //  uses it; both indices are read relaxed because no synchronization
@@ -124,7 +124,7 @@ uint32_t InputEventRing::Drain (InputEvent * out, uint32_t maxCount) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t InputEventRing::ApproxSize() const noexcept
+uint32_t InputEventRing::GetApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);

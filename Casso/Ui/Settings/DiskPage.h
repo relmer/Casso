@@ -65,14 +65,14 @@ public:
 
     // Test / wiring accessors.
     DxuiDropdown          & WriteModeDropdown    () { return m_writeMode; }
-    DxuiDropdown          & MechanismDropdown    () { return m_mechanism; }
-    DxuiToggle            & DriveAudioToggle     () { return m_driveAudio; }
+    DxuiDropdown          & GetMechanismDropdown () { return m_mechanism; }
+    DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
 
-    const DxuiToggle      & DriveAudioToggle     () const { return m_driveAudio; }
+    const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiDropdown    & WriteModeDropdown    () const { return m_writeMode; }
-    const DxuiDropdown    & MechanismDropdown    () const { return m_mechanism; }
+    const DxuiDropdown    & GetMechanismDropdown () const { return m_mechanism; }
 
 private:
     static RECT  MakeRect (int l, int t, int w, int h);

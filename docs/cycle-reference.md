@@ -363,7 +363,7 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 
 ## Where the two cores bill the same instruction differently
 
-5 opcode(s), found by comparing the two tables rather than by hand.
+5 opcodes, found by comparing the two tables rather than by hand.
 
 | Op  | Mnem   | Mode     | NMOS  | 65C02 |
 | --- | ------ | -------- | ----- | ----- |
@@ -375,9 +375,9 @@ Fx    2  5  5  1  4  4  6  5  2  4  4  1  4  4  7  5
 
 ## Instructions the 65C02 adds
 
-59 opcode(s) the assembler can write for the 65C02 and not for the NMOS
-core. Another 46 CMOS slot(s) are opcode-map fill that executes as a NOP,
-marked `*` in the main table, and 0 opcode(s) the NMOS assembler can write
+59 opcodes the assembler can write for the 65C02 and not for the NMOS
+core. Another 46 CMOS slots are opcode-map fill that executes as a NOP,
+marked `*` in the main table, and 0 opcodes the NMOS assembler can write
 have no writable 65C02 equivalent.
 
 | Op  | Mnem   | Mode     | Len | Cyc |

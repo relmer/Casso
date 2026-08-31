@@ -156,7 +156,7 @@ public:
         // Create() builds an internal DxuiCaptionBar at the top of the
         // client area; the consumer drives it only via SetTitle /
         // SetCaptionIcon and lays its own content out below
-        // CaptionHeightPx(). Default None preserves the legacy path
+        // GetCaptionHeightPx(). Default None preserves the legacy path
         // where the consumer adopts its own title-bar control.
         DxuiCaptionStyle         captionStyle             = DxuiCaptionStyle::None;
 
@@ -248,9 +248,9 @@ public:
     //
     bool  HandleMessage  (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult);
 
-    HWND          Hwnd          () const { return m_hwnd; }
-    DxuiPanel  &  Root          ()       { return *RootPanel(); }
-    const DxuiDpiScaler &  Scaler  () const { return m_scaler; }
+    HWND          GetHwnd          () const { return m_hwnd; }
+    DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
+    const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
 
     //
@@ -265,7 +265,20 @@ public:
     //
     void          SetTitle        (const std::wstring & title);
     void          SetCaptionIcon  (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
-    int           CaptionHeightPx () const;
+    int           GetCaptionHeightPx () const;
+
+    // Hides the host-owned caption strip outright (fullscreen
+    // presentations): it stops painting, reserves no height, and routes no
+    // NC mouse. No-op on a window without a host caption; the consumer's
+    // next layout pass picks up the height change.
+    void          SetCaptionVisible (bool visible) { m_captionVisible = visible; }
+
+    // Turns the resize borders off and on at runtime. A window that has gone
+    // borderless-fullscreen fills the monitor and has nothing to resize TO:
+    // its edges are screen edges, and the classifier would still hand back
+    // HTBOTTOMRIGHT there, letting a drag at the corner pull the window down
+    // to a fraction of the screen with no caption left to fix it with.
+    void          SetResizable (bool resizable) { m_params.resizable = resizable; }
 
     //
     //  Adopt-mode caption hooks. A full-ownership host paints + lays out
@@ -284,7 +297,7 @@ public:
     //  Lets a consumer install a fully-assembled content tree (e.g.
     //  a SettingsWindow content panel) as the host's
     //  paint / hit-test / focus / accessibility root without going
-    //  through `Root().Add<...>()` piece-by-piece. The previous root
+    //  through `GetRoot().Add<...>()` piece-by-piece. The previous root
     //  (and everything under it) is destroyed.
     //
     //  When `m_hwnd` already exists the new panel's bounds are
@@ -390,7 +403,7 @@ public:
     ID3D11Device         *  GetDevice          () const { return m_device.Get();    }
     ID3D11DeviceContext  *  GetContext         () const { return m_context.Get();   }
     IDXGISwapChain1      *  GetSwapChain       () const { return m_swapChain.Get(); }
-    ID3D11RenderTargetView * GetBackBufferRtv  () const { return m_rtv.Get();       }
+    ID3D11RenderTargetView * GetBackBufferRtv  () const override { return m_rtv.Get(); }
     // Host-owned text renderer; null in adopt / synthetic mode (host owns no paint pump).
     IDxuiTextRenderer    *  GetTextRenderer    () const { return m_textRenderer.get(); }
 
@@ -462,10 +475,10 @@ public:
                                             ID3D11DeviceContext  * context);
 
 #ifdef _DEBUG
-    size_t  PopupHits   () const { return m_popupHits;   }
-    size_t  PopupMisses () const { return m_popupMisses; }
-    size_t  PopupPoolSize () const { return m_popupPool.size(); }
-    size_t  PopupActiveCount () const { return m_popupActive.size(); }
+    size_t  GetPopupHits   () const { return m_popupHits;   }
+    size_t  GetPopupMisses () const { return m_popupMisses; }
+    size_t  GetPopupPoolSize () const { return m_popupPool.size(); }
+    size_t  GetPopupActiveCount () const { return m_popupActive.size(); }
 #endif
 
 #ifdef _DEBUG
@@ -486,7 +499,7 @@ public:
         bool                    darkRequested         = false;
     };
 
-    const DwmAppliedSeam &  DwmSeam  () const { return m_dwmSeam; }
+    const DwmAppliedSeam &  GetDwmSeam  () const { return m_dwmSeam; }
 #endif
 
     //
@@ -517,6 +530,21 @@ public:
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
 
+    //
+    //  Whether an NC mouse message may be claimed by a caption system
+    //  button, or has to be left to the window manager. The message's
+    //  wParam is the hit code the OS derived from our own WM_NCHITTEST
+    //  answer, so a resize code means "the user is starting a resize"
+    //  EVEN THOUGH the point may sit on a button -- the corner grab zones
+    //  deliberately reach under them.
+    //
+    //  Public because this predicate IS the top-right-corner contract, and
+    //  it is the only part of the NC-mouse path reachable without a real
+    //  window: everything around it in HandleNcMouse is HWND bookkeeping
+    //  that bails out before the decision in a synthetic host.
+    //
+    static bool  NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest);
+
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
@@ -531,7 +559,7 @@ private:
     };
 
     static BOOL CALLBACK  FirstIconGroupProc  (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
-    static HICON          DefaultAppIcon      (bool big);
+    static HICON          GetDefaultAppIcon      (bool big);
 
     // Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
     // minimum needed so its whole frame sits within its monitor's work
@@ -552,10 +580,9 @@ private:
     //  DxuiRenderTarget surface contract. The base's RenderFrame (driven from
     //  PaintPump) clears + presents through these; PaintContent walks the panel
     //  tree + caption + modal overlay onto `target`.
-    ID3D11RenderTargetView *  BackBufferRtv     () const override { return m_rtv.Get(); }
-    SIZE                      BackBufferSizePx  () const override;
-    ComPtr<IDXGISurface>      BackBufferSurface () const override;
-    UINT                      TargetDpi         () const override { return m_scaler.Dpi(); }
+    SIZE                      GetBackBufferSizePx  () const override;
+    ComPtr<IDXGISurface>      GetBackBufferSurface () const override;
+    UINT                      GetTargetDpi         () const override { return m_scaler.GetDpi(); }
     void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
     void  PresentFrame  () override;
 
@@ -570,7 +597,7 @@ private:
     // else DefaultProc.
     bool     DispatchHostMessage       (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
     bool     DispatchClientMessage     (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
-    bool     Claimed                   (DxuiMessageResult clientResult, RepaintOnClaim repaint);
+    bool     IsClaimed                   (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);
@@ -583,7 +610,7 @@ private:
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
     void     MaybeRelayoutRoot         (const RECT & clientPx);
-    DxuiPanel *  RootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
+    DxuiPanel *  GetRootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
     void     LayoutCaption             (const RECT & clientDip);
     void     BuildCaption              ();
     bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
@@ -641,6 +668,7 @@ private:
     std::unique_ptr<DxuiPanel>        m_root;
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
+    bool                              m_captionVisible     = true;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
 

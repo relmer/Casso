@@ -29,6 +29,7 @@ static constexpr size_t  s_kMemoryRow        = 2;
 // config slot), so the tree's toggle handler matches this label to route
 // it to SetExternalDriveConnected instead of SetHardwareEnabled.
 static constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+static constexpr wchar_t s_kSecondDriveLabel[]   = L"Drive 2";
 
 // Synthetic node for the //c mouse peripheral -- same pattern.
 static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
@@ -223,13 +224,13 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT    dpi        = scaler.Dpi();
-    int     pad        = scaler.Px (s_kPagePadDp);
-    int     labelWidth = scaler.Px (s_kInfoLabelWidthDp);
-    int     rowHeight  = scaler.Px (s_kInfoRowHeightDp);
-    int     valueGap   = scaler.Px (s_kInfoValueGapDp);
-    int     sectionGap = scaler.Px (s_kBigSectionGapDp);
-    int     dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    UINT    dpi        = scaler.GetDpi();
+    int     pad        = scaler.ToPx (s_kPagePadDp);
+    int     labelWidth = scaler.ToPx (s_kInfoLabelWidthDp);
+    int     rowHeight  = scaler.ToPx (s_kInfoRowHeightDp);
+    int     valueGap   = scaler.ToPx (s_kInfoValueGapDp);
+    int     sectionGap = scaler.ToPx (s_kBigSectionGapDp);
+    int     dropWidth  = scaler.ToPx (s_kDropdownWidthDp);
     int     x          = rect.left + pad;
     int     controlsX  = x + labelWidth;
     int     valueX     = x + labelWidth + valueGap;
@@ -276,9 +277,9 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             // ("RAM (main, bank-switched)") to stay on one line -- there is
             // ample dialog margin to the right, and the size/addr columns are
             // positioned relative to it.
-            int  nameW    = scaler.Px (200);
-            int  sizeW    = scaler.Px (55);
-            int  addrW    = scaler.Px (130);
+            int  nameW    = scaler.ToPx (200);
+            int  sizeW    = scaler.ToPx (55);
+            int  addrW    = scaler.ToPx (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
             int  rowY     = m_infoTop + ((int) s_kMemoryRow + 1 + subIndex) * rowHeight;
 
@@ -385,7 +386,7 @@ void HardwarePage::Rebuild()
         size_t        i          = 0;
 
         // Machine + CPU-speed selectors.
-        m_speed.SetSelected           ((int) state->Prefs().speedMode);
+        m_speed.SetSelected           ((int) state->GetPrefs().speedMode);
         m_machineDropdown.SetSelected (m_activeMachineIndex);
 
         m_machineDropdown.SetSelect ([this] (int idx)
@@ -401,8 +402,8 @@ void HardwarePage::Rebuild()
         });
         m_speed.SetSelect ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
 
-        info    = &state->MachineInfo();
-        entries = state->Hardware();
+        info    = &state->GetMachineInfo();
+        entries = state->GetHardware();
 
         // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format with
         // the "L" locale-aware flag requires a locale; build the grouped
@@ -460,10 +461,19 @@ void HardwarePage::Rebuild()
 
     {
         bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
-        bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
-        bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
+        bool  externalConnected = (state != nullptr) && state->GetPrefs().externalDriveConnected;
+        bool  mouseConnected    = (state == nullptr) || state->GetPrefs().mouseConnected;
 
-        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
+        // A carded machine offers the same choice under its own name. The
+        // //c is excluded here because its node is the external-drive one
+        // above -- HasDiskIIController answers true for it as well, since its
+        // built-in IWM has to count for the Disk tab.
+        bool  supportsSecond    = (state != nullptr) && !supportsExternal &&
+                                  state->HasDiskIIController();
+        bool  secondAttached    = (state != nullptr) && state->SecondDriveAttached();
+
+        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected,
+                            supportsSecond, secondAttached);
     }
 
     m_tree.SetNodes (std::move (nodes));
@@ -486,15 +496,21 @@ void HardwarePage::Rebuild()
             return;
         }
 
+        if (label == s_kSecondDriveLabel)
+        {
+            state->SetSecondDriveAttached (checked);
+            return;
+        }
+
         if (label == s_kMouseLabel)
         {
             state->SetMouseConnected (checked);
             return;
         }
 
-        for (i = 0; i < state->Hardware().size(); ++i)
+        for (i = 0; i < state->GetHardware().size(); ++i)
         {
-            std::wstring  candidate = Widen (state->Hardware()[i].displayName);
+            std::wstring  candidate = Widen (state->GetHardware()[i].displayName);
 
             if (candidate == label)
             {
@@ -540,7 +556,9 @@ void HardwarePage::Rebuild()
 std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
                                                     bool supportsExternalDrive,
                                                     bool externalDriveConnected,
-                                                    bool mouseConnected)
+                                                    bool mouseConnected,
+                                                    bool supportsSecondDrive,
+                                                    bool secondDriveAttached)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -598,7 +616,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     // 5.25" drive on the disk port. Optional (interactive), so the user can
     // connect/disconnect it; checked mirrors the persisted connected state.
     // Unlike the hardware rows this is not a config device -- toggling it is
-    // a live UI pref, so the tree's OnToggle routes this label specially.
+    // a live change, so the tree's OnToggle routes this label specially.
     if (supportsExternalDrive)
     {
         DxuiTreeNode  external;
@@ -616,6 +634,20 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         mouse.checked        = mouseConnected;
         mouse.expanded       = false;
         out.push_back (std::move (mouse));
+    }
+    else if (supportsSecondDrive)
+    {
+        // The same question for a carded machine, under the name that machine
+        // uses for it: not an external unit on a cable but a second drive on
+        // the Disk ][ card's other connector. Mutually exclusive with the //c
+        // node above -- a machine has one kind of second drive or the other.
+        DxuiTreeNode  second;
+
+        second.label          = s_kSecondDriveLabel;
+        second.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        second.checked        = secondDriveAttached;
+        second.expanded       = false;
+        out.push_back (std::move (second));
     }
 
     return out;

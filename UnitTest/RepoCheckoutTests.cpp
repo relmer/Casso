@@ -44,41 +44,41 @@ namespace RepoCheckoutTests
     public:
 
         //////////////////////////////////////////////////////////////////////
-        //  WorktreeKeyOf
+        //  GetWorktreeKey
         //////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (WorktreeKeyOf_InsideWorktree_ReturnsKey)
         {
-            auto  key = RepoCheckout::WorktreeKeyOf (fs::path (kWt1Disk));
+            auto  key = RepoCheckout::GetWorktreeKey (fs::path (kWt1Disk));
 
             Assert::IsTrue (fs::path (key) == fs::path (kWt1Key));
         }
 
         TEST_METHOD (WorktreeKeyOf_MainTreePath_ReturnsEmpty)
         {
-            Assert::IsTrue (RepoCheckout::WorktreeKeyOf (fs::path (kMainDisk)).empty());
+            Assert::IsTrue (RepoCheckout::GetWorktreeKey (fs::path (kMainDisk)).empty());
         }
 
         TEST_METHOD (WorktreeKeyOf_NonRepoPath_ReturnsEmpty)
         {
-            Assert::IsTrue (RepoCheckout::WorktreeKeyOf (fs::path (kLocalDisk)).empty());
+            Assert::IsTrue (RepoCheckout::GetWorktreeKey (fs::path (kLocalDisk)).empty());
         }
 
 
         //////////////////////////////////////////////////////////////////////
-        //  MainRootOfWorktreeKey
+        //  GetMainRootOfWorktreeKey
         //////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (MainRootOfWorktreeKey_StripsWorktreeSuffix)
         {
-            auto  root = RepoCheckout::MainRootOfWorktreeKey (kWt1Key);
+            auto  root = RepoCheckout::GetMainRootOfWorktreeKey (kWt1Key);
 
             Assert::IsTrue (root == fs::path (kMainRoot));
         }
 
         TEST_METHOD (MainRootOfWorktreeKey_Empty_ReturnsEmpty)
         {
-            Assert::IsTrue (RepoCheckout::MainRootOfWorktreeKey (L"").empty());
+            Assert::IsTrue (RepoCheckout::GetMainRootOfWorktreeKey (L"").empty());
         }
 
 

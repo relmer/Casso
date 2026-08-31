@@ -2,7 +2,9 @@
 
 #include "Printer3DScene.h"
 
+#include "Devices/Printer/MeshBlob.h"
 #include "Devices/Printer/ObjMeshParser.h"
+#include "Render/SceneCamera.h"
 
 
 
@@ -173,117 +175,6 @@ static constexpr float     s_kLogoTopY   = 0.19f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene -- row-vector matrix helpers (clip = v * view * proj),
-//  matching the renderer's row_major cbuffer. Hand-rolled to keep the 3D path
-//  free of a math-library header dependency.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Printer3DScene::Mul44 (const float a[16], const float b[16], float out[16])
-{
-    for (int r = 0; r < 4; r++)
-    {
-        for (int c = 0; c < 4; c++)
-        {
-            out[r * 4 + c] = a[r * 4 + 0] * b[0 * 4 + c]
-                           + a[r * 4 + 1] * b[1 * 4 + c]
-                           + a[r * 4 + 2] * b[2 * 4 + c]
-                           + a[r * 4 + 3] * b[3 * 4 + c];
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Printer3DScene::LookAtRH
-//
-//  Builds a right-handed view matrix from an eye position and a look-at point.
-//
-//  Written out rather than pulled from a math library so the scene has no
-//  dependency beyond the standard library, and so the handedness is visible in
-//  the source instead of implied by whichever library variant was linked --
-//  a mismatch there mirrors the whole scene and is maddening to diagnose.
-//
-//  The up vector is FIXED at (0,1,0), which is why the cross product collapses
-//  to two components: with up on the Y axis, cross(up, z) has no Y term at
-//  all. This scene never rolls the camera, so the general form would be
-//  arithmetic nobody uses.
-//
-//  The translation row is the negated dot of the eye against each basis
-//  vector, which is what makes this the INVERSE of the camera's transform --
-//  a view matrix moves the world, not the camera.
-//
-//  A degenerate eye-equals-target input is not guarded; the scene's camera
-//  positions are all fixed, so it cannot arise here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[16])
-{
-    float   z[3] = { eye[0] - at[0], eye[1] - at[1], eye[2] - at[2] };
-    float   zl   = std::sqrt (z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
-    float   x[3] = {};
-    float   xl   = 0.0f;
-    float   y[3] = {};
-
-
-
-    z[0] /= zl; z[1] /= zl; z[2] /= zl;
-
-    // x = normalize(cross(up, z)) with up = (0,1,0)
-    x[0] = z[2]; x[1] = 0.0f; x[2] = -z[0];
-    xl   = std::sqrt (x[0] * x[0] + x[2] * x[2]);
-    x[0] /= xl; x[2] /= xl;
-
-    // y = cross(z, x)
-    y[0] = z[1] * x[2] - z[2] * x[1];
-    y[1] = z[2] * x[0] - z[0] * x[2];
-    y[2] = z[0] * x[1] - z[1] * x[0];
-
-    out[0]  = x[0]; out[1]  = y[0]; out[2]  = z[0]; out[3]  = 0.0f;
-    out[4]  = x[1]; out[5]  = y[1]; out[6]  = z[1]; out[7]  = 0.0f;
-    out[8]  = x[2]; out[9]  = y[2]; out[10] = z[2]; out[11] = 0.0f;
-    out[12] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
-    out[13] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
-    out[14] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
-    out[15] = 1.0f;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Printer3DScene::PerspectiveFovRH
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Printer3DScene::PerspectiveFovRH (float fovY, float aspect, float zn, float zf, float out[16])
-{
-    float   ys = 1.0f / std::tan (fovY * 0.5f);
-    float   xs = ys / aspect;
-
-
-
-    memset (out, 0, 16 * sizeof (float));
-    out[0]  = xs;
-    out[5]  = ys;
-    out[10] = zf / (zn - zf);
-    out[11] = -1.0f;
-    out[14] = zn * zf / (zn - zf);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Printer3DScene::IdentityMvp
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,7 +269,7 @@ HRESULT Printer3DScene::Initialize (ID3D11Device * device, ID3D11DeviceContext *
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string & mtlText)
+HRESULT Printer3DScene::SetModel (std::span<const uint8_t> meshBlob)
 {
     HRESULT                    hr      = S_OK;
     std::vector<ObjTriangle>   tris;
@@ -401,7 +292,12 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    hr = ObjMeshParser::Parse (objText, mtlText, tris);
+    {
+        std::vector<std::string>   names;
+
+        hr = MeshBlob::Read (meshBlob, tris, names);
+    }
+
     CHR (hr);
 
     hasTris = !tris.empty();
@@ -725,7 +621,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // Assign each GREEN lamp a fixed front-panel role by left-to-right
         // position, matching the reference panel (Print Quality, Select, then
         // Power on the on/off cap); the red lamp is the paper/fault Error
-        // indicator. Roles drive each lamp INDIVIDUALLY (RoleIntensity), so the
+        // indicator. Roles drive each lamp INDIVIDUALLY (GetRoleIntensity), so the
         // panel no longer flashes every lamp together while receiving.
         {
             std::vector<int>  greens;
@@ -991,11 +887,11 @@ void Printer3DScene::SetLeds (bool online, bool error)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene::RoleIntensity
+//  Printer3DScene::GetRoleIntensity
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Printer3DScene::RoleIntensity (LampRole role) const
+float Printer3DScene::GetRoleIntensity (LampRole role) const
 {
     // 0 is dark, which is the right answer for a lamp role this scene does
     // not model.
@@ -1274,7 +1170,7 @@ void Printer3DScene::BuildLedBatches()
 
     for (const LedFace & f : m_ledFaces)
     {
-        float      intensity = RoleIntensity (f.role);
+        float      intensity = GetRoleIntensity (f.role);
         uint32_t   base      = (f.role == LampRole::Error) ? s_kLedRed : s_kLedGreen;
         float      bright    = 0.16f + 1.10f * intensity;
         float      r         = (float) ((base >> 16) & 0xFF) / 255.0f * f.shade * bright;
@@ -1937,10 +1833,10 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
         // LED windows flush in the wall above the right three caps, each at its
         // own fixed meaning (i==3 print quality, i==4 select, i==5 on/off pair:
         // red fault + green power) -- no longer all riding one brightness.
-        qualityI = RoleIntensity (LampRole::Quality);
-        selectI = RoleIntensity (LampRole::Select);
-        powerI = RoleIntensity (LampRole::Power);
-        errorI = RoleIntensity (LampRole::Error);
+        qualityI = GetRoleIntensity (LampRole::Quality);
+        selectI = GetRoleIntensity (LampRole::Select);
+        powerI = GetRoleIntensity (LampRole::Power);
+        errorI = GetRoleIntensity (LampRole::Error);
         ledCy = cy + s_kButtonH + 0.012f + 0.004f;
 
         if (i == 3)
@@ -2161,7 +2057,7 @@ void Printer3DScene::Render (const RECT & targetPx)
         float   eye[3] = { s_kEye[0] + m_panX, s_kEye[1] + m_camPanY, s_kEye[2] };
         float   at[3]  = { s_kAt[0]  + m_panX, s_kAt[1]  + m_camPanY, s_kAt[2]  };
 
-        LookAtRH (eye, at, view);
+        SceneCamera::LookAtRH (eye, at, view);
     }
 
     // Zoom narrows the field of view about the same eye, so the paper grows
@@ -2183,12 +2079,12 @@ void Printer3DScene::Render (const RECT & targetPx)
             fovY = 2.0f * std::atan (std::tan (fovY * 0.5f) * (s_kFitAspect / aspect));
         }
 
-        PerspectiveFovRH (fovY, aspect, 0.1f, 20.0f, proj);
+        SceneCamera::PerspectiveFovRH (fovY, aspect, 0.1f, 20.0f, proj);
     }
 
-    Mul44            (view, proj, viewProj);
-    Mul44            (model, viewProj, mvp);
-    IdentityMvp      (identity);
+    SceneCamera::Mul44 (view, proj, viewProj);
+    SceneCamera::Mul44 (model, viewProj, mvp);
+    IdentityMvp        (identity);
 
     m_backdrop.clear();
     m_solidBack.clear();

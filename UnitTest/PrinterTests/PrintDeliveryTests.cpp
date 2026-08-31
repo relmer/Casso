@@ -57,7 +57,7 @@ namespace PrintDeliveryTests
             }
 
             AssertSucceeded (PrintDelivery::RenderToPng (
-                raster, 0, raster.RowsUsed() - 1, 288, DotStyle::Ink, png));
+                raster, 0, raster.GetRowsUsed() - 1, 288, DotStyle::Ink, png));
             Assert::IsTrue (png.size() > 8);
 
             AssertSucceeded (PngCodec::DecodeRgba (png, decoded));
@@ -67,7 +67,7 @@ namespace PrintDeliveryTests
             {
                 for (x = 0; x < decoded.width; x++)
                 {
-                    const Byte *   p = decoded.PixelAt (x, y);
+                    const Byte *   p = decoded.GetPixel (x, y);
                     if (p[0] < 250 || p[1] < 250 || p[2] < 250) inked++;
                 }
             }

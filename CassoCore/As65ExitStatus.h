@@ -66,5 +66,5 @@ public:
     //  `warned` is consulted only on the success path: an assembly that
     //  failed AND warned is a failed assembly, and reporting 5 would tell a
     //  script an output file exists when none does.
-    static int  ForAssembly (bool inputWasRead, bool assembled, bool warned = false);
+    static int  GetAssemblyStatus (bool inputWasRead, bool assembled, bool warned = false);
 };

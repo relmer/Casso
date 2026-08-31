@@ -1628,7 +1628,7 @@ public:
         }
 
         Assert::IsFalse (outcome.catalogFullyParsed);
-        Assert::IsTrue (outcome.warnings.size() > 0, L"an unbounded answer must say so");
+        Assert::IsTrue (outcome.warnings.size() > 0, L"an unbounded result must be reported as such");
 
         for (i = 0; i < outcome.warnings.size(); i++)
         {
@@ -1901,7 +1901,7 @@ public:
         Assert::AreEqual (size_t (1), outcome.leakedUnits.size(),
             L"the fixture must actually produce a leak");
         Assert::IsFalse (after.IsClean(),
-            L"space allocated with nothing claiming it is what the leak rule asks for");
+            L"space allocated with nothing claiming it is what the leak rule detects");
 
         AssertSucceeded (ProDosVolume::HandBackVerifiedResult (before, result, handedBack));
 

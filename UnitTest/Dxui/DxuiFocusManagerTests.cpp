@@ -59,12 +59,12 @@ public:
         focus.SetRowEpsilonDip (32.0f);
         focus.Attach (&panel);
 
-        Assert::AreEqual ((size_t) 5, focus.TabOrderCount());
-        Assert::AreEqual (static_cast<void *> (&topLeft), static_cast<void *> (focus.TabOrderAt (0)));
-        Assert::AreEqual (static_cast<void *> (&topMid), static_cast<void *> (focus.TabOrderAt (1)));
-        Assert::AreEqual (static_cast<void *> (&topRight), static_cast<void *> (focus.TabOrderAt (2)));
-        Assert::AreEqual (static_cast<void *> (&bottomLeft), static_cast<void *> (focus.TabOrderAt (3)));
-        Assert::AreEqual (static_cast<void *> (&bottomRight), static_cast<void *> (focus.TabOrderAt (4)));
+        Assert::AreEqual ((size_t) 5, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&topLeft), static_cast<void *> (focus.GetTabOrderAt (0)));
+        Assert::AreEqual (static_cast<void *> (&topMid), static_cast<void *> (focus.GetTabOrderAt (1)));
+        Assert::AreEqual (static_cast<void *> (&topRight), static_cast<void *> (focus.GetTabOrderAt (2)));
+        Assert::AreEqual (static_cast<void *> (&bottomLeft), static_cast<void *> (focus.GetTabOrderAt (3)));
+        Assert::AreEqual (static_cast<void *> (&bottomRight), static_cast<void *> (focus.GetTabOrderAt (4)));
     }
 
 
@@ -82,14 +82,14 @@ public:
         focus.Attach (&panel);
 
         Assert::IsTrue   (focus.HandleKey (DxuiFocusKey::Tab));
-        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.Focused()));
+        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.GetFocusedControl()));
 
         Assert::IsTrue   (focus.HandleKey (DxuiFocusKey::Tab));
-        Assert::AreEqual (static_cast<void *> (&b), static_cast<void *> (focus.Focused()));
+        Assert::AreEqual (static_cast<void *> (&b), static_cast<void *> (focus.GetFocusedControl()));
 
         // Wraps to a.
         Assert::IsTrue   (focus.HandleKey (DxuiFocusKey::Tab));
-        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.Focused()));
+        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.GetFocusedControl()));
     }
 
 
@@ -107,8 +107,8 @@ public:
 
         focus.Attach (&panel);
 
-        Assert::AreEqual (static_cast<void *> (&explicitOne), static_cast<void *> (focus.TabOrderAt (0)));
-        Assert::AreEqual (static_cast<void *> (&geomFirst), static_cast<void *> (focus.TabOrderAt (1)));
+        Assert::AreEqual (static_cast<void *> (&explicitOne), static_cast<void *> (focus.GetTabOrderAt (0)));
+        Assert::AreEqual (static_cast<void *> (&geomFirst), static_cast<void *> (focus.GetTabOrderAt (1)));
     }
 
 
@@ -123,8 +123,8 @@ public:
         b.SetTabIndex (IDxuiControl::kTabIndexExcluded);
         focus.Attach (&panel);
 
-        Assert::AreEqual ((size_t) 1, focus.TabOrderCount());
-        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.TabOrderAt (0)));
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&a), static_cast<void *> (focus.GetTabOrderAt (0)));
     }
 
 
@@ -144,8 +144,8 @@ public:
 
         focus.Attach (&panel);
 
-        Assert::AreEqual ((size_t) 1, focus.TabOrderCount());
-        Assert::AreEqual (static_cast<void *> (&visible), static_cast<void *> (focus.TabOrderAt (0)));
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&visible), static_cast<void *> (focus.GetTabOrderAt (0)));
     }
 
 
@@ -166,7 +166,7 @@ public:
         focus.SetFocused (&top);
 
         Assert::IsTrue   (focus.HandleKey (DxuiFocusKey::ArrowDown));
-        Assert::AreEqual (static_cast<void *> (&belowNear), static_cast<void *> (focus.Focused()));
+        Assert::AreEqual (static_cast<void *> (&belowNear), static_cast<void *> (focus.GetFocusedControl()));
     }
 
 
@@ -186,11 +186,11 @@ public:
         focus.SetFocused (&outer);
 
         focus.PushScope (&popup);
-        Assert::AreEqual ((size_t) 1, focus.TabOrderCount());
-        Assert::AreEqual (static_cast<void *> (&popupCtl), static_cast<void *> (focus.TabOrderAt (0)));
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&popupCtl), static_cast<void *> (focus.GetTabOrderAt (0)));
 
         focus.PopScope();
-        Assert::AreEqual (static_cast<void *> (&outer), static_cast<void *> (focus.Focused()));
+        Assert::AreEqual (static_cast<void *> (&outer), static_cast<void *> (focus.GetFocusedControl()));
     }
 };
 

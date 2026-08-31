@@ -4,7 +4,7 @@
 //  The casso-rocks demo's sources and payloads, as resources in the test
 //  assembly rather than as files on the machine running the test.
 //
-//  WHY THEY ARE NOT FILES ANY MORE. This test read all seven off the repo at
+//  WHY THEY ARE NOT FILES ANY MORE. This test read all eight off the repo at
 //  run time, and for a long while wrote the built disk image back over
 //  Apple2/Demos/casso-rocks.dsk as well. The write normally put the same bytes
 //  there, so nothing showed but a changed timestamp, until a run that built a
@@ -23,8 +23,7 @@
 #define IDR_DEMO_STAGE1_SRC   4001
 #define IDR_DEMO_STAGE2_SRC   4002
 #define IDR_DEMO_HGR          4003
-#define IDR_DEMO_BANDS        4004
-#define IDR_DEMO_LORES        4005
+#define IDR_DEMO_HGR_MONO     4004
 #define IDR_DEMO_DHGR_AUX     4006
 #define IDR_DEMO_DHGR_MAIN    4007
 
@@ -36,6 +35,15 @@
 
 #define IDR_BASIC_CORPUS_SRC  4008
 #define IDR_BASIC_CORPUS_TOK  4009
+
+//
+//  The monochrome cassowaries: the same photo as IDR_DEMO_DHGR_* and
+//  IDR_DEMO_HGR, encoded for the other decode each framebuffer has.
+//  See scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
+//
+
+#define IDR_DEMO_DHGR_MONO_AUX   4010
+#define IDR_DEMO_DHGR_MONO_MAIN  4011
 
 #ifndef RC_INVOKED
 
@@ -65,10 +73,10 @@ public:
     static std::span<const Byte>  Bytes (int resourceId);
 
     //  The same, as text, for the two .a65 sources the test assembles.
-    static std::string            Text (int resourceId);
+    static std::string            GetText (int resourceId);
 
     //  And as a vector, for the callers that want to own it.
-    static std::vector<Byte>      Copy (int resourceId);
+    static std::vector<Byte>      Copy    (int resourceId);
 };
 
 #endif  // RC_INVOKED

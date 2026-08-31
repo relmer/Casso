@@ -357,7 +357,7 @@ public:
             L"a program a vendor shipped must be readable as a listing");
 
         Assert::IsTrue (listing.find ("DOS VERSION 3.3") != std::string::npos,
-            L"and the listing must actually say what the greeting says, or the round trip "
+            L"and the listing must actually match the greeting, or the round trip "
             L"below is between two piles of the same garbage");
 
         AssertSucceeded (ApplesoftTokenizer::Tokenize (listing, again, error),

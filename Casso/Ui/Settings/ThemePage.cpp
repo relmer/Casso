@@ -33,40 +33,6 @@ RECT ThemePage::MakeRect (int l, int t, int w, int h)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::LerpArgb
-//
-//  Linear interpolation between two ARGB endpoints, premultiplied
-//  per-channel. Used for the title-bar gradient bands.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
-{
-    uint8_t  aA   = (uint8_t) ((a >> 24) & 0xFF);
-    uint8_t  rA   = (uint8_t) ((a >> 16) & 0xFF);
-    uint8_t  gA   = (uint8_t) ((a >>  8) & 0xFF);
-    uint8_t  bA   = (uint8_t) ( a        & 0xFF);
-    uint8_t  aB   = (uint8_t) ((b >> 24) & 0xFF);
-    uint8_t  rB   = (uint8_t) ((b >> 16) & 0xFF);
-    uint8_t  gB   = (uint8_t) ((b >>  8) & 0xFF);
-    uint8_t  bB   = (uint8_t) ( b        & 0xFF);
-    uint8_t  aOut = (uint8_t) (aA + (int) ((aB - (int) aA) * t));
-    uint8_t  rOut = (uint8_t) (rA + (int) ((rB - (int) rA) * t));
-    uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
-    uint8_t  bOut = (uint8_t) (bA + (int) ((bB - (int) bA) * t));
-
-
-
-    return ((uint32_t) aOut << 24) | ((uint32_t) rOut << 16) |
-           ((uint32_t) gOut <<  8) |  (uint32_t) bOut;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ThemePage::ComputePreviewGeometry
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +99,12 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    const std::function<std::wstring (int)>              & mountedPathSource,
                                    const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                    std::array<DriveWidget, 2>           & previewDrives,
-                                   JoystickToggleButton                 & previewButton)
+                                   JoystickToggleButton                 & previewButton,
+                                   DxuiCaptionBar                       & previewCaption,
+                                   MainMenu                             & previewMenu,
+                                   bool                                 & chromeConfigured,
+                                   bool                                   crtMonitor,
+                                   PreviewSceneRequest                  & outScene)
 {
     RECT     prevRect     = {};
     float    scale        = 0.0f;
@@ -158,6 +129,14 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
 
 
+    // Skeuo hands the drives to the 3D scene in every case, and the monitor
+    // too unless the user opted it out -- the same two-step the live chrome
+    // makes with DeskSceneActive and CrtMonitorActive.
+    bool  scene3d  = !theme.compactDrives;
+    bool  sceneCrt = scene3d && crtMonitor;
+
+    outScene = {};
+
     ComputePreviewGeometry (availRect, driveBandDp, prevRect, scale);
     if (scale <= 0.0f)
     {
@@ -172,116 +151,77 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     screenH = std::max (0, prevH - titleH - navH - driveBarH);
     effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
-    // Outer 1px frame so the preview reads as a discrete window
-    // on the panel background.
-    painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
-                         (float) prevW, (float) prevH, 1.0f, 0xFF101010);
-
-    // Title bar gradient.
+    // Caption and menu strip: the REAL ones, laid out small.
+    //
+    // These were hand-drawn before -- a gradient loop, a caption string, three
+    // invented system buttons, and a menu that was a literal
+    // "File Edit Machine Disk View Help". Two implementations of one thing,
+    // and the copy drifted: the app's menu also carries Debug, ahead of Help,
+    // and the mock had neither. Painting the actual widgets means it cannot
+    // drift again -- a menu added to the app appears here for free.
+    //
+    // Neither widget needs a window, a command sink or a popup host to lay
+    // out and paint; input is what those are for, and a preview takes none.
     {
-        int  bandSteps = std::max (1, titleH);
-        int  i         = 0;
+        DxuiDpiScaler  chromeScaler;
+        RECT           captionDip = {};
+        RECT           navPx      = { prevRect.left, prevRect.top + titleH,
+                                      prevRect.right, prevRect.top + titleH + navH };
 
-        for (i = 0; i < bandSteps; i++)
+        chromeScaler.SetDpi (effectiveDpi);
+
+        // The caption takes DIP bounds and scales them itself at paint, so
+        // hand it the preview rect divided back down by the same factor.
+        captionDip.left   = (int) ((float) prevRect.left / scale);
+        captionDip.top    = (int) ((float) prevRect.top / scale);
+        captionDip.right  = (int) ((float) prevRect.right / scale);
+        captionDip.bottom = captionDip.top + kPrevTitleBarDp;
+
+        // Configured ONCE. ConfigureButtons builds fresh button objects and
+        // adopts them, so calling it every paint churned the caption's child
+        // list -- and the panel's pointers to the previous, now-destroyed
+        // buttons went with it. Layout walked one and took the process down.
+        if (!chromeConfigured)
         {
-            float     t    = (float) i / (float) bandSteps;
-            uint32_t  argb = LerpArgb (theme.titleBarTop, theme.titleBarBottom, t);
-
-            painter.FillRect ((float) prevRect.left, (float) (prevRect.top + i),
-                              (float) prevW, 1.0f, argb);
+            previewCaption.ConfigureButtons (DxuiCaptionBar::Buttons::MinMaxClose);
+            previewCaption.SetTitle         (L"Casso emulator");
+            previewCaption.SetMaximized     (false);
+            chromeConfigured = true;
         }
-    }
 
-    // Caption + system buttons.
-    {
-        int    sysBtnW     = ScalePx (kPrevSysButtonWDp);
-        int    sysBtnGap   = std::max (0, ScalePx (kPrevSysButtonGapDp));
-        float  captionDip  = (float) kPrevCaptionFontDp * scale;
-        int    btnRight    = prevRect.right;
-        int    btnTop      = prevRect.top;
-        int    btnH        = titleH;
-        int    btnMaxRight = 0;
-        int    btnMinRight = 0;
+        previewCaption.Layout (captionDip, chromeScaler);
+        previewCaption.Paint  (painter, text, theme);
 
-        hr = text.DrawString (L"Casso emulator",
-                              (float) (prevRect.left + ScalePx (12)),
-                              (float) btnTop,
-                              (float) (prevW - 3 * (sysBtnW + sysBtnGap) - ScalePx (24)),
-                              (float) btnH,
-                              theme.titleText,
-                              captionDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        // The menu bar is the other convention: PIXEL bounds, with the dpi
+        // sizing the glyphs and row. Give it the text renderer or it measures
+        // titles with a fallback glyph width and spaces them wrongly.
+        ChromeVisualState  menuVisual = {};
 
-        // Close (rightmost) -- drawn in its IDLE state (like min/max), NOT
-        // the red hover fill, so the mockup matches a fresh app caption
-        // rather than looking permanently hovered. Glyph is a real "x"
-        // (multiplication sign) drawn as text since the painter is
-        // axis-aligned only (two crossing FillRects read as a "+").
-        painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH,
-                          theme.sysButtonIdle);
-        hr = text.DrawString (s_kpszMultiplyX,
-                              (float) (btnRight - sysBtnW),
-                              (float) btnTop,
-                              (float) sysBtnW,
-                              (float) btnH,
-                              theme.titleText,
-                              captionDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Center,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        menuVisual.dpi = effectiveDpi;
 
-        btnMaxRight = btnRight - sysBtnW - sysBtnGap;
-        painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
-        painter.OutlineRect ((float) (btnMaxRight - sysBtnW + ScalePx (12)),
-                             (float) (btnTop + ScalePx (10)),
-                             (float) (sysBtnW - ScalePx (24)),
-                             (float) (btnH - ScalePx (20)),
-                             1.0f, theme.titleText);
-
-        btnMinRight = btnMaxRight - sysBtnW - sysBtnGap;
-        painter.FillRect ((float) (btnMinRight - sysBtnW), (float) btnTop,
-                          (float) sysBtnW, (float) btnH, theme.sysButtonIdle);
-        painter.FillRect ((float) (btnMinRight - sysBtnW + ScalePx (12)),
-                          (float) (btnTop + btnH / 2),
-                          (float) (sysBtnW - ScalePx (24)), 1.0f,
-                          theme.titleText);
-    }
-
-    // Nav strip.
-    {
-        int    navTop = prevRect.top + titleH;
-        float  navDip = (float) kPrevNavFontDp * scale;
-
-        painter.FillRect ((float) prevRect.left, (float) navTop,
-                          (float) prevW, (float) navH,
-                          theme.navStrip);
-        hr = text.DrawString (L"File   Edit   Machine   Disk   View   Help",
-                              (float) (prevRect.left + ScalePx (12)),
-                              (float) navTop,
-                              (float) (prevW - ScalePx (24)),
-                              (float) navH,
-                              theme.navItemText,
-                              navDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        previewMenu.SetTextRendererForMeasure (&text);
+        previewMenu.Layout                    (navPx, chromeScaler);
+        previewMenu.PaintStrip                (painter, text, menuVisual, theme);
     }
 
     // Screen area: live emulator framebuffer, aspect-fit.
+    //
+    // With the CRT in the scene the picture belongs on curved glass, so the
+    // flat rect and its blit are skipped entirely -- but the area is still
+    // blacked out first, because the scene composes onto whatever is behind
+    // it and the page background showing through the tube would be worse
+    // than a dark screen.
     {
         int  screenTop = prevRect.top + titleH + navH;
 
+        // Under the scene this is the DESK the devices stand on, so it takes
+        // the theme's own background -- the color the live window clears to.
+        // Black would read as a dead screen the size of the whole preview.
         painter.FillRect ((float) prevRect.left, (float) screenTop,
-                          (float) prevW, (float) screenH, 0xFF000000);
+                          (float) prevW, (float) screenH,
+                          sceneCrt ? theme.Background() : 0xFF000000);
 
-        if (screenH > 0 && framebufferSource)
+        if (screenH > 0 && framebufferSource && !sceneCrt)
         {
             int               fbW      = 0;
             int               fbH      = 0;
@@ -332,9 +272,11 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         int                widgetY       = 0;
         int                d             = 0;
 
+        // Same for the band the 3D drives stand in: the live chrome hides its
+        // surface under the scene rather than painting a bar behind them.
         painter.FillRect ((float) prevRect.left, (float) driveTop,
                           (float) prevW, (float) driveBarH,
-                          theme.navStrip);
+                          scene3d ? theme.Background() : theme.navStrip);
 
         // Layout each preview drive: probe widget[0] for its
         // intrinsic size at the effective DPI, then space the
@@ -375,7 +317,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         previewScaler.SetDpi (effectiveDpi);
         previewDrives[0].Layout (previewAnchor, previewScaler);
 
-        probe = previewDrives[0].OuterRect();
+        probe = previewDrives[0].GetOuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
         totalW = widgetW * 2 + gap;
@@ -404,7 +346,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         // bar to the joystick band, so the preview shows just the band
         // fill + joystick button -- matching the live chrome's Phase D
         // reclaim. (The widgets were laid out above but go undrawn.)
-        if (hasDisk)
+        if (hasDisk && !scene3d)
         {
             previewDrives[0].Paint (painter, text, theme);
             previewDrives[1].Paint (painter, text, theme);
@@ -423,8 +365,34 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
             previewButton.SetTextRenderer (&text);
             previewButton.SetOn           (true);
             previewButton.Layout          (anchor, previewScaler);
-            previewButton.Paint           (painter, text, theme);
+
+            // The scene's drives stand where this band is; the live chrome
+            // retired this button from the bottom for the same reason.
+            if (!scene3d)
+            {
+                previewButton.Paint (painter, text, theme);
+            }
         }
+    }
+
+    // Outer 1px frame so the preview reads as a discrete window on the panel
+    // background. Drawn LAST because every band fill above spans the full
+    // width and would otherwise erase it -- which went unnoticed while the
+    // screen was black and the contrast carried the boundary by itself.
+    painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
+                         (float) prevW, (float) prevH, 1.0f, 0xFF101010);
+
+    // Hand the sheet the region to compose into. Full takes the picture and
+    // the drives together, exactly as the live scene lays them out; with the
+    // CRT opted out only the drive band is the scene's.
+    if (scene3d && hasDisk)
+    {
+        outScene.mode   = sceneCrt ? PreviewSceneMode::Full : PreviewSceneMode::DrivesOnly;
+        outScene.dpi    = effectiveDpi;
+        outScene.rectPx = sceneCrt
+            ? RECT { prevRect.left, prevRect.top + titleH + navH, prevRect.right, prevRect.bottom }
+            : RECT { prevRect.left, prevRect.bottom - driveBarH, prevRect.right, prevRect.bottom };
+        outScene.clipPx = outScene.rectPx;
     }
 }
 
@@ -454,19 +422,41 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);
     Adopt (m_applyNowButton);
-    Adopt (m_monitorFrameCheckbox);
+    Adopt (m_crtMonitorCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
 
-    // Skeuo desk-scene opt-in. Applies live (the change is visible on the
-    // real chrome behind the sheet immediately); enabled only while a
-    // skeuomorphic theme is selected.
-    m_monitorFrameCheckbox.SetLabel (L"CRT monitor desk scene (uses more screen space)");
-    m_monitorFrameCheckbox.SetSingleLineLabel (true);
-    m_monitorFrameCheckbox.SetOnChange ([this] (bool checked)
+    // The CRT monitor opt in/out -- the monitor only; the 3D drives are not
+    // optional. Applies live (the change is visible on the real chrome behind
+    // the sheet immediately); enabled only while a skeuomorphic theme is
+    // selected.
+    m_crtMonitorCheckbox.SetLabel (L"3D CRT monitor (uses more screen space)");
+    m_crtMonitorCheckbox.SetSingleLineLabel (true);
+    m_crtMonitorCheckbox.SetOnChange ([this] (bool checked)
     {
-        if (m_onMonitorFrameToggled) { m_onMonitorFrameToggled (checked); }
+        if (m_onCrtMonitorToggled) { m_onCrtMonitorToggled (checked); }
+    });
+
+    // Antialiasing, as SAMPLES rather than a quality word, because that is
+    // what the cost is proportional to and the labels can say so. Three stops:
+    // the slider carries 0/1/2 and the formatter names them, so the control
+    // cannot land between supported counts.
+    Adopt (m_aaLabel);
+    Adopt (m_aaSlider);
+
+    m_aaLabel.SetText (L"Edge smoothing");
+
+    m_aaSlider.SetRange (0.0f, 2.0f);
+    m_aaSlider.SetStep  (1.0f);
+    m_aaSlider.SetTickInterval (1.0f);
+    m_aaSlider.SetValueFormatter ([] (float v) -> std::wstring
+    {
+        return (v >= 1.5f) ? L"4x" : ((v >= 0.5f) ? L"2x" : L"Off");
+    });
+    m_aaSlider.SetOnChange ([this] (float v)
+    {
+        if (m_onAntiAliasingChanged) { m_onAntiAliasingChanged (SamplesForStop (v)); }
     });
 }
 
@@ -476,19 +466,22 @@ ThemePage::ThemePage(std::wstring title)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::UpdateMonitorCheckboxEnabled
+//  ThemePage::SamplesForStop / StopForSamples
+//
+//  The slider counts stops; everything else counts samples. Kept as a pair so
+//  the mapping is written once and cannot drift between the two directions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::UpdateMonitorCheckboxEnabled()
+int ThemePage::SamplesForStop (float stop)
 {
-    std::string  selected = SelectedThemeId();
-    bool         isSkeuo  = !selected.empty()
-                            && !CassoTheme::ForName (selected).compactDrives;
+    return (stop >= 1.5f) ? 4 : ((stop >= 0.5f) ? 2 : 1);
+}
 
 
-
-    m_monitorFrameCheckbox.SetEnabled (isSkeuo);
+float ThemePage::StopForSamples (int samples)
+{
+    return (samples >= 4) ? 2.0f : ((samples >= 2) ? 1.0f : 0.0f);
 }
 
 
@@ -497,11 +490,32 @@ void ThemePage::UpdateMonitorCheckboxEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::SelectedThemeId
+//  ThemePage::UpdateCrtMonitorCheckboxEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ThemePage::SelectedThemeId() const
+void ThemePage::UpdateCrtMonitorCheckboxEnabled()
+{
+    std::string  selected = GetSelectedThemeId();
+    bool         isSkeuo  = !selected.empty()
+                            && !CassoTheme::MakeByName (selected).compactDrives;
+
+
+
+    m_crtMonitorCheckbox.SetEnabled (isSkeuo);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::GetSelectedThemeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ThemePage::GetSelectedThemeId() const
 {
     bool  hasSelection = (m_activeIndex >= 0 && m_activeIndex < (int) m_themeIds.size());
 
@@ -566,14 +580,14 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
         }
 
         m_activeIndex = idx;
-        UpdateMonitorCheckboxEnabled();
+        UpdateCrtMonitorCheckboxEnabled();
         if (m_onThemeSelected)
         {
             m_onThemeSelected (m_themeIds[(size_t) idx]);
         }
     });
 
-    UpdateMonitorCheckboxEnabled();
+    UpdateCrtMonitorCheckboxEnabled();
 }
 
 
@@ -612,16 +626,17 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 
 void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi        = scaler.Dpi();
-    int   pad        = scaler.Px (kPagePadDp);
-    int   rowHeight  = scaler.Px (kRowHeightDp);
-    int   labelWidth = scaler.Px (kLabelWidthDp);
-    int   dropWidth  = scaler.Px (kDropdownWidthDp);
+    UINT  dpi        = scaler.GetDpi();
+    int   pad        = scaler.ToPx (kPagePadDp);
+    int   rowHeight  = scaler.ToPx (kRowHeightDp);
+    int   labelWidth = scaler.ToPx (kLabelWidthDp);
+    int   dropWidth  = scaler.ToPx (kDropdownWidthDp);
     int   x          = rect.left + pad;
     int   y          = rect.top  + pad;
-    int   rowGap     = scaler.Px (8);
-    int   previewGap = scaler.Px (24);
-    int   previewTop = y + 2 * rowHeight + rowGap + previewGap;
+    int   rowGap     = scaler.ToPx (8);
+    int   previewGap = scaler.ToPx (24);
+    // Three rows above the preview now: theme, the CRT opt-in, edge smoothing.
+    int   previewTop = y + 3 * rowHeight + 2 * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
     int   applyWidth = 0;
@@ -660,9 +675,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // intended width and dock the "Apply now" button immediately to its
     // right, so both stay near the left of the row (visible regardless of
     // how wide the settings window is).
-    applyGap = scaler.Px (8);
-    applyWidth = scaler.Px (88);
-    dropB = m_themeDropdown.Bounds();
+    applyGap = scaler.ToPx (8);
+    applyWidth = scaler.ToPx (88);
+    dropB = m_themeDropdown.GetBounds();
 
     dropB.right = dropB.left + dropWidth;
     m_themeDropdown.SetBounds (dropB);
@@ -671,15 +686,29 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
                                        applyWidth, (int) (dropB.bottom - dropB.top)));
     m_applyNowButton.SetDpi (dpi);
 
-    // Desk-scene opt-in row directly under the theme row, spanning the
+    // CRT-monitor opt-in row directly under the theme row, spanning the
     // label + dropdown + button width so the caption never truncates.
     {
         RECT  cbRect = MakeRect (x, y + rowHeight + rowGap,
                                  labelWidth + dropWidth + applyGap + applyWidth,
                                  rowHeight);
 
-        m_monitorFrameCheckbox.Layout (cbRect, scaler);
-        m_monitorFrameCheckbox.SetDpi (dpi);
+        m_crtMonitorCheckbox.Layout (cbRect, scaler);
+        m_crtMonitorCheckbox.SetDpi (dpi);
+    }
+
+    // Edge-smoothing row under it, laid out on the same grid as the theme row
+    // so the label column lines up: label at the left, a short slider beside
+    // it (three stops need no width, and a full-width one reads as continuous).
+    {
+        int   aaTop     = y + (rowHeight + rowGap) * 2;
+        int   aaSliderW = scaler.ToPx (150);
+
+        m_aaLabel.Layout  (MakeRect (x, aaTop, labelWidth, rowHeight), scaler);
+        m_aaLabel.SetDpi  (dpi);
+
+        m_aaSlider.Layout (MakeRect (x + labelWidth, aaTop, aaSliderW, rowHeight), scaler);
+        m_aaSlider.SetDpi (dpi);
     }
 
     m_previewRect.left   = x;
@@ -757,7 +786,9 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
     m_themeLabel.Paint            (painter, text);
     m_themeDropdown.PaintBase     (painter, text);
     m_applyNowButton.Paint        (painter, text, theme);
-    m_monitorFrameCheckbox.Paint  (painter, text, theme);
+    m_crtMonitorCheckbox.Paint  (painter, text, theme);
+    m_aaLabel.Paint             (painter, text);
+    m_aaSlider.Paint            (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update
@@ -767,7 +798,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     if (m_themeDropdown.IsOpen())
     {
-        int  highlighted = m_themeDropdown.HighlightIndex();
+        int  highlighted = m_themeDropdown.GetHighlightIndex();
 
         if (highlighted >= 0 && highlighted < (int) m_themeIds.size())
         {
@@ -779,7 +810,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
         m_previewRect.bottom > m_previewRect.top &&
         previewIndex >= 0 && previewIndex < (int) m_themeIds.size())
     {
-        CassoTheme  preview = CassoTheme::ForName (m_themeIds[(size_t) previewIndex]);
+        CassoTheme  preview = CassoTheme::MakeByName (m_themeIds[(size_t) previewIndex]);
         bool        hasDisk = false;
 
         if (!m_previewDrivesInitialized)
@@ -791,7 +822,27 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
+
+        // The 3D pass runs after the whole panel tree, so it would otherwise
+        // land on top of the menu about to be painted below. An in-window
+        // menu drops straight down over the preview, so cropping the scene
+        // to what is left underneath keeps the live preview alive while the
+        // user arrows through the list. A hosted popup is its own window and
+        // covers nothing here, which is why GetInWindowMenuRect returns empty
+        // for one.
+        {
+            RECT  menu = m_themeDropdown.GetInWindowMenuRect();
+
+            if (menu.bottom > menu.top && menu.bottom > m_sceneRequest.clipPx.top)
+            {
+                m_sceneRequest.clipPx.top = std::min (menu.bottom, m_sceneRequest.clipPx.bottom);
+            }
+        }
+    }
+    else
+    {
+        m_sceneRequest = {};
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

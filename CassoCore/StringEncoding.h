@@ -71,7 +71,7 @@ public:
     //  Whether the text carries the high bit, decided by the character that
     //  DELIMITED it. Merlin infers the encoding from the quoting rather than
     //  from a separate directive, so this is part of resolving the mode.
-    static bool  HighBitFromDelimiter (char delimiter);
+    static bool  IsHighBitDelimiter (char delimiter);
 
     //  `text` is the payload between the delimiters, already stripped of them.
     //  Bytes are APPENDED, so a caller assembling a line need not manage a

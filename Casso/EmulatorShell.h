@@ -26,9 +26,10 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/MonitorFrame.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
+#include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -37,9 +38,13 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
 #include "Ui/InputDebugPanel.h"
+#include "Ui/Scene/DeskScene.h"
+#include "Ui/Scene/DeskSceneHitTester.h"
+#include "Ui/Scene/FullscreenStripState.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
+#include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSurface.h"
 #include "UiCommandTypes.h"
 #include "Video/CharacterRomData.h"
@@ -58,6 +63,7 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
+struct MonitorSpec;
 
 
 
@@ -68,7 +74,7 @@ class SalvageDialogContent;
 //  ChromeBand
 //
 //  Zero-render IDxuiControl whose only job is to carry a docked chrome
-//  band's pixel thickness in its Bounds() so DxuiDockLayout can arrange
+//  band's pixel thickness in its GetBounds() so DxuiDockLayout can arrange
 //  the emulator viewport around the title bar, nav strip, and drive bar.
 //  Never painted -- EmulatorShell / the host own chrome rendering; these
 //  bands exist purely to feed the dock's inset math (replacing the old
@@ -261,6 +267,8 @@ private:
     // keystroke straight to the Apple ][ keyboard + game port.
     bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
     bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
+    DxuiMessageResult  OnMouseWheel    (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnGesture       (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
@@ -341,19 +349,19 @@ private:
     // no failable work, or recover in place -- asserting in debug so a dev
     // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
     // abort.
-    void    RegisterChromeDock            ();
-    void    InitAssetPathsAndStores       ();
-    void    AllocateFramebuffers          ();
-    void    PrimeChromeThemeEarly         ();
-    HRESULT BuildMachineDevices           (const MachineConfig & config);
-    HRESULT InitializeRenderer            ();
-    HRESULT InitializeUiShell             ();
-    HRESULT WireUiShellChromeAndThemes    ();
-    void    RestoreInputAndColorPrefs     ();
-    void    RecordActiveMachineSelection  ();
-    void    SubscribeAndActivateTheme     ();
-    HRESULT FinishUiShellLayout           ();
-    void    InstallDragDropTarget         ();
+    void    RegisterChromeDock              ();
+    void    InitAssetPathsAndStores         ();
+    void    AllocateFramebuffers            ();
+    void    PrimeChromeThemeEarly           ();
+    HRESULT BuildMachineDevices             (const MachineConfig & config);
+    HRESULT InitializeRenderer              ();
+    HRESULT InitializeUiShell               ();
+    HRESULT WireUiShellChromeAndThemes      ();
+    void    RestoreInputAndColorPrefs       ();
+    void    RecordActiveMachineSelection    ();
+    void    SubscribeAndActivateTheme       ();
+    HRESULT FinishUiShellLayout             ();
+    void    InstallDragDropTarget           ();
 
     // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
     // merges the machine JSON, handing back the "$cassoUiPrefs" object in
@@ -361,59 +369,65 @@ private:
     // recovered to defaults, never fatal. Each Apply* helper loads its own
     // copy and seeds one subsystem (chrome vs audio).
     void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+
+    // The monitor this machine ships with, from its config rather than from
+    // its name. Both the desk scene's mesh and the screen's default color
+    // come from the one answer, so they cannot disagree about what is
+    // standing on the desk.
+    const MonitorSpec &  ResolveMonitorForCurrentMachine();
     void    ApplyPersistedChromePrefs     ();
     void    ApplyPersistedAudioPrefs      ();
 
     // Truncating wide->narrow of m_currentMachineName (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.
-    std::string CurrentMachineNameNarrow  () const;
+    std::string GetCurrentMachineNameNarrow () const;
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
     // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
     // which fires OnViewportBoundsChanged when the rectangle differs
     // from the last value reported.
-    void    UpdateViewportLayout         (int widthPx, int heightPx);
+    void    UpdateViewportLayout          (int widthPx, int heightPx);
 
     // Chrome-band sizing via DxuiDockLayout (replaces LayoutManager).
-    // SyncChromeBands stamps each band's Bounds() with its DPI-scaled
+    // SyncChromeBands stamps each band's GetBounds() with its DPI-scaled
     // pixel thickness. ComputeViewportRect docks the bands + center and
-    // returns the middle (emulator viewport) rect. ClientSizeForCenterPx
+    // returns the middle (emulator viewport) rect. GetClientSizeForCenterPx
     // is the inverse: given a desired center size in px, the client size
-    // that hosts it. ClientSizeForFramebufferPx DPI-scales a DIP
+    // that hosts it. GetClientSizeForFramebufferPx DPI-scales a DIP
     // framebuffer grid first, then adds the chrome insets.
-    void    SyncChromeBands              ();
-    RECT    ComputeViewportRect          (int widthPx, int heightPx);
+    void    SyncChromeBands               ();
+    RECT    ComputeViewportRect           (int widthPx, int heightPx);
 
     // The emulator viewport (CRT output area) in *screen* pixels: the middle
     // rect from ComputeViewportRect at the current back-buffer size, mapped
     // through the main window's client origin. The Settings live-preview
     // compositor (#8) intersects this with the (composited) sheet window to
     // punch a see-through hole revealing the running emulator behind the sheet.
-    RECT    EmulatorContentScreenRect    ();
+    RECT    GetEmulatorContentScreenRect  ();
 
     // Re-run the chrome layout at the current client size after a machine
     // switch: adding/removing the Disk ][ controller changes the drive band +
     // widgets + hit-test map, but no WM_SIZE fires when the window size itself
     // is unchanged, so OnSize would never re-evaluate it. See the
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
-    void    ReflowChromeForMachineChange ();
+    void    ReflowChromeForMachineChange  ();
 
     // Whether the second (external) drive-mount widget should be visible.
     // Always true for machines whose second drive is fixed hardware; on the
     // //c (banked system ROM) the external drive is an optional add-on, shown
     // only when m_externalDriveConnected. The drive-layout paths consult this
     // to hide m_driveChrome[1] and skip its hit rect when disconnected.
-    bool    ShouldShowExternalDrive      () const;
+    bool    ShouldShowExternalDrive       () const;
 
-    SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
-    SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
+    SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
+    SIZE    GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp);
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
     // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
     // so the framebuffer compositor can track where to draw once the
     // swap-chain restructure completes later in Phase 11d.
-    void    OnViewportBoundsChanged      (const RECT & boundsPx);
+    void    OnViewportBoundsChanged       (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
     // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
@@ -445,7 +459,7 @@ private:
 
     // The single mode the legacy toggle button displays: the pointer
     // mapping when active, else Joystick when the keys mapping is on.
-    InputMappingMode  DisplayInputMode() const
+    InputMappingMode  GetDisplayInputMode() const
     {
         return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
              : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
@@ -508,7 +522,7 @@ public:
     // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
     // this, so a persisted Mouse mode on a mouse-less machine is inert.
-    bool    GuestMouseActive       () const;
+    bool    IsGuestMouseActive     () const;
 
     // True when guest software has actually turned the mouse on: the
     // firmware's SETMOUSE programs ENBXY through the IOU for every active
@@ -516,7 +530,7 @@ public:
     // cannot fake. Gates the cursor-hide and button capture so the host
     // pointer never vanishes (or gets swallowed) while nothing mouse-aware
     // is running — which in turn makes Mouse mode safe to leave on.
-    bool    GuestMouseLive         () const;
+    bool    IsGuestMouseLive       () const;
 
     // Absolute host→guest mapping: the host position inside the emulator
     // viewport maps proportionally into the firmware's live clamp window
@@ -562,22 +576,22 @@ private:
     // path can call the shell without learning the manager.
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
-    const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
+    const std::wstring &  GetCurrentMachineName () const { return m_currentMachineName; }
 
     // One-line printer summary for the Settings > Printing info banner: what
     // printer this machine emulates and how it connects, or that it has none.
-    std::wstring  PrinterBannerMessage () const;
+    std::wstring  GetPrinterBannerMessage () const;
 
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
-    const Byte *  AuxRamBuffer() const;
+    const Byte *  GetAuxRamBuffer() const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
     // the post-CRT-effects pixel buffer the chrome composes on top of;
     // returning a raw pointer is safe because the chrome composition
     // pass runs synchronously after the framebuffer is published.
-    const uint32_t *  UiFramebufferPixels () const
+    const uint32_t *  GetUiFramebufferPixels () const
     {
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     }
@@ -586,7 +600,7 @@ private:
     // basename label with the actual filename of whatever disk image is
     // currently mounted in each drive (or an empty string if the drive
     // is empty). Index 0 is drive 1, index 1 is drive 2.
-    const std::wstring &  MountedImagePath (int driveIndex) const
+    const std::wstring &  GetMountedImagePath (int driveIndex) const
     {
         static const std::wstring  s_kEmpty;
 
@@ -602,7 +616,7 @@ private:
     // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
     // Used by the Settings → Theme preview so its sample drive shows the
     // padlock cue for whatever is actually mounted. Index 0 is drive 1.
-    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    WriteProtectInfo  GetDriveWriteProtect (int driveIndex) const
     {
         if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
         {
@@ -615,11 +629,11 @@ private:
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
-    const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
+    const std::wstring &  GetAssetBaseDir () const { return m_assetBaseDir; }
 
     // Per-machine pending-strip directory (FR-026):
     // <assetBase>/Machines/<current machine>/PendingPrint.
-    fs::path  PendingPrintDir () const
+    fs::path  GetPendingPrintDir () const
     {
         return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
     }
@@ -649,7 +663,7 @@ private:
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
-    HRESULT ApplyAndPersistTheme (const std::string & themeName);
+    HRESULT ApplyAndPersistTheme  (const std::string & themeName);
 
     // Activates the named theme LIVE (reskins the chrome via the
     // ThemeManager listener) WITHOUT persisting it to GlobalUserPrefs.
@@ -657,25 +671,168 @@ private:
     // user can preview a theme on the real chrome; a subsequent Cancel
     // re-activates the baseline theme, and OK persists via
     // ApplyAndPersistTheme. No-op if empty; falls back to Skeuomorphic.
-    HRESULT ApplyThemeLive       (const std::string & themeName);
+    HRESULT ApplyThemeLive        (const std::string & themeName);
 
     // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the
     // emulator pixel grid. Called from the ThemeManager listener.
-    void    ApplyThemeToChrome   (const CassoTheme & theme);
+    void    ApplyThemeToChrome    (const CassoTheme & theme);
 
-    // Settings > Theme opt-in for the skeuomorphic desk scene (CRT monitor
-    // framing + drives scaled to sit under it). Applies live -- relays out
-    // the chrome in place -- and persists to GlobalUserPrefs.
-    void    SetSkeuoMonitorFrame (bool enabled);
+    // Settings > Theme opt in/out for the CRT monitor. Applies live -- relays
+    // out the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetCrtMonitorEnabled (bool enabled);
 
-    // The desk scene draws only when the skeuo theme is active AND the user
-    // opted in; compact themes never draw it.
-    bool    MonitorFrameEnabled  () const
+    // Settings > Theme antialiasing, in SAMPLES (1 / 2 / 4). Applies to the
+    // next frame and persists to GlobalUserPrefs; ApplySceneAntiAliasing is
+    // the startup half, which pushes the stored value without re-saving it.
+    void    SetSceneAntiAliasing   (int samples);
+    void    ApplySceneAntiAliasing ();
+
+    // The 3D scene renders whenever a skeuo theme is active and the models
+    // loaded. The DRIVES are not optional -- they are 3D objects in every
+    // skeuo presentation; compact themes keep their flat widgets.
+    bool    DeskSceneActive      () const
     {
-        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame;
+        return !m_chromeTheme.compactDrives && m_deskSceneReady;
     }
+
+    // ...and the monitor on top of that, which the user CAN turn off: the
+    // picture then sits on a flat rect at classic sizes with the 3D drive
+    // row still composed in the band below it. Everything keyed off the
+    // curved glass -- the glass-fill fullscreen, the inverse-projected
+    // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
+    bool    CrtMonitorActive     () const
+    {
+        return DeskSceneActive() && m_globalPrefs.crtMonitor;
+    }
+
+    // A left-button orbit that has not yet travelled far enough to BE one.
+    // The press arms it over anything the scene shows; only movement past
+    // the slop turns it into a rotation, and a release before that lets the
+    // click chain run as though nothing had been armed at all.
+    static constexpr int  s_kSceneOrbitSlopPx = 4;
+
+    bool  m_sceneOrbitMoved = false;
+
+    // The most drives the desk scene ever composes -- DeskSceneComposition
+    // sizes its world matrices to the same number.
+    static constexpr int  s_kSceneDriveMax = 2;
+
+    // Each drive's door hit box, posed to the openness that drive is showing.
+    // Filled for every slot, degenerate where there is no drive or no door,
+    // which the hit tester reads as "no door target here".
+    void  BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const;
+
+    // Whether a point falls inside the scene's OWN rect -- the band between
+    // the chrome bands, which is what the composition is solved into. A
+    // press outside it is on the toolbar, the status bar or the menu strip,
+    // and a gesture that begins on the scene must not begin there.
+    bool    PointInSceneRect     (int x, int y) const
+    {
+        const RECT &  vp = m_deskScene.Composition().viewportPx;
+
+        return x >= vp.left && x < vp.right && y >= vp.top && y < vp.bottom;
+    }
+
+    // Initializes the desk scene renderer against the host device and loads
+    // the embedded device models. Failure leaves the scene off (asserting
+    // in debug -- a broken embedded asset is a build defect) and the 2D
+    // chrome paths carry on.
+    HRESULT InitializeDeskScene  ();
+
+    // Loads the monitor + drive pair the active machine wore (//c gets its
+    // own platinum set, everything else the beige Monitor II over Disk IIs).
+    // Called again on a machine switch.
+    HRESULT LoadDeskSceneModelsForMachine ();
+
+    // Resolves a client-px position against the composed scene (glass /
+    // drive region / nothing).
+    SceneHitResult  DeskSceneHit (int xPx, int yPx) const;
+
+    // Resolves against the fullscreen strip's drives-only composition
+    // (glass excluded -- its monitor placement is meaningless).
+    SceneHitResult  StripHit     (int xPx, int yPx) const;
+
+    // How many drives the scene composes: the machine's Disk II presence and
+    // the //c external-drive connection, the same gates the 2D widgets use.
+    int     DeskSceneDriveCount  () const;
+
+    // Zoom by `factor` about a client point, so whatever is under the cursor
+    // stays under it. Zooming about the viewport CENTER instead would push
+    // the thing being inspected off toward an edge exactly as it got big
+    // enough to look at.
+    void    ZoomSceneAt          (POINT clientPt, float factor);
+    DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
+    void    OrbitSceneBy         (float yawRad, float pitchRad);
+    void    BeginSceneOrbit      (int x, int y);
+    void    UpdateSceneOrbit     (int x, int y);
+    float   OrbitRadPerPx        () const;
+
+    // Put the framing back to the fitted composition.
+    void    ResetSceneView       ();
+
+    // Clamp pan so the scene cannot be dragged entirely off-screen, and drop
+    // the pan to zero once zoomed back out -- at 1.0 the composition already
+    // fits, so an offset there is only ever a way to lose it.
+    void    ClampSceneView       ();
+
+    // Re-solve the composition for the current client size and repaint. The
+    // framing feeds the same solve the viewport does, so there is no separate
+    // "just the camera" path to keep in step with it.
+    void    InvalidateSceneComposition ();
+
+    // How far in and out the framing goes. The far end is where the model
+    // stops rewarding a closer look -- past roughly 8x the mesh's own facets
+    // are the subject -- and the near end is 1, the fitted composition, since
+    // zooming out past a view that already contains everything only shrinks
+    // it into the middle of an empty viewport.
+    // Below 1 the fitted composition shrinks into the window with margin
+    // around it -- the step-back look. Pan slack stays zero down there (see
+    // ClampSceneView), so zooming back in cannot strand the scene off-center.
+    static constexpr float  s_kSceneZoomMin  = 0.5f;
+    static constexpr float  s_kSceneZoomMax  = 8.0f;
+
+    // One wheel notch. Geometric, so the same flick covers the same visual
+    // proportion at every zoom -- a fixed additive step feels fast when close
+    // in and useless when far out.
+    static constexpr float  s_kSceneZoomStep = 1.15f;
+
+    // How far one wheel notch pans, in units of the pan range -- which runs
+    // -1..1 across the viewport, the same units the touch pan works in.
+    static constexpr float  s_kScenePanStep  = 0.12f;
+
+    // The inspection orbit's feel: a drag across the full viewport sweeps
+    // this many radians (per-pixel is DERIVED from the viewport, because the
+    // pixel coordinates the handlers see are DPI-scaled -- see
+    // OrbitRadPerPx), and a Shift+slide turns this much per wheel notch. The
+    // stored pitch is clamped a shade past the layout's own elevation limit
+    // -- the layout clamps the TOTAL, seat included, so this one only stops
+    // the value winding up unboundedly while pinned.
+    static constexpr float  s_kOrbitDragSweepRad = 3.6f;
+    static constexpr float  s_kOrbitRadPerNotch  = 0.06f;
+    static constexpr float  s_kOrbitPitchLimit   = 1.6f;
+
+    // While the scene owns the drives, the 2D widgets stay hidden (they keep
+    // mirroring state for the //c switch strip) and the drag-drop hit rects
+    // come from the composition's projected drive bounds.
+    void    SyncSceneDriveChrome ();
+
+    // Re-hangs the mounted-image basename strip under each projected drive.
+    void    SyncSceneDriveLabels ();
+
+    // Fullscreen presentation (FR-014): every chrome element collapses to
+    // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
+    // //c switch strip -- so the glass-fill scene owns the whole client.
+    void    SetChromeHiddenForFullscreenScene (bool hidden);
+
+    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // both driven from the per-frame UI upkeep.
+    void    SyncCaptureBanner    ();
+    void    TickFullscreenToolbar();
+
+    // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
+    void  EnsureSceneCalibration (const RECT & fittedRect);
 
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
@@ -706,7 +863,7 @@ private:
     // Owner HWND for printer confirmation / notice message boxes: the preview
     // panel when it is open and visible (so the box centers on the dialog the
     // user is acting in), otherwise the main window.
-    HWND    PrinterDialogOwner () const;
+    HWND    GetPrinterDialogOwner () const;
 
     // Force-refresh the printer panel from the drain worker (race-free, without
     // stopping it): the panel snapshots and renders only its visible ~1-page
@@ -725,7 +882,7 @@ private:
     void    NotePrinterDeliveryResult (bool failed)
     {
         m_printerDeliveryError = failed;
-        m_printerErrorActivity = m_printerWorker.ActivityCount ();
+        m_printerErrorActivity = m_printerWorker.GetActivityCount ();
     }
 
     // Per-frame: auto-open the preview when a new print begins (activity resuming
@@ -865,6 +1022,30 @@ private:
     HWND       m_hwnd                  = nullptr;
     bool       m_initialSizeReconciled = false;
 
+    // Dragging a bezel tilt mark. The gesture is the mark's, but the motion
+    // is the pointer's: how far the mouse has travelled vertically since the
+    // press is the whole input, so which mark started it only decides that a
+    // drag started at all.
+    bool       m_bezelTilting          = false;
+    POINT      m_bezelTiltStartPx      = {};
+    float      m_bezelTiltStartRad     = 0.0f;
+
+    // How much tilt a pixel of drag is worth. The assembly's whole travel is
+    // about eleven degrees each way, so this spends it over a couple of
+    // hundred pixels -- far enough that the limit is reached deliberately
+    // rather than by flinching.
+    static constexpr float  kBezelTiltRadPerPx = 0.0022f;
+
+    // A compass arrow click's fixed turn. Yaw takes more than pitch for the
+    // same reason the free orbit allows more of it: the interesting sides
+    // of the machines are around them, not above.
+    static constexpr float  kCompassStepYawRad   = 0.2618f;   // 15 degrees
+    static constexpr float  kCompassStepPitchRad = 0.1745f;   // 10 degrees
+
+    void  ApplySavedBezelTilt ();
+    void  PersistBezelTilt    ();
+    bool       m_startMaximized        = false;
+
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after
     // m_host->Create() returns. The chrome-band dock scales its band
@@ -893,7 +1074,7 @@ private:
     // painter retires the latter. The caption (title + icon + min/max/
     // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu                    m_mainMenu;
-    CassoTheme                  m_chromeTheme = CassoTheme::Skeuomorphic();
+    CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
@@ -915,10 +1096,34 @@ private:
     bool                m_printerDeliveryError = false;
     uint64_t            m_printerErrorActivity = 0;
 
-    // Skeuomorphic CRT monitor housing that frames the emulator display
-    // (skeuo theme only). Insets the viewport into its screen recess; the
-    // housing paints the ring around it. Models the Apple Monitor //c.
-    MonitorFrame               m_monitorFrame;
+    // The 3D desk scene (spec 018): Monitor //c + drives rendered from the
+    // before-present hook on the host device, with the CRT chain's offscreen
+    // output on the curved glass. Gated by the deskScene opt-out pref.
+    DeskScene                  m_deskScene;
+    bool                       m_deskSceneReady = false;
+
+    // Which machine family the loaded models belong to, so a switch that
+    // does not cross the //c boundary skips the reload.
+    bool  m_deskSceneMachineIsC = false;
+    int   m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
+
+    // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
+    // frame's composed band. The hotkey edge arrives via the accelerator;
+    // m_stripBrowseOpen pins the strip while a browse it opened is up, and
+    // m_stripSuppressGuestMouse is the "released capture" of a hotkey summon
+    // in mouse mode (paddle mode releases its real capture instead).
+    FullscreenStripState       m_stripState;
+    DeskSceneComposition       m_stripComp;
+    RECT                       m_stripRectPx             = {};
+    bool                       m_stripHotkeyPending      = false;
+    bool                       m_stripBrowseOpen         = false;
+    bool                       m_stripSuppressGuestMouse = false;
+
+    // CASSO_SCENE_DEBUG=2: a synthetic stripe pattern standing in for the
+    // CRT output, to verify the glass texel mapping end to end.
+    ComPtr<ID3D11Texture2D>           m_sceneCalibTex;
+    ComPtr<ID3D11ShaderResourceView>  m_sceneCalibSrv;
+    RECT                              m_sceneCalibRect = {};
 
     // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
     // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
@@ -1000,6 +1205,44 @@ private:
     // cover their own bands, this covers the drive bar.
     DxuiSurface           m_driveBandSurface;
 
+    // The mounted image's basename under each 3D drive -- the label strip the
+    // 2D widget carried below its body, kept on screen rather than demoted to
+    // a hover tooltip. Positioned from the composition's projected drive
+    // bounds; empty (and invisible) when that drive holds no disk.
+    std::array<DxuiLabel, 2>  m_sceneDriveLabel;
+
+    // Where each of those strips landed, empty when a drive shows no name.
+    // The write-protect tooltip belongs to the strip now that the padlock
+    // does -- see SyncSceneDriveLabels.
+    std::array<RECT, 2>       m_sceneDriveLabelRect = {};
+
+    // The source path each label was last built from, so mounts and ejects
+    // re-hang it without a layout pass and an unchanged frame does no
+    // filesystem parsing or text measurement.
+    std::array<std::string, 2>  m_sceneLabelPath;
+
+    // "Paddle Mode -- press Esc to release the mouse", on screen for as long
+    // as the capture holds. The joystick button carries the same words, but
+    // it is chrome: fullscreen hides it, and a captured pointer with the
+    // cursor gone and no way out shown is how a user ends up killing the
+    // process. This rides above the picture in both presentations.
+    DxuiHudNotice              m_captureBanner;
+
+    // The scene compass: the visible way to turn the scene, for everyone
+    // who will never guess that dragging does it. Laid out into the scene
+    // viewport's corner by SyncSceneDriveChrome, which already runs at
+    // every moment the viewport moves.
+    DxuiOrbitControl           m_sceneCompass;
+
+    void  LayoutSceneCompass ();
+
+    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
+    // along the top edge: shown while the pointer is up there, hidden once
+    // it leaves and the grace expires.
+    bool                       m_fsToolbarShown    = false;
+    int64_t                    m_fsToolbarLeftMs   = 0;
+    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
+
     // Last geometry passed to LayoutJoystickButton, cached so
     // RelayoutJoystickButton can resize the button in place when the
     // input mode (and thus the label width) changes between layout passes.
@@ -1009,13 +1252,13 @@ private:
     UINT  m_joyBtnDpi        = 96;
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
-    // bar, nav strip, and drive bar pixel thicknesses in their Bounds();
+    // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();
     // m_centerBand (Fill) captures the emulator viewport rect the dock
     // leaves in the middle. m_driveBarThicknessDp is the live drive-bar
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
-    // (The command toolbar band's thickness comes from m_toolbar.BandDp() --
+    // (The command toolbar band's thickness comes from m_toolbar.GetBandDp() --
     // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
@@ -1047,6 +1290,40 @@ private:
     // window resize so switching to / from the //c keeps the viewport its size.
     bool                     m_chromeSizedForApple2c = false;
 
+    // The user's own framing of the desk scene: how far they have zoomed in
+    // and where they have dragged it to. Deliberately NOT persisted -- it is
+    // a way of looking at the scene for a moment, like leaning toward a
+    // screen, and a saved zoom would have people opening Casso to a view they
+    // set once and forgot. IDM_VIEW_RESET_SCENE puts it back.
+    DeskSceneView            m_sceneView;
+
+    // Set while a pan drag is in flight, with the anchor the drag started
+    // from. The anchor is the SCENE's pan at mouse-down plus the cursor
+    // position, so the scene tracks the cursor exactly however far it moves
+    // and a slow drag cannot accumulate rounding drift.
+    bool                     m_scenePanning     = false;
+    POINT                    m_scenePanStartPx  = {};
+    float                    m_scenePanStartX   = 0.0f;
+    float                    m_scenePanStartY   = 0.0f;
+
+    // The orbit drag mirrors the pan drag: anchored at the press, absolute
+    // from there, one flag per button so a left-orbit (Shift+drag) and the
+    // right-drag never fight over state.
+    bool                     m_sceneOrbiting      = false;
+    bool                     m_sceneOrbitLeftBtn  = false;
+    POINT                    m_sceneOrbitStartPx  = {};
+    float                    m_sceneOrbitStartYaw = 0.0f;
+    float                    m_sceneOrbitStartPit = 0.0f;
+    int64_t                  m_sceneOrbitTapMs    = 0;
+
+    // Touch gesture tracking. Windows reports a pinch as an ABSOLUTE
+    // separation between the two fingers and a pan as an ABSOLUTE point, so
+    // both need their previous value kept to turn into a step -- there is no
+    // delta in the message. Reset on GF_BEGIN, or the first step of a new
+    // gesture would be measured against wherever the last one ended.
+    ULONGLONG                m_gestureZoomLast  = 0;
+    POINT                    m_gesturePanLastPx = {};
+
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
     // machine build and flipped live by IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT.
@@ -1058,7 +1335,7 @@ private:
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
-    // silicon stays but GuestMouseActive() is false (no host input feeds
+    // silicon stays but IsGuestMouseActive() is false (no host input feeds
     // the device) and the input-mode cycle hides Mouse -- indistinguishable
     // from an unplugged DB-9 on real hardware.
     bool                     m_mouseConnected = true;
@@ -1292,7 +1569,12 @@ private:
 
     // Previous UI frame's "any drive live" state, so the loop can force one
     // final present on the live->idle edge and clear the activity LED.
-    bool                          m_anyDriveLivePrev = false;
+    // The drives' visible state as of the last UI frame, and whether it moved
+    // between the two before that -- the present vote asks whether the lamps
+    // and doors CHANGED, not whether a motor happens to be energized. See
+    // TryPresentUiFrame.
+    uint32_t                      m_lastDriveSig     = 0;
+    bool                          m_driveSigSettling = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;

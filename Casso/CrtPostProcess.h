@@ -113,6 +113,24 @@ RECT       ComputeAspectFitRectInRect (const RECT & contentRect,
                                        int          aspectH);
 
 
+//
+//  Where a fitted rect lands in a texture's UV space -- the desk scene samples
+//  the CRT chain's offscreen output on the monitor glass through this subrect,
+//  so the fit arithmetic stays shared between the direct-to-backbuffer path
+//  and the texture path. Free function for the same reason as the fits above:
+//  unit-testable with no GPU.
+//
+struct CrtUvRect
+{
+    float  u0 = 0.0f;
+    float  v0 = 0.0f;
+    float  u1 = 1.0f;
+    float  v1 = 1.0f;
+};
+
+CrtUvRect  ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textureH);
+
+
 
 
 
@@ -160,16 +178,6 @@ private:
 
     static constexpr UINT  kMaxBoundPsSrvSlots = 2;
 
-    // Nested rather than file-scope: a bare struct in a .cpp has external
-    // linkage, so two translation units defining different types under one
-    // name is an ODR violation the linker will not report. SettingsCompositor
-    // declares its own ShaderSource, which is exactly that collision.
-    struct ShaderSource
-    {
-        const void * pData  = nullptr;
-        size_t       cbData = 0;
-    };
-
     struct CrtVertex
     {
         float x;
@@ -178,12 +186,13 @@ private:
         float v;
     };
 
-    static HRESULT  LoadShaderSource (int resourceId, ShaderSource * outSource);
-
     HRESULT  EnsureSize         (int width, int height);
-    HRESULT  CompilePixelShader (int                  resourceId,
-                                  const char         * sourceName,
-                                  ID3D11PixelShader ** out);
+    // Creates one pass's pixel shader from the bytecode fxc produced at
+    // build time. Asserts throughout: a shader the device refuses is a
+    // broken build, not a runtime condition.
+    HRESULT  CreatePixelShaderFromBytecode (const void         *  bytecode,
+                                            size_t                size,
+                                            ID3D11PixelShader **  out);
     HRESULT  UploadConstants    (const CrtParams & params);
     void     DrawFullscreen     (ID3D11RenderTargetView   * rt,
                                  ID3D11ShaderResourceView * srv0,

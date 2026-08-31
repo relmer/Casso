@@ -56,5 +56,5 @@ public:
 
 private:
     // Value 0..15 of a single hex digit, or -1 when not a hex character.
-    static int           HexValue      (wchar_t ch);
+    static int           GetHexValue      (wchar_t ch);
 };

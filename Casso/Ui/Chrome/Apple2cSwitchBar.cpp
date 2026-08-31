@@ -188,7 +188,7 @@ float Apple2cSwitchBar::MeasureLabel (const wchar_t * text, float fontPx) const
 
 void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi        = scaler.Dpi();
+    UINT   dpi        = scaler.GetDpi();
     UINT   eDpi       = (dpi == 0) ? 96u : dpi;
     int    edge       = 0;
     int    resetW     = 0;
@@ -284,11 +284,11 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PartAt / TooltipTextAt
+//  GetPartAt / GetTooltipTextAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Apple2cSwitchBar::Part Apple2cSwitchBar::PartAt (int x, int y) const
+Apple2cSwitchBar::Part Apple2cSwitchBar::GetPartAt (int x, int y) const
 {
     auto  inside = [] (const RECT & r, int px, int py)
     {
@@ -312,18 +312,18 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::PartAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipTextAt
+//  GetTooltipTextAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * Apple2cSwitchBar::TooltipTextAt (int x, int y) const
+const wchar_t * Apple2cSwitchBar::GetTooltipTextAt (int x, int y) const
 {
     // Null means "no tip here" -- the bar's background gets none.
     const wchar_t *  tip = nullptr;
 
 
 
-    switch (PartAt (x, y))
+    switch (GetPartAt (x, y))
     {
         case Part::Reset:       tip = kTipReset;    break;
         case Part::EightyForty: tip = kTipEighty;   break;
