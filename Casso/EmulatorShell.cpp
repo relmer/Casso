@@ -1924,7 +1924,28 @@ void EmulatorShell::ClampSceneView()
     slack = std::max (0.0f, m_sceneView.zoom - 1.0f);
 
     m_sceneView.panX = std::clamp (m_sceneView.panX, -slack, slack);
-    m_sceneView.panY = std::clamp (m_sceneView.panY, -slack, slack);
+
+    // DOWNWARD, THE DRIVE IS NOT THE BOTTOM OF THE SCENE. The mounted
+    // image's name hangs below the drive, outside the composed bounds the
+    // slack is measured from, so at the pan limit the drive is at the edge
+    // and its name is past it -- unreachable, however far you drag.
+    //
+    // Clamping the name into the viewport instead was the wrong cure: it
+    // detaches the label from the thing it names. Give the pan the strip's
+    // own height as extra room and the name stays where it belongs.
+    {
+        RECT   vp    = m_deskScene.Composition().viewportPx;
+        int    vh    = vp.bottom - vp.top;
+        float  extra = 0.0f;
+
+        if (vh > 0)
+        {
+            extra = 2.0f * (float) m_scaler.ToPx (s_kSceneDriveLabelStripDp +
+                                                  s_kSceneDriveLabelGapDp) / (float) vh;
+        }
+
+        m_sceneView.panY = std::clamp (m_sceneView.panY, -slack - extra, slack + extra);
+    }
 }
 
 
@@ -2616,16 +2637,6 @@ void EmulatorShell::SyncSceneDriveLabels()
             rc.right  = comp.driveLabelPx[i].x + halfW;
             rc.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
             rc.bottom = rc.top + strip;
-
-            // KEPT INSIDE THE VIEWPORT. Zoomed in, the anchor itself walks
-            // off the bottom of the scene, and a label that follows it there
-            // is simply gone -- there is no pan that brings back something
-            // pinned to a point outside the frame.
-            if (comp.viewportPx.bottom > comp.viewportPx.top && rc.bottom > comp.viewportPx.bottom)
-            {
-                rc.bottom = comp.viewportPx.bottom;
-                rc.top    = rc.bottom - strip;
-            }
 
             if (text != nullptr)
             {
