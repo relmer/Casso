@@ -662,8 +662,11 @@ the pre-merge gate.
 
 ## User-Facing Prose
 
-Applies to help text, error messages, `CHANGELOG.md`, `README.md`, docs and
-commit messages: anything a human reads outside the code. The style gate
+Applies to every word a user can read. That includes string literals in the
+source: help text, error messages, verdicts, dialog and menu text, tooltips,
+and anything else that reaches a screen. It also covers `CHANGELOG.md`,
+`README.md`, docs and commit messages. Sitting inside a `.cpp` file exempts
+nothing; most of the offenders below were string literals. The style gate
 checks none of this, so it is on you.
 
 - **Write the way a programmer speaks.** Plain, ordinary developer English.

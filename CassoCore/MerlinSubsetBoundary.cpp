@@ -75,7 +75,7 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "an external symbol declaration",
         SubsetBoundaryTrigger::EveryOccurrence,
         SubsetBoundaryReason::NeedsLinker,
-        "it names a symbol defined in another module, and resolving that is what a linker is for",
+        "the symbol is defined in another module, and resolving that is what a linker is for",
         s_kpszLinkerWidening,
         true,
         nullptr,
@@ -164,6 +164,6 @@ std::span<const SubsetBoundaryRow> MerlinSubsetBoundary::GetAll()
 
 std::string MerlinSubsetBoundary::GetHelpText()
 {
-    return "Merlin constructs recognized and refused by name, and why:\n"
+    return "Merlin constructs Casso recognizes and refuses, and why:\n"
          + SubsetBoundary::ComposeHelpText (s_kMerlinBoundary);
 }
