@@ -829,11 +829,6 @@ private:
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();
 
-    // Renders one drive's mounted-image name into a texture and hands it
-    // to the scene, which stands it on the desk under that drive. Only
-    // called when the name changes: the render is a dozen text draws and
-    // the result is kept until it is wrong.
-    void    RenderSceneDiskLabel (int drive, const std::wstring & name);
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -1228,9 +1223,9 @@ private:
     // 2D widget carried below its body, kept on screen rather than demoted to
     // a hover tooltip. Positioned from the composition's projected drive
     // bounds; empty (and invisible) when that drive holds no disk.
-    // What each drive's label currently says, so the texture is rendered
-    // on a change rather than every frame.
-    std::array<std::wstring, 2>  m_sceneDiskLabelText;
+    // The mounted image's name under each drive. CHROME, not scene geometry:
+    // it is read at a fixed size wherever the desk is posed.
+    std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
     // Where each of those strips landed, empty when a drive shows no name.
     // The write-protect tooltip belongs to the strip now that the padlock

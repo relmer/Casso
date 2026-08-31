@@ -1278,23 +1278,6 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
             CHRA (hr);
         }
 
-        // The mounted image's name, textured and depth-tested with the
-        // rest of the scene, which is what hides it when the drive is
-        // hidden. The content view is swapped for this one draw and put
-        // back: the glass owns it the rest of the frame.
-        if (!m_diskLabelVerts[drive].empty() && m_diskLabelSrv[drive] != nullptr)
-        {
-            m_renderer.SetContentSrv (m_diskLabelSrv[drive]);
-
-            hr = m_renderer.DrawStatic (m_diskLabelMesh[drive],
-                                        m_diskLabelVerts[drive].data(),
-                                        m_diskLabelVerts[drive].size(), m_geometryRev,
-                                        mvp, true, viewport, true);
-
-            m_renderer.SetContentSrv (nullptr);
-            CHRA (hr);
-        }
-
         if (!m_driveLampVerts[drive].empty())
         {
             hr = m_renderer.DrawStatic (m_driveLampMesh[drive], m_driveLampVerts[drive].data(), m_driveLampVerts[drive].size(), m_geometryRev,
@@ -1305,101 +1288,6 @@ HRESULT DeskScene::DrawDrives (const DeskSceneComposition & comp, const D3D11_VI
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskScene::SetDiskLabel
-//
-//  Builds the quad the mounted image's name is drawn on, in the DRIVE'S OWN
-//  SPACE so the scene's existing world matrix carries it.
-//
-//  IN THE FRONT FACE'S PLANE, at y = FrontPlaneY. Model space is x right,
-//  y back, z up, so a quad of constant y is upright and faces the viewer the
-//  way the faceplate does. Put anywhere else it would lie at an angle to the
-//  thing it names.
-//
-//  BELOW THE DRIVE, where the 2D label sat, on the desk in front of it rather
-//  than on the faceplate: the faceplate is already carrying a badge, a slot,
-//  a lamp and a drive number, and a filename is longer than any of them.
-//
-//  Width follows the text's aspect so the glyphs are never stretched; the
-//  height is fixed in millimetres, which is what makes the name shrink with
-//  distance the way the hardware does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, float aspect)
-{
-    float   lo[3]  = {};
-    float   hi[3]  = {};
-    float   height = kDiskLabelHeightMm;
-    float   width  = 0.0f;
-    float   cx     = 0.0f;
-    float   top    = 0.0f;
-    float   y      = 0.0f;
-
-
-
-    if (drive < 0 || drive >= 2)
-    {
-        return;
-    }
-
-    m_diskLabelSrv[drive] = srv;
-    m_diskLabelVerts[drive].clear();
-
-    if (srv == nullptr || aspect <= 0.0f)
-    {
-        TouchGeometry();
-        return;
-    }
-
-    m_drive.BoundsMin (lo);
-    m_drive.BoundsMax (hi);
-
-    width = height * aspect;
-    cx    = (lo[0] + hi[0]) * 0.5f;
-    top   = lo[2] - kDiskLabelGapMm;
-    y     = m_drive.FrontPlaneY();
-
-    {
-        float   x0 = cx - width * 0.5f;
-        float   x1 = cx + width * 0.5f;
-        float   z0 = top - height;
-        float   z1 = top;
-
-        // Two triangles, wound so the face points at the viewer (-y), with
-        // v running down the texture as z runs up the quad. Normals stay zero:
-        // a zero normal is the renderer's "unlit", and the name is meant to
-        // read the same whatever the room lights are doing.
-        const float   corner[6][5] =
-        {
-            { x0, y, z1, 0.0f, 0.0f },
-            { x1, y, z1, 1.0f, 0.0f },
-            { x0, y, z0, 0.0f, 1.0f },
-            { x0, y, z0, 0.0f, 1.0f },
-            { x1, y, z1, 1.0f, 0.0f },
-            { x1, y, z0, 1.0f, 1.0f },
-        };
-
-        for (const float * c : corner)
-        {
-            Dxui3DRenderer::Vertex   v = {};
-
-            v.x = c[0];  v.y = c[1];  v.z = c[2];
-            v.u = c[3];  v.v = c[4];
-            v.r = 1.0f;  v.g = 1.0f;  v.b = 1.0f;  v.a = 1.0f;
-
-            m_diskLabelVerts[drive].push_back (v);
-        }
-    }
-
-    TouchGeometry();
 }
 
 

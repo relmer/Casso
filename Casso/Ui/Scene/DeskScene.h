@@ -109,21 +109,6 @@ public:
 
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
-    // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
-    // chrome laid over it.
-    //
-    // It used to be a 2D label parked under the drive's projected bounds,
-    // which put it in front of everything: orbit until the monitor stood
-    // between the camera and a drive and the name showed straight through
-    // the case. A quad in the drive's own space is depth-tested like any
-    // other geometry, so being hidden when the drive is hidden costs
-    // nothing to arrange -- and the name turns and shrinks with the desk
-    // instead of floating at a fixed size over it.
-    //
-    // `srv` is the rendered text, `aspect` its width over its height. A
-    // null srv clears the label.
-    void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, float aspect);
-
     // The measured metrics DeskSceneLayout composes with.
     DeskSceneMetrics  Metrics () const;
 
@@ -317,8 +302,6 @@ public:
     // on the desk, and how far under the drive it sits. Millimetres, like
     // every other dimension in the scene, so it scales with the hardware
     // rather than with the window.
-    static constexpr float  kDiskLabelHeightMm          = 9.0f;
-    static constexpr float  kDiskLabelGapMm             = 6.0f;
     static constexpr float  kShadowMarginDepthMm        = 34.0f;
     static constexpr float  kMonitorShadowMarginSideMm  = 26.0f;
     static constexpr float  kMonitorShadowMarginDepthMm = 90.0f;
@@ -613,13 +596,7 @@ private:
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
-    // The mounted image's name: its quad in drive-model space, and the
-    // texture the text was rendered into. The view is owned by the text
-    // renderer that made it.
-    std::vector<Dxui3DRenderer::Vertex>    m_diskLabelVerts[2];
-    ID3D11ShaderResourceView             * m_diskLabelSrv[2]   = { nullptr, nullptr };
     Dxui3DRenderer::StaticMesh             m_labelMesh[2];
-    Dxui3DRenderer::StaticMesh             m_diskLabelMesh[2];
     Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;
     Dxui3DRenderer::StaticMesh             m_monitorShadowMesh;
     Dxui3DRenderer::StaticMesh             m_driveShadowMesh;
