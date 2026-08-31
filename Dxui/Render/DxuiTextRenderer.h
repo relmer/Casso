@@ -46,6 +46,12 @@ public:
     HRESULT  BeginDrawOffscreen ();
     HRESULT  EndDrawComposite   ();
 
+    // Glyphs as a TEXTURE. See IDxuiTextRenderer for what these are for;
+    // the target is created on demand and grown to fit, and the view handed
+    // back stays valid until the next BeginDrawToTexture.
+    HRESULT  BeginDrawToTexture (UINT widthPx, UINT heightPx) override;
+    HRESULT  EndDrawToTexture   (ID3D11ShaderResourceView ** outSrv) override;
+
     // Source-compatibility aliases for existing call sites that
     // reference `DxuiTextRenderer::HAlign` / `::VAlign`. The canonical
     // names are the namespace-scope enums declared in IDxuiTextRenderer.h.
@@ -221,14 +227,28 @@ private:
     D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
     ComPtr<ID2D1Bitmap1>        m_target;
     ComPtr<ID2D1Bitmap1>        m_offscreen;
-    UINT                        m_offscreenW         = 0;
-    UINT                        m_offscreenH         = 0;
-    ComPtr<ID2D1Bitmap>         m_framebufferBitmap;
-    int                         m_framebufferBitmapW = 0;
-    int                         m_framebufferBitmapH = 0;
-    ComPtr<ID2D1Bitmap>         m_iconBitmap;
-    int                         m_iconBitmapW        = 0;
-    int                         m_iconBitmapH        = 0;
+
+    // The text-as-texture target, and the D3D texture behind it that the
+    // scene samples. Kept across calls and only recreated when a larger
+    // one is asked for, since a label is re-rendered only when it changes.
+    // The D3D device the D2D one rides on, kept so the text-as-texture
+    // target can be created. Everything else here works through D2D.
+    ComPtr<ID3D11Device>              m_d3dDevice;
+
+    ComPtr<ID3D11Texture2D>           m_textureTarget;
+    ComPtr<ID3D11ShaderResourceView>  m_textureSrv;
+    ComPtr<ID2D1Bitmap1>              m_textureBitmap;
+    ComPtr<ID2D1Image>                m_savedTarget;
+    UINT                              m_textureW           = 0;
+    UINT                              m_textureH           = 0;
+    UINT                              m_offscreenW         = 0;
+    UINT                              m_offscreenH         = 0;
+    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
+    int                               m_framebufferBitmapW = 0;
+    int                               m_framebufferBitmapH = 0;
+    ComPtr<ID2D1Bitmap>               m_iconBitmap;
+    int                               m_iconBitmapW        = 0;
+    int                               m_iconBitmapH        = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 

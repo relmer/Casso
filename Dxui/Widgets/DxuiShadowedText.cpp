@@ -58,12 +58,6 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                               const IDxuiTheme  & theme)
 {
     const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::kBodyFace;
-    float            fontPx = 0.0f;
-    float            bl     = 0.0f;
-    float            bt     = 0.0f;
-    float            bw     = 0.0f;
-    float            bh     = 0.0f;
-    HRESULT          hr     = S_OK;
     RECT             bounds = GetBounds();
 
 
@@ -76,17 +70,51 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
         return;
     }
 
-    fontPx = m_fontSizeDip * (float) m_dpi / 96.0f;
-    bl     = (float) bounds.left;
-    bt     = (float) bounds.top;
-    bw     = (float) (bounds.right - bounds.left);
-    bh     = (float) (bounds.bottom - bounds.top);
+    PaintShadowed (text, m_text.c_str(),
+                   (float) bounds.left, (float) bounds.top,
+                   (float) (bounds.right - bounds.left),
+                   (float) (bounds.bottom - bounds.top),
+                   m_textArgb, m_fontSizeDip * (float) m_dpi / 96.0f, face,
+                   m_hAlign, m_vAlign, m_glowLayers);
+}
 
-    for (int i = m_glowLayers; i > 0; i--)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiShadowedText::PaintShadowed
+//
+//  The rings, then the line, through whatever target the renderer is drawing
+//  to -- the back buffer for a control, an off-screen texture for the desk
+//  scene's drive label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
+                                      const wchar_t     * text,
+                                      float               x,
+                                      float               y,
+                                      float               width,
+                                      float               height,
+                                      uint32_t            argb,
+                                      float               fontPx,
+                                      const wchar_t     * face,
+                                      DxuiTextHAlign      hAlign,
+                                      DxuiTextVAlign      vAlign,
+                                      int                 glowLayers)
+{
+    const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::kBodyFace;
+    HRESULT          hr      = S_OK;
+
+
+
+    for (int i = glowLayers; i > 0; i--)
     {
         float     offset  = (float) i;
-        float     opacity = 1.0f - ((float) i / (float) m_glowLayers);
-        uint32_t  argb    = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
+        float     opacity = 1.0f - ((float) i / (float) glowLayers);
+        uint32_t  shadow  = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
 
         for (int dx = -1; dx <= 1; dx++)
         {
@@ -97,20 +125,18 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                     continue;
                 }
 
-                hr = text.DrawString (m_text.c_str(),
-                                      bl + offset * (float) dx,
-                                      bt + offset * (float) dy,
-                                      bw, bh, argb, fontPx, face,
-                                      m_hAlign, m_vAlign,
-                                      DxuiFontWeight::Normal, false);
+                hr = renderer.DrawString (text,
+                                          x + offset * (float) dx,
+                                          y + offset * (float) dy,
+                                          width, height, shadow, fontPx, useFace,
+                                          hAlign, vAlign,
+                                          DxuiFontWeight::Normal, false);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
         }
     }
 
-    hr = text.DrawString (m_text.c_str(), bl, bt, bw, bh,
-                          m_textArgb, fontPx, face,
-                          m_hAlign, m_vAlign,
-                          DxuiFontWeight::Normal, false);
+    hr = renderer.DrawString (text, x, y, width, height, argb, fontPx, useFace,
+                              hAlign, vAlign, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

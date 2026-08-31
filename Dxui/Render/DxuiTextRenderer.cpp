@@ -86,6 +86,8 @@ HRESULT DxuiTextRenderer::Initialize (ID3D11Device * pDevice)
 
     CBRAEx (pDevice, E_INVALIDARG);
 
+    m_d3dDevice = pDevice;
+
 #ifdef _DEBUG
     options.debugLevel = D2D1_DEBUG_LEVEL_NONE;
 #endif
@@ -320,6 +322,140 @@ HRESULT DxuiTextRenderer::EndDraw()
 
     hr = hrEnd;
     CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginDrawToTexture
+//
+//  Points the D2D context at an off-screen D3D texture so the usual DrawString
+//  lands in something a shader can sample.
+//
+//  THE TEXTURE IS KEPT AND GROWN, never shrunk, because a label is rendered
+//  only when its text changes and the sizes involved are a few hundred pixels.
+//  Reallocating to fit exactly would churn a D3D resource to save nothing.
+//
+//  96 DPI DELIBERATELY. The caller has already resolved its font to pixels;
+//  binding the bitmap at the display DPI would scale it a second time.
+//
+//  The previously bound target is saved and restored by EndDrawToTexture, so
+//  this can run between frames without disturbing the back buffer binding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::BeginDrawToTexture (UINT widthPx, UINT heightPx)
+{
+    HRESULT                  hr    = S_OK;
+    D2D1_BITMAP_PROPERTIES1  props = {};
+    D3D11_TEXTURE2D_DESC     desc  = {};
+    ComPtr<IDXGISurface>     surface;
+    bool                     sized = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_d3dDevice);
+    CBRAEx (widthPx > 0 && heightPx > 0, E_INVALIDARG);
+    CBRA (!m_drawing);
+
+    sized = m_textureTarget != nullptr && m_textureW >= widthPx && m_textureH >= heightPx;
+
+    if (!sized)
+    {
+        m_textureBitmap.Reset();
+        m_textureSrv.Reset();
+        m_textureTarget.Reset();
+
+        desc.Width            = widthPx;
+        desc.Height           = heightPx;
+        desc.MipLevels        = 1;
+        desc.ArraySize        = 1;
+        desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.Usage            = D3D11_USAGE_DEFAULT;
+        desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+        hr = m_d3dDevice->CreateTexture2D (&desc, nullptr, m_textureTarget.GetAddressOf());
+        CHRA (hr);
+
+        hr = m_d3dDevice->CreateShaderResourceView (m_textureTarget.Get(), nullptr,
+                                                 m_textureSrv.GetAddressOf());
+        CHRA (hr);
+
+        hr = m_textureTarget.As (&surface);
+        CHRA (hr);
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+        props.bitmapOptions         = D2D1_BITMAP_OPTIONS_TARGET;
+
+        hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &props,
+                                                        m_textureBitmap.GetAddressOf());
+        CHRA (hr);
+
+        m_textureW = widthPx;
+        m_textureH = heightPx;
+    }
+
+    m_d2dContext->GetTarget (m_savedTarget.ReleaseAndGetAddressOf());
+    m_d2dContext->SetTarget (m_textureBitmap.Get());
+    m_d2dContext->BeginDraw();
+    m_d2dContext->Clear (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f));
+    m_drawing = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndDrawToTexture
+//
+//  Closes the off-screen draw, restores the previous target, and hands back the
+//  view. The view belongs to the renderer and is replaced by the next
+//  BeginDrawToTexture, so a caller that keeps one keeps a reference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EndDrawToTexture (ID3D11ShaderResourceView ** outSrv)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRAEx (outSrv, E_INVALIDARG);
+
+    *outSrv = nullptr;
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->EndDraw();
+    m_drawing = false;
+
+    m_d2dContext->SetTarget (m_savedTarget.Get());
+    m_savedTarget.Reset();
+
+    CHRA (hr);
+
+    *outSrv = m_textureSrv.Get();
 
 Error:
     return hr;

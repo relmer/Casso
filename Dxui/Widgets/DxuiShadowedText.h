@@ -84,6 +84,24 @@ public:
     // original's own choice and worth keeping: the glow stays a tight edge
     // treatment on a dense display instead of spreading until its eight
     // directions read as spokes.
+    // The shadow construction itself, so a caller that is not a control can
+    // have it. The desk scene renders the drive label into a TEXTURE -- the
+    // name is geometry there, and a halo painted over the scene afterwards
+    // would stay flat on the glass while the text it belongs to turned
+    // away -- and needs the same rings this paints.
+    static void  PaintShadowed (IDxuiTextRenderer & renderer,
+                                const wchar_t     * text,
+                                float               x,
+                                float               y,
+                                float               width,
+                                float               height,
+                                uint32_t            argb,
+                                float               fontPx,
+                                const wchar_t     * face,
+                                DxuiTextHAlign      hAlign,
+                                DxuiTextVAlign      vAlign,
+                                int                 glowLayers);
+
     static constexpr int    kGlowLayers = 10;
     static constexpr float  kFontDip    = 13.0f;
 

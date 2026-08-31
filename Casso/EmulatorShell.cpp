@@ -206,6 +206,14 @@ static constexpr int     s_kFrameRateGlowLayers     = 4;
 
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
+// The scene-space disk label is rendered into a texture at a FIXED pixel
+// size and then scaled by the scene, so this is a resolution rather than a
+// type size: big enough that a name stays crisp when the drive is near the
+// camera, and it costs one texture per drive.
+static constexpr float   s_kSceneDiskLabelFontPx      = 48.0f;
+static constexpr int     s_kSceneDiskLabelGlowLayers  = 6;
+static constexpr float   s_kSceneDiskLabelMaxPx       = 900.0f;
+
 // Padding around the 3D drive row when the CRT monitor is opted out and the
 // row composes into the classic bottom band -- breathing room off the window
 // edge, the way the 2D widgets' band padding sat around them. (Containment
@@ -2009,8 +2017,6 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     // has already retired them.
     m_driveChrome[0].SetVisible (!hidden && !DeskSceneActive());
     m_driveChrome[1].SetVisible (!hidden && !DeskSceneActive());
-    m_sceneDriveLabel[0].SetVisible (!hidden);
-    m_sceneDriveLabel[1].SetVisible (!hidden);
 
     if (hidden)
     {
@@ -2371,6 +2377,87 @@ void EmulatorShell::SyncSceneDriveChrome()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::RenderSceneDiskLabel
+//
+//  Draws one drive's mounted-image name into a texture, with the shadow
+//  treatment baked in, and hands the result to the scene.
+//
+//  THE SHADOW GOES IN THE TEXTURE, not over the scene afterwards. The name is
+//  scene geometry now, so it foreshortens and can be occluded, and a halo
+//  painted over the top in screen space would do neither -- it would sit flat
+//  on the glass while the text it belongs to turned away.
+//
+//  The texture is padded by the glow's reach on every side, or the outermost
+//  ring clips against its own edge and the name gets a hard rectangle around
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RenderSceneDiskLabel (int drive, const std::wstring & name)
+{
+    IDxuiTextRenderer        *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    ID3D11ShaderResourceView *  srv    = nullptr;
+    float                       fontPx = s_kSceneDiskLabelFontPx;
+    float                       tw     = 0.0f;
+    float                       th     = 0.0f;
+    UINT                        w      = 0;
+    UINT                        h      = 0;
+    HRESULT                     hr     = S_OK;
+
+
+
+    if (drive < 0 || drive >= 2)
+    {
+        return;
+    }
+
+    if (text == nullptr || name.empty())
+    {
+        m_deskScene.SetDiskLabel (drive, nullptr, 0.0f);
+        return;
+    }
+
+    hr = text->MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, tw, th);
+
+    if (FAILED (hr) || tw <= 0.0f || th <= 0.0f)
+    {
+        m_deskScene.SetDiskLabel (drive, nullptr, 0.0f);
+        return;
+    }
+
+    w = (UINT) (tw + 2.0f * (float) s_kSceneDiskLabelGlowLayers + 2.0f);
+    h = (UINT) (th + 2.0f * (float) s_kSceneDiskLabelGlowLayers + 2.0f);
+
+    hr = text->BeginDrawToTexture (w, h);
+
+    if (FAILED (hr))
+    {
+        m_deskScene.SetDiskLabel (drive, nullptr, 0.0f);
+        return;
+    }
+
+    DxuiShadowedText::PaintShadowed (*text, name.c_str(), 0.0f, 0.0f, (float) w, (float) h,
+                                     m_chromeTheme.driveLabel, fontPx, DxuiTheme::kBodyFace,
+                                     DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                     s_kSceneDiskLabelGlowLayers);
+
+    hr = text->EndDrawToTexture (&srv);
+
+    if (FAILED (hr) || srv == nullptr)
+    {
+        m_deskScene.SetDiskLabel (drive, nullptr, 0.0f);
+        return;
+    }
+
+    m_deskScene.SetDiskLabel (drive, srv, (float) w / (float) h);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::SyncSceneDriveLabels
 //
 //  Hangs the mounted image's basename in a strip under each 3D drive, where
@@ -2404,19 +2491,17 @@ void EmulatorShell::SyncSceneDriveLabels()
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
     bool                          visible = !fs || onStrip;
 
 
 
-    for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
+    for (int i = 0; i < (int) m_sceneDiskLabelText.size(); i++)
     {
-        std::wstring  basename;
-        RECT          strip = {};
+        std::wstring  name;
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            basename = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+            name = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
 
             // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
             // badge stamped on the faceplate -- on a case whose whole job is
@@ -2427,79 +2512,56 @@ void EmulatorShell::SyncSceneDriveLabels()
             // Ahead of the truncation on purpose. Truncation eats the TAIL,
             // so a badge at the head survives however long the name is, and
             // nothing downstream has to keep it out of the ellipsis by hand.
-            if (!basename.empty() && m_driveWidgetState[i].writeProtect.Any())
+            if (!name.empty() && m_driveWidgetState[i].writeProtect.Any())
             {
-                basename = std::wstring (s_kpszLock) + L" " + basename;
+                name = std::wstring (s_kpszLock) + L" " + name;
+            }
+
+            // Capped so a long filename does not stand on the desk wider than
+            // the machine. Measured in the TEXTURE'S pixels, which is where
+            // the name is drawn; the scene then scales the whole quad.
+            if (text != nullptr && !name.empty())
+            {
+                name = TruncateToWidth (name, s_kSceneDiskLabelMaxPx,
+                                        [text] (std::wstring_view run) -> float
+                {
+                    float    w  = 0.0f;
+                    float    h  = 0.0f;
+                    HRESULT  hr = text->MeasureString (std::wstring (run).c_str(),
+                                                       s_kSceneDiskLabelFontPx,
+                                                       DxuiTheme::kBodyFace, w, h);
+
+                    return SUCCEEDED (hr) ? w : 0.0f;
+                });
             }
         }
 
-        m_sceneDriveLabelRect[i] = RECT{};
-
-        if (basename.empty())
+        // ON CHANGE, NOT PER FRAME. Rendering the name costs a texture and
+        // some tens of text draws, and the name changes when a disk is
+        // mounted rather than when the camera moves.
+        if (name != m_sceneDiskLabelText[i])
         {
-            m_sceneDriveLabel[i].SetText    (L"");
-            m_sceneDriveLabel[i].SetVisible (false);
-            continue;
+            m_sceneDiskLabelText[i] = name;
+            RenderSceneDiskLabel (i, name);
         }
 
-        // Hung from the drive's projected FRONT-BOTTOM CENTER -- one fixed
-        // model point -- at a constant width, so the label rides the drive
-        // rigidly through the orbit instead of tracking a bounding box that
-        // swells and swings as the case turns.
+        // The tooltip still needs somewhere to sit. The name itself is scene
+        // geometry now and foreshortens with the desk, so this is the drive's
+        // projected label anchor rather than the label's own outline -- close
+        // enough to tell "over the name" from "over the case", which is all
+        // the hover asks.
+        m_sceneDriveLabelRect[i] = RECT{};
+
+        if (!name.empty())
         {
             int  halfW = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
 
-            strip.left   = comp.driveLabelPx[i].x - halfW;
-            strip.right  = comp.driveLabelPx[i].x + halfW;
-            strip.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-            strip.bottom = strip.top + m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+            m_sceneDriveLabelRect[i].left   = comp.driveLabelPx[i].x - halfW;
+            m_sceneDriveLabelRect[i].right  = comp.driveLabelPx[i].x + halfW;
+            m_sceneDriveLabelRect[i].top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+            m_sceneDriveLabelRect[i].bottom = m_sceneDriveLabelRect[i].top
+                                            + m_scaler.ToPx (s_kSceneDriveLabelStripDp);
         }
-
-        // A strip that does not fit inside the client is not a label, it is a
-        // stray string: the rect comes from PROJECTING the drive through the
-        // frame's camera, and a layout caught mid-resize can hand back a
-        // projection off the top of the window. The label would then paint its
-        // lower half along the window's top edge, above the caption text,
-        // flickering for as long as that pass was on screen.
-        {
-            RECT  client = {};
-
-            if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client) ||
-                strip.top < client.top || strip.bottom > client.bottom ||
-                strip.right <= strip.left)
-            {
-                m_sceneDriveLabel[i].SetText    (L"");
-                m_sceneDriveLabel[i].SetVisible (false);
-                continue;
-            }
-        }
-
-        if (text != nullptr)
-        {
-            basename = TruncateToWidth (basename, (float) (strip.right - strip.left),
-                                        [text, fontPx] (std::wstring_view run) -> float
-            {
-                float    w  = 0.0f;
-                float    h  = 0.0f;
-                HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), fontPx,
-                                                   DxuiTheme::kBodyFace, w, h);
-
-                return SUCCEEDED (hr) ? w : 0.0f;
-            });
-        }
-
-        m_sceneDriveLabel[i].SetText        (basename);
-        m_sceneDriveLabel[i].SetColor       (m_chromeTheme.driveLabel);
-        m_sceneDriveLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
-        m_sceneDriveLabel[i].SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
-        m_sceneDriveLabel[i].SetRect        (strip);
-        m_sceneDriveLabel[i].SetVisible     (true);
-
-        // Remembered so the hover can tell the strip from the case: over the
-        // name and its badge the tooltip explains the protection, over the
-        // drive it just names the disk.
-        m_sceneDriveLabelRect[i] = strip;
     }
 }
 
@@ -3517,8 +3579,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
-    m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
-    m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
     m_host->GetRoot().Adopt (m_captureBanner);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneCompass);
