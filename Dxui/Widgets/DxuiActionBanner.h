@@ -58,10 +58,14 @@ public:
     //  The button, for a test that wants to press it or read its label.
     DxuiButton *  GetAction (size_t index);
 
-    //  Where the notice itself was laid out, which is the bounds minus the
-    //  action column. Exposed so a test can assert the text stops where the
-    //  buttons begin rather than running underneath them.
+    //  Where the bordered strip was laid out. It spans the whole bounds: the
+    //  actions are inside it, and what keeps the text off them is the notice's
+    //  trailing reserve rather than a narrower box.
     RECT  GetNoticeBounds () const { return m_banner.GetBounds(); }
+
+    //  How much of the trailing edge the actions occupy, which is what the
+    //  notice reserves out of its text.
+    float  GetActionReservePx (const DxuiDpiScaler & scaler) const { return GetActionColumnPx (scaler); }
 
     //  The height the banner needs at this width, with room for its actions.
     //  Never shorter than one button, since a notice whose action is clipped
@@ -88,7 +92,9 @@ private:
     //  How much width the actions take, including the gap to the text.
     float  GetActionColumnPx (const DxuiDpiScaler & scaler) const;
 
-    DxuiInfoBanner                              m_banner;
+    //  Mutable because measuring the height has to tell the notice how much of
+    //  its trailing edge is spoken for, and measuring is const to every caller.
+    mutable DxuiInfoBanner                      m_banner;
     std::vector<std::unique_ptr<DxuiButton>>    m_actions;
     ActionFn                                    m_onAction;
     DxuiDpiScaler                               m_scaler;

@@ -119,11 +119,12 @@ float DxuiActionBanner::GetActionColumnPx (const DxuiDpiScaler & scaler) const
 //
 //  DxuiActionBanner::GetPreferredHeightPx
 //
-//  The height this banner needs at a given width.
+//  The height this message bar needs at a given width.
 //
-//  THE ACTION COLUMN COMES OUT OF THE WIDTH BEFORE THE TEXT WRAPS. Measuring
-//  the text across the full width and then putting a button over it is how a
-//  notice ends up with its message underneath its own action.
+//  THE STRIP SPANS THE WHOLE WIDTH AND THE TEXT STOPS SHORT OF THE ACTIONS.
+//  The bar is one bordered thing containing a button, not a bar beside a
+//  button, so the width handed to the notice is the full width and the column
+//  the actions occupy is reserved out of its TEXT instead.
 //
 //  NEVER SHORTER THAN A BUTTON, because a report whose action is clipped offers
 //  nothing at all.
@@ -132,19 +133,19 @@ float DxuiActionBanner::GetActionColumnPx (const DxuiDpiScaler & scaler) const
 
 float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
 {
-    float  actionsPx = GetActionColumnPx (scaler);
-    float  textWidth = widthPx - actionsPx;
-    float  textH     = 0.0f;
-    float  actionH   = 0.0f;
+    float  textH   = 0.0f;
+    float  actionH = 0.0f;
 
 
 
-    if (textWidth < 1.0f)
+    if (widthPx < 1.0f)
     {
-        textWidth = 1.0f;
+        widthPx = 1.0f;
     }
 
-    textH   = m_banner.GetPreferredHeightPx (textWidth, scaler);
+    m_banner.SetTrailingReservePx (GetActionColumnPx (scaler));
+
+    textH   = m_banner.GetPreferredHeightPx (widthPx, scaler);
     actionH = scaler.ToPxf (s_kActionHeightDip) + scaler.ToPxf (s_kEdgePadDip) * 2.0f;
 
     return (textH > actionH) ? textH : actionH;
@@ -158,13 +159,17 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 //
 //  DxuiActionBanner::Layout
 //
-//  The notice takes the width left over; the actions sit against the trailing
-//  edge, vertically centered, in the column reserved out of it.
+//  One bordered strip across the whole bounds, with the actions inside it
+//  against the trailing edge, vertically centered.
 //
-//  THE INNER BANNER IS GIVEN THE REDUCED WIDTH, NOT THE WHOLE BOUNDS. Handing
-//  it everything makes it wrap its text across the full strip and draw the last
-//  line underneath the buttons -- and it disagrees with the height that was
-//  measured for it, which reserved the column.
+//  THE NOTICE GETS THE WHOLE BOUNDS. It is a message bar CONTAINING a button:
+//  the border runs the full width and the button sits within it. Shrinking the
+//  notice to make room would put the button outside the border and leave a bar
+//  next to a button instead.
+//
+//  WHAT KEEPS THEM APART IS THE TEXT RESERVE, not the box width -- the notice
+//  wraps its text short of the column the actions occupy while its own frame
+//  spans everything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,13 +189,7 @@ void DxuiActionBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
-    noticeArea.right = boundsDip.right - (LONG) GetActionColumnPx (scaler);
-
-    if (noticeArea.right < noticeArea.left)
-    {
-        noticeArea.right = noticeArea.left;
-    }
-
+    m_banner.SetTrailingReservePx (GetActionColumnPx (scaler));
     m_banner.Layout (noticeArea, scaler);
 
     //  Laid out from the trailing edge back, so the first action is the one

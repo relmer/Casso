@@ -46,6 +46,7 @@
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Cli/Win32IntentChannel.h"
+#include "Devices/Disk/PreservedCopy.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -7263,6 +7264,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    //  Before the rest of the chrome: the bar sits in its own band and
+    //  overlaps nothing, so an event inside it belongs to it and to nothing
+    //  else.
+    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Down, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
     // Command toolbar press (button press states + slider drag start).
@@ -7360,6 +7369,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    //  The release is what makes a button fire, so the bar has to see both
+    //  halves of the click.
+    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).
@@ -10618,9 +10634,14 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 //
 //  Where to put the contents of a disk whose file has gone.
 //
-//  SEEDED WITH THE NAME THE DISK HAD, in the folder it came from, because that
-//  is what the user is trying to get back. They can move it anywhere; the
-//  default is the thing they lost.
+//  SEEDED WITH THE TIMESTAMPED PRESERVED NAME, in the folder the disk came
+//  from -- `work.20260831-004512-01.dsk`, the same shape every other preserved
+//  version gets. It used to offer the ORIGINAL name, which is wrong twice: it
+//  invites the user to recreate the very file they deleted, and it makes this
+//  the one rescue in the feature whose result cannot be told from an ordinary
+//  disk by looking at the folder.
+//
+//  THEY CAN STILL TYPE ANYTHING. This is the default, not the rule.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10668,7 +10689,12 @@ bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
 
     if (!original.filename().empty())
     {
-        hr = dialog->SetFileName (original.filename().c_str());
+        std::string  suggested = PreservedCopy::MakePath (
+                                     imagePath,
+                                     PreservedCopy::MakeStamp (time (nullptr)),
+                                     0);
+
+        hr = dialog->SetFileName (fs::path (suggested).filename().c_str());
         CHR (hr);
     }
 
@@ -10785,4 +10811,53 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
     }
 
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OfferMouseToChangeBanner
+//
+//  Hands the message bar a mouse event.
+//
+//  IT HAS TO BE OFFERED EXPLICITLY. This shell hit-tests its chrome by name --
+//  the toolbar, the joystick selector, the //c switch strip -- rather than
+//  walking the host's panel tree, so a control that nobody asks is a control
+//  that is painted and never pressed. Measured exactly that way: the bar drew
+//  correctly, and its Dismiss did nothing.
+//
+//  ONLY WHILE IT IS UP, and only inside it. The band collapses to nothing when
+//  no notice is showing, so there is nothing to hit the rest of the time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y)
+{
+    RECT             bounds = m_changeBanner.GetBounds();
+    DxuiMouseEvent   ev     = {};
+    bool             inside = false;
+
+
+
+    if (!m_changeBanner.IsVisible())
+    {
+        return false;
+    }
+
+    inside = (x >= bounds.left && x < bounds.right
+           && y >= bounds.top  && y < bounds.bottom);
+
+    if (!inside)
+    {
+        return false;
+    }
+
+    ev.kind        = kind;
+    ev.button      = DxuiMouseButton::Left;
+    ev.positionDip = POINT { x, y };
+
+    return m_changeBanner.OnMouse (ev);
 }

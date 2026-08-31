@@ -64,7 +64,7 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
     float   padX      = scaler.ToPxf (s_kPadXDip);
     float   padY      = scaler.ToPxf (s_kPadYDip);
     float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float   textWidth = widthPx - padX * 2.0f - iconCol;
+    float   textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
     float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
     int     lines     = EstimateLines ((textWidth > 1.0f) ? textWidth : 1.0f, scaler);
     float   textH     = lineH * (float) lines;
@@ -94,7 +94,7 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     float    padX      = scaler.ToPxf (s_kPadXDip);
     float    padY      = scaler.ToPxf (s_kPadYDip);
     float    iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float    textWidth = widthPx - padX * 2.0f - iconCol;
+    float    textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
     float    iconH     = scaler.ToPxf (s_kIconBoxDip);
     float    outW      = 0.0f;
     float    outH      = 0.0f;
@@ -160,7 +160,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float    iconGap  = m_scaler.ToPxf (s_kIconGapDip);
     float    fontPx   = m_scaler.ToPxf (s_kFontDip);
     float    textX    = left + padX + iconBox + iconGap;
-    float    textW    = width - padX * 2.0f - iconBox - iconGap;
+    float    textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
     float    iconR    = iconBox * 0.5f;
     float    iconCx   = left + padX + iconR;
     float    iconCy   = top + height * 0.5f;   // vertically centered in the bordered area

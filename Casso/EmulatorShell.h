@@ -813,6 +813,15 @@ private:
     // Lays the notice into the band the dock gave it.
     void    LayoutChangeBanner ();
 
+    // Offers a mouse event to the message bar, if one is up.
+    //
+    // THE SHELL HIT-TESTS ITS CHROME BY NAME rather than walking the panel
+    // tree -- the toolbar, the joystick selector and the //c switch strip are
+    // each asked in turn -- so a control that is not on that list is painted
+    // and never clicked. Measured: the bar drew correctly and its button could
+    // not be pressed.
+    bool    OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y);
+
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
     int     GetChangeBandThicknessPx (int clientWidthPx) const;

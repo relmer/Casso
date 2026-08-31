@@ -48,6 +48,19 @@ public:
     Severity  GetSeverity () const { return m_severity; }
     const std::wstring & GetText () const { return m_text; }
 
+    //  Width at the trailing edge the text must not run into, in PIXELS of
+    //  the caller's layout space.
+    //
+    //  FOR A BANNER THAT CONTAINS SOMETHING. A message bar with a button in it
+    //  is one bordered strip, not a strip beside a button: the border spans the
+    //  whole bar and the text stops short of what sits inside it. Without this
+    //  the only way to keep the two apart is to shrink the banner itself, which
+    //  puts the button outside the border and stops it being a message bar.
+    //
+    //  Zero by default, so every existing banner measures and paints exactly as
+    //  it did.
+    void  SetTrailingReservePx (float reservePx) { m_trailingReservePx = reservePx; }
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }
 
@@ -93,6 +106,10 @@ private:
 
     // Estimated wrapped-line count for the text laid out at `textWidthPx`.
     int    EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const;
+
+    //  How much of the trailing edge belongs to something else. See
+    //  SetTrailingReservePx.
+    float           m_trailingReservePx = 0.0f;
 
     std::wstring    m_text;
     DxuiDpiScaler   m_scaler;

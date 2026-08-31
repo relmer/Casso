@@ -246,44 +246,40 @@ fixed:
    and the drive bar use, and zero-height when nothing is being reported.
    Confirmed on screen: the picture moves down and back.
 
-4. **STILL OPEN -- the notice's own text metrics.** The band is right and the
-   text inside it is not: the message runs past the right edge and the action
-   is never on screen.
+4. *Fixed.* The action is inside the bar rather than beside it. `DxuiInfoBanner`
+   gained a trailing reserve, so the bordered strip spans the whole band and the
+   text wraps short of what sits within it -- which is what makes this a message
+   bar containing a button instead of a bar next to one.
 
-   **Measured rather than guessed, by drawing the numbers into the banner
-   itself.** At a 1300-physical-pixel window: `bounds = {0, 2600}`,
-   `dpi = 192`, `actions = 1`. So the band DOES span the client, the action DOES
-   exist, and both are laid out where they should be -- the button's rect works
-   out to 2388..2580, which is on screen.
+5. *Fixed.* The bar was painted but never clickable. This shell hit-tests its
+   chrome BY NAME -- the toolbar, the joystick selector, the //c switch strip,
+   each asked in turn -- rather than walking the host's panel tree, so a control
+   nobody asks about is drawn and never pressed. Both halves of the click are
+   now offered to it.
 
-   Two things follow, and the next session should start from them rather than
-   re-deriving them:
+6. *Fixed.* The save offered for a deleted disk was seeded with the ORIGINAL
+   filename, which invited the user to recreate the file they just lost and made
+   it the one rescue whose result could not be told from an ordinary disk in a
+   folder listing. It is seeded with the timestamped preserved name now, the same
+   shape every other preserved version gets (FR-017).
 
-   - **PowerShell is DPI-unaware, so every capture was virtualized 2:1.**
-     `GetWindowRect` from a script reports 1300 for a 2600-pixel window. Any
-     future screenshot work here has to account for that or it will chase
-     phantoms, which this session did for several rounds.
-   - **The band renders about twice as tall as `GetPreferredHeightPx` computes
-     for it**, and the text about twice as wide as the estimate assumed. That
-     points at a double-scale between the DPI the shell measures with and the
-     one the painter draws with, not at the layout arithmetic. `DxuiInfoBanner`
-     estimates from `s_kEstGlyphEm` and paints from its own `m_scaler`, set by
-     `Layout` -- but the host also propagates DPI to adopted controls, and those
-     two paths are the first place to look.
-   - The action was additionally invisible against the banner's tinted fill in
-     the dark themes; it is now `Variant::Primary`. That is fixed but was never
-     the reason it could not be found.
+**The overflow reported here earlier was never real, and the instrument was the
+bug.** `PrintWindow` from a DPI-unaware process does not scale a window down --
+it draws the TOP-LEFT CROP. Every capture was the top-left 1300x900 of a
+2600x1800 window, so a correctly laid out bar looked like it ran off the edge
+and its action looked missing. Several rounds went into chasing that. Captures
+here must call `SetProcessDpiAwarenessContext(-4)` first; the helper that does
+is beside the other screenshot scripts.
 
-- [ ] T117 **Open defect from the walk:** the change band's text overflows and
-  its action lands off screen, because the notice's paint scale is roughly
-  double what its own height and wrap estimate assume. The band, the bounds and
-  the action all measure correct (`{0,2600}`, dpi 192, 1 action). Not a wording,
-  policy or core problem -- all three are covered by tests and were read on
-  screen. Start at `DxuiInfoBanner::EstimateLines` versus its `Paint`, and at
-  which scaler each ends up with once the host has propagated DPI to an adopted
-  control
+**Verified on screen at true resolution**: the bar spans the client, the message
+fits, `Dismiss` sits inside it at the trailing edge, pressing it removes the bar,
+and the scene rescales back into the space.
 
----
+- [X] ~~T117~~ **Resolved.** The overflow reported against the change bar was an
+  artifact of a DPI-unaware screenshot cropping the window, not a layout defect.
+  The three real problems it masked -- the action sitting outside the bar, the
+  bar never receiving clicks, and the rescue name carrying no timestamp -- are
+  fixed and verified on screen at true resolution
 
 **Checkpoint**: Gates green, documentation current, quickstart walked. Commit.
 

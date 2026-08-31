@@ -202,12 +202,18 @@ namespace DxuiActionBannerTests
             action = banner.GetAction (0)->GetBounds();
             notice = banner.GetNoticeBounds();
 
-            //  Measured: handing the inner notice the whole strip made it wrap
-            //  its text across the buttons and draw the last line underneath
-            //  them, while the height measured for it had reserved the column.
-            Assert::IsTrue (notice.right <= action.left,
-                            L"the text must stop where the actions begin");
-            Assert::IsTrue (notice.right > notice.left);
+            //  IT IS A MESSAGE BAR CONTAINING A BUTTON. The bordered strip runs
+            //  the full width and the action sits inside it.
+            Assert::IsTrue (notice.right >= action.right,
+                            L"the action must be inside the bar, not beside it");
+            Assert::IsTrue (notice.left  <= action.left);
+            Assert::IsTrue (notice.top   <= action.top);
+            Assert::IsTrue (notice.bottom >= action.bottom);
+
+            //  And what keeps the text off it is the reserve, not a narrower
+            //  box: measured, handing the notice the whole width with no
+            //  reserve wrapped the last line underneath the button.
+            Assert::IsTrue (banner.GetActionReservePx (scaler) > 0.0f);
         }
     };
 }
