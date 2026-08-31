@@ -224,7 +224,7 @@ The command line states the dialect rather than guessing it — `CassoCli as65
 input.a65` and `CassoCli merlin PROG.S`. The bare `CassoCli input.a65` form is
 gone. Under `as65` the CPU is chosen with AS65's own `-x`; under `merlin` the
 source chooses it with `XC`. Where support ends is stated by name rather than
-failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md).
+failing as a syntax error; see [docs/Assembler.md](docs/Assembler.md#where-merlin-support-ends).
 
 ### Salvage a damaged .woz (1.17)
 

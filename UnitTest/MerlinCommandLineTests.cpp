@@ -957,7 +957,7 @@ namespace MerlinCommandLineTests
         //
         //  Six rows, each a sentence of what the construct is and why it is
         //  refused, is a page of prose in front of a reader who typed --help
-        //  wanting the flags. It lives in docs/merlin-subset.md.
+        //  wanting the flags. It lives in docs/Assembler.md.
         //
         //  The sweep is over the table rather than over a list written here, so
         //  emptying the table cannot satisfy this by leaving nothing to look

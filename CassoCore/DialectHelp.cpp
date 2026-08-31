@@ -69,7 +69,7 @@ std::string DialectHelp::GetAllDialects (char flagPrefix)
 //
 //  WHERE A SUBSET ENDS IS NOT HERE. The Merlin boundary is six paragraphs of
 //  why, and a reader who typed --help wanted the flags. It lives in
-//  docs/merlin-subset.md, where there is room to explain what widens each one.
+//  docs/Assembler.md, where there is room to explain what widens each one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
