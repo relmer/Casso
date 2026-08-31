@@ -42,6 +42,9 @@ What the emulator knows about one mounted image beyond its bytes.
 | `identity` | `ImageIdentity` | Taken at mount, refreshed at every commit |
 | `pending` | `PendingChange` | Empty until a change is noticed |
 | `watching` | `bool` | False where the directory could not be watched |
+| `reportStanding` | `bool` | A report the user has not acted on yet |
+
+**`reportStanding` OUTLIVES THE PENDING CHANGE.** A pick-up consumes the pending record, but the report stays up until acted on, absorbs later changes, and keeps the restart reachable (FR-009 to FR-012). Without a field for it the state diagram's "banner stands" has nothing behind it, and the state would end up in the shell -- which is where Principle VI says it must not be.
 
 **Rules**
 
