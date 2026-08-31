@@ -29,6 +29,7 @@
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -829,6 +830,7 @@ private:
     // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
+    void    SyncFrameRateReadout ();
     void    TickFullscreenToolbar();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
@@ -1227,6 +1229,10 @@ private:
     // cursor gone and no way out shown is how a user ends up killing the
     // process. This rides above the picture in both presentations.
     DxuiHudNotice              m_captureBanner;
+
+    // The frames-per-second readout. Shadowed rather than a notice: it
+    // wants a corner, not the centered band a notification takes.
+    DxuiShadowedText           m_fpsReadout;
 
     // The scene compass: the visible way to turn the scene, for everyone
     // who will never guess that dragging does it. Laid out into the scene

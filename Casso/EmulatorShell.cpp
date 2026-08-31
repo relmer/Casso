@@ -191,6 +191,12 @@ static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
 
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
+// The readout sits in the picture's top-left corner, inset far enough that
+// its shadow clears the edge.
+static constexpr int     s_kFrameRateInsetDp        = 12;
+static constexpr int     s_kFrameRateWidthDp        = 120;
+static constexpr int     s_kFrameRateHeightDp       = 28;
+
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
@@ -2069,6 +2075,66 @@ void EmulatorShell::SyncCaptureBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SyncFrameRateReadout
+//
+//  The frame rate over the picture, in the top-left corner.
+//
+//  COUNTED AT THE PRESENT, not here: DxuiHwndSource ticks its counter when
+//  a frame actually reaches the screen, so a paint the shell skipped is not
+//  a dropped frame and a present that waited on vsync reports the interval
+//  the user saw. This only reads the figure and places it.
+//
+//  One decimal, because whether the scene holds sixty is the question and a
+//  rounded integer answers it ambiguously at the boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncFrameRateReadout()
+{
+    RECT     client   = {};
+    RECT     rc       = {};
+    wchar_t  text[32] = {};
+
+
+
+    if (!m_globalPrefs.showFrameRate || m_host == nullptr
+        || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_fpsReadout.SetVisible (false);
+        return;
+    }
+
+    // BELOW THE TOP CHROME, measured off the toolbar band the same way the
+    // capture banner measures off the switch bar. Not the viewport bounds:
+    // under the desk scene those are the picture on the glass, which sits
+    // halfway down the window, and the readout appeared floating beside the
+    // monitor rather than in the corner.
+    {
+        RECT  bar = m_toolbarBand.GetBounds();
+        LONG  top = (bar.bottom > bar.top) ? bar.bottom : client.top;
+
+        rc.left   = client.left + m_scaler.ToPx (s_kFrameRateInsetDp);
+        rc.top    = top + m_scaler.ToPx (s_kFrameRateInsetDp);
+        rc.right  = rc.left + m_scaler.ToPx (s_kFrameRateWidthDp);
+        rc.bottom = rc.top  + m_scaler.ToPx (s_kFrameRateHeightDp);
+    }
+
+    swprintf_s (text, L"%.1f fps", m_host->GetFramesPerSecond());
+
+    m_fpsReadout.SetText        (text);
+    m_fpsReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_fpsReadout.SetAlign       (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_fpsReadout.SetDpi         (m_scaler.GetDpi());
+    m_fpsReadout.Layout         (rc, m_scaler);
+    m_fpsReadout.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MirroredSlideStart
 //
 //  A slide start time that PRESERVES the current position when the direction
@@ -3440,6 +3506,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
     m_host->GetRoot().Adopt (m_captureBanner);
+    m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneCompass);
 
     // The compass reports gestures; the shell owns what they mean. The signs
@@ -3594,6 +3661,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
+            case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
 
             default:                          return false;
         }
@@ -6959,6 +7027,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // The capture banner and the fullscreen toolbar reveal, both per-frame
     // because both answer where the pointer is right now.
     SyncCaptureBanner();
+    SyncFrameRateReadout();
     TickFullscreenToolbar();
 
 

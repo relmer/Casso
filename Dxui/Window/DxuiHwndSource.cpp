@@ -1874,6 +1874,26 @@ void DxuiHwndSource::PresentFrame()
     hr = m_swapChain->Present (m_params.presentSyncInterval, 0);
     CHRA (hr);
 
+    // The frame reached the screen, so it counts. Measured here rather
+    // than around the paint because a paint the shell skipped is not a
+    // dropped frame, and a present that blocked on vsync is the interval
+    // the user actually saw.
+    {
+        LARGE_INTEGER   now  = {};
+        LARGE_INTEGER   freq = {};
+
+        QueryPerformanceCounter   (&now);
+        QueryPerformanceFrequency (&freq);
+
+        if (m_lastPresentQpc != 0 && freq.QuadPart > 0)
+        {
+            m_frameRate.Tick ((float) ((double) (now.QuadPart - m_lastPresentQpc)
+                                       / (double) freq.QuadPart));
+        }
+
+        m_lastPresentQpc = now.QuadPart;
+    }
+
     if (m_compDevice)
     {
         hr = m_compDevice->Commit();

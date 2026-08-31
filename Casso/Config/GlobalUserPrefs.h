@@ -41,6 +41,18 @@ struct GlobalUserPrefs
     // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
     bool         crtMonitor          = true;
 
+    // The frames-per-second readout over the picture.
+    //
+    // DEFAULTS BY BUILD, not by taste: a debug build is the one being
+    // worked on and wants the number in view, and a release build is being
+    // used rather than measured. Once the user toggles it the stored value
+    // wins in both.
+#if defined(_DEBUG)
+    bool         showFrameRate       = true;
+#else
+    bool         showFrameRate       = false;
+#endif
+
     // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
     // costs real GPU -- the whole scene is drawn into a target this many times
     // over -- and how much depends on the machine and the window size, so it

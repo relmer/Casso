@@ -92,6 +92,10 @@
 // scene is framed inside the viewport, the other how big the viewport is.
 #define IDM_VIEW_RESET_SCENE        40069
 
+// Frames per second over the picture. On by default in a debug build and
+// off in a release one, and remembered either way once toggled.
+#define IDM_VIEW_FRAME_RATE         40072
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 

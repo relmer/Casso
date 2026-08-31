@@ -41,6 +41,7 @@ static constexpr MainMenuCommandEntry  s_kEntries[] =
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (fullscreen)", L"Ctrl+D"       },
     { IDM_VIEW_RESET_SCENE,         MainMenuId::View,    L"Reset &view",            L"Ctrl+0"        },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+Shift+0"  },
+    { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
     { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
     { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },

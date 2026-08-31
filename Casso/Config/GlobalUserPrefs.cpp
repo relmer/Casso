@@ -39,6 +39,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
     "crtMonitor",
+    "showFrameRate",
     "sceneAntiAliasing",
     "lastSelectedMachine",
     "lastDiskCreateFolder",
@@ -943,6 +944,7 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
+    root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
@@ -1077,6 +1079,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
+    showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
 
     // Samples, not a quality index: 1, 2 or 4 only. Anything else is a
     // hand-edited file or a value from a build that knows more counts than

@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
 
-#include "DxuiHudNotice.h"
+#include "DxuiShadowedText.h"
 
 
 
@@ -9,14 +9,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHudNotice::Layout
+//  DxuiShadowedText::Layout
 //
-//  The whole given rect: the caller decides where the notice sits, and the
-//  line centers itself in what it is given.
+//  The whole given rect: the caller decides where the text sits, and the line
+//  aligns itself in what it is given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHudNotice::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void DxuiShadowedText::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     m_dpi = scaler.GetDpi();
     SetBounds (boundsDip);
@@ -28,7 +28,7 @@ void DxuiHudNotice::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHudNotice::Paint
+//  DxuiShadowedText::Paint
 //
 //  The glow, then the line. This is MatrixRain's DrawFeatheredGlow, ported:
 //
@@ -53,9 +53,9 @@ void DxuiHudNotice::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHudNotice::Paint (IDxuiPainter      & painter,
-                           IDxuiTextRenderer & text,
-                           const IDxuiTheme  & theme)
+void DxuiShadowedText::Paint (IDxuiPainter      & painter,
+                              IDxuiTextRenderer & text,
+                              const IDxuiTheme  & theme)
 {
     const wchar_t *  face   = (m_fontFace != nullptr) ? m_fontFace : DxuiTheme::kBodyFace;
     float            fontPx = 0.0f;
@@ -101,7 +101,7 @@ void DxuiHudNotice::Paint (IDxuiPainter      & painter,
                                       bl + offset * (float) dx,
                                       bt + offset * (float) dy,
                                       bw, bh, argb, fontPx, face,
-                                      DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                      m_hAlign, m_vAlign,
                                       DxuiFontWeight::Normal, false);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
@@ -110,7 +110,7 @@ void DxuiHudNotice::Paint (IDxuiPainter      & painter,
 
     hr = text.DrawString (m_text.c_str(), bl, bt, bw, bh,
                           m_textArgb, fontPx, face,
-                          DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                          m_hAlign, m_vAlign,
                           DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
