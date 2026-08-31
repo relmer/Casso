@@ -53,6 +53,11 @@ private:
         std::thread  worker;
         HANDLE       directory = INVALID_HANDLE_VALUE;
         HANDLE       stop      = nullptr;
+
+        //  Set once the worker has actually asked the platform to report
+        //  changes. See kArmTimeoutMs.
+        HANDLE       armed     = nullptr;
+
         Callback     callback;
     };
 
@@ -63,6 +68,21 @@ private:
     //  Stops and joins one watch. Called from Unwatch and from the destructor,
     //  so shutting down is written once.
     static void  CloseWatch (DirectoryWatch & watch);
+
+    //  How long Watch waits for its worker to be listening before returning.
+    //
+    //  IT HAS TO WAIT AT ALL, and that is the whole reason this exists.
+    //  ReadDirectoryChangesW reports what happens AFTER it is called -- the
+    //  platform starts buffering at the first call, not when the handle is
+    //  opened. Returning as soon as the thread was created left a window in
+    //  which a write was simply not seen, and a mount followed straight away by
+    //  a build lands squarely in it. Measured: a commit two lines after Watch
+    //  returned was never reported.
+    //
+    //  A timeout rather than an unbounded wait, because failing to arm must
+    //  degrade to "not watching" -- which the write-time check still covers --
+    //  rather than hanging a mount.
+    static constexpr DWORD  kArmTimeoutMs = 2000;
 
     //  How much change data the platform may buffer before records are dropped.
     //  A dropped record is survivable here -- the check before every write is

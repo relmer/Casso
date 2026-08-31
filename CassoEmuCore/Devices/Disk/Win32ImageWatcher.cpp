@@ -75,20 +75,43 @@ bool Win32ImageWatcher::Watch (const std::string & directory, Callback callback)
         {
             watch->directory = opened;
             watch->stop      = CreateEventW (nullptr, TRUE, FALSE, nullptr);
+            watch->armed     = CreateEventW (nullptr, TRUE, FALSE, nullptr);
             watch->callback  = std::move (callback);
 
-            if (watch->stop != nullptr)
+            if (watch->stop != nullptr && watch->armed != nullptr)
             {
                 DirectoryWatch *  raw = watch.get();
 
                 raw->worker = std::thread (&Win32ImageWatcher::RunWatch, raw, directory);
 
-                m_watches[directory] = std::move (watch);
-                began                = true;
+                //  WAIT UNTIL IT IS ACTUALLY LISTENING. The platform reports
+                //  what happens after ReadDirectoryChangesW is called, so
+                //  returning the moment the thread exists leaves a window
+                //  where a write goes unseen -- and a mount followed
+                //  immediately by a build is exactly that window.
+                began = (WaitForSingleObject (raw->armed, kArmTimeoutMs) == WAIT_OBJECT_0);
+
+                if (began)
+                {
+                    m_watches[directory] = std::move (watch);
+                }
+                else
+                {
+                    //  Never armed. Stop the thread and report not-watching,
+                    //  which the check before every write already covers.
+                    CloseWatch (*watch);
+                }
             }
             else
             {
+                if (watch->stop != nullptr)
+                {
+                    CloseHandle (watch->stop);
+                    watch->stop = nullptr;
+                }
+
                 CloseHandle (opened);
+                watch->directory = INVALID_HANDLE_VALUE;
             }
         }
     }
@@ -176,6 +199,12 @@ void Win32ImageWatcher::CloseWatch (DirectoryWatch & watch)
         watch.stop = nullptr;
     }
 
+    if (watch.armed != nullptr)
+    {
+        CloseHandle (watch.armed);
+        watch.armed = nullptr;
+    }
+
     return;
 }
 
@@ -244,6 +273,10 @@ void Win32ImageWatcher::RunWatch (DirectoryWatch * watch, std::string directory)
             running = false;
             break;
         }
+
+        //  Only now is the platform actually reporting. Whoever asked for this
+        //  watch is waiting on exactly this.
+        SetEvent (watch->armed);
 
         waited = WaitForMultipleObjects (2, waits, FALSE, INFINITE);
 
