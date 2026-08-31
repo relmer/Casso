@@ -160,13 +160,13 @@ public:
         code.push_back ((Byte) ((kSignatureAddress + 1) >> 8));              // STA sig+1
 
         Assert::AreEqual (size_t (kHangOffset), code.size(),
-            L"the hang has to be where the jump says it is");
+            L"the hang has to be where the jump targets");
 
         code.push_back (0x4C);   code.push_back ((Byte) (hangAt & 0xFF));    // JMP self
         code.push_back ((Byte) (hangAt >> 8));
 
         Assert::AreEqual (size_t (kTextOffset), code.size(),
-            L"and the text has to start where the code says it does");
+            L"and the text has to start where the code places it");
 
         code.push_back (kReturnChar);
 

@@ -111,7 +111,7 @@ namespace AssemblerTests
             auto       upper   = asm6502.Assemble ("LDA #$42");
             auto       mixed   = asm6502.Assemble ("Lda #$42");
 
-            Assert::IsTrue (lower.success, L"lowercase assembles with no flag asked for");
+            Assert::IsTrue (lower.success, L"lowercase assembles with no flag given");
             Assert::IsTrue (mixed.success, L"and so does mixed case");
             Assert::IsTrue (lower.bytes == upper.bytes, L"to the same bytes as uppercase");
             Assert::IsTrue (mixed.bytes == upper.bytes);
@@ -1811,7 +1811,7 @@ namespace AssemblerTests
             for (const std::string & row : rows)
             {
                 Assert::IsTrue (row.size() <= 40,
-                                L"no row may exceed the width, which is the whole of what -w asks for");
+                                L"no row may exceed the width, which is the whole of what -w controls");
             }
 
             //  Continuations line up under the SOURCE, not under the address and

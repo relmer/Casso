@@ -64,7 +64,7 @@ public:
         std::string  utf8   = TextEncoding::Convert (cp1252, kWindows1252, kUtf8);
         std::string  back   = TextEncoding::Convert (utf8,   kUtf8, kWindows1252);
 
-        Assert::AreEqual (cp1252, back, L"the conversion is reversible for a name it can spell");
+        Assert::AreEqual (cp1252, back, L"the conversion is reversible for a name it can represent");
     }
 
     TEST_METHOD (Convert_LeavesAsciiExactlyAsItWas)
@@ -120,7 +120,7 @@ public:
         Assert::AreEqual (text, TextEncoding::NarrowToConsole (text));
 
         Assert::IsTrue (TextEncoding::GetConsoleCodePage() != 0,
-                        L"a code page is always answered, console or not");
+                        L"a code page is always returned, console or not");
         Assert::IsTrue (TextEncoding::GetNarrowCodePage() != 0,
                         L"and so is the process's own");
     }

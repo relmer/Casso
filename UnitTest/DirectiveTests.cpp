@@ -1482,7 +1482,7 @@ namespace DirectiveTests
             Assert::AreEqual (std::string ("defs.a65"), result.errors[0].file,
                               L"the include's offense belongs to the include");
             Assert::AreEqual (std::string (""), result.errors[1].file,
-                              L"and the top-level one to the top level, which is spelled as no file at all");
+                              L"and the top-level one to the top level, which is written as no file at all");
         }
 
 

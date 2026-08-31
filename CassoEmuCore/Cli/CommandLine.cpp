@@ -569,7 +569,7 @@ void CommandLine::PrintMerlinPage (char prefix)
     PrintDialectFlags (DialectId::Merlin, prefix);
 
     PrintSectionHeading ("Supported subset");
-    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused explicitly, with what it would take to support it. See docs\\merlin-subset.md.");
+    PrintUsageLine ("  Casso assembles the Merlin sources that produce a finished binary. Anything outside that is refused explicitly, with what it would take to support it. See docs\\Assembler.md.");
 
     PrintExitCodes (CommandLineParser::BuildAssembleExitCodes (GetInstalledGigabytes(), false));
 }

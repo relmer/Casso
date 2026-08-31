@@ -397,7 +397,7 @@ void DirectBootBuilder::WriteLoader (
 {
     size_t  at = Dos33Skeleton::SectorOffset (
                      kLoaderTrack,
-                     NibblizationLayer::DosFileIndexForPhysicalSector (kLoaderSector));
+                     NibblizationLayer::GetDosFileIndexForPhysicalSector (kLoaderSector));
 
 
 
@@ -448,7 +448,7 @@ void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> 
         int     physical = (int) (index % (size_t) NibblizationLayer::kSectorsPerTrack);
         size_t  at       = Dos33Skeleton::SectorOffset (
                                track,
-                               NibblizationLayer::DosFileIndexForPhysicalSector (physical));
+                               NibblizationLayer::GetDosFileIndexForPhysicalSector (physical));
         size_t  from     = index * kSectorBytes;
         size_t  span     = (std::min) (kSectorBytes, onDisk.size() - from);
 

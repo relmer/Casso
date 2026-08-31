@@ -686,9 +686,9 @@ public:
             L"The caller needs somewhere to point the user -- an empty detail "
             L"leaves them with 'Casso lost my settings' and no reason");
         Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
-            L"The detail must name the line the parse broke on");
+            L"The detail must identify the line the parse broke on");
         Assert::IsTrue (parseDetail.find (store.GetUserPrefsFilePath()) != std::wstring::npos,
-            L"The detail must name the file, so the user can go fix it");
+            L"The detail must identify the file, so the user can go fix it");
     }
 
 

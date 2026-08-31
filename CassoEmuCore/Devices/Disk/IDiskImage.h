@@ -18,6 +18,23 @@ enum class DiskFormat
     Dsk,
     Do,
     Po,
+
+    //  Headerless nibble images, .nib and .nb2 alike. ONE ENUMERATOR FOR BOTH:
+    //  they differ only in track size, which is not a property of the format
+    //  but of the individual file, read from its length. A second enumerator
+    //  would let the enum disagree with the file it names, since either size
+    //  circulates under either extension.
+    Nib,
+
+    //  Not a format. It bounds a sweep over the enumerators, which is how the
+    //  totality test can walk THE ENUM rather than a list of formats somebody
+    //  maintains by hand -- a list only ever contains the arms its author
+    //  remembered, so it structurally cannot find the one they forgot. Every
+    //  switch here carries a default, so the compiler will not catch a missing
+    //  arm and something at run time has to.
+    //
+    //  Keep it last, and add new formats above it.
+    Count,
 };
 
 

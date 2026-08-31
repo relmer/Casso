@@ -161,7 +161,7 @@ namespace CliSwitchCoverageTests
 
             { "as65", "p", { "CassoCli", "as65", "p.a65", "-p" },
               [] (const CommandLineOptions & o) { return o.pass1Listing; },
-              "-p asks for the pass 1 listing" },
+              "-p writes the pass 1 listing" },
 
             { "as65", "c", { "CassoCli", "as65", "p.a65", "-c" },
               [] (const CommandLineOptions & o) { return o.cycleCounts; },
@@ -181,11 +181,11 @@ namespace CliSwitchCoverageTests
 
             { "as65", "t", { "CassoCli", "as65", "p.a65", "-t" },
               [] (const CommandLineOptions & o) { return o.symbolTable; },
-              "-t asks for the symbol table" },
+              "-t generates the symbol table" },
 
             { "as65", "g", { "CassoCli", "as65", "p.a65", "-g" },
               [] (const CommandLineOptions & o) { return o.debugInfo; },
-              "-g asks for debug information" },
+              "-g writes debug information" },
 
             { "as65", "v", { "CassoCli", "as65", "p.a65", "-v" },
               [] (const CommandLineOptions & o) { return o.verbose; },
@@ -227,7 +227,7 @@ namespace CliSwitchCoverageTests
                   auto  found = o.predefinedSymbols.find ("HOURS");
                   return found != o.predefinedSymbols.end() && found->second == 12;
               },
-              "-d answers the question the source would have asked the operator" },
+              "-d predefines the symbol the source would otherwise prompt for" },
 
             { "merlin", "flat", { "CassoCli", "merlin", "p.s", "--flat" },
               [] (const CommandLineOptions & o)
@@ -272,7 +272,7 @@ namespace CliSwitchCoverageTests
             { "run", "warn", { "CassoCli", "run", "p.a65", "--as65", "--warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::Warn; },
-              "--warn asks for warnings, which is also the default" },
+              "--warn enables warnings, which is also the default" },
 
             { "run", "no-warn", { "CassoCli", "run", "p.a65", "--as65", "--no-warn" },
               [] (const CommandLineOptions & o)
@@ -766,7 +766,7 @@ namespace CliSwitchCoverageTests
             MemorySink  sink;
 
             Assert::AreEqual (0, StatusUsing (clean, sink));
-            Assert::IsTrue (sink.wroteBinary, L"and the object was asked for");
+            Assert::IsTrue (sink.wroteBinary, L"and the object was written");
             Assert::IsTrue (sink.bytes > 0,   L"with something in it");
         }
 
@@ -1002,7 +1002,7 @@ namespace CliSwitchCoverageTests
             }
 
             Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
-                            L"and is put back, so an asked-for page stays pipeable");
+                            L"and is put back, so a requested page stays pipeable");
         }
 
         //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it

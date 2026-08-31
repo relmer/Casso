@@ -40,7 +40,8 @@ a monochrome one, and an image authored for either reads as noise on the other:
 
 - **Assembler** — from-scratch, AS65-compatible, and assembles Merlin; ca65 next
 - **Disk management** — create, initialize, catalog, read and write files,
-  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do` and `.po`
+  logical or physical sectors, and ProDOS blocks, across `.woz`, `.dsk`, `.do`,
+  `.po`, `.nib` and `.nb2`
 - **Headless execution** — assemble and run 6502 code with no GUI
 - **Launches the emulator** — with a machine and disks already selected
 
@@ -223,7 +224,7 @@ The command line states the dialect rather than guessing it — `CassoCli as65
 input.a65` and `CassoCli merlin PROG.S`. The bare `CassoCli input.a65` form is
 gone. Under `as65` the CPU is chosen with AS65's own `-x`; under `merlin` the
 source chooses it with `XC`. Where support ends is stated by name rather than
-failing as a syntax error; see [docs/merlin-subset.md](docs/merlin-subset.md).
+failing as a syntax error; see [docs/Assembler.md](docs/Assembler.md#where-merlin-support-ends).
 
 ### Salvage a damaged .woz (1.17)
 
@@ -328,9 +329,10 @@ images straight off the wire — protection schemes and all.
 | :---: | :---: | :---: |
 | ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
 
-`.woz`, `.dsk`, `.do` and `.po` images all mount. Casso can **create
-blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK
-and PO, optionally bootable from the stock masters — and a created disk is
+`.woz`, `.dsk`, `.do`, `.po`, `.nib` and `.nb2` images all mount — drag one onto a
+drive, pick it from the dialog, or name it on the command line. Casso can **create
+blank disks in-app** — DOS 3.3, ProDOS, or unformatted raw media, across WOZ, DSK,
+PO and NIB, optionally bootable from the stock masters — and a created disk is
 usable immediately, with no `INIT` step.
 
 <p align="center"><img src="Assets/feat-create-disk.png" alt="Create New Disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
@@ -417,7 +419,8 @@ tables — so the next dialect is a profile, not a second assembler.
 Beyond assembling, a `run` subcommand loads and executes a binary or source, and a
 `disk` subcommand closes the build loop: `create`, `init`, `list`, `get`, `put`,
 `delete`, `boot`, `sectorread`, `sectorwrite`, `blockread` and `blockwrite`, on
-DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po` and `.woz` alike.
+DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po`, `.woz`, `.nib` and `.nb2`
+alike.
 
 Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 

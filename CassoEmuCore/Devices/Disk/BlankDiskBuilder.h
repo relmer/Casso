@@ -73,6 +73,13 @@ struct BlankDiskSpec
     bool               bootable     = false;
     Byte               volumeNumber = NibblizationLayer::kDefaultVolume;
     std::string        volumeName   = "NEWDISK";   // ProDOS only
+
+    //  Nibble containers only, and zero everywhere else. A new image has no
+    //  file to measure, so the size its NAME implies is carried here from the
+    //  container table -- which is what stops a .nb2 being written with
+    //  6,656-byte tracks, the very mismatch the reader has to cope with in
+    //  files from elsewhere.
+    size_t             nibbleTrackSize = 0;
 };
 
 
@@ -103,11 +110,18 @@ public:
     //  line, refused by this validator, and missing from the dialog, all at
     //  the same time.
     //
-    static const DiskFormat *  WritableContainers (size_t & outCount);
+    static const DiskFormat *  GetWritableContainers (size_t & outCount);
 
     //  Those of them that can hold `contents`, in the same order. A chooser
     //  offers exactly these, so an illegal pairing is never listed.
-    static std::vector<DiskFormat>  ContainersFor (BlankDiskContents contents);
+    static std::vector<DiskFormat>  GetContainers (BlankDiskContents contents);
+
+    //  How a filling is named in a chooser: "DOS 3.3", "ProDOS 1.1.1".
+    //  IN CORE because it is a decision, however short. The create dialog held
+    //  it as a switch with a default arm answering "DOS 3.3", so a filling
+    //  added without an arm was mislabeled rather than caught -- and nothing
+    //  in the test assembly could reach it, the dialog being in the exe.
+    static std::wstring             GetContentsCaption (BlankDiskContents contents);
 
     //  Why the format / contents / bootable / volume-name combination
     //  cannot be written, or Ok. Does not assert: user input reaches it.
@@ -130,6 +144,7 @@ public:
     //  nibblization would be a second place for the sector skew to be wrong.
     //
     static HRESULT  WrapInContainer (DiskFormat            format,
+                                     size_t                nibbleTrackSize,
                                      bool                  unformatted,
                                      const vector<Byte> &  sectors,
                                      vector<Byte>       &  outBytes);

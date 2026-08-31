@@ -93,9 +93,9 @@ public:
 
     //  Tracks whose sectors differ between two buffers of the same volume.
     //  Ascending, and empty when the two agree.
-    static void     ChangedTracks (const vector<Byte> & priorSectors,
-                                   const vector<Byte> & editedSectors,
-                                   vector<int>        & outTracks);
+    static void     CollectChangedTracks (const vector<Byte> & priorSectors,
+                                          const vector<Byte> & editedSectors,
+                                          vector<int>        & outTracks);
 
     //  Reorders a ProDOS-ordered file image into DOS logical order. Public
     //  because the inverse is what writing a .po image needs.
@@ -107,10 +107,22 @@ public:
 
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.
-    static HRESULT  SaveBitStream (const vector<Byte>  & originalFileBytes,
+    //  Shared by every container that stores tracks rather than sectors; the
+    //  format decides only how the bits are read out of the file and put back.
+    static HRESULT  SaveBitStream (DiskFormat            format,
+                                   const vector<Byte>  & originalFileBytes,
                                    const vector<Byte>  & editedSectors,
                                    vector<Byte>        & outFileBytes,
                                    std::string         & outRefusalReason);
+
+    //  One bit-stream container's file into a DiskImage, and back out again.
+    //  Two small dispatches rather than a branch at each of the four call
+    //  sites, so a container added to one is added to the other.
+    static HRESULT  LoadBitStream      (DiskFormat format, const vector<Byte> & fileBytes,
+                                        DiskImage & outImage);
+    static HRESULT  SerializeBitStream (DiskFormat format, const DiskImage & image,
+                                        const vector<Byte> & originalFileBytes,
+                                        vector<Byte> & outFileBytes);
 
     static std::string  DescribeUnwritableTrack (int track);
 

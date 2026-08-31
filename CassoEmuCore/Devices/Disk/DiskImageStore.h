@@ -159,7 +159,7 @@ public:
         int     drive = 0;
     };
 
-    std::vector<MountedSource>  MountedSourcePaths() const;
+    std::vector<MountedSource>  GetMountedSourcePaths() const;
 
     void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
 
@@ -169,10 +169,10 @@ public:
     //  read-modify-write cycle without a real file.
     void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
 
-    static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
+    static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
     //  Whether `path`'s extension names a container this build can actually
-    //  mount. Answered BY DetectFormatByExtension rather than by a second list
+    //  mount. Answered BY GetSourceFormatByExtension rather than by a second list
     //  of extensions, which is the point: the interface offering a file and
     //  the loader accepting it must not be able to disagree. They did, over
     //  `.nib` -- the drop filter said yes, the loader said no, and the mount
@@ -236,11 +236,11 @@ private:
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
-    // one range-checks before At() indexes the fixed array.
+    // one range-checks before GetEntry() indexes the fixed array.
     static bool   IsValidBay        (int slot, int drive);
 
-    Entry &       At                (int slot, int drive);
-    const Entry & At                (int slot, int drive) const;
+    Entry &       GetEntry          (int slot, int drive);
+    const Entry & GetEntry          (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry);
 
     // Routes through m_imageReader when a test has installed one, so the

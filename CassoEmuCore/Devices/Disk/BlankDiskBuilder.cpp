@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "BlankDiskBuilder.h"
+#include "NibbleImageCodec.h"
 
 #include "Dos33Skeleton.h"
 #include "ProDosSkeleton.h"
@@ -12,14 +13,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WritableContainers
+//  GetWritableContainers
 //
 //  In the order a chooser should offer them: WOZ first, being the one that
 //  carries any filesystem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
+const DiskFormat * BlankDiskBuilder::GetWritableContainers (size_t & outCount)
 {
     static constexpr DiskFormat  kContainers[] =
     {
@@ -27,6 +28,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
         DiskFormat::Dsk,
         DiskFormat::Do,
         DiskFormat::Po,
+        DiskFormat::Nib,
     };
 
 
@@ -42,7 +44,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ContainersFor
+//  GetContainers
 //
 //  Which containers can carry a filling.
 //
@@ -54,7 +56,7 @@ const DiskFormat * BlankDiskBuilder::WritableContainers (size_t & outCount)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents contents)
+std::vector<DiskFormat> BlankDiskBuilder::GetContainers (BlankDiskContents contents)
 {
     std::vector<DiskFormat>   usable;
     const DiskFormat        * containers = nullptr;
@@ -64,7 +66,7 @@ std::vector<DiskFormat> BlankDiskBuilder::ContainersFor (BlankDiskContents conte
 
 
 
-    containers    = WritableContainers (count);
+    containers    = GetWritableContainers (count);
     spec.contents = contents;
 
     for (i = 0; i < count; i++)
@@ -130,6 +132,9 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
     switch (spec.format)
     {
         case DiskFormat::Woz:
+        case DiskFormat::Nib:
+            //  Both store tracks rather than sectors, so either filesystem
+            //  goes in and unformatted media is expressible too.
             formatOk = true;
             break;
 
@@ -338,7 +343,8 @@ HRESULT BlankDiskBuilder::Build (
         }
     }
 
-    hr = WrapInContainer (spec.format, spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
+    hr = WrapInContainer (spec.format, spec.nibbleTrackSize,
+                          spec.contents == BlankDiskContents::Unformatted, buffer, outBytes);
     CHR (hr);
 
 Error:
@@ -368,6 +374,7 @@ Error:
 
 HRESULT BlankDiskBuilder::WrapInContainer (
     DiskFormat            format,
+    size_t                nibbleTrackSize,
     bool                  unformatted,
     const vector<Byte> &  sectors,
     vector<Byte>       &  outBytes)
@@ -409,6 +416,32 @@ HRESULT BlankDiskBuilder::WrapInContainer (
             ReorderDosToPo (sectors, built);
             break;
 
+        case DiskFormat::Nib:
+            if (unformatted)
+            {
+                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                {
+                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                }
+            }
+            else
+            {
+                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                CHR (hr);
+            }
+
+            //  Zero means the caller did not name a size, which is every
+            //  caller but the command line's two nibble words. The standard
+            //  size is what an unnamed one is, and Build refuses anything that
+            //  is neither -- so a wrong value is still a bug rather than a
+            //  silently odd disk.
+            hr = NibbleImageCodec::Build (img,
+                                          nibbleTrackSize != 0 ? nibbleTrackSize
+                                                               : NibbleImageCodec::kNibTrackSize,
+                                          built);
+            CHR (hr);
+            break;
+
         default:
             CBRAEx (false, E_UNEXPECTED);
             break;
@@ -418,4 +451,36 @@ HRESULT BlankDiskBuilder::WrapInContainer (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlankDiskBuilder::GetContentsCaption
+//
+//  What a chooser calls a filling.
+//
+//  NO DEFAULT ARM. Every enumerator is named, and one added later fails to
+//  compile here rather than being quietly labeled DOS 3.3 -- which is what the
+//  version of this in the create dialog did, where no test could see it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlankDiskBuilder::GetContentsCaption (BlankDiskContents contents)
+{
+    std::wstring  caption;
+
+
+
+    switch (contents)
+    {
+        case BlankDiskContents::Unformatted: caption = L"Unformatted";   break;
+        case BlankDiskContents::Dos33:       caption = L"DOS 3.3";       break;
+        case BlankDiskContents::ProDos:      caption = L"ProDOS 1.1.1";  break;
+    }
+
+    return caption;
 }

@@ -234,7 +234,7 @@ public:
         AssertFailed (hr,
             L"romBankSize without romBankSelect must fail");
         Assert::IsTrue (error.find ("romBankSelect") != std::string::npos,
-            L"Error must name the missing romBankSelect field");
+            L"Error must identify the missing romBankSelect field");
     }
 
     TEST_METHOD (Load_AuxRamRegion_Preserved)
@@ -703,7 +703,7 @@ public:
         MachineConfig  config;   // the //c: built-in drive, no slots
 
         Assert::AreEqual (0, config.AttachedDiskIiDriveCount(),
-            L"The //c's drives are not on a card, so this query says "
+            L"The //c's drives are not on a card, so this query reports "
             L"nothing about them.");
     }
 
@@ -722,7 +722,7 @@ public:
                           config.FindPort ("joystick")->device);
         Assert::IsTrue (config.FindPort ("serial1") == nullptr,
             L"A connector the machine does not have is absent, which is a "
-            L"different answer from present-and-empty.");
+            L"different result from present-and-empty.");
     }
 
 

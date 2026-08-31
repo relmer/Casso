@@ -174,7 +174,7 @@ namespace MerlinCorpusTests
             CorpusComparison   result   = CorpusHarness::Compare (expected, actual);
             std::string        text     = CorpusHarness::Describe ("hexdata", result);
 
-            Assert::IsTrue (text.find ("hexdata") != std::string::npos, L"the entry must be named");
+            Assert::IsTrue (text.find ("hexdata") != std::string::npos, L"the entry must be identified");
             Assert::IsTrue (text.find ("offset 2") != std::string::npos, L"the offset must be reported");
         }
 
@@ -683,7 +683,7 @@ namespace MerlinCorpusTests
                 }
             }
 
-            Assert::IsNotNull (found, L"the named entry has left the vendor corpus");
+            Assert::IsNotNull (found, L"the listed entry has left the vendor corpus");
 
             return *found;
         }
@@ -1583,10 +1583,8 @@ namespace MerlinCorpusTests
 
             for (const SubsetBoundaryRow & row : MerlinSubsetBoundary::GetAll())
             {
-                std::string  selfContained = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::SelfContained,
-                                                                             merlin.GetName());
-                std::string  dependent     = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::DependsOnOther,
-                                                                             merlin.GetName());
+                std::string  selfContained = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::SelfContained);
+                std::string  dependent     = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::DependsOnOther);
 
                 if (error.message == selfContained || error.message == dependent)
                 {
@@ -1925,12 +1923,12 @@ namespace MerlinCorpusTests
             "EXT", "Invalid mnemonic",
         },
         {
-            //  The one refusal that must DENY a dependency rather than omit it:
-            //  disk file access arriving will not settle what this should do.
+            //  The denial that disk file access would settle this lives in the
+            //  boundary table now; the refusal itself only names the directive.
             "save-object directive",
             "        SAV OBJECT\n",
             DiagnosticKind::SubsetBoundary, 1, 9,
-            "disk file access will not settle", "Invalid mnemonic",
+            "SAV", "Invalid mnemonic",
         },
         {
             "output file-type directive",
@@ -2612,7 +2610,7 @@ namespace MerlinCorpusTests
                 Assert::IsFalse (entry.expected.empty(),
                                  CorpusText::Widen (std::string (entry.name) + ": an empty expectation compares nothing").c_str());
                 Assert::IsNotNull (entry.merlinVersion,
-                                   L"a captured entry without a version stamp cannot say what produced it");
+                                   L"a captured entry without a version stamp cannot record what produced it");
             }
         }
 

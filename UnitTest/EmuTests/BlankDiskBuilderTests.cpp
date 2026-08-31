@@ -118,7 +118,7 @@ public:
 
 
 
-        containers = DiskCommandRunner::AdvertisedContainers (count);
+        containers = DiskCommandRunner::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0, L"the command line advertises at least one container");
 

@@ -32,7 +32,4 @@ public:
     // Every refused construct, so a test sweeps the whole boundary rather than
     // a hand-picked sample -- matching MerlinDirectiveTable::GetAllSpellings.
     static std::span<const SubsetBoundaryRow>  GetAll();
-
-    // The boundary as help output, one line per row above.
-    static std::string                         GetHelpText();
 };

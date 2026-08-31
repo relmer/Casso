@@ -104,7 +104,7 @@ public:
         Assert::IsTrue (decision.action == AutoMountResolver::Action::ClearStaleEntry,
                         L"missing file => caller should clear the stale entry");
         Assert::AreEqual (std::wstring (L"C:\\images\\gone.dsk"), decision.path,
-                          L"path round-trips so the caller knows which entry to clear");
+                          L"path round-trips so the caller can tell which entry to clear");
     }
 
     TEST_METHOD (MultipleDrives_OneMissing_OnePresent_BothDecidedIndependently)
