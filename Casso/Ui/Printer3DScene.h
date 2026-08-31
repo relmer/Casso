@@ -44,7 +44,7 @@ public:
     // -- the paper, paced head, and Casso badge stay procedural and anchor
     // themselves to the loaded platen. On failure the scene keeps the
     // procedural body, so a bad model never blanks the panel.
-    HRESULT  SetModel (const std::string & objText, const std::string & mtlText);
+    HRESULT  SetModel (std::span<const uint8_t> meshBlob);
 
     bool     HasModel () const { return !m_mesh.empty (); }
 
@@ -143,9 +143,6 @@ private:
     // Row-vector 4x4 matrix helpers (clip = v * view * proj), matching the
     // renderer's row_major cbuffer. Hand-rolled to keep the 3D path free of a
     // math-library header dependency.
-    static void  Mul44                (const float a[16], const float b[16], float out[16]);
-    static void  LookAtRH             (const float eye[3], const float at[3], float out[16]);
-    static void  PerspectiveFovRH     (float fovY, float aspect, float zn, float zf, float out[16]);
     static void  IdentityMvp          (float out[16]);
     static void  TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16]);
 

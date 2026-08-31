@@ -1100,7 +1100,7 @@ public:
         AssertSucceeded (volume.Delete (FilePath::Parse ("HELLO"), result, outcome));
 
         Assert::IsFalse (outcome.catalogFullyParsed);
-        Assert::IsTrue (outcome.warnings.size() > 0, L"an unbounded answer must say so");
+        Assert::IsTrue (outcome.warnings.size() > 0, L"an unbounded result must be reported as such");
 
         for (i = 0; i < outcome.warnings.size(); i++)
         {
@@ -1173,7 +1173,7 @@ public:
         AssertSucceeded (written.Enumerate (listing));
 
         Assert::AreEqual (size_t (0), outcome.freedUnits.size(),
-            L"an entry declaring no sectors owns none, whatever its pointer says");
+            L"an entry declaring no sectors owns none, whatever its pointer holds");
         Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
             L"it must not have walked another file's chain at all");
         Assert::AreEqual (size_t (0), outcome.warnings.size());

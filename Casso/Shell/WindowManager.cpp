@@ -70,7 +70,8 @@ bool WindowManager::TryLoadSavedWindowPlacement (
     LONG    & outX,
     LONG    & outY,
     int     & outW,
-    int     & outH) const
+    int     & outH,
+    bool    & outMaximized) const
 {
     std::string                      topologyKey;
     WindowPlacementProfile::Bounds   bounds;
@@ -97,10 +98,11 @@ bool WindowManager::TryLoadSavedWindowPlacement (
 
     if (hMon != nullptr)
     {
-        outX = bounds.x;
-        outY = bounds.y;
-        outW = bounds.w;
-        outH = bounds.h;
+        outX         = bounds.x;
+        outY         = bounds.y;
+        outW         = bounds.w;
+        outH         = bounds.h;
+        outMaximized = bounds.maximized;
     }
 
     return hMon != nullptr;
@@ -150,17 +152,32 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
 
 
     // Only a normal, captioned, on-screen window's rect is the user's real
-    // windowed placement. Minimized / maximized / fullscreen rects are not,
-    // and a CAPTION-LESS window is the borderless-fullscreen popup or some
-    // other transitional state -- the fullscreen flag covers the steady state,
-    // this covers transitions, where a synchronous WM_SIZE once persisted the
-    // full-monitor rect and permanently stomped the user's window size.
+    // windowed placement. Minimized / fullscreen rects are not, and a
+    // CAPTION-LESS window is the borderless-fullscreen popup or some other
+    // transitional state -- the fullscreen flag covers the steady state,
+    // this covers transitions, where a synchronous WM_SIZE once persisted
+    // the full-monitor rect and permanently stomped the user's window size.
+    //
+    // MAXIMIZED IS A STATE, NOT A RECT. The old guard simply refused to save
+    // while zoomed, which protected the windowed rect and silently threw the
+    // maximized-ness away: a user who always runs maximized restarted into
+    // whatever normal rect was last saved, somewhere else entirely. A zoomed
+    // window now saves its NORMAL rect (GetWindowPlacement's, which is valid
+    // while zoomed) with the flag set, and restore re-maximizes from there.
+    bool  zoomed  = hwnd != nullptr && IsZoomed (hwnd);
     bool  savable = hwnd != nullptr
                     && !IsIconic (hwnd)
-                    && !IsZoomed (hwnd)
                     && !fullscreen
                     && (GetWindowLong (hwnd, GWL_STYLE) & WS_CAPTION) == WS_CAPTION
                     && GetWindowRect (hwnd, &wr);
+
+    if (savable && zoomed)
+    {
+        WINDOWPLACEMENT  wp = { sizeof (wp) };
+
+        savable = GetWindowPlacement (hwnd, &wp);
+        wr      = wp.rcNormalPosition;
+    }
 
     if (savable)
     {
@@ -173,10 +190,11 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
     if (savable)
     {
         topologyKey = WindowPlacementProfile::BuildTopologyKey (hMon);
-        bounds.x = wr.left;
-        bounds.y = wr.top;
-        bounds.w = width;
-        bounds.h = height;
+        bounds.x         = wr.left;
+        bounds.y         = wr.top;
+        bounds.w         = width;
+        bounds.h         = height;
+        bounds.maximized = zoomed;
 
         m_profile.Save (topologyKey, bounds);
 

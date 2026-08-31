@@ -474,6 +474,66 @@ not a bug, and `BreakOneDataField` in `NibblizationTests.cpp` documents it.
 
 ---
 
+## Nibble images (`.nib`, `.nb2`)
+
+A nibble image is 35 fixed-length blocks holding the GCR byte stream a drive
+would read. No header, no signature, no checksum, no track map.
+
+**Its length is the only thing that identifies it.** 232,960 bytes is 35 tracks
+of 6,656; 223,440 is 35 tracks of 6,384. By convention those are `.nib` and
+`.nb2`, but the convention is broken often enough in the wild that the loader
+reads the length instead. The complement holds when there is no file to read:
+`disk create` takes the size from the name it was given, and `disk init` takes
+it from the length of the file it is reformatting, so a reformat never resizes
+a container.
+
+**The write-back does not go through the sector decode.** The file format IS the
+byte stream, so serializing means re-deriving nibble bytes from the live track
+and nothing else. A track that will not decode to standard sectors therefore
+costs the emulator's flush path nothing, which matters because such tracks are
+much of the point of the format. The console's file-level commands do decode,
+because they address files and sectors, and there the strict refusal applies.
+
+**A guest cannot lengthen a track**, so the derived byte count can only fall.
+`WriteBit` wraps in place; only bulk loaders resize. The ceiling is
+`trackBits / 8`, which is exactly the block size, so an overflow is
+arithmetically impossible rather than something to guard against. Under-fill is
+the normal case: a self-sync byte spends ten bit cells to yield one byte, so a
+freshly encoded DOS 3.3 track derives 6,224 bytes and pads 432.
+
+**Padding goes in the widest gap, which requires rotating.** The derived
+sequence is turned so its longest `$FF` run ends it, then padded with `$FF`.
+Rotation is free — the track is a circle and the Disk II controller has no index
+sensor — and it is not optional: a real nibble image begins wherever the head
+was when it was captured, which can be the middle of a data field. Padding
+appended at that seam splits the field. Every fixture this tree encodes starts
+at a sync gap, so tests that do not deliberately turn the bit stream cannot see
+a bad placement at all.
+
+**Clean tracks are copied, never re-derived.** That is what makes an untouched
+track byte-identical after a flush, and it is not an optimization: a byte with
+the high bit clear — illegal on real media, present in real images — is absorbed
+into the next byte's shift and does not survive a round trip. Copying sidesteps
+that for every track the guest did not write.
+
+**Anything that replaces a track's bits must say so.** `WriteBit` records the
+change as it makes it; the bulk writers take the buffer through
+`GetTrackBitsForWrite` and write into it directly. That was invisible while the
+only bit-stream writer rebuilt every track regardless, and became a silent
+write loss the moment one of them started copying clean tracks: a re-encoded
+track read as untouched and the old bytes went back over the edit.
+`MarkTrackDirty` is the record; the bulk rewriter calls it.
+
+**What the format cannot do.** Self-sync patterns are not preserved, so
+protection that inspects them will not work. Half and quarter tracks cannot be
+expressed. There is no write-protect flag, so protection is attributed to the
+host file or the user's setting and never to the image. Content validation is
+deliberately weak — a file with no high bit anywhere is refused and nothing
+stricter is available, so a renamed archive of the right length mounts as a disk
+that will not boot.
+
+---
+
 ## Appendix B: tools
 
 `CassoCli disk` does not exist on master (that is spec 020, unreleased), so

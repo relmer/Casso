@@ -455,6 +455,10 @@ HRESULT NibblizationLayer::RenibblizeTracks (
         }
 
         inOutImage.SetTrackBitCount (track, bitOffset);
+
+        //  This track's bits were just replaced. Saying so is what lets a
+        //  writer that copies untouched tracks tell them from rewritten ones.
+        inOutImage.MarkTrackDirty (track);
     }
 
 Error:
@@ -467,7 +471,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::PoFileIndexForDosLogicalSector
+//  NibblizationLayer::GetPoFileIndexForDosLogicalSector
 //
 //  Both interleave tables answer the same question -- which file offset holds
 //  the sector the drive will see at physical position P -- so the mapping
@@ -481,7 +485,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblizationLayer::PoFileIndexForDosLogicalSector (int logicalSector)
+int NibblizationLayer::GetPoFileIndexForDosLogicalSector (int logicalSector)
 {
     HRESULT  hr       = S_OK;
     int      physical = 0;
@@ -510,7 +514,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::DosFileIndexForPhysicalSector
+//  NibblizationLayer::GetDosFileIndexForPhysicalSector
 //
 //  The same table the nibblizer reads when it decides which of a buffer's
 //  sixteen sectors to encode under each address-field number, answered for
@@ -525,7 +529,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblizationLayer::DosFileIndexForPhysicalSector (int physicalSector)
+int NibblizationLayer::GetDosFileIndexForPhysicalSector (int physicalSector)
 {
     HRESULT  hr      = S_OK;
     int      found   = 0;
@@ -668,15 +672,24 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 //  The bit position is taken by REFERENCE and advanced, so a caller scanning
 //  for a mark walks the track continuously instead of restarting each time.
 //
+//  IT IS PUBLIC BECAUSE THE NIBBLE-IMAGE CODEC NEEDS THE SAME RULE. That codec
+//  derives whole bytes from a track to write a .nib back, which is this walk
+//  without the sector structure around it. A second implementation of "where
+//  does a nibble end" is a second answer waiting to disagree with this one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
+Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 {
-    size_t   trackBits = img.GetTrackBitCount (track);
-    Byte     value     = 0;
-    Byte     bit       = 0;
-    size_t   start     = bitPos;
-    bool     overran   = false;
+    const vector<Byte>  &  bits         = img.GetTrackBits (track);
+    size_t                 trackBits    = img.GetTrackBitCount (track);
+    size_t                 capacityBits = bits.size() * 8;
+    size_t                 start        = bitPos;
+    size_t                 pos          = 0;
+    Byte                   value        = 0;
+    Byte                   bit          = 0;
+    bool                   overran      = false;
+    bool                   addressable  = trackBits != 0 && trackBits <= capacityBits;
 
 
 
@@ -687,14 +700,51 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
     // The overrun test stays AFTER the read and outranks a completed nibble:
     // a value whose MSB set on the very read that crossed the revolution
     // boundary is discarded, because its high bits came from before the wrap.
-    if (trackBits != 0)
+    //
+    // THE WRAP IS A COMPARE, NOT A MODULO, and that is most of what this
+    // function costs. Every caller walks the track in order, so the position
+    // only ever needs to fall back to zero at the end -- but the general bit
+    // accessor cannot know that and divides by the track length on every read,
+    // twice over once the caller has taken its own remainder. A division is
+    // twenty-odd cycles against the two or three the rest of the loop spends,
+    // so a whole disk's decode was paying for arithmetic it had already done.
+    if (addressable)
     {
+        pos = bitPos % trackBits;
+
         while ((value & 0x80) == 0 && !overran)
         {
-            bit    = img.ReadBit (track, bitPos % trackBits);
-            bitPos++;
-            value  = static_cast<Byte> ((value << 1) | (bit & 1));
+            bit = static_cast<Byte> ((bits[pos >> 3] >> (7 - (pos & 7))) & 1);
 
+            bitPos++;
+            pos++;
+
+            if (pos == trackBits)
+            {
+                pos = 0;
+            }
+
+            value   = static_cast<Byte> ((value << 1) | bit);
+            overran = (bitPos - start > trackBits);
+        }
+
+        if (overran)
+        {
+            value = 0;
+        }
+    }
+    else if (trackBits != 0)
+    {
+        // A bit count larger than the buffer behind it should not happen --
+        // ResizeTrack sizes the two together -- but SetTrackBitCount can set
+        // one without the other, and reading past the end to save a division
+        // is not a trade worth making. The general accessor range-checks.
+        while ((value & 0x80) == 0 && !overran)
+        {
+            bit = img.ReadBit (track, bitPos % trackBits);
+
+            bitPos++;
+            value   = static_cast<Byte> ((value << 1) | (bit & 1));
             overran = (bitPos - start > trackBits);
         }
 
@@ -863,7 +913,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         addrFieldStart = bitPos;
-        n0             = ReadNibbleAt (img, track, bitPos);
+        n0             = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -872,8 +922,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = ReadNibbleAt (img, track, bitPos);
-        n2 = ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
         {
@@ -888,14 +938,14 @@ static HRESULT DecodeOneSector (
     //  read and report it as a duplicate the disk does not have.
     outFieldStart = addrFieldStart;
 
-    vOdd  = ReadNibbleAt (img, track, bitPos);
-    vEven = ReadNibbleAt (img, track, bitPos);
-    tOdd  = ReadNibbleAt (img, track, bitPos);
-    tEven = ReadNibbleAt (img, track, bitPos);
-    sOdd  = ReadNibbleAt (img, track, bitPos);
-    sEven = ReadNibbleAt (img, track, bitPos);
-    cOdd  = ReadNibbleAt (img, track, bitPos);
-    cEven = ReadNibbleAt (img, track, bitPos);
+    vOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    vEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    tOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    tEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    sOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    sEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    cOdd  = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+    cEven = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
     outSector    = Decode44 (sOdd, sEven);
     addrVolume   = Decode44 (vOdd, vEven);
@@ -922,7 +972,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         posBeforeProlog = bitPos;
-        n0              = ReadNibbleAt (img, track, bitPos);
+        n0              = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n0 != kAddrProlog0)
         {
@@ -931,8 +981,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = ReadNibbleAt (img, track, bitPos);
-        n2 = ReadNibbleAt (img, track, bitPos);
+        n1 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        n2 = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kDataProlog2)
         {
@@ -965,7 +1015,7 @@ static HRESULT DecodeOneSector (
         // the writer above: on-disk nibbles encode encoded[i] XOR'd
         // with the previous raw encoded value, so we recover raw
         // values via XOR with the previous DECODED value.
-        raw           = ReadNibbleAt (img, track, bitPos);
+        raw           = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
         decodedNibble = InverseTranslate (raw);
 
         // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
@@ -988,7 +1038,7 @@ static HRESULT DecodeOneSector (
     // The 343rd nibble is the data field's checksum -- the boot ROM's own
     // success gate -- and it was never read. Verifying it is what lets Casso
     // say a sector is intact rather than merely parseable.
-    decodedNibble  = InverseTranslate (ReadNibbleAt (img, track, bitPos));
+    decodedNibble  = InverseTranslate (NibblizationLayer::ReadNibbleAt (img, track, bitPos));
     dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
     dataChecksumOk = (decodedNibble == dataChecksum);
     dataTrusted    = dataTrusted && dataChecksumOk;
@@ -1230,6 +1280,8 @@ HRESULT NibblizationLayer::DecodeTracks (
     uint16_t      lost                  = 0;
     uint16_t      duplicated            = 0;
     uint16_t      slotMask              = 0;
+    uint16_t      seenAtRevStart        = 0;
+    size_t        revolutionEnd         = 0;
     Byte          outSector             = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
@@ -1275,8 +1327,39 @@ HRESULT NibblizationLayer::DecodeTracks (
         slotMask   = 0;
         trackBits = img.GetTrackBitCount (track);
 
+        //  A revolution that turns up nothing new means there is nothing left
+        //  to find, and the scan can stop. Without this an EMPTY track is the
+        //  worst case in the whole decoder: the mask never fills, so the loop
+        //  below runs its full count, and each attempt scans a whole
+        //  revolution looking for a prologue that is not there -- thirty-two
+        //  passes over the same bits to conclude what the first one did.
+        //
+        //  It costs the damaged-media recovery nothing. That recovery works by
+        //  arriving at a skipped sector from a different offset on the next
+        //  time round, so it pays off within a revolution or two; a revolution
+        //  that adds no sector, recovers none and loses none has met only
+        //  headers it has already read.
+        revolutionEnd  = trackBits;
+        seenAtRevStart = 0;
+
         for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
         {
+            //  AT THE TOP, because every failure path below continues, and a
+            //  track with nothing on it takes all of them -- which is the one
+            //  case this exists to cut short.
+            if (bitPos >= revolutionEnd)
+            {
+                uint16_t  seen = static_cast<uint16_t> (mask | recovered | lost);
+
+                if (seen == seenAtRevStart)
+                {
+                    break;
+                }
+
+                seenAtRevStart = seen;
+                revolutionEnd  = bitPos + trackBits;
+            }
+
             //  DUPLICATES ARE ONLY MEANINGFUL WITHIN ONE REVOLUTION. This loop
             //  deliberately keeps scanning after the cursor has been all the way
             //  round, because that is how it retries the sectors a damaged header

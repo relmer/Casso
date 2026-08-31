@@ -188,7 +188,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.showHelp);
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Help);
             Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General,
-                            L"no subcommand was named, so no grammar's page is the answer");
+                            L"no subcommand was given, so the general page is what opens");
             Assert::IsTrue (opts.inputFile.empty(), L"and it is not a source file to assemble");
         }
 
@@ -202,7 +202,7 @@ namespace CommandLineTests
 
             Assert::IsFalse (opts.showHelp, L"two parameters is not the documented case");
             Assert::AreEqual (std::string ("?"), opts.unrecognizedArgument,
-                              L"and it names no subcommand, so it is reported rather than assumed to be source");
+                              L"and it gives no subcommand, so it is reported rather than assumed to be source");
         }
 
         TEST_METHOD (Version_SelectsVersion)
@@ -242,7 +242,7 @@ namespace CommandLineTests
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.subcommand == entry.token,
-                                L"a table row must parse to the token it names");
+                                L"a table row must parse to the token it declares");
             }
         }
     };
@@ -541,7 +541,7 @@ namespace CommandLineTests
             CommandLineOptions  underRun  = ParseTyped ({ "CassoCli", "run",  "-h" });
             CommandLineOptions  underAs65 = ParseTyped ({ "CassoCli", "as65", "prog.a65", "-h60" });
 
-            Assert::IsTrue (underRun.showHelp, L"run has no page height and answers -h with help");
+            Assert::IsTrue (underRun.showHelp, L"run has no page height, so -h opens the help");
             Assert::IsFalse (underAs65.showHelp, L"the assembler spends it on the listing instead");
             Assert::AreEqual (60, underAs65.pageHeight, L"and reads its value");
         }
@@ -671,7 +671,7 @@ namespace CommandLineTests
 
             Assert::IsTrue (opts.showHelp);
             Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Assemble,
-                            L"the dialect was named, so its page is the answer");
+                            L"the dialect was given, so its page is what opens");
         }
 
         //  `run --help` was an option this grammar does not have: a diagnostic,
@@ -688,7 +688,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::Run,
                     (L"did not open the run page: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                    (L"asking for help is not a mistake: " + Widen (form)).c_str());
+                    (L"a request for help is not a mistake: " + Widen (form)).c_str());
             }
         }
 
@@ -720,7 +720,7 @@ namespace CommandLineTests
                 CommandLineOptions  opts = ParseTyped ({ "CassoCli", "disk", form.c_str() });
 
                 Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::Disk,
-                    (L"left the disk grammar: " + Widen (form)).c_str());
+                    (L"left the disk subcommand: " + Widen (form)).c_str());
                 Assert::IsTrue (opts.disk.command == CommandLineOptions::DiskOptions::Command::Help,
                     (L"not read as a help request: " + Widen (form)).c_str());
                 Assert::IsFalse (opts.showHelp,
@@ -793,7 +793,7 @@ namespace CommandLineTests
 
             Assert::IsTrue (page.find (CommandLineHelp::GetUsageLine (
                                 CommandLineOptions::Subcommand::As65)) != std::string::npos,
-                            L"nor the assembler, which is the fallback rather than a named mode");
+                            L"nor the assembler, which is the fallback rather than an explicit mode");
         }
     };
 
@@ -1342,7 +1342,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"nothing is assembled");
             Assert::AreEqual (std::string ("-Y"), opts.unrecognizedFlag,
-                              L"and the flag is named, rather than answered with a wall of usage");
+                              L"and the flag is quoted, rather than buried under a wall of usage");
             Assert::IsTrue (opts.subcommand == CommandLineOptions::Subcommand::As65,
                             L"under the assembler, so the help that follows is the assembler's");
         }
@@ -1375,7 +1375,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.showHelp, L"the general page is still printed");
             Assert::IsTrue (opts.helpPage == CommandLineOptions::HelpPage::General);
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"and nothing was produced, which the status has to say");
+                            L"and nothing was produced, which the status has to report");
         }
 
         //  The counterpart, and the reason the verdict rather than showHelp
@@ -1391,7 +1391,7 @@ namespace CommandLineTests
                 CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                                (std::wstring (L"asking for help was refused: ") +
+                                (std::wstring (L"a request for help was refused: ") +
                                  std::wstring (form, form + strlen (form))).c_str());
             }
         }
@@ -1535,7 +1535,7 @@ namespace CommandLineTests
         {
             Assert::IsTrue (Parse ({ "CassoCli", "as65", "prog.a65", "extra.a65" })
                                 .refusalMessage.find ("extra.a65") != std::string::npos,
-                            L"the surplus argument is named");
+                            L"the surplus argument is quoted");
             Assert::IsTrue (Parse ({ "CassoCli", "disk", "list", "img.dsk", "--bogus" })
                                 .refusalMessage.find ("--bogus") != std::string::npos,
                             L"and so is the option nobody has");
@@ -1662,15 +1662,17 @@ namespace CommandLineTests
 
         //  And it reaches the parse, which is the half that a test of the
         //  function alone would not have caught.
-        TEST_METHOD (TheGrammarAppliesIt_InBothDialects)
+        //
+        //  AS65 ONLY, since this became the one dialect whose listing is named
+        //  on the command line. Merlin's `-l` takes no name at all: a source of
+        //  its may save itself several times and each save is its own program,
+        //  so the listings are named after the objects instead.
+        TEST_METHOD (TheGrammarAppliesIt_ForAs65)
         {
-            ArgVector           as65   = { "CassoCli", "as65",   "prog.a65", "-lfoo" };
-            ArgVector           merlin = { "CassoCli", "merlin", "prog.s",   "-lbar" };
+            ArgVector           as65 = { "CassoCli", "as65", "prog.a65", "-lfoo" };
 
             Assert::AreEqual (std::string ("foo.lst"),
                               CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe()).listingFile);
-            Assert::AreEqual (std::string ("bar.lst"),
-                              CommandLineParser::Parse (merlin.Count(), merlin.Data(), NoProbe()).listingFile);
         }
 
         //  A bare -l is stdout and names no file, so there is nothing to extend.
@@ -1698,13 +1700,13 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"assembling takes one source file");
             Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
-                              L"and the first one is still the one that was named");
+                              L"and the first one is still the one that was given");
 
             //  AND IT IS NOT A REQUEST FOR A PAGE. main routes a help request
             //  ahead of a refusal and exits 0 for it, so a refusal that also
             //  set showHelp would be answered with usage text and success.
             Assert::IsFalse (opts.showHelp,
-                             L"a refusal is not somebody asking how the tool works");
+                             L"a refusal is not a request for help");
         }
 
         //  Merlin agrees, which it did not until this was written. as65 stopped
@@ -1720,7 +1722,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                             L"Merlin takes one source file as well");
             Assert::AreEqual (std::string ("prog.s"), opts.inputFile,
-                              L"and the first one is still the one that was named");
+                              L"and the first one is still the one that was given");
         }
 
         //  The shape of the reported defect, with the bare -h taken out of it so
@@ -1831,7 +1833,7 @@ namespace CommandLineTests
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
                 L"the halves go back together rather than earning a diagnostic");
             Assert::AreEqual (std::string ("prog.bin"), opts.outputFile,
-                L"and the whole filename is what the output is named");
+                L"and the whole filename is what the output is called");
             Assert::AreEqual (std::string ("prog.a65"), opts.inputFile,
                 L"the source file is untouched by the repair");
         }
@@ -1963,7 +1965,7 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                            L"the command is what is wrong here, and the runner says so");
+                            L"the command is what is wrong here, and the runner reports it");
         }
 
         //  The operand count is the command's, so an alias has to carry the same
@@ -1974,7 +1976,7 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"`cat` is `list`, and `list` names a disk and nothing else");
+                            L"`cat` is `list`, and `list` takes a disk and nothing else");
         }
     };
 
@@ -2250,7 +2252,7 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                L"a bare -o names no file, which as65 has no form for");
+                L"a bare -o gives no file, which as65 has no form for");
         }
 
         //  THE SEPARATED `-o <file>` IS TAKEN, by owner decision, and it is the
@@ -2553,9 +2555,9 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Raw,
-                L"naming no shape writes only what was assembled");
+                L"giving no shape writes only what was assembled");
             Assert::IsFalse (opts.outputFormatNamed,
-                L"and nothing was named, which is a separate fact from which shape it is");
+                L"and nothing was given, which is a separate fact from which shape it is");
         }
 
         TEST_METHOD (FlatFlag_SelectsTheFullPaddedImage)
@@ -2564,7 +2566,7 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.outputFormat == CommandLineOptions::OutputFormat::Binary,
-                L"--flat is how the old default is asked for");
+                L"--flat is how the old default is selected");
             Assert::IsTrue (opts.outputFormatNamed);
             Assert::AreEqual (std::string ("demo.bin"), opts.outputFile);
         }
@@ -2581,9 +2583,9 @@ namespace CommandLineTests
             CommandLineOptions  untouched;
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                L"an option this grammar does not have is turned down");
+                L"an option this subcommand does not have is turned down");
             Assert::IsFalse (opts.showHelp,
-                L"and answered with the two lines that explain it, not with 180 of usage");
+                L"and met with the two lines that explain it, not with 180 of usage");
 
             Assert::IsFalse (opts.outputFormatNamed,
                 L"nothing claimed a shape");
@@ -2656,7 +2658,7 @@ namespace CommandLineTests
                 L"refused, not warned about and carried past");
 
             Assert::AreNotEqual (std::string ("ut"), opts.outputFile,
-                L"and above all not written to a file named from the flag's own letters");
+                L"and above all not written to a file called after the flag's own letters");
         }
 
         //  Every `--` argument this grammar does not know, not only the one
@@ -3014,10 +3016,10 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                L"naming both numberings is a contradiction, not a preference");
+                L"giving both numberings is a contradiction, not a preference");
 
             Assert::IsTrue (opts.refusalMessage.find ("one choice") != std::string::npos,
-                L"and the refusal says so rather than reporting an unknown flag");
+                L"and the refusal states that rather than reporting an unknown flag");
         }
 
         //  AN ADDRESS TAKES BOTH NOTATIONS. `$6000` is the 6502 world's and
@@ -3108,7 +3110,7 @@ namespace CommandLineTests
                 CommandLineParser::ParseEmulator (noisy.Count(), noisy.Data());
 
             Assert::AreEqual (std::string ("Apple2e"), parsed.machine,
-                L"the flags it knows still land");
+                L"the flags it recognizes still land");
 
             Assert::IsTrue (parsed.disk1.empty(),
                 L"a flag with no value left to take is skipped, not read past the end");
@@ -3127,7 +3129,7 @@ namespace CommandLineTests
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::AreEqual ('/', opts.flagPrefix,
-                L"a working command line written with slashes is answered in slashes");
+                L"a working command line written with slashes comes back in slashes");
         }
 
         //  AND A PRODOS PATH IS NOT A FLAG. The prefix is read from the option

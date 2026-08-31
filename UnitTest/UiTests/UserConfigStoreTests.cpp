@@ -599,8 +599,16 @@ public:
         AssertSucceeded (diff.GetObject ("$cassoUiPrefs", ui));
         Assert::IsTrue (ui != nullptr);
         if (ui == nullptr) { return; }
-        Assert::AreEqual<size_t> (1u, ui->GetObjectEntries().size());
+        // speedMode differs from the table, so it is written. colorMode
+        // MATCHES the table and is written anyway: its real default is a
+        // property of the machine's monitor, so a difference from the
+        // hardware-independent table says nothing about what the user wants
+        // and dropping it discards a deliberate choice. Everything else here
+        // matches the table and is dropped, which is the shadowing this test
+        // is about.
+        Assert::AreEqual<size_t> (2u, ui->GetObjectEntries().size());
         Assert::AreEqual (string ("speedMode"), ui->GetObjectEntries()[0].first);
+        Assert::AreEqual (string ("colorMode"), ui->GetObjectEntries()[1].first);
     }
 
 
@@ -678,9 +686,9 @@ public:
             L"The caller needs somewhere to point the user -- an empty detail "
             L"leaves them with 'Casso lost my settings' and no reason");
         Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
-            L"The detail must name the line the parse broke on");
+            L"The detail must identify the line the parse broke on");
         Assert::IsTrue (parseDetail.find (store.GetUserPrefsFilePath()) != std::wstring::npos,
-            L"The detail must name the file, so the user can go fix it");
+            L"The detail must identify the file, so the user can go fix it");
     }
 
 

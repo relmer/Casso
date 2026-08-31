@@ -928,7 +928,7 @@ bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
             // host-owned caption. Owned only when the event lands on a caption
             // button; otherwise the consumer's WndProc keeps the message
             // (caption drag, menu dismiss, ...).
-            isOwned = m_caption && RouteCaptionNcMouse (msg, wp, lp);
+            isOwned = m_caption && m_captionVisible && RouteCaptionNcMouse (msg, wp, lp);
             break;
 
         // The rest do their tree-side propagation WITHOUT claiming the
@@ -1094,7 +1094,7 @@ void DxuiHwndSource::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
         {
             RECT  rootBounds = bounds;
 
-            if (m_params.insetRootBelowCaption && m_caption)
+            if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
             {
                 rootBounds.top += m_caption->GetPreferredHeightPx (m_scaler);
             }
@@ -1148,7 +1148,7 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
     {
         RECT  rootBounds = clientRectPx;
 
-        if (m_params.insetRootBelowCaption && m_caption)
+        if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
         {
             rootBounds.top += m_caption->GetPreferredHeightPx (m_scaler);
         }
@@ -1789,7 +1789,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // Host-owned caption paints last so it overlays the top strip (the
     // before-present hook fills the whole back buffer, the chrome bands paint
     // over it, and the caption sits on top).
-    if (m_caption)
+    if (m_caption && m_captionVisible)
     {
         m_caption->Paint (*m_painter, *m_textRenderer, theme);
     }
@@ -2122,7 +2122,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2130,7 +2130,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
         case WM_NCMOUSELEAVE:
             result = IsClaimed (m_client != nullptr ? m_client->OnNcMouseLeave()
                                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2139,7 +2139,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2148,7 +2148,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             if (IsClaimed (m_client != nullptr
                              ? m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y)
                              : DxuiMessageResult::NotHandled,
-                         RepaintOnClaim::No))
+                           RepaintOnClaim::No))
             {
                 DispatchNcUpToTrackedButton (lp);
                 result = 0;
@@ -2332,31 +2332,68 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
         case WM_PAINT:         isHandled = IsClaimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
         case WM_GETMINMAXINFO: isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_COMMAND:       isHandled = IsClaimed (m_client->OnCommandEx (LOWORD (wp),
                                                                           HIWORD (wp),
                                                                           reinterpret_cast<HWND> (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_MOVE:          isHandled = IsClaimed (m_client->OnMove ((int) (short) LOWORD (lp),
                                                                      (int) (short) HIWORD (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_INITMENUPOPUP: isHandled = IsClaimed (m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
                                                                               LOWORD (lp),
                                                                               HIWORD (lp) != 0),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
 
         // -- claim and repaint --
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:    isHandled = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
-                                                    RepaintOnClaim::Yes); break;
+                                                      RepaintOnClaim::Yes); break;
+
+        // Touch gestures. The HGESTUREINFO is closed HERE, once, whatever the
+        // client answered: the client's answer means "did I act on it", not
+        // "do I own the handle", and leaking one leaks for the life of the
+        // window. An unclaimed gesture still reaches DefWindowProc, so the
+        // ones nobody handles keep behaving normally.
+        case WM_GESTURE:
+        {
+            isHandled = IsClaimed (m_client->OnGesture (wp, lp), RepaintOnClaim::Yes);
+            CloseGestureInfoHandle (reinterpret_cast<HGESTUREINFO> (lp));
+            break;
+        }
+
+        // Windows asks, once per gesture sequence, which gestures this window
+        // wants. Answering is what turns pan and zoom on at all -- the default
+        // set is aimed at scrolling documents, and a window that never
+        // responds simply never sees a pinch.
+        case WM_GESTURENOTIFY:
+        {
+            GESTURECONFIG  config[2] = {};
+
+            config[0].dwID    = GID_ZOOM;
+            config[0].dwWant  = GC_ZOOM;
+            config[1].dwID    = GID_PAN;
+            config[1].dwWant  = GC_PAN | GC_PAN_WITH_SINGLE_FINGER_VERTICALLY
+                                       | GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
+
+            // Inertia is deliberately NOT wanted: it keeps sending pan
+            // deltas after the finger lifts, which reads as the scene
+            // drifting on its own rather than staying where it was put.
+            config[1].dwBlock = GC_PAN_WITH_INERTIA | GC_PAN_WITH_GUTTER;
+
+            SetGestureConfig (m_hwnd, 0, 2, config, sizeof (GESTURECONFIG));
+
+            isHandled = false;   // DefWindowProc still finishes the notify
+            break;
+        }
 
         // -- claim and repaint unless a wheel flood is being absorbed --
         case WM_MOUSEWHEEL:    isHandled = IsClaimed (m_client->OnMouseWheel (wp, lp, false),
-                                                    RepaintOnClaim::IfNotSuppressed); break;
+                                                      RepaintOnClaim::IfNotSuppressed); break;
         case WM_MOUSEHWHEEL:   isHandled = IsClaimed (m_client->OnMouseWheel (wp, lp, true),
-                                                    RepaintOnClaim::IfNotSuppressed); break;
+                                                      RepaintOnClaim::IfNotSuppressed); break;
 
         // -- these answer with a value of their own rather than a claim --
         case WM_SETCURSOR:
@@ -2644,6 +2681,27 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     BAIL_OUT_IF (msg == WM_NCMOUSELEAVE, S_OK);
     BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
 
+    // A resize press outranks the button it lands on. The corner grab zones
+    // are deliberately larger than the edge border so the diagonal stays
+    // reachable UNDER a caption button -- but the button is still what
+    // FindNcSystemControlAt returns there, and routing the press to it left
+    // the user with a resize cursor that would not drag: the close button ate
+    // WM_NCLBUTTONDOWN, so DefWindowProc never entered the resize loop. The
+    // latched hover is released on the way out, or the button stays lit while
+    // the pointer sits in the corner over it.
+    if (!NcMouseMayHitSystemButton (m_params.resizable, wp))
+    {
+        if (m_lastHoveredNcControl != nullptr)
+        {
+            ev.kind = DxuiMouseEventKind::Leave;
+            m_lastHoveredNcControl->OnMouse (ev);
+            m_lastHoveredNcControl = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     ptScreen.x = GET_X_LPARAM (lp);
     ptScreen.y = GET_Y_LPARAM (lp);
     ptClient   = ptScreen;
@@ -2701,8 +2759,6 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     ev.positionDip = ptClient;
     control->OnMouse (ev);
     InvalidateRect (m_hwnd, nullptr, FALSE);
-
-    (void) wp;
 
     // Forward NC mouse-move to DefWindowProc after painting our own button
     // hover. Eating it (returning 0) is non-conformant for a custom frame;
@@ -2976,7 +3032,7 @@ void DxuiHwndSource::MaybeRelayoutRoot (const RECT & clientPx)
     {
         RECT  rootPx = clientPx;
 
-        if (m_params.insetRootBelowCaption && m_caption)
+        if (m_params.insetRootBelowCaption && m_caption && m_captionVisible)
         {
             rootPx.top += m_caption->GetPreferredHeightPx (m_scaler);
         }
@@ -3137,7 +3193,7 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 
 int DxuiHwndSource::GetCaptionHeightPx() const
 {
-    return m_caption ? m_caption->GetPreferredHeightPx (m_scaler) : 0;
+    return (m_caption && m_captionVisible) ? m_caption->GetPreferredHeightPx (m_scaler) : 0;
 }
 
 
@@ -3225,9 +3281,12 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 
 
-    (void) wp;
-
     BAIL_OUT_IF (m_caption == nullptr || m_hwnd == nullptr, S_OK);
+
+    // See HandleNcMouse: a press on a resize edge or corner is the OS acting
+    // on the answer we already gave WM_NCHITTEST, and must not be claimed by
+    // the caption button the corner grab zone reaches under.
+    BAIL_OUT_IF (!NcMouseMayHitSystemButton (m_params.resizable, wp), S_OK);
 
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
@@ -3505,7 +3564,13 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 
     // Host-owned caption wins over the consumer's root content (it is
     // drawn on top of the top strip). Buttons / caption / nothing.
-    if (!claimed && m_caption != nullptr)
+    //
+    // A HIDDEN caption claims nothing. It keeps its bounds while parked --
+    // SetCaptionVisible stops it painting and reserving height, not
+    // existing -- so classifying against it left a fullscreen window with an
+    // invisible drag strip across its top, and the picture could be hauled
+    // around by a piece of chrome that was not there.
+    if (!claimed && m_caption != nullptr && m_captionVisible)
     {
         rc = m_caption->GetBounds();
 
@@ -3545,6 +3610,27 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NcMouseMayHitSystemButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest)
+{
+    bool  isResize = hitTest == HTTOPLEFT    || hitTest == HTTOP    || hitTest == HTTOPRIGHT ||
+                     hitTest == HTLEFT       || hitTest == HTRIGHT  ||
+                     hitTest == HTBOTTOMLEFT || hitTest == HTBOTTOM || hitTest == HTBOTTOMRIGHT;
+
+
+
+    return !(resizable && isResize);
 }
 
 

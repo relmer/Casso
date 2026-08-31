@@ -70,6 +70,6 @@ public:
     //  terminal reports the wrong size a way to say so.
     //
     static size_t                    ResolveWidth (const char * columnsEnv,
-                                                bool         hasConsole,
-                                                int          consoleColumns);
+                                                   bool         hasConsole,
+                                                   int          consoleColumns);
 };

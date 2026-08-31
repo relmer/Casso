@@ -228,6 +228,7 @@
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
+    <ClCompile Include="Devices\Disk\NibbleImageCodec.cpp" />
     <ClCompile Include="Devices\Disk\NibblizationLayer.cpp" />
     <ClCompile Include="Devices\Disk\SectorDecodeReport.cpp" />
     <ClCompile Include="Devices\Disk\TrackWritability.cpp" />
@@ -235,6 +236,7 @@
     <ClCompile Include="Devices\Disk\FilePath.cpp" />
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Devices\Disk\Dos33Volume.cpp" />
+    <ClCompile Include="Devices\Disk\AssembledFilePlacement.cpp" />
     <ClCompile Include="Devices\Disk\ProDosVolume.cpp" />
     <ClCompile Include="Devices\Disk\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
@@ -249,6 +251,7 @@
     <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
     <ClCompile Include="Cli\ArtifactWriter.cpp" />
+    <ClCompile Include="Cli\ImageArtifactSink.cpp" />
     <ClCompile Include="Cli\As65Mode.cpp" />
     <ClCompile Include="Cli\AssemblerMode.cpp" />
     <ClCompile Include="Cli\MerlinMode.cpp" />
@@ -285,6 +288,8 @@
     <ClCompile Include="Audio\PrinterAudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Render\SceneCamera.cpp" />
+    <ClCompile Include="Render\CurvedDisplayMath.cpp" />
     <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
     <ClCompile Include="Devices\Printer\PaperRenderer.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
@@ -298,6 +303,8 @@
     <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
     <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
     <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
+    <ClCompile Include="Devices\Printer\MeshBlob.cpp" />
+    <ClCompile Include="Devices\Printer\MeshNormals.cpp" />
     <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
     <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
@@ -338,6 +345,7 @@
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
+    <ClInclude Include="Devices\Disk\NibbleImageCodec.h" />
     <ClInclude Include="Devices\Disk\NibblizationLayer.h" />
     <ClInclude Include="Devices\Disk\SectorDecodeReport.h" />
     <ClInclude Include="Devices\Disk\TrackWritability.h" />
@@ -346,6 +354,7 @@
     <ClInclude Include="Devices\Disk\VolumeIntegrityReport.h" />
     <ClInclude Include="Devices\Disk\FilePath.h" />
     <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
+    <ClInclude Include="Devices\Disk\AssembledFilePlacement.h" />
     <ClInclude Include="Devices\Disk\Dos33Volume.h" />
     <ClInclude Include="Devices\Disk\ProDosVolume.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
@@ -363,6 +372,7 @@
     <ClInclude Include="Cli\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
     <ClInclude Include="Cli\ArtifactWriter.h" />
+    <ClInclude Include="Cli\ImageArtifactSink.h" />
     <ClInclude Include="Cli\As65Mode.h" />
     <ClInclude Include="Cli\AssemblerMode.h" />
     <ClInclude Include="Cli\MerlinMode.h" />
@@ -434,6 +444,8 @@
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
     <ClInclude Include="Audio\PrinterAudioSource.h" />
+    <ClInclude Include="Render\SceneCamera.h" />
+    <ClInclude Include="Render\CurvedDisplayMath.h" />
     <ClInclude Include="Devices\Printer\PrinterTypes.h" />
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />
@@ -453,6 +465,8 @@
     <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
     <ClInclude Include="Devices\Printer\PrintDelivery.h" />
     <ClInclude Include="Devices\Printer\PrintPagination.h" />
+    <ClInclude Include="Devices\Printer\MeshBlob.h" />
+    <ClInclude Include="Devices\Printer\MeshNormals.h" />
     <ClInclude Include="Devices\Printer\ObjMeshParser.h" />
     <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
     <ClInclude Include="Devices\Printer\PrinterViewport.h" />

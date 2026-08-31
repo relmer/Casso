@@ -136,6 +136,33 @@ So there is a third kind of file here, and it is not a weakening of the rule:
    so the committed text is the text Merlin assembled. The source and bytes live
    in `UnitTest/MerlinCorpusTests.cpp`; only the vendor file lives here.
 
+### And a fourth: an authored source with a captured object
+
+`TWOSAVE.S` / `SPAN1A` + `SPAN1B`, and `TYPTEST.S` / `TYPOBJ`, are **authored
+here**. They are not Bredon's code and must not be mistaken for it.
+
+They exist because the distribution disk cannot supply what they cover.
+`CLOCK.S` carries two saves, but `DO HOURS-12` / `ELSE` / `FIN` makes them
+mutually exclusive, so no shipped source produces two objects in one assembly.
+And `TYP` appears in no vendor source at all.
+
+**The half that gives an oracle its strength is unchanged: the expected bytes
+came out of Merlin.** Each source was typed into the period assembler running
+under Casso and its objects read back off the disk Merlin wrote. What is
+committed beside each source is Merlin's answer, not this assembler's. What is
+weaker than a vendor entry is only the source: it was written to exercise a
+construct, so it cannot claim that nobody here chose it.
+
+**The two were captured on different disks, and that is a finding.** Merlin Pro
+2.23 under DOS 3.3 answers `Bad opcode in line: 4` to `TYP` -- the manual says
+"TYP (ProDOS only)" and the DOS 3.3 build does not have it. `TYPTEST.S` was
+captured on Merlin Pro 2.33 under ProDOS, where it assembles clean and the
+volume ends up carrying `TYPOBJ`, type $06, aux $0300.
+
+`TYPOBJ` therefore carries **no four-byte header**, unlike every other object
+here: ProDOS keeps a binary's load address in the directory entry's auxiliary
+type rather than in the file. The committed bytes are the payload alone.
+
 What is **not** admitted is unchanged: a specimen with no oracle at all. A file
 here must be compared against something.
 

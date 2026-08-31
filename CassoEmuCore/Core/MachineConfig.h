@@ -148,6 +148,38 @@ struct DeviceConfig
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+//  One connector and whatever is plugged into it.
+//
+//  A PORT IS NOT A DRIVE, which is the whole reason this exists instead of a
+//  drive count. The Disk II Interface has two ports taking one drive each; a
+//  DuoDisk is ONE device on ONE port providing two drive units; a ProFile is a
+//  different card in its own slot entirely. A count describes none of that.
+//
+//  `device` empty means the connector is present and nothing is on it -- which
+//  is a real and different state from the connector not existing.
+//
+//  `name` identifies a connector that has an identity of its own: a //c's back
+//  panel has a disk port, two serial ports and a joystick port, and they are
+//  not interchangeable. A card's connectors are numbered rather than named, so
+//  they leave it empty and are read positionally.
+//
+struct PortConfig
+{
+    string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
+    string  device;    // what is attached; empty for an unoccupied port
+};
+
+
+// The Disk ][ Interface, the drive that plugs into it, and the number of
+// connectors the real card has. Shared rather than repeated because the
+// loader, the migration and the drive-count query must agree on all three --
+// a private copy in any one of them is a drift waiting to happen.
+static constexpr const char *  kpszDiskIiDevice = "disk-ii";
+static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
+static constexpr int           kDiskIiPortCount = 2;
+
+
 struct SlotConfig
 {
     int             slot            = 0;     // 1..7
@@ -158,6 +190,11 @@ struct SlotConfig
     CapabilityFlag  capabilityFlag  = CapabilityFlag::Optional;
     string          lockReason;              // Optional: shown as tooltip when PlatformLocked.
     bool            enabled         = true;   // false => user disabled this slot (Settings > Hardware); skip install.
+
+    // What is plugged into the CARD's connectors, in port order. Absent (an
+    // empty vector) means this machine's own default, which is what every
+    // config written before the key existed relies on.
+    vector<PortConfig>  ports;
 };
 
 
@@ -254,6 +291,17 @@ struct MachineConfig
     CharacterRomReference       characterRom;
     vector<InternalDevice>      internalDevices;
     vector<SlotConfig>          slots;
+
+    // The machine's OWN connectors, for machines whose hardware is built in
+    // rather than carded. A //c has no slots at all -- it has a back panel:
+    // a disk port, two serial ports, a joystick port. Those are as real as a
+    // card's connectors and belong in the config for the same reason, which
+    // is that what is plugged into them is the owner's choice and not ours.
+    //
+    // The built-in hardware BEHIND a port is not described here and does not
+    // need to be: a //c's internal drive is soldered in, not attached, so it
+    // is not a port and never appears in this list.
+    vector<PortConfig>          ports;
     VideoConfig                 videoConfig;
     string                      keyboardType;
 
@@ -268,6 +316,100 @@ struct MachineConfig
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+
+    // The machine's own named connector, or nullptr when it has none by that
+    // name. This is the back panel of a machine whose hardware is built in --
+    // a card's connectors are numbered and live on the slot instead.
+    const PortConfig *  FindPort (const string & portName) const
+    {
+        for (const PortConfig & port : ports)
+        {
+            if (port.name == portName)
+            {
+                return &port;
+            }
+        }
+
+        return nullptr;
+    }
+
+
+    // How many drive units are attached to the machine's Disk ][ card, and 0
+    // when no enabled slot holds one.
+    //
+    // A card that declares NO ports has not been DESCRIBED yet -- it is not a
+    // card with nothing plugged in -- so it reports the two connectors the
+    // real Disk ][ Interface has, which is the hardware every config written
+    // before `ports` existed has been behaving as though it had. Reading an
+    // absent list as zero would take everyone's drives away.
+    int  AttachedDiskIiDriveCount () const
+    {
+        int  attached = 0;
+
+        for (const SlotConfig & entry : slots)
+        {
+            if (!entry.enabled || entry.device != kpszDiskIiDevice)
+            {
+                continue;
+            }
+
+            if (entry.ports.empty())
+            {
+                return kDiskIiPortCount;
+            }
+
+            for (const PortConfig & port : entry.ports)
+            {
+                if (!port.device.empty())
+                {
+                    attached++;
+                }
+            }
+        }
+
+        return attached;
+    }
+
+
+    // Attach or detach the drive on the Disk ][ card's `portIndex` connector.
+    // Returns false when the machine has no enabled Disk ][ card, or when it
+    // has no such connector.
+    //
+    // A card with NO declared ports gets its full connector list materialized
+    // first, both occupied. An undeclared card means the real card's two
+    // drives, so detaching one has to write both entries -- writing only the
+    // detached one would leave a single-element list and take the other drive
+    // away as a side effect of removing its neighbor.
+    bool  SetDiskIiPortAttached (size_t portIndex, bool attached)
+    {
+        for (SlotConfig & entry : slots)
+        {
+            if (!entry.enabled || entry.device != kpszDiskIiDevice)
+            {
+                continue;
+            }
+
+            if (entry.ports.empty())
+            {
+                for (int i = 0; i < kDiskIiPortCount; i++)
+                {
+                    entry.ports.push_back (PortConfig { string(), kpszDiskIiDrive });
+                }
+            }
+
+            if (portIndex >= entry.ports.size())
+            {
+                return false;
+            }
+
+            entry.ports[portIndex].device = attached ? kpszDiskIiDrive : string();
+
+            return true;
         }
 
         return false;
@@ -360,6 +502,19 @@ private:
                                         CapabilityFlag  defaultFlag,
                                         CapabilityFlag & outFlag,
                                         string         & outError);
+
+    // Reads an optional `ports` array off `owner` -- a slot entry or the
+    // machine root -- into `outPorts`. An entry may be a bare string naming
+    // the attached device, or an object with `name` and/or `device`, so a
+    // named connector and a numbered one use the same key. Anything else
+    // becomes an empty port rather than an error: an unoccupied connector is
+    // a legitimate state, so there is nothing here worth failing a load over.
+    //
+    // A MISSING `ports` KEY LEAVES `outPorts` EMPTY, and empty means "this
+    // machine's default" -- never "no connectors". Every config written
+    // before the key existed depends on that reading.
+    static void    ParsePorts         (const JsonValue    & owner,
+                                       vector<PortConfig> & outPorts);
 
     static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,

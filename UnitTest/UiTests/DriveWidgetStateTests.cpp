@@ -139,12 +139,18 @@ public:
         Assert::IsFalse (st.motorOn.load (std::memory_order_relaxed));
     }
 
-    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsTheFourMountableTypes)
+    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsEveryMountableType)
     {
+        // Named for the property, not a count. It used to say "the four",
+        // which stopped being true the moment a fifth container mounted -- a
+        // name that must be revised alongside the list it describes is a name
+        // that will one day disagree with it silently.
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.dsk"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.do"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.woz"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.po"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nib"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nb2"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\path\\to\\BOOT.DSK"),
                         L"extension check must be case-insensitive");
         Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\Demos\\MousePaint.DO"),
@@ -160,16 +166,19 @@ public:
         Assert::IsFalse (IsSupportedDiskImageExtension (L"foo.bar.exe"));
     }
 
-    TEST_METHOD (IsSupportedDiskImageExtension_RejectsNibbleImages)
+    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsNibbleImages)
     {
-        // The filter used to accept these. Nothing loads them, so the drop
-        // was taken and the mount then failed with no message -- the disk
-        // just never appeared. Rejecting at the filter is what puts the
-        // reject cursor back on the drag.
-        Assert::IsFalse (IsSupportedDiskImageExtension (L"a.nib"),
-                         L"no loader handles .nib, so the filter must not offer it");
-        Assert::IsFalse (IsSupportedDiskImageExtension (L"C:\\Disks\\LODE.NIB"),
-                         L"the .nib refusal must be case-insensitive too");
+        // INVERTED, NOT DELETED. This asserted the opposite for as long as
+        // nothing could load a nibble image, and it was right to: the filter
+        // once offered .nib, the drop was taken, and the mount then failed
+        // with no message at all. The capability now belongs asserted exactly
+        // where its absence was, so the same seam keeps the same guard.
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nib"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nb2"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\Disks\\LODE.NIB"),
+                        L"the .nib match must be case-insensitive");
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\Disks\\LODE.NB2"),
+                        L"and so must .nb2");
     }
 
     TEST_METHOD (IsSupportedDiskImageExtension_AnswersExactlyWhatTheLoaderRoutes)
@@ -183,7 +192,8 @@ public:
         static const wchar_t * const  kCandidates[] =
         {
             L"disk.dsk", L"disk.do",  L"disk.po",  L"disk.woz",
-            L"disk.nib", L"disk.2mg", L"disk.img", L"disk.txt",
+            L"disk.nib", L"disk.nb2", L"disk.2mg", L"disk.img",
+            L"disk.txt",
             L"disk.DSK", L"disk.WoZ", L"disk",     L"disk.",
         };
 
@@ -200,7 +210,7 @@ public:
         {
             std::wstring  wide   = candidate;
             std::string   narrow = std::filesystem::path (wide).string();
-            HRESULT       hr     = DiskImageStore::DetectFormatByExtension (narrow, fmt);
+            HRESULT       hr     = DiskImageStore::GetSourceFormatByExtension (narrow, fmt);
 
             routed  = SUCCEEDED (hr);
             offered = IsSupportedDiskImageExtension (wide);
@@ -319,7 +329,7 @@ public:
             std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag). "
                           L"Drive 1 is also write-protected in Settings > Disk."),
             ComposeWriteProtectTooltip (1, L"a.woz", wp),
-            L"an undamaged image still names its causes and still says 'also'");
+            L"an undamaged image still lists its causes and still includes 'also'");
     }
 
 

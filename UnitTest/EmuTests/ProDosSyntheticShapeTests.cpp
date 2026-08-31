@@ -309,7 +309,7 @@ public:
         Assert::AreEqual (Byte (0), got.bytes[kHoleBlocks * kBlockSize - 1]);
 
         Assert::AreEqual (Byte (0xC1), got.bytes[kHoleBlocks * kBlockSize],
-            L"and the content after it is where the file says it is");
+            L"and the content after it is where the file places it");
     }
 
     TEST_METHOD (RandomAccessText_AuxTypeIsARecordLength_NotALoadAddress)
@@ -372,6 +372,6 @@ public:
         Assert::AreEqual (Byte (0), got.bytes[kBlockSize],
             L"an unwritten record reads as zeros");
         Assert::AreEqual (Byte (0xDA), got.bytes[3 * kBlockSize],
-            L"and the record after the holes is where its index entry says");
+            L"and the record after the holes is where its index entry places it");
     }
 };

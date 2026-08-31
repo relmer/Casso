@@ -85,6 +85,25 @@ public:
     static constexpr Byte  kTypeBinary      = 0x04;
     static constexpr Byte  kTypeRelocatable = 0x10;
 
+    //
+    //  Whether a booting DOS 3.3 would actually RUN this file.
+    //
+    //  Measured against the stock master rather than reasoned about: with a
+    //  binary named as the greeting the machine boots and the program never
+    //  runs, because the command DOS issues at boot is RUN. Anything RUN does
+    //  not understand is a greeting in name only.
+    //
+    //  A name that is not on the volume answers true, because the refusal for
+    //  that belongs to the layer that looked it up and one refusal per problem
+    //  is the rule.
+    //
+    //  IT LIVES HERE SO BOTH ROUTES TO A STARTUP PROGRAM SHARE IT. The disk
+    //  command that sets one and the assembler that writes one both have to
+    //  apply this, and a second copy is how two routes to one idea come to
+    //  accept different things.
+    //
+    static bool  IsRunnableAsGreeting (const VolumeListing & listing, const std::string & name);
+
     //  Set in the type byte when the file is locked. Placement over a locked
     //  file is refused, matching how the guest behaves.
     static constexpr Byte  kLockedBit       = 0x80;

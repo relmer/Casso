@@ -28,6 +28,32 @@ it only stops *new* violations.
 | `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 0 |
 | `CS0016` | a declaration block is followed by exactly 3 blank lines | 0 |
 
+**`CS0001` checks one spelling, and that is correct, not a gap.** The pattern
+is `'\w \(\)'` -- a single space. Two or more never matches it. First-party
+`.cpp` has 0 sites with one space and 83 with two or more, across 24 files, so
+widening the pattern to `'\w +\(\)'` would appear to surface an 83-site
+backlog.
+
+It would not. Those 83 are **column alignment, which the standards require**:
+
+    Assert::IsFalse (f.mmu.GetAltZp     ());
+    prng.Fill (m_ramAuxHigh.data   (), m_ramAuxHigh.size   ());
+    DxuiMessageResult  OnPaint          () override
+
+`copilot-instructions.md` says NEVER break existing column alignment, and a
+run of padded empty parens is that rule being obeyed. The single space CS0001
+forbids is the accidental `fn ()` typo; a padded run is deliberate. Widening
+the pattern would arm the gate against the standard it serves. **Do not widen
+it.**
+
+Two things this leaves true and worth stating so nobody re-derives them. The
+`*External/*` exclusion (CheckStyle.ps1, in the file enumeration for every
+mode) is deliberate: the four one-space sites in `StbVorbisWrapper.cpp` are
+vendored stb_vorbis and correctly out of scope. And `-Mode Tree` is not
+diff-scoped -- it reports OK over all 1,146 tracked files -- so the zero is a
+real zero for what the rule means, not an artifact of the hook only reading
+the diff.
+
 `CS0011` now covers `SUCCEEDED` / `FAILED` / `IGNORE_RETURN_VALUE` as well as
 the `CHR`/`CBR`/`CWR`/`CPR` families, 246 sites, production and tests, all
 converted. Two notes on how it got there:
@@ -977,8 +1003,8 @@ neighbour `HitTest` had the same bug and is `GetHitTester`.
 
 **A rename can collide with the platform, and the second time is not a
 coincidence.** `Maximized` -> `IsMaximized` compiled into nonsense because
-`IsMaximized` is a *function-like macro* in `winuser.h` that expands to
-`IsZoomed(hwnd)`: the declaration `bool IsMaximized () const` preprocessed to
+`IsMaximized` is a *function-like macro* in `shared/windowsx.h` (line 133 of
+the 10.0.26100.0 SDK) that expands to `IsZoomed(hwnd)`: the declaration `bool IsMaximized () const` preprocessed to
 `bool IsZoomed ()`, which then shadowed the real Win32 `IsZoomed` at a call
 site 340 lines away, and the error named a function that appears nowhere in the
 source. It is `IsWindowMaximized`. The previous sweep lost the same afternoon
@@ -991,9 +1017,12 @@ grep -rhoE '^\s*#\s*define\s+[A-Za-z_]\w*' "$SDK/um" "$SDK/shared" |
     awk '{print $NF}' | sort -u > sdkdefs.txt
 ```
 
-then intersect with the proposed names. Do it in Python, not `comm` -- `comm`
-needs both files in the same collation and silently reports nothing when they
-disagree. Of 146 new names, exactly one collided.
+then intersect with the proposed names. Scan `ucrt/` as well as `um/` and
+`shared/`. Do it in Python, not `comm` -- `comm` needs both files in the same
+collation and silently reports nothing when they disagree. Of 146 new names,
+exactly one collided. Validate the scan by checking it reproduces the two
+known collisions (`IsMaximized`, `GetFreeSpace`) rather than trusting a green
+result.
 
 **Two real duplications fell out.** `DxuiHwndSource` had a public
 `GetBackBufferRtv()` and a private `BackBufferRtv()` override returning the
@@ -1008,6 +1037,21 @@ a paren-less `using DxuiMenuBar::FocusedMenu;`, and `return DefWindowProc (...)`
 inside an inline body, which the declaration scanner read as a *declaration* of
 a method named `DefWindowProc` and duly renamed at every call site. Skip any
 candidate whose line begins with `return`.
+
+**A rename moves the opening paren, and continuation lines aligned to it go
+crooked -- invisibly.** The compiler does not care, the tests do not care, and
+the realigner in this sweep only handled *declaration* blocks, where sibling
+declarations share a `(` column. It did nothing for *call sites* whose
+arguments hang under the paren of the renamed function itself. 21 such sites
+survived both sweeps and were found only after the 027 session hit the same
+thing and reported it.
+
+The check: for every renamed call whose parenthesis does not close on its own
+line, compare the following lines' indent against the paren column. A
+continuation sitting at exactly `parenColumn - (len(new) - len(old))` is
+sitting where the paren used to be, which is proof rather than suspicion.
+Hanging indents are the false positive to discard -- they indent relative to
+the statement, so a rename never moves them.
 
 **Scope the comment pass the same way as the code pass.** It was not, and it
 rewrote three comments it had no business touching: an enum value

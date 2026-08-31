@@ -61,6 +61,28 @@ public:
         Assert::AreEqual (s_kSavedY, loaded.y);
         Assert::AreEqual (s_kSavedW, loaded.w);
         Assert::AreEqual (s_kSavedH, loaded.h);
+        Assert::IsFalse  (loaded.maximized,
+                          L"a plain windowed save must not restore maximized");
+    }
+
+
+    TEST_METHOD (Save_ThenLoad_RoundTripsMaximized)
+    {
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  loaded;
+        WindowPlacementProfile::Bounds  saved  = {};
+        WindowPlacementProfile           profile (prefs);
+        saved = { s_kSavedX, s_kSavedY, s_kSavedW, s_kSavedH, true };
+
+        profile.Save (s_kpszKeyA, saved);
+
+        Assert::IsTrue (profile.TryLoad (s_kpszKeyA, loaded),
+                        L"TryLoad must report the freshly saved bounds");
+        Assert::IsTrue (loaded.maximized,
+                        L"the maximized flag rides the placement so a user who"
+                        L" always runs maximized restarts maximized");
+        Assert::AreEqual (s_kSavedX, loaded.x);
+        Assert::AreEqual (s_kSavedH, loaded.h);
     }
 
 
@@ -135,5 +157,129 @@ public:
         Assert::AreEqual (700, loaded.w);
         Assert::AreEqual (400, loaded.h);
     }
-};
 
+
+    //
+    //  FitToWorkArea -- the placement rule Ctrl+0 relies on.
+    //
+    //  Ctrl+0 sizes the window so the emulator sits at 100% inside the whole
+    //  desk scene, which can ask for more than the monitor holds. It used to
+    //  center that oversized window on the work area, which put the caption's
+    //  top-left off the top-left of the screen: a window the pointer could no
+    //  longer grab, move, or close.
+    //
+
+    static RECT MakeWork (LONG l, LONG t, LONG r, LONG b)
+    {
+        RECT  out = {};
+        out.left = l; out.top = t; out.right = r; out.bottom = b;
+        return out;
+    }
+
+
+    TEST_METHOD (FitToWorkArea_WindowThatFits_IsCentered)
+    {
+        RECT  work   = MakeWork (0, 0, 1920, 1080);
+        RECT  placed = WindowPlacementProfile::FitToWorkArea (work, 800, 600);
+
+        Assert::AreEqual (560L, placed.left);
+        Assert::AreEqual (240L, placed.top);
+        Assert::AreEqual (800L, placed.right - placed.left);
+        Assert::AreEqual (600L, placed.bottom - placed.top);
+    }
+
+
+    TEST_METHOD (FitToWorkArea_OversizedWindow_ShrinksUniformlyAndKeepsItsShape)
+    {
+        // 4:3 asked for, 16:9 available. Clamping each axis on its own would
+        // hand back the whole 1920x1080 work area and silently change the
+        // proportions -- and the desk-scene window is sized so the scene
+        // exactly fills it, so the scene would then letterbox itself inside
+        // the wrong-shaped frame, leaving dead bands down the sides and
+        // along the bottom. Height binds here: 1080/3000 scales width to
+        // 1440, and the result is still 4:3.
+        RECT  work   = MakeWork (0, 0, 1920, 1080);
+        RECT  placed = WindowPlacementProfile::FitToWorkArea (work, 4000, 3000);
+        int   w      = (int) (placed.right  - placed.left);
+        int   h      = (int) (placed.bottom - placed.top);
+
+        Assert::AreEqual (1440, w);
+        Assert::AreEqual (1080, h);
+        Assert::AreEqual (4.0 / 3.0, (double) w / (double) h, 0.01);
+
+        Assert::AreEqual (240L, placed.left, L"centered in the room left over");
+        Assert::AreEqual (0L,   placed.top);
+    }
+
+
+    TEST_METHOD (FitToWorkArea_TallWindowOnAWideScreen_KeepsItsShape)
+    {
+        // The shape the desk scene actually asks for once the monitor stands
+        // on the drives: taller than it is wide, on a landscape monitor.
+        RECT  work   = MakeWork (0, 0, 2880, 1830);
+        RECT  placed = WindowPlacementProfile::FitToWorkArea (work, 2400, 2700);
+        int   w      = (int) (placed.right  - placed.left);
+        int   h      = (int) (placed.bottom - placed.top);
+
+        Assert::AreEqual (1830, h, L"height binds");
+        Assert::AreEqual (2400.0 / 2700.0, (double) w / (double) h, 0.01);
+        Assert::IsTrue (w < 2880, L"width must come down with it, not stay pinned wide");
+    }
+
+
+    TEST_METHOD (FitToWorkArea_HonorsAWorkAreaThatIsNotAtTheOrigin)
+    {
+        // A taskbar on the left / top, or a secondary monitor at negative
+        // coordinates: every edge is the WORK AREA's, never (0, 0). An
+        // oversized request shrinks to fit and centers inside it...
+        RECT  work   = MakeWork (-1920, -200, -320, 700);
+        RECT  placed = WindowPlacementProfile::FitToWorkArea (work, 5000, 5000);
+
+        Assert::IsTrue (placed.left   >= work.left);
+        Assert::IsTrue (placed.top    >= work.top);
+        Assert::IsTrue (placed.right  <= work.right);
+        Assert::IsTrue (placed.bottom <= work.bottom);
+        Assert::AreEqual (900L, placed.bottom - placed.top, L"the short axis binds");
+
+        // ...and when it cannot fit at all, it pins to the work area's own
+        // origin rather than the desktop's.
+        RECT  pinned = WindowPlacementProfile::FitToWorkArea (work, 100, 100, 4000, 4000);
+
+        Assert::AreEqual (-1920L, pinned.left);
+        Assert::AreEqual (-200L,  pinned.top);
+    }
+
+
+    TEST_METHOD (FitToWorkArea_MinimumLargerThanMonitor_KeepsTopLeftOnScreen)
+    {
+        // The only case that can still overflow: a minimum window size the
+        // monitor cannot hold. The overflow must go RIGHT and DOWN -- the
+        // caption's top-left corner stays reachable, which is the whole
+        // point of the rule.
+        RECT  work   = MakeWork (100, 50, 900, 500);
+        RECT  placed = WindowPlacementProfile::FitToWorkArea (work, 400, 300, 1600, 1200);
+
+        Assert::AreEqual (100L, placed.left, L"top-left must never leave the work area");
+        Assert::AreEqual (50L,  placed.top,  L"top-left must never leave the work area");
+        Assert::AreEqual (1600L, placed.right  - placed.left);
+        Assert::AreEqual (1200L, placed.bottom - placed.top);
+        Assert::IsTrue (placed.right > work.right, L"overflow belongs on the right edge");
+        Assert::IsTrue (placed.bottom > work.bottom, L"overflow belongs on the bottom edge");
+    }
+
+
+    TEST_METHOD (FitToWorkArea_NeverPlacesTheOriginAboveOrLeftOfTheWorkArea)
+    {
+        // Swept across sizes from far smaller to far larger than the work
+        // area: no size may produce an unreachable caption.
+        RECT  work = MakeWork (0, 0, 1280, 720);
+
+        for (int size = 100; size <= 4000; size += 137)
+        {
+            RECT  placed = WindowPlacementProfile::FitToWorkArea (work, size, size);
+
+            Assert::IsTrue (placed.left >= work.left, L"caption pushed off the left edge");
+            Assert::IsTrue (placed.top  >= work.top,  L"caption pushed off the top edge");
+        }
+    }
+};

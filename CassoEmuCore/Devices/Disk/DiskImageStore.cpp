@@ -2,6 +2,7 @@
 
 #include "DiskImageStore.h"
 #include "NibblizationLayer.h"
+#include "NibbleImageCodec.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
@@ -46,13 +47,13 @@ DiskImageStore::DiskImageStore()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImageStore::Entry & DiskImageStore::At (int slot, int drive)
+DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive)
 {
     return m_entries[slot][drive];
 }
 
 
-const DiskImageStore::Entry & DiskImageStore::At (int slot, int drive) const
+const DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive) const
 {
     return m_entries[slot][drive];
 }
@@ -63,14 +64,27 @@ const DiskImageStore::Entry & DiskImageStore::At (int slot, int drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DetectFormatByExtension
+//  GetSourceFormatByExtension
 //
-//  Lower-cased ASCII extension match. Anything unknown defaults to E_FAIL
-//  so callers can route unsupported types explicitly.
+//  Which loader reads a file with this name. Lower-cased ASCII extension
+//  match; anything unknown answers E_FAIL so callers can route unsupported
+//  types explicitly.
+//
+//  IT ANSWERS FOR FILES THAT ALREADY EXIST, which is what "source" means here
+//  and why the name changed from DetectFormatByExtension. What a NEW image may
+//  be written as is a different and shorter list, held beside the blank-disk
+//  builder; reaching for this one to answer that question offers containers
+//  this tool can read and cannot produce.
+//
+//  IT ANSWERS THE CONTAINER FAMILY AND NOTHING MORE. For the sector formats
+//  the extension settled the geometry too, which made the old name fair. It
+//  does not for nibble images: .nib and .nb2 share one enumerator and the track
+//  size comes from the file's length. A caller that has a DiskFormat does NOT
+//  thereby know how the file is laid out, and must not infer it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat & outFmt)
+HRESULT DiskImageStore::GetSourceFormatByExtension (const string & path, DiskFormat & outFmt)
 {
     HRESULT   hr       = S_OK;
     size_t    pos      = 0;
@@ -106,6 +120,13 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
     else if (ext == "woz")
     {
         outFmt = DiskFormat::Woz;
+    }
+    else if (ext == "nib" || ext == "nb2")
+    {
+        //  Both names, one format. Which of the two track sizes the file holds
+        //  is decided by its LENGTH at load, not here -- either size circulates
+        //  under either name, so the extension cannot be trusted to say.
+        outFmt = DiskFormat::Nib;
     }
     else
     {
@@ -147,7 +168,7 @@ bool DiskImageStore::IsMountableImageExtension (const string & path)
 
 
 
-    hr = DetectFormatByExtension (path, fmt);
+    hr = GetSourceFormatByExtension (path, fmt);
 
     return SUCCEEDED (hr);
 }
@@ -237,7 +258,7 @@ HRESULT DiskImageStore::MountFromBytes (
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     {
-        Entry &   entry = At (slot, drive);
+        Entry &   entry = GetEntry (slot, drive);
 
         if (entry.mounted)
         {
@@ -328,7 +349,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
 
     outDiagnosis = MountDiagnosis();
 
-    hr = DetectFormatByExtension (path, fmt);
+    hr = GetSourceFormatByExtension (path, fmt);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
 
     outDiagnosis.format = fmt;
@@ -343,7 +364,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  line's read-then-stamp order. A stamp taken before the read could
     //  describe a file the loaded bytes did not come from, and a stamp
     //  recorded for a mount that failed would sit on an empty bay.
-    At (slot, drive).sharedState.Mount (ReadIdentity (path));
+    GetEntry (slot, drive).sharedState.Mount (ReadIdentity (path));
 
     //  Mount registers the watch. It is orchestration rather than platform
     //  work, so it lives here and not in whatever built the watcher.
@@ -376,8 +397,11 @@ Error:
 MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes)
 {
     MountDiagnosis  diagnosis;
-    size_t          size      = bytes.size();
-    bool            isSized   = size == (size_t) NibblizationLayer::kImageByteSize;
+    HRESULT         hrGeometry = S_OK;
+    size_t          size       = bytes.size();
+    size_t          trackSize  = 0;
+    bool            hasNibble  = false;
+    bool            isSized    = size == (size_t) NibblizationLayer::kImageByteSize;
 
 
 
@@ -395,6 +419,25 @@ MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector
     else if (fmt == DiskFormat::Woz)
     {
         diagnosis.failure = WozLoader::ClassifyLoadFailure (bytes);
+    }
+    else if (fmt == DiskFormat::Nib)
+    {
+        //  Two valid lengths rather than one, and a content check that is the
+        //  only one this format allows: a file carrying no high bit anywhere
+        //  cannot be read by any drive. Anything past that is indistinguishable
+        //  from a real image without booting it.
+        hasNibble  = NibbleImageCodec::HasAnyNibble (bytes);
+        hrGeometry = NibbleImageCodec::ResolveGeometry (size, trackSize);
+        isSized    = SUCCEEDED (hrGeometry);
+
+        if (!isSized)
+        {
+            diagnosis.failure = MountFailure::WrongSizeForNibble;
+        }
+        else if (!hasNibble)
+        {
+            diagnosis.failure = MountFailure::NotANibbleStream;
+        }
     }
     else if (!isSized)
     {
@@ -931,7 +974,7 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
-    hr = FlushEntry (At (slot, drive));
+    hr = FlushEntry (GetEntry (slot, drive));
 
 Error:
     return hr;
@@ -976,7 +1019,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1126,7 +1169,7 @@ bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
         return false;
     }
 
-    return At (slot, drive).salvageOffered;
+    return GetEntry (slot, drive).salvageOffered;
 }
 
 
@@ -1165,7 +1208,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1235,7 +1278,7 @@ HRESULT DiskImageStore::SalvageToFile (
     CBRAEx (hasPath, E_INVALIDARG);
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1429,9 +1472,9 @@ void DiskImageStore::Eject (int slot, int drive)
 
 
     // An out-of-range bay and an empty one are both nothing to eject.
-    if (IsValidBay (slot, drive) && At (slot, drive).mounted)
+    if (IsValidBay (slot, drive) && GetEntry (slot, drive).mounted)
     {
-        Entry &   entry = At (slot, drive);
+        Entry &   entry = GetEntry (slot, drive);
 
         // Flush failures are reported to the user by FlushEntry itself; the
         // eject proceeds either way, because refusing to unmount would leave
@@ -1532,7 +1575,7 @@ bool DiskImageStore::IsValidBay (int slot, int drive)
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
     // Null for a bad bay is the same answer as for an empty one: no image.
-    return IsValidBay (slot, drive) ? At (slot, drive).image.get() : nullptr;
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).image.get() : nullptr;
 }
 
 
@@ -1547,7 +1590,7 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
-    return IsValidBay (slot, drive) && At (slot, drive).mounted;
+    return IsValidBay (slot, drive) && GetEntry (slot, drive).mounted;
 }
 
 
@@ -1564,7 +1607,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
     // Returns a reference, so a bad bay yields the member empty string rather
     // than a temporary.
-    return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).path : m_emptyPath;
 }
 
 
@@ -1573,7 +1616,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountedSourcePaths
+//  GetMountedSourcePaths
 //
 //  Every mounted entry's backing path with its bay. Entries mounted from
 //  bytes with an empty virtual path are skipped -- there is no host file to
@@ -1581,7 +1624,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() const
+std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths() const
 {
     std::vector<MountedSource>  result;
     int                         slot   = 0;
@@ -1593,7 +1636,7 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() 
     {
         for (drive = 0; drive < kDriveCount; drive++)
         {
-            const Entry &  entry = At (slot, drive);
+            const Entry &  entry = GetEntry (slot, drive);
 
             if (entry.mounted && !entry.path.empty())
             {
@@ -1645,7 +1688,7 @@ ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::SharedState
+//  DiskImageStore::GetSharedState
 //
 //  What a bay knows about its image beyond the bytes.
 //
@@ -1654,7 +1697,7 @@ ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MountedImageState * DiskImageStore::SharedState (int slot, int drive)
+MountedImageState * DiskImageStore::GetSharedState (int slot, int drive)
 {
     MountedImageState *  state = nullptr;
 
@@ -1662,7 +1705,7 @@ MountedImageState * DiskImageStore::SharedState (int slot, int drive)
 
     if (IsValidBay (slot, drive))
     {
-        state = &At (slot, drive).sharedState;
+        state = &GetEntry (slot, drive).sharedState;
     }
 
     return state;
@@ -1674,13 +1717,13 @@ MountedImageState * DiskImageStore::SharedState (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::SharedState  (const)
+//  DiskImageStore::GetSharedState  (const)
 //
 //  The same answer for a caller that only reads it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const MountedImageState * DiskImageStore::SharedState (int slot, int drive) const
+const MountedImageState * DiskImageStore::GetSharedState (int slot, int drive) const
 {
     const MountedImageState *  state = nullptr;
 
@@ -1688,7 +1731,7 @@ const MountedImageState * DiskImageStore::SharedState (int slot, int drive) cons
 
     if (IsValidBay (slot, drive))
     {
-        state = &At (slot, drive).sharedState;
+        state = &GetEntry (slot, drive).sharedState;
     }
 
     return state;
@@ -1898,7 +1941,7 @@ void DiskImageStore::ApplyPendingPickUp()
 void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 {
     HRESULT                            hr        = S_OK;
-    Entry                            & entry     = At (slot, drive);
+    Entry                            & entry     = GetEntry (slot, drive);
     bool                               settled   = false;
     bool                               held      = false;
     bool                               usable    = false;
@@ -1954,7 +1997,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
     if (SUCCEEDED (hr))
     {
-        hr = DetectFormatByExtension (entry.path, fmt);
+        hr = GetSourceFormatByExtension (entry.path, fmt);
     }
 
     if (SUCCEEDED (hr))
@@ -2042,7 +2085,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
     }
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         entry.sharedState.SetAskOutstanding (false);
 
@@ -2135,7 +2178,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
                                            const vector<Byte> & bytes)
 {
     HRESULT  hr           = S_OK;
-    Entry &  entry        = At (slot, drive);
+    Entry &  entry        = GetEntry (slot, drive);
     bool     restarted    = false;
     bool     tookUp       = false;
     bool     preserved    = false;
@@ -2289,7 +2332,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> & bytes)
 {
     HRESULT                  hr         = S_OK;
-    Entry                  & entry      = At (slot, drive);
+    Entry                  & entry      = GetEntry (slot, drive);
     SalvageAssessment        assessment;
     HRESULT                  hrAssess   = S_OK;
     bool                     usable     = false;
@@ -2336,7 +2379,7 @@ void DiskImageStore::ClearChangeReport (int slot, int drive)
 {
     if (IsValidBay (slot, drive))
     {
-        At (slot, drive).sharedState.SetReportStanding (false);
+        GetEntry (slot, drive).sharedState.SetReportStanding (false);
     }
 
     return;
@@ -2361,7 +2404,7 @@ void DiskImageStore::ClearChangeReport (int slot, int drive)
 
 void DiskImageStore::BeginWatching (int slot, int drive)
 {
-    Entry &  entry     = At (slot, drive);
+    Entry &  entry     = GetEntry (slot, drive);
     string   directory = MountedImageState::DirectoryOf (entry.path);
     bool     watching  = false;
 
@@ -2399,7 +2442,7 @@ void DiskImageStore::BeginWatching (int slot, int drive)
 
 void DiskImageStore::EndWatching (int slot, int drive)
 {
-    Entry   & entry      = At (slot, drive);
+    Entry   & entry      = GetEntry (slot, drive);
     string    directory  = MountedImageState::DirectoryOf (entry.path);
     bool      stillUsed  = false;
     int       otherSlot  = 0;
@@ -2652,7 +2695,7 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
     }
 
     {
-        Entry &  entry = At (slot, drive);
+        Entry &  entry = GetEntry (slot, drive);
 
         EndWatching (slot, drive);
 

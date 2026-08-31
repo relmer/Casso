@@ -2,10 +2,21 @@
 
 #include "CrtPostProcess.h"
 
-#include "Config/CrtPresets.h"
-#include "Shaders/ShaderResourceIds.h"
+// The nine passes plus the shared full-screen vertex shader, all compiled
+// to bytecode by fxc at build time (see Casso.vcxproj). The vertex shader
+// is the emulator blit's: same full-screen quad, same input layout.
+#include "blit.vs.h"
+#include "brightness.h"
+#include "scanlines.h"
+#include "bloom_h.h"
+#include "bloom_v.h"
+#include "bloom_composite.h"
+#include "color_bleed.h"
+#include "persistence.h"
+#include "gamma.h"
+#include "copy.h"
 
-#pragma comment(lib, "d3dcompiler.lib")
+#include "Config/CrtPresets.h"
 
 
 
@@ -13,93 +24,16 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Embedded shader plumbing. Pixel shader source lives in Casso/Shaders/CRT
-//  and is embedded as RCDATA so the .hlsl files are the single source of truth.
+//  Shader plumbing. The pixel shader sources live in Casso/Shaders/CRT and
+//  are compiled to bytecode by fxc at build time (see Shaders.targets), so
+//  the .hlsl files remain the single source of truth without the app ever
+//  reading HLSL.
 //
 //  Shared vertex shader: emits a fullscreen triangle from the indexed quad
 //  upload in CrtPostProcess::Initialize. Same input layout as the existing
 //  D3DRenderer.cpp emulator-blit VS.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-// A 10-line payload, so it stays a file-scope `static constexpr` under the
-// documented 3+ line exception rather than moving onto CrtPostProcess.
-static constexpr const char *  s_kpszVertexShaderSrc =
-    "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-    "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-    "VSOutput main (VSInput i)\n"
-    "{\n"
-    "    VSOutput o;\n"
-    "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-    "    o.uv  = i.uv;\n"
-    "    return o;\n"
-    "}\n";
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadShaderSource
-//
-//  Points at one HLSL source blob embedded in the executable as an RT_RCDATA
-//  resource.
-//
-//  Shaders ship as source rather than bytecode so they can be edited and
-//  recompiled without a separate build step, and they are embedded rather than
-//  shipped as files so the executable cannot be run against a mismatched or
-//  missing .hlsl.
-//
-//  No copy is made and nothing is freed. Module resources are mapped for the
-//  lifetime of the loaded module, so LockResource yields a pointer that stays
-//  valid -- and there is no matching UnlockResource to pair with. The returned
-//  span therefore aliases into the image, which is safe exactly because the
-//  caller compiles from it immediately.
-//
-//  Every failure asserts. All of these are load-time facts about our own
-//  binary: a missing shader resource means the build is broken, not that the
-//  user did something.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CrtPostProcess::LoadShaderSource (int resourceId, ShaderSource * outSource)
-{
-    HRESULT    hr        = S_OK;
-    HINSTANCE  hInstance = nullptr;
-    HRSRC      hRes      = nullptr;
-    HGLOBAL    hMem      = nullptr;
-    DWORD      cbData    = 0;
-    void     * pData     = nullptr;
-
-
-
-    CBRAEx (outSource, E_INVALIDARG);
-
-    outSource->pData  = nullptr;
-    outSource->cbData = 0;
-
-    hInstance = GetModuleHandleW (nullptr);
-    CBRA (hInstance);
-
-    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-    CWRA (hRes);
-
-    cbData = SizeofResource (hInstance, hRes);
-    CBRA (cbData > 0);
-
-    hMem = LoadResource (hInstance, hRes);
-    CWRA (hMem);
-
-    pData = LockResource (hMem);
-    CWRA (pData);
-
-    outSource->pData  = pData;
-    outSource->cbData = static_cast<size_t> (cbData);
-
-Error:
-    return hr;
-}
 
 
 
@@ -317,6 +251,37 @@ RECT ComputeAspectFitRectInRect (const RECT & contentRect, int aspectW, int aspe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeUvRectForFit
+//
+//  Degenerate texture dimensions yield the full-texture default rather than a
+//  divide-by-zero; the scene draws the whole (empty) texture and shows
+//  nothing, which is the same graceful nothing the fit functions produce.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtUvRect ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textureH)
+{
+    CrtUvRect  uv;
+
+
+
+    if (textureW > 0 && textureH > 0)
+    {
+        uv.u0 = (float) fittedRect.left   / (float) textureW;
+        uv.v0 = (float) fittedRect.top    / (float) textureH;
+        uv.u1 = (float) fittedRect.right  / (float) textureW;
+        uv.v1 = (float) fittedRect.bottom / (float) textureH;
+    }
+
+    return uv;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CrtPostProcess
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,65 +311,35 @@ CrtPostProcess::~CrtPostProcess()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CompilePixelShader
+//  CreatePixelShaderFromBytecode
 //
-//  Loads one embedded HLSL blob and compiles it to a pixel shader.
+//  Creates one pass's pixel shader from the bytecode fxc produced at build
+//  time.
 //
-//  Compilation happens at RUNTIME rather than at build time, which is the
-//  trade that makes the CRT pipeline editable: a shader can be changed and
-//  recompiled without a build step, at the cost of a few milliseconds during
-//  Initialize.
+//  Compilation used to happen at RUNTIME, and the trade was said to be that a
+//  shader could then be changed and recompiled without a build step. That was
+//  never true: the HLSL shipped as an RCDATA resource, so editing one always
+//  meant rebuilding anyway. What it did buy was 88 ms of every launch.
 //
-//  sourceName is passed to the compiler purely so its diagnostics name the
-//  shader; without it, an error in any of the nine passes reports against an
-//  anonymous blob and says nothing about which one failed.
-//
-//  ps_4_0 is the target, matching the feature level the renderer requires;
-//  nothing in these shaders needs a later model, and asking for one would
-//  narrow the hardware that runs.
-//
-//  Everything asserts, for the same reason as LoadShaderSource: a shader that
-//  will not compile is a broken build.
+//  Everything asserts: a shader the device refuses is a broken build.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CrtPostProcess::CompilePixelShader (
-    int                  resourceId,
-    const char         * sourceName,
-    ID3D11PixelShader ** out)
+HRESULT CrtPostProcess::CreatePixelShaderFromBytecode (
+    const void         *  bytecode,
+    size_t                size,
+    ID3D11PixelShader **  out)
 {
-    HRESULT             hr     = S_OK;
-    ShaderSource        source = {};
-    ComPtr<ID3DBlob>    blob;
-    ComPtr<ID3DBlob>    errors;
+    HRESULT   hr = S_OK;
 
 
 
-    CBRAEx (sourceName, E_INVALIDARG);
-    CBRAEx (out,        E_INVALIDARG);
+    CBRAEx (bytecode != nullptr && size > 0, E_INVALIDARG);
+    CBRAEx (out, E_INVALIDARG);
 
     *out = nullptr;
 
-    hr = LoadShaderSource (resourceId, &source);
-    CHRA (hr);
-
-    hr = D3DCompile (source.pData,
-                     source.cbData,
-                     sourceName,
-                     nullptr,
-                     nullptr,
-                     "main",
-                     "ps_4_0",
-                     0,
-                     0,
-                     &blob,
-                     &errors);
-    CHRA (hr);
-
-    hr = m_device->CreatePixelShader (blob->GetBufferPointer(),
-                                      blob->GetBufferSize(),
-                                      nullptr,
-                                      out);
+    hr = m_device->CreatePixelShader (bytecode, size, nullptr, out);
     CHRA (hr);
 
 Error:
@@ -450,8 +385,6 @@ HRESULT CrtPostProcess::Initialize (
     ID3D11DeviceContext  * context)
 {
     HRESULT                hr       = S_OK;
-    ComPtr<ID3DBlob>       vsBlob;
-    ComPtr<ID3DBlob>       errors;
     D3D11_BUFFER_DESC      bd       = {};
     D3D11_SUBRESOURCE_DATA initData = {};
     D3D11_SAMPLER_DESC     sd       = {};
@@ -483,32 +416,24 @@ HRESULT CrtPostProcess::Initialize (
     m_context = context;
 
     // VS (shared).
-    hr = D3DCompile (s_kpszVertexShaderSrc, strlen (s_kpszVertexShaderSrc),
-                     "CrtPostProcess.hlsl", nullptr, nullptr, "main",
-                     "vs_4_0", 0, 0, &vsBlob, &errors);
-    CHRA (hr);
-
-    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(),
-                                       vsBlob->GetBufferSize(),
-                                       nullptr, &m_vs);
+    hr = m_device->CreateVertexShader (g_BlitVs, sizeof (g_BlitVs), nullptr, &m_vs);
     CHRA (hr);
 
     hr = m_device->CreateInputLayout (layout, 2,
-                                      vsBlob->GetBufferPointer(),
-                                      vsBlob->GetBufferSize(),
+                                      g_BlitVs, sizeof (g_BlitVs),
                                       &m_inputLayout);
     CHRA (hr);
 
     // Pixel shaders.
-    hr = CompilePixelShader (IDR_HLSL_BRIGHTNESS,      "brightness.hlsl",       &m_psBrightness);   CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_SCANLINES,       "scanlines.hlsl",        &m_psScanlines);    CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_BLOOM_H,         "bloom_h.hlsl",          &m_psBloomH);       CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_BLOOM_V,         "bloom_v.hlsl",          &m_psBloomV);       CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_BLOOM_COMPOSITE, "bloom_composite.hlsl",  &m_psBloomComp);    CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_COLOR_BLEED,     "color_bleed.hlsl",      &m_psColorBleed);   CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_PERSISTENCE,     "persistence.hlsl",      &m_psPersistence);  CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_GAMMA,           "gamma.hlsl",            &m_psGamma);        CHRA (hr);
-    hr = CompilePixelShader (IDR_HLSL_COPY,            "copy.hlsl",             &m_psCopy);         CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtBrightness,     sizeof (g_CrtBrightness),     &m_psBrightness);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtScanlines,      sizeof (g_CrtScanlines),      &m_psScanlines);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtBloomH,         sizeof (g_CrtBloomH),         &m_psBloomH);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtBloomV,         sizeof (g_CrtBloomV),         &m_psBloomV);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtBloomComposite, sizeof (g_CrtBloomComposite), &m_psBloomComp);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtColorBleed,     sizeof (g_CrtColorBleed),     &m_psColorBleed);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtPersistence,    sizeof (g_CrtPersistence),    &m_psPersistence);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtGamma,          sizeof (g_CrtGamma),          &m_psGamma);   CHRA (hr);
+    hr = CreatePixelShaderFromBytecode (g_CrtCopy,           sizeof (g_CrtCopy),           &m_psCopy);   CHRA (hr);
 
     // Quad geometry.
     bd.ByteWidth = sizeof (vertices);
@@ -822,8 +747,9 @@ HRESULT CrtPostProcess::Process (
     int                         backBufferW,
     int                         backBufferH)
 {
-    HRESULT  hr   = S_OK;
-    int      cur  = 0;
+    HRESULT    hr    = S_OK;
+    int        cur   = 0;
+    CrtParams  local = params;
 
 
 
@@ -835,7 +761,15 @@ HRESULT CrtPostProcess::Process (
     hr = EnsureSize (backBufferW, backBufferH);
     CHRA (hr);
 
-    hr = UploadConstants (params);
+    // outputW/H describe THIS target, not the window. The blur kernels step
+    // by one of its texels, so a caller that measured the back buffer while
+    // the chain runs at picture size would blur by a fifth of the distance it
+    // meant to. The chain is the only thing that knows what it is drawing
+    // into, so it settles the question here rather than trusting the caller.
+    local.outputW = (backBufferW > 0) ? (float) backBufferW : 1.0f;
+    local.outputH = (backBufferH > 0) ? (float) backBufferH : 1.0f;
+
+    hr = UploadConstants (local);
     CHRA (hr);
 
     // Brightness pass: srcEmulator -> ppMain[0], in the letterboxed

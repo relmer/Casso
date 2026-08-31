@@ -707,7 +707,7 @@ public:
         result = runner.Run (options);
 
         Assert::IsTrue (result.diagnostics.find ("<image>") != std::string::npos,
-                        L"the first operand is named");
+                        L"the first operand is identified");
         Assert::IsTrue (result.diagnostics.find ("<name>") != std::string::npos,
                         L"and so is the second");
         Assert::IsTrue (result.diagnostics.find ("parameters") != std::string::npos,
@@ -888,7 +888,7 @@ public:
 
         DiskCommandResult  result = runner.Run (options);
 
-        Assert::AreEqual (0, result.exitStatus, L"asking for help is not a failure");
+        Assert::AreEqual (0, result.exitStatus, L"a request for help is not a failure");
         Assert::AreEqual (std::string(), result.diagnostics, L"and it is not a complaint");
         Assert::AreEqual (DiskHelpPage::BuildHelpText ('-'), result.output,
                           L"the disk section of the help, on the output stream");
@@ -924,7 +924,7 @@ public:
         DiskCommandResult   result = runner.Run (options);
         std::string         page   = DiskHelpPage::BuildHelpText();
 
-        Assert::AreEqual (2, result.exitStatus, L"a word that names no command produces nothing");
+        Assert::AreEqual (2, result.exitStatus, L"a word that matches no command produces nothing");
         Assert::IsTrue (result.badCommandLine, L"and the edge is told to print the page");
 
         for (const auto & command : CommandLineParser::GetAllDiskCommands())
@@ -1002,7 +1002,7 @@ public:
                         L"and the page itself is still under it");
 
         Assert::IsTrue (bare.starts_with ("Usage:"),
-                        L"no banner asked for, none printed and nothing left in its place");
+                        L"no banner requested, none printed and nothing left in its place");
     }
 
 

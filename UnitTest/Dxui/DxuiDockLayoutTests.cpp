@@ -325,7 +325,7 @@ public:
         layout.SetDock (bottom, DxuiDock::Bottom);
 
         result = layout.GetContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 560,            result.cx);
         Assert::AreEqual ((LONG) 384 + 24 + 32,  result.cy);
@@ -347,7 +347,7 @@ public:
         layout.SetDock (right, DxuiDock::Right);
 
         result = layout.GetContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 560 + 40 + 50, result.cx);
         Assert::AreEqual ((LONG) 384,           result.cy);
@@ -381,7 +381,7 @@ public:
         layout.SetDock (fill,   DxuiDock::Fill);
 
         container   = layout.GetContainerSizeForFill (desiredFill,
-                                                   std::span<IDxuiControl * const> (nonFill, 4));
+                                                      std::span<IDxuiControl * const> (nonFill, 4));
         bounds      = MakeRect (0, 0, container.cx, container.cy);
 
         layout.Arrange (bounds, scaler, std::span<IDxuiControl * const> (all, 5));
@@ -406,7 +406,7 @@ public:
         layout.SetDock (stray, DxuiDock::Fill);     // explicit Fill: must be ignored
 
         result = layout.GetContainerSizeForFill (desired,
-                                              std::span<IDxuiControl * const> (kids, 2));
+                                                 std::span<IDxuiControl * const> (kids, 2));
 
         Assert::AreEqual ((LONG) 100,        result.cx);
         Assert::AreEqual ((LONG) 100 + 10,   result.cy);

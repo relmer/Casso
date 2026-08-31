@@ -206,8 +206,6 @@ namespace MerlinSubsetBoundaryTests
 
                 AssertSaysSomething (row.spelling,    L"spelling");
                 AssertSaysSomething (row.construct,   L"construct");
-                AssertSaysSomething (row.explanation, L"explanation");
-                AssertSaysSomething (row.widensWith,  L"what would widen the boundary");
             }
         }
 
@@ -222,7 +220,7 @@ namespace MerlinSubsetBoundaryTests
                 for (size_t j = i + 1; j < rows.size(); j++)
                 {
                     Assert::IsTrue (rows[i].token != rows[j].token,
-                                    L"two rows for one token make the lookup answer with whichever comes first");
+                                    L"two rows for one token make the lookup return whichever comes first");
                 }
             }
         }
@@ -237,14 +235,25 @@ namespace MerlinSubsetBoundaryTests
         {
             const Directive  kRefusedByName[] = { Directive::Relocatable,
                                                   Directive::EntrySymbol,
-                                                  Directive::ExternalSymbol,
-                                                  Directive::FileType,
-                                                  Directive::SaveObject };
+                                                  Directive::ExternalSymbol };
+
+            //  The two directives that left. Each is recognized and HANDLED
+            //  now, so a row for either would refuse something the assembler
+            //  implements -- which is why this asserts their ABSENCE rather
+            //  than simply not mentioning them.
+            const Directive  kImplemented[] = { Directive::FileType,
+                                                Directive::SaveObject };
 
             for (Directive token : kRefusedByName)
             {
                 Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) != nullptr,
                                 L"a construct recognized only so it can be refused, with nothing to refuse it");
+            }
+
+            for (Directive token : kImplemented)
+            {
+                Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) == nullptr,
+                                L"an implemented directive must not also be refused");
             }
         }
 
@@ -298,9 +307,20 @@ namespace MerlinSubsetBoundaryTests
 
                 Assert::IsTrue (refusals[0].message.starts_with (std::string (row.spelling) + ":"),
                                 what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.construct)   != std::string::npos, what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.explanation) != std::string::npos, what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.widensWith)  != std::string::npos, what.c_str());
+                Assert::IsTrue (refusals[0].message.find (row.construct) != std::string::npos, what.c_str());
+
+                //  A row that has an issue cites it, and a row that has none
+                //  points nowhere rather than inventing somewhere to point.
+                if (row.githubIssue != nullptr)
+                {
+                    Assert::IsTrue (refusals[0].message.find (std::string ("(GitHub issue #") + row.githubIssue + ")")
+                                        != std::string::npos,
+                                    what.c_str());
+                }
+                else
+                {
+                    Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos, what.c_str());
+                }
 
                 //  The refused occurrence, which for a cumulative construct is
                 //  the second line rather than the first.
@@ -334,7 +354,7 @@ namespace MerlinSubsetBoundaryTests
         //  run turns that into as many runs as there are constructs.
         TEST_METHOD (EveryOffenderInTheSourceIsReported)
         {
-            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n TYP\n SAV\n");
+            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n EXT\n EXT\n");
             std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
             Assert::AreEqual ((size_t) 5, refusals.size(), L"one refusal per offending line");
@@ -478,7 +498,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual (2, refusals[0].lineNumber, L"reported at the second occurrence, not the first");
 
             Assert::IsTrue (refusals[0].message.find ("65802/65816") != std::string::npos,
-                            L"the refusal has to name the processor it would have selected");
+                            L"the refusal has to identify the processor it would have selected");
         }
 
 
@@ -523,30 +543,29 @@ namespace MerlinSubsetBoundaryTests
     {
     public:
 
-        TEST_METHOD (TheFileTypeDirectiveIsRefusedAsBelongingToDiskFileAccess)
+        //  The file-type directive left the boundary when the assembler gained
+        //  somewhere for a type to land. It is assembled now, not refused.
+        TEST_METHOD (TheFileTypeDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" TYP $06\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n TYP $06\n LDA #$11\n RTS\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the file-type directive");
-
-            Assert::IsTrue (refusals[0].message.find ("filesystem file type") != std::string::npos,
-                            L"the refusal has to say what the directive sets");
-            Assert::IsTrue (refusals[0].message.find ("disk file-access") != std::string::npos,
-                            L"and where the capability it needs is being built");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the file-type directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
         }
 
 
 
-        TEST_METHOD (TheSaveObjectDirectiveIsRefusedAsAnUndecidedQuestionRatherThanAWait)
+        //  The save-object directive left the boundary once multi-output
+        //  assembly was decided. It writes an output and carries on now.
+        TEST_METHOD (TheSaveObjectDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" SAV OUT\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV OUT\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the save-object directive");
-
-            Assert::IsTrue (refusals[0].message.find ("several outputs") != std::string::npos,
-                            L"the refusal has to say what makes this its own question");
-            Assert::IsTrue (refusals[0].message.find ("disk file access will not settle") != std::string::npos,
-                            L"and deny the reading that it is merely waiting on file access");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the save-object directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
+            Assert::AreEqual ((size_t) 1, result.savePoints.size(), L"producing the output it named");
         }
     };
 
@@ -594,7 +613,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual ((size_t) 0, Fixture::CountQuoting (refusals, kFixLine),
                               L"a fix that cannot work must not be offered");
             Assert::AreEqual ((size_t) 2, Fixture::CountQuoting (refusals, kNoFixLine),
-                              L"the two refusals that would have carried a fix say why there is none");
+                              L"the two refusals that would have carried a fix explain why there is none");
         }
 
 
@@ -609,7 +628,7 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreEqual (Fixture::CountQuoting (refusals, kNoFixLine),
                               Fixture::CountQuoting (above, kNoFixLine),
-                              L"where the external declaration sits cannot change what the others say");
+                              L"where the external declaration sits cannot change what the others report");
         }
 
 
@@ -637,7 +656,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual ((size_t) 0, Fixture::CountQuoting (refusals, kFixLine),
                               L"this module imports, so the fix cannot work and must not be offered");
             Assert::AreEqual ((size_t) 2, Fixture::CountQuoting (refusals, kNoFixLine),
-                              L"the relocatable directive and the entry symbol say why there is none");
+                              L"the relocatable directive and the entry symbol explain why there is none");
         }
 
 
@@ -654,103 +673,6 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreNotEqual (exporting[0].message, importing[0].message,
                                  L"one project, two shapes, two messages");
-        }
-    };
-
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  BoundaryHelpTextTests
-    //
-    //  The help text against the table it is generated from. A row added without
-    //  help coverage fails here rather than shipping, which is the property the
-    //  generation exists for -- help and implementation cannot disagree by
-    //  construction rather than by anyone noticing.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    TEST_CLASS (BoundaryHelpTextTests)
-    {
-    public:
-
-        //  The line of the help text that mentions a row's construct, or empty
-        //  when no line does. Located by the construct rather than by the
-        //  spelling, which is three characters and matches inside words.
-        static std::string LineNaming (const std::string & help, const char * construct)
-        {
-            std::string  line;
-            size_t       at    = help.find (construct);
-            size_t       start = 0;
-            size_t       end   = 0;
-
-            if (at != std::string::npos)
-            {
-                start = help.rfind ('\n', at);
-                start = (start == std::string::npos) ? 0 : start + 1;
-                end   = help.find ('\n', at);
-                end   = (end == std::string::npos) ? help.size() : end;
-                line  = help.substr (start, end - start);
-            }
-
-            return line;
-        }
-
-
-
-        TEST_METHOD (EveryRowReachesTheHelpTextWholeAndOnOneLine)
-        {
-            std::string                         help = MerlinSubsetBoundary::GetHelpText();
-            std::span<const SubsetBoundaryRow>  rows = MerlinSubsetBoundary::GetAll();
-
-            Assert::IsFalse (rows.empty(), L"nothing to check the help text against");
-
-            for (const SubsetBoundaryRow & row : rows)
-            {
-                std::string   line = LineNaming (help, row.construct);
-                std::wstring  what = std::wstring (row.spelling, row.spelling + std::strlen (row.spelling));
-
-                Assert::IsFalse (line.empty(), what.c_str());
-
-                //  All four on the SAME line, so a help text that listed every
-                //  spelling and every reason in two unrelated columns could not
-                //  pass by holding both somewhere.
-                Assert::IsTrue (line.find (row.spelling)    != std::string::npos, what.c_str());
-                Assert::IsTrue (line.find (row.explanation) != std::string::npos, what.c_str());
-                Assert::IsTrue (line.find (row.widensWith)  != std::string::npos, what.c_str());
-            }
-        }
-
-
-
-        TEST_METHOD (TheHelpTextHasOneLinePerRowAndNoOthers)
-        {
-            std::string  help  = MerlinSubsetBoundary::GetHelpText();
-            size_t       lines = 0;
-            size_t       at    = help.find ("  ");
-
-            while (at != std::string::npos)
-            {
-                lines++;
-                at = help.find ("\n  ", at + 1);
-            }
-
-            Assert::AreEqual (MerlinSubsetBoundary::GetAll().size(), lines,
-                              L"a listed construct with no row, or a row with no listing");
-        }
-
-
-
-        TEST_METHOD (TheHelpTextNamesTheReasonClassOfEveryRow)
-        {
-            std::string  help = MerlinSubsetBoundary::GetHelpText();
-
-            Assert::IsTrue (help.find ("needs a linker")                     != std::string::npos, L"linker");
-            Assert::IsTrue (help.find ("needs a CPU Casso does not emulate") != std::string::npos, L"cpu");
-            Assert::IsTrue (help.find ("owned by another part of Casso")     != std::string::npos, L"another feature");
-            Assert::IsTrue (help.find ("undecided")                          != std::string::npos, L"undecided");
         }
     };
 

@@ -463,14 +463,14 @@ public:
 
 
 
-        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Ask));
-        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Deleted));
-        prompts.push_back (ChangePrompt::Compose ("C:\work\loader.dsk", 0, ChangeAction::Unusable));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\work\loader.dsk", 0, false));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\work\loader.dsk", 0, true));
-        prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\work\loader.dsk", 0,
-                                                                "C:\work\loader.x.dsk", false));
-        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\work\loader.dsk", 0));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Ask));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Deleted));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Unusable));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, false));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, true));
+        prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\loader.dsk", 0,
+                                                                "C:\\work\\loader.x.dsk", false));
+        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\\work\\loader.dsk", 0));
 
         //  THE FILENAME IS LOWER CASE ON PURPOSE. A sentence may not open with
         //  it: capitalizing would misspell the file, and leaving it would open

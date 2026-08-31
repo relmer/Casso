@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Fails if changed code violates the mechanically-checkable subset of the
     Casso coding standards in .github/copilot-instructions.md.
@@ -82,8 +82,32 @@ param(
     # tree-wide, since a gate that fails on pre-existing violations is one
     # people switch off. That backlog is now zero over all tracked files, so
     # the switch inverts: `-NoStructural` opts out.
-    [switch]$NoStructural
+    [switch]$NoStructural,
+
+    [switch]$NormalPriority,
+
+    [switch]$LowPriority
 )
+
+#
+#  OFF THE FOREGROUND'S BACK. This saturates every core and the disk with
+#  it, and nothing about it is latency-sensitive -- nobody watches a build.
+#  Lowered here rather than around the tool because Windows hands a child
+#  its parent's priority class, so this reaches MSBuild, every cl.exe it
+#  fans out, and vstest and its hosts. See scripts/HostLoad.ps1.
+#
+. (Join-Path $PSScriptRoot 'HostLoad.ps1')
+
+$priorityWas = $null
+
+if (-not $NormalPriority) {
+    $priorityWas = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
+}
+
+#  Put it back on the way out however this ends -- these are run from an
+#  interactive shell as often as from a fresh one, and a session left at
+#  BelowNormal for the rest of the day is a slow shell nobody can explain.
+trap { Restore-CassoHostLoad -Priority $priorityWas; break }
 
 $Structural = -not $NoStructural
 
@@ -100,6 +124,30 @@ $checks = @(
         Globs   = @('*.cpp')
         Pattern = '\w \(\)'
         Message = 'space before empty parens -- write fn() not fn ()'
+        Exclude = @()
+    },
+    @{
+        # CS0021: a lookup table in an executable. A switch arm returning a
+        # string literal is a mapping -- format to name, filling to caption --
+        # and a mapping is a decision, which Principle VI says lives in a core
+        # library where the UnitTest project can reach it.
+        #
+        # THIS IS NOT PEDANTRY ABOUT WHERE FILES GO. Both instances that
+        # prompted the rule ended in a default arm answering with another
+        # entry's name, so a value added without an arm was silently rendered
+        # as something else rather than refused -- and being in the exe, which
+        # the test assembly does not link, nothing could reach them to notice.
+        # One shipped a create dialog that would have named a nibble image
+        # ".woz".
+        #
+        # Narrow on purpose: only `case X::Y: return "..."`. A switch that
+        # dispatches, computes, or returns non-literals is untouched, so the
+        # check stays quiet enough to survive.
+        Id      = 'CS0021'
+        Globs   = @('*.cpp')
+        Include = @('Casso/', 'CassoCli/')
+        Pattern = 'case [A-Za-z_][A-Za-z0-9_]*::[A-Za-z0-9_]+: *return +L?"'
+        Message = 'lookup table in an executable -- move the mapping into a core library where a test can reach it'
         Exclude = @()
     },
     @{
@@ -236,6 +284,32 @@ $violations = @()
 
 ####################################################################
 #
+#  Test-Included -- does this path fall under a check's own scope?
+#
+#  PREFIX matching, where Test-Excluded matches a suffix. The exclusions name
+#  whole files, so a suffix is right for them; an inclusion names a project
+#  directory, and `Casso/` is never the end of a path. Prefix matching also
+#  keeps `Casso/` off `CassoCore/` and off the tests in `UnitTest/Casso/`.
+#
+####################################################################
+
+function Test-Included
+{
+    param([string]$Path, [string[]]$Include)
+
+    $normalized = $Path -replace '\\', '/'
+
+    foreach ($i in $Include)
+    {
+        if ($normalized -like "$i*") { return $true }
+    }
+
+    return $false
+}
+
+
+####################################################################
+#
 #  Test-Excluded -- is this path exempt from a given check?
 #
 ####################################################################
@@ -312,17 +386,26 @@ function Get-AddedLines
 {
     param([string]$Base, [string]$Tip, [switch]$Cached)
 
-    $results = @()
+    #  A List, not an array. `$results += ...` reallocates and copies the whole
+    #  array for every added line, so the cost is quadratic in the size of the
+    #  diff. A push whose range added 1.5M lines spent 34 minutes in here.
+    $results = [System.Collections.Generic.List[object]]::new()
     $file    = ''
     $lineNo  = 0
 
+    #  Ask git for the extensions the rules actually read. Every check's Globs
+    #  are a subset of these three, so this changes no verdict -- it stops a
+    #  generated model (one mesh carries 1.3M added lines) from being parsed
+    #  into an object per line and then dropped for not matching a glob.
+    $pathspec = @('*.cpp', '*.h', '*.md')
+
     if ($Cached)
     {
-        $diff = git -C $repoRoot diff --cached --unified=0 --no-color --diff-filter=d 2>$null
+        $diff = git -C $repoRoot diff --cached --unified=0 --no-color --diff-filter=d -- $pathspec 2>$null
     }
     else
     {
-        $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" 2>$null
+        $diff = git -C $repoRoot diff --unified=0 --no-color --diff-filter=d "$Base...$Tip" -- $pathspec 2>$null
     }
 
     foreach ($raw in $diff)
@@ -343,11 +426,11 @@ function Get-AddedLines
         {
             if ($file -ne '')
             {
-                $results += [pscustomobject]@{
+                $results.Add([pscustomobject]@{
                     File = $file
                     Line = $lineNo
                     Text = $raw.Substring(1)
-                }
+                })
             }
             $lineNo++
         }
@@ -373,6 +456,19 @@ function Get-ApplicableChecks
     {
         if (-not (Test-GlobMatch -Path $Path -Globs $check.Globs)) { continue }
         if (Test-Excluded -Path $Path -Exclude $check.Exclude)     { continue }
+
+        # Include is the inverse of Exclude: when present, the check applies
+        # ONLY under those paths. A rule about where code lives needs it.
+        #
+        # NOT Test-Excluded WITH THE ARGUMENT FLIPPED. That matches a suffix,
+        # which is right for the full paths the exclusions name and never true
+        # of a directory prefix -- reusing it made this rule skip every file
+        # and report a clean tree while checking nothing.
+        if ($check.ContainsKey('Include') -and $check.Include.Count -gt 0 -and
+            -not (Test-Included -Path $Path -Include $check.Include))
+        {
+            continue
+        }
 
         $applicable += $check
     }
@@ -1304,6 +1400,8 @@ if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 }
 
 $violations = $sink
+
+Restore-CassoHostLoad -Priority $priorityWas
 
 if ($violations.Count -gt 0)
 {

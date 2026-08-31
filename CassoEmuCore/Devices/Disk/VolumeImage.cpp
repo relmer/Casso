@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "VolumeImage.h"
+#include "NibbleImageCodec.h"
 #include "NibblizationLayer.h"
 #include "Dos33Skeleton.h"
 #include "ProDosSkeleton.h"
@@ -39,7 +40,7 @@ void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector
         for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
         {
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
 
@@ -77,7 +78,7 @@ void VolumeImage::DosLogicalToProDosFile (const vector<Byte> & sectors, vector<B
             size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
             size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::PoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
 
             std::copy (sectors.begin() + (ptrdiff_t) from,
                        sectors.begin() + (ptrdiff_t) (from + kSectorBytes),
@@ -159,7 +160,7 @@ HRESULT VolumeImage::Load (
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.fileByteSize = size;
 
-    hr = DiskImageStore::DetectFormatByExtension (path, format);
+    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
 
     outDiagnosis.format = format;
@@ -167,11 +168,15 @@ HRESULT VolumeImage::Load (
     CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
             outDiagnosis.failure = MountFailure::EmptyFile);
 
-    if (format == DiskFormat::Woz)
+    if (format == DiskFormat::Woz || format == DiskFormat::Nib)
     {
-        hr = WozLoader::Load (fileBytes, image);
-        CHRF (hr, outDiagnosis.failure = WozLoader::ClassifyLoadFailure (fileBytes));
+        hr = LoadBitStream (format, fileBytes, image);
+        CHRF (hr, outDiagnosis = DiskImageStore::ClassifyLoadFailure (format, fileBytes));
 
+        //  The sector decode DOES happen here, unlike on the emulator's flush
+        //  path: these callers address files and sectors, so a track that will
+        //  not decode is a track they cannot act on. Its refusal is the strict
+        //  one, and correctly so.
         hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
         CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
@@ -205,14 +210,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  VolumeImage::ChangedTracks
+//  VolumeImage::CollectChangedTracks
 //
 //  A whole track is the unit because a bit stream is written a track at a time:
 //  one altered byte costs that track's encoding and nothing else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void VolumeImage::ChangedTracks (
+void VolumeImage::CollectChangedTracks (
     const vector<Byte>  & priorSectors,
     const vector<Byte>  & editedSectors,
     vector<int>         & outTracks)
@@ -297,12 +302,13 @@ HRESULT VolumeImage::Save (
 
     CBRAEx (sized, E_INVALIDARG);
 
-    hr = DiskImageStore::DetectFormatByExtension (path, format);
+    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHR (hr);
 
-    if (format == DiskFormat::Woz)
+    if (format == DiskFormat::Woz || format == DiskFormat::Nib)
     {
-        hr = SaveBitStream (originalFileBytes, editedSectors, outFileBytes, outRefusalReason);
+        hr = SaveBitStream (format, originalFileBytes, editedSectors,
+                            outFileBytes, outRefusalReason);
         CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
@@ -330,6 +336,85 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VolumeImage::LoadBitStream
+//
+//  One bit-stream container's file into a DiskImage.
+//
+//  Two containers store tracks rather than sectors, and everything downstream
+//  of this point treats them identically -- decode, judge, re-encode what
+//  changed. Keeping the choice in one place is what stops the four sites that
+//  need it from each growing their own branch, which is how one of them comes
+//  to know about a container the others do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::LoadBitStream (DiskFormat format, const vector<Byte> & fileBytes,
+                                    DiskImage & outImage)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    switch (format)
+    {
+        case DiskFormat::Woz: hr = WozLoader::Load (fileBytes, outImage);       break;
+        case DiskFormat::Nib: hr = NibbleImageCodec::Load (fileBytes, outImage); break;
+        default:              hr = E_INVALIDARG;                                break;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::SerializeBitStream
+//
+//  The image back into the container it came from.
+//
+//  The original bytes reach the nibble writer and not the WOZ one, which is
+//  not an oversight. A nibble image has no header or metadata to preserve, so
+//  its writer uses the source bytes for a different purpose entirely: copying
+//  the tracks the edit did not touch, byte for byte, instead of re-deriving
+//  them. The WOZ writer keeps what it needs on the image itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::SerializeBitStream (DiskFormat format, const DiskImage & image,
+                                         const vector<Byte> & originalFileBytes,
+                                         vector<Byte> & outFileBytes)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    switch (format)
+    {
+        case DiskFormat::Woz:
+            hr = WozLoader::Serialize (image, outFileBytes);
+            break;
+
+        case DiskFormat::Nib:
+            hr = NibbleImageCodec::Serialize (image, originalFileBytes, outFileBytes);
+            break;
+
+        default:
+            hr = E_INVALIDARG;
+            break;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VolumeImage::SaveBitStream
 //
 //  EVERY track the edit needs is judged BEFORE any track is re-encoded, and a
@@ -346,6 +431,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT VolumeImage::SaveBitStream (
+    DiskFormat            format,
     const vector<Byte>  & originalFileBytes,
     const vector<Byte>  & editedSectors,
     vector<Byte>        & outFileBytes,
@@ -364,14 +450,14 @@ HRESULT VolumeImage::SaveBitStream (
 
 
 
-    hr = WozLoader::Load (originalFileBytes, image);
+    hr = LoadBitStream (format, originalFileBytes, image);
     CHR (hr);
 
     hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, prior, report);
     CHR (hr);
 
     writability = TrackWritability::Evaluate (image, report);
-    ChangedTracks (prior, editedSectors, changed);
+    CollectChangedTracks (prior, editedSectors, changed);
 
     imageOk = writability.IsImageWritable();
     CBRFEx (imageOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
@@ -398,7 +484,7 @@ HRESULT VolumeImage::SaveBitStream (
 
     //  Serialized into a local so a failure part-way through cannot leave the
     //  caller holding a fragment that looks like an image.
-    hr = WozLoader::Serialize (image, serialized);
+    hr = SerializeBitStream (format, image, originalFileBytes, serialized);
     CHR (hr);
 
     outFileBytes = serialized;

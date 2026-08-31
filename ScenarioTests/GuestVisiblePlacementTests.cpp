@@ -373,7 +373,7 @@ public:
         rows = GuestSession::TypeAndCollect (core, "CATALOG");
 
         Assert::IsTrue (GuestSession::AnyRowContains (rows, kProDosHeading),
-            L"the guest must have named the volume it is listing");
+            L"the guest must have identified the volume it is listing");
 
         GuestSession::AssertTheOnlyRowsMentioning (rows, kPlacedName, kProDosRow);
 
@@ -419,10 +419,10 @@ public:
             L"placing over a locked file must produce no output");
 
         Assert::IsTrue (put.diagnostics.find ("is locked on this volume") != std::string::npos,
-            L"and must say the file is locked -- not merely that something went wrong");
+            L"and must report the file is locked -- not merely that something went wrong");
 
         Assert::IsTrue (put.diagnostics.find (kLockedFile) != std::string::npos,
-            L"naming the file");
+            L"identifying the file");
         Assert::IsTrue (put.diagnostics.find (kImagePath) != std::string::npos,
             L"and the image");
 
@@ -446,6 +446,6 @@ public:
             L"with no temporary left beside it");
 
         Assert::AreEqual (size_t (2), io.files.size(),
-            L"and nothing left under a name the temporary sweep does not know");
+            L"and nothing left under a name the temporary sweep does not cover");
     }
 };

@@ -4,6 +4,7 @@
 
 #include "Core/IDxuiControl.h"
 #include "Devices/Printer/PrinterStatusModel.h"   // PrinterStatus
+#include "UiCommandTypes.h"                       // InputMappingMode
 #include "Widgets/DxuiSlider.h"
 
 
@@ -41,6 +42,7 @@ class CommandToolbar : public IDxuiControl
 public:
     using DispatchFn = std::function<void (WORD)>;
     using VolumeFn   = std::function<void (float, bool)>;
+    using InputFn    = std::function<void (InputMappingMode)>;
 
     // Responsive presentation, chosen from the window width (widest first):
     // icon + label to the right, icon with the label stacked BELOW (ribbon
@@ -73,6 +75,26 @@ public:
 
     void  SetDispatch       (DispatchFn fn)              { m_dispatch = std::move (fn); }
     void  SetVolumeSink     (VolumeFn fn)                { m_volumeSink = std::move (fn); }
+
+    // Input-mode cluster: one "Input" label over three LED + glyph segments
+    // (joystick / paddle / mouse), the toolbar home of what used to be the
+    // drive-band device selector -- the stacked desk left that row nowhere
+    // to live. Clicking a segment reports the mode to toggle; state arrives
+    // per frame exactly as the selector's did.
+    void  SetInputSink       (InputFn fn)                { m_inputSink = std::move (fn); }
+    void  SetInputState      (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable);
+    void  SetInputSkeuoStyle (bool skeuo)                { m_inputSkeuo = skeuo; }
+
+    // Monoline icon experiment: strokes-and-dots device glyphs matching the
+    // Segoe MDL2 language of the bar's other icons, instead of the shaded
+    // skeuomorphic drawings. On by default so the bar reads as one icon set;
+    // flip off to compare against the peripheral renderings.
+    void  SetInputMonoline   (bool monoline)             { m_inputMonoline = monoline; }
+
+    // The volume flyout (vertical slider + readout) opens on hover over the
+    // volume button and closes when the pointer leaves button + flyout.
+    // Exposed so the shell can keep presenting frames while it is up.
+    bool  IsVolumeFlyoutOpen () const                    { return m_flyoutOpen; }
 
     // Seed the volume controls from persisted prefs (no sink callback).
     void  SetVolume         (float volume01, bool muted);
@@ -110,15 +132,53 @@ private:
         bool             enabled   = true;
     };
 
+    // One input segment: LED + peripheral glyph, no label of its own (the
+    // cluster's shared label + per-segment tooltips carry the names).
+    struct InputSeg
+    {
+        RECT  rc      = {};
+        bool  hovered = false;
+        bool  pressed = false;
+    };
+
     static bool      IsPointInRect      (const RECT & rc, int x, int y);
     static uint32_t  GetStatusCoreColor (PrinterStatus status);
 
     void             PaintButton        (Button & btn, IDxuiPainter & painter,
                                      IDxuiTextRenderer & text, const struct CassoTheme & theme);
+    void             PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                                        const struct CassoTheme & theme);
+
+    // A circle outline as line segments -- the painter has filled circles
+    // and lines, but no arcs or outlined circles.
+    static void      StrokeCircle      (IDxuiPainter & painter, float cx, float cy,
+                                        float r, float stroke, uint32_t ink);
+
+    static void      PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink);
+    static void      PaintPaddleMono   (IDxuiPainter & painter, const RECT & box, uint32_t ink);
+    static void      PaintMouseMono    (IDxuiPainter & painter, const RECT & box, uint32_t ink);
+    void             PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                                        const struct CassoTheme & theme);
+
+    int              InputSegCount     () const { return m_mouseAvailable ? 3 : 2; }
+    bool             InputSegSelected  (int index) const;
+    RECT             FlyoutKeepAliveRc () const;
 
     std::vector<Button>   m_buttons;        // command buttons in visual order
     Button                m_muteButton;     // toggles mute (not a dispatch id)
-    DxuiSlider            m_volumeSlider;
+    DxuiSlider            m_volumeSlider;   // vertical, lives in the flyout
+
+    InputSeg              m_inputSegs[3];   // joystick, paddle, mouse
+    RECT                  m_inputLabelRc   = {};
+    InputFn               m_inputSink;
+    bool                  m_arrowsJoystick = false;
+    InputMappingMode      m_pointerMode    = InputMappingMode::Off;
+    bool                  m_mouseAvailable = false;
+    bool                  m_inputSkeuo     = true;
+    bool                  m_inputMonoline  = true;
+
+    bool                  m_flyoutOpen     = false;
+    RECT                  m_flyoutRc       = {};
 
     IDxuiTextRenderer *   m_textRenderer   = nullptr;
     DispatchFn            m_dispatch;

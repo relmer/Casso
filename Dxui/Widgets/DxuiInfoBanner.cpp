@@ -87,8 +87,8 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
 ////////////////////////////////////////////////////////////////////////////////
 
 float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
-                                        float                  widthPx,
-                                        const DxuiDpiScaler &  scaler) const
+                                           float                  widthPx,
+                                           const DxuiDpiScaler &  scaler) const
 {
     HRESULT  hr        = S_OK;
     float    padX      = scaler.ToPxf (s_kPadXDip);

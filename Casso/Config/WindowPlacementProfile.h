@@ -42,6 +42,26 @@ public:
     // load / save path with literal keys instead.
     static std::string  BuildTopologyKey (HMONITOR activeMonitor);
 
+    // Places a window of the desired size on a monitor's work area, centered
+    // where it fits, under one rule that outranks centering: THE CAPTION'S
+    // TOP-LEFT CORNER IS NEVER OFF SCREEN. A window with its top-left off the
+    // work area cannot be grabbed, moved, or closed by pointer -- the user is
+    // left with a window they can only reach by keyboard.
+    //
+    // The size is fitted to the work area first, so overflow is already the
+    // unlikely case: it survives only when a minimum window size exceeds the
+    // monitor, and then the overflow is pushed to the RIGHT and BOTTOM edges,
+    // which cost nothing but visibility. Centering applies only within
+    // whatever room is left.
+    //
+    // Pure geometry, no Win32 state -- `work` is a monitor's work area and
+    // the result is a window rect in the same coordinates.
+    static RECT  FitToWorkArea (const RECT & work,
+                                int          desiredWidth,
+                                int          desiredHeight,
+                                int          minWidth  = 0,
+                                int          minHeight = 0);
+
 private:
     static constexpr uint64_t  kFnvOffset    = 1469598103934665603ull;
     static constexpr uint64_t  kFnvPrime     = 1099511628211ull;

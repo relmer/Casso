@@ -3,7 +3,15 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 1,
+    "$cassoMachineVersion": 4,
+
+    // The monitor this machine ships with. The phosphor is a fact about the
+    // TUBE, so it lives with the monitor in MonitorCatalog rather than being
+    // restated as a color preference here -- naming the Monitor //c is what
+    // makes this machine come up green, and moving it to another monitor
+    // would move its color with it.
+    "monitor": "MonitorIIc",
+
     "name": "Apple //c",
     "releaseYear": 1984,
     "cpu": "65C02",
@@ -32,6 +40,21 @@
         { "type": "apple2e-softswitches" },
         { "type": "apple2e-mmu" },
         { "type": "language-card" }
+    ],
+    // The //c has no slots. Its peripherals are built in and its expansion is
+    // a row of connectors on the back panel, so its ports belong to the
+    // machine rather than to a card. These are named, not numbered: a disk
+    // port and a joystick port are not interchangeable the way a Disk ][
+    // card's two drive connectors are.
+    //
+    // An empty `device` is a connector with nothing on it -- a real state and
+    // the //c's shipping one. The INTERNAL drive is soldered in rather than
+    // attached, so it is not a port and deliberately does not appear here.
+    "ports": [
+        { "name": "disk",     "device": "" },
+        { "name": "serial1",  "device": "" },
+        { "name": "serial2",  "device": "" },
+        { "name": "joystick", "device": "" }
     ],
     "video": {
         "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]

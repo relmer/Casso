@@ -291,6 +291,20 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     // v8 Apple2Plus.json (master Mockingboard slot 4; superseded by v9, which
     // carries both the Mockingboard and the slot-1 parallel printer).
     { "Apple2Plus", "c3b3222ddfd2c08b65afb80ece15fa5fee87fa487e5e3f4ed661931ba323a9c4" },
+
+    // The five configs as they stood before `ports` -- the drive attached to
+    // a connector became the config's business rather than a hard-coded pair.
+    //
+    // ALL FIVE machines appear here, including the two that have never been
+    // in this table before: Apple2eEnhanced (v2) and Apple2c (v1) shipped
+    // after the last bump, so this is the first time their on-disk extracts
+    // have needed recognizing. Leaving them out would present every existing
+    // extract of those two as user-edited and rename it aside.
+    { "Apple2",          "acbc87edad795b8f5d0e6f144f81e6953e10a2b8e65ab8086098d79938f32c35" },
+    { "Apple2Plus",      "f8b8a241e5ada0575ffc47bf073c92eb1e68c4cf73333d9827458d754cd35df1" },
+    { "Apple2e",         "1c355cafb7a8f301b9d34e9f718697c6208b2e93b3c21a109387a9f7c1fa6b89" },
+    { "Apple2eEnhanced", "89355968f0683869a22fe7d2a564cb62b4783b7a675886420df9371a5bc4ca92" },
+    { "Apple2c",         "ad85c6350233e5d5312c6ba9b4dc97e225583ad0de0c2b113f68d99b0be8bfd0" },
 };
 
 

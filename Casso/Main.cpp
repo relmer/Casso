@@ -480,6 +480,7 @@ int WINAPI wWinMain (
     // anything can fail, so a command-line or machine-config failure is
     // reported too; those happen before the shell exists, so the sink queues
     // them and the shell replays them once there is a window.
+
     SetNotifyFunction (&EmulatorShell::NotifyUser);
 
     // Register a GUI assertion breakpoint. In debug builds a failed EHM
@@ -527,11 +528,11 @@ int WINAPI wWinMain (
                            noImageWatch);
     CHR (hr);
 
+    shell->SetImageWatchDisabled (noImageWatch);
+
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or
     // any unhandled exception flushes the trace to a file on the way out.
-    shell->SetImageWatchDisabled (noImageWatch);
-
     if (traceCapacity > 0)
     {
         shell->SetTraceCapacity (traceCapacity);
@@ -620,6 +621,7 @@ int WINAPI wWinMain (
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
+
     exitCode = shell->RunMessageLoop();
 
     // --trace graceful-exit dump. No-op (one-shot guard) if a crash

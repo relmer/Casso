@@ -1,0 +1,75 @@
+newmtl case
+Ka 0 0 0 
+Kd 0.833 0.784 0.659
+d 1
+
+newmtl vent_cavity
+Ka 0 0 0 
+Kd 0.055 0.052 0.048
+d 1
+
+newmtl shell
+Ka 0 0 0 
+Kd 0.806 0.762 0.648
+d 1
+
+newmtl shell_bottom
+Ka 0 0 0 
+Kd 0.806 0.762 0.648
+d 1
+
+newmtl frame
+Ka 0 0 0 
+Kd 0.135 0.13 0.15
+d 1
+
+newmtl plate_pebbled
+Ka 0 0 0 
+Kd 0.135 0.13 0.15
+d 1
+
+newmtl plate
+Ka 0 0 0 
+Kd 0.1 0.1 0.11
+d 1
+
+newmtl slot
+Ka 0 0 0 
+Kd 0.035 0.035 0.045
+d 1
+
+newmtl notch_liner
+Ka 0 0 0 
+Kd 0.115 0.112 0.132
+d 1
+
+newmtl door
+Ka 0 0 0 
+Kd 0.16 0.16 0.18
+d 1
+
+newmtl led
+Ka 0 0 0 
+Kd 0.9 0.12 0.1
+d 1
+
+newmtl foot9_18
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl foot9_199
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl foot144_18
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl foot144_199
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+

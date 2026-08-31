@@ -35,7 +35,8 @@ public:
                                        LONG    & outX,
                                        LONG    & outY,
                                        int     & outW,
-                                       int     & outH) const;
+                                       int     & outH,
+                                       bool    & outMaximized) const;
 
     // Exposed for tests and for callers that need the same monitor
     // topology key without going through the load/save helpers.

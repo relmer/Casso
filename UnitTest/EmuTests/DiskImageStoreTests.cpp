@@ -3,6 +3,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
 #include "Devices/Disk2Controller.h"
@@ -129,29 +130,29 @@ public:
         }
     };
 
-    TEST_METHOD (DetectFormatByExtension_KnownTypes)
+    TEST_METHOD (GetSourceFormatByExtension_KnownTypes)
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.dsk", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.dsk", fmt));
         Assert::IsTrue (fmt == DiskFormat::Dsk);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.DO", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.DO", fmt));
         Assert::IsTrue (fmt == DiskFormat::Do);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.po", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.po", fmt));
         Assert::IsTrue (fmt == DiskFormat::Po);
 
-        AssertSucceeded (DiskImageStore::DetectFormatByExtension ("foo.WOZ", fmt));
+        AssertSucceeded (DiskImageStore::GetSourceFormatByExtension ("foo.WOZ", fmt));
         Assert::IsTrue (fmt == DiskFormat::Woz);
     }
 
-    TEST_METHOD (DetectFormatByExtension_UnknownReturnsFail)
+    TEST_METHOD (GetSourceFormatByExtension_UnknownReturnsFail)
     {
         DiskFormat   fmt = DiskFormat::Dsk;
 
-        AssertFailed (DiskImageStore::DetectFormatByExtension ("foo.bin", fmt));
-        AssertFailed (DiskImageStore::DetectFormatByExtension ("noext",  fmt));
+        AssertFailed (DiskImageStore::GetSourceFormatByExtension ("foo.bin", fmt));
+        AssertFailed (DiskImageStore::GetSourceFormatByExtension ("noext",  fmt));
     }
 
     TEST_METHOD (IsMountableImageExtension_MatchesTheRoutedTypes)
@@ -165,13 +166,54 @@ public:
         Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("noext")));
     }
 
-    TEST_METHOD (IsMountableImageExtension_RejectsNibbleImages)
+    TEST_METHOD (EveryDiskFormat_HasAnExtensionThatRoutesBackToIt)
     {
-        // Mount has never routed a nibble image, so nothing may offer one.
-        // The drag-and-drop filter did, and a dropped .nib then failed to
-        // mount without saying so.
-        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (string ("foo.nib")));
-        Assert::IsFalse (DiskImageStore::IsMountableImageExtension (wstring (L"foo.NIB")));
+        //  THE SWEEP IS OVER THE ENUM, NOT OVER A LIST OF FORMATS. A list
+        //  visits only the rows its author remembered, so it cannot find the
+        //  arm they forgot -- which is the failure this guards. There is a
+        //  live example in the tree: BlankDiskBuilder::ValidateSpec has no
+        //  DiskFormat::Do arm and asserts on a container the tool advertises,
+        //  and no table-driven test noticed because no table lists it.
+        //
+        //  Both directions matter. A format with no extension arm answers the
+        //  "disk" fallback; one with no routing arm fails to come back.
+        int          count  = (int) DiskFormat::Count;
+        int          i      = 0;
+        DiskFormat   fmt    = DiskFormat::Dsk;
+        DiskFormat   routed = DiskFormat::Dsk;
+        const char * ext    = nullptr;
+        std::string  path;
+        HRESULT      hr     = S_OK;
+
+        Assert::IsTrue (count > 0, L"the enum must not be empty");
+
+        for (i = 0; i < count; i++)
+        {
+            fmt = (DiskFormat) i;
+            ext = MountDiagnosis::GetPrimaryExtension (fmt);
+
+            Assert::AreNotEqual ("disk", ext,
+                L"every format needs its own extension, not the fallback");
+
+            path = std::string ("image") + ext;
+            hr   = DiskImageStore::GetSourceFormatByExtension (path, routed);
+
+            AssertSucceeded (hr, L"a format's own primary extension must route");
+            Assert::AreEqual ((int) fmt, (int) routed,
+                L"and must route back to the format it came from");
+        }
+    }
+
+    TEST_METHOD (IsMountableImageExtension_AcceptsNibbleImages)
+    {
+        // INVERTED, NOT DELETED. Mount now routes both nibble extensions, and
+        // the assertion that it did not belongs turned around rather than
+        // removed -- the filter and the router disagreeing over these names is
+        // the exact defect this test was written for.
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (string ("foo.nib")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (string ("foo.nb2")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (wstring (L"foo.NIB")));
+        Assert::IsTrue (DiskImageStore::IsMountableImageExtension (wstring (L"foo.Nb2")));
     }
 
     TEST_METHOD (IsMountableImageExtension_WideAgreesWithNarrow)
@@ -208,7 +250,7 @@ public:
         AssertSucceeded (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw));
         AssertSucceeded (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw));
 
-        auto  mounted = store.MountedSourcePaths();
+        auto  mounted = store.GetMountedSourcePaths();
 
         Assert::AreEqual ((size_t) 2, mounted.size());
         Assert::AreEqual (std::string ("a.dsk"), mounted[0].path);
@@ -217,7 +259,7 @@ public:
         Assert::AreEqual (1, mounted[1].drive);
 
         store.Eject (6, 0);
-        mounted = store.MountedSourcePaths();
+        mounted = store.GetMountedSourcePaths();
 
         Assert::AreEqual ((size_t) 1, mounted.size());
         Assert::AreEqual (std::string ("b.dsk"), mounted[0].path);
@@ -230,7 +272,7 @@ public:
 
         AssertSucceeded (store.MountFromBytes (6, 0, "", DiskFormat::Dsk, raw));
 
-        Assert::AreEqual ((size_t) 0, store.MountedSourcePaths().size());
+        Assert::AreEqual ((size_t) 0, store.GetMountedSourcePaths().size());
     }
 
     TEST_METHOD (MountFromBytes_WozNativeNoNibblization)
@@ -356,7 +398,36 @@ public:
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
         Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
-            L"the notification must name the image that failed to save");
+            L"the notification must identify the image that failed to save");
+    }
+
+    TEST_METHOD (FlushError_nibbleImage_reportsWritesItCouldNotPersist)
+    {
+        //  The same loss report as the sector formats, asserted for this
+        //  container. The mechanism is shared and format-agnostic, which is
+        //  precisely why it is worth pinning per container: nothing about a
+        //  passing .dsk test says the nibble flush reaches the notifier.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        DiskImage                 built;
+        vector<Byte>              sectors (NibblizationLayer::kImageByteSize, 0x3C);
+        vector<Byte>              file;
+        HRESULT                   hr = S_OK;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.nib", DiskFormat::Nib, file));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
+
+        hr = store.Flush (kSlot, kDrive);
+
+        AssertFailed (hr);
+        Assert::AreEqual (1, s_flushNotifyCount, L"a failed nibble flush must be surfaced");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"boom.nib") != wstring::npos,
+            L"the notification must identify the image that failed to save");
     }
 
     TEST_METHOD (FlushError_noReportOnCleanOrSuccessfulFlush)
@@ -807,7 +878,7 @@ public:
         Assert::IsTrue (img->IsWriteProtected(),
             L"a damaged image must be write-protected");
         Assert::IsTrue (img->GetWriteProtectInfo().checksumMismatch,
-            L"and it must say WHY, so the UI can explain a state the user did not choose");
+            L"and it must give the reason, so the UI can explain a state the user did not choose");
 
         // Not the image flag: that lives in the WOZ's INFO chunk, so setting
         // it would mean writing the very file being protected from writes.
@@ -944,7 +1015,7 @@ public:
         Assert::AreEqual (560, assessment.report.sectorsVerified,
             L"the damage here is the file checksum, not the sectors -- all still verify");
         Assert::IsTrue (assessment.suggestedPath.find ("broken.salvaged.woz") != string::npos,
-            L"the suggested name says what the file is");
+            L"the suggested name describes what the file is");
     }
 
 
@@ -1147,7 +1218,7 @@ public:
             Assert::IsTrue (blob.find ("title\tSalvage Test") != string::npos,
                 L"the salvaged copy is still the same disk, so META travels");
             Assert::IsTrue (blob.find ("Casso ") != string::npos,
-                L"but Casso wrote this file and says so in creator");
+                L"but Casso wrote this file and records that in creator");
         }
     }
 
@@ -1300,6 +1371,131 @@ public:
             L"a sector image of the wrong length is diagnosed by its length");
         Assert::AreEqual ((size_t) 4096, diagnosis.fileByteSize,
             L"the size the user's file actually was must survive to the message");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_NibbleOfTheWrongLength_NamesItsOwnSizes)
+    {
+        vector<Byte>    truncated (100000, 0xFF);
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib,
+                                                                         truncated);
+        std::string     clause    = diagnosis.Describe();
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::WrongSizeForNibble,
+            L"a nibble image has its own size rule and its own verdict");
+        Assert::AreEqual ((size_t) 100000, diagnosis.fileByteSize);
+
+        //  BOTH accepted totals, because either can carry either name. A
+        //  clause naming one of them tells half the users the wrong thing.
+        Assert::IsTrue (clause.find ("232,960") != std::string::npos,
+            L"the clause must give the standard total");
+        Assert::IsTrue (clause.find ("223,440") != std::string::npos,
+            L"and the smaller one, which circulates under the same name");
+        Assert::IsTrue (clause.find ("100,000") != std::string::npos,
+            L"and the size the user's file actually was");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_RightSizedButNoNibbles_IsItsOwnVerdict)
+    {
+        vector<Byte>    zeros (NibbleImageCodec::kNibImageSize, 0x00);
+        MountDiagnosis  wrongSize = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib,
+                                                                         vector<Byte> (999, 0xFF));
+        MountDiagnosis  noNibbles = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib, zeros);
+
+        //  The two nibble refusals must not read alike: one says the download
+        //  stopped early, the other says the file was renamed from something
+        //  else, and a user can act on each.
+        Assert::IsTrue (noNibbles.failure == MountFailure::NotANibbleStream,
+            L"right size, no assemblable nibble anywhere");
+        Assert::AreNotEqual (wrongSize.Describe(), noNibbles.Describe(),
+            L"the two nibble refusals must differ");
+    }
+
+
+    TEST_METHOD (ClassifyLoadFailure_NibbleGarbageOfTheRightLength_IsAccepted)
+    {
+        //  DELIBERATELY NOT REFUSED, and asserted so nobody later "fixes" it.
+        //  The format has no signature, header or checksum, and about half of
+        //  random bytes carry the high bit, so a renamed archive of the right
+        //  length is indistinguishable from a real image by inspection. It
+        //  mounts as a disk that will not boot, which is the honest outcome; a
+        //  stricter rule would refuse odd but genuine images to catch files
+        //  that fail harmlessly anyway.
+        vector<Byte>    garbage (NibbleImageCodec::kNibImageSize, 0);
+        size_t          i = 0;
+
+        for (i = 0; i < garbage.size(); i++)
+        {
+            garbage[i] = static_cast<Byte> ((i * 37) & 0xFF);
+        }
+
+        MountDiagnosis  diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Nib, garbage);
+
+        Assert::IsTrue (diagnosis.failure == MountFailure::Unrecognized,
+            L"content this loader cannot rule out is not given a nibble verdict");
+    }
+
+
+    TEST_METHOD (Mount_MalformedNibbleImage_NeverAsserts)
+    {
+        //  A file the user named is edge input. E_INVALIDARG marks a coding
+        //  error in this tree and always asserts, so no mount path may reach
+        //  one however wrong the bytes are.
+        DiskImageStore  store;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr = S_OK;
+
+        hr = store.MountFromBytes (kSlot, kDrive, "short.nib", DiskFormat::Nib,
+                                   vector<Byte> (17, 0xFF), diagnosis);
+        AssertFailed (hr);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "empty.nib", DiskFormat::Nib,
+                                   vector<Byte>(), diagnosis);
+        AssertFailed (hr);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "zeros.nib", DiskFormat::Nib,
+                                   vector<Byte> (NibbleImageCodec::kNibImageSize, 0), diagnosis);
+        AssertFailed (hr);
+
+        //  AND THE VERDICT REACHES THE USER. Asserting only the HRESULT let a
+        //  gap through: the loader checked geometry alone, so a right-sized
+        //  file of zeros MOUNTED, and NotANibbleStream was a verdict nothing
+        //  could ever produce. A diagnosis with no path to it is support that
+        //  looks present and is not.
+        Assert::IsTrue (diagnosis.failure == MountFailure::NotANibbleStream,
+            L"the mount path must produce the verdict, not just fail");
+    }
+
+
+    TEST_METHOD (Mount_NibbleImage_AttributesWriteProtectionToTheFileNotTheImage)
+    {
+        //  A nibble image carries no write-protect flag of its own, unlike a
+        //  WOZ. Only the host file's state and the user's setting can protect
+        //  it, and the interface must not imply the image asked for it.
+        DiskImageStore    store;
+        DiskImage         built;
+        vector<Byte>      sectors (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>      file;
+        DiskImage       * img = nullptr;
+        WriteProtectInfo  info;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "plain.nib", DiskFormat::Nib, file));
+
+        img = store.GetImage (kSlot, kDrive);
+        Assert::IsNotNull (img);
+
+        info = img->GetWriteProtectInfo();
+        Assert::IsFalse (info.imageFlag, L"the format has no flag to carry");
+        Assert::IsFalse (info.Any(),     L"so an unprotected nibble image is unprotected");
+
+        img->SetUserWriteProtected (true);
+        info = img->GetWriteProtectInfo();
+
+        Assert::IsTrue  (info.userSetting, L"the user's setting is what protects it");
+        Assert::IsFalse (info.imageFlag,   L"and it must not be reported as the image's own");
     }
 
 
@@ -1463,7 +1659,7 @@ public:
 
 
         Assert::IsTrue (message.find (L"C:\\disks\\Notes.txt") != wstring::npos,
-            L"the message must name the file the user picked");
+            L"the message must identify the file the user picked");
         Assert::IsTrue (message.find (L".woz") != wstring::npos,
             L"a name no loader claims earns the list of names they do");
     }
@@ -1479,12 +1675,12 @@ public:
 
 
         Assert::IsTrue (message.find (L"C:\\disks\\Broken.dsk") != wstring::npos,
-            L"the message must name the file the user picked");
+            L"the message must identify the file the user picked");
 
         // A .dsk IS read, so reciting the supported formats back would be
         // both useless and misleading -- the extension was never the problem.
         Assert::IsTrue (message.find (L".woz") == wstring::npos,
-            L"a recognized extension must not be answered with the format list");
+            L"a recognized extension must not be met with the format list");
     }
 
 
@@ -1501,11 +1697,11 @@ public:
         // two numbers together are what tell somebody their download stopped
         // early, which is the whole reason the size is carried this far.
         Assert::IsTrue (message.find (L"4,096 bytes") != wstring::npos,
-            L"the message must say how big the file actually is");
+            L"the message must report how big the file actually is");
         Assert::IsTrue (message.find (L"143,360 bytes") != wstring::npos,
             L"and how big it should have been");
         Assert::IsTrue (message.find (L".dsk") != wstring::npos,
-            L"named as the container the file's own name promised");
+            L"identified as the container the file's own name promised");
     }
 
 
@@ -1561,9 +1757,9 @@ public:
 
 
         Assert::IsTrue (message.find (L"WOZ file header") != wstring::npos,
-            L"the missing header is the fact, and naming it is what explains the refusal");
+            L"the missing header is the fact, and reporting it is what explains the refusal");
         Assert::IsTrue (message.find (L"renamed") != wstring::npos,
-            L"a .woz that is not a WOZ is almost always a renamed file, so say so");
+            L"a .woz that is not a WOZ is almost always a renamed file, so report that");
     }
 
 
@@ -1597,7 +1793,7 @@ public:
 
 
         Assert::IsTrue (message.find (L"(unknown path)") != wstring::npos,
-            L"a missing path must be named as missing, not left as a blank gap");
+            L"a missing path must be marked as missing, not left as a blank gap");
     }
 
 

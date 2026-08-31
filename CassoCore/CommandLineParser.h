@@ -371,6 +371,26 @@ public:
     //  coverage test that reads these can fail when a row is added without
     //  one; a hand-written list of the same names cannot.
     static std::span<const char * const>    GetAs65LongOptions();
+
+    // One option that sends the object onto a disk, as data. The parser walks
+    // these and the help is composed from them, so the tool cannot document an
+    // option it does not take or take one it does not document.
+    struct ImageTargetFlag
+    {
+        const char *  option;
+        const char *  valueName;
+        const char *  description;
+    };
+
+    // The options that send the object onto a disk. Both assembler grammars
+    // take them, because the capability is the assembler's rather than a
+    // dialect's.
+    static std::span<const ImageTargetFlag>  GetImageTargetFlags();
+
+    // Refuses the options that describe a placement on a volume when no volume
+    // was named. Both assembler grammars ask, the options being the
+    // assembler's rather than a dialect's.
+    static void         RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
     static std::span<const char * const>    GetRunLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 
@@ -475,6 +495,12 @@ public:
     static bool         IsLongOptionWithValue (const std::string & arg, const std::string & canonical,
                                                std::string & value, CommandLineOptions & options);
 
+    // One long option and its value, taken attached with `=` or as the next
+    // argument. Advances the walk past whichever form it found.
+    static bool         TryLongOptionValue    (const std::string & arg, const char * canonical,
+                                               int argc, char * argv[], int & argIndex,
+                                               std::string & value, CommandLineOptions & options);
+
 private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
@@ -518,7 +544,7 @@ private:
     //  the supplied table is rewritten -- a ProDOS path starts with a slash and
     //  must stay an operand.
     static std::string  GetCanonicalLongFlag (const std::string             & arg,
-                                           std::span<const char * const>   names);
+                                              std::span<const char * const>   names);
 
     static std::string  GetCanonicalDiskFlag (const std::string & arg);
     static void  ParseAs65Flags      (int argc, char * argv[], int startIndex, CommandLineOptions & options);

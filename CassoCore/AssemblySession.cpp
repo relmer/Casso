@@ -1283,6 +1283,7 @@ void AssemblySession::InjectBuiltin (const std::string & name, int32_t value)
 {
     m_symbols[name]     = (Word) value;
     m_symbolKinds[name] = SymbolKind::Set;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = value;
 }
 
@@ -1433,6 +1434,7 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
     {
         m_symbols[predef.first]     = (Word) predef.second;
         m_symbolKinds[predef.first] = SymbolKind::Equ;
+        m_symbolLines[predef.first] = m_lastSourceLine;
         m_exprSymbols[predef.first] = predef.second;
     }
 
@@ -1596,6 +1598,8 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     LineInfo  info = {};
 
 
+
+    m_lastSourceLine = current.sourceLineNumber;
 
     // Before anything can fail: a diagnostic raised while processing this line
     // must name the file the line came from, and this is the last point at
@@ -2178,6 +2182,7 @@ HRESULT AssemblySession::HandleStructCollection (const PendingLine & current, Li
 
         m_symbols[m_currentStruct.name]     = (Word) structSize;
         m_symbolKinds[m_currentStruct.name] = SymbolKind::Equ;
+        m_symbolLines[m_currentStruct.name] = m_lastSourceLine;
         m_exprSymbols[m_currentStruct.name] = structSize;
         m_structs[m_currentStruct.name]     = m_currentStruct;
 
@@ -2386,6 +2391,7 @@ HRESULT AssemblySession::RecordStructMember (const std::string & name, int32_t s
 
     m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
     m_symbolKinds[symName] = SymbolKind::Equ;
+    m_symbolLines[symName] = m_lastSourceLine;
     m_exprSymbols[symName] = m_currentStruct.currentOffset;
 
     m_currentStruct.currentOffset += size;
@@ -3188,6 +3194,7 @@ HRESULT AssemblySession::HandleKeyboardInput (const PendingLine & current, LineI
 
     m_symbols[name]     = (Word) answer->second;
     m_symbolKinds[name] = SymbolKind::Equ;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = answer->second;
 
 Error:
@@ -3294,7 +3301,7 @@ void AssemblySession::ReportSubsetBoundaryRefusals()
         m_diagnosticColumn  = offense.column;
 
         RecordRefusal (offense.lineNumber,
-                       SubsetBoundary::ComposeRefusal (*offense.row, linkage, m_dialect.GetName()));
+                       SubsetBoundary::ComposeRefusal (*offense.row, linkage));
     }
 }
 
@@ -3626,6 +3633,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
             m_symbols[stored]     = address;
             m_symbolKinds[stored] = SymbolKind::Label;
+            m_symbolLines[stored] = m_lastSourceLine;
             m_exprSymbols[stored] = (int32_t) address;
 
             // Warn if label resembles mnemonic by case
@@ -3693,6 +3701,7 @@ HRESULT AssemblySession::RecordRebindableLabel (const PendingLine & current, Lin
 
     m_symbols[name]     = address;
     m_symbolKinds[name] = SymbolKind::Set;
+    m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = (int32_t) address;
 
 Error:
@@ -3778,6 +3787,7 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
             {
                 m_symbols[info.parsed.constantName]     = (Word) er.value;
                 m_symbolKinds[info.parsed.constantName] = SymbolKind::Set;
+                m_symbolLines[info.parsed.constantName] = m_lastSourceLine;
                 m_exprSymbols[info.parsed.constantName] = er.value;
             }
         }
@@ -3841,6 +3851,7 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
             const std::string & expr = info.parsed.constantExpr;
 
             m_symbolKinds[info.parsed.constantName] = SymbolKind::Equ;
+            m_symbolLines[info.parsed.constantName] = m_lastSourceLine;
 
             if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {
@@ -4772,6 +4783,165 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::HandlePass1SaveObject
+//
+//  The save directive, in the pass that only sizes lines.
+//
+//  It places no bytes and cuts nothing here; both of those happen in pass 2,
+//  where the byte stream exists. What pass 1 owes it is the check that it names
+//  something, so a source missing the name is told at the line that is missing
+//  it rather than at whatever the assembly did afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1SaveObject (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr        = S_OK;
+    std::string  name      = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg    = !name.empty();
+    bool         streaming = m_objectFileSeen;
+
+
+
+    //  A NAME IS REQUIRED, and is not taken from anywhere else when it is
+    //  missing. Measured: the period assembler does not fall back either. It
+    //  saves under the empty name and the operating system refuses that with a
+    //  syntax error, so the outcome is the same failure reported later and less
+    //  clearly. Saying it at the line that is missing the name is the whole
+    //  improvement.
+    if (!hasArg)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no output file");
+    }
+
+    //  THE TWO OUTPUT DIRECTIVES ARE MUTUALLY EXCLUSIVE, which was measured and
+    //  is not what this code first assumed. The output-file directive streams
+    //  the code that follows it straight to disk; this one writes the buffer
+    //  held in memory. They are different mechanisms rather than two spellings
+    //  of one, and the period assembler rejects this line outright once the
+    //  other is in effect.
+    //
+    //  A rule for combining them was invented here before anyone checked, and
+    //  it described a source the assembler being copied refuses.
+    if (hasArg && streaming)
+    {
+        RecordError (current.sourceLineNumber,
+                     info.parsed.directive + " cannot be used once DSK is in effect: DSK assembles "
+                     "the code that follows it straight to disk, and " + info.parsed.directive +
+                     " writes the object held in memory");
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1FileType
+//
+//  The source stating the filesystem type its output should take.
+//
+//  REPORTED RATHER THAN ACTED ON, like the output name beside it. Nothing here
+//  knows what a filesystem is; this records the byte the source asked for and
+//  leaves deciding whether the target has such a type to whoever writes the
+//  file.
+//
+//  A value that will not fit in a byte is refused rather than truncated: the
+//  low byte of a wrong answer is still a wrong answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1FileType (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr     = S_OK;
+    std::string  arg    = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg = !arg.empty();
+
+
+
+    //  Only that it names something. WHICH type it names is settled in pass 2,
+    //  where the type has to take effect at the point in the byte stream the
+    //  line sits at rather than for the whole assembly.
+    if (!hasArg)
+    {
+        RecordError (current.sourceLineNumber, info.parsed.directive + " names no file type");
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitFileType
+//
+//  The filesystem type, taking effect where the line sits.
+//
+//  IN PASS 2 BECAUSE THE TYPE BELONGS TO AN OUTPUT rather than to the assembly.
+//  Setting it in pass 1 gives every output the last type the source stated,
+//  which is wrong the moment a source produces more than one: a type named
+//  before the second save would reach back and retype the first as well.
+//
+//  A value that will not fit in a byte is refused rather than truncated. The
+//  low byte of a wrong answer is still a wrong answer, and it would file the
+//  object under a type nobody asked for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitFileType (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr      = S_OK;
+    std::string  arg     = StripCommentAndTrim (info.parsed.directiveArg);
+    bool         hasArg  = !arg.empty();
+    bool         inRange = false;
+    ExprResult   er;
+
+
+
+    (void) emitPC;
+
+    BAIL_OUT_IF (!hasArg, S_OK);
+
+    m_pass2Ctx.currentPC = (int32_t) info.pc;
+    er                   = ExpressionEvaluator::Evaluate (arg, m_pass2Ctx);
+
+    if (!er.success)
+    {
+        RecordErrorAt (m_lastSourceLine, info.parsed.operandColumn,
+                       info.parsed.directive + " expression must be resolvable: " + er.error);
+    }
+
+    BAIL_OUT_IF (!er.success, S_OK);
+
+    inRange = (er.value >= 0) && (er.value <= 0xFF);
+
+    if (!inRange)
+    {
+        RecordErrorAt (m_lastSourceLine, info.parsed.operandColumn,
+                       info.parsed.directive + " takes a one-byte file type");
+    }
+
+    BAIL_OUT_IF (!inRange, S_OK);
+
+    m_fileType    = (Byte) er.value;
+    m_hasFileType = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::HandlePass1ObjectFile
 //
 //  The source naming its own output.
@@ -4803,6 +4973,12 @@ HRESULT AssemblySession::HandlePass1ObjectFile (const PendingLine & current, Lin
     }
 
     BAIL_OUT_IF (!hasName, S_OK);
+
+    //  Recorded even when the caller's name wins, because what it gates is not
+    //  the name: a save directive below this one is refused, and that is true
+    //  however the output ends up called.
+    m_objectFileSeen = true;
+
     BAIL_OUT_IF (callerSet, S_OK);
 
     m_result.outputFileName = name;
@@ -4892,6 +5068,7 @@ HRESULT AssemblySession::BindPositionalParameters (int                 lineNumbe
         {
             m_symbols[name]     = (Word) er.value;
             m_symbolKinds[name] = SymbolKind::Set;
+            m_symbolLines[name] = m_lastSourceLine;
             m_exprSymbols[name] = er.value;
 
             if (isFinalPass)
@@ -5109,7 +5286,10 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
     { Directive::MacroDef,        nullptr,                                  nullptr                                  },
     { Directive::MacroEnd,        nullptr,                                  nullptr                                  },
     { Directive::CpuSelect,       &AssemblySession::HandlePass1CpuSelect,   nullptr                                  },
-    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  nullptr                                  },
+    //  Both columns, and the pass-2 one is where the outputs are actually cut.
+    //  A second occurrence closes the file the first opened, which can only be
+    //  done where the byte stream is.
+    { Directive::ObjectFile,      &AssemblySession::HandlePass1ObjectFile,  &AssemblySession::EmitObjectFile         },
 
     //  KBD acts entirely in the prelude, before a label can bind, so both rows
     //  are null for the same reason ORG's are rather than because it is
@@ -5125,11 +5305,19 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 
     //  Refused by name rather than handled. The refusal is a table of its own,
     //  consulted before dispatch, so these rows stay null by design.
+    //
+    //  THE FILE-TYPE ROW IS NO LONGER ONE OF THEM. Its boundary row is gone, so
+    //  it reaches dispatch like any other directive and needs a handler here --
+    //  without one it would become a word the dialect defines and the assembler
+    //  cannot size, which fails the assembly rather than setting a type. Its
+    //  POSITION is what matters as much as its presence: this table is indexed
+    //  by the directive token, so a row in the wrong place hands one directive's
+    //  line to another's handler.
     { Directive::Relocatable,     nullptr,                                  nullptr                                  },
     { Directive::EntrySymbol,     nullptr,                                  nullptr                                  },
     { Directive::ExternalSymbol,  nullptr,                                  nullptr                                  },
-    { Directive::FileType,        nullptr,                                  nullptr                                  },
-    { Directive::SaveObject,      nullptr,                                  nullptr                                  },
+    { Directive::FileType,        &AssemblySession::HandlePass1FileType,    &AssemblySession::EmitFileType           },
+    { Directive::SaveObject,      &AssemblySession::HandlePass1SaveObject,  &AssemblySession::EmitSaveObject         },
     };
 
 
@@ -6230,6 +6418,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         {
             m_symbols[labelName]     = m_pc;
             m_symbolKinds[labelName] = SymbolKind::Label;
+            m_symbolLines[labelName] = m_lastSourceLine;
             m_exprSymbols[labelName] = (int32_t) m_pc;
         }
 
@@ -6783,6 +6972,16 @@ HRESULT AssemblySession::RunPass2()
         m_currentSourceFile = info.sourceFile;
         m_diagnosticColumn  = GetPrimaryColumn (info.parsed);
 
+        // Which output this line belongs to, taken BEFORE it is emitted. A line
+        // carrying a save closes the span while it runs, so asking afterwards
+        // would file the save under the output it opens rather than the one it
+        // ends. See m_lineOutput.
+        m_lineOutput        = m_currentOutput;
+
+        // And the line itself, so a symbol rebound during this pass records the
+        // line it was rebound on rather than the last one pass 1 saw.
+        m_lastSourceLine    = info.parsed.lineNumber;
+
         // Same reasoning for the instruction set: REPLAY what pass 1 recorded
         // for this line rather than re-deriving it. Emitting against a
         // different table than the one that sized the line is how an operand
@@ -6829,15 +7028,25 @@ HRESULT AssemblySession::RunPass2()
             lineHasAddress = true;
         }
 
+        NoteSpanEmission (info, emitPCStart, emitPC);
+
         hr = BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress);
         CHR (hr);
     }
+
+    // Whatever is still accumulating becomes the last output. A source that
+    // never cut a span reaches here with all of its bytes in one, which is why
+    // an ordinary assembly needs no separate path.
+    CloseSpan (std::string());
+
+    ReportDuplicateOutputNames();
 
     hr = ExtractImage();
     CHR (hr);
 
     m_result.symbols     = m_symbols;
     m_result.symbolKinds = m_symbolKinds;
+    m_result.symbolLines = m_symbolLines;
 
 Error:
     return hr;
@@ -7953,6 +8162,12 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
         listLine.isMacroExpansion  = (info.macroDepth > 0);
         listLine.isConditionalSkip = info.conditionalSkip;
 
+        //  A line above the first byte of the assembly belongs to no one output
+        //  and goes into every listing; one below it belongs to the output that
+        //  was open when the line ran.
+        listLine.outputIndex       = m_anyBytesYet ? m_lineOutput
+                                                   : AssemblyLine::kSharedByEveryOutput;
+
         if (info.isInstruction && !info.hasError && emitPC > emitPCStart)
         {
             OpcodeEntry cycleEntry = {};
@@ -7976,6 +8191,247 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
     }
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::NoteSpanEmission
+//
+//  Tells the span being accumulated that a line placed bytes in it.
+//
+//  THE ADDRESS IS TAKEN FROM THE FIRST LINE THAT EMITS, not from wherever the
+//  span opened. A span may open on a save and then meet an origin before any
+//  byte lands, and it is where the bytes go that a later load cares about.
+//
+//  It is the program counter that is recorded rather than the output cursor.
+//  The two agree until a relocating origin separates them, after which the
+//  bytes sit at the cursor and belong at the counter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::NoteSpanEmission (const LineInfo & info, Word emitPCStart, Word emitPC)
+{
+    bool  placedBytes = emitPC > emitPCStart;
+
+
+
+    if (placedBytes)
+    {
+        if (!m_spanHasBytes)
+        {
+            m_spanOutputStart = emitPCStart;
+            m_spanLoadAddress = info.pc;
+            m_spanHasBytes    = true;
+        }
+
+        m_spanOutputEnd = emitPC;
+        m_anyBytesYet   = true;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::CloseSpan
+//
+//  Ends the span being accumulated and appends it as one output.
+//
+//  A span that placed no bytes yields nothing rather than an empty output. Two
+//  saves in a row, or a save with nothing between it and the one above, would
+//  otherwise each produce a zero-length file that no source asked for.
+//
+//  The bytes are cut from the OUTPUT and the address comes from the program
+//  counter, which are the same number until a relocating origin separates them.
+//  After one, a span sits at the output cursor and loads where its origin said,
+//  and it is the latter that a loader needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::CloseSpan (const std::string & name)
+{
+    SavePoint    span;
+    size_t       first     = m_spanOutputStart;
+    size_t       last      = m_spanOutputEnd;
+    bool         hasBytes  = m_spanHasBytes && (last > first);
+    bool         isFirst   = m_result.savePoints.empty();
+    std::string  effective = name.empty() ? m_objectFileInEffect : name;
+    bool         named     = !effective.empty();
+
+
+
+    //  An unnamed span AFTER something else was already saved is dropped, and
+    //  said so. That is the period assembler's behavior, measured: it assembles
+    //  such bytes and counts them and writes no file for them. Dropping them
+    //  silently is the part that would be wrong, so the warning carries what the
+    //  missing file would have.
+    if (hasBytes && !named && !isFirst)
+    {
+        RecordWarning (m_lastSourceLine,
+                       "bytes were assembled after the last save and no output names them, so they were not written");
+    }
+
+    if (hasBytes && (named || isFirst))
+    {
+        span.bytes.assign (m_image.begin() + first, m_image.begin() + last);
+        span.loadAddress    = m_spanLoadAddress;
+        span.hasLoadAddress = true;
+        span.name           = effective;
+        span.fileType       = m_fileType;
+        span.hasFileType    = m_hasFileType;
+
+        m_result.savePoints.push_back (span);
+
+        //  Only a span that became an output moves the counter, so the listing
+        //  lines that follow are filed under the next real file rather than
+        //  under a number no output carries.
+        m_currentOutput++;
+    }
+
+    m_spanHasBytes = false;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ReportDuplicateOutputNames
+//
+//  Two outputs of one assembly under one name, which is a warning and not a
+//  refusal.
+//
+//  THIS WAS A REFUSAL AND MEASUREMENT SAID OTHERWISE. The period assembler
+//  writes both and lets the second overwrite the first, reporting no error at
+//  all: a source saving twice under one name leaves one file holding the second
+//  save's bytes. Refusing would produce no files where it produces one, which
+//  the promise to write what a period assembler wrote does not allow.
+//
+//  So the files match and the warning carries what is lost. Silently discarding
+//  an output the source asked for is the half that would be wrong, and it is
+//  the half a diagnostic can fix without changing what lands on the disk.
+//
+//  Checked once the outputs are known rather than as each is cut, so the
+//  diagnostic can name the file rather than the position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::ReportDuplicateOutputNames()
+{
+    size_t  outer = 0;
+    size_t  inner = 0;
+
+
+
+    //  A direct scan rather than a set. An assembly produces a handful of
+    //  outputs at most, so the cost is nothing and the alternative would widen
+    //  the precompiled header for one comparison.
+    for (outer = 0; outer < m_result.savePoints.size(); outer++)
+    {
+        const std::string &  name = m_result.savePoints[outer].name;
+
+        if (name.empty())
+        {
+            continue;
+        }
+
+        for (inner = 0; inner < outer; inner++)
+        {
+            if (m_result.savePoints[inner].name == name)
+            {
+                RecordWarning (m_lastSourceLine,
+                               "two outputs of this assembly are both called " + name +
+                               ", so the later one is all that survives");
+                break;
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitObjectFile
+//
+//  The output-file directive, in the pass that places bytes.
+//
+//  A SECOND ONE CLOSES THE FIRST OUTPUT AND BEGINS ANOTHER. The directive
+//  assembles the code that FOLLOWS it into the file it names, so meeting a
+//  second one ends the file the first opened -- a source carrying two of them
+//  produces two files with no save directive anywhere. Treating a later one as
+//  merely renaming the single output is indistinguishable from this for one
+//  occurrence and wrong for two.
+//
+//  It emits no bytes. The pass-2 column is used here the way the assembly-time
+//  assertion uses it: to act at the point in the byte stream where the line
+//  sits, which is the whole reason this cannot be done in pass 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitObjectFile (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr   = S_OK;
+    std::string  name = StripCommentAndTrim (info.parsed.directiveArg);
+
+
+
+    (void) emitPC;
+
+    CloseSpan (std::string());
+
+    m_objectFileInEffect = name;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitSaveObject
+//
+//  The save directive, which writes what has accumulated and carries on.
+//
+//  THE ACCUMULATION IS EMPTIED, so the next output holds only what follows.
+//  That is the period assembler's own behavior rather than a choice here: its
+//  manual says the object area is empty after a save, and a two-save source
+//  measured against it produces two files the size of their own halves.
+//
+//  The name it gives applies to the span it ends and to no other. An
+//  output-file directive still in effect governs the next one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitSaveObject (const LineInfo & info, Word & emitPC)
+{
+    HRESULT      hr   = S_OK;
+    std::string  name = StripCommentAndTrim (info.parsed.directiveArg);
+
+
+
+    (void) emitPC;
+
+    CloseSpan (name);
+
     return hr;
 }
 

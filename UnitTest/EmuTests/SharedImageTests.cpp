@@ -245,9 +245,9 @@ public:
 
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Identity().recorded,
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity().recorded,
                         L"nothing can answer 'has this changed' without one");
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->IsWatching());
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsWatching());
         Assert::AreEqual ((size_t) 1, rig.watcher.watched.size());
         Assert::IsTrue (rig.watcher.watched[0] == std::string (kDirectory),
                         L"the directory, not the file: a rename over the image "
@@ -269,7 +269,7 @@ public:
 
         Assert::AreEqual ((size_t) 0, rig.watcher.watched.size());
         Assert::AreEqual ((size_t) 1, rig.watcher.unwatched.size());
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Identity().recorded);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Identity().recorded);
     }
 
 
@@ -308,9 +308,9 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
                          L"the change was dealt with");
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Identity()
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
                             .Matches (rig.identities[kImagePath]),
                         L"the identity moved on with the file, so the swap does not "
                         L"immediately look like another external change");
@@ -475,14 +475,14 @@ public:
         //  What a watcher reports and what a mount recorded rarely match as
         //  strings.
         rig.store.NoteExternalChange ("c:/WORK/loader.dsk", PickUpIntent::Unstated);
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
 
-        rig.store.SharedState (kSlot, kDrive);
+        rig.store.GetSharedState (kSlot, kDrive);
         rig.store.Eject (kSlot, kDrive);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", PickUpIntent::Unstated);
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
                          L"a directory watch reports every file under it");
     }
 
@@ -577,8 +577,8 @@ public:
 
         rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::TakeUpInPlace);
 
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen);
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Identity()
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
                             .Matches (rig.identities[kImagePath]));
     }
 
@@ -626,7 +626,7 @@ public:
 
         //  The external version is mounted, because it is the newest thing and
         //  the developer just made it.
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
         Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
                          L"the guest's writes are on disk under their own name now");
 
@@ -675,7 +675,7 @@ public:
         Assert::AreEqual ((int) before, (int) FirstTrackByte (rig.store),
                           L"nothing was mounted over the guest's work");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty());
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
                         L"and the change is still pending, to be tried again");
         Assert::AreEqual ((size_t) 1, rig.reports.size(), L"the user is told why");
     }
@@ -934,13 +934,13 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
                         L"the change that arrived mid-apply is still there");
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
         rig.store.ApplyPendingPickUp();
 
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
     }
 
 
@@ -966,7 +966,7 @@ public:
         //  the one already up rather than raise a second. Three builds before
         //  the developer looks back at the emulator are three pick-ups and one
         //  notice.
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->IsReportStanding());
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
 
         //  AND EVERY ONE OF THEM IS REPORTED, so the wording can follow what
         //  actually happened. Emitting only the first kept one notice at the
@@ -976,11 +976,11 @@ public:
 
         //  And the contents taken up are the most recent, not those current
         //  when the report first appeared.
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Identity()
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
                             .Matches (rig.identities[kImagePath]));
 
         rig.store.ClearChangeReport (kSlot, kDrive);
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->IsReportStanding());
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
     }
 
 
@@ -1031,7 +1031,7 @@ public:
         //  A network share or a synchronizing folder is exactly the case that
         //  produces this, and it must not stop a disk being mounted.
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->IsWatching());
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsWatching());
 
         //  The guarantee is the check made before every write, and it still
         //  holds with no notification at all: the flush finds the change

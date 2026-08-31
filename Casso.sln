@@ -1,8 +1,10 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35506.116 d17.12
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeshCreator", "MeshCreator\MeshCreator.vcxproj", "{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoCli", "CassoCli\CassoCli.vcxproj", "{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoCore", "CassoCore\CassoCore.vcxproj", "{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}"
@@ -27,6 +29,18 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|ARM64.ActiveCfg = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|ARM64.Build.0 = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|x64.ActiveCfg = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|x64.Build.0 = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|x86.ActiveCfg = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Debug|x86.Build.0 = Debug|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|ARM64.ActiveCfg = Release|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|ARM64.Build.0 = Release|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|x64.ActiveCfg = Release|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|x64.Build.0 = Release|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|x86.ActiveCfg = Release|x64
+		{6E2A9C41-7B3D-4F58-9A0C-2D8E1B4F7A93}.Release|x86.Build.0 = Release|x64
 		{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}.Debug|ARM64.Build.0 = Debug|ARM64
 		{ACF6DD9C-AD9A-45B3-B973-E99BA2D9ED78}.Debug|x64.ActiveCfg = Debug|x64

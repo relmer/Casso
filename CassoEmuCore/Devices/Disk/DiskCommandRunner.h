@@ -99,6 +99,13 @@ public:
     {
         const char  *  name;
         DiskFormat     format;
+
+        //  The track size a NEW image of this container gets, and zero for
+        //  the containers where the idea does not apply. It rides in the same
+        //  row as the word so the two cannot be set in different places: a
+        //  container offered without a size, or given one that disagrees with
+        //  its name, is not expressible.
+        size_t         nibbleTrackSize;
     };
 
     //
@@ -110,7 +117,7 @@ public:
     //  which is how `do` came to be offered by the command line and refused
     //  by the builder.
     //
-    static const ContainerName *  AdvertisedContainers (size_t & outCount);
+    static const ContainerName *  GetAdvertisedContainers (size_t & outCount);
 
     //  What was just written, in the words the flags asked for it with.
     static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
@@ -120,6 +127,7 @@ public:
     //  here to put the binary into.
     void  BuildDirectBoot (const CommandLineOptions & options,
                            DiskFormat                 format,
+                           size_t                     nibbleTrackSize,
                            DiskCommandResult        & result);
 
     //
@@ -141,8 +149,8 @@ public:
     //  offset into the DOS-ordered buffer. Positions advance linearly --
     //  sector, then track -- and each maps through the stated numbering
     //  independently.
-    static size_t  SectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
-                                       size_t                                     running);
+    static size_t  GetSectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
+                                          size_t                                     running);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
@@ -156,13 +164,14 @@ public:
     //  handing them a .dsk is worse than saying no.
     //
     HRESULT  ResolveContainer (const CommandLineOptions & options,
+                               size_t                   & outNibbleTrackSize,
                                DiskFormat               & outFormat,
                                DiskCommandResult        & result);
 
     //  The advertised container words as a list in a sentence, each carrying
     //  `prefix` (a dot when they are being described as extensions) and joined
     //  by `conjunction` before the last.
-    static std::string  ContainerWordList (const char * prefix, const char * conjunction);
+    static std::string  FormatContainerWordList (const char * prefix, const char * conjunction);
 
     //  Why a settled spec cannot be written, in words, or empty if it can.
     static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
@@ -187,6 +196,7 @@ public:
     //  Everything create and init share: build the bytes, then put them there.
     void  BuildAndWrite (const CommandLineOptions & options,
                          DiskFormat                 format,
+                         size_t                     nibbleTrackSize,
                          bool                       overExisting,
                          DiskCommandResult        & result);
 
@@ -239,7 +249,7 @@ public:
     //  rather than to the finished sentence: a diagnostic carries file names
     //  and volume labels, and a sweep over the whole thing would rewrite a
     //  name that happened to hold %L.
-    std::string         WithPrefix         (const std::string & text) const;
+    std::string         ApplyPrefix        (const std::string & text) const;
 
 
     //  The banner the Help command prints above the page, handed over by whoever
@@ -325,7 +335,7 @@ private:
     static std::string  FormatDos33Entry  (const FileEntry & entry);
     static std::string  FormatProDosEntry (const FileEntry & entry);
 
-    static char  Dos33TypeLetter (Byte type);
+    static char  GetDos33TypeLetter (Byte type);
 
 
 
@@ -333,7 +343,7 @@ private:
     //  drive it directly, which is why it was public on the runner
     //  before it was a class.
 public:
-    DiskImageSession &  Session ()  { return m_session; }
+    DiskImageSession &  GetSession ()  { return m_session; }
 
 private:
     //  Whether a command puts bytes into the image it was given.

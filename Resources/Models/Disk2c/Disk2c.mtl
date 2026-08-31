@@ -1,0 +1,80 @@
+newmtl case
+Ka 0 0 0 
+Kd 0.884 0.874 0.846
+d 1
+
+newmtl slot
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl lever
+Ka 0 0 0 
+Kd 0.7 0.692 0.668
+d 1
+
+newmtl lamp
+Ka 0 0 0 
+Kd 0.25 0.845 0.33
+d 1
+
+newmtl bird0
+Ka 0 0 0 
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl bird1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl bird2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl bird3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl bird4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl bird5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
+newmtl pad_front_19
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl pad_front_133
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl foot_front
+Ka 0 0 0 
+Kd 0.884 0.874 0.846
+d 1
+
+newmtl pad_rear_19
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl pad_rear_133
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl foot_rear
+Ka 0 0 0 
+Kd 0.884 0.874 0.846
+d 1
+

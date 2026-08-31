@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 4,
+    "$cassoMachineVersion": 5,
     "name": "Apple //e Enhanced",
     "releaseYear": 1985,
     "cpu": "65C02",
@@ -34,7 +34,11 @@
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
         { "slot": 4, "device": "mockingboard-c" },
-        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+        // The Disk ][ Interface has two drive connectors whether or not both
+        // are used, so the card always declares two ports. An empty string
+        // detaches that drive without changing the card.
+        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
+          "ports": ["disk-ii-drive", "disk-ii-drive"] }
     ],
     "video": {
         "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]

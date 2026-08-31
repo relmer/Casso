@@ -5,35 +5,12 @@
 
 
 
-// Shader source stays a file-scope static rather than a class member: it is
-// bulk implementation detail read only by CreateShaders in this file, and a
-// class member would have to be declared in the header -- putting HLSL into
-// every translation unit that includes DxuiPainter.h.
-//
-// The array type is load-bearing. CreateShaders passes
-// `sizeof (s_kVertexShaderSrc) - 1` as the source length; against a
-// `const char *` that silently becomes sizeof(void*) - 1 == 7, compiling
-// clean while handing D3DCompile a 7-character shader.
-static constexpr char  s_kVertexShaderSrc[] =
-    "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
-    "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-    "VSOut main (VSIn input)\n"
-    "{\n"
-    "    VSOut output;\n"
-    "    output.pos = float4 (input.pos, 0.0f, 1.0f);\n"
-    "    output.col = input.col;\n"
-    "    return output;\n"
-    "}\n";
-
-
-static constexpr char  s_kPixelShaderSrc[] =
-    "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-    "float4 main (PSIn input) : SV_TARGET\n"
-    "{\n"
-    "    return input.col;\n"
-    "}\n";
-
-#pragma comment(lib, "d3dcompiler.lib")
+// The shaders are COMPILED AT BUILD TIME by fxc (see Dxui.vcxproj) and
+// arrive here as bytecode. They used to be C++ string literals compiled
+// by D3DCompile during CreateShaders, which pulled d3dcompiler_47.dll
+// into a launch that now needs it nowhere.
+#include "Painter.vs.h"
+#include "Painter.ps.h"
 
 
 
@@ -162,22 +139,18 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 //  CreateShaders
 //
-//  Compiles the painter's vertex / pixel shader pair and its input layout.
+//  Creates the painter's vertex / pixel shader pair and its input layout.
 //
 //  The vertex format is 2D position plus color and nothing else -- no texture
 //  coordinate, because this painter draws only solid geometry. Anything
 //  textured goes through the 3D renderer, and anything glyph-shaped through
 //  the text renderer, so the painter stays the cheapest of the three.
 //
-//  Shader source is embedded as string literals rather than as resources,
-//  since both are a few lines and belong beside the vertex struct they must
-//  agree with.
+//  Nothing is compiled here. The pair arrives as bytecode from fxc, which
+//  reports a shader error against its own source file at build time rather
+//  than against an anonymous blob at launch.
 //
-//  The names passed to D3DCompile are for DIAGNOSTICS only; they make a
-//  compile error name which of the two shaders failed instead of reporting
-//  against an anonymous blob.
-//
-//  The input layout is validated against the compiled vertex-shader blob, so a
+//  The input layout is validated against the vertex shader's bytecode, so a
 //  mismatch between the struct and the shader signature fails at startup
 //  rather than as garbage geometry.
 //
@@ -200,48 +173,21 @@ HRESULT DxuiPainter::CreateShaders()
 
 
 
-    hr = D3DCompile (s_kVertexShaderSrc,
-                     sizeof (s_kVertexShaderSrc) - 1,
-                     "DxuiPainter.vs",
-                     nullptr,
-                     nullptr,
-                     "main",
-                     "vs_4_0",
-                     0,
-                     0,
-                     &vsBlob,
-                     &errors);
-    CHRA (hr);
-
-    hr = D3DCompile (s_kPixelShaderSrc,
-                     sizeof (s_kPixelShaderSrc) - 1,
-                     "DxuiPainter.ps",
-                     nullptr,
-                     nullptr,
-                     "main",
-                     "ps_4_0",
-                     0,
-                     0,
-                     &psBlob,
-                     &errors);
-    CHRA (hr);
-
-    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(),
-                                       vsBlob->GetBufferSize(),
+    hr = m_device->CreateVertexShader (g_PainterVs,
+                                       sizeof (g_PainterVs),
                                        nullptr,
                                        &m_vs);
     CHRA (hr);
 
-    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer(),
-                                      psBlob->GetBufferSize(),
+    hr = m_device->CreatePixelShader (g_PainterPs,
+                                      sizeof (g_PainterPs),
                                       nullptr,
                                       &m_ps);
     CHRA (hr);
 
     hr = m_device->CreateInputLayout (inputElements,
                                       std::size (inputElements),
-                                      vsBlob->GetBufferPointer(),
-                                      vsBlob->GetBufferSize(),
+                                      g_PainterVs, sizeof (g_PainterVs),
                                       &m_layout);
     CHRA (hr);
 

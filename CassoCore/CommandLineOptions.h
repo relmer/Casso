@@ -330,6 +330,23 @@ struct CommandLineOptions
 
     DiskOptions   disk;
 
+    //
+    //  What the invocation said about writing the object into a disk image.
+    //
+    //  FLAT FIELDS RATHER THAN A NESTED GROUP, unlike `disk` above. That group
+    //  nests because its fields mean nothing to any other subcommand; these
+    //  mean something to both assembler grammars, which is exactly the
+    //  shared-field character the top level already has.
+    //
+    //  `imagePath` EMPTY IS THE WHOLE SWITCH. Whether an assembly targets a
+    //  disk is one question asked in one place, so the two sinks cannot come to
+    //  disagree about it.
+    //
+    std::string   imagePath;                       // --disk <image>
+    std::string   onDiskName;                      // --as <name>, overrides DSK and SAV
+    std::string   imageTypeName;                   // --type <t>, overrides TYP
+    bool          setStartupProgram = false;       // --startup
+
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be
     //  answered with whichever prefix happened to come last, so the same

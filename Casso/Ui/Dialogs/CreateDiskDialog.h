@@ -83,12 +83,14 @@ private:
     void  ApplyImageTypeExtension ();
     void  UpdateBootableRow    ();
 
-    static std::wstring    FormatSize          (const FileBrowseEntry & entry);
-    static std::wstring    FormatModified      (int64_t modifiedUnix);
-    static const wchar_t * FormatExtension     (DiskFormat imageType);
-    static const wchar_t * GetImageTypeCaption (DiskFormat imageType);
-    static std::wstring    FormatCaption       (BlankDiskContents contents);
-    static std::wstring    ReplaceExtension    (const std::wstring & name, const wchar_t * ext);
+    //  NO FORMAT OR CONTENTS LOOKUP LIVES HERE. Three of them did, each a
+    //  switch ending in a default arm that answered with another entry's name,
+    //  so a value added without an arm was rendered as something else rather
+    //  than refused -- and being in the executable, which the test assembly
+    //  does not link, nothing could reach them to notice. They are in core now.
+    static std::wstring    FormatSize       (const FileBrowseEntry & entry);
+    static std::wstring    FormatModified   (int64_t modifiedUnix);
+    static std::wstring    ReplaceExtension (const std::wstring & name, const wchar_t * ext);
 
     FileBrowseModel     * m_model = nullptr;   // non-owning
     const IDxuiTheme    * m_theme = nullptr;   // non-owning

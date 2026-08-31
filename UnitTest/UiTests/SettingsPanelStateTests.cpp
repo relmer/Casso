@@ -110,6 +110,21 @@ public:
     }
 
 
+    // Compact-serialize emitted JSON so a test can assert on structural shape
+    // by substring.
+    std::string WriteCompactOrFail (const JsonValue & value)
+    {
+        std::string          text;
+        JsonWriter::Options  opts;
+
+        opts.fPretty = false;
+        AssertSucceeded (JsonWriter::Write (value, opts, text),
+                         L"emitted JSON must serialize");
+
+        return text;
+    }
+
+
     const char * kFixtureJson = R"JSON({
         "$cassoMachineVersion": 1,
         "name": "TestMachine",
@@ -575,6 +590,225 @@ public:
     }
 
 
+    // A //c-shaped machine: no slots, a back panel instead. Its disk port is
+    // where the external drive lives now.
+    const char * kFixtureCcJson = R"JSON({
+        "$cassoMachineVersion": 2,
+        "name": "TestCc",
+        "cpu": "65C02",
+        "timing": { "clockSpeed": 1023000 },
+        "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+        "systemRom": { "address": "0xC000", "file": "x.rom", "romBankSize": "0x4000" },
+        "internalDevices": [ { "type": "keyboard" } ],
+        "ports": [
+            { "name": "disk",     "device": "" },
+            { "name": "serial1",  "device": "" },
+            { "name": "joystick", "device": "" }
+        ]
+    })JSON";
+
+
+    // The disk port is the answer once the machine declares one. Both it and
+    // the legacy boolean can be on disk at the same time -- the fold that
+    // retires the boolean only runs on a version bump -- so the precedence
+    // has to be explicit rather than incidental.
+    TEST_METHOD (DiskPortOutranksTheLegacyExternalDriveBoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 2,
+            "name": "TestCc",
+            "cpu": "65C02",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [],
+            "internalDevices": [],
+            "ports": [ { "name": "disk", "device": "disk-iic-drive" } ],
+            "$cassoUiPrefs": { "externalDriveConnected": false }
+        })JSON");
+
+        st.LoadFromMachine ("TestCc", v, v);
+
+        Assert::IsTrue (st.GetPrefs().externalDriveConnected,
+            L"an occupied disk port means attached, whatever the stale "
+            L"boolean beside it holds.");
+        Assert::IsFalse (st.IsDirty(),
+            L"reading the port is not a user edit.");
+    }
+
+
+    // The port is what gets written now. The legacy key must not come back
+    // alongside it, or there are two answers to one question on disk again.
+    TEST_METHOD (ExternalDriveTogglePersistsAsAPortNotABoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("TestCc", v, v);
+        Assert::IsFalse (st.GetPrefs().externalDriveConnected, L"starts unoccupied");
+
+        st.SetExternalDriveConnected (true);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"disk-iic-drive\"") != std::string::npos,
+            L"the attached drive is written onto the disk port.");
+        Assert::IsTrue (text.find ("\"externalDriveConnected\"") == std::string::npos,
+            L"the legacy boolean must NOT be written when a disk port exists.");
+        Assert::IsTrue (text.find ("\"serial1\"")  != std::string::npos &&
+                        text.find ("\"joystick\"") != std::string::npos,
+            L"the whole back panel is written back -- a user ports array "
+            L"replaces the default's wholesale.");
+        Assert::IsTrue (sink.lastExternalDriveConnected,
+            L"still pushed live through the sink; no reset.");
+        Assert::AreEqual (0, sink.queuedResetCount);
+    }
+
+
+    // Round-trip: what Apply emitted must load back as the same answer.
+    TEST_METHOD (ExternalDrivePortRoundTripsThroughLoad)
+    {
+        SettingsPanelState  first;
+        SettingsPanelState  second;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        first.LoadFromMachine ("TestCc", v, v);
+        first.SetExternalDriveConnected (true);
+        AssertSucceeded (first.Apply (sink, outJson));
+
+        second.LoadFromMachine ("TestCc", outJson, outJson);
+
+        Assert::IsTrue (second.GetPrefs().externalDriveConnected,
+            L"the attached drive survives a save/load round trip.");
+    }
+
+
+    // A machine with no back panel keeps the boolean, because there is no
+    // port to hold the answer instead. This is what stops the //e family
+    // losing a setting they never had anywhere else to put.
+    TEST_METHOD (AMachineWithNoDiskPortStillWritesTheBoolean)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetExternalDriveConnected (true);
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"externalDriveConnected\"") != std::string::npos,
+            L"no disk port means the boolean is still the only home.");
+    }
+
+
+    // A carded machine's second drive is the Disk ][ card's second connector.
+    // An UNDECLARED port list means the card has not been described rather
+    // than emptied, so it must read as attached -- the two drives every such
+    // config has always behaved as having.
+    TEST_METHOD (SecondDrive_UndeclaredPortsReadAsAttached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.SecondDriveAttached(),
+            L"a Disk ][ with no ports declared has both drives.");
+    }
+
+
+    // Detaching must write BOTH connectors. A one-element list would take
+    // drive 1 away as a side effect of removing drive 2.
+    TEST_METHOD (SecondDrive_DetachingWritesBothConnectors)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+
+        Assert::IsFalse (st.SecondDriveAttached());
+        Assert::IsTrue  (st.IsDirty(), L"detaching a drive is an edit");
+        Assert::IsFalse (st.RequiresReset(),
+            L"attaching a drive is a live change, not a machine rebuild");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("[\"disk-ii-drive\",\"\"]") != std::string::npos,
+            L"drive 1 stays attached and drive 2 goes -- both written, or "
+            L"removing the second would silently remove the first.");
+    }
+
+
+    TEST_METHOD (SecondDrive_ReattachingRestoresTheDrive)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  reloaded;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSecondDriveAttached (false);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        reloaded.LoadFromMachine ("X", outJson, outJson);
+        Assert::IsFalse (reloaded.SecondDriveAttached(), L"detached survives a round trip");
+
+        reloaded.SetSecondDriveAttached (true);
+        Assert::IsTrue (reloaded.SecondDriveAttached(), L"and can be put back");
+    }
+
+
+    // The //c answers from its back-panel disk port, not from a card. Its
+    // second drive is an external unit on a cable, so the two stores must not
+    // be confused for one another.
+    TEST_METHOD (SecondDrive_OnACcReadsTheBackPanelPort)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureCcJson);
+
+        st.LoadFromMachine ("TestCc", v, v);
+        Assert::IsFalse (st.SecondDriveAttached(), L"//c disk port starts empty");
+
+        st.SetSecondDriveAttached (true);
+        Assert::IsTrue (st.SecondDriveAttached());
+        Assert::IsTrue (st.GetPrefs().externalDriveConnected,
+            L"the //c's second drive IS its external drive -- one question.");
+    }
+
+
+    // A card the user turned off has no drives to attach anything to.
+    TEST_METHOD (SecondDrive_ADisabledCardReportsDetached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "internalDevices": [],
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false }
+            ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.SecondDriveAttached(),
+            L"a disabled Disk ][ is not present, so neither are its drives.");
+    }
+
+
     // supportsExternalDrive is derived from a banked system ROM (romBankSize),
     // the //c's defining trait -- it is the only machine whose second drive is
     // an optional add-on. Flat-ROM machines (//e / ][) report false.
@@ -877,8 +1111,8 @@ public:
             }
         }
 
-        Assert::IsTrue (sawC, L"The sound+speech model must be named as the product");
-        Assert::IsTrue (sawA, L"The sound-only model must be named as the product");
+        Assert::IsTrue (sawC, L"The sound+speech model must be identified as the product");
+        Assert::IsTrue (sawA, L"The sound-only model must be identified as the product");
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
         st.Apply (sink, outJson);
