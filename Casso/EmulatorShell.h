@@ -290,6 +290,8 @@ private:
     void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
+    void               OnExitSizeMove  () override;
+    void               OnUserWindowStateCommand () override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
     DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
@@ -1399,6 +1401,14 @@ private:
     // SW_SHOWDEFAULT means "the launcher expressed no preference", which is
     // what a normal double-click amounts to.
     int                                  m_startShowCmd    = SW_SHOWDEFAULT;
+
+    // Whether the window is maximized as far as the last SAVED placement
+    // is concerned. A change here is a user maximizing or restoring, which
+    // is worth persisting even though it never enters the OS drag loop.
+    // Set when the user issues a maximize / restore and cleared by the
+    // OnSize that carries it out, which is where the new placement is
+    // actually readable.
+    bool                                 m_userStateChange = false;
 
     // Drive audio. Mixer is always allocated; per-drive sources are
     // populated only when the active machine config carries a

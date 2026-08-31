@@ -4585,8 +4585,51 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
         m_mainMenu.Hide();
     }
 
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnExitSizeMove
+//
+//  WHERE THE WINDOW'S PLACEMENT IS PERSISTED, and the only place a move or a
+//  drag-resize is.
+//
+//  It used to be saved from OnMove and OnSize, which fire for a PROGRAMMATIC
+//  SetWindowPos exactly as they do for the user: a script that positioned the
+//  window to photograph it, or any tool that nudged it, silently overwrote the
+//  size and place the user had chosen. The OS drag loop runs only for a real
+//  drag of the caption or a border, so its end is the moment that means "the
+//  user put it here".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnExitSizeMove()
+{
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnUserWindowStateCommand
+//
+//  Notes that the maximize or restore about to happen is the USER'S. The
+//  resize has not run yet, so the placement is not readable here; OnSize
+//  spends the flag once the window has actually changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnUserWindowStateCommand()
+{
+    m_userStateChange = true;
 }
 
 
@@ -8700,7 +8743,10 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 
 void EmulatorShell::OnDestroy()
 {
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    // NOT SAVED HERE. Exit is not a placement the user chose: whatever the
+    // window happened to be doing when it closed would overwrite what they
+    // last put it at deliberately. The two paths above have already stored
+    // every change that was theirs.
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
@@ -12236,7 +12282,16 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     InvalidateRect (m_hwnd, nullptr, FALSE);
     UpdateWindow   (m_hwnd);
 
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    // A MAXIMIZE OR RESTORE THE USER ASKED FOR, carried out. Those never
+    // enter the OS drag loop, so OnExitSizeMove cannot see them; the flag
+    // is what says this one was theirs rather than a programmatic
+    // ShowWindow, which produces an identical WM_SIZE.
+    if (m_userStateChange)
+    {
+        m_userStateChange = false;
+        m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 

@@ -2205,17 +2205,35 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = 0;
             break;
 
+        case WM_SYSCOMMAND:
+            // The user working the caption. SC_MINIMIZE is deliberately not
+            // here: a minimized window has no placement worth storing, and
+            // the shell already refuses to store one.
+            if ((wp & 0xFFF0) == SC_MAXIMIZE || (wp & 0xFFF0) == SC_RESTORE)
+            {
+                if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
+            }
+
+            isHandled = false;
+            break;
+
         case WM_ENTERSIZEMOVE:
             // The OS is about to run its own modal move / size loop, during
             // which our outer pump stops. Arm the keep-alive tick so the
             // client can keep painting; report not-handled so the OS loop
             // still starts normally.
             BeginModalKeepAlive();
+
+            if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
+
             isHandled = false;
             break;
 
         case WM_EXITSIZEMOVE:
             EndModalKeepAlive();
+
+            if (m_client != nullptr) { m_client->OnExitSizeMove(); }
+
             isHandled = false;
             break;
 
