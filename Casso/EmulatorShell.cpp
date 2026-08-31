@@ -1612,6 +1612,45 @@ HRESULT EmulatorShell::InitializeDeskScene()
         }
     }
 
+    // THE POSE READOUT, READ BACK IN. The readout on the picture exists so a
+    // screenshot says where it was taken from; this is the other half, so that
+    // pose can be flown to exactly instead of hunted for with the wheel. A
+    // fault that only shows past sixty degrees of yaw is not reachable by
+    // guesswork, and "I could not reproduce it" is the wrong answer when the
+    // reporter told you the angle.
+    //
+    // Same five numbers the readout prints, same order, comma separated:
+    //
+    //     CASSO_SCENE_POSE=yaw,pitch,zoom,panX,panY
+    //
+    // Degrees in, radians stored, because degrees are what the readout shows.
+    // Absent or unparseable leaves the composed pose alone.
+    {
+        wchar_t   poseValue[128] = {};
+
+        if (GetEnvironmentVariableW (L"CASSO_SCENE_POSE", poseValue, ARRAYSIZE (poseValue)) > 0)
+        {
+            float  yawDeg   = 0.0f;
+            float  pitchDeg = 0.0f;
+            float  zoom     = 1.0f;
+            float  panX     = 0.0f;
+            float  panY     = 0.0f;
+            int    got      = swscanf_s (poseValue, L"%f,%f,%f,%f,%f",
+                                         &yawDeg, &pitchDeg, &zoom, &panX, &panY);
+
+            if (got >= 2)
+            {
+                m_sceneView.orbitYawRad   = yawDeg * 3.14159265f / 180.0f;
+                m_sceneView.orbitPitchRad = pitchDeg * 3.14159265f / 180.0f;
+                m_sceneView.zoom          = (got >= 3 && zoom > 0.0f) ? zoom : 1.0f;
+                m_sceneView.panX          = (got >= 4) ? panX : 0.0f;
+                m_sceneView.panY          = (got >= 5) ? panY : 0.0f;
+
+                InvalidateSceneComposition();
+            }
+        }
+    }
+
     m_deskSceneReady = true;
 
 Error:

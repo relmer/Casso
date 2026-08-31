@@ -1509,7 +1509,22 @@ GLASS_SET = 4.5
 # between them. The two solids simply interpenetrate -- no boolean is wanted
 # or needed, the depth buffer resolves it -- so the run is taken past contact
 # rather than exactly to it.
-FUNNEL_BITE = GLASS_SET / math.tan(math.radians(RAKE_DEG))
+#
+# STEEPER THAN THE FUNNEL IT CONTINUES, which is the whole trick. Run on at
+# the visible 60 degrees it reaches the glass 2.6mm inboard of the mouth, and
+# the picture band leaves only 4.5mm of clearance at the top and bottom edges
+# -- so the bezel arrived within 1.4mm of the raster, swallowed most of the
+# dark tube margin, and at sixty degrees of yaw the two surfaces went nearly
+# tangent to the view ray and z-fought into a ragged beige seam along the
+# picture. That was a worse fault than the ring it fixed.
+#
+# Nothing requires the hidden run to match the visible rake: it lives behind
+# the mouth lip and is only ever seen edge-on. At 80 degrees it still lands
+# inside the glass -- it reaches GLASS_SET deep 0.79mm in, where the sagging
+# rim has only risen 0.24mm to meet it -- and gives back 1.8mm of margin.
+CONTACT_RAKE_DEG = 80.0
+
+FUNNEL_BITE = GLASS_SET / math.tan(math.radians(CONTACT_RAKE_DEG))
 
 CX0, CX1    = MX0 + FUNNEL_BITE, MX1 - FUNNEL_BITE
 CZ0, CZ1    = MZ0 + FUNNEL_BITE, MZ1 - FUNNEL_BITE
