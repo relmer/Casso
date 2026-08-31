@@ -337,6 +337,22 @@ public:
     static constexpr int    kPictureGridRows = 18;
     static constexpr float  kPictureLiftMm   = 0.45f;
 
+    // How far the tube ring reaches back UNDER the picture, rather than
+    // stopping flush with it.
+    //
+    // A lift is a cliff. The picture floats kPictureLiftMm off this surface,
+    // so band edge to band edge the two sheets meet at a step and not a seam,
+    // and a ray grazing over the picture's edge goes through that step and out
+    // the far side. With the ring stopping at the band it came out on the
+    // case's front panel, which sits behind the glass and is BEIGE: a bright
+    // hairline traced the picture's top and left edges whenever the scene was
+    // spun far enough to see the tube edge-on.
+    //
+    // kPictureLiftMm * tan (80 deg) is 2.6mm, so three covers the step at any
+    // angle worth drawing. Being generous costs nothing -- the strip is under
+    // the picture, which is opaque, at every angle nearer than that.
+    static constexpr float  kTubeUnderlapMm  = 3.0f;
+
     // The unlit tube's tint -- near-black with the faint green of period
     // glass.
     static constexpr float  kTubeTint[3]     = { 0.020f, 0.035f, 0.028f };

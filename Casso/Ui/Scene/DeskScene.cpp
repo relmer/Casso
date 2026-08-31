@@ -641,6 +641,7 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         float  oz1    = std::min (bz1 + kMaskPadMm, gz1);
         float  radius = std::min ({ kMaskRadiusMm, (ox1 - ox0) * 0.5f, (oz1 - oz0) * 0.5f });
         float  edgeR  = std::min ({ kGlassEdgeRadiusMm, (gx1 - gx0) * 0.5f, (gz1 - gz0) * 0.5f });
+        float  under  = std::min ({ kTubeUnderlapMm, (bx1 - bx0) * 0.25f, (bz1 - bz0) * 0.25f });
 
         struct RingPoint { float x; float z; };
 
@@ -755,10 +756,12 @@ void DeskScene::RebuildGlassUvs (const CrtUvRect & displayUv, int displayW, int 
         std::vector<RingPoint>   openRing;
 
         outline (gx0, gx1, gz0, gz1, edgeR,      edgeRing);
-        outline (bx0, bx1, bz0, bz1, 0.0f,       bandRing);
+        outline (bx0 + under, bx1 - under, bz0 + under, bz1 - under, 0.0f, bandRing);
         outline (ox0, ox1, oz0, oz1, radius,     openRing);
 
-        // The tube ring: band -> glass edge, ON the surface (no lift).
+        // The tube ring: band -> glass edge, ON the surface (no lift), its
+        // inner edge run back under the picture by kTubeUnderlapMm so the
+        // picture's lift has something behind it.
         m_glassVerts.clear();
         target = &m_glassVerts;
         lift   = 0.0f;
