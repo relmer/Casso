@@ -30,7 +30,7 @@ and a new seam for watching and for messaging, so no test touches a real file or
 a real window.
 **Target Platform**: Windows desktop (the emulator shell); the CLI is the same
 binary family.
-**Project Type**: single solution, five projects. Logic lands in `CassoEmuCore`;
+**Project Type**: single solution, SEVEN projects -- Casso, CassoCli, CassoCore, CassoEmuCore, Dxui, UnitTest and ScenarioTests. An earlier draft said five and omitted ScenarioTests, which is why a guest-visible witness for SC-001 went unconsidered for several revisions. Logic lands in `CassoEmuCore`;
 `Casso` and `CassoCli` get thin platform shims.
 **Performance Goals**: no measurable effect on the emulator's frame rate or
 audio (SC-006). The watcher is event-driven and idle when nothing changes.
@@ -49,7 +49,7 @@ emulator in the common case and a small number in the worst.
 | III. UX Consistency | The report reuses `DxuiInfoBanner` for its text, paired with a `DxuiButton` for the restart action -- not the `DxuiButtonRow` in `Dxui/Window/`, which is dialog chrome -- the banner's own header says it is "not clickable", so it cannot carry one alone. Diagnostics follow `DiskCommandResult::Failure`'s wording, which every disk refusal already uses. |
 | IV. Performance | The watcher is event-driven. The pick-up runs on the motor-spindown hook AND on a new idle callback, which is a poll point and does have a cost -- so it is rate-limited to once per emulated frame by a named constant, and the idle-tick cost is measured on its own rather than folded into a whole-session A/B where it would cancel out. **An earlier version of this row claimed no polling, an existing seam, and no cost; all three were wrong.** |
 | V. Simplicity | No lock layer, no sidecar files, no daemon. The atomic-rename guarantee already in the tree is relied on rather than duplicated. |
-| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, and so are their Win32 implementations, beside `CassoEmuCore/Cli/Win32DiskFileIo.cpp`. Only the HWND and message-pump hookup stays in the exe. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
+| VI. Thin Exe, Testable Core (NON-NEGOTIABLE) | `IImageWatcher` and `IIntentChannel` are interfaces in core, and so are their Win32 implementations, beside `CassoEmuCore/Cli/Win32DiskFileIo.cpp`. Only the HWND and message-pump hookup stays in the exe. **`EmulatorShell.cpp`, `DiskManager.cpp` and `MachineManager.cpp` are not compiled into `UnitTest`**, so every task landing there is constrained to presentation and instantiation, and anything carrying behavior -- the message intake in particular -- must be a core type the shell calls. **The first task list violated this** by putting conflict resolution, the backup-failure refusal, report absorption and the watcher-degrade rule in `DiskManager.cpp` and `GlobalUserPrefs.cpp`, both compiled into `Casso.exe`. They now live in `ExternalChangePolicy` and `MountedImageState`; the shell presents what core decided, and the preference file only stores a value. |
 
 **Gate result**: PASS, after TWO corrections, and the second is the instructive
 one.
@@ -128,8 +128,11 @@ and could land mid-operation.
   rename. A reader sees the old file or the new one. FR-025 states that as a
   requirement so abandoning it becomes a regression, and adds nothing.
 - **No merge.** A conflict resolves to one surviving image and one backup.
-- **No polling.** The watcher is event-driven, and the write-time re-check of
-  FR-003 is what makes the guarantee hold if a notification is ever missed.
+- **No polling OF THE FILESYSTEM.** The watcher is event-driven, and the
+  write-time re-check of FR-003 is what makes the guarantee hold if a
+  notification is missed. The idle tick IS a poll point, on the CPU thread,
+  rate-limited and measured on its own -- said plainly here because the earlier
+  wording flatly denied any polling.
 
 ## Project Structure
 

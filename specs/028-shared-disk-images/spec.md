@@ -423,7 +423,7 @@ configuration: each write carries its own answer.
   and part another's, and never let one writer commit another's bytes as its own.
 - **SC-005**: Every refusal and every conflict names the image it concerns.
 - **SC-006**: The emulator's frame rate and audio are unaffected by the
-  detection, measured IN ONE BUILD by comparing a session with a watched image
+  detection, measured IN ONE BUILD by comparing a session with the image
   watched against one with the same image mounted and watching disabled -- the
   state an unwatchable directory already produces. **Release**, three runs of five
   minutes: p99 frame time within 2%, and audio underruns per minute within one

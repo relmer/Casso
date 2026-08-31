@@ -147,8 +147,10 @@ clickable, no raised surface"**, so it cannot carry the restart action FR-010
 requires, and nothing in the tree hosts a non-modal banner over the running
 machine yet.
 
-**Decision**: reuse the banner for the text, pair it with a `DxuiButtonRow` for
-the action, and host it where `SalvageDialogContent` is already driven from.
+**Decision**: a new `DxuiActionBanner` in `Dxui/Widgets/` composing `DxuiInfoBanner`
+with a `DxuiButton` -- NOT the `DxuiButtonRow` in `Dxui/Window/`, which is dialog
+chrome. Hosting it non-modally over the running machine is new work: nothing in
+the tree does that today.
 **An earlier draft of this finding said the banner was "what it is for" and
 concluded no alternatives were needed. That was wrong** -- it was read as a
 name rather than as a widget with a documented limitation.
