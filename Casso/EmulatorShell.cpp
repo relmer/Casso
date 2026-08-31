@@ -842,6 +842,7 @@ HRESULT EmulatorShell::Initialize (
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
     AllocateFramebuffers();
+
     PrimeChromeThemeEarly();
 
     hr = CreateEmulatorWindow (hInstance);
@@ -881,6 +882,7 @@ HRESULT EmulatorShell::Initialize (
     // not just the normal rect it was created with: showing maximized
     // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
     // flash of the restored-size window.
+
     ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
     UpdateWindow (m_hwnd);
 
@@ -903,6 +905,7 @@ HRESULT EmulatorShell::Initialize (
     // disk. Mounting first then power-cycling silently throws away the
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
+
     PowerCycle();
 
     // Every mount reports its outcome through here, not just this one:
@@ -1479,22 +1482,20 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     // asked about its name. The drives still follow the machine, because a
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
-    HRESULT              hr         = S_OK;
-    bool                 isC        = IsApple2c();
-    const MonitorSpec &  monitor    = ResolveMonitorForCurrentMachine();
-    std::string          monitorObj = PrinterPanel::LoadTextResource (monitor.objResourceId);
-    std::string          monitorMtl = PrinterPanel::LoadTextResource (monitor.mtlResourceId);
-    std::string          driveObj   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_OBJ : IDR_MODEL_DISKII_OBJ);
-    std::string          driveMtl   = PrinterPanel::LoadTextResource (isC ? IDR_MODEL_DISK2C_MTL : IDR_MODEL_DISKII_MTL);
-    bool                 haveText   = false;
+    HRESULT                    hr          = S_OK;
+    bool                       isC         = IsApple2c();
+    const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
+    std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
+    std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
+                                                                                   : IDR_MODEL_DISKII_MESH);
+    bool                       haveMeshes  = false;
 
 
 
-    haveText = !monitorObj.empty() && !monitorMtl.empty() && !driveObj.empty() && !driveMtl.empty();
-    CBRA (haveText);
+    haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
+    CBRA (haveMeshes);
 
-    hr = m_deskScene.LoadModels (monitor.sceneKind,
-                                 monitorObj, monitorMtl, driveObj, driveMtl);
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh);
     CHRA (hr);
 
     m_deskSceneMachineIsC = isC;
@@ -2524,7 +2525,9 @@ HRESULT EmulatorShell::InitializeUiShell()
 
     RestoreInputAndColorPrefs();
     RecordActiveMachineSelection();
+
     SubscribeAndActivateTheme();
+
     ApplyPersistedChromePrefs();
 
     hr = FinishUiShellLayout();

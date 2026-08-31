@@ -44,7 +44,7 @@ public:
     // -- the paper, paced head, and Casso badge stay procedural and anchor
     // themselves to the loaded platen. On failure the scene keeps the
     // procedural body, so a bad model never blanks the panel.
-    HRESULT  SetModel (const std::string & objText, const std::string & mtlText);
+    HRESULT  SetModel (std::span<const uint8_t> meshBlob);
 
     bool     HasModel () const { return !m_mesh.empty (); }
 

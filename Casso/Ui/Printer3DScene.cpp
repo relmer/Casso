@@ -2,6 +2,7 @@
 
 #include "Printer3DScene.h"
 
+#include "Devices/Printer/MeshBlob.h"
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Render/SceneCamera.h"
 
@@ -268,7 +269,7 @@ HRESULT Printer3DScene::Initialize (ID3D11Device * device, ID3D11DeviceContext *
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string & mtlText)
+HRESULT Printer3DScene::SetModel (std::span<const uint8_t> meshBlob)
 {
     HRESULT                    hr      = S_OK;
     std::vector<ObjTriangle>   tris;
@@ -291,7 +292,12 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    hr = ObjMeshParser::Parse (objText, mtlText, tris);
+    {
+        std::vector<std::string>   names;
+
+        hr = MeshBlob::Read (meshBlob, tris, names);
+    }
+
     CHR (hr);
 
     hasTris = !tris.empty();

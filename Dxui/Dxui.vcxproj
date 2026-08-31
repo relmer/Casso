@@ -83,7 +83,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -100,7 +100,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -115,7 +115,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -132,7 +132,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -267,6 +267,83 @@
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
+  </ItemGroup>
+  <!--
+    The desk scene's shaders, compiled to BYTECODE at build time.
+
+    They were C++ string literals compiled by D3DCompile during startup, which
+    cost 315 ms of a Debug launch and could not be read as the shaders they
+    are. fxc emits a header holding the compiled bytes, the renderer creates
+    the shaders straight from those, and nothing compiles HLSL at run time.
+
+    ObjectFileOutput is empty on purpose: the header IS the output, and a .cso
+    beside it would be a second copy nothing reads.
+
+    OPTIMIZED IN BOTH CONFIGURATIONS. D3DCompile was called with default
+    flags, so Debug always ran optimized shaders; MSBuild would otherwise
+    hand fxc /Od /Zi there and quietly make the Debug scene a slower
+    renderer than the one this replaced.
+  -->
+  <!--
+    Shader debugging follows the CONFIGURATION: fxc gets /Od /Zi in Debug
+    and optimizes in Release, which is what the rest of the build does and
+    so is the least surprising thing for it to do.
+
+    It is not free. The desk scene pixel shader goes from 1407 to 3597
+    instruction slots that way, 2.56x the per-pixel work, at 4x MSAA over
+    the whole window, so a Debug build draws the scene appreciably slower
+    than it used to when D3DCompile ran with default flags. Override with
+    /p:CassoShaderDebug=false when the frame rate matters more than
+    stepping the HLSL.
+  -->
+  <PropertyGroup>
+    <CassoShaderDebug Condition="'$(CassoShaderDebug)' == ''">$([System.String]::Copy('$(Configuration)').Equals('Debug').ToString().ToLowerInvariant())</CassoShaderDebug>
+  </PropertyGroup>
+  <ItemGroup>
+    <FxCompile Include="Render\Shaders\Painter.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <VariableName>g_PainterVs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\Painter.vs.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
+    </FxCompile>
+    <FxCompile Include="Render\Shaders\Painter.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <VariableName>g_PainterPs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\Painter.ps.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
+    </FxCompile>
+    <FxCompile Include="Render\Shaders\Scene.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <VariableName>g_SceneVs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\Scene.vs.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
+    </FxCompile>
+    <FxCompile Include="Render\Shaders\Scene.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <VariableName>g_ScenePs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\Scene.ps.h</HeaderFileOutput>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -47,9 +47,9 @@ public:
     // `monitorKind` selects which monitor is being loaded, which decides
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
-    HRESULT  LoadModels (DeskDeviceKind       monitorKind,
-                         const std::string  & monitorObj, const std::string & monitorMtl,
-                         const std::string  & driveObj,   const std::string & driveMtl);
+    HRESULT  LoadModels (DeskDeviceKind             monitorKind,
+                         std::span<const uint8_t>   monitorMesh,
+                         std::span<const uint8_t>   driveMesh);
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
@@ -564,8 +564,15 @@ private:
     // it changes costs nothing measurable -- and it makes the failure mode
     // impossible to hit by forgetting a per-array bump. Every rebuild path
     // ends in TouchGeometry().
-    Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh[2];   // by lamp state
-    Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh[2];     // by activity
+    // ONE BUFFER EACH. These were arrays of two, indexed "by lamp state" and
+    // "by activity", from when those states were baked into the vertices.
+    // They travel as shader constants now (SetModelLighting), so both slots
+    // held identical geometry: every draw passed the same array and the same
+    // revision, and the drive's second slot was never drawn at all. The
+    // monitor alone is 178 MB of vertices, so the spare copy was 178 MB of
+    // memory holding a duplicate.
+    Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
     Dxui3DRenderer::StaticMesh            m_labelMesh[2];
     Dxui3DRenderer::StaticMesh            m_monitorTiltMesh;

@@ -101,7 +101,23 @@ OPEN_FILLET  = BEZEL_FILLET
 MOUTH_R      = 14.0               # the opening's corner radius: a tube face
                                   # is a rounded rectangle, and the funnel
                                   # follows it around
-CORNER_ANG   = 0.03               # radians per segment where those radii live
+# HOW FINELY THE ROUNDED WORK IS TESSELLATED, in radians per segment.
+#
+# This was 0.03, and 0.03 was the right answer to the question being asked
+# at the time. The scene shaded every triangle by its own face normal, so a
+# curved surface came out in bands and the only cure available was more
+# triangles. Backing off to 0.06 was already visibly banded on the funnel.
+#
+# The app averages vertex normals now (MeshNormals, at bake time), so a
+# curve shades continuously across however few triangles describe it and
+# the two questions have come apart. 0.14 with smoothed normals renders
+# indistinguishably from 0.03 without them, at 111,220 triangles instead of
+# 926,142.
+#
+# 0.14 is also the Monitor //c's value, so the two agree again. The linear
+# tolerance still bounds the sag, so a larger radius picks up the extra
+# segments it needs without this having to know about it.
+CORNER_ANG   = 0.14
 
 # ------------------------------------------------------------ the faceplate
 #

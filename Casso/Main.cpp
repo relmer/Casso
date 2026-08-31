@@ -476,6 +476,7 @@ int WINAPI wWinMain (
     // anything can fail, so a command-line or machine-config failure is
     // reported too; those happen before the shell exists, so the sink queues
     // them and the shell replays them once there is a window.
+
     SetNotifyFunction (&EmulatorShell::NotifyUser);
 
     // Register a GUI assertion breakpoint. In debug builds a failed EHM
@@ -519,6 +520,7 @@ int WINAPI wWinMain (
     });
 
     // Parse command line
+
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
 
@@ -613,6 +615,7 @@ int WINAPI wWinMain (
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop
+
     exitCode = shell->RunMessageLoop();
 
     // --trace graceful-exit dump. No-op (one-shot guard) if a crash

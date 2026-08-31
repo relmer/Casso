@@ -2,6 +2,7 @@
 
 #include "Ui/Scene/DeskSceneModel.h"
 
+#include "Devices/Printer/MeshBlob.h"
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Chrome/CassoBranding.h"
 #include "Ui/Chrome/DriveWidget.h"
@@ -360,7 +361,9 @@ bool DeskSceneModel::ColorMatches (float r, float g, float b, const float kd[3])
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, const ObjTriangle & tri)
+void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex>  & out,
+                                   const ObjTriangle                    & tri,
+                                   const std::array<float, 3>           * smooth)
 {
     float   e1[3]  = { tri.p1[0] - tri.p0[0], tri.p1[1] - tri.p0[1], tri.p1[2] - tri.p0[2] };
     float   e2[3]  = { tri.p2[0] - tri.p0[0], tri.p2[1] - tri.p0[1], tri.p2[2] - tri.p0[2] };
@@ -371,8 +374,9 @@ void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, co
 
 
 
-    for (const float * p : { tri.p0, tri.p1, tri.p2 })
+    for (size_t corner = 0; corner < 3; corner++)
     {
+        const float            * p = (corner == 0) ? tri.p0 : (corner == 1) ? tri.p1 : tri.p2;
         Dxui3DRenderer::Vertex   v = {};
 
         v.x = p[0];  v.y = p[1];  v.z = p[2];
@@ -381,18 +385,29 @@ void DeskSceneModel::AppendLitTri (std::vector<Dxui3DRenderer::Vertex> & out, co
         v.b = tri.b;
         v.a = 1.0f;
 
-        // The face's own normal, carried per vertex. Flat by construction --
-        // all three vertices of a triangle get the same one, so a boxy CAD
-        // model stays crisp at its edges. Curved features (the fillets on
-        // the icons, the funnel's corners) still facet; smoothing those
-        // needs vertex welding with an angle threshold, which is a separate
-        // job from moving the lighting.
+        // THE SMOOTHED NORMAL WHEN THE MESH CARRIES ONE. MeshNormals averaged
+        // it at build time across the faces meeting this corner below the
+        // smoothing angle, so a curved surface shades continuously across
+        // however few triangles approximate it, while a moulded edge, whose
+        // faces meet well above the angle, keeps each side its own normal
+        // and stays crisp.
+        //
+        // Falling back to the face normal is the old flat behavior, which is
+        // what the procedurally stamped geometry (brand marks, drive labels,
+        // relief) wants: it is built flat and has no neighbors to average
+        // with.
         //
         // A degenerate triangle leaves the normal ZERO, which the shader
         // reads as unlit and passes through at full tint. That matches what
         // the old baked path did with a zero-length normal, which skipped
         // the Lambert loop and kept shade at floor+span == 1.
-        if (nl > 0.0f)
+        if (smooth != nullptr)
+        {
+            v.nx = smooth[corner][0];
+            v.ny = smooth[corner][1];
+            v.nz = smooth[corner][2];
+        }
+        else if (nl > 0.0f)
         {
             v.nx = n[0] / nl;
             v.ny = n[1] / nl;
@@ -443,19 +458,20 @@ void DeskSceneModel::AppendFlatTri (std::vector<Dxui3DRenderer::Vertex> & out, c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, const std::string & mtlText)
+HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> meshBlob)
 {
-    HRESULT                    hr        = S_OK;
-    std::vector<ObjTriangle>   triangles;
-    std::vector<std::string>   materialNames;
-    std::vector<size_t>        opaqueTris;
-    const float              * lampKd    = nullptr;
-    float                      anchorLo  = FLT_MAX;
-    float                      anchorHi  = -FLT_MAX;
-    float                      frontLo   = FLT_MAX;
-    float                      frontHi   = -FLT_MAX;
-    bool                       lampFound = false;
-    bool                       doorOk    = false;
+    HRESULT                              hr            = S_OK;
+    std::vector<ObjTriangle>             triangles;
+    std::vector<std::string>             materialNames;
+    std::vector<std::array<float, 3>>    smoothNormals;
+    std::vector<size_t>                  opaqueTris;
+    const float                        * lampKd        = nullptr;
+    float                                anchorLo      = FLT_MAX;
+    float                                anchorHi      = -FLT_MAX;
+    float                                frontLo       = FLT_MAX;
+    float                                frontHi       = -FLT_MAX;
+    bool                                 lampFound     = false;
+    bool                                 doorOk        = false;
 
 
 
@@ -483,7 +499,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
-    hr = ObjMeshParser::Parse (objText, mtlText, triangles, materialNames);
+    hr = MeshBlob::Read (meshBlob, triangles, materialNames, smoothNormals);
     CHRA (hr);
 
     // Move the room's ceiling lights into this model's own coordinates so
@@ -514,8 +530,14 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
 
     for (size_t t = 0; t < triangles.size(); t++)
     {
-        const ObjTriangle &  tri  = triangles[t];
-        const std::string &  part = ObjMeshParser::MaterialName (tri, materialNames);
+        const ObjTriangle &            tri     = triangles[t];
+        const std::string &            part    = ObjMeshParser::MaterialName (tri, materialNames);
+
+        // The three normals the baker averaged for this triangle, or null
+        // when the mesh carries none and the face normal has to serve.
+        const std::array<float, 3> *   corners = smoothNormals.empty()
+                                                 ? nullptr
+                                                 : &smoothNormals[t * 3];
 
         // Metadata first, and it never reaches a vertex buffer: the anchors
         // exist to be measured, not seen. Each names the midpoint of its own
@@ -555,7 +577,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             // any tilt, once the same transform is applied to both.
             size_t  first = m_tiltable.size();
 
-            AppendLitTri (m_tiltable, tri);
+            AppendLitTri (m_tiltable, tri, corners);
 
             if (part != s_kpszBezel)
             {
@@ -575,7 +597,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             // pebbled branch below.
             size_t  first = m_door.size();
 
-            AppendLitTri (m_door, tri);
+            AppendLitTri (m_door, tri, corners);
 
             if (kind == DeskDeviceKind::DiskII)
             {
@@ -592,7 +614,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             size_t  first = m_opaque.size();
 
             opaqueTris.push_back (t);
-            AppendLitTri (m_opaque, tri);
+            AppendLitTri (m_opaque, tri, corners);
 
             for (size_t i = first; i < m_opaque.size(); i++)
             {
@@ -615,7 +637,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
             size_t  first  = m_opaque.size();
 
             opaqueTris.push_back (t);
-            AppendLitTri (m_opaque, tri);
+            AppendLitTri (m_opaque, tri, corners);
 
             for (size_t i = first; i < m_opaque.size(); i++)
             {
@@ -628,7 +650,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, const std::string & objText, 
         else
         {
             opaqueTris.push_back (t);
-            AppendLitTri (m_opaque, tri);
+            AppendLitTri (m_opaque, tri, corners);
         }
     }
 
