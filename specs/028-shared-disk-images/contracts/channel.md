@@ -23,7 +23,7 @@ public:
 ```
 
 **`StateIntent` RETURNS NOTHING, and that is the contract rather than an
-oversight.** A failure to deliver degrades to the emulator's fallback answer,
+oversight.** A failure to deliver degrades to the emulator asking the user,
 which is correct behavior; there is no caller who could do anything useful with
 an error, and one that failed a build over it would be worse than the bug this
 feature fixes.

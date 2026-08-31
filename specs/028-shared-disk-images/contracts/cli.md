@@ -62,7 +62,7 @@ fail the build would be worse than the problem it solves.
 ## What is deliberately absent
 
 - **No `--on-change ask`.** Asking is what an unstated intent already produces
-  through the fallback, so a third value would be a second spelling of omitting
+  by asking, so a third value would be a second spelling of omitting
   the flag.
 - **No way to address a particular emulator.** The intent attaches to the IMAGE
   (FR-006); every emulator holding that image acts on it, and none holding a

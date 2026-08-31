@@ -275,20 +275,29 @@ configuration: each write carries its own answer.
   that image: take the new contents up in place, or restart the machine.
 - **FR-006**: The stated intent MUST be carried per image, so a change to one
   mounted disk does not govern what happens to another.
-- **FR-007**: A change that arrives with NO stated intent MUST be handled too. A
-  developer editing an image in another program cannot state one, and the
-  emulator MUST fall back to an answer the user has declared, defaulting to
-  asking.
-- **FR-008**: The fallback answer MUST persist across sessions and MUST be
-  changeable without restarting the emulator or re-mounting the disk.
-- **FR-009**: Where the new contents are taken up in place, a restart MUST
-  remain available afterward without the user hunting for it: the swap may turn
-  out to have been the wrong call, and the recovery is the action they declined.
+- **FR-007**: A change that arrives with NO stated intent MUST be put to the
+  user. A developer editing an image in another program cannot state one, and
+  the emulator MUST NOT guess on their behalf.
+
+  **There is deliberately no stored answer that suppresses this.** One was
+  specified, built and removed: a writer that can speak states its intent and
+  never reaches this branch, so the only writers left are text editors, copies
+  and other emulators. Being asked about those is rare enough that the setting
+  would sit at its default forever, while a stored answer that disagrees with
+  what the user meant is a way to lose a disk. The absence is the requirement.
+- **FR-008**: Where nothing can answer -- a headless host, a scripted run -- the
+  change MUST stay pending rather than resolve itself. An unanswered question is
+  not permission.
+- **FR-009**: A reboot MUST remain reachable after contents are taken up in
+  place, because the swap may turn out to have been the wrong call. It MUST NOT
+  be carried by the report: the toolbar already has one, and a notice with a
+  duplicate button is a thing to dismiss rather than a thing to use.
 - **FR-010**: Every pick-up MUST be reported in a way that does not block the
-  machine, and the report MUST carry the restart action. A disk whose contents
-  change under a running program is not something to do silently, even when it
-  was asked for -- and a report that clears itself takes the restart away with
-  it, which is the action the user reaches for once the program misbehaves.
+  machine, and the report MUST say why a reboot may be needed -- that the guest
+  holds the previous disk's directory in its own memory, where nothing at the
+  disk layer can see or correct it. A disk whose contents change under a running
+  program is not something to do silently, even when it was asked for. The
+  report MUST stand until dismissed rather than clearing itself.
 - **FR-011**: A standing report MUST absorb further changes rather than be
   replaced or duplicated by them. A developer may run three builds before
   turning back to the emulator, and three reports about one disk say nothing
@@ -317,21 +326,37 @@ configuration: each write carries its own answer.
   unreadable bytes -- the emulator MUST refuse the pick-up and carry on with the
   contents it already holds. The machine is running and what it holds is
   known-good; ejecting or halting acts on a guest that was working.
-- **FR-017**: That refusal MUST offer to save the in-memory disk to a backup.
-  The file that backed it is gone or unusable, so what the emulator holds may be
-  the ONLY remaining copy of that disk, whether or not the guest has written to
-  it. The offer MUST use the same timestamped naming as any other preserved
-  version.
-- **FR-018**: Declining that offer MUST leave the machine running and the disk
-  mounted, so the user can carry on and save later.
+- **FR-017**: That refusal MUST offer to save the in-memory disk, through the
+  ordinary save dialog so the user chooses where it goes. The file that backed
+  it is gone or unusable, so what the emulator holds may be the ONLY remaining
+  copy of that disk, whether or not the guest has written to it.
+- **FR-018**: The bay MUST then be ejected, whether the copy was saved or the
+  offer declined. A drive holding a disk whose file no longer exists is a drive
+  reporting something untrue, and every later write to it would be refused for a
+  reason the user has already been told about once. The emulator MUST NOT open
+  the disk picker afterwards -- the user mounts another disk if they want one.
+
+  **This overrides an earlier reading of FR-016.** That said the machine keeps
+  running with the disk mounted so the user can save later; ejecting is the
+  owner's call, taken because a mounted-but-absent disk is a lie the interface
+  keeps telling. FR-016 still holds for the case it is actually about: the
+  emulator does not halt, and it never swaps in bytes it cannot use.
 
 ##### What happens to the two versions
 
 - **FR-019**: Where the emulator HAS unsaved guest writes, an external change
-  MUST NOT be resolved without asking the user, whatever the pick-up answer says.
-  The pick-up answer governs how the guest continues, not whether work may be
-  discarded, and no configuration may turn the data-loss question off.
-- **FR-020**: Whichever version the user does not keep MUST be preserved in a
+  MUST be resolved by keeping BOTH: the external version is mounted, and the
+  guest's version is written to a timestamped image beside the original. The
+  user MUST be told, and told where their copy went.
+
+  **This is a report, not a question, and that is a deliberate reversal.** The
+  requirement first said a conflict may never be resolved without asking. But
+  the question has no wrong answer to protect against once both versions
+  survive -- whichever the user would have chosen, the other one is on disk
+  under a name that says when it was made, and mounting it back is one click.
+  A modal that stops a running machine to ask which of two preserved files to
+  look at first is ceremony, not safety.
+- **FR-020**: The version that does not stay mounted MUST be preserved in a
   separate image file rather than discarded, and the user MUST be told where it
   is.
 - **FR-021**: The preserved version MUST be written beside the original with a
@@ -343,11 +368,11 @@ configuration: each write carries its own answer.
   its own.
 - **FR-022**: The emulator MUST NOT write an image back over an external change
   it has not resolved.
-- **FR-023**: Ejecting the disk with a conflict unresolved MUST NOT discard
-  either version. The eject resolves it by keeping what is on disk, and the
-  guest's copy is preserved exactly as FR-020 requires. An eject is a plausible
-  answer to being asked a question, and it must not become the one path that
-  loses work.
+- **FR-023**: Ejecting the disk MUST NOT discard either version. A conflict now
+  resolves itself the moment it is noticed, so this covers the narrower case
+  that remains: an eject while the guest holds writes the file has not seen. The
+  guest's copy is preserved exactly as FR-020 requires. An eject must not become
+  the one path that loses work.
 - **FR-024**: Where the preserved copy cannot be written -- a read-only
   directory, no space, the volume gone with the image -- the action that would
   discard a version MUST NOT proceed. The emulator MUST keep holding both and
@@ -384,11 +409,20 @@ configuration: each write carries its own answer.
 
 #### Saying so
 
-- **FR-033**: A refusal or a conflict MUST name the image it is about. A user
-  with several disks mounted cannot act on a message that does not say which.
-- **FR-034**: The conflict question MUST state what is at stake on both sides —
-  that the guest has written, and that something else has changed the file —
-  rather than asking the user to choose between two unlabeled options.
+- **FR-033**: Every message MUST name the image AND the drive it is about --
+  "Loader.dsk in Drive 1". A user with two disks mounted cannot act on a message
+  that says neither, and the drive number MUST be the one printed on the machine
+  rather than the zero-based bay index used internally.
+- **FR-034**: The conflict report MUST state what happened on both sides -- that
+  the guest has written, and that something else has changed the file -- and
+  where the version that did not stay mounted has gone. It is no longer a
+  question (FR-019), so it must leave nothing for the user to work out.
+- **FR-035**: A message about a machine that is still running MUST explain why a
+  reboot may be needed, and MUST NOT merely advise one. The reason -- that the
+  Apple keeps the disk's directory in its own memory, so a running program may
+  not see the new disk correctly -- is what makes the advice actionable rather
+  than superstitious. A machine that has just been rebooted MUST NOT be told
+  this, since rebooting is what clears it.
 
 ### Key Entities
 

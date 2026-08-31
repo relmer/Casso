@@ -82,14 +82,14 @@ A noticed change that has not been acted on. This is what the banner stands for.
 
 | Value | Meaning |
 |---|---|
-| `Unstated` | Nothing said; the fallback answer decides (FR-007) |
+| `Unstated` | Nothing said; the user is asked (FR-007) |
 | `TakeUpInPlace` | Swap the contents, leave the machine running |
 | `Restart` | Swap the contents and restart the machine |
 
 **`Unstated` IS A REAL VALUE, not a missing one.** A change from a text editor
 or another emulator carries no intent, and that is the ordinary case for
 everything except `CassoCli`. Treating it as a distinct value is what keeps the
-fallback from being a guess about which of the other two was meant.
+question from being a guess about which of the other two was meant.
 
 ## Conflict (new)
 

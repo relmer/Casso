@@ -65,9 +65,11 @@ Then no intent at all — edit `work.dsk` with any other tool, or:
 CassoCli disk put work.dsk notes.txt --as NOTES
 ```
 
-**Expected**: the emulator falls back to the declared answer, asking if none has
-been declared. This is the path every writer that is not `CassoCli` takes, so it
-must not be an afterthought.
+**Expected**: the emulator asks -- "work.dsk in Drive 1 was modified externally"
+-- offering `Accept the changes` and `Ignore the changes`, and saying why a
+reboot may be needed. There is no setting that suppresses this, deliberately
+(FR-007). This is the path every writer that is not `CassoCli` takes, so it must
+not be an afterthought.
 
 ## Scenario 2 — Nothing is lost (User Story 2, P1)
 

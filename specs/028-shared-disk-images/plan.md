@@ -84,7 +84,7 @@ ANY writer -- a text editor, a second emulator, a script using `disk put` -- so
 a watcher is required regardless. The channel carries only the intent, which is
 optional metadata riding on a change that will be noticed anyway.
 
-That means a dropped message degrades to the fallback of FR-007, which is
+That means a dropped message degrades to the question of FR-007, which is
 correct behavior rather than a failure. A channel allowed to be lossy needs no
 delivery guarantee, no acknowledgement and no cleanup.
 
@@ -158,7 +158,7 @@ CassoEmuCore/Devices/Disk/
 ├── ImageIdentity.h/.cpp        # NEW: what is compared to answer "changed?"
 ├── IImageWatcher.h             # NEW: seam, notice a file changing
 ├── MountedImageState.h/.cpp    # NEW: per-mount identity + pending change
-├── ExternalChangePolicy.h/.cpp # NEW: intent, fallback, what to do
+├── ExternalChangePolicy.h/.cpp # NEW: intent and what to do about it
 ├── ChangePrompt.h/.cpp         # NEW: composes every question this asks,
 │                               # kept out of the policy for the same reason
 ├── PreservedCopy.h/.cpp        # NEW: backup naming and writing, kept out
@@ -191,7 +191,6 @@ Casso/Shell/
 Casso/EmulatorShell.cpp         # hosts the banner and every question; the
                                 # salvage machinery already lives here
 
-Casso/Ui/                       # the fallback answer's Settings surface
 
 UnitTest/Dxui/
 └── DxuiActionBannerTests.cpp   # NEW
@@ -221,7 +220,7 @@ two shims and the banner; `CassoCli` gets a flag and one call.
 The stories are independently shippable and the order is the spec's priority.
 
 - **Phase A (US1)** — identity at mount, watcher seam, pick-up on spindown,
-  banner. Delivers the build loop. The fallback answer covers intent until
+  banner. Delivers the build loop. Asking covers intent until
   Phase C adds the flag.
 - **Phase B (US2)** — dirty-image conflict, the timestamped backup, the refusal
   when a backup cannot be written. Delivers the guarantee that nothing is lost.
@@ -244,4 +243,4 @@ declined:
 | Considered | Declined because |
 |---|---|
 | A lock file coordinating writers | The atomic-rename guarantee already prevents the corruption it would prevent. It would add staleness, cleanup-on-crash and a new failure mode for nothing. |
-| An acknowledged, reliable channel | The intent is optional metadata on a change the watcher sees anyway, so loss degrades to the documented fallback. Reliability would cost discovery, retries and a handshake to buy an outcome the fallback already produces. |
+| An acknowledged, reliable channel | The intent is optional metadata on a change the watcher sees anyway, so loss degrades to asking the user. Reliability would cost discovery, retries and a handshake to buy an outcome the question already produces. |
