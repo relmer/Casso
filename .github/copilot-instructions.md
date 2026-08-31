@@ -117,6 +117,14 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   code: `rg -in 'colour|behaviour|centre|grey|initialise|optimise|analyse'`
   should return zero hits in lines you authored.
 
+  **British IDIOM is banned too, not only British spelling.** These are spelled
+  the American way letter for letter, so no spelling check will ever catch them;
+  they read like a BBC voice rather than a programmer's. Use the replacement:
+  `straight away` -> right away / immediately, `whilst` -> while,
+  `amongst` -> among, `in future` -> in the future, `different to` ->
+  different from, `have got` -> have, `sort out` -> fix, `at the weekend` ->
+  on the weekend.
+
   `cancelled` is NOT on that list: the doubled L is standard American usage
   too, merely less common than `canceled` in US style guides. Both are
   accepted here, so the checker does not flag either, which also means the
