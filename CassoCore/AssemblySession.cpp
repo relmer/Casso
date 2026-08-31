@@ -3294,7 +3294,7 @@ void AssemblySession::ReportSubsetBoundaryRefusals()
         m_diagnosticColumn  = offense.column;
 
         RecordRefusal (offense.lineNumber,
-                       SubsetBoundary::ComposeRefusal (*offense.row, linkage, m_dialect.GetName()));
+                       SubsetBoundary::ComposeRefusal (*offense.row, linkage));
     }
 }
 

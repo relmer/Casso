@@ -58,16 +58,21 @@ const SubsetBoundaryRow * SubsetBoundary::Find (std::span<const SubsetBoundaryRo
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string SubsetBoundary::ComposeRefusal (const SubsetBoundaryRow & row,
-                                            ModuleLinkage             linkage,
-                                            const char              * dialectName)
+                                            ModuleLinkage             linkage)
 {
     std::string   text;
     const char *  advice = nullptr;
 
 
 
-    text = std::string (row.spelling) + ": " + row.construct + " is outside the " + dialectName
-         + " subset Casso supports: " + row.explanation + ". Widens with " + row.widensWith + ".";
+    text = std::string (row.spelling) + ": " + row.construct + " is not supported";
+
+    if (row.githubIssue != nullptr)
+    {
+        text += std::string (" (GitHub issue #") + row.githubIssue + ")";
+    }
+
+    text += ".";
 
     if (row.workaround != nullptr)
     {

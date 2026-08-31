@@ -1583,10 +1583,8 @@ namespace MerlinCorpusTests
 
             for (const SubsetBoundaryRow & row : MerlinSubsetBoundary::GetAll())
             {
-                std::string  selfContained = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::SelfContained,
-                                                                             merlin.GetName());
-                std::string  dependent     = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::DependsOnOther,
-                                                                             merlin.GetName());
+                std::string  selfContained = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::SelfContained);
+                std::string  dependent     = SubsetBoundary::ComposeRefusal (row, ModuleLinkage::DependsOnOther);
 
                 if (error.message == selfContained || error.message == dependent)
                 {
@@ -1925,12 +1923,12 @@ namespace MerlinCorpusTests
             "EXT", "Invalid mnemonic",
         },
         {
-            //  The one refusal that must DENY a dependency rather than omit it:
-            //  disk file access arriving will not settle what this should do.
+            //  The denial that disk file access would settle this lives in the
+            //  boundary table now; the refusal itself only names the directive.
             "save-object directive",
             "        SAV OBJECT\n",
             DiagnosticKind::SubsetBoundary, 1, 9,
-            "disk file access will not settle", "Invalid mnemonic",
+            "SAV", "Invalid mnemonic",
         },
         {
             "output file-type directive",

@@ -112,6 +112,10 @@ struct SubsetBoundaryRow
     const char            * explanation;
     const char            * widensWith;
 
+    //  Where the gap is tracked, without the leading '#'. nullptr when no
+    //  issue covers it, and the refusal then points nowhere.
+    const char            * githubIssue;
+
     // Whether THIS construct is what makes the module depend on another one.
     // A module holding any such construct cannot be made to assemble by
     // deleting the constructs around it, so one of them rules out every
@@ -160,8 +164,7 @@ public:
 
     // One refusal, in the active dialect's vocabulary.
     static std::string                ComposeRefusal (const SubsetBoundaryRow & row,
-                                                      ModuleLinkage             linkage,
-                                                      const char              * dialectName);
+                                                      ModuleLinkage             linkage);
 
     // Any dialect's rows as help output, one line each. Shared for the reason
     // the refusal wording is: where a boundary sits is a dialect's own fact, and

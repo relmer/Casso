@@ -298,9 +298,20 @@ namespace MerlinSubsetBoundaryTests
 
                 Assert::IsTrue (refusals[0].message.starts_with (std::string (row.spelling) + ":"),
                                 what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.construct)   != std::string::npos, what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.explanation) != std::string::npos, what.c_str());
-                Assert::IsTrue (refusals[0].message.find (row.widensWith)  != std::string::npos, what.c_str());
+                Assert::IsTrue (refusals[0].message.find (row.construct) != std::string::npos, what.c_str());
+
+                //  A row that has an issue cites it, and a row that has none
+                //  points nowhere rather than inventing somewhere to point.
+                if (row.githubIssue != nullptr)
+                {
+                    Assert::IsTrue (refusals[0].message.find (std::string ("(GitHub issue #") + row.githubIssue + ")")
+                                        != std::string::npos,
+                                    what.c_str());
+                }
+                else
+                {
+                    Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos, what.c_str());
+                }
 
                 //  The refused occurrence, which for a cumulative construct is
                 //  the second line rather than the first.
@@ -529,10 +540,13 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreEqual ((size_t) 1, refusals.size(), L"the file-type directive");
 
-            Assert::IsTrue (refusals[0].message.find ("filesystem file type") != std::string::npos,
-                            L"the refusal has to say what the directive sets");
-            Assert::IsTrue (refusals[0].message.find ("disk file-access") != std::string::npos,
-                            L"and where the capability it needs is being built");
+            Assert::IsTrue (refusals[0].message.find ("the output file-type directive") != std::string::npos,
+                            L"the refusal has to identify the directive");
+
+            //  No issue tracks it, so the refusal cites none. What it waits on
+            //  is recorded in the boundary table, not in the diagnostic.
+            Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos,
+                            L"nothing tracks the file-type directive yet");
         }
 
 
@@ -543,10 +557,13 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreEqual ((size_t) 1, refusals.size(), L"the save-object directive");
 
-            Assert::IsTrue (refusals[0].message.find ("several outputs") != std::string::npos,
-                            L"the refusal has to say what makes this its own question");
-            Assert::IsTrue (refusals[0].message.find ("disk file access will not settle") != std::string::npos,
-                            L"and deny the reading that it is merely waiting on file access");
+            Assert::IsTrue (refusals[0].message.find ("the save-object directive") != std::string::npos,
+                            L"the refusal has to identify the directive");
+
+            //  It is not waiting on disk file access, so it cites no issue. The
+            //  boundary table still denies that reading out loud.
+            Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos,
+                            L"the save-object directive waits on a decision, not on a tracked gap");
         }
     };
 
