@@ -15,7 +15,7 @@ Entries before versioning was introduced use dates only.
 - **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
   ones, for every image format.
 
-## [1.20.1]: The one with logical or physical sector addresses
+## [1.20.1]: The one that gets physical--and logical--and liberates more silicon secrets
 
 ### Fixed
 - **`disk sectorread` and `sectorwrite` wrote to physical sector rather than logical.**
@@ -46,7 +46,7 @@ Entries before versioning was introduced use dates only.
   blocks.** Block numbers run 0 to 279 on a 5.25-inch image. The disk
   doesn't need ProDOS on it and any container works, not just `.po`.
 
-## [1.20.0]: The one where the command line touches disks
+## [1.20.0]: The one where CassoCLI gets disk super powers
 
 ### Added
 - **A `disk` subcommand.** `list`, `get`, `put`, `delete`, `boot`, `create`,
@@ -70,41 +70,22 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 - **Command-line parsing moved to the core library**, shared by Casso and
-  CassoCli, so `/machine`, `/disk1`, `/disk2` and `/trace` work at the
-  emulator too.
-- **All of the CLI moved to the core library**, where the unit tests reach it
+  CassoCli, so now Casso allows / or -- style switches
+- **And so did the rest of CLI**, where the unit tests reach it
   (GH #85).
 
 ### Removed
-- **`--raw` is gone.** It selected the assembled bytes, which giving no format
-  flag already does. Delete it; the result is identical.
+- **`--raw` is gone.** It's already default behavior
 
 ### Fixed
-- A damaged track silently truncated the image on eject (GH #115). The decoder
-  reports what it recovered now, refuses a flush that would leave a hole, and
-  saves the pending writes to `.recovered.woz` beside the target.
-- Assembler exit codes now match AS65: 1 bad command line, 2 unreadable file,
-  3 assembly errors, 5 warnings. A script testing 2 for failure wants 3.
-- Assembling a 200-byte routine wrote a 65,536-byte file. It writes the
-  assembled bytes now, and `--flat` still pads.
+- GH #115: A damaged track silently truncated the image on eject. 
+- Assembler exit codes now match AS65
+- Assembling defaults to writing assembled bytes rather than a padded 64K bin.
 - Pasting into the guest garbled the text. Ctrl+V leaked a `^V` ahead of it,
-  and characters outran the guest; feeding is paced now.
-- Assembler flag values have to attach, as AS65 wants: `-lout.lst`, `-dDEBUG`,
-  `-w100`, `-h60`. `-o` takes either form.
-- `-h80t` swallowed the `t`. Bare `-w` ignored its 133 columns, bare `-h` did
-  nothing, bare `-d` ate the next argument, and `-g` took a filename.
-- A refused command line assembled, ran and wrote anyway.
-- An unrecognized flag built from whatever flags survived.
-- A surplus argument was thrown away without a word.
-- A trailing `-o` hung forever.
-- A mistyped `run` option exited 0.
-- A value that could not be read was replaced instead of refused.
-- `-h<lines>` never paginated, and the default listing width is 79, not 80.
-- The help did not fill the terminal. It asks `CONOUT$` now, rather than a
-  redirected `stdout`.
-- A refusal printed in the middle of the page it interrupted.
-- A bare `CassoCli` exited 0.
-- An unreadable source still reported `Assembly failed with 0 error(s)`.
+  and characters outran the guest.
+- AS65 now requires no space between a flag and its value, e.g., `-lout.lst`, `-dDEBUG`, etc.
+  `-o` takes either form.
+- Various command line parsing improvements across all CassoCli modes
 
 ## [1.19.0]: The one where the Mockingboard speaks
 
@@ -236,7 +217,7 @@ every monitor Casso offered.
   monitors now decode one dot per pixel, and lit dots reach full phosphor
   brightness. The color monitor is unchanged.
 
-## [1.18.0]: The one that speaks Merlin
+## [1.18.0]: The one that conjures Merlin
 
 ### Breaking changes
 - **`--cpu` is gone; use `-x` for the 65C02.** `-x` is what AS65 itself
