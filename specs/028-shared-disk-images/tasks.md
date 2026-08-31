@@ -238,19 +238,50 @@ fixed:
    rather than the strip minus the action column, so text was laid out
    underneath its own buttons, and the reserved column was two pixels short of
    what Layout used. Covered by a test.
-3. **STILL OPEN.** In a wide window the notice still draws past the right edge
-   of the client area and the Dismiss button is off screen. Clamping the bounds
-   to `GetClientRect` did not fix it, and the root panel's `DxuiAbsoluteLayout`
-   is a no-op, so something else is deciding the width -- most likely the
-   scaler the shell passes versus the one the host paints with. **The feature
-   works; the notice is mispositioned.** Reproduce by mounting an image,
-   writing to it with `--on-change reload`, and widening the window.
+3. *Fixed structurally.* The notice was drawn OVER the emulator viewport, which
+   is why it took its width from a rect that follows the picture's aspect rather
+   than the window. It is now a docked chrome band under the toolbar: the dock
+   gives it the client width, the Fill center shrinks by its height, and the
+   scene rescales into what is left -- the same mechanism the //c switch strip
+   and the drive bar use, and zero-height when nothing is being reported.
+   Confirmed on screen: the picture moves down and back.
 
-- [ ] T117 **Open defect from the walk:** the change banner draws past the right
-  edge of the client area at wide window sizes and its action goes off screen.
-  Not a wording or a policy problem -- both were verified on screen -- and not
-  in the core, which is fully covered. Start at `EmulatorShell::LayoutChangeBanner`
-  and the DPI scaler it passes
+4. **STILL OPEN -- the notice's own text metrics.** The band is right and the
+   text inside it is not: the message runs past the right edge and the action
+   is never on screen.
+
+   **Measured rather than guessed, by drawing the numbers into the banner
+   itself.** At a 1300-physical-pixel window: `bounds = {0, 2600}`,
+   `dpi = 192`, `actions = 1`. So the band DOES span the client, the action DOES
+   exist, and both are laid out where they should be -- the button's rect works
+   out to 2388..2580, which is on screen.
+
+   Two things follow, and the next session should start from them rather than
+   re-deriving them:
+
+   - **PowerShell is DPI-unaware, so every capture was virtualized 2:1.**
+     `GetWindowRect` from a script reports 1300 for a 2600-pixel window. Any
+     future screenshot work here has to account for that or it will chase
+     phantoms, which this session did for several rounds.
+   - **The band renders about twice as tall as `GetPreferredHeightPx` computes
+     for it**, and the text about twice as wide as the estimate assumed. That
+     points at a double-scale between the DPI the shell measures with and the
+     one the painter draws with, not at the layout arithmetic. `DxuiInfoBanner`
+     estimates from `s_kEstGlyphEm` and paints from its own `m_scaler`, set by
+     `Layout` -- but the host also propagates DPI to adopted controls, and those
+     two paths are the first place to look.
+   - The action was additionally invisible against the banner's tinted fill in
+     the dark themes; it is now `Variant::Primary`. That is fixed but was never
+     the reason it could not be found.
+
+- [ ] T117 **Open defect from the walk:** the change band's text overflows and
+  its action lands off screen, because the notice's paint scale is roughly
+  double what its own height and wrap estimate assume. The band, the bounds and
+  the action all measure correct (`{0,2600}`, dpi 192, 1 action). Not a wording,
+  policy or core problem -- all three are covered by tests and were read on
+  screen. Start at `DxuiInfoBanner::EstimateLines` versus its `Paint`, and at
+  which scaler each ends up with once the host has propagated DPI to an adopted
+  control
 
 ---
 

@@ -901,6 +901,10 @@ void EmulatorShell::RegisterChromeDock()
     m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
     m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
     m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+
+    // Under the toolbar and above the picture, because a notice about the disk
+    // in the drive belongs with the controls rather than over the screen.
+    m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
@@ -2490,6 +2494,11 @@ void EmulatorShell::SyncChromeBands()
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.ToPx (s_kNavStripBandDp) });
     m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.ToPx (m_toolbar.GetBandDp()) });
+
+    // Measured against the CLIENT width, which is what the band will be given.
+    // Measuring against the viewport is what put the text off the edge: the
+    // picture keeps its own aspect and can be wider than the window.
+    m_changeBand.SetBounds  (RECT{ 0, 0, 0, GetChangeBandThicknessPx (m_lastClientWidthPx) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (driveBandDp) });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.ToPx (switchBandDp) });
 }
@@ -2510,7 +2519,8 @@ void EmulatorShell::SyncChromeBands()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand, &m_centerBand };
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
+                               &m_driveBand, &m_switchBand, &m_centerBand };
 
 
 
@@ -2519,12 +2529,21 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     // bands dock so the strip gets the right height for this window size.
     m_toolbar.PlanForWidth (widthPx, m_scaler);
 
+    //  The notice's height depends on the width it is about to be given, and
+    //  SyncChromeBands is where every band's thickness is decided -- so the
+    //  width has to be known before it runs.
+    m_lastClientWidthPx = widthPx;
+
     SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
 
     // The command toolbar rides its band: re-lay it every viewport pass so a
     // resize / DPI change reflows the buttons with the strip.
     m_toolbar.Layout (m_toolbarBand.GetBounds(), m_scaler);
+
+    //  The notice rides its band the way the toolbar rides its own, so a
+    //  resize or a DPI change reflows it with everything else.
+    LayoutChangeBanner();
 
     return m_centerBand.GetBounds();
 }
@@ -2766,9 +2785,6 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
     m_d3dRenderer.SetTargetBounds (boundsPx);
     m_d3dRenderer.MarkRedrawNeeded();
 
-    // The change banner sits across the top of the picture, so it moves with
-    // it. No-ops while nothing is being reported.
-    LayoutChangeBanner();
 }
 
 
@@ -10320,6 +10336,9 @@ void EmulatorShell::InstallChangeReporting()
             m_changeBannerDrive = -1;
         }
 
+        //  Dismissing it gives the space back to the picture.
+        ReflowChromeForChangeBand();
+
         if (action == ChangeAction::Restart)
         {
             PostCommand (IDM_MACHINE_RESET);
@@ -10379,7 +10398,10 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
         m_changeBannerDrive = -1;
     }
 
-    LayoutChangeBanner();
+    //  The band just changed height, so everything below it moves and the
+    //  picture is rescaled into what is left. Nothing here positions the
+    //  notice: the dock does, and this is the pass that runs it.
+    ReflowChromeForChangeBand();
 
     return;
 }
@@ -10390,53 +10412,108 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ReflowChromeForChangeBand
+//
+//  Re-docks everything after the notice appears or goes.
+//
+//  THE WINDOW KEEPS ITS SIZE. The machine-change reflow beside this one grows
+//  and shrinks the window, because a machine with no disk drives genuinely
+//  needs less of it and the user keeps that size for the session. A notice is
+//  transient: the picture gives up the height while it is up and takes it back
+//  when it goes, which is what makes the strip read as sliding in over the
+//  scene rather than shoving the window about.
+//
+//  RUN THROUGH OnSize, which is the one authoritative layout pass. A second
+//  path that re-docked some of the chrome would be a second answer to where
+//  everything goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflowChromeForChangeBand()
+{
+    RECT  client = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        return;
+    }
+
+    {
+        DxuiMessageResult  sized = OnSize (client.right - client.left,
+                                           client.bottom - client.top);
+
+        IGNORE_RETURN_VALUE (sized, DxuiMessageResult::Handled);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetChangeBandThicknessPx
+//
+//  How tall the notice's band is.
+//
+//  ZERO WHEN NOTHING IS BEING REPORTED, which is what makes this cost the
+//  ordinary session nothing: the dock hands the Fill center the whole space and
+//  every other band lands where it always did.
+//
+//  MEASURED AGAINST THE CLIENT WIDTH, because that is the width the band gets.
+//  Measuring against the emulator viewport is what put the text off the screen:
+//  the picture keeps its own aspect and can be wider than the window it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
+{
+    float  height = 0.0f;
+
+
+
+    if (!m_changeBanner.IsVisible() || clientWidthPx <= 0)
+    {
+        return 0;
+    }
+
+    height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+
+    return (int) height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::LayoutChangeBanner
 //
-//  Across the top of the emulator viewport, as tall as its text needs.
+//  Lays the notice into the band the dock gave it.
+//
+//  IT TAKES THE BAND'S BOUNDS RATHER THAN COMPUTING ITS OWN. The band already
+//  spans the client and already has the height this asked for, so anything
+//  computed here a second time would be a second answer to a settled question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::LayoutChangeBanner()
 {
-    RECT   bounds = m_viewportBoundsPx;
-    RECT   client = {};
-    float  height = 0.0f;
+    RECT  bounds = m_changeBand.GetBounds();
 
 
 
-    if (!m_changeBanner.IsVisible() || m_hwnd == nullptr)
+    if (!m_changeBanner.IsVisible() || bounds.right <= bounds.left)
     {
         return;
     }
-
-    //  CLAMPED TO THE WINDOW, NOT LEFT AT THE VIEWPORT'S WIDTH. The emulator
-    //  picture keeps its own aspect and can be WIDER than the client area,
-    //  which is fine for a picture that is simply clipped -- and wrong for a
-    //  notice, which then runs its text and its buttons off the right edge
-    //  where nobody can read or press them. Measured at two window sizes: the
-    //  message ran past the frame both times and the action was never on
-    //  screen.
-    if (GetClientRect (m_hwnd, &client))
-    {
-        if (bounds.right > client.right)
-        {
-            bounds.right = client.right;
-        }
-
-        if (bounds.left < client.left)
-        {
-            bounds.left = client.left;
-        }
-    }
-
-    if (bounds.right <= bounds.left)
-    {
-        return;
-    }
-
-    height = m_changeBanner.GetPreferredHeightPx ((float) (bounds.right - bounds.left), m_scaler);
-
-    bounds.bottom = bounds.top + (LONG) height;
 
     m_changeBanner.Layout (bounds, m_scaler);
 

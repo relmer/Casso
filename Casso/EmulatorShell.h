@@ -810,8 +810,19 @@ private:
     // thread that owns disk writes.
     void    AskAboutChange    (const ChangeNotice & notice);
 
-    // Positions the banner across the top of the emulator viewport.
+    // Lays the notice into the band the dock gave it.
     void    LayoutChangeBanner ();
+
+    // How tall the notice's band is right now: zero when nothing is being
+    // reported, and the height its wrapped text needs when something is.
+    int     GetChangeBandThicknessPx (int clientWidthPx) const;
+
+    // Re-docks the chrome after the notice's band appears or goes.
+    //
+    // IT DOES NOT RESIZE THE WINDOW, unlike the machine-change reflow beside
+    // it. A notice is transient and the user did not ask for a bigger window
+    // to hold it: the picture gives up the height and takes it back.
+    void    ReflowChromeForChangeBand ();
 
     // Opens the integrity-level hole a stated intent arrives through.
     //
@@ -1096,6 +1107,24 @@ private:
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
     ChromeBand               m_toolbarBand;
+
+    // The client width the bands were last laid out for, so the notice's
+    // height can be measured against the width it is about to be given.
+    int                      m_lastClientWidthPx = 0;
+
+    // The external-change notice's own band, docked under the toolbar.
+    //
+    // A BAND RATHER THAN AN OVERLAY, and the difference is not cosmetic. Drawn
+    // over the viewport it covered the top of the picture, took its width from
+    // a rect that follows the emulator's aspect rather than the window, and ran
+    // its text and its action off the client edge. As a band the dock gives it
+    // the client width, the Fill center shrinks by exactly its height, and the
+    // scene rescales into what is left -- the same way the //c switch strip and
+    // the drive bar already work.
+    //
+    // Zero height when nothing is being reported, so every other machine and
+    // every quiet session is laid out exactly as before.
+    ChromeBand               m_changeBand;
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;

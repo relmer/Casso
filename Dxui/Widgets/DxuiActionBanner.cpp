@@ -31,7 +31,12 @@ void DxuiActionBanner::SetActions (const std::vector<std::wstring> & labels)
         auto     button = std::make_unique<DxuiButton> (labels[i]);
         size_t   index  = i;
 
-        button->SetVariant (DxuiButton::Variant::Default);
+        //  PRIMARY, NOT DEFAULT. A neutral button sits on the banner's own
+        //  tinted fill at almost the same value and disappears -- measured on
+        //  the dark themes, where the notice showed its text and its action
+        //  could not be found at all. The accent fill is what makes the one
+        //  thing here that can be pressed look pressable.
+        button->SetVariant (DxuiButton::Variant::Primary);
         button->SetOnClick ([this, index] ()
         {
             if (m_onAction)
