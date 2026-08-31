@@ -76,9 +76,11 @@ own session:
   image rather than only to host files. Drafted on branch
   `026-assembler-to-disk`; next step is `/speckit-clarify`.
 - `specs/027-nibble-images` — mount and write back `.nib` images, split out of
-  022 the way 023 was split out of 019. Research notes are committed on branch
-  `027-nibble-images`; the spec itself is not written yet. **Writing is the hard
-  part, not reading**: the mount path is a write-back path
+  022 the way 023 was split out of 019. **IMPLEMENTED on branch
+  `027-nibble-images`, not yet merged** (2026-08-30): mount, write-back on the
+  live flush path, the `disk` commands, and a boot test on a real 6502. Another
+  session owns that branch; coordinate before touching its files. **Writing was
+  the hard part, not reading**: the mount path is a write-back path
   (`FlushEntry` -> `DiskImage::Serialize` on eject, power cycle and reset), so
   load-only is impossible, and `NibblizationLayer` converts sectors rather than
   nibble bytes, so the loader is a new seam and not an adapter. Nothing in Casso
@@ -128,7 +130,12 @@ any time; it builds on the unmerged `game-patch-table` proof-of-concept (see
 its `research/parked-branch.md` for the gap analysis, including an unresolved
 scan-cost question).
 
-**Merge master into a long-lived branch EARLY, and expect renames.** Master
+**Merge master into a long-lived branch EARLY, and expect renames.** Two more
+landed 2026-08-30: 279 functions across `CassoEmuCore`, `CassoCore`, `Casso` and
+`CassoCli`, then 249 across Dxui and its consumers, every noun-first name taking
+a verb (`ExtensionFor` -> `GetPrimaryExtension`, `Visible` -> `IsVisible`). The
+rule, the derivation method and the traps are in
+`docs/coding-standards-backlog.md` items 6 and 7. Before those, master
 took two sweeping accessor renames in August 2026 -- VerbNoun across 278 files
 (`HasHitBound`->`HitBound`, `JsonEqual`->`AreJsonEqual`, our `ARRAYSIZE`->
 `std::size`) and Dxui getters across 156 (`DpiScaler::Px`->`ToPx`,
@@ -171,14 +178,22 @@ corrected; historical `CHANGELOG` entries were left as written. Check
 https://github.com/Ludoclt/as65_142 rather than this tree's prose before
 changing an as65 default again.
 
-**Two 020 findings that outlive the feature.** `NibblizationLayer::Denibblize`
-stops at the first sector it cannot decode on a track and leaves that sector and
-every later one on the track as zeros, while returning `S_OK`, and
-`DiskImage::Serialize` puts it on the emulator's flush path, so a guest that
-leaves a track partly written can lose the rest of it on eject today. Separately,
-`ProDosReader` and `ProDosFileWriter` already exist but are declared inside
-`ProDosSkeleton.h`, so a survey by filename misses them; DOS 3.3 has no reader at
-all. Both are written up in `specs/020-disk-file-access/research.md`.
+**Two 020 findings, one now fixed.** `NibblizationLayer::Denibblize` used to
+stop at the first sector it could not decode on a track, leave that sector and
+every later one as zeros, and still return `S_OK` -- on the emulator's flush
+path, so a guest that left a track partly written lost the rest of it on eject.
+**Fixed**: the reportless overload now asks the decode report for coverage and
+refuses rather than reporting success, and its comment records why. Still true:
+`ProDosReader` and `ProDosFileWriter` exist but are declared inside
+`ProDosSkeleton.h`, so a survey by filename misses them; DOS 3.3 has no reader
+at all. Both are written up in `specs/020-disk-file-access/research.md`.
+
+**Where the disk layer's defects actually live.** Every data-loss fix in that
+layer has been on a DEGRADED path -- damaged sectors, an undecodable track, a
+refused mount, a partial write -- never on a good disk. Round-trip tests over a
+healthy image pass either way. A unit test that catches this class builds a
+damaged `DiskImage` in memory and asserts the caller refuses; it needs no
+checked-in corrupt image, so cost is not the reason that coverage is thin.
 
 Recent specs live under `specs/` (015 printer support, 016 Apple //c, 017
 blank-disk creation, and 019 assembler dialects + Merlin are all complete and
