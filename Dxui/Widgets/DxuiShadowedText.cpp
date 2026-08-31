@@ -82,10 +82,10 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
     bw     = (float) (bounds.right - bounds.left);
     bh     = (float) (bounds.bottom - bounds.top);
 
-    for (int i = kGlowLayers; i > 0; i--)
+    for (int i = m_glowLayers; i > 0; i--)
     {
         float     offset  = (float) i;
-        float     opacity = 1.0f - ((float) i / (float) kGlowLayers);
+        float     opacity = 1.0f - ((float) i / (float) m_glowLayers);
         uint32_t  argb    = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
 
         for (int dx = -1; dx <= 1; dx++)

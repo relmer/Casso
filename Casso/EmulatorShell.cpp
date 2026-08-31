@@ -191,11 +191,18 @@ static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
 
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
-// The readout sits in the picture's top-left corner, inset far enough that
-// its shadow clears the edge.
+// The readout sits in the bottom-left corner, inset far enough that its
+// shadow clears the edges.
+//
+// A SHORTER GLOW REACH than a notice takes. The desk scene's pale case is
+// the worst background the shadow has to survive, and at the notice's reach
+// the eight compass directions stopped reading as a halo and started
+// reading as spikes: the whole string is redrawn at each offset, and three
+// words have too little overlap to hide that. Four pixels keeps it a rim.
 static constexpr int     s_kFrameRateInsetDp        = 12;
 static constexpr int     s_kFrameRateWidthDp        = 120;
 static constexpr int     s_kFrameRateHeightDp       = 28;
+static constexpr int     s_kFrameRateGlowLayers     = 4;
 
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
@@ -2104,25 +2111,32 @@ void EmulatorShell::SyncFrameRateReadout()
         return;
     }
 
-    // BELOW THE TOP CHROME, measured off the toolbar band the same way the
-    // capture banner measures off the switch bar. Not the viewport bounds:
-    // under the desk scene those are the picture on the glass, which sits
-    // halfway down the window, and the readout appeared floating beside the
-    // monitor rather than in the corner.
+    // ABOVE THE BOTTOM CHROME, by the capture banner's rule and for its
+    // reason: hung from the client edge the readout straddles the switch
+    // bar, half over the scene and half over a shell band.
+    //
+    // MEASURED OFF THE CHROME, NEVER OFF THE SCENE. Anchored to the toolbar
+    // band this drifted up and down while the scene was being orbited: the
+    // bands report different bounds as the composition changes under them,
+    // so a readout hung off one wanders with the thing it is measuring. The
+    // switch bar does not move, and the client edge behind it does not
+    // either.
     {
-        RECT  bar = m_toolbarBand.GetBounds();
-        LONG  top = (bar.bottom > bar.top) ? bar.bottom : client.top;
+        RECT  bar    = m_switchBand.GetBounds();
+        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+                     ? bar.top : client.bottom;
 
         rc.left   = client.left + m_scaler.ToPx (s_kFrameRateInsetDp);
-        rc.top    = top + m_scaler.ToPx (s_kFrameRateInsetDp);
         rc.right  = rc.left + m_scaler.ToPx (s_kFrameRateWidthDp);
-        rc.bottom = rc.top  + m_scaler.ToPx (s_kFrameRateHeightDp);
+        rc.bottom = bottom - m_scaler.ToPx (s_kFrameRateInsetDp);
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kFrameRateHeightDp);
     }
 
     swprintf_s (text, L"%.1f fps", m_host->GetFramesPerSecond());
 
     m_fpsReadout.SetText        (text);
     m_fpsReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_fpsReadout.SetGlowLayers  (s_kFrameRateGlowLayers);
     m_fpsReadout.SetAlign       (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     m_fpsReadout.SetDpi         (m_scaler.GetDpi());
     m_fpsReadout.Layout         (rc, m_scaler);

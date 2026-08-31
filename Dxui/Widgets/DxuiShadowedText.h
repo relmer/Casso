@@ -51,6 +51,18 @@ public:
     void  SetTextColor   (uint32_t argb)             { m_textArgb = argb; }
     void  SetDpi         (UINT dpi)                  { m_dpi = dpi; }
 
+    // How far the shadow reaches, in PIXELS. Fewer layers is a tighter,
+    // harder rim; more is a broader, softer one.
+    //
+    // WORTH TUNING PER SITE, because what the shadow has to survive is not
+    // the same everywhere. Over the dark desk backdrop a wide one is
+    // invisible and simply works. Over the monitor's pale case it is the
+    // conspicuous part of the drawing, and the eight compass directions
+    // stop reading as a halo and start reading as spikes -- the whole
+    // STRING is redrawn at each offset, so a short one has too little
+    // overlap to hide its own structure. A short reach keeps it a rim.
+    void  SetGlowLayers  (int layers)                { m_glowLayers = layers; }
+
     void  SetAlign       (DxuiTextHAlign h, DxuiTextVAlign v)
     {
         m_hAlign = h;
@@ -81,6 +93,7 @@ private:
     uint32_t         m_textArgb    = 0xFFFFFFFF;
     float            m_fontSizeDip = kFontDip;
     UINT             m_dpi         = 96;
+    int              m_glowLayers  = kGlowLayers;
     DxuiTextHAlign   m_hAlign      = DxuiTextHAlign::Center;
     DxuiTextVAlign   m_vAlign      = DxuiTextVAlign::Center;
 };
