@@ -5,6 +5,7 @@
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
+#include "CommitPlan.h"
 
 
 
@@ -837,16 +838,43 @@ Error:
 
 HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<Byte> & bytes)
 {
-    constexpr const char *  kTempSuffix = ".casso-tmp";
-    HRESULT                 hr          = S_OK;
-    string                  tempPath    = path + kTempSuffix;
-    bool                    hasPath     = !path.empty();
-    bool                    wroteOk     = false;
-    std::error_code         ec;
+    HRESULT           hr        = S_OK;
+    bool              hasPath   = !path.empty();
+    bool              wroteOk   = false;
+    bool              foundFree = false;
+    unsigned          attempt   = 0;
+    string            tempPath;
+    std::error_code   ec;
 
 
 
     CBRAEx (hasPath, E_INVALIDARG);
+
+    //  THE NAME USED TO BE A FIXED SUFFIX AND THAT WAS A DEFECT. Two emulators
+    //  holding one image derived the same temporary from it, so each wrote into
+    //  the other's file and one of them renamed the other's bytes over the
+    //  target as its own.
+    //
+    //  CommitPlan ALREADY SOLVED THIS FOR THE COMMAND LINE, with a per-process
+    //  tag and a step past anything already sitting at the name, and its own
+    //  comment names the emulator as the side that still had the bug. A second
+    //  scheme here would be a second thing to keep right; this is the same one.
+    //
+    //  STEPPING PAST AN EXISTING NAME IS WHAT HANDLES AN ABANDONED TEMPORARY.
+    //  A writer that was killed mid-commit leaves one behind, and adopting it
+    //  would mean appending this image to the remains of somebody else's.
+    for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
+    {
+        tempPath  = GetCommitTemporaryPath (path, attempt);
+        foundFree = !fs::exists (fs::path (tempPath), ec);
+
+        if (foundFree)
+        {
+            break;
+        }
+    }
+
+    CBR (foundFree);
 
     {
         ofstream  file (tempPath, ios::binary | ios::trunc);
@@ -2601,4 +2629,31 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
     }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetCommitTemporaryPath
+//
+//  Where a commit of `path` writes before it renames.
+//
+//  ONE INVOCATION TAG FOR THE WHOLE PROCESS, taken once. Two emulators get
+//  different tags and therefore different names; two flushes inside one
+//  emulator get the same tag and are separated by the attempt counter and the
+//  existence check, which is enough because they cannot overlap -- every flush
+//  runs on the one thread that owns disk writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+string DiskImageStore::GetCommitTemporaryPath (const string & path, unsigned attempt)
+{
+    static const uint64_t  s_kInvocationTag = CommitPlan::NextInvocationTag();
+
+
+
+    return CommitPlan::GetTemporaryPath (path, s_kInvocationTag, attempt);
 }

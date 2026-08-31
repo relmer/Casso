@@ -307,6 +307,15 @@ public:
     //  the failure paths are filesystem states, not emulator states.
     static HRESULT  WriteFileAtomically (const string & path, const vector<Byte> & bytes);
 
+    //  The temporary a commit of `path` would write through, for a test that
+    //  needs to know a commit left nothing behind -- or that two of them chose
+    //  different names.
+    //
+    //  PUBLIC BECAUSE THE NAME IS PART OF THE CONTRACT NOW. It used to be a
+    //  fixed suffix three tests could spell for themselves; it cannot be, so
+    //  asking is the only way to stay right about it.
+    static string   GetCommitTemporaryPath (const string & path, unsigned attempt);
+
     //  Reads a whole file into `bytes`. The read counterpart of the write
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);

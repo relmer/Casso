@@ -707,7 +707,7 @@ public:
 
         Assert::AreEqual (size_t (2048), ReadBackAll (target).size(),
             L"the target must hold the new bytes, not the stale ones");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"a successful write must not leave its temp file behind");
 
         fs::remove (target, ec);
@@ -731,7 +731,7 @@ public:
         Assert::IsTrue (FAILED (hr),
             L"an impossible write must report failure, not succeed silently");
         Assert::IsFalse (fs::exists (target), L"no partial target may be left behind");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"no temp file may be left behind on failure");
     }
 
@@ -755,7 +755,7 @@ public:
 
         Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize), ReadBackAll (target).size(),
             L"a real-file flush must write a full-size image");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"the flush must not leave its temp file beside the image");
 
         fs::remove (target, ec);
