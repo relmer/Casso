@@ -18,6 +18,21 @@
 
 DiskImageStore::DiskImageStore()
 {
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
+    //  Each entry learns where it lives, once, so anything holding one can
+    //  name the drive without being told.
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            m_entries[slot][drive].slot  = slot;
+            m_entries[slot][drive].drive = drive;
+        }
+    }
 }
 
 
@@ -654,11 +669,14 @@ Error:
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
-    HRESULT        hr         = S_OK;
-    HRESULT        hrRecovery = S_OK;
-    bool           unchanged  = true;
+    HRESULT        hr           = S_OK;
+    HRESULT        hrRecovery   = S_OK;
+    bool           unchanged    = true;
+    bool           keptExternal = false;
     string         recoveryPath;
+    string         preservedPath;
     vector<Byte>   bytes;
+    vector<Byte>   external;
     ImageIdentity  current;
 
 
@@ -708,13 +726,34 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         current   = ReadIdentity (entry.path);
         unchanged = entry.sharedState.Identity().Matches (current);
 
-        //  The image KEEPS ITS DIRTY BIT, which is the whole difference between
-        //  refusing and losing: the guest's writes are still in memory and
-        //  still flushable once the conflict is settled. STG_E_NOTCURRENT says
-        //  precisely this and nothing else -- the object changed since it was
-        //  last read.
-        CBRFEx (unchanged, STG_E_NOTCURRENT,
-                EhmNotifyUser (FormatExternalChangeMessage (entry.path).c_str()));
+        //  THE SAME CONFLICT AS THE ONE THE WATCHER FINDS, discovered at the
+        //  other end. Notification failed, or the user chose to ignore the
+        //  change, and now the emulator is about to write its own version over
+        //  a version it never took up.
+        //
+        //  THE RULE IS THE SAME IN BOTH DIRECTIONS: the version being
+        //  DISPLACED is the one preserved. Here that is the file's.
+        if (!unchanged)
+        {
+            HRESULT       hrRead = ReadImageFile (entry.path, external);
+            HRESULT       hrKeep = hrRead;
+
+            if (SUCCEEDED (hrRead))
+            {
+                hrKeep = PreserveGivenBytes (entry, external, preservedPath);
+            }
+
+            keptExternal = SUCCEEDED (hrKeep);
+
+            //  A preserve that did not happen stops the write. The image KEEPS
+            //  ITS DIRTY BIT, which is the difference between refusing and
+            //  losing: the guest's writes are still in memory and still
+            //  flushable once there is somewhere to put the other version.
+            //  STG_E_NOTCURRENT says precisely this -- the object changed since
+            //  it was last read.
+            CBRFEx (keptExternal, STG_E_NOTCURRENT,
+                    EhmNotifyUser (FormatExternalChangeMessage (entry.path).c_str()));
+        }
     }
 
     hr = entry.image->Serialize (bytes);
@@ -763,6 +802,16 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     if (entry.sharedState.Identity().recorded)
     {
         entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    }
+
+    //  Told after the write rather than before it, so the message describes
+    //  something that has finished happening rather than something being
+    //  attempted.
+    if (keptExternal && m_reportSink)
+    {
+        m_reportSink (entry.slot, entry.drive,
+                      ChangePrompt::ComposeConflictReport (entry.path, entry.drive,
+                                                           preservedPath, true));
     }
 
 Error:
@@ -1827,16 +1876,6 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
         return;
     }
 
-    //  DEFER EVERY PICK-UP WHILE THE GUEST HAS UNSAVED WRITES. Resolving a
-    //  two-sided conflict means preserving the version the user does not keep,
-    //  and until that exists a pick-up here would discard the guest's work --
-    //  the exact loss this feature is for. Nothing is lost by waiting: the
-    //  change stays pending and the writes stay in memory.
-    if (entry.image->IsDirty())
-    {
-        return;
-    }
-
     current   = ReadIdentity (entry.path);
     unchanged = entry.sharedState.Identity().Matches (current);
 
@@ -1869,11 +1908,23 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
     situation.changeSeen  = true;
     situation.usable      = usable;
-    situation.guestDirty  = false;
     situation.heldByOther = false;
     situation.intent      = intent;
 
+    //  The guest's unsaved writes are what turns a pick-up into a conflict.
+    //  They were deferred outright while there was nowhere to preserve them;
+    //  now there is, so the flag goes to the policy and the conflict is
+    //  resolved rather than postponed.
+    situation.guestDirty  = entry.image->IsDirty();
+
     action = ExternalChangePolicy::Decide (situation);
+
+    //  A file that is simply gone gets its own sentence rather than sharing
+    //  one with a file that is present and unreadable.
+    if (action == ChangeAction::Unusable && !PathExists (entry.path))
+    {
+        action = ChangeAction::Deleted;
+    }
 
     //  A question nothing can answer stays pending rather than resolving itself
     //  by default. A headless host has no way to ask, and picking one of the
@@ -1888,6 +1939,8 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
         if (m_askSink && !entry.sharedState.IsAskOutstanding())
         {
             entry.sharedState.SetAskOutstanding (true);
+            entry.sharedState.SetAskedAction (action);
+
             m_askSink (slot, drive, ChangePrompt::Compose (entry.path, drive, action));
         }
 
@@ -1916,7 +1969,8 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen)
+void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen,
+                                          const string & savePath)
 {
     HRESULT       hr = S_OK;
     vector<Byte>  bytes;
@@ -1938,14 +1992,56 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             return;
         }
 
+        //  An answer about a file that has gone is being given to a question
+        //  that no longer applies. Saving what is held and emptying the drive
+        //  is the only thing still on offer.
+        //
+        //  THE SAVE HAPPENS BEFORE THE EJECT, always. The eject is what
+        //  discards the in-memory disk, so a failure between the two must
+        //  leave the disk in the drive rather than gone from both places.
+        if (ExternalChangePolicy::IsFileLost (entry.sharedState.AskedAction()))
+        {
+            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+            {
+                vector<Byte>  held;
+
+                hr = entry.image->Serialize (held);
+
+                if (SUCCEEDED (hr))
+                {
+                    hr = WritePreserved (savePath, held);
+                }
+
+                //  A save the user asked for and did not get must not be
+                //  followed by throwing the only copy away.
+                if (FAILED (hr))
+                {
+                    entry.sharedState.SetAskOutstanding (true);
+
+                    if (m_reportSink)
+                    {
+                        m_reportSink (slot, drive,
+                                      ChangePrompt::ComposePreserveFailure (entry.path, drive));
+                    }
+
+                    return;
+                }
+            }
+
+            EjectLostImage (slot, drive);
+
+            return;
+        }
+
         hr = ReadImageFile (entry.path, bytes);
 
         //  Answering "take it up" about a file that has since gone is not the
-        //  same question any more. Nothing is swapped and the user is told
-        //  what they are still holding.
+        //  same question any more.
         if (FAILED (hr) && chosen != ChangeAction::Ignore)
         {
-            chosen = ChangeAction::Unusable;
+            chosen = ChangeAction::Deleted;
         }
     }
 
@@ -1979,15 +2075,53 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                            const vector<Byte> & bytes)
 {
-    HRESULT  hr        = S_OK;
-    Entry &  entry     = At (slot, drive);
-    bool     restarted = false;
-    bool     tookUp    = false;
+    HRESULT  hr           = S_OK;
+    Entry &  entry        = At (slot, drive);
+    bool     restarted    = false;
+    bool     tookUp       = false;
+    bool     preserved    = false;
+    bool     preserveFail = false;
+    string   preservedPath;
 
 
 
     switch (action)
     {
+    case ChangeAction::Conflict:
+        //  BOTH VERSIONS SURVIVE, and the order is the guarantee: what the
+        //  guest wrote goes to a file of its own BEFORE the thing that
+        //  replaces it is mounted. Reversed, a failure between the two steps
+        //  would lose the only copy of the guest's work.
+        hr = PreserveHeldVersion (entry, preservedPath);
+
+        if (FAILED (hr))
+        {
+            //  The whole promise is that a version is never destroyed. A
+            //  preserve that did not happen therefore stops everything: the
+            //  external contents are NOT mounted, the change stays pending,
+            //  and both versions are still where they were.
+            preserveFail = true;
+            break;
+        }
+
+        preserved = true;
+
+        hr = TakeUpContents (slot, drive, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            //  The guest's writes are on disk under their own name now, so
+            //  the mounted image is no longer carrying anything unsaved.
+            entry.image->ClearDirty();
+            tookUp = true;
+        }
+        else
+        {
+            action = ChangeAction::Unusable;
+        }
+
+        break;
+
     case ChangeAction::TakeUpInPlace:
     case ChangeAction::Restart:
         hr = TakeUpContents (slot, drive, bytes);
@@ -2008,12 +2142,13 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         break;
 
     case ChangeAction::KeepHeld:
-        //  The user saw both and chose the one in memory. Recording the file's
-        //  identity as seen is what lets a later flush write over it: without
-        //  it the re-check before every commit would refuse forever, and the
-        //  guest's work would be stranded in memory for the rest of the
-        //  session.
-        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+        //  The user was told and chose the disk in memory.
+        //
+        //  THE RECORDED IDENTITY IS DELIBERATELY LEFT STALE. Refreshing it
+        //  here would license the guest's next flush to write straight over
+        //  the change that was just ignored, which is not what "ignore the
+        //  changes" means. The stale identity keeps the file's version alive:
+        //  the flush that eventually comes preserves it first.
         break;
 
     case ChangeAction::Defer:
@@ -2024,6 +2159,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         break;
     }
 
+    if (!preserveFail)
     {
         std::lock_guard<std::mutex>  guard (m_pendingMutex);
 
@@ -2039,7 +2175,16 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     {
         ChangePrompt  report;
 
-        if (tookUp)
+        if (preserveFail)
+        {
+            report = ChangePrompt::ComposePreserveFailure (entry.path, drive);
+        }
+        else if (preserved)
+        {
+            report = ChangePrompt::ComposeConflictReport (entry.path, drive,
+                                                          preservedPath, false);
+        }
+        else if (tookUp)
         {
             report = ChangePrompt::ComposePickUpReport (entry.path, drive, restarted);
         }
@@ -2220,6 +2365,240 @@ void DiskImageStore::EndWatching (int slot, int drive)
     }
 
     entry.sharedState.SetWatching (false);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PathExists
+//
+//  Whether something is already sitting at a path.
+//
+//  THROUGH THE FILE SEAM WHEN ONE IS INSTALLED, so a test that keeps its files
+//  in memory is asked about the world it actually has. Reaching past it to the
+//  filesystem would let the collision loop below hand out a name a test already
+//  used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::PathExists (const string & path) const
+{
+    std::error_code  ec;
+
+
+
+    if (m_fileIo != nullptr)
+    {
+        return m_fileIo->Exists (path);
+    }
+
+    return fs::exists (fs::path (path), ec);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FindFreePreservedPath
+//
+//  A preserved-copy name nothing is sitting at yet.
+//
+//  THE LOOP IS THE POINT. A one-second timestamp cannot keep the promise that
+//  repeated conflicts accumulate rather than overwrite each other, and two
+//  conflicts on one image inside a second is exactly what a build loop makes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FindFreePreservedPath (const string & imagePath, string & outPath) const
+{
+    HRESULT  hr      = S_OK;
+    string   stamp   = PreservedCopy::MakeStamp (m_timestamp ? m_timestamp() : time (nullptr));
+    bool     isFree  = false;
+    int      attempt = 0;
+
+
+
+    for (attempt = 0; attempt < PreservedCopy::kMaxAttempts; attempt++)
+    {
+        string  candidate = PreservedCopy::MakePath (imagePath, stamp, attempt);
+
+        if (!PathExists (candidate))
+        {
+            outPath = candidate;
+            isFree  = true;
+            break;
+        }
+    }
+
+    //  Ninety-nine names taken in one second is not a collision any more, it is
+    //  something else going wrong, and inventing a hundredth would not help.
+    CBR (isFree);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::WritePreserved
+//
+//  Writes a preserved copy.
+//
+//  THROUGH THE SAME SINK AS A FLUSH, so a test captures preserved copies the
+//  way it captures everything else this class writes, and so the atomic
+//  temp-then-rename applies to them too. A preserved copy that could be found
+//  half-written would be worth nothing at the moment it is needed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> & bytes)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_flushSink)
+    {
+        hr = m_flushSink (path, bytes);
+    }
+    else
+    {
+        hr = WriteFileAtomically (path, bytes);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PreserveHeldVersion
+//
+//  Writes what the bay is holding to a file of its own.
+//
+//  SERIALIZED FROM THE MOUNTED IMAGE, NOT COPIED FROM THE FILE. The entire
+//  reason this version needs preserving is that the file no longer holds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+
+
+
+    CBR (entry.image != nullptr);
+
+    hr = entry.image->Serialize (bytes);
+    CHR (hr);
+
+    hr = FindFreePreservedPath (entry.path, outPath);
+    CHR (hr);
+
+    hr = WritePreserved (outPath, bytes);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        outPath.clear();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PreserveGivenBytes
+//
+//  Writes bytes that came off the file to a file of their own.
+//
+//  THE OTHER DIRECTION. Here the emulator is about to write its own version
+//  over an external change it never picked up, so the version being displaced
+//  is the one on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
+                                            string & outPath)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = FindFreePreservedPath (entry.path, outPath);
+    CHR (hr);
+
+    hr = WritePreserved (outPath, bytes);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        outPath.clear();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EjectLostImage
+//
+//  Empties a bay whose file has gone.
+//
+//  IT DOES NOT FLUSH, AND THAT IS THE WHOLE DIFFERENCE FROM Eject. The ordinary
+//  eject persists a dirty image first, which here would mean writing the disk
+//  back to a path the user has just been told no longer exists -- recreating
+//  the file they deleted, or failing and reporting a second problem about the
+//  first one.
+//
+//  WHATEVER THE USER WANTED SAVED IS ALREADY SAVED by the time this runs. The
+//  offer comes first and this is what follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EjectLostImage (int slot, int drive)
+{
+    if (!IsValidBay (slot, drive))
+    {
+        return;
+    }
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        EndWatching (slot, drive);
+
+        entry.image.reset();
+        entry.path.clear();
+        entry.mounted        = false;
+        entry.salvageOffered = false;
+        entry.sharedState.Eject();
+    }
 
     return;
 }

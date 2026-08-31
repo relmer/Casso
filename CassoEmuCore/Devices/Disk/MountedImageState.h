@@ -114,6 +114,16 @@ public:
     bool  IsAskOutstanding  () const          { return m_askOutstanding; }
     void  SetAskOutstanding (bool outstanding) { m_askOutstanding = outstanding; }
 
+    //  Which question was put to the user, so the answer can be read in the
+    //  terms it was asked in.
+    //
+    //  "SAVE A COPY" MEANS DIFFERENT THINGS IN DIFFERENT QUESTIONS. Answering
+    //  it about a file that has gone saves the disk and empties the drive;
+    //  there is no other question where it would do that, and an answer read
+    //  without knowing what was asked is how the wrong one gets carried out.
+    ChangeAction  AskedAction    () const           { return m_askedAction; }
+    void          SetAskedAction (ChangeAction action) { m_askedAction = action; }
+
     //  Whether two spellings of a path name the same file.
     //
     //  HERE RATHER THAN IN THE SHELL because comparing them is a rule, not a
@@ -131,4 +141,5 @@ private:
     bool           m_watching       = false;
     bool           m_reportStanding = false;
     bool           m_askOutstanding = false;
+    ChangeAction   m_askedAction    = ChangeAction::Ignore;
 };

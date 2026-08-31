@@ -107,30 +107,9 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         prompt.answers.push_back (PromptAnswer { L"Ignore the changes", ChangeAction::KeepHeld });
         break;
 
-    case ChangeAction::Conflict:
-        prompt.title   = L"Two versions of one disk";
-        prompt.message = what +
-            L" was modified externally, and the machine has written to it since "
-            L"it was mounted.\n\n"
-            L"Both versions exist and only one can stay mounted. Whichever you do "
-            L"not keep is saved beside the original with a timestamp in its name, "
-            L"so nothing is discarded either way.";
-
-        prompt.answers.push_back (PromptAnswer { L"Keep the file on disk", ChangeAction::TakeUpInPlace });
-        prompt.answers.push_back (PromptAnswer { L"Keep what the machine wrote", ChangeAction::KeepHeld });
-        break;
-
     case ChangeAction::Unusable:
-        prompt.title   = L"A mounted disk can no longer be read";
-        prompt.message = what +
-            L" is gone, or has been replaced by something that cannot be used as "
-            L"this disk.\n\n"
-            L"Casso is still holding the disk and the machine is still running, so "
-            L"what it holds may be the only copy left. Saving it writes a "
-            L"timestamped image beside where the original was.";
-
-        prompt.answers.push_back (PromptAnswer { L"Save a copy", ChangeAction::PreserveCopy });
-        prompt.answers.push_back (PromptAnswer { L"Carry on", ChangeAction::KeepHeld });
+    case ChangeAction::Deleted:
+        prompt = ComposeLostFile (imagePath, drive, action);
         break;
 
     default:
@@ -190,6 +169,146 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
     }
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
+
+    return prompt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangePrompt::ComposeConflictReport
+//
+//  What is said once both versions have been dealt with.
+//
+//  IT NAMES WHERE THE OTHER ONE WENT, which is the entire reason this is worth
+//  saying at all. "There was a conflict" helps nobody; "your changes are in
+//  Loader.20260830-014233.dsk" is a thing the user can act on.
+//
+//  THE TWO DIRECTIONS READ DIFFERENTLY ON PURPOSE. Displacing the guest's work
+//  is the surprising one and leads with what was saved; displacing the file's
+//  version happens when the emulator writes out, and leads with what was kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath, int drive,
+                                                  const std::string & preservedPath,
+                                                  bool                keptWhatTheGuestWrote)
+{
+    ChangePrompt  prompt;
+    std::wstring  what      = NameInDrive (imagePath, drive);
+    std::wstring  preserved = fs::path (preservedPath).filename().wstring();
+    std::wstring  name      = fs::path (imagePath).filename().wstring();
+
+
+
+    prompt.title = L"Conflicting changes to " + what;
+
+    if (keptWhatTheGuestWrote)
+    {
+        prompt.message = name +
+            L" was changed externally, and also within Casso. What Casso wrote is "
+            L"now in the file, and we've saved the external version to " +
+            preserved + L".";
+    }
+    else
+    {
+        prompt.message = name +
+            L" was changed externally, and also within Casso. The external changes "
+            L"are already mounted, and we've saved your changes within Casso to " +
+            preserved + L".";
+    }
+
+    prompt.answers.push_back (PromptAnswer { L"OK", ChangeAction::Ignore });
+
+    return prompt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangePrompt::ComposePreserveFailure
+//
+//  What is said when the displaced version could not be written anywhere.
+//
+//  IT SAYS WHAT DID NOT HAPPEN, not only what failed. The user's question at
+//  that moment is whether they have lost anything, and the answer is no --
+//  nothing was replaced, precisely because the copy could not be made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChangePrompt ChangePrompt::ComposePreserveFailure (const std::string & imagePath, int drive)
+{
+    ChangePrompt  prompt;
+    std::wstring  what = NameInDrive (imagePath, drive);
+
+
+
+    prompt.title   = L"Could not save a second copy of " + what;
+    prompt.message = what +
+        L" was changed externally, and also within Casso. Neither version has "
+        L"been touched: Casso could not write the second copy, so it did not "
+        L"replace anything.\n\n"
+        L"Free some space or check the folder's permissions, and the disk will be "
+        L"picked up on the next change.";
+
+    prompt.answers.push_back (PromptAnswer { L"OK", ChangeAction::Ignore });
+
+    return prompt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangePrompt::ComposeLostFile
+//
+//  What is said when the file behind a mounted disk has gone or become
+//  unreadable.
+//
+//  THE TWO TITLES ARE NOT INTERCHANGEABLE. A user who deleted the file needs to
+//  be told it is deleted; one whose share dropped needs to be told it cannot be
+//  reached. "Something went wrong with your disk" serves neither.
+//
+//  THE OFFER IS NOT CONDITIONAL ON THE GUEST HAVING WRITTEN. With the file
+//  gone, the bytes in memory may be the only copy of that disk that exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int drive,
+                                            ChangeAction action)
+{
+    ChangePrompt  prompt;
+    std::wstring  what = NameInDrive (imagePath, drive);
+
+
+
+    if (action == ChangeAction::Deleted)
+    {
+        prompt.title   = what + L" has been deleted";
+        prompt.message = L"The file behind this disk no longer exists. Casso is still "
+                         L"holding its contents in memory.\n\n"
+                         L"Would you like to save the in-memory copy?";
+    }
+    else
+    {
+        prompt.title   = what + L" is no longer accessible";
+        prompt.message = L"The file behind this disk can no longer be read as this "
+                         L"disk. Casso is still holding its contents in memory.\n\n"
+                         L"Would you like to save the in-memory copy?";
+    }
+
+    //  The drive is emptied either way -- a drive holding a disk whose file is
+    //  gone reports something untrue -- so neither answer is "carry on".
+    prompt.answers.push_back (PromptAnswer { L"Save a copy...", ChangeAction::PreserveCopy });
+    prompt.answers.push_back (PromptAnswer { L"Don't save",     ChangeAction::KeepHeld });
 
     return prompt;
 }

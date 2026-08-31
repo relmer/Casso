@@ -36,6 +36,38 @@ public:
 
 
 
+    struct Rig;
+
+
+    //
+    //  Only the two questions the store asks the platform outside its read,
+    //  write and identity seams: whether a path is taken, and whether somebody
+    //  else is holding it.
+    //
+    //  IT ANSWERS OUT OF THE RIG'S OWN FILE MAP, which is what makes the
+    //  preserved-name collision loop testable: a candidate name a test has
+    //  already used has to read as taken.
+    //
+    struct RigFileIo : public IDiskFileIo
+    {
+        Rig &  rig;
+
+        explicit RigFileIo (Rig & owner) : rig (owner) {}
+
+        bool     Exists (const std::string & path) override;
+        bool     IsHeldByAnotherProcess (const std::string &) override { return false; }
+
+        //  Nothing below is reached: the store reads, writes and stats through
+        //  its own seams, and this exists for the two questions above.
+        HRESULT  ReadAllBytes  (const std::string &, std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  WriteAllBytes (const std::string &, const std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }
+        HRESULT  Remove        (const std::string &) override { return E_NOTIMPL; }
+        HRESULT  ReplaceAtomically (const std::string &, const std::string &) override { return E_NOTIMPL; }
+        HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> &) override { return E_NOTIMPL; }
+    };
+
+
     //
     //  A store with every platform seam replaced: reads and writes land in
     //  this object, identities come from a number this object controls, and
@@ -45,9 +77,19 @@ public:
     {
         DiskImageStore                                 store;
         FakeImageWatcher                               watcher;
+        RigFileIo                                      fileIo { *this };
         std::unordered_map<std::string, vector<Byte>>  files;
         std::unordered_map<std::string, ImageIdentity> identities;
         int64_t                                        nowMs = 0;
+
+        //  Fixed, so every preserved copy in one test is stamped alike unless
+        //  the test says otherwise.
+        time_t                                         wallClock = 1756500000;
+
+        //  Makes every attempt to write a preserved copy fail, which is the
+        //  only way to reach the rule that a version is never destroyed for
+        //  want of somewhere to put the other one.
+        bool                                           refusePreserve = false;
 
         //  What the store reported and did.
         std::vector<ChangePrompt>                      reports;
@@ -76,6 +118,18 @@ public:
 
             store.SetFlushSink ([this] (const string & path, const vector<Byte> & bytes) -> HRESULT
             {
+                bool  isPreserved = (path != kImagePath);
+
+                if (isPreserved)
+                {
+                    if (refusePreserve)
+                    {
+                        return E_ACCESSDENIED;
+                    }
+
+                    preserved.push_back (path);
+                }
+
                 files[path] = bytes;
                 Stamp (path);
 
@@ -89,7 +143,13 @@ public:
                 return (found != identities.end()) ? found->second : ImageIdentity();
             });
 
+            store.SetFileIo (&fileIo);
+
             store.SetClock ([this] () { return nowMs; });
+
+            //  A wall clock that does not move unless a test moves it, which
+            //  is what makes the same-second collision case reachable at all.
+            store.SetTimestampSource ([this] () { return wallClock; });
 
             store.SetChangeReportSink ([this] (int, int, const ChangePrompt & prompt)
             {
@@ -117,6 +177,11 @@ public:
 
             identities[path] = identity;
         }
+
+
+
+        //  Every preserved copy written so far, in the order they were made.
+        const std::vector<std::string> &  PreservedPaths() const { return preserved; }
 
 
 
@@ -148,6 +213,8 @@ public:
             nowMs += MountedImageState::kQuietPeriodMs;
             store.ApplyPendingPickUp();
         }
+
+        std::vector<std::string>  preserved;
 
     private:
         int64_t  m_tick = 100;
@@ -300,7 +367,38 @@ public:
 
 
 
-    TEST_METHOD (AFlushOverAnExternalChangeIsRefusedAndTheWritesAreKept)
+    TEST_METHOD (AFlushOverAnExternalChangeKeepsTheFilesVersionBeforeWriting)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  The guest writes, and something else rewrites the file before the
+        //  flush lands -- the same conflict the watcher finds, discovered at
+        //  the other end because notification never arrived.
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        //  The rule is the same in both directions: the version being
+        //  DISPLACED is the one preserved. Here that is the file's.
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+        Assert::AreEqual ((int) 0x33,
+                          (int) rig.files[rig.PreservedPaths()[0]][0],
+                          L"the preserved copy holds the version the write displaced");
+
+        Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
+                         L"and the guest's writes went to the image itself");
+    }
+
+
+
+    TEST_METHOD (AFlushIsRefusedEntirelyWhenTheDisplacedVersionCannotBeKept)
     {
         Rig      rig;
         HRESULT  hrFlush = S_OK;
@@ -310,18 +408,22 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        //  The guest writes, and something else rewrites the file before the
-        //  flush lands.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
+        rig.refusePreserve = true;
+
         hrFlush = rig.store.Flush (kSlot, kDrive);
 
-        Assert::IsTrue (FAILED (hrFlush), L"writing now would discard the change");
+        //  The whole promise is that a version is never destroyed. A preserve
+        //  that did not happen therefore stops the write that would have done
+        //  the destroying.
+        Assert::IsTrue (FAILED (hrFlush));
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"the file still holds the external version");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
-                        L"the writes are still in memory and still flushable -- "
-                        L"refused is not lost");
+                        L"and the guest's writes are still in memory");
     }
 
 
@@ -505,7 +607,50 @@ public:
 
 
 
-    TEST_METHOD (ADirtyImageDefersThePickUpAndLosesNothing)
+    TEST_METHOD (ADirtyImageMeetingAnExternalChangeKeepsBothVersions)
+    {
+        Rig   rig;
+        Byte  guestWrote = 0x7F;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = guestWrote;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+
+        //  The external version is mounted, because it is the newest thing and
+        //  the developer just made it.
+        Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
+                         L"the guest's writes are on disk under their own name now");
+
+        //  And the guest's version is on disk under a name of its own, which is
+        //  what makes this a report rather than a question.
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+
+        //  IT HOLDS WHAT THE GUEST HAD, not what replaced it. Preserving after
+        //  the swap rather than before would put the external version in both
+        //  files and lose the guest's entirely, while every other assertion
+        //  here still passed.
+        Assert::AreEqual ((int) 0x11, (int) rig.files[rig.PreservedPaths()[0]][0],
+                          L"the preserved copy is the version that was displaced");
+        Assert::AreEqual ((int) 0x22, (int) rig.files[kImagePath][0],
+                          L"and the file still holds the external one");
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (
+                            fs::path (rig.PreservedPaths()[0]).filename().wstring())
+                        != std::wstring::npos,
+                        L"and the user is told which file it went to");
+    }
+
+
+
+    TEST_METHOD (AConflictThatCannotBePreservedChangesNothingAtAll)
     {
         Rig   rig;
         Byte  before = 0;
@@ -514,23 +659,64 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         before = FirstTrackByte (rig.store);
 
-        rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath);
+        rig.refusePreserve = true;
 
-        //  Resolving a two-sided conflict means preserving the version the
-        //  user does not keep. Until that exists, picking up here would
-        //  discard the guest's work -- so nothing happens, and nothing is
-        //  lost: the change stays pending and the writes stay in memory.
-        Assert::AreEqual ((size_t) 0, rig.reports.size());
-        Assert::AreEqual ((size_t) 0, rig.questions.size());
-        Assert::AreEqual ((int) before, (int) FirstTrackByte (rig.store));
-        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
-                        L"still pending, so it happens once the conflict can be resolved");
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+
+        //  This is the decision most worth asserting: a preserve that silently
+        //  did not happen would break the promise exactly where it matters.
+        Assert::AreEqual ((int) before, (int) FirstTrackByte (rig.store),
+                          L"nothing was mounted over the guest's work");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty());
+        Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
+                        L"and the change is still pending, to be tried again");
+        Assert::AreEqual ((size_t) 1, rig.reports.size(), L"the user is told why");
+    }
+
+
+
+    TEST_METHOD (TwoConflictsInOneSecondProduceTwoDistinctCopies)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        for (int round = 0; round < 2; round++)
+        {
+            rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] =
+                (Byte) (0x70 + round);
+            rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+            rig.WriteImage (kImagePath, (Byte) (0x20 + round));
+            rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+
+            rig.store.ClearChangeReport (kSlot, kDrive);
+        }
+
+        //  A one-second stamp cannot keep the accumulate-rather-than-overwrite
+        //  promise on its own, and a build loop makes exactly this case.
+        Assert::AreEqual ((size_t) 2, rig.PreservedPaths().size());
+        Assert::IsTrue (rig.PreservedPaths()[0] != rig.PreservedPaths()[1],
+                        L"the second copy must not be written over the first");
+
+        //  Both are still there, which is the whole promise: repeated
+        //  conflicts accumulate.
+        Assert::IsTrue (rig.files.count (rig.PreservedPaths()[0]) == 1);
+        Assert::IsTrue (rig.files.count (rig.PreservedPaths()[1]) == 1);
+
+        //  And they sort in the order they happened, which is what the
+        //  zero-padded counter is for.
+        Assert::IsTrue (rig.PreservedPaths()[0] < rig.PreservedPaths()[1],
+                        L"the order things happened must read off the directory");
     }
 
 
@@ -557,6 +743,145 @@ public:
         Assert::AreEqual ((size_t) 1, rig.questions.size(),
                           L"what Casso holds may be the only copy left, so the user "
                           L"is offered a copy rather than told nothing");
+    }
+
+
+
+    TEST_METHOD (ADeletedImageAndAnUnreadableOneAreDistinguished)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Gone.
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size());
+        Assert::IsTrue (rig.questions[0].title.find (L"deleted") != std::wstring::npos,
+                        L"a user who deleted the file needs to be told it is deleted");
+
+        //  Present, but not this disk any more.
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.files[kImagePath] = vector<Byte> (37, 0xAB);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 2, rig.questions.size());
+        Assert::IsTrue (rig.questions[1].title.find (L"no longer accessible")
+                            != std::wstring::npos,
+                        L"and one whose share dropped needs to be told that instead");
+    }
+
+
+
+    TEST_METHOD (SavingTheInMemoryCopyWritesItAndThenEmptiesTheDrive)
+    {
+        Rig          rig;
+        std::string  chosen = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size());
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        //  The save happens BEFORE the eject, always: the eject is what
+        //  discards the in-memory disk.
+        Assert::IsTrue (rig.files.count (chosen) == 1,
+                        L"what the emulator held may be the only copy left");
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
+                         L"a drive holding a disk whose file is gone reports "
+                         L"something untrue");
+    }
+
+
+
+    TEST_METHOD (DecliningToSaveStillEmptiesTheDrive)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"declining saves nothing, and that is the whole of it");
+    }
+
+
+
+    TEST_METHOD (ASaveThatFailsDoesNotThenThrowTheOnlyCopyAway)
+    {
+        Rig          rig;
+        std::string  chosen = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        rig.refusePreserve = true;
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        //  A save the user asked for and did not get must not be followed by
+        //  emptying the drive it was the only copy in.
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive));
+        Assert::IsTrue (rig.files.count (chosen) == 0);
+    }
+
+
+
+    TEST_METHOD (EjectingWithWritesTheFileHasNotSeenPreservesThem)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  The guest writes, something else rewrites the file, and the user
+        //  ejects rather than answering anything. An eject is a plausible
+        //  response to being told something, and it must not become the one
+        //  path that loses work.
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"the version the eject displaced is on disk");
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
     }
 
 
@@ -669,15 +994,17 @@ public:
         Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->IsWatching());
 
         //  The guarantee is the check made before every write, and it still
-        //  holds with no notification at all.
+        //  holds with no notification at all: the flush finds the change
+        //  itself and keeps the version it is about to displace.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
-        hrFlush = rig.store.Flush (kSlot, kDrive);
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
 
-        Assert::IsTrue (FAILED (hrFlush));
-        Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty());
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"nothing was lost for want of a notification");
+        IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
 
@@ -716,3 +1043,20 @@ public:
         AssertSucceeded (rig.store.Flush (kSlot, kDrive));
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SharedImageTests::RigFileIo::Exists
+//
+//  Defined after Rig so it can see the file map it answers out of.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool SharedImageTests::RigFileIo::Exists (const std::string & path)
+{
+    return rig.files.find (path) != rig.files.end();
+}

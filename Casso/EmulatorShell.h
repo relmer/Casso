@@ -810,6 +810,16 @@ private:
     // Positions the banner across the top of the emulator viewport.
     void    LayoutChangeBanner ();
 
+    // Asks where to save the contents of a disk whose file has gone.
+    //
+    // THE SAVE DIALOG, NOT THE DISK PICKER. The user is saving a disk here,
+    // not choosing one to mount, and the two look similar enough that reaching
+    // for the wrong one would be easy and baffling.
+    //
+    // Returns false where the user cancelled, which is the same outcome as
+    // declining: the drive is emptied either way and nothing is written.
+    bool    AskWhereToSaveLostDisk (const std::string & imagePath, std::wstring & outPath);
+
     // Reports a freshly mounted image that failed its stored checksum, with
     // salvage offered inline. Raised here rather than by the loader because a
     // dialog with an action on it is the shell's business, and EhmNotifyUser

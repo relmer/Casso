@@ -242,11 +242,15 @@ public:
 
 
 
-    TEST_METHOD (OnlyTheThreeQuestionsNeedAnAnswer)
+    TEST_METHOD (AConflictIsNoLongerAQuestion)
     {
+        //  It was one. Both versions survive whatever happens now, so there is
+        //  no wrong answer to protect the user from -- only a fact to report.
+        Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Conflict));
+
         Assert::IsTrue  (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Ask));
-        Assert::IsTrue  (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Conflict));
         Assert::IsTrue  (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Unusable));
+        Assert::IsTrue  (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Deleted));
 
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Ignore));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::TakeUpInPlace));
@@ -256,27 +260,111 @@ public:
 
 
 
+    TEST_METHOD (AGoneFileAndAnUnreadableOneAreBothLostAndNothingElseIs)
+    {
+        Assert::IsTrue  (ExternalChangePolicy::IsFileLost (ChangeAction::Deleted));
+        Assert::IsTrue  (ExternalChangePolicy::IsFileLost (ChangeAction::Unusable));
+
+        Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::Conflict));
+        Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::Ask));
+        Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::TakeUpInPlace));
+    }
+
+
+
     TEST_METHOD (EveryMessageNamesTheImageAndTheDrive)
     {
-        const ChangeAction  questions[] = { ChangeAction::Ask,
-                                            ChangeAction::Conflict,
-                                            ChangeAction::Unusable };
+        std::vector<ChangePrompt>  prompts;
 
 
 
-        for (ChangeAction question : questions)
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Ask));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Unusable));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Deleted));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\Loader.dsk", 1, false));
+        prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\Loader.dsk", 1,
+                                                                "C:\\work\\Loader.x.dsk", false));
+        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\\work\\Loader.dsk", 1));
+
+        for (const ChangePrompt & prompt : prompts)
         {
-            ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, question);
+            std::wstring  whole = prompt.title + L" " + prompt.message;
 
-            Assert::IsTrue (prompt.IsAsked(), L"a question has answers");
-            Assert::IsTrue (prompt.message.find (L"Loader.dsk") != std::wstring::npos,
+            Assert::IsTrue (prompt.IsAsked(), L"every one of these is acted on or dismissed");
+            Assert::IsTrue (whole.find (L"Loader.dsk") != std::wstring::npos,
                             L"a user with two disks mounted cannot act on a message "
                             L"that does not say which");
-            Assert::IsTrue (prompt.message.find (L"Drive 2") != std::wstring::npos,
+            Assert::IsTrue (whole.find (L"Drive 2") != std::wstring::npos,
                             L"the drive is written as the number on the machine, so a "
                             L"zero-based bay index reads as Drive 2");
             Assert::IsFalse (prompt.title.empty());
         }
+    }
+
+
+
+    TEST_METHOD (TheGoneAndUnreadableTitlesAreNotInterchangeable)
+    {
+        ChangePrompt  deleted    = ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Deleted);
+        ChangePrompt  unreadable = ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Unusable);
+
+
+
+        //  A user who deleted the file needs to be told it is deleted; one
+        //  whose share dropped needs to be told it cannot be reached.
+        Assert::IsTrue (deleted.title.find (L"deleted") != std::wstring::npos);
+        Assert::IsTrue (unreadable.title.find (L"no longer accessible") != std::wstring::npos);
+
+        //  Both offer the same two things, because both end the same way.
+        Assert::AreEqual ((size_t) 2, deleted.answers.size());
+        Assert::AreEqual ((size_t) 2, unreadable.answers.size());
+        Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
+    }
+
+
+
+    TEST_METHOD (TheConflictReportNamesWhereTheOtherVersionWent)
+    {
+        ChangePrompt  keptFile  = ChangePrompt::ComposeConflictReport (
+                                      "C:\\work\\Loader.dsk", 0,
+                                      "C:\\work\\Loader.20260830-014233.dsk", false);
+        ChangePrompt  keptGuest = ChangePrompt::ComposeConflictReport (
+                                      "C:\\work\\Loader.dsk", 0,
+                                      "C:\\work\\Loader.20260830-014233.dsk", true);
+
+
+
+        //  "There was a conflict" helps nobody. The name of the file holding
+        //  the other version is the thing the user can act on.
+        Assert::IsTrue (keptFile.message.find (L"Loader.20260830-014233.dsk")
+                            != std::wstring::npos);
+        Assert::IsTrue (keptGuest.message.find (L"Loader.20260830-014233.dsk")
+                            != std::wstring::npos);
+
+        //  The two directions read differently, because different things
+        //  happened.
+        Assert::IsTrue (keptFile.message != keptGuest.message);
+
+        //  It is a report: one action, and that action is dismissal.
+        Assert::AreEqual ((size_t) 1, keptFile.answers.size());
+        Assert::IsTrue (keptFile.answers[0].action == ChangeAction::Ignore);
+    }
+
+
+
+    TEST_METHOD (APreserveFailureSaysWhatDidNotHappen)
+    {
+        ChangePrompt  prompt = ChangePrompt::ComposePreserveFailure ("Loader.dsk", 0);
+
+
+
+        //  The user's question at that moment is whether they have lost
+        //  anything, and the answer is no -- precisely because the copy could
+        //  not be made.
+        Assert::IsTrue (prompt.message.find (L"Neither version has been touched")
+                            != std::wstring::npos);
+        Assert::AreEqual ((size_t) 1, prompt.answers.size());
     }
 
 
@@ -348,10 +436,13 @@ public:
 
     TEST_METHOD (AnActionThatIsNotAQuestionComposesNothing)
     {
+        //  Conflict is here now: it composes through its own report, which
+        //  needs the preserved path this one has no way to supply.
         const ChangeAction  notQuestions[] = { ChangeAction::Ignore,
                                                ChangeAction::TakeUpInPlace,
                                                ChangeAction::Restart,
                                                ChangeAction::Defer,
+                                               ChangeAction::Conflict,
                                                ChangeAction::KeepHeld };
 
 

@@ -56,8 +56,17 @@ enum class ChangeAction
     //  The guest has written and the file changed: a two-sided conflict.
     Conflict,
 
-    //  The bytes cannot be used as this disk. Carry on with what is held.
+    //  The bytes are there but cannot be used as this disk -- a different
+    //  format, a different geometry, unreadable.
     Unusable,
+
+    //  The file is gone.
+    //
+    //  A SEPARATE VALUE FROM Unusable BECAUSE THE SENTENCE DIFFERS. The two
+    //  lead to the same offer and the same eject, but telling a user their
+    //  disk "is no longer accessible" when they deleted it is the kind of
+    //  vagueness that makes a message worth nothing.
+    Deleted,
 
     //  Wait: something else is holding the file, or the guest is mid-operation.
     Defer,
@@ -145,4 +154,8 @@ public:
 
     //  Whether this action needs the user before anything happens.
     static bool          NeedsAnAnswer (ChangeAction action);
+
+    //  Whether this action means the file behind the disk is no longer usable,
+    //  however it got that way.
+    static bool          IsFileLost (ChangeAction action);
 };

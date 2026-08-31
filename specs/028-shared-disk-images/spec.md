@@ -362,7 +362,10 @@ configuration: each write carries its own answer.
 - **FR-021**: The preserved version MUST be written beside the original with a
   timestamp in its name, so that repeated conflicts in one session cannot
   overwrite each other and the order they happened in is readable from the
-  directory. **Where a timestamp would collide with a backup already there, the
+  directory. **Every copy carries a zero-padded counter, the first one
+  included** -- a bare name sorts after the numbered ones that follow it in the
+  same second, because the comparison reaches the extension where they have a
+  separator. **Where a timestamp would collide with one already there, the
   name MUST be disambiguated rather than overwritten** -- the promise is that
   repeated conflicts accumulate, and a one-second resolution cannot keep it on
   its own.

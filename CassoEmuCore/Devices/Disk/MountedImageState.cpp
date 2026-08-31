@@ -20,6 +20,7 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_watching       = false;
     m_reportStanding = false;
     m_askOutstanding = false;
+    m_askedAction    = ChangeAction::Ignore;
 
     return;
 }
@@ -45,6 +46,7 @@ void MountedImageState::Eject()
     m_watching       = false;
     m_reportStanding = false;
     m_askOutstanding = false;
+    m_askedAction    = ChangeAction::Ignore;
 
     return;
 }

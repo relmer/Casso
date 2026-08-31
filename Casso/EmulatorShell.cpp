@@ -5734,18 +5734,29 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
         case IDM_DISK_RESOLVE_CHANGE:
         {
-            // "<slot> <drive> <action>", chosen on the UI thread and carried
-            // out here, where swapping an image is safe.
+            // "<slot> <drive> <action> <path>", chosen on the UI thread and
+            // carried out here, where swapping an image is safe. The path is
+            // last and takes the rest of the line, since it may contain
+            // spaces.
             std::istringstream  reader (cmd.payload);
             int                 slot   = 0;
             int                 drive  = 0;
             int                 chosen = 0;
+            std::string         savePath;
 
             reader >> slot >> drive >> chosen;
 
             if (!reader.fail())
             {
-                m_diskStore.ResolvePendingChange (slot, drive, (ChangeAction) chosen);
+                std::getline (reader, savePath);
+
+                while (!savePath.empty() && savePath.front() == ' ')
+                {
+                    savePath.erase (savePath.begin());
+                }
+
+                m_diskStore.ResolvePendingChange (slot, drive, (ChangeAction) chosen,
+                                                  savePath);
             }
 
             break;
@@ -10427,8 +10438,10 @@ void EmulatorShell::LayoutChangeBanner()
 void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 {
     DialogDefinition  def;
-    size_t            i      = 0;
-    int               choice = 0;
+    size_t            i          = 0;
+    int               choice     = 0;
+    ChangeAction      chosen     = ChangeAction::Ignore;
+    std::string       saveTarget;
 
 
 
@@ -10461,9 +10474,118 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
         choice = (int) (notice.prompt.answers.size() - 1);
     }
 
+    chosen = notice.prompt.answers[choice].action;
+
+    //  Saving needs a destination, and only this thread can ask for one. A
+    //  cancelled picker is the same outcome as declining, so it becomes the
+    //  other answer rather than an error.
+    if (chosen == ChangeAction::PreserveCopy)
+    {
+        std::wstring  savePath;
+
+        if (AskWhereToSaveLostDisk (m_diskStore.GetSourcePath (notice.slot, notice.drive),
+                                    savePath))
+        {
+            saveTarget = fs::path (savePath).string();
+        }
+        else
+        {
+            chosen = ChangeAction::KeepHeld;
+        }
+    }
+
+    //  A path can contain spaces, so it goes last and the reader takes the
+    //  rest of the line.
     PostCommand (IDM_DISK_RESOLVE_CHANGE,
-                 std::format ("{} {} {}", notice.slot, notice.drive,
-                              (int) notice.prompt.answers[choice].action));
+                 std::format ("{} {} {} {}", notice.slot, notice.drive,
+                              (int) chosen, saveTarget));
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AskWhereToSaveLostDisk
+//
+//  Where to put the contents of a disk whose file has gone.
+//
+//  SEEDED WITH THE NAME THE DISK HAD, in the folder it came from, because that
+//  is what the user is trying to get back. They can move it anywhere; the
+//  default is the thing they lost.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
+                                            std::wstring & outPath)
+{
+    HRESULT                  hr        = S_OK;
+    ComPtr<IFileSaveDialog>  dialog;
+    ComPtr<IShellItem>       folderItem;
+    ComPtr<IShellItem>       item;
+    PWSTR                    pszPath   = nullptr;
+    fs::path                 original (imagePath);
+    fs::path                 folder    = original.parent_path();
+    HRESULT                  hrItem    = S_OK;
+    HRESULT                  hrFolder  = S_OK;
+    bool                     chose     = false;
+
+
+
+    static const COMDLG_FILTERSPEC   s_kFilters[] =
+    {
+        { L"Disk image", L"*.dsk;*.do;*.po;*.woz" },
+    };
+
+    hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->SetFileTypes (std::size (s_kFilters), s_kFilters);
+    CHR (hr);
+
+    if (!folder.empty())
+    {
+        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
+                                              IID_PPV_ARGS (&folderItem));
+
+        if (SUCCEEDED (hrItem))
+        {
+            //  Best-effort: an unsettable start folder just means the dialog
+            //  opens wherever the shell last left it.
+            hrFolder = dialog->SetFolder (folderItem.Get());
+            IGNORE_RETURN_VALUE (hrFolder, S_OK);
+        }
+    }
+
+    if (!original.filename().empty())
+    {
+        hr = dialog->SetFileName (original.filename().c_str());
+        CHR (hr);
+    }
+
+    //  A cancelled dialog returns a failure that is not a problem, so it
+    //  leaves through the same exit as everything else with `chose` false.
+    hr = dialog->Show (m_hwnd);
+    CHR (hr);
+
+    hr = dialog->GetResult (&item);
+    CHR (hr);
+
+    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
+    CHR (hr);
+
+    outPath = pszPath;
+    chose   = true;
+
+Error:
+    if (pszPath != nullptr)
+    {
+        CoTaskMemFree (pszPath);
+    }
+
+    return chose;
 }

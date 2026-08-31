@@ -106,44 +106,43 @@
 
 ---
 
-## Phase 4: User Story 2 — No version is discarded unless the user chose it (P1)
+## Phase 4: User Story 2 — No version is discarded (P1)
 
-**Goal**: Where both sides have changes, or where the file itself goes away, nothing is lost without the user choosing it.
+**Goal**: Where both sides have changes, or where the file itself goes away, both versions survive.
 
-**Independent test**: Guest writes, image changes outside, both versions survive and the user is asked (SC-002). Separately: delete the image and confirm the emulator offers to save what it holds.
+**Independent test**: Guest writes, image changes outside, both versions exist afterwards and the user is told where theirs went (SC-002). Separately: delete the image and confirm the emulator offers to save what it holds, then ejects.
 
-- [ ] T051 [US2] **Remove the dirty-image deferral guard** added in the build-loop phase, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, and replace its deferral test with the conflict tests below. Leaving it in place makes this entire phase unreachable and every change to a dirty disk silently ignored
-- [ ] T052 [US2] Add `Conflict` to `CassoEmuCore/Devices/Disk/MountedImageState.h` per [data-model.md](data-model.md): the guest bytes, the external identity, and whether it is resolved. The data model specifies it and nothing declared it
-- [ ] T053 [US2] Detect the conflict in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`: an external change AND a dirty image. Either alone is not a conflict, and treating it as one would put a dialog in the build loop
-- [ ] T054 [US2] Refuse to write an image back over an unresolved external change (FR-022) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, returning through the existing flush-error path so the loss is surfaced rather than dropped
-- [ ] T055 [P] [US2] Put backup naming, writing and preservation in their own `CassoEmuCore/Devices/Disk/PreservedCopy.h`/`.cpp` rather than growing `MountedImageState`, which would otherwise carry path matching, coalescing, watch-degrade, the pending record AND all of this. Principle V
-- [ ] T056 [US2] Name the preserved copy in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`: beside the original, timestamped, **disambiguated by a zero-padded counter where a backup with that timestamp already exists** -- `PROG.20260830-014233.dsk`, then `-02`, then `-03` (FR-021). Unpadded, `-10` would sort before `-2` and the promise that the order reads off the directory would not hold. One-second resolution cannot keep the accumulate-rather-than-overwrite promise alone
-- [ ] T057 [US2] Write the preserved copy through the `IDiskFileIo` seam using that name, in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`, so a test writes no real file
-- [ ] T058 [US2] Present the conflict question and the alternate-location picker in `Casso/EmulatorShell.cpp`, both taking their text and answers from core. Phase 4 otherwise composes three questions and draws none of them
-- [ ] T059 [US2] Compose the conflict question in `CassoEmuCore/Devices/Disk/ChangePrompt.cpp`, **naming the image** (FR-033) and stating what is at stake on BOTH sides — that the guest has written, and that something else changed the file (FR-034) — rather than two unlabeled options
-- [ ] T060 [US2] Preserve whichever version the user does not keep and report where it went (FR-020), in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`
-- [ ] T061 [US2] Where the preserved copy cannot be written, refuse the discarding action and keep both versions live (FR-024) in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`; the shell offers a location picker. **This is the decision most worth asserting, so it must be reachable from `UnitTest`**
-- [ ] T062 [US2] Handle the two ways that offer itself fails — the user cancels rather than choosing, and the location chosen is also unwritable (FR-024) — in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. Both leave the conflict unresolved with both versions live
-- [ ] T063 [US2] Resolve an unresolved conflict by ejecting as "keep what is on disk", preserving the guest's copy (FR-023), in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. An eject is a plausible answer to being asked a question and must not become the one path that loses work
-- [ ] T064 [US2] Make no stated intent and no preference able to resolve a conflict (FR-019), in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. The intent says how the guest continues, not whether work may be discarded
-- [ ] T065 [US2] Detect that new contents cannot be used — deleted, a different format, a different geometry, undecodable — in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, and refuse the pick-up while carrying on with what is held (FR-016)
-- [ ] T066 [US2] Offer to save the in-memory disk when the backing file has become unusable (FR-017), reusing that naming, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`. **With the file gone, what the emulator holds may be the only copy of that disk**, so this offer does NOT depend on the dirty flag
-- [ ] T067 [US2] Route that offer through the existing `Entry::salvageOffered` and `SalvageDialogContent` machinery in `Casso/EmulatorShell.cpp`, where all 37 salvage references already live, rather than adding a second rescue path
-- [ ] T068 [US2] Leave the machine running and the disk mounted when the offer is declined (FR-018), in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp` and the shell's decline handler
-- [ ] T069 [US2] Handle an image becoming unusable while a report from an earlier change still stands, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`
-- [ ] T070 [US2] Handle the image reappearing in a usable state after the user declined to save, in `CassoEmuCore/Devices/Disk/MountedImageState.cpp`: re-stat, re-arm the watch, and treat the reappearance as an ordinary change rather than a special case
-- [ ] T071 [US2] Add conflict tests to `UnitTest/EmuTests/SharedImageTests.cpp`: dirty plus external change asks; dirty alone writes directly; external alone picks up; and the backup actually contains the version it claims
-- [ ] T072 [US2] Add a backup-name collision test to `UnitTest/EmuTests/SharedImageTests.cpp`: two conflicts on one image within the same second produce two distinct backups, neither overwriting the other
-- [ ] T073 [US2] Add a backup-fails test to `UnitTest/EmuTests/SharedImageTests.cpp` asserting the discarding action does NOT proceed and both versions remain reachable
-- [ ] T074 [US2] Add unusable-contents tests to `UnitTest/EmuTests/SharedImageTests.cpp`: a deleted image, a wrong-geometry image and an undecodable one each refuse the pick-up and leave the held contents intact; and the rescue offer appears for a CLEAN image too
-- [ ] T075 [US2] Verify the conflict tests discriminate: let a stated intent resolve the conflict, confirm they go red, restore. This is the rule most likely to be "simplified" later by someone reading the intent as a policy for everything
-- [ ] T076 [US2] Walk [quickstart.md](quickstart.md) Scenarios 2 and 4 against a real build, reading the backup back to confirm it holds the guest's file
+**Two owner rulings reshaped this phase after the MVP shipped, and the tasks below are written to them rather than to what came before.** A conflict is now RESOLVED AND REPORTED rather than asked about (FR-019): both versions survive either way, so a modal that stops a running machine to ask which of two preserved files to look at first is ceremony. And a file that has gone leads to an offer to save followed by an EJECT (FR-018), because a drive holding a disk whose file no longer exists is a drive reporting something untrue.
 
-- [ ] T077 [US2] Add tests to `UnitTest/EmuTests/SharedImageTests.cpp` for four behaviors built in this phase that nothing asserts yet: eject resolves a conflict without discarding either version; declining the rescue leaves the machine running and mounted; an image going unusable while a report stands; and the file reappearing after a declined rescue
+- [X] T051 [US2] **Remove the dirty-image deferral guard** added in the build-loop phase, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, and feed the image's dirty flag into the policy instead. Leaving it in place makes this entire phase unreachable and every change to a dirty disk silently ignored
+- [X] T052 [US2] Split `Unusable` into `Deleted` and `Unusable` in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.h`. **The two differ only in what is true and what is said**, and saying "is no longer accessible" about a file the user deleted is the kind of vagueness that makes a message useless
+- [X] T053 [US2] Detect the conflict in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`: an external change AND a dirty image. Either alone is not a conflict, and treating it as one would put a dialog in the build loop
+- [X] T054 [US2] Refuse to write an image back over an unresolved external change (FR-022) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, returning through the existing flush-error path so the loss is surfaced rather than dropped. **Already built with the identity re-check**; this task confirms it survives the guard's removal rather than adding it again
+- [X] T055 [P] [US2] Put preserved-copy naming and writing in their own `CassoEmuCore/Devices/Disk/PreservedCopy.h`/`.cpp` rather than growing `MountedImageState`, which would otherwise carry path matching, coalescing, watch-degrade, the pending record AND all of this. Principle V
+- [X] T056 [US2] Name the preserved copy in `CassoEmuCore/Devices/Disk/PreservedCopy.cpp`: beside the original, timestamped, **disambiguated by a zero-padded counter where one with that timestamp already exists** -- `PROG.20260830-014233.dsk`, then `-02`, then `-03` (FR-021). Unpadded, `-10` would sort before `-2` and the promise that the order reads off the directory would not hold. One-second resolution cannot keep the accumulate-rather-than-overwrite promise alone. **Pure: the timestamp is a parameter, not a call**, so a test can name two copies in the same second on purpose
+- [X] T057 [US2] Give `DiskImageStore` a timestamp seam beside its clock seam, so the name above is reachable from a test without waiting a second between cases
+- [X] T058 [US2] Resolve the conflict in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`: serialize what the guest holds, write it to the preserved name, take up the external contents, and report. **In that order** -- the guest's version must be on disk before the thing that replaces it is mounted, or a failure between the two loses it
+- [X] T059 [US2] Compose the conflict REPORT in `CassoEmuCore/Devices/Disk/ChangePrompt.cpp`, naming the image, the drive, and where the preserved copy went (FR-033, FR-034). It carries one action, its own dismissal: it is no longer a question
+- [X] T060 [US2] Where the preserved copy CANNOT be written, do not take up the external contents (FR-024) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`. **This is the decision most worth asserting**: the whole promise is that a version is never destroyed, and a preserve that silently did not happen breaks it exactly where it matters. The conflict stays pending and both versions stay live
+- [X] T061 [US2] Say so, in `CassoEmuCore/Devices/Disk/ChangePrompt.cpp`: a refusal that names the image, says the guest's writes could not be preserved, and says nothing was mounted as a result
+- [X] T062 [US2] Detect that new contents cannot be used -- deleted, a different format, a different geometry, undecodable -- in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, distinguishing gone from unreadable (FR-016)
+- [X] T063 [US2] Compose the gone/unreadable prompt in `CassoEmuCore/Devices/Disk/ChangePrompt.cpp`: `x.dsk in Drive 1 has been deleted` or `... is no longer accessible`, a terse accurate reason, and the offer to save the in-memory copy. **The offer does NOT depend on the dirty flag** -- with the file gone, what the emulator holds may be the only copy of that disk whether the guest wrote to it or not (FR-017)
+- [X] T064 [US2] Take the save path from the user through the ordinary save dialog in `Casso/EmulatorShell.cpp`, and route it back to the thread that owns disk writes. **Not the disk picker** -- the user is saving a disk, not choosing one to mount
+- [X] T065 [US2] Eject the bay afterwards either way, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp` (FR-018), and do NOT open the disk picker. A drive holding a disk whose file no longer exists reports something untrue, and every later write to it would be refused for a reason the user has already been told once
+- [X] T066 [US2] Preserve the guest's copy on an eject that happens with writes the file has not seen (FR-023), in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`. An eject must not become the one path that loses work
+- [X] T067 [US2] Make no stated intent able to resolve a conflict by discarding (FR-019), in `CassoEmuCore/Devices/Disk/ExternalChangePolicy.cpp`. The intent says how the guest continues, not whether work may be destroyed. **Already built and already tested**; this task exists so removing it later is a deliberate act
+- [X] T068 [US2] Handle an image becoming unusable while a report from an earlier change still stands, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`
+- [X] T069 [US2] Add conflict tests to `UnitTest/EmuTests/SharedImageTests.cpp`: dirty plus external change preserves and mounts; dirty alone flushes normally; external alone picks up; and the preserved copy actually contains the guest's version rather than the external one
+- [X] T070 [US2] Add a preserved-name collision test: two conflicts on one image within the same second produce two distinct copies, neither overwriting the other, sorting in the order they happened
+- [X] T071 [US2] Add a preserve-fails test asserting the external contents are NOT mounted and both versions remain reachable
+- [X] T072 [US2] Add unusable-contents tests: a deleted image, a wrong-geometry image and an undecodable one each refuse the pick-up, leave the held contents intact until answered, and offer the rescue for a CLEAN image too
+- [X] T073 [US2] Add an eject test: ejecting with writes the file has not seen preserves them
+- [X] T074 [US2] Verify the conflict tests discriminate: let a stated intent resolve the conflict by discarding, confirm they go red, restore. This is the rule most likely to be "simplified" later by someone reading the intent as a policy for everything
+- [X] T075 [US2] Verify the preserve-first ordering discriminates: write the preserved copy AFTER taking up the external contents, confirm the test that reads it back goes red, restore
+- [X] T076 [US2] Register this phase's new files in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
+- [ ] T077 [US2] Walk [quickstart.md](quickstart.md) Scenarios 2 and 4 against a real build, reading the preserved copy back to confirm it holds the guest's file
 
-- [ ] T078 [US2] Register this phase's new files -- `PreservedCopy.h`/`.cpp` and any test additions -- in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
-
-**Checkpoint**: Nothing is lost without the user choosing it, including when the file itself goes away.
+**Checkpoint**: Both versions survive every path, including when the file itself goes away.
 
 ---
 

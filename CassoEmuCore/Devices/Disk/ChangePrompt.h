@@ -81,6 +81,32 @@ struct ChangePrompt
     static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
                                               bool machineRestarted);
 
+    //  What is said once a conflict has been resolved.
+    //
+    //  A REPORT, NOT A QUESTION. Both versions survive whatever happens, so
+    //  there is no wrong answer to protect the user from -- only a fact to
+    //  tell them, including where the version that did not stay mounted went.
+    static ChangePrompt  ComposeConflictReport (const std::string & imagePath, int drive,
+                                                const std::string & preservedPath,
+                                                bool                keptWhatTheGuestWrote);
+
+    //  What is said when the version that would be displaced could not be
+    //  written anywhere.
+    //
+    //  THE ACTION THAT WOULD HAVE DESTROYED IT DOES NOT PROCEED, so this says
+    //  what did not happen as well as what failed. A preserve that silently
+    //  did not happen breaks the promise exactly where it matters most.
+    static ChangePrompt  ComposePreserveFailure (const std::string & imagePath, int drive);
+
+    //  What is said when the file behind a mounted disk has gone or can no
+    //  longer be read, with the offer to save what is still in memory.
+    //
+    //  THE OFFER DOES NOT DEPEND ON THE GUEST HAVING WRITTEN. With the file
+    //  gone, what the emulator holds may be the only copy of that disk either
+    //  way.
+    static ChangePrompt  ComposeLostFile (const std::string & imagePath, int drive,
+                                          ChangeAction action);
+
     //  Why a running program may not see a swapped disk correctly.
     //
     //  ONE SENTENCE IN ONE PLACE, because it is the same hazard whether the

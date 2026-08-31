@@ -89,7 +89,29 @@ ChangeAction ExternalChangePolicy::Decide (const Situation & situation)
 
 bool ExternalChangePolicy::NeedsAnAnswer (ChangeAction action)
 {
+    //  A conflict is NOT here any more, and its absence is the decision. It
+    //  used to stop the machine to ask which of two versions to keep; both now
+    //  survive whatever happens, so there was no wrong answer to protect
+    //  against and the question was ceremony.
     return action == ChangeAction::Ask
-        || action == ChangeAction::Conflict
-        || action == ChangeAction::Unusable;
+        || IsFileLost (action);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExternalChangePolicy::IsFileLost
+//
+//  Whether the file behind the disk can no longer be used, however it got that
+//  way. The two cases say different things and then do the same thing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExternalChangePolicy::IsFileLost (ChangeAction action)
+{
+    return action == ChangeAction::Unusable
+        || action == ChangeAction::Deleted;
 }

@@ -5,6 +5,7 @@
 #include "DiskImage.h"
 #include "MountedImageState.h"
 #include "ChangePrompt.h"
+#include "PreservedCopy.h"
 #include "IImageWatcher.h"
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
@@ -228,11 +229,25 @@ public:
     //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
     //  can swap an image. The shell routes it there rather than acting on the
     //  UI thread where the answer arrived.
-    void          ResolvePendingChange (int slot, int drive, ChangeAction chosen);
+    //
+    //  `savePath` IS WHERE THE USER CHOSE TO PUT THE IN-MEMORY COPY, and is
+    //  meaningful only for an answer of PreserveCopy. Choosing it is a file
+    //  dialog, which only the shell can raise, so the path arrives with the
+    //  answer rather than being asked for from here.
+    void          ResolvePendingChange (int slot, int drive, ChangeAction chosen,
+                                        const string & savePath = string());
 
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.
     void          SetClock (std::function<int64_t ()> clock) { m_clock = std::move (clock); }
+
+    //  Where the wall-clock time in a preserved copy's NAME comes from.
+    //
+    //  A SECOND SEAM RATHER THAN A CONVERSION OF THE FIRST. The quiet period
+    //  needs a monotonic count of milliseconds and a filename needs a calendar
+    //  date; deriving one from the other would tie a timer to the user's clock
+    //  changing under it.
+    void          SetTimestampSource (std::function<time_t ()> source) { m_timestamp = std::move (source); }
 
     //  A change was noticed, from a watcher or stated by a writer.
     //
@@ -327,6 +342,15 @@ private:
         //  What this bay knows about the file behind it. Set at mount, cleared
         //  at eject, refreshed after every commit this store makes.
         MountedImageState      sharedState;
+
+        //  Which bay this is.
+        //
+        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  Every message about a disk names the drive it is in, and threading
+        //  a pair of ints through five call sites to reach one function is a
+        //  worse answer than the entry knowing where it lives.
+        int                    slot    = 0;
+        int                    drive   = 0;
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
@@ -393,6 +417,39 @@ private:
     void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                          const vector<Byte> & bytes);
 
+    //  Writes what the bay currently holds to a preserved copy beside the
+    //  original, and reports where it went.
+    //
+    //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
+    //  point of preserving it is that the file no longer holds this version.
+    HRESULT        PreserveHeldVersion (Entry & entry, string & outPath);
+
+    //  Writes bytes that came off the file to a preserved copy, for the other
+    //  direction: the emulator is about to write over an external change it
+    //  never saw.
+    HRESULT        PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
+                                       string & outPath);
+
+    //  A preserved-copy path nothing is sitting at yet.
+    //
+    //  THE COLLISION LOOP IS NOT OPTIONAL. Two conflicts on one image inside a
+    //  second is exactly what a build loop produces, and a one-second stamp
+    //  cannot keep the accumulate-rather-than-overwrite promise on its own.
+    HRESULT        FindFreePreservedPath (const string & imagePath, string & outPath) const;
+
+    //  Whether something is already at `path`, through the file seam when one
+    //  is installed and through the filesystem when none is.
+    bool           PathExists (const string & path) const;
+
+    //  Writes bytes to a path, through the flush sink when one is installed so
+    //  a test captures preserved copies the same way it captures flushes.
+    HRESULT        WritePreserved (const string & path, const vector<Byte> & bytes);
+
+    //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
+    //  ordinary eject flushes first, which here would either fail or write the
+    //  disk back to a path the user has just been told no longer exists.
+    void           EjectLostImage (int slot, int drive);
+
     //  Replaces a mounted image's contents WITHOUT flushing what it held.
     //
     //  A FLUSH HERE WOULD WRITE THE OLD DISK OVER THE NEW FILE, which is the
@@ -425,6 +482,7 @@ private:
     ReportSink               m_reportSink;
     AskSink                  m_askSink;
     std::function<int64_t ()>  m_clock;
+    std::function<time_t ()>   m_timestamp;
 
     //  Guards the pending records alone. A watcher thread records a change
     //  while the CPU thread reads it, and those two fields are the whole of
