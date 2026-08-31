@@ -660,6 +660,52 @@ the pre-merge gate.
   starting CPU work. The runner prints which depth it ran. See
   [docs/testing.md](../docs/testing.md)
 
+## User-Facing Prose
+
+Applies to help text, error messages, `CHANGELOG.md`, `README.md`, docs and
+commit messages: anything a human reads outside the code. The style gate
+checks none of this, so it is on you.
+
+- **Write the way a programmer speaks.** Plain, ordinary developer English.
+  No literary or precious constructions, no aphoristic fragments after a
+  colon or dash, no rhetorical inversions, and no addressing the reader as
+  "you" in a CHANGELOG.
+- **Never use "name", "named" or "naming" as the verb for specifying
+  something.** This is the most persistent offender by a wide margin. Not
+  "a source now names `--as65` or `--merlin`", "refused by name", "the
+  dialect is named, not guessed", "an image you name". Use **specify, pass,
+  give, list, report, include**, or recast the sentence. Ordinary uses are
+  fine and always were: a file name, a volume name, naming a variable.
+- **No conversational or anthropomorphic verbs.** Flags, tools and disks do
+  not say, ask, speak, want, know, wonder, spell or shape anything. Not "or
+  say which with `--type`", "`--bootable` and `--boot` ask for different
+  disks", "`--logical` speaks the numbering catalogs use". Also out:
+  "answered" and "is answered with", and "grammar" where a reader wants
+  "command-line parsing".
+- **Do not state the obvious as though it were profound.** "There is no
+  default to guess with", "blocks have only one numbering, so there is
+  nothing to state". Cut the sentence.
+- **Dashes abut the text they join** (`word--word`), never spaced. Most
+  dashes are better rewritten away.
+- **Error messages take a fixed shape.** Line 1 is a short categorical
+  label, not a sentence about the input. Line 2 onward states the rule as
+  complete, capitalized, punctuated sentences with serial commas.
+
+      Error: illegal volume name
+             ProDOS volume names are 1-15 characters, starting with a
+             letter, and can include letters, digits, and periods.
+
+  Not `Error: 1BAD is not a name ProDOS can put on a volume` followed by a
+  lowercase fragment.
+- **CHANGELOG entries are terse and stand alone.** One or two lines giving
+  the user-visible effect, then stop; mechanism, numbers and the
+  wrong-then-right arc belong in the commit message. Group aggressively
+  instead of enumerating, put GitHub references first (`GH #115: ...`), and
+  never cross-reference another entry, because entries get skimmed and
+  reordered. Version headings are the one place wordplay is wanted.
+- **When I rewrite your prose, that version is the model.** Match it and
+  stop proposing improvements to it.
+
 ## Commit Messages
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`
