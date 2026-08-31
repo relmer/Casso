@@ -34,4 +34,12 @@ protected:
     void                    ReportAssemblySucceeded      (const CommandLineOptions & options, const AssemblyResult & result) const override;
 
     HRESULT                 WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const override;
+
+private:
+    //  The symbol table, the debug file and the symbol file for ONE output,
+    //  under names the caller has already resolved. Split out so a source that
+    //  produces several gets a set for each, on the same rule the object and the
+    //  listing follow.
+    static HRESULT          WriteExtraArtifactsForOutput (const CommandLineOptions & options, const AssemblyResult & result,
+                                                          const std::string & debugFile, const std::string & symbolFile);
 };

@@ -247,6 +247,20 @@ struct AssemblyError
 
 struct AssemblyLine
 {
+    //  The output this line contributed to, or kSharedByEveryOutput for one
+    //  above the first of them.
+    //
+    //  RECORDED SO A LISTING CAN BE SPLIT THE WAY THE OBJECT IS. A source
+    //  producing several files is read one program at a time, and a single
+    //  listing spanning all of them makes a reader hunting for one walk past
+    //  the others.
+    //
+    //  The equates and macro definitions at the top belong to no single output
+    //  and are marked as such rather than assigned to the first, because every
+    //  per-output listing needs them: a file missing the definitions its code
+    //  refers to does not stand alone, which is the whole point of splitting.
+    static constexpr size_t  kSharedByEveryOutput = (size_t) -1;
+
     int                lineNumber;
     Word               address;
     std::vector<Byte>  bytes;
@@ -255,6 +269,42 @@ struct AssemblyLine
     bool               isMacroExpansion  = false;
     bool               isConditionalSkip = false;
     Byte               cycleCounts       = 0;
+    size_t             outputIndex       = kSharedByEveryOutput;
+};
+
+
+
+
+
+// One complete output an assembly produces. An assembly produces one by
+// default and may produce several, where the source cuts them apart.
+//
+// THE BYTES ARE THE SPAN, NOT THE WHOLE OBJECT. Each save point holds only what
+// was emitted since the previous one, so no byte appears in two of them. That
+// is measured behavior rather than a choice: a period assembler empties its
+// object area after each save, and the second file of a two-save source is the
+// size of its own half.
+//
+// `loadAddress` is the ADDRESS the span's first byte assembles to, which is not
+// the same as where it sits in the output once a relocating origin has moved
+// the two apart. A span following such an origin is written at the output
+// cursor and loads at the origin, and it is the origin that a caller records.
+struct SavePoint
+{
+    std::vector<Byte>  bytes;
+    Word               loadAddress    = 0;
+    bool               hasLoadAddress = false;
+
+    //  What the output is called, once the source's answer and the caller's
+    //  have been reconciled. Empty when neither named one, which is the
+    //  ordinary single-output assembly.
+    std::string        name;
+
+    //  The filesystem type the source asked for. Absent rather than zero,
+    //  because zero is a real type and a caller cannot tell the two apart from
+    //  the value alone.
+    Byte               fileType       = 0;
+    bool               hasFileType    = false;
 };
 
 
@@ -272,6 +322,12 @@ struct AssemblyResult
     Word                                        endAddress   = 0;
     std::unordered_map<std::string, Word>       symbols;
     std::unordered_map<std::string, SymbolKind> symbolKinds;
+
+    // The source line each symbol was defined on. Recorded so that artifacts
+    // written per output can carry the symbols belonging to that output, which
+    // a flat table cannot answer: two outputs may both begin at the same
+    // address, and an index built by address over all of them collides.
+    std::unordered_map<std::string, int>        symbolLines;
     std::vector<AssemblyError>                  errors;
     std::vector<AssemblyError>                  warnings;
     std::vector<AssemblyLine>                   listing;
@@ -291,6 +347,14 @@ struct AssemblyResult
     //  assembly -- which keeps the precedence rule in one place instead of
     //  repeated at every entry point that produces output.
     std::string                                 outputFileName;
+
+    //  Every output this assembly produced, in source order.
+    //
+    //  REPORTED rather than acted on, for the reason outputFileName is: nothing
+    //  here writes a file. An assembly that emitted bytes has at least one of
+    //  these, so there is no separate single-output path for a caller to keep in
+    //  step with the several-output one.
+    std::vector<SavePoint>                      savePoints;
 
     //  Whether the SOURCE selected the wider instruction set, through a dialect
     //  that has a directive for it. Reported because nothing outside the source

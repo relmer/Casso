@@ -1662,15 +1662,17 @@ namespace CommandLineTests
 
         //  And it reaches the parse, which is the half that a test of the
         //  function alone would not have caught.
-        TEST_METHOD (TheGrammarAppliesIt_InBothDialects)
+        //
+        //  AS65 ONLY, since this became the one dialect whose listing is named
+        //  on the command line. Merlin's `-l` takes no name at all: a source of
+        //  its may save itself several times and each save is its own program,
+        //  so the listings are named after the objects instead.
+        TEST_METHOD (TheGrammarAppliesIt_ForAs65)
         {
-            ArgVector           as65   = { "CassoCli", "as65",   "prog.a65", "-lfoo" };
-            ArgVector           merlin = { "CassoCli", "merlin", "prog.s",   "-lbar" };
+            ArgVector           as65 = { "CassoCli", "as65", "prog.a65", "-lfoo" };
 
             Assert::AreEqual (std::string ("foo.lst"),
                               CommandLineParser::Parse (as65.Count(), as65.Data(), NoProbe()).listingFile);
-            Assert::AreEqual (std::string ("bar.lst"),
-                              CommandLineParser::Parse (merlin.Count(), merlin.Data(), NoProbe()).listingFile);
         }
 
         //  A bare -l is stdout and names no file, so there is nothing to extend.

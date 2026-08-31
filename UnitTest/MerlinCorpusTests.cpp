@@ -264,6 +264,12 @@ namespace MerlinCorpusTests
         "Merlin/T.PI.MACS",
         "Merlin/T.SENDMSG",
         "Merlin/T.MACRO LIBRARY",
+
+        //  Authored here rather than vendor source, for two constructs the
+        //  distribution disk cannot supply. Their OBJECTS still came out of
+        //  Merlin. See AuthoredOracleTests.
+        "Merlin/TWOSAVE.S",
+        "Merlin/TYPTEST.S",
     };
 
 
@@ -355,8 +361,8 @@ namespace MerlinCorpusTests
         {
             FixtureProvider  provider;
 
-            Assert::AreEqual (static_cast<size_t> (10), std::size (s_kCommittedSources),
-                              L"ten sources are committed; a new one belongs in this sweep");
+            Assert::AreEqual (static_cast<size_t> (12), std::size (s_kCommittedSources),
+                              L"twelve sources are committed; a new one belongs in this sweep");
 
             for (const char * path : s_kCommittedSources)
             {
@@ -1922,20 +1928,14 @@ namespace MerlinCorpusTests
             DiagnosticKind::SubsetBoundary, 1, 6,
             "EXT", "Invalid mnemonic",
         },
-        {
-            //  The denial that disk file access would settle this lives in the
-            //  boundary table now; the refusal itself only names the directive.
-            "save-object directive",
-            "        SAV OBJECT\n",
-            DiagnosticKind::SubsetBoundary, 1, 9,
-            "SAV", "Invalid mnemonic",
-        },
-        {
-            "output file-type directive",
-            "                  TYP $06\n",
-            DiagnosticKind::SubsetBoundary, 1, 19,
-            "TYP", "Invalid mnemonic",
-        },
+        //  The save-object directive was here and is not any more. What it was
+        //  waiting on was a decision about multi-output assembly rather than a
+        //  capability, and that decision was made: it writes the span
+        //  accumulated since the previous save and carries on.
+        //  The output file-type directive was here and is not any more. It set
+        //  a filesystem type with no filesystem to set it on; the assembler can
+        //  write onto a volume now, so the type has somewhere to land and the
+        //  directive is assembled rather than refused.
         {
             //  A LABEL written where another assembler would put it. Merlin's
             //  line model reads it as the opcode, so without this the developer
@@ -1999,9 +1999,14 @@ namespace MerlinCorpusTests
         //  The absent-corpus guard, in the direction a loop cannot check itself.
         //  A sweep over an empty table reports success having compared nothing,
         //  and is indistinguishable in the output from a full one.
+        //  The floor moved from eight to seven, and the two it lost were not
+        //  coverage being dropped: the file-type and save-object directives
+        //  stopped being refused, so an entry expecting a refusal from either
+        //  would now be asserting the opposite of what the assembler does.
+        //  Their behavior is covered where it moved to, as accepted directives.
         TEST_METHOD (TheNegativeCorpusIsNotEmpty)
         {
-            Assert::IsTrue (std::size (s_kNegativeCorpus) >= 8,
+            Assert::IsTrue (std::size (s_kNegativeCorpus) >= 7,
                             L"the negative corpus must cover the refused constructs and the diagnostic expectations");
         }
 
@@ -2884,6 +2889,157 @@ namespace MerlinCorpusTests
             }
 
             return CorpusText::Widen (text);
+        }
+    };
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  AuthoredOracleTests
+    //
+    //  The two oracles this project wrote, for constructs the vendor corpus
+    //  cannot reach.
+    //
+    //  AUTHORED, NOT VENDOR. Every other entry in this file is Glen Bredon's
+    //  code, and the strength of those comes from nobody here having chosen it.
+    //  These two were written to exercise a construct, so they carry less of that
+    //  weight -- but the half that matters is unchanged: THE EXPECTED BYTES CAME
+    //  OUT OF MERLIN. Each source was typed into the period assembler running
+    //  under Casso and the objects were read back off the disk it wrote, so what
+    //  is committed beside the source is Merlin's answer and not this
+    //  assembler's.
+    //
+    //  They exist because the vendor disk cannot supply them. `CLOCK.S` carries
+    //  two saves but they are mutually exclusive -- `DO HOURS-12 / ELSE / FIN`
+    //  picks one -- so no shipped source produces two objects in one assembly.
+    //  And `TYP` appears in no vendor source at all.
+    //
+    //  THE TWO WERE CAPTURED ON DIFFERENT DISKS, and that is a finding rather
+    //  than a convenience. Merlin Pro 2.23 under DOS 3.3 answers `Bad opcode` to
+    //  `TYP`: the manual says "TYP (ProDOS only)", and the DOS 3.3 build does not
+    //  have it. TYPTEST.S was therefore captured on Merlin Pro 2.33 under ProDOS,
+    //  where it assembles clean.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (AuthoredOracleTests)
+    {
+    public:
+
+        //  Assembles a committed fixture source under the Merlin dialect, the
+        //  way the vendor entries above are assembled.
+        static AssemblyResult AssembleFixture (const char * relativePath)
+        {
+            FixtureProvider  provider;
+            std::string      text;
+
+            AssertSucceeded (MerlinFixture::LoadSource (provider, relativePath, text));
+
+            {
+                TestCpu           cpu;
+                AssemblerOptions  options = {};
+
+                cpu.InitForTest();
+                options.dialect = DialectId::Merlin;
+
+                Assembler  assembler (cpu.GetInstructionSet(), options);
+
+                return assembler.Assemble (text);
+            }
+        }
+
+
+
+        //  Measured on Merlin Pro 2.23: "Object saved as SPAN1B,A$6000,L$0003",
+        //  and the disk carries SPAN1A and SPAN1B as separate files.
+        //
+        //  BOTH CLAUSES DISCRIMINATE. Three bytes rather than six is what
+        //  separates this from a cumulative implementation, and $6000 rather than
+        //  $0303 is what separates a stated origin governing from addresses
+        //  running on from the previous save.
+        TEST_METHOD (TwoSaves_ReproduceBothObjectsMerlinWrote)
+        {
+            FixtureProvider    provider;
+            AssemblyResult     result = AssembleFixture ("Merlin/TWOSAVE.S");
+            MerlinFixtureFile  first;
+            MerlinFixtureFile  second;
+
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/SPAN1A", first));
+            AssertSucceeded (MerlinFixture::LoadObject (provider, "Merlin/SPAN1B", second));
+
+            Assert::IsTrue   (result.success, L"the fixture source must assemble");
+            Assert::AreEqual ((size_t) 2, result.savePoints.size(), L"one source, two objects");
+
+            Assert::AreEqual ((int) first.loadAddress, (int) result.savePoints[0].loadAddress,
+                              L"the first object loads where Merlin's header says");
+            Assert::IsTrue   (first.payload == result.savePoints[0].bytes,
+                              L"and holds the bytes Merlin wrote");
+
+            Assert::AreEqual ((int) second.loadAddress, (int) result.savePoints[1].loadAddress,
+                              L"the second takes its own stated origin, not the previous end");
+            Assert::IsTrue   (second.payload == result.savePoints[1].bytes,
+                              L"and holds ONLY the bytes after the first save");
+        }
+
+
+
+        //  The header Merlin wrote, read as numbers rather than trusted. A
+        //  fixture that was re-saved or truncated fails here rather than
+        //  silently becoming different evidence.
+        TEST_METHOD (TheTwoSaveObjects_AreTheSizeTheCaptureProduced)
+        {
+            FixtureProvider       provider;
+            std::vector<uint8_t>  first;
+            std::vector<uint8_t>  second;
+
+            AssertSucceeded (provider.OpenFixture ("Merlin/SPAN1A", first));
+            AssertSucceeded (provider.OpenFixture ("Merlin/SPAN1B", second));
+
+            //  Four bytes of DOS 3.3 header and three of payload.
+            Assert::AreEqual ((size_t) 7, first.size(),  L"SPAN1A as stored");
+            Assert::AreEqual ((size_t) 7, second.size(), L"SPAN1B as stored");
+        }
+
+
+
+        //  Measured on Merlin Pro 2.33 under ProDOS: the volume ends up carrying
+        //  TYPOBJ, type $06, aux $0300, three bytes.
+        //
+        //  THE OBJECT CARRIES NO HEADER, unlike every other fixture here. ProDOS
+        //  keeps a binary's load address in the directory entry's auxiliary type
+        //  rather than in the file, so the committed bytes are the payload alone
+        //  and the address is asserted from the source's own origin.
+        TEST_METHOD (TheOutputFileDirective_ReproducesTheObjectMerlinWrote)
+        {
+            FixtureProvider       provider;
+            AssemblyResult        result = AssembleFixture ("Merlin/TYPTEST.S");
+            std::vector<uint8_t>  object;
+
+            AssertSucceeded (provider.OpenFixture ("Merlin/TYPOBJ", object));
+
+            Assert::IsTrue   (result.success, L"the fixture source must assemble");
+            Assert::AreEqual ((size_t) 1, result.savePoints.size(), L"one object");
+
+            Assert::IsTrue   (object == result.savePoints[0].bytes,
+                              L"the bytes Merlin wrote");
+            Assert::AreEqual ((int) 0x0300, (int) result.savePoints[0].loadAddress,
+                              L"at the origin the source states, which ProDOS records as the aux type");
+        }
+
+
+
+        //  The naming and typing halves, which are what the fixture is for. The
+        //  bytes above would be identical without either directive working.
+        TEST_METHOD (TheOutputFileDirective_NamesAndTypesTheObject)
+        {
+            AssemblyResult  result = AssembleFixture ("Merlin/TYPTEST.S");
+
+            Assert::AreEqual (std::string ("TYPOBJ"), result.savePoints[0].name,
+                              L"the source named its own output");
+            Assert::IsTrue   (result.savePoints[0].hasFileType,
+                              L"and stated a type for it");
+            Assert::AreEqual ((int) 0x06, (int) result.savePoints[0].fileType,
+                              L"which is the binary type Merlin filed it under");
         }
     };
 }

@@ -8,6 +8,57 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **The assembler writes its object into a disk image.** `--disk <image>` sends
+  the object onto a volume instead of to a host file, with `--as` naming it
+  there, `--type` giving it a filesystem type and `--startup` making it the
+  program the volume runs at boot. The documented build loop drops from six
+  commands to three.
+- **The load address comes from the source's origin.** There is no `--load` on
+  the assembler and there must not be: placing an assembled file used to mean
+  restating the origin the source already declared, with nothing checking the
+  two agreed, so a source whose origin moved produced a file the guest loaded
+  at the wrong address.
+- **Merlin's `TYP` is implemented.** It sets the filesystem type the output
+  takes, stated as a ProDOS type byte. The accepted set is Merlin's own —
+  `$00`, `$06`, `$F0` through `$F7` and `$FF` — plus `$04` text and `$FC`
+  Applesoft, which Merlin lists in neither direction. Text, binary and Applesoft
+  map to both filesystems; the rest are refused on DOS 3.3 by name rather than
+  approximated, because DOS 3.3 has five types and none of them means a system
+  program, a command file, or no type at all. A byte outside the set is refused
+  naming the byte, as Merlin's own `ILLEGAL FILE TYPE` does.
+- **Merlin's `SAV` is implemented, and one assembly can produce several
+  files.** It writes the span accumulated since the previous save and carries
+  on, with the accumulation emptied, so no byte appears in two outputs and each
+  records the address its own first byte assembles to. It works with or without
+  a disk: without one it writes host files.
+- **A second `DSK` closes the file the first opened and begins another**, so a
+  source carrying two produces two files with no `SAV` anywhere. It used to
+  keep only the last name, which is indistinguishable from Merlin for one
+  occurrence and wrong for two.
+
+  The Merlin subset boundary falls from six refused constructs to four. The
+  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
+  and a second `XC`, which needs a 65816 core.
+- **An assembly producing several outputs produces a listing for each**, named
+  after the object it describes, holding that object's code and the equates
+  above it. One listing spanning every output made a reader looking for one
+  program walk past the others.
+
+### Changed
+- **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
+  used to assume as65. Binaries are unaffected.
+- **Merlin's `-l` takes no filename and writes files rather than standard
+  output.** One name cannot serve a source that saves itself twice, so listings
+  are named after the objects instead. A filename supplied anyway is refused by
+  name. `as65 -l` is unchanged: it keeps its filename and its standard-output
+  default, and an as65 source has no way to produce a second output.
+- **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization, and `NOOPT` /
+  `-n` switch it off.** It was the one optimization Casso did not do, so a
+  backward, in-range `JMP` now assembles to two bytes instead of three and
+  every label below it moves. `OPT`, `NOOPT` and `-n` are now implemented
+  rather than ignored.
+
 ## [1.22.0]: The one with nibble support
 
 ### Added

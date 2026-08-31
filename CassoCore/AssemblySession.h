@@ -214,7 +214,12 @@ private:
     HRESULT HandlePass1DummySection    (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1DummySectionEnd (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1CpuSelect       (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1FileType        (const PendingLine & current, LineInfo & info);
     HRESULT HandlePass1ObjectFile      (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1SaveObject      (const PendingLine & current, LineInfo & info);
+    HRESULT EmitFileType               (const LineInfo & info, Word & emitPC);
+    HRESULT EmitObjectFile             (const LineInfo & info, Word & emitPC);
+    HRESULT EmitSaveObject             (const LineInfo & info, Word & emitPC);
 
     // The directive that assigns the positional parameters with no macro call.
     // Both passes bind, through one helper, because a reference resolves against
@@ -301,6 +306,21 @@ private:
     HRESULT EmitInstruction      (const LineInfo & info, Word & emitPC);
     HRESULT BuildListingEntry    (const LineInfo & info, Word emitPCStart, Word emitPC, bool lineHasAddress);
     HRESULT ExtractImage         ();
+
+    //  Records that a line placed bytes in the span being accumulated, so the
+    //  span learns the address of its first one.
+    void    NoteSpanEmission     (const LineInfo & info, Word emitPCStart, Word emitPC);
+
+    //  Ends the span being accumulated and appends it as an output. Does
+    //  nothing when the span placed no bytes, so a source that saves twice in a
+    //  row does not produce an empty file between them.
+    //
+    //  An empty name falls back to the output-file directive in effect, which
+    //  is what makes a span that directive opened belong to it.
+    void    CloseSpan            (const std::string & name);
+
+    //  Two outputs under one name, which would write one over the other.
+    void    ReportDuplicateOutputNames ();
 
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
@@ -649,6 +669,17 @@ private:
     std::vector<LineInfo>                              m_lineInfos;
     std::unordered_map<std::string, Word>              m_symbols;
     std::unordered_map<std::string, SymbolKind>        m_symbolKinds;
+
+    // The source line each symbol was defined on, which is how a symbol is
+    // attributed to one output among several. A symbol carries no output of its
+    // own -- most are bound in pass 1, before any span has been cut -- so the
+    // line is recorded instead and matched afterwards against the lines each
+    // output covers.
+    //
+    // A symbol with no line recorded, which is every predefined one, stays at
+    // zero and is therefore shared by every output. That is the right default:
+    // a name the assembler supplied belongs to no particular file.
+    std::unordered_map<std::string, int>               m_symbolLines;
     std::unordered_map<std::string, int32_t>           m_exprSymbols;
     ExprContext                                        m_pass1Ctx           = { &m_exprSymbols, 0 };
     Word                                               m_pc                 = 0;
@@ -750,6 +781,65 @@ private:
     std::vector<Byte>                                  m_image;
     Word                                               m_lowestAddr         = 0xFFFF;
     Word                                               m_highestAddr        = 0x0000;
+
+    // Where in the output the span being accumulated began, and what address
+    // its first byte assembles to.
+    //
+    // TWO CURSORS BECAUSE A RELOCATING ORIGIN SEPARATES THEM. The bytes are cut
+    // from the output, and the address recorded is the program counter, which
+    // is the one a later load uses. Taking both from the same cursor files a
+    // span at the position it happens to occupy rather than where its source
+    // put it.
+    //
+    // The address is captured from the FIRST line of the span that emits,
+    // rather than when the span opens: a span may open on a directive and only
+    // reach an origin afterwards, and it is where the bytes land that counts.
+    //
+    // The end is tracked rather than read from m_outputPos, which pass 2 does
+    // not advance: pass 2 replays the position pass 1 recorded per line, so the
+    // member still holds where pass 1 finished and would close every span at
+    // the end of the whole assembly.
+    Word                                               m_spanOutputStart    = 0;
+    Word                                               m_spanOutputEnd      = 0;
+    Word                                               m_spanLoadAddress    = 0;
+    bool                                               m_spanHasBytes       = false;
+
+    // Which output the listing line being built belongs to, so a listing can be
+    // split the way the object is.
+    //
+    // SNAPSHOT AT THE TOP OF THE LINE rather than read as the line finishes.
+    // The line carrying a save closes the span, so by the time its listing entry
+    // is built the counter has already moved on, and reading it there would file
+    // every save under the output it begins instead of the one it ends.
+    //
+    // Whether any byte has landed yet is what separates the equates and macro
+    // definitions at the top from the first output's own lines. They belong to
+    // no single output and go into all of them.
+    size_t                                             m_currentOutput      = 0;
+    size_t                                             m_lineOutput         = 0;
+    bool                                               m_anyBytesYet        = false;
+
+    // The filesystem type the source asked its output to take, and whether it
+    // asked at all. Absent rather than zero, because zero is a real type on
+    // one of the two filesystems and a caller cannot tell the two apart from
+    // the value.
+    Byte                                               m_fileType           = 0;
+    bool                                               m_hasFileType        = false;
+
+    // The output-file directive in effect, which stays in effect until another
+    // replaces it. A save names the span it ends and only that one, so a later
+    // span still belongs to this.
+    std::string                                        m_objectFileInEffect;
+
+    // Whether the source has reached an output-file directive at all. Pass 1
+    // tracks it so a save directive below one can be refused at its own line,
+    // the two being different output mechanisms rather than two spellings of
+    // one.
+    bool                                               m_objectFileSeen     = false;
+
+    // The last source line pass 1 read, so a diagnostic raised once the walk
+    // has finished still points somewhere in the file rather than at line zero.
+    int                                                m_lastSourceLine     = 0;
     std::unordered_map<std::string, int>               m_referencedLabels;
     std::unordered_map<std::string, int32_t>           m_fullSymbols;
     ExprContext                                        m_pass2Ctx           = { &m_fullSymbols, 0 };

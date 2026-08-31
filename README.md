@@ -140,17 +140,20 @@ changing Casso stops drawing altogether.
 ### Disk file access from the command line (1.20)
 
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk, reads
-files off it and puts them back, with no third-party tool anywhere in the loop.
-Source to a running machine in six commands:
+files off it and puts them back, with no third-party tool anywhere in the loop,
+and the assembler writes its object straight onto the disk. Source to a running
+machine in three commands:
 
 ```powershell
 CassoCli disk create mydisk.dsk --bootable
-CassoCli as65 prog.a65 -oprog.bin
-CassoCli disk put mydisk.dsk prog.bin --as PROG --type B --load $6000
-CassoCli disk put mydisk.dsk greet.bas --as STARTUP --basic
-CassoCli disk boot mydisk.dsk STARTUP
+CassoCli as65 prog.a65 --disk mydisk.dsk --as PROG --startup
 Casso.exe --machine Apple2e --disk1 mydisk.dsk
 ```
+
+**Nothing there restates the load address.** It used to: assembling wrote a host
+file, placing it needed `--load $6000` again, and nothing checked the two
+agreed, so a source whose origin moved produced a file the guest loaded at the
+wrong address. The assembler knows the origin, so it writes it.
 
 It runs in reverse too: `disk get` hands back a file byte-for-byte and reports the
 load address DOS 3.3 doesn't keep in its catalog. `--basic` converts an Applesoft

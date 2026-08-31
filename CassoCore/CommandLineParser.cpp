@@ -79,10 +79,16 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
            nullptr,
            CommandLineParser::FlagCategory::AssembledCode, "<file>",
            "Rename output file (default: <source>.bin)" },
+    //  NO FILENAME, unlike the as65 row further down, which keeps its own form
+    //  untouched. A Merlin source may cut itself into several objects and each
+    //  one gets its own listing, so a single name could serve at most one of
+    //  them; the names come from the objects instead. The value kind stays
+    //  Filename so that a caller who types one has it consumed and refused by
+    //  name, rather than walked letter by letter into a row of unknown flags.
     { "l", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
-           "-",
-           CommandLineParser::FlagCategory::Listing, "<file>",
-           "Generate listing to <file> if specified, stdout if not" },
+           nullptr,
+           CommandLineParser::FlagCategory::Listing, "",
+           "Generate a listing beside each object assembled" },
     { "v", CommandLineParser::ValueKind::None,     CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::General, "",
@@ -249,6 +255,28 @@ static constexpr const char *  s_kpszAs65LongOptions[] =
 {
     "flat",
     "dos-bin",
+};
+
+
+
+//  Where the object goes when it goes onto a disk, and what it is called and
+//  typed once it lands there.
+//
+//  ONE TABLE FOR BOTH ASSEMBLER GRAMMARS, because the capability belongs to the
+//  assembler rather than to a dialect: a dialect is not required to have
+//  directives for a developer to reach it. Two lists would be two sets of
+//  options that have to be remembered to agree, and the sweep that checks every
+//  switch is exercised would be checking two different things.
+static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
+{
+    //  Written WITH the dashes, the way the output-format rows are, because the
+    //  same composer renders both and it rewrites a canonical `--name` into the
+    //  reader's own prefix. The sweep that checks every option is exercised
+    //  strips them back off.
+    { "--disk",    " <image>", "Write the object into this disk image instead of a host file" },
+    { "--as",      " <name>",  "What the object is called on the volume. Beats a name the source gives" },
+    { "--type",    " <type>",  "The filesystem type: T, I, A, B or R on DOS 3.3, TXT, BIN, BAS or SYS on ProDOS. Beats a type the source gives" },
+    { "--startup", "",         "Make the object the program the volume runs when it boots" },
 };
 
 
@@ -1507,6 +1535,72 @@ std::span<const char * const> CommandLineParser::GetAs65LongOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::GetImageTargetOptions
+//
+//  The options that send the object onto a disk, which both assembler grammars
+//  take. Exposed so a sweep asks the grammar rather than a list somebody
+//  remembered to update.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageTargetFlags()
+{
+    return std::span<const ImageTargetFlag> (s_kImageTargetFlags);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::RefuseImageOptionsWithoutAnImage
+//
+//  The options that describe a placement on a volume, given with no volume.
+//
+//  REFUSED RATHER THAN IGNORED. Each of these says something about a file on a
+//  disk -- what it is called there, what type it takes, whether the volume
+//  starts it -- so an invocation carrying one and naming no image was written
+//  by somebody who believed something false about what was about to happen.
+//  Accepting it and doing nothing tells a build script that a command line it
+//  got wrong had worked, and a parsed-then-ignored option is worse than one
+//  that does not exist.
+//
+//  Both assembler grammars ask this, because the options are the assembler's
+//  rather than a dialect's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & options)
+{
+    bool  hasImage = !options.imagePath.empty();
+    bool  named    = !options.onDiskName.empty();
+    bool  typed    = !options.imageTypeName.empty();
+    bool  starts   = options.setStartupProgram;
+    bool  stray    = !hasImage && (named || typed || starts);
+
+
+
+    if (stray)
+    {
+        Refusal (options) << "Error: "
+                          << FormatLongOption (named ? "--as" : typed ? "--type" : "--startup", options.flagPrefix)
+                          << " describes a file on a volume, and no image was named\n"
+                          << "       add " << FormatLongOption ("--disk", options.flagPrefix)
+                          << " <image>, or drop the option\n";
+
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineParser::GetRunLongOptions
 //
 //  The long options `run` takes.
@@ -1840,6 +1934,55 @@ bool CommandLineParser::IsLongOption (const std::string & arg, const std::string
     if (matched && !arg.empty())
     {
         NoteFlagPrefix (arg[0] == '/' ? '/' : '-', options);
+    }
+
+    return matched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::TryLongOptionValue
+//
+//  One long option and its value, accepted either attached with `=` or as the
+//  argument after it.
+//
+//  BOTH FORMS, because a reader who has just typed `disk put image file --as
+//  NAME` writes the assembler's the same way, and a grammar that took only the
+//  attached form would refuse the spelling its neighbour documents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TryLongOptionValue (const std::string  & arg,
+                                            const char         * canonical,
+                                            int                  argc,
+                                            char               * argv[],
+                                            int                & argIndex,
+                                            std::string        & value,
+                                            CommandLineOptions & options)
+{
+    bool  matched = false;
+    bool  hasNext = false;
+
+
+
+    if (IsLongOptionWithValue (arg, canonical, value, options))
+    {
+        argIndex++;
+        matched = true;
+    }
+    else if (IsLongOption (arg, canonical, options))
+    {
+        //  A missing value leaves the string empty and consumes only the flag,
+        //  so the caller refuses a named-nothing rather than swallowing the
+        //  argument after it -- which would be the source file, silently.
+        hasNext   = (argIndex + 1) < argc;
+        value     = hasNext ? std::string (argv[argIndex + 1]) : std::string();
+        argIndex += hasNext ? 2 : 1;
+        matched   = true;
     }
 
     return matched;
@@ -2335,6 +2478,43 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
             continue;
         }
 
+        //  Writing the object into a disk image instead of a host file, and
+        //  what it is called and typed once it is there.
+        //
+        //  `--as` and `--type` are deliberately the words `disk put` already
+        //  uses for the same two ideas. The tree has been burned by the
+        //  opposite: the load and entry options record three names for two
+        //  ideas across three grammars, and this does not add a fourth.
+        //
+        //  THERE IS NO LOAD OPTION HERE, and that is the point of the feature
+        //  rather than an omission. The address comes from the origin the
+        //  source declared, and an option that could disagree with it is the
+        //  defect being removed.
+        if (TryLongOptionValue (arg, "--disk", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imagePath = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--as", argc, argv, argIndex, attachedValue, options))
+        {
+            options.onDiskName = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--type", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imageTypeName = attachedValue;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--startup", options))
+        {
+            options.setStartupProgram = true;
+            argIndex++;
+            continue;
+        }
+
         //  A `--` OPTION THIS GRAMMAR DOES NOT HAVE IS REFUSED, NOT WALKED.
         //
         //  Everything below reads a single dash as a group of letters, so
@@ -2526,6 +2706,8 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
         argIndex++;
     }
+
+    RefuseImageOptionsWithoutAnImage (options);
 }
 
 
@@ -3004,12 +3186,25 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
         break;
 
     case 'l':
-        //  "-" is what the table says a bare -l means, so the sentinel is
-        //  read here rather than every caller having to know that an empty
-        //  filename and "no filename" are the same request.
+        //  A LISTING PER OBJECT, NAMED AFTER IT, which is why no name is taken
+        //  here. Neither a single file nor standard output can hold several
+        //  listings apart, and a Merlin source that saves twice produces two.
+        //  Where they go is settled once the objects have names, so nothing is
+        //  resolved here beyond "not standard output".
         options.generateListing = true;
-        options.listingToStdout = value == "-";
-        options.listingFile     = options.listingToStdout ? std::string() : ApplyListingExtension (value);
+        options.listingToStdout = false;
+        options.listingFile.clear();
+
+        if (!value.empty())
+        {
+            Refusal (options) << "Error: " << options.flagPrefix
+                              << "l takes no filename under merlin\n";
+            Refusal (options) << "       a listing is written beside each object, named after it\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
+        }
+
         break;
 
     case 'v':
@@ -3119,6 +3314,34 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
             continue;
         }
 
+        //  The image target, matched here for the reason the formats are:
+        //  these are whole words, and the letter loop below would read `--disk`
+        //  as four flags nobody wrote.
+        if (TryLongOptionValue (arg, "--disk", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imagePath = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--as", argc, argv, argIndex, attachedValue, options))
+        {
+            options.onDiskName = attachedValue;
+            continue;
+        }
+
+        if (TryLongOptionValue (arg, "--type", argc, argv, argIndex, attachedValue, options))
+        {
+            options.imageTypeName = attachedValue;
+            continue;
+        }
+
+        if (IsLongOption (arg, "--startup", options))
+        {
+            options.setStartupProgram = true;
+            argIndex++;
+            continue;
+        }
+
         if (arg[0] == '/')
         {
             NoteFlagPrefix ('/', options);
@@ -3208,6 +3431,8 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         argIndex++;
     }
+
+    RefuseImageOptionsWithoutAnImage (options);
 }
 
 

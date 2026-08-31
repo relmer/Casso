@@ -278,8 +278,10 @@ independently and resolving references between them afterward. That is why
 Merlin's `REL`, `ENT` and `EXT` are refused, and why AS65's own relocatable
 output has no equivalent here.
 
-Nor does one assembly produce several outputs, which is why Merlin's `SAV` is
-refused.
+One assembly *does* produce several outputs, which is what Merlin's `SAV` and a
+second `DSK` do. That is not separate compilation: the outputs come from one
+source read once, and nothing resolves a reference from one of them into
+another.
 
 If your project needs either, please open an issue at
 [github.com/relmer/Casso/issues](https://github.com/relmer/Casso/issues);
@@ -388,7 +390,7 @@ CassoCli merlin <source> [flags]
 | Flag | Meaning |
 |---|---|
 | `-o <file>` | Rename output file. Default: `<source>.bin`, unless the source names one itself. |
-| `-l [<file>]` | Generate a listing. `-l` alone goes to stdout. |
+| `-l` | Generate a listing beside each object, named after it. Takes no filename. |
 | `-d <symbol>[=<value>]` | Define a symbol the source expects. Without a value it is defined as `1`. |
 | `-v` | Verbose: an assembly summary on stderr. |
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
@@ -437,7 +439,9 @@ passes three.
 | `HEX` | Raw hexadecimal digit pairs |
 | `DS` | Reserve space |
 | `ORG` | Origin. It **relocates**: output stays one contiguous stream and only the program counter moves. With no operand it resyncs the program counter to where output has actually reached. |
-| `DSK` | Names the output file. A name supplied with `-o` beats it. |
+| `DSK` | Names the output. A name supplied with `-o` or `--as` beats it. **A second one closes the file the first opened and begins another**, so a source carrying two produces two files with no `SAV` anywhere. The name stays in effect until another replaces it. |
+| `TYP` | Sets the filesystem type the output takes, as a ProDOS type byte. The accepted set is Merlin's own, from its manual: `$00` no type, `$06` binary, `$F0`–`$F7` command and user-defined, and `$FF` system. `$04` text and `$FC` Applesoft are accepted besides, which Merlin lists in neither direction; anything else is refused naming the byte, as Merlin's `ILLEGAL FILE TYPE` does. On DOS 3.3 only `$04`, `$06` and `$FC` have counterparts and the rest are refused by name, because DOS 3.3 has five types and none of them means a system program, a command file, or no type at all. `--type` beats it. **`TYP` is ProDOS-only in real Merlin** — Merlin Pro 2.23 under DOS 3.3 answers `Bad opcode` to it — so writing a typed output onto a DOS 3.3 volume is this tool going beyond the period assembler rather than matching it. |
+| `SAV` | Writes the span accumulated since the previous save and carries on, so one source produces several files. **The accumulation is emptied**, so no byte appears in two outputs, and each output records the address its own first byte assembles to. A name is required. |
 | `END` | End of assembly |
 | `PUT` `USE` | Include another file. The operand is a short name; Merlin prepends `T.` to reach the file on disk. |
 | `DO` `ELSE` `FIN` | Conditional assembly |
@@ -449,6 +453,21 @@ passes three.
 | `KBD` | Binds the symbol in the label field to an answer supplied from outside. See below. |
 | `PAG` `TR` `EXP` `AST` | Listing control; no object byte changes |
 | `XC` | Selects the 65C02 (first occurrence only, see above) |
+
+#### One source, several outputs
+
+`SAV` and a second `DSK` both cut a source into more than one file, and
+everything the assembly writes follows the cut. Each object gets its own
+listing, named after it: `SAV LOADER` produces `LOADER` and `LOADER.lst`.
+
+The equates and macro definitions above the first output are repeated into every
+listing rather than left in the first, because a listing a reader opens on its
+own has to resolve the names its code refers to.
+
+That is why `-l` takes no filename under Merlin. One name cannot serve several
+listings, and the objects already supply the names. `as65 -l` is unchanged: it
+keeps its filename and its standard-output default, and an as65 source has no
+directive that could produce a second output.
 
 ### Symbols and expressions
 
@@ -523,7 +542,7 @@ CassoCli merlin CLOCK.S -d SAVOBJ=0 -d VERSION=12 --dos-bin -o CLOCK.12
 
 ### Where Merlin support ends
 
-Six constructs are recognized and refused individually, so a refusal identifies
+Four constructs are recognized and refused individually, so a refusal identifies
 the construct and points at the issue tracking it, where an unknown-directive
 error would read as "Merlin support is broken". Crossing the boundary stops the
 assembly before pass 2 and exits 2. The why and the way forward are in the table
@@ -535,10 +554,8 @@ below rather than in the diagnostic.
 | `ENT` | An entry symbol declaration | Publishes a symbol for a linker to resolve from another module | A relocating linker ([#112](https://github.com/relmer/Casso/issues/112)) |
 | `EXT` | An external symbol declaration | The symbol is defined in another module, which would require linker support | A relocating linker ([#112](https://github.com/relmer/Casso/issues/112)) |
 | `XC` (second one) | A second CPU-selection directive | One selects the 65C02; a second selects the 65802/65816, which Casso does not emulate | A 65802/65816 core |
-| `TYP` | The output file-type directive | Sets the filesystem file type of the output, which means nothing without a filesystem that has types | Disk file-access support, where filesystem types belong |
-| `SAV` | The save-object directive | Writes the object accumulated so far and carries on, so one assembly produces several outputs | A decision about multi-output assembly |
 
-Three things about that list are worth reading twice.
+Four things about that list are worth reading twice.
 
 - **`XC` is cumulative, not forbidden.** The *first* occurrence is carried out
   and selects the 65C02, which Casso emulates. Only a second is refused.
@@ -551,8 +568,15 @@ Three things about that list are worth reading twice.
 - **Every offender is reported, not the first.** Deciding whether to port a file
   needs the size of the gap, and stopping at the first refusal turns one answer
   into as many assembly runs as there are constructs.
+- **It was six, and `TYP` and `SAV` left.** The file-type directive set a
+  filesystem type with no filesystem to set it on; the assembler writes onto a
+  volume now, so the type has somewhere to land. The save-object directive was
+  waiting on a decision about multi-output assembly rather than on a capability,
+  and that decision was made: it writes the span accumulated since the previous
+  save and carries on. Both are documented with the other supported directives
+  above.
 
-The constructs and the issues they point at come from one table in
+The four constructs and the issues they point at come from one table in
 `CassoCore/MerlinSubsetBoundary.cpp`, which is what the refusals are composed
 from. The why and widens-with columns above are maintained here, so a row added
 to that table needs a row added here as well.

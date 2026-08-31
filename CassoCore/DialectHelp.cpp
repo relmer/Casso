@@ -180,6 +180,25 @@ std::string DialectHelp::ComposeFlagLines (DialectId dialect, char flagPrefix)
         // `-s2`, because they answer the same question and only one of the
         // four can be asked. They used to sit with the assembled-code flags,
         // which left a reader picking the formats out of a run of eight.
+        //  Where the object goes when it goes onto a disk. Under the
+        //  assembled-code heading rather than the format one: these decide
+        //  WHERE the object lands and what it is called there, which is the
+        //  same question the output name answers, while a format decides what
+        //  shape the bytes take inside it.
+        //
+        //  Both dialects get them, because sending the object onto a disk is
+        //  the assembler's capability rather than one dialect's.
+        if (category == CommandLineParser::FlagCategory::AssembledCode)
+        {
+            for (const CommandLineParser::ImageTargetFlag & target : CommandLineParser::GetImageTargetFlags())
+            {
+                group += PadTo (std::string ("    ") + CommandLineParser::FormatLongOption (target.option, flagPrefix)
+                                    + target.valueName,
+                                kDescriptionColumn)
+                       + target.description + "\n";
+            }
+        }
+
         if (category == CommandLineParser::FlagCategory::OutputFormat)
         {
             for (const CommandLineParser::OutputFormatFlag & format : formats)

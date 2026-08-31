@@ -83,31 +83,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         nullptr,
     },
 
-    {
-        Directive::FileType,
-        "TYP",
-        "the output file-type directive",
-        SubsetBoundaryTrigger::EveryOccurrence,
-        nullptr,
-        false,
-        nullptr,
-        nullptr,
-    },
-
-    //  NOT waiting on disk file access, and the widening text says so out loud.
-    //  It saves the object accumulated so far and carries on, so one assembly
-    //  can produce several outputs -- a question about what an assembly IS, which
-    //  no amount of file-writing support answers.
-    {
-        Directive::SaveObject,
-        "SAV",
-        "the save-object directive",
-        SubsetBoundaryTrigger::EveryOccurrence,
-        nullptr,
-        false,
-        nullptr,
-        nullptr,
-    },
 };
 
 

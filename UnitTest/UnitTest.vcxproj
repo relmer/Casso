@@ -249,6 +249,10 @@
     <ClCompile Include="MerlinCorpusTests.cpp" />
     <ClCompile Include="MerlinCommandLineTests.cpp" />
     <ClCompile Include="MerlinSubsetBoundaryTests.cpp" />
+    <ClCompile Include="SavePointTests.cpp" />
+    <ClCompile Include="AssemblerToDiskTests.cpp" />
+    <ClCompile Include="MerlinSaveObjectTests.cpp" />
+    <ClCompile Include="PerOutputArtifactTests.cpp" />
     <ClCompile Include="MerlinParserTests.cpp" />
     <ClCompile Include="MerlinStringEncodingTests.cpp" />
     <ClCompile Include="IncludeTests.cpp" />

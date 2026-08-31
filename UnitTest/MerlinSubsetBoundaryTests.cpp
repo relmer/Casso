@@ -235,14 +235,25 @@ namespace MerlinSubsetBoundaryTests
         {
             const Directive  kRefusedByName[] = { Directive::Relocatable,
                                                   Directive::EntrySymbol,
-                                                  Directive::ExternalSymbol,
-                                                  Directive::FileType,
-                                                  Directive::SaveObject };
+                                                  Directive::ExternalSymbol };
+
+            //  The two directives that left. Each is recognized and HANDLED
+            //  now, so a row for either would refuse something the assembler
+            //  implements -- which is why this asserts their ABSENCE rather
+            //  than simply not mentioning them.
+            const Directive  kImplemented[] = { Directive::FileType,
+                                                Directive::SaveObject };
 
             for (Directive token : kRefusedByName)
             {
                 Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) != nullptr,
                                 L"a construct recognized only so it can be refused, with nothing to refuse it");
+            }
+
+            for (Directive token : kImplemented)
+            {
+                Assert::IsTrue (SubsetBoundary::Find (MerlinSubsetBoundary::GetAll(), token) == nullptr,
+                                L"an implemented directive must not also be refused");
             }
         }
 
@@ -343,7 +354,7 @@ namespace MerlinSubsetBoundaryTests
         //  run turns that into as many runs as there are constructs.
         TEST_METHOD (EveryOffenderInTheSourceIsReported)
         {
-            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n TYP\n SAV\n");
+            AssemblyResult              result   = Fixture::Assemble (" REL\n ENT\n ENT\n EXT\n EXT\n");
             std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
             Assert::AreEqual ((size_t) 5, refusals.size(), L"one refusal per offending line");
@@ -532,36 +543,29 @@ namespace MerlinSubsetBoundaryTests
     {
     public:
 
-        TEST_METHOD (TheFileTypeDirectiveIsRefusedAsBelongingToDiskFileAccess)
+        //  The file-type directive left the boundary when the assembler gained
+        //  somewhere for a type to land. It is assembled now, not refused.
+        TEST_METHOD (TheFileTypeDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" TYP $06\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n TYP $06\n LDA #$11\n RTS\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the file-type directive");
-
-            Assert::IsTrue (refusals[0].message.find ("the output file-type directive") != std::string::npos,
-                            L"the refusal has to identify the directive");
-
-            //  No issue tracks it, so the refusal cites none. What it waits on
-            //  is recorded in the boundary table, not in the diagnostic.
-            Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos,
-                            L"nothing tracks the file-type directive yet");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the file-type directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
         }
 
 
 
-        TEST_METHOD (TheSaveObjectDirectiveIsRefusedAsAnUndecidedQuestionRatherThanAWait)
+        //  The save-object directive left the boundary once multi-output
+        //  assembly was decided. It writes an output and carries on now.
+        TEST_METHOD (TheSaveObjectDirectiveIsNoLongerRefused)
         {
-            std::vector<AssemblyError>  refusals = Fixture::Refusals (Fixture::Assemble (" SAV OUT\n"));
+            AssemblyResult              result   = Fixture::Assemble (" ORG $300\n LDA #$11\n RTS\n SAV OUT\n");
+            std::vector<AssemblyError>  refusals = Fixture::Refusals (result);
 
-            Assert::AreEqual ((size_t) 1, refusals.size(), L"the save-object directive");
-
-            Assert::IsTrue (refusals[0].message.find ("the save-object directive") != std::string::npos,
-                            L"the refusal has to identify the directive");
-
-            //  It is not waiting on disk file access, so it cites no issue. The
-            //  boundary table still denies that reading out loud.
-            Assert::IsTrue (refusals[0].message.find ("GitHub issue") == std::string::npos,
-                            L"the save-object directive waits on a decision, not on a tracked gap");
+            Assert::AreEqual ((size_t) 0, refusals.size(), L"the save-object directive is inside the subset");
+            Assert::IsTrue (result.success, L"and the source assembles");
+            Assert::AreEqual ((size_t) 1, result.savePoints.size(), L"producing the output it named");
         }
     };
 
