@@ -1567,9 +1567,21 @@ m.add_triangles("glass",
 # something that disappears into the case. Everything above the frame line,
 # though, is molded surface, and a molded outside corner in plastic is the
 # exception rather than the rule.
+#
+# AND THE BOTTOM IS BURIED, not floated. It used to start a millimeter above
+# the notch floor, which is a real slot under a real button: the power LED
+# sits higher up the rear wall, and the shallow rays that clear the button's
+# bottom edge came out through that slot and lit a strip of floor in front of
+# it. The button correctly shadowed everything else, so the light read as
+# leaking out from under the button -- which is exactly what it was doing.
+# Seating the bottom below the floor closes the slot; a sliding fit has
+# nowhere for light to get through.
+BTN_BURY = 2.0
+
 button = (cq.Workplane("XY")
-          .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
-          .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 + 1.0))
+          .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5 + 1.0 + BTN_BURY,
+               centered=(False, False, False))
+          .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 - BTN_BURY))
           .edges(">Z").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)
