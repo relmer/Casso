@@ -100,13 +100,12 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode()
         const auto &              blk           = m_prefs->crtByMode[idx];
         const auto &              preset        = CrtPresets::GetPreset ((size_t) idx);
         const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themes != nullptr)
+        if (m_themes != nullptr && m_themes->GetActiveTheme() != nullptr)
         {
-            const LoadedTheme *  active = m_themes->GetActiveTheme();
-            if (active != nullptr)
-            {
-                themeDefaults = &active->crtDefaults;
-            }
+            // Resolved, like the renderer's: seeding the sliders from the
+            // base theme would show one set of numbers while the picture
+            // carried another.
+            themeDefaults = &m_themes->ActiveCrtDefaults();
         }
 
         if (blk.userOverride)
@@ -207,13 +206,12 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
         int                       idx           = GetActiveModeIdx();
         const auto &              preset        = CrtPresets::GetPreset ((size_t) idx);
         const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themes != nullptr)
+        if (m_themes != nullptr && m_themes->GetActiveTheme() != nullptr)
         {
-            const LoadedTheme *  active = m_themes->GetActiveTheme();
-            if (active != nullptr)
-            {
-                themeDefaults = &active->crtDefaults;
-            }
+            // Resolved, like the renderer's: seeding the sliders from the
+            // base theme would show one set of numbers while the picture
+            // carried another.
+            themeDefaults = &m_themes->ActiveCrtDefaults();
         }
 
         // Start from the monitor preset for every field.

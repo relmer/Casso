@@ -43,6 +43,17 @@ class  Printer3DScene;
 class PrinterPanel : public DxuiWindow
 {
 public:
+    // Read an embedded RCDATA resource into a string; empty on failure.
+    // Public because the desk scene loads its device models through the
+    // same path.
+    static std::string  LoadTextResource (int resourceId);
+
+    // The same ladder for a BINARY resource, handed back as a view rather
+    // than a copy. The baked meshes are tens of megabytes and the reader
+    // only walks them, so copying one into a vector first would be the
+    // largest allocation in startup and would buy nothing.
+    static std::span<const uint8_t>  LoadBinaryResource (int resourceId);
+
     using ActionFn = std::function<void ()>;
 
     PrinterPanel  ();
@@ -168,10 +179,8 @@ private:
 
     // Fanfold-paper furniture helpers (panel-only): the hole / perforation
     // phase modulus, the perforation-dash pixel darken, and the embedded
-    // CAD-model resource loader.
     static int          FloorMod         (int a, int m);
     static void         DarkenPerf       (uint32_t & px);
-    static std::string  LoadTextResource (int resourceId);
 
     const CassoTheme  * m_theme   = nullptr;
 

@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The blit pair and the CRT chain, compiled to BYTECODE at build time.
+
+  These were embedded as HLSL TEXT and run through D3DCompile during
+  Initialize. The stated reason was that a shader could then be edited and
+  recompiled without a build step, which was never true: the text shipped as
+  an RCDATA resource, so changing one always meant a rebuild anyway.
+
+  SHARED BY EVERY PROJECT THAT COMPILES CrtPostProcess.cpp, which is Casso and
+  UnitTest both. Each gets its own copy in its own IntDir rather than one
+  reaching into the other's, so neither has to be built before the other and
+  there is no ordering to get wrong. fxc on these is a few tens of
+  milliseconds; a cross-project dependency to save it would cost more than it
+  saves.
+
+  Paths are anchored to this file rather than to the importing project, since
+  the two live in different directories.
+
+  Optimized in both configurations. D3DCompile was called with default flags,
+  so Debug always ran optimized shaders; MSBuild would otherwise hand fxc
+  /Od /Zi there and quietly make the Debug picture a slower one to draw.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!--
+    Shader debugging follows the CONFIGURATION: fxc gets /Od /Zi in Debug
+    and optimizes in Release, which is what the rest of the build does and
+    so is the least surprising thing for it to do.
+
+    It is not free. The desk scene pixel shader goes from 1407 to 3597
+    instruction slots that way, 2.56x the per-pixel work, at 4x MSAA over
+    the whole window, so a Debug build draws the scene appreciably slower
+    than it used to when D3DCompile ran with default flags. Override with
+    /p:CassoShaderDebug=false when the frame rate matters more than
+    stepping the HLSL.
+  -->
+  <PropertyGroup>
+    <CassoShaderDebug Condition="'$(CassoShaderDebug)' == ''">$([System.String]::Copy('$(Configuration)').Equals('Debug').ToString().ToLowerInvariant())</CassoShaderDebug>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <FxCompile>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <ObjectFileOutput>
+      </ObjectFileOutput>
+      <DisableOptimizations>$(CassoShaderDebug)</DisableOptimizations>
+      <EnableDebuggingInformation>$(CassoShaderDebug)</EnableDebuggingInformation>
+    </FxCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <FxCompile Include="$(MSBuildThisFileDirectory)Blit\blit.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <VariableName>g_BlitVs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\blit.vs.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)Blit\blit.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_BlitPs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\blit.ps.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\brightness.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtBrightness</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\brightness.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\scanlines.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtScanlines</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\scanlines.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\bloom_h.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtBloomH</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\bloom_h.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\bloom_v.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtBloomV</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\bloom_v.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\bloom_composite.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtBloomComposite</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\bloom_composite.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\color_bleed.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtColorBleed</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\color_bleed.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\persistence.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtPersistence</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\persistence.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\gamma.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtGamma</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\gamma.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)CRT\copy.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_CrtCopy</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\copy.h</HeaderFileOutput>
+    </FxCompile>
+  </ItemGroup>
+
+</Project>

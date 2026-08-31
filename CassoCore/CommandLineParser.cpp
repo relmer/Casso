@@ -988,7 +988,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CommandLineParser::GetCanonicalLongFlag (const std::string             & arg,
-                                                  std::span<const char * const>   names)
+                                                     std::span<const char * const>   names)
 {
     std::string  canonical = arg;
     size_t       equals    = 0;

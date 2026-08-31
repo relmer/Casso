@@ -6,12 +6,15 @@
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
+#include "../Chrome/MainMenu.h"
+#include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiSlider.h"
 
 
 class DxuiHwndSource;
@@ -63,12 +66,23 @@ public:
     using ApplyThemeNowFn = std::function<void ()>;
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
-    // Skeuo desk-scene opt-in (CRT monitor framing). The checkbox applies
-    // live through the callback and is enabled only while a skeuomorphic
-    // (non-compact) theme is selected in the dropdown.
-    using MonitorFrameFn = std::function<void (bool enabled)>;
-    void  SetOnMonitorFrameToggled (MonitorFrameFn fn) { m_onMonitorFrameToggled = std::move (fn); }
-    void  SetMonitorFrameChecked   (bool checked)      { m_monitorFrameCheckbox.SetChecked (checked); }
+    // The CRT monitor opt in/out (the monitor alone -- the 3D drives always
+    // render). The checkbox applies live through the callback and is enabled
+    // only while a skeuomorphic (non-compact) theme is selected.
+    using CrtMonitorFn = std::function<void (bool enabled)>;
+    void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
+    void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
+
+    // Scene antialiasing, in SAMPLES (1 / 2 / 4) at this boundary -- the
+    // slider's three stops are an interior detail.
+    using AntiAliasingFn = std::function<void (int samples)>;
+    void  SetOnAntiAliasingChanged (AntiAliasingFn fn) { m_onAntiAliasingChanged = std::move (fn); }
+    void  SetAntiAliasingSamples   (int samples)       { m_aaSlider.SetValue (StopForSamples (samples)); }
+
+    const DxuiSlider &  AntiAliasingSlider () const { return m_aaSlider; }
+
+    static int    SamplesForStop (float stop);
+    static float  StopForSamples (int samples);
 
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
@@ -111,13 +125,12 @@ private:
     static constexpr int  kPrevDriveBarFullDp  = 225;
     static constexpr int  kPrevDriveBarCmptDp  = 105;
     static constexpr int  kPrevJoystickBandDp  = 43;
-    static constexpr int  kPrevSysButtonWDp    = 46;
-    static constexpr int  kPrevSysButtonGapDp  = 1;
-    static constexpr int  kPrevCaptionFontDp   = 14;
-    static constexpr int  kPrevNavFontDp       = 13;
+    // No system-button or caption/menu font metrics here any more: the real
+    // DxuiCaptionBar and MainMenu carry their own, and a second set of
+    // numbers describing the same chrome is precisely how the mock drifted
+    // out of step with it.
 
     static RECT      MakeRect (int l, int t, int w, int h);
-    static uint32_t  LerpArgb (uint32_t a, uint32_t b, float t);
 
 
     // Computes the actual preview rect inside availRect that matches
@@ -130,6 +143,54 @@ private:
                                          RECT        & outPrevRect,
                                          float       & outScale);
 
+public:
+    // What the 3D desk scene should draw over the mock window, decided during
+    // the 2D paint and consumed by the sheet's after-paint hook. The preview
+    // cannot draw the scene itself: it paints through the 2D painter, and the
+    // scene needs the render target after the panel tree is done with it.
+    //
+    // Skeuo themes hand the picture and drives to the scene exactly as the
+    // live chrome does, so the 2D paint LEAVES THOSE OUT rather than drawing
+    // underneath -- the mock's flat screen rect and flat drive widgets are
+    // what made the preview keep showing a presentation the app retired.
+    enum class PreviewSceneMode
+    {
+        None,        // compact theme: the flat mock is the whole preview
+        Full,        // monitor and drives, the CRT checkbox on
+        DrivesOnly,  // CRT opted out: flat picture, 3D drives beneath it
+    };
+
+    struct PreviewSceneRequest
+    {
+        PreviewSceneMode  mode   = PreviewSceneMode::None;
+        RECT              rectPx = {};   // where the scene composes
+        RECT              clipPx = {};   // and where it must stop
+
+        // The mock's own reduced DPI, which the 2D widgets already scale by.
+        // It does NOT set the scene's size -- the layout contain-fits to the
+        // viewport and never reads it -- it only scales the dp reservations
+        // the layout makes inside that fit.
+        UINT              dpi    = 96;
+    };
+
+    // Consume-once: the sheet takes the request and leaves it empty. A page
+    // that did not paint this frame therefore asks for nothing, which is what
+    // stops the scene from staying on screen after the user switches tabs.
+    PreviewSceneRequest  TakeSceneRequest () const
+    {
+        PreviewSceneRequest  taken = m_sceneRequest;
+
+        m_sceneRequest = {};
+
+        return taken;
+    }
+
+    // The live framebuffer, for the scene's glass -- the same source the flat
+    // preview blit uses. Null when the shell has not supplied one.
+    const uint32_t *  FramebufferPixels (int & outW, int & outH) const
+    { return m_framebufferSource ? m_framebufferSource (outW, outH) : nullptr; }
+
+private:
     static void  PaintPreviewWindow (DxuiPainter                          & painter,
                                      DxuiTextRenderer                     & text,
                                      const RECT                           & availRect,
@@ -139,26 +200,34 @@ private:
                                      const std::function<std::wstring (int)>              & mountedPathSource,
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                      std::array<DriveWidget, 2>           & previewDrives,
-                                     JoystickToggleButton                 & previewButton);
+                                     JoystickToggleButton                 & previewButton,
+                                     DxuiCaptionBar                       & previewCaption,
+                                     MainMenu                             & previewMenu,
+                                     bool                                 & chromeConfigured,
+                                     bool                                   crtMonitor,
+                                     PreviewSceneRequest                  & outScene);
 
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
-    // Enables the desk-scene checkbox only while the selected theme is
+    // Enables the CRT-monitor checkbox only while the selected theme is
     // skeuomorphic (compact themes never draw the monitor).
-    void  UpdateMonitorCheckboxEnabled ();
+    void  UpdateCrtMonitorCheckboxEnabled ();
 
-    ThemeSelectFn                 m_onThemeSelected;
-    FramebufferSourceFn           m_framebufferSource;
-    MountedPathFn                 m_mountedPathSource;
-    WriteProtectFn                m_writeProtectSource;
-    HasDiskSourceFn               m_hasDiskSource;
-    ApplyThemeNowFn               m_onApplyThemeNow;
-    MonitorFrameFn                m_onMonitorFrameToggled;
+    ThemeSelectFn        m_onThemeSelected;
+    FramebufferSourceFn  m_framebufferSource;
+    MountedPathFn        m_mountedPathSource;
+    WriteProtectFn       m_writeProtectSource;
+    HasDiskSourceFn      m_hasDiskSource;
+    ApplyThemeNowFn      m_onApplyThemeNow;
+    CrtMonitorFn         m_onCrtMonitorToggled;
 
     DxuiLabel      m_themeLabel;
     DxuiDropdown   m_themeDropdown;
     DxuiButton     m_applyNowButton;
-    DxuiCheckbox   m_monitorFrameCheckbox;
+    DxuiCheckbox   m_crtMonitorCheckbox;
+    DxuiLabel      m_aaLabel;
+    DxuiSlider     m_aaSlider;
+    AntiAliasingFn m_onAntiAliasingChanged;
     RECT           m_previewRect          = {};
     DxuiDpiScaler  m_scaler;
 
@@ -172,4 +241,15 @@ private:
     // theme preview also shows the lit blue LED in the band above the
     // drive widgets, mirroring the live chrome.
     mutable JoystickToggleButton        m_previewJoystickButton;
+
+    // The app's OWN caption bar and menu, instanced for the preview rather
+    // than redrawn by hand. Neither is adopted or wired to anything -- they
+    // are laid out and painted, nothing more -- so the mock cannot drift out
+    // of step with the chrome it is advertising.
+    mutable DxuiCaptionBar              m_previewCaption;
+    mutable MainMenu                    m_previewMenu;
+    mutable bool                        m_previewChromeConfigured = false;
+
+    // Refreshed every paint, read by the sheet right afterward.
+    mutable PreviewSceneRequest         m_sceneRequest;
 };

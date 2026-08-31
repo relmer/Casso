@@ -64,6 +64,79 @@ a monochrome one, and an image authored for either reads as noise on the other:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+### The skeuomorphic theme goes to 11 (1.21)
+
+The skeuomorphic theme used to be a picture of a monitor drawn around the
+emulator's output. It is now a room: four period devices modeled in CAD at
+their real dimensions, standing on a desk, lit and shadowed, seen from a
+seated person's eye about thirty inches from the screen. The perspective is
+not a set of tuned constants; it falls out of where the hardware actually
+is.
+
+![The Apple //e desk scene](Assets/feat-desk-scene.png)
+
+**Four devices, built from photographs.** An Apple Monitor II and Disk II
+drives for the //e Enhanced, //e, ][+ and ][; a Monitor //c over Disk IIc
+drives for the //c. Switching machines swaps the whole stack. Every part is a
+3D CAD object rather than a mesh sculpted to look like one, so openings are
+cuts through the case and every edge that should break over does. The marks
+are modeled too, not painted on: the embossed tilt and brightness icons on the
+bezel, the cassowary inlaid into its recess, DRIVE 1 and IN USE and the
+`disk ][` logotype, the raised ribs on a drive's lid.
+
+**The picture lies on the glass.** The emulator's output maps onto a
+spherical-sag surface with the same curvature the actual tube has, with a
+rounded faceplate mask and a dark border where the raster stops short of
+the bezel. Input is inverse-projected back through that curvature, so a
+click on a curved, foreshortened, possibly tilted screen still lands on the
+exact emulated pixel underneath it.
+
+| | |
+|---|---|
+| ![Three-quarter view](Assets/feat-desk-angle.png) | ![The modeled rear](Assets/feat-desk-rear.png) |
+
+**You can walk around it.** Mouse, touch or trackpad, with the gestures you
+would expect: drag to rotate, two fingers to pan, pinch to zoom. A compass
+in the corner does the same for anyone who would rather click than drag--its
+arrows rotate, hold one to keep going, and the orb squares everything back up.
+Ctrl+0 resets.
+
+That's why the backs are fully modeled too. The Monitor II's rear is one
+piece of dark plastic running from the vent recess down over the control
+panel, with the bell emerging through it, the vents looking into an unlit
+interior, and the knobs, the AC receptacle and the video jacks where they
+belong. The Monitor //c's rear panel is modeled control for control. You
+may rarely look at either, but the scene lets you, so they had to be right.
+
+![The Monitor II's control panel](Assets/feat-desk-panel.png)
+
+**The tilt bezel works.** Drag the up and down marks molded into the
+Monitor II's bezel, and the bezel and tube pivot together, stopping flush
+with the frame, just like the real one. Shadows and a subtle glare are
+modeled across the tube's curved face and move with it. Where you leave the
+tilt is remembered per monitor.
+
+**The lamps are real lights.** The power indicator and the drives' activity
+LEDs are light sources in the shading pass, not bright dots painted on:
+they cast onto the housings around them and are occluded by the parts in
+front of them. It's the little things....
+
+![The Apple //c stack](Assets/feat-desk-2c.png)
+
+**The monitor decides the phosphor.** Green, amber, and white used to be a
+display setting applied across every machine. Monitors are now the owners of
+that setting, and machines are assigned period-accurate monitors by default.
+Phosphor color and full color are still yours to change, and that change is
+preserved per machine.
+
+**Lit, shadowed, and GPU-efficient.** Two lights, a specular highlight and
+per-pixel shading, with the power and drive LEDs acting as real lights rather
+than a glow painted on nearby faces; shadows cast across the desk and a
+contact shadow under each device. Drive doors animate on mount and eject, the
+Disk II swings on its cantilever, the Disk IIc slides back and lifts clear of
+the slot. To keep GPU use low the scene is cached, and when the screen stops
+changing Casso stops drawing altogether.
+
 ### Disk file access from the command line (1.20)
 
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk, reads
@@ -465,8 +538,8 @@ CassoCli as65 input.a65c -x -ooutput.bin
 CassoCli merlin SOURCE.S
 CassoCli merlin SOURCE.S -o OBJECT
 
-# Assemble and run in one step. `run` names its assembler for the same reason
-# assembling does -- a source with neither flag is refused, not guessed at.
+# Assemble and run in one step. `run` specifies its assembler for the same reason
+# assembling does: a source with neither flag is refused, not guessed at.
 CassoCli run input.a65 --as65
 CassoCli run PROG.S --merlin
 

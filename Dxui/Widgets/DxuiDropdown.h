@@ -35,6 +35,13 @@ public:
     int   GetHighlightIndex () const { return m_highlight; }
     int   GetSelectedIndex  () const { return m_selected; }
     const RECT & GetRect()    const { return m_boundsDip; }
+
+    // What the open menu covers of THIS window, in GetRect()'s space. Empty
+    // when closed, and empty when the menu is a real popup window too -- that
+    // covers the desktop, not the frame underneath it. Callers that paint
+    // over the window (a 3D pass after the panel tree) use this to stay out
+    // from under the menu.
+    RECT  GetInWindowMenuRect () const;
     const std::vector<std::wstring> & GetItems () const { return m_items; }
     bool  HitTest       (int x, int y) const;
     int   HitTestItem   (int x, int y) const;

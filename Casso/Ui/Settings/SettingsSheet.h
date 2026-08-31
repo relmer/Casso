@@ -10,6 +10,7 @@
 #include "SettingsApplyController.h"
 #include "SettingsPreviewController.h"
 #include "SettingsCompositor.h"
+#include "Ui/Scene/DeskScene.h"
 #include "ColorPickerOverlay.h"
 #include "HardwarePage.h"
 #include "DiskPage.h"
@@ -142,6 +143,24 @@ private:
     // (base tears down last); its D3D resources are released in its dtor while
     // the borrowed device is still alive.
     SettingsCompositor        m_compositor;
+
+    // The theme preview's own desk scene. It cannot borrow the shell's: that
+    // one lives on the EMULATOR window's device, and this sheet is a separate
+    // window with a device of its own. So the models load a second time here,
+    // which is cheap (a few thousand triangles) next to showing the user a
+    // presentation the app no longer uses.
+    //
+    // Drawn from inside the compose hook rather than an after-paint hook,
+    // because a window that composes never runs the after-paint hook at all
+    // -- the compose hook owns the back buffer. Right after Compose is
+    // exactly where the finished 2D frame is sitting on it.
+    DeskScene                 m_previewScene;
+    bool                      m_previewSceneReady   = false;
+    bool                      m_previewSceneTried   = false;
+    bool                      m_previewSceneIsC     = false;
+
+    void     RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int widthPx, int heightPx);
+    HRESULT  LoadPreviewSceneModels  ();
 
     // Drive the compositor's per-frame transparency state (active flag +
     // emulator-overlap rect + focused-control rect) and invalidate while a

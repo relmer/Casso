@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -214,7 +214,7 @@
        truth (all configs). -->
   <ItemDefinitionGroup>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\CassoCore;$(IntDir)Models;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -250,7 +250,6 @@
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
     <ClCompile Include="Ui\Chrome\CommandToolbar.cpp" />
-    <ClCompile Include="Ui\Chrome\MonitorFrame.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceSelector.cpp" />
     <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
@@ -297,6 +296,11 @@
     <ClCompile Include="InputDebugDialogState.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
     <ClCompile Include="Ui\Printer3DScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskScene.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneHitTester.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneLayout.cpp" />
+    <ClCompile Include="Ui\Scene\DeskSceneModel.cpp" />
+    <ClCompile Include="Ui\Scene\FullscreenStripState.cpp" />
     <ClCompile Include="Ui\PrinterPanel.cpp" />
     <ClCompile Include="Ui\PrinterPaperView.cpp" />
     <ClCompile Include="Ui\InputDebugPanel.cpp" />
@@ -324,6 +328,7 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
@@ -348,7 +353,6 @@
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
     <ClInclude Include="Ui\Chrome\CommandToolbar.h" />
-    <ClInclude Include="Ui\Chrome\MonitorFrame.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceSelector.h" />
     <ClInclude Include="Ui\Chrome\Apple2cSwitchBar.h" />
@@ -386,6 +390,12 @@
     <ClInclude Include="InputDebugDialogState.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
     <ClInclude Include="Ui\Printer3DScene.h" />
+    <ClInclude Include="Ui\Scene\DeskScene.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneHitTester.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneFaceLabels.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneLayout.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneModel.h" />
+    <ClInclude Include="Ui\Scene\FullscreenStripState.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Ui\InputDebugPanel.h" />
@@ -400,23 +410,10 @@
     <ResourceCompile Include="Casso.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shaders\CRT\scanlines.hlsl" />
-    <None Include="Shaders\CRT\bloom_h.hlsl" />
-    <None Include="Shaders\CRT\bloom_v.hlsl" />
-    <None Include="Shaders\CRT\bloom_composite.hlsl" />
-    <None Include="Shaders\CRT\color_bleed.hlsl" />
-    <None Include="Shaders\CRT\brightness.hlsl" />
-    <None Include="Shaders\CRT\persistence.hlsl" />
-    <None Include="Shaders\CRT\gamma.hlsl" />
-    <None Include="Shaders\CRT\copy.hlsl" />
     <None Include="Shaders\CRT\LICENSES.md" />
     <None Include="Shaders\Settings\gaussian_h.hlsl" />
     <None Include="Shaders\Settings\gaussian_v.hlsl" />
     <None Include="Shaders\Settings\settings_compose.hlsl" />
-    <None Include="Shaders\Ui\ui_solid.hlsl" />
-    <None Include="Shaders\Ui\ui_textured.hlsl" />
-    <None Include="Shaders\Ui\ui_glyph.hlsl" />
-    <None Include="Shaders\Ui\ui_glow.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
@@ -429,6 +426,42 @@
       <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
+  <!--
+    BakeMeshes: OBJ text in Resources/Models, baked blobs in $(IntDir)Models.
+
+    The app must not parse a modeling tool's text export at launch. The
+    Monitor II alone is 1.3 million lines of it, and re-reading them was most
+    of Casso's startup time.
+
+    MeshCreator is invoked as x64 WHATEVER this project's platform is, because it
+    runs on the build machine rather than on the target. An ARM64 build on an
+    x64 host cannot execute an ARM64 tool, so building the tool for the target
+    would break exactly the cross-compile it is supposed to serve.
+
+    Inputs/Outputs give MSBuild the incrementality: an untouched model is not
+    re-baked. When a model DOES change, Casso.rc is touched, because the
+    resource compiler tracks the .rc file and not the RCDATA payloads it
+    names, so without that the build would embed the previous blob.
+  -->
+  <ItemGroup>
+    <BakedMesh Include="Monitor2" />
+    <BakedMesh Include="Monitor2c" />
+    <BakedMesh Include="DiskII" />
+    <BakedMesh Include="Disk2c" />
+    <BakedMesh Include="DuoDisk" />
+    <BakedMesh Include="ImageWriterII" />
+  </ItemGroup>
+  <Target Name="BakeMeshes"
+          BeforeTargets="ResourceCompile"
+          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl')"
+          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
+    <MSBuild Projects="..\MeshCreator\MeshCreator.vcxproj"
+             Properties="Configuration=$(Configuration);Platform=x64" />
+    <MakeDir Directories="$(IntDir)Models" />
+    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
+    <Touch Files="Casso.rc" />
+  </Target>
+  <Import Project="Shaders\Shaders.targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

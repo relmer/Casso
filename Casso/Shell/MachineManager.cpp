@@ -6,6 +6,7 @@
 #include "../AssetBootstrap.h"
 #include "../DiskSettings.h"
 #include "../resource.h"
+#include "../Config/MonitorCatalog.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
 #include "Core/CpuFactory.h"
@@ -1571,28 +1572,32 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
             {
                 const JsonValue *  uiPrefs   = nullptr;
                 std::string        colorMode;
-                WORD               colorCmd  = 0;
+
+                // THE MONITOR'S OWN PHOSPHOR, not zero and not a fixed
+                // default: a machine with no saved color mode must still be
+                // told what to show. Leaving it unset applied nothing at all,
+                // and what the screen kept was the mode of the machine being
+                // switched AWAY from -- which is how the //c came up green
+                // after an //e and white after an Enhanced //e, with nothing
+                // about the //c deciding either.
+                WORD               colorCmd  = MonitorCatalog::PhosphorCommand (
+                                                   MonitorCatalog::ForMachineJson (mergedJson));
 
                 if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
                     uiPrefs != nullptr &&
                     uiPrefs->HasString ("colorMode", colorMode))
                 {
-                    if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
-                    else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
+                    if      (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
                     else if (colorMode == "amber")  { colorCmd = IDM_VIEW_AMBER; }
                     else if (colorMode == "white")  { colorCmd = IDM_VIEW_WHITE; }
-
-                    if (colorCmd != 0)
-                    {
-                        // SwitchMachine runs on the CPU thread: route through
-                        // the message loop, not HandleCommand directly -- the
-                        // command dispatcher is a UI-thread surface (today the
-                        // color handler is an atomic store, but anything added
-                        // to it would inherit this thread; see the
-                        // ApplyDefaultPointerForMachine assert).
-                        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
-                    }
                 }
+
+                // SwitchMachine runs on the CPU thread: route through the
+                // message loop, not HandleCommand directly -- the command
+                // dispatcher is a UI-thread surface (today the color handler
+                // is an atomic store, but anything added to it would inherit
+                // this thread; see the ApplyDefaultPointerForMachine assert).
+                PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
 
                 // //c external drive: adopt the switched-to machine's persisted
                 // connected state so the second drive-mount widget matches the
@@ -1601,15 +1606,50 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 // machines (ShouldShowExternalDrive ignores it when the system
                 // ROM is not banked).
                 {
-                    const JsonValue  * extPrefs  = nullptr;
-                    bool               connected = false;
-                    bool               mouseConn = false;
+                    const JsonValue  * extPrefs   = nullptr;
+                    const JsonValue  * portsArray = nullptr;
+                    bool               connected  = false;
+                    bool               mouseConn  = false;
+                    bool               fFromPort  = false;
 
                     if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
+                    }
+
+                    // The back-panel disk port is the answer when the machine
+                    // declares one; the legacy boolean above stays as the
+                    // fallback for a config that has not been folded yet.
+                    if (mergedJson.HasArray ("ports", portsArray) &&
+                        portsArray != nullptr)
+                    {
+                        for (size_t p = 0; !fFromPort && p < portsArray->GetArraySize(); p++)
+                        {
+                            const JsonValue  & port       = portsArray->GetArrayElement (p);
+                            string             portName;
+                            string             portDevice;
+                            HRESULT            hrName     = S_OK;
+                            HRESULT            hrDev      = S_OK;
+
+                            if (port.GetType() != JsonType::Object)
+                            {
+                                continue;
+                            }
+
+                            hrName = port.GetString ("name",   portName);
+                            hrDev  = port.GetString ("device", portDevice);
+
+                            IGNORE_RETURN_VALUE (hrName, S_OK);
+                            IGNORE_RETURN_VALUE (hrDev,  S_OK);
+
+                            if (portName == "disk")
+                            {
+                                connected = !portDevice.empty();
+                                fFromPort = true;
+                            }
+                        }
                     }
 
                     m_shell.m_externalDriveConnected = connected;
@@ -1852,6 +1892,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+
+    // Same rule as the color mode: a machine with no saved speed gets the
+    // default, never the outgoing machine's.
+    if (speedCmd == 0)
+    {
+        speedCmd = IDM_MACHINE_SPEED_1X;
+    }
 
     if (speedCmd != 0)
     {

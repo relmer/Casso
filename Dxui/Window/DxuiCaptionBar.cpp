@@ -41,8 +41,30 @@ void DxuiCaptionBar::ConfigureButtons (Buttons buttons)
 {
     DXUI_ASSERT_UI_THREAD();
 
+    // Drop the OLD buttons out of the child list before replacing them. The
+    // unique_ptr assignments below destroy whatever is there, while the panel
+    // keeps NON-OWNING pointers from Adopt -- so without this a second call
+    // leaves the list pointing at freed controls and the next Layout walks
+    // into one. Adopt's own contract says as much; this is that contract
+    // being kept, so re-configuring is merely wasteful rather than fatal.
+    {
+        HRESULT  hrRemove = S_OK;
+
+        for (DxuiSystemButton * btn : { m_minBtn.get(), m_maxBtn.get(), m_closeBtn.get() })
+        {
+            if (btn != nullptr)
+            {
+                hrRemove = RemoveAdopted (*btn);
+                IGNORE_RETURN_VALUE (hrRemove, S_OK);
+            }
+        }
+    }
+
     m_buttons       = buttons;
     m_renderCaption = true;
+    m_minBtn.reset();
+    m_maxBtn.reset();
+    m_closeBtn.reset();
 
     if (buttons == Buttons::MinMaxClose)
     {

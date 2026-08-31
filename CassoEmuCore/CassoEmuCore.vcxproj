@@ -279,6 +279,8 @@
     <ClCompile Include="Audio\PrinterAudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Render\SceneCamera.cpp" />
+    <ClCompile Include="Render\CurvedDisplayMath.cpp" />
     <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
     <ClCompile Include="Devices\Printer\PaperRenderer.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
@@ -292,6 +294,8 @@
     <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
     <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
     <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
+    <ClCompile Include="Devices\Printer\MeshBlob.cpp" />
+    <ClCompile Include="Devices\Printer\MeshNormals.cpp" />
     <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
     <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
@@ -420,6 +424,8 @@
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
     <ClInclude Include="Audio\PrinterAudioSource.h" />
+    <ClInclude Include="Render\SceneCamera.h" />
+    <ClInclude Include="Render\CurvedDisplayMath.h" />
     <ClInclude Include="Devices\Printer\PrinterTypes.h" />
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />
@@ -439,6 +445,8 @@
     <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
     <ClInclude Include="Devices\Printer\PrintDelivery.h" />
     <ClInclude Include="Devices\Printer\PrintPagination.h" />
+    <ClInclude Include="Devices\Printer\MeshBlob.h" />
+    <ClInclude Include="Devices\Printer\MeshNormals.h" />
     <ClInclude Include="Devices\Printer\ObjMeshParser.h" />
     <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
     <ClInclude Include="Devices\Printer\PrinterViewport.h" />

@@ -126,6 +126,28 @@ struct HardwareEntry
     CapabilityFlag     capability   = CapabilityFlag::Optional;
     std::string        lockReason;                    // only meaningful for PlatformLocked
     bool               enabled      = true;
+
+    // What is attached to this CARD's connectors, in port order; empty for a
+    // card that declares none. Empty means "not described", NOT "nothing
+    // attached" -- BuildJson leaves the key alone in that case so a card that
+    // never had ports does not acquire an empty list by being looked at.
+    std::vector<std::string>  ports;
+};
+
+
+//
+//  One of the MACHINE's own connectors -- the //c's back panel, as opposed to
+//  a card's connectors, which ride along on their slot's HardwareEntry.
+//
+//  The whole list is staged even though only the disk port is editable today,
+//  because a user array replaces the default's wholesale: writing back only
+//  the port that was touched would leave the //c with a disk port and no
+//  serial or joystick ports at all.
+//
+struct SettingsMachinePort
+{
+    std::string  name;      // "disk", "serial1", "joystick"
+    std::string  device;    // what is attached; empty for an unoccupied port
 };
 
 
@@ -274,6 +296,14 @@ public:
     void    SetDriveTwoPan      (float pan);
     void    SetWriteProtect    (int drive, bool wp);
     void    SetExternalDriveConnected (bool connected);
+
+    // The machine's SECOND DRIVE, wherever that machine keeps it: the //c's
+    // back-panel disk port, or the Disk ][ card's second connector. One
+    // question, two stores, because the hardware really is different -- the
+    // //c's is an external unit on a cable and the //e's is a drive on the
+    // card's other plug.
+    bool    SecondDriveAttached () const;
+    void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
@@ -290,28 +320,45 @@ public:
                                        SettingsMachineInfo        & outInfo);
     static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
                                        SettingsUiPrefs            & outPrefs);
-    static JsonValue BuildJson        (const JsonValue                 & mergedJson,
-                                       const std::vector<HardwareEntry> & hw,
-                                       const SettingsUiPrefs          & prefs);
+
+    // The machine's own connectors, read from the root `ports` array. Absent
+    // leaves the list empty, which BuildJson takes as "this machine never had
+    // a back panel to write back".
+    static HRESULT ExtractMachinePorts (const JsonValue                       & mergedJson,
+                                        std::vector<SettingsMachinePort>      & outPorts);
+
+    static JsonValue BuildJson        (const JsonValue                        & mergedJson,
+                                       const std::vector<HardwareEntry>       & hw,
+                                       const SettingsUiPrefs                  & prefs,
+                                       const std::vector<SettingsMachinePort> & machinePorts = {});
 
 private:
 
     struct Snapshot
     {
-        SettingsUiPrefs            prefs;
-        std::vector<HardwareEntry> hardware;
+        SettingsUiPrefs                   prefs;
+        std::vector<HardwareEntry>        hardware;
+        std::vector<SettingsMachinePort>  machinePorts;
     };
 
     static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
-                               const std::vector<HardwareEntry> & b);
+                                  const std::vector<HardwareEntry> & b);
 
     // JSON accessors and enum<->string mapping for the settings document.
     // Every reader is a SettingsPanelState method, so the block belongs to
     // the class. FindKey in particular collided by name with
     // MachineConfigUpgrade's, which is what the anonymous namespaces were
     // hiding.
-    static constexpr const char *  kpszUiPrefsKey = "$cassoUiPrefs";
+    static constexpr const char *  kpszUiPrefsKey   = "$cassoUiPrefs";
+    static constexpr const char *  kpszPortsKey     = "ports";
+    static constexpr const char *  kpszPortNameKey  = "name";
+    static constexpr const char *  kpszPortDeviceKey = "device";
+    static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
+    static constexpr const char *  kpszDiskIiDevice = "disk-ii";
+    static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
+    static constexpr size_t        kSecondDrivePortIndex = 1;
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
 
     static int  FindKey (

@@ -277,3 +277,81 @@ void WindowPlacementProfile::Save (
 
     m_prefs->window.placements[topologyKey] = bounds;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::FitToWorkArea
+//
+//  Size first, then position. Fitting the size to the work area is what keeps
+//  the caption reachable in the ordinary case; the position clamp is what
+//  keeps it reachable in the case the size clamp cannot fix, when a minimum
+//  window size is larger than the monitor.
+//
+//  The size is fitted BY UNIFORM SCALE, not per axis. Clamping each axis on
+//  its own silently changes the requested proportions, and the caller asked
+//  for that shape for a reason: the desk-scene window is sized so the scene
+//  exactly fills it, so a window squeezed on one axis only gets a scene that
+//  no longer fits its frame and letterboxes itself inside, leaving wide bands
+//  of dead space down the sides and along the bottom. Shrinking both axes by
+//  the same factor keeps the shape and keeps the content flush.
+//
+//  The position clamp is written as a max() of the low edge against a high
+//  edge that may fall BELOW it. When the window fits, the high edge is the
+//  larger and the window is centered inside the range. When it does not, the
+//  high edge goes negative relative to the low one and the max() pins the
+//  window to the work area's top-left -- putting every pixel of overflow off
+//  the right and bottom, where it costs only visibility, never reachability.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT WindowPlacementProfile::FitToWorkArea (const RECT & work,
+                                            int          desiredWidth,
+                                            int          desiredHeight,
+                                            int          minWidth,
+                                            int          minHeight)
+{
+    int    workW = (int) (work.right  - work.left);
+    int    workH = (int) (work.bottom - work.top);
+    float  scale = 1.0f;
+    int    w     = 0;
+    int    h     = 0;
+    int    x     = 0;
+    int    y     = 0;
+    RECT   out   = {};
+
+
+
+    if (desiredWidth > 0 && desiredWidth > workW)
+    {
+        scale = std::min (scale, (float) workW / (float) desiredWidth);
+    }
+
+    if (desiredHeight > 0 && desiredHeight > workH)
+    {
+        scale = std::min (scale, (float) workH / (float) desiredHeight);
+    }
+
+    // The minimums are applied after the uniform scale, so a minimum larger
+    // than the monitor is the only thing that can break the proportions --
+    // and that is the case the position clamp below exists to survive.
+    w = std::max ((int) ((float) desiredWidth  * scale + 0.5f), minWidth);
+    h = std::max ((int) ((float) desiredHeight * scale + 0.5f), minHeight);
+
+
+
+    // Centered where there is room; pinned to the work-area origin where
+    // there is not. Never past it in either axis.
+    x = std::max ((int) work.left, std::min ((int) work.left + (workW - w) / 2, (int) work.right  - w));
+    y = std::max ((int) work.top,  std::min ((int) work.top  + (workH - h) / 2, (int) work.bottom - h));
+
+    out.left   = x;
+    out.top    = y;
+    out.right  = x + w;
+    out.bottom = y + h;
+
+    return out;
+}

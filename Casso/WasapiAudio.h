@@ -61,8 +61,26 @@ public:
     void  SetMasterGain (float gain01) { m_masterGain.store (gain01, std::memory_order_relaxed); }
 
 private:
+    // How long to wait after losing the endpoint before trying to open the
+    // (possibly new) default device again. Long enough that a device switch
+    // mid-teardown is not hammered, short enough that audio returns before
+    // anyone reaches for the volume control.
+    static constexpr int64_t  kReinitRetryMs = 1000;
+
     void    RenderPump ();
     void    DrainFrames (UINT32 toWrite, BYTE * buffer);
+
+    // The endpoint died under us (AUDCLNT_E_DEVICE_INVALIDATED and friends:
+    // default-device switch, dock/undock, driver reset). Tears the client
+    // down and arms the throttled re-open in SubmitFrame. An expected
+    // runtime condition, never an assert.
+    void     NoteEndpointLoss (HRESULT hrLoss);
+    int64_t  NowMs            () const;
+
+    // PUMP THREAD's half of that: record the FIRST failing hr and let the
+    // pump stop. A later failure must not overwrite it, or the reason the
+    // endpoint went away would be replaced by a consequence of its going.
+    void  ReportEndpointLoss (HRESULT hrLoss);
 
     ComPtr<IMMDeviceEnumerator>  m_enumerator;
     ComPtr<IMMDevice>            m_device;
@@ -101,6 +119,14 @@ private:
     vector<float> m_mixScratch;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
+
+    // Endpoint loss and the throttled reopen. The PUMP ONLY REPORTS: it
+    // records the failing hr and stops, because Shutdown joins the render
+    // thread and calling it from inside that thread would join itself. The
+    // teardown and the retry both run on the CPU thread, in SubmitFrame.
+    std::atomic<HRESULT>  m_endpointLossHr { S_OK };
+    bool                  m_deviceLost = false;
+    int64_t               m_reinitAtMs = 0;
 
     // Diagnostic tap: when CASSO_AUDIO_DUMP names a file, every generated
     // stereo sample is appended to it as raw float32 pairs -- the exact

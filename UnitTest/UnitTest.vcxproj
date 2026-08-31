@@ -364,6 +364,8 @@
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
+    <ClCompile Include="PrinterTests\MeshBlobTests.cpp" />
+    <ClCompile Include="PrinterTests\MeshNormalsTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterByteRingTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterCardTests.cpp" />
     <ClCompile Include="PrinterTests\FirmwareParityTests.cpp" />
@@ -487,7 +489,27 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Shell\CpuManager.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneHitTester.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneLayout.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\DeskSceneModel.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Scene\FullscreenStripState.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -506,12 +528,14 @@
     <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
     <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
     <ClCompile Include="UiTests\DxuiSearchBoxTests.cpp" />
+    <ClCompile Include="UiTests\DxuiOrbitControlTests.cpp" />
     <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
     <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
+    <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
@@ -531,6 +555,12 @@
     <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
+    <ClCompile Include="UiTests\SceneCameraTests.cpp" />
+    <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
+    <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
@@ -619,6 +649,7 @@
       <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
+  <Import Project="..\Casso\Shaders\Shaders.targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

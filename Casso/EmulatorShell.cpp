@@ -2,6 +2,8 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+#include "Config/MonitorCatalog.h"
+#include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Devices/Printer/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
@@ -134,7 +136,6 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // + ~8 dp bottom gap. Bumping the button's font / padding requires
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
-static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
 // Presentation pacing. At Maximum speed the CPU runs flat-out, but we only
 // rasterize + publish a framebuffer this often (wall clock), so the render
@@ -161,6 +162,42 @@ static constexpr float   s_kDeskDriveScale       = 0.8f;
 // scales with the monitor's SceneScale, which depends on the center the band
 // leaves). The dependency is a contraction, so a few relayout passes settle it.
 static constexpr int     s_kSceneScaleSettlePasses = 3;
+
+// Fullscreen drive overlay strip: the band's height and the bottom-edge
+// dwell zone that reveals it while the host owns the pointer.
+static constexpr int     s_kStripBandDp     = 150;
+static constexpr int     s_kStripEdgeZoneDp = 8;
+
+// The basename strip under each 3D drive: the 2D widget's label geometry
+// (18 dp strip, 2 dp gap, 11 dip text), kept so the mounted image's name
+// reads off the screen instead of only out of a tooltip.
+static constexpr int     s_kSceneDriveLabelStripDp  = 18;
+static constexpr int     s_kSceneDriveLabelGapDp    = 2;
+
+// The name strip's width, CONSTANT rather than the drive's projected width:
+// a projected box widens and narrows as the orbit turns it, and a label
+// that keeps changing size while it moves reads as chrome coming unglued.
+static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
+
+// The pointer-capture banner: how to get the mouse back, said for as long as
+// it is held. Low on the picture, where a paddle game's action is not.
+//
+// The band is deliberately taller than the line it holds: the halo behind
+// the text spreads past the ink, and a rect fitted to the glyphs would clip
+// its own shadow against the edges.
+static constexpr int     s_kCaptureBannerHeightDp   = 44;
+static constexpr int     s_kCaptureBannerInsetDp    = 16;
+static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
+
+static const std::wstring         s_kCaptureBanner =
+    std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
+static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
+
+// Padding around the 3D drive row when the CRT monitor is opted out and the
+// row composes into the classic bottom band -- breathing room off the window
+// edge, the way the 2D widgets' band padding sat around them. (Containment
+// itself is exact: ComputeStrip solves the standoff in the gaze's frame.)
+static constexpr int     s_kSceneDriveRowPadDp = 10;
 
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
@@ -305,6 +342,10 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
         int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
         RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
+        // Visible again: the desk scene turns these off rather than just
+        // collapsing them, and this is the one path that brings the flat
+        // widgets back, so it is where they earn their visibility.
+        driveChrome[i].SetVisible (true);
         driveChrome[i].SetPerspectiveSkewPx (skewPx);
         driveChrome[i].Layout (widgetAnchor, scaler);
     }
@@ -801,6 +842,7 @@ HRESULT EmulatorShell::Initialize (
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
     AllocateFramebuffers();
+
     PrimeChromeThemeEarly();
 
     hr = CreateEmulatorWindow (hInstance);
@@ -836,8 +878,12 @@ HRESULT EmulatorShell::Initialize (
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
-    // Show window
-    ShowWindow (m_hwnd, SW_SHOW);
+    // Show window. A placement saved while maximized restores the state,
+    // not just the normal rect it was created with: showing maximized
+    // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
+    // flash of the restored-size window.
+
+    ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
@@ -859,6 +905,7 @@ HRESULT EmulatorShell::Initialize (
     // disk. Mounting first then power-cycling silently throws away the
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
+
     PowerCycle();
 
     // Every mount reports its outcome through here, not just this one:
@@ -1124,14 +1171,148 @@ HRESULT EmulatorShell::InitializeRenderer()
                                    m_viewportBoundsPx);
     CHR (hr);
 
-    // Composite the Apple ][ framebuffer into the host's back buffer
-    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
-    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
-    // nullptr means "no new emulator frame" (re-composite last upload).
+    // Desk scene (spec 018): shares the host device with the framebuffer
+    // renderer. Failure (broken embedded asset) asserts in debug and leaves
+    // the 2D chrome paths active.
+    {
+        HRESULT  hrScene = InitializeDeskScene();
+
+        IGNORE_RETURN_VALUE (hrScene, S_OK);
+    }
+
+    // Composite the Apple ][ framebuffer before the host paints chrome on
+    // top (DxuiHwndSource::PaintPump). m_pendingFramebuffer is staged each
+    // UI frame by RunMessageLoop; nullptr means "no new emulator frame"
+    // (re-composite last upload). With the desk scene active, the CRT chain
+    // renders to the offscreen scene target and the 3D scene samples it on
+    // the monitor glass -- the theme backdrop the host cleared stays visible
+    // around the devices. Otherwise the classic direct composite runs.
     m_host->SetBeforePresentHook ([this] ()
     {
-        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
-                                                                 m_pendingFramebuffer);
+        HRESULT  hrComposite = S_OK;
+
+
+
+        if (CrtMonitorActive())
+        {
+            // The CRT chain renders the picture into an exact-aspect rect
+            // anchored at the texture origin -- sized to the picture's
+            // MEASURED on-screen height so the glass samples ~1:1 texels
+            // (over-rendering minifies, and the linear filter then averages
+            // away the outermost pixel columns where the sag compresses the
+            // edges) -- and NOT positioned by the projected bounding box,
+            // whose keystone slop would shear the texel alignment.
+            RECT  glassPx     = m_d3dRenderer.GetTargetBounds();
+            int   measuredH   = (int) lroundf (DeskSceneLayout::MeasurePictureHeightPx (
+                                    m_deskScene.Composition(), m_deskScene.MonitorModel().Surface(),
+                                    kFramebufferWidth, kFramebufferHeight));
+            int   pictureH    = (measuredH > 0) ? measuredH : (int) (glassPx.bottom - glassPx.top);
+            int   pictureW    = 0;
+            RECT  pictureRect = {};
+
+            pictureH = std::min (pictureH, m_d3dRenderer.GetBackBufferHeight());
+            pictureW = MulDiv (pictureH, kFramebufferWidth, kFramebufferHeight);
+
+            if (pictureW > m_d3dRenderer.GetBackBufferWidth())
+            {
+                pictureW = m_d3dRenderer.GetBackBufferWidth();
+                pictureH = MulDiv (pictureW, kFramebufferHeight, kFramebufferWidth);
+            }
+
+            // Anchored at the texture origin: the picture's edges coincide
+            // with the texture's, so the CRT chain's neighbor-sampling
+            // passes clamp onto the picture itself at the borders -- the
+            // same behavior as the classic direct path. (The picture mesh's
+            // boundary is the band boundary, so nothing ever samples across
+            // the picture's texture edge.)
+            pictureRect = RECT{ 0, 0, pictureW, pictureH };
+
+            hrComposite = m_d3dRenderer.UploadAndCompositeOffscreen (m_pendingFramebuffer, pictureRect);
+
+            if (SUCCEEDED (hrComposite))
+            {
+                // The chain aspect-fits within pictureRect; recompute the same
+                // fit so the sampled subrect matches it exactly. The texture
+                // IS pictureRect now, so this is very nearly the whole of it
+                // -- only a rounding row or column of letterbox survives.
+                RECT                       fitted     = ComputeAspectFitRectInRect (pictureRect,
+                                                            kFramebufferWidth, kFramebufferHeight);
+                CrtUvRect                  uv         = ComputeUvRectForFit (fitted,
+                                                            pictureW, pictureH);
+                ID3D11ShaderResourceView * displaySrv = m_d3dRenderer.GetSceneContentSrv();
+
+                // Calibration mode: swap in the stripe pattern so the glass
+                // texel mapping can be verified end to end.
+                if (m_deskSceneDebug >= 2)
+                {
+                    EnsureSceneCalibration (fitted);
+
+                    if (m_sceneCalibSrv != nullptr)
+                    {
+                        displaySrv = m_sceneCalibSrv.Get();
+                    }
+                }
+
+                hrComposite = m_deskScene.Render (m_host->GetBackBufferRtv(),
+                                                  displaySrv, uv,
+                                                  kFramebufferWidth, kFramebufferHeight);
+
+                // Fullscreen drive overlay strip: the slid band composed by
+                // TryPresentUiFrame's FSM tick, plus the hidden-state
+                // activity glimmer in the corner (FR-015).
+                if (m_d3dRenderer.IsFullscreen())
+                {
+                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
+                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+
+                    if (m_stripRectPx.bottom > m_stripRectPx.top)
+                    {
+                        HRESULT  hrStrip = m_deskScene.RenderStrip (m_host->GetBackBufferRtv(), m_stripComp);
+
+                        IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                    }
+
+                    if (m_stripState.ActivityIndicator())
+                    {
+                        RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
+
+                        m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                    }
+                }
+
+                // Layout diagnosis overlay: scene viewport red, projected
+                // glass green, drive band yellow, switch band magenta.
+                if (m_deskSceneDebug)
+                {
+                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
+                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+
+                    m_deskScene.DrawDebugRect (m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
+                    m_deskScene.DrawDebugRect (m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
+
+                    // The projected drive bounds ARE the drop-target rects the
+                    // hit registry carries, so drawing them shows whether a
+                    // refused drag is a bad rect or something upstream.
+                    for (int i = 0; i < m_deskScene.Composition().driveCount; i++)
+                    {
+                        m_deskScene.DrawDebugRect (m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
+                    }
+
+                    m_deskScene.DrawDebugRect (m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
+                    m_deskScene.DrawDebugRect (m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
+                    m_deskScene.DrawDebugRect (m_stripRectPx, bbW, bbH, 0xFF30FFFF);
+                }
+            }
+        }
+        else
+        {
+            // Monitor off: the picture composites straight to the back buffer
+            // as it always did. The 3D drives still render -- from the
+            // after-paint hook below, since this composite writes the whole
+            // back buffer and the opaque drive-band surface paints after it.
+            hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+                                                            m_pendingFramebuffer);
+        }
 
         // Per-frame present hook with no return channel to propagate to.
         // A transient composite failure self-corrects next frame; a
@@ -1140,8 +1321,1106 @@ HRESULT EmulatorShell::InitializeRenderer()
         IGNORE_RETURN_VALUE (hrComposite, S_OK);
     });
 
+    // With the monitor opted out the drives are the only scene objects, and
+    // they render HERE -- after the chrome painted -- because the classic
+    // composite blacks out the whole back buffer and the drive band's opaque
+    // surface would otherwise paint straight over them. The drive row keeps
+    // its own depth pass, so it composes onto the finished frame.
+    m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int bbW, int bbH)
+    {
+        HRESULT  hrDrives = S_OK;
+
+
+        if (CrtMonitorActive() || !DeskSceneActive())
+        {
+            return;
+        }
+
+        if (m_d3dRenderer.IsFullscreen())
+        {
+            // Fullscreen without the monitor: the picture owns the client and
+            // the drives live in the slide-up overlay strip, same as they do
+            // with the monitor on.
+            if (m_stripRectPx.bottom > m_stripRectPx.top)
+            {
+                hrDrives = m_deskScene.RenderStrip (rtv, m_stripComp);
+            }
+
+            if (m_stripState.ActivityIndicator())
+            {
+                RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
+
+                m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+            }
+        }
+        else
+        {
+            hrDrives = m_deskScene.RenderStrip (rtv, m_deskScene.Composition());
+        }
+
+        IGNORE_RETURN_VALUE (hrDrives, S_OK);
+    });
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LoadDeskSceneModelsForMachine
+//
+//  The desk wears what the machine wore. The //c gets its platinum Monitor //c
+//  over the matching 5.25 drives; everything else gets the beige Monitor II
+//  over Disk IIs. Pairing across the families is what reads wrong -- a //c
+//  monitor standing on Disk IIs is two eras of Apple industrial design in one
+//  stack, in two different shades of case plastic.
+//
+//  Called again on a machine switch, so the stack changes with the machine.
+//  Reloading rebuilds every cached mesh (glow discs, contact shadows, badge
+//  stamps), which is why the scene's own state is re-pushed afterward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplySavedBezelTilt
+//
+//  Restores the tilt this MONITOR was left at. Keyed by the monitor rather
+//  than by the machine, because the tilt is a property of the thing standing
+//  on the desk: put the same tube in front of another machine and it is still
+//  angled the way it was left.
+//
+//  A monitor nobody has touched has no entry, which reads as square-on -- and
+//  the setter clamps whatever it finds, so a file carrying a tilt from a
+//  bezel with more travel cannot push this one through its frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplySavedBezelTilt()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    auto                 found   = m_globalPrefs.monitorTilt.find (std::string (monitor.configName));
+    float                radians = (found != m_globalPrefs.monitorTilt.end()) ? found->second : 0.0f;
+
+
+
+    m_deskScene.SetBezelTilt (radians);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PersistBezelTilt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistBezelTilt()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+
+
+
+    m_globalPrefs.monitorTilt[std::string (monitor.configName)] = m_deskScene.BezelTiltRad();
+
+    if (m_userConfigStore != nullptr)
+    {
+        HRESULT  hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResolveMonitorForCurrentMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
+{
+    JsonValue          doc;
+    const JsonValue *  uiPrefs = nullptr;
+
+
+
+    // The merged document, not the shipped one: a machine's monitor is
+    // configuration like everything else in there, so a user copy that names a
+    // different monitor is answered the same way the machine's own does.
+    LoadMachineUiPrefs (doc, uiPrefs);
+
+    return MonitorCatalog::ForMachineJson (doc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadDeskSceneModelsForMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
+{
+    // WHICH MONITOR IS A PROPERTY OF THE MACHINE'S CONFIG, not a question
+    // asked about its name. The drives still follow the machine, because a
+    // //c's drives are part of the machine rather than of what it is plugged
+    // into.
+    HRESULT                    hr          = S_OK;
+    bool                       isC         = IsApple2c();
+    const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
+    std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
+    std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
+                                                                                   : IDR_MODEL_DISKII_MESH);
+    bool                       haveMeshes  = false;
+
+
+
+    haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
+    CBRA (haveMeshes);
+
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh);
+    CHRA (hr);
+
+    m_deskSceneMachineIsC = isC;
+
+    // The monitor that just loaded brings its own tilt with it.
+    ApplySavedBezelTilt();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InitializeDeskScene
+//
+//  Loads the model pair the ACTIVE MACHINE wore and stands the scene renderer
+//  up on the host device. Missing or unparseable model text is a build defect
+//  (the resources are compiled into the exe), so the guards assert; the shell
+//  then simply leaves m_deskSceneReady false and the 2D chrome carries on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InitializeDeskScene()
+{
+    HRESULT   hr = S_OK;
+
+
+
+    hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
+    CHRA (hr);
+
+    hr = LoadDeskSceneModelsForMachine();
+    CHRA (hr);
+
+    // A powered monitor's lamp is lit for as long as the machine exists;
+    // drive activity arrives per frame from the drive state sync.
+    m_deskScene.SetPowerLampOn (true);
+
+    ApplySceneAntiAliasing();
+
+    {
+        wchar_t   debugValue[8] = {};
+
+        if (GetEnvironmentVariableW (L"CASSO_SCENE_DEBUG", debugValue, ARRAYSIZE (debugValue)) > 0)
+        {
+            m_deskSceneDebug = _wtoi (debugValue);
+        }
+    }
+
+    m_deskSceneReady = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::EnsureSceneCalibration
+//
+//  Builds the CASSO_SCENE_DEBUG=2 stripe texture: back-buffer sized, with a
+//  pattern in the fitted picture region expressed in FRAMEBUFFER columns --
+//  red at emulated column 0, green at the last column, white every 8th, blue
+//  rows top and bottom. What survives to the screen tells exactly how the
+//  glass maps texels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EnsureSceneCalibration (const RECT & fittedRect)
+{
+    HRESULT                  hr     = S_OK;
+    int                      bbW    = m_d3dRenderer.GetBackBufferWidth();
+    int                      bbH    = m_d3dRenderer.GetBackBufferHeight();
+    D3D11_TEXTURE2D_DESC     desc   = {};
+    D3D11_SUBRESOURCE_DATA   init   = {};
+    std::vector<uint32_t>    pixels;
+
+
+
+    BAIL_OUT_IF (bbW <= 0 || bbH <= 0, S_OK);
+    BAIL_OUT_IF (m_sceneCalibTex != nullptr && EqualRect (&m_sceneCalibRect, &fittedRect), S_OK);
+
+    pixels.assign ((size_t) bbW * bbH, 0xFF000000);
+
+    for (LONG y = fittedRect.top; y < fittedRect.bottom && y < bbH; y++)
+    {
+        for (LONG x = fittedRect.left; x < fittedRect.right && x < bbW; x++)
+        {
+            int        fbx   = MulDiv ((int) (x - fittedRect.left), kFramebufferWidth,
+                                       (int) (fittedRect.right - fittedRect.left));
+            int        fby   = MulDiv ((int) (y - fittedRect.top), kFramebufferHeight,
+                                       (int) (fittedRect.bottom - fittedRect.top));
+            uint32_t   color = 0xFF000000;
+
+            if (fbx == 0)                              { color = 0xFFFF0000; }
+            else if (fbx == kFramebufferWidth - 1)     { color = 0xFF00FF00; }
+            else if (fby <= 1 || fby >= kFramebufferHeight - 2) { color = 0xFF4080FF; }
+            else if ((fbx % 8) == 0)                   { color = 0xFFFFFFFF; }
+
+            pixels[(size_t) y * bbW + x] = color;
+        }
+    }
+
+    m_sceneCalibTex.Reset();
+    m_sceneCalibSrv.Reset();
+
+    desc.Width            = (UINT) bbW;
+    desc.Height           = (UINT) bbH;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 1;
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+
+    init.pSysMem     = pixels.data();
+    init.SysMemPitch = (UINT) bbW * 4;
+
+    hr = m_host->GetDevice()->CreateTexture2D (&desc, &init, m_sceneCalibTex.GetAddressOf());
+    CHR (hr);
+
+    hr = m_host->GetDevice()->CreateShaderResourceView (m_sceneCalibTex.Get(), nullptr,
+                                                        m_sceneCalibSrv.GetAddressOf());
+    CHR (hr);
+
+    m_sceneCalibRect = fittedRect;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DeskSceneHit
+//
+//  One frame of truth: resolves against the composition the scene last
+//  rendered with, so hover, clicks, and pixels can never disagree with what
+//  is on screen. With the monitor opted out the composition holds drives
+//  alone, so the glass is excluded -- the flat picture is hit-tested by its
+//  viewport rect on the classic paths, as it was before the scene existed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
+{
+    float          tiltWorld[16]               = {};
+    float          monLo[3]                    = {};
+    float          monHi[3]                    = {};
+    float          drvLo[3]                    = {};
+    float          drvHi[3]                    = {};
+    DeskRegionBox  doorBoxes[s_kSceneDriveMax] = {};
+
+
+
+    m_deskScene.BuildTiltedMonitorWorld (m_deskScene.Composition(), tiltWorld);
+    m_deskScene.MonitorModel().BoundsMin (monLo);
+    m_deskScene.MonitorModel().BoundsMax (monHi);
+    m_deskScene.DriveModel().BoundsMin (drvLo);
+    m_deskScene.DriveModel().BoundsMax (drvHi);
+    BuildDriveDoorBoxes (doorBoxes);
+
+    return DeskSceneHitTester::Classify (m_deskScene.Composition(),
+                                         m_deskScene.MonitorModel().Surface(),
+                                         m_deskScene.DriveModel().RegionBoxes(),
+                                         (float) xPx,
+                                         (float) yPx,
+                                         kFramebufferWidth,
+                                         kFramebufferHeight,
+                                         CrtMonitorActive(),
+                                         &m_deskScene.MonitorModel().TiltGrips(),
+                                         tiltWorld,
+                                         monLo, monHi, drvLo, drvHi,
+                                         doorBoxes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::BuildDriveDoorBoxes
+//
+//  THE DOOR IS THE ONE PART OF A DRIVE THAT MOVES, so its click target is
+//  built per frame from where the door actually is rather than read off the
+//  model's fixed region list. The //c's latch travels up clear of the lid
+//  when it opens, which put the very part a user is reaching for outside
+//  every box the case owns -- and the target was small to begin with, since
+//  the slot band alone is about seven millimeters tall.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const
+{
+    for (int drive = 0; drive < s_kSceneDriveMax; drive++)
+    {
+        float  lo[3] = {};
+        float  hi[3] = {};
+
+        out[drive]        = DeskRegionBox {};
+        out[drive].region = DriveWidgetRegion::Eject;
+
+        if (!m_deskScene.DoorHitBox (drive, lo, hi))
+        {
+            continue;
+        }
+
+        memcpy (out[drive].boxMin, lo, sizeof (lo));
+        memcpy (out[drive].boxMax, hi, sizeof (hi));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StripHit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
+{
+    float          drvLo[3]                     = {};
+    float          drvHi[3]                     = {};
+    DeskRegionBox  doorBoxes[s_kSceneDriveMax]  = {};
+
+
+
+    m_deskScene.DriveModel().BoundsMin (drvLo);
+    m_deskScene.DriveModel().BoundsMax (drvHi);
+    BuildDriveDoorBoxes (doorBoxes);
+
+    return DeskSceneHitTester::Classify (m_stripComp,
+                                         m_deskScene.MonitorModel().Surface(),
+                                         m_deskScene.DriveModel().RegionBoxes(),
+                                         (float) xPx,
+                                         (float) yPx,
+                                         kFramebufferWidth,
+                                         kFramebufferHeight,
+                                         false,
+                                         nullptr, nullptr, nullptr, nullptr,
+                                         drvLo, drvHi,
+                                         doorBoxes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DeskSceneDriveCount
+//
+//  The same gates the 2D widgets use: no Disk II controller means no drives
+//  at all; a //c with the external drive disconnected shows only the
+//  internal one.
+//
+//  The controller check stays first and stays separate from the config. A
+//  machine can declare drive ports it cannot use -- the //c builds its IWM in
+//  code from a banked-ROM test rather than from a slot -- so "is there a
+//  controller" and "what is attached to it" are two questions, and answering
+//  the second alone would put drives on a machine that has nowhere to run
+//  them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InvalidateSceneComposition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InvalidateSceneComposition()
+{
+    RECT  client = {};
+
+
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        return;
+    }
+
+    UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
+    m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClampSceneView
+//
+//  Keeps the framing somewhere a user can get back from.
+//
+//  Pan is bounded by how much slack the zoom actually created: at 2x the
+//  scene is twice the viewport, so one viewport-width of offset is exactly
+//  enough to reach any edge and no more. At 1x there is no slack, so the pan
+//  is dropped outright -- the fitted composition already fits, and an offset
+//  there can only move it somewhere worse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ClampSceneView()
+{
+    float  slack = 0.0f;
+
+
+
+    m_sceneView.zoom = std::clamp (m_sceneView.zoom, s_kSceneZoomMin, s_kSceneZoomMax);
+
+    slack = std::max (0.0f, m_sceneView.zoom - 1.0f);
+
+    m_sceneView.panX = std::clamp (m_sceneView.panX, -slack, slack);
+    m_sceneView.panY = std::clamp (m_sceneView.panY, -slack, slack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ZoomSceneAt
+//
+//  Zooms about a client point rather than about the viewport center, so what
+//  is under the cursor stays under it. Center-anchored zoom would push the
+//  part being inspected toward an edge exactly as it grew big enough to see.
+//
+//  The pan solve falls out of the same mapping the projection uses:
+//
+//      ndc = zoom * u + pan          (u == the un-framed NDC of a point)
+//
+//  Holding the cursor's u fixed across a zoom by k gives
+//
+//      pan' = c - k * (c - pan)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
+{
+    // The box the composition was SOLVED into -- not the client rect and not
+    // the glass rect. NDC is defined against this one, so anchoring the zoom
+    // to anything else would drift the cursor off its target the further the
+    // chrome pushed the scene around.
+    RECT   box    = m_deskScene.Composition().viewportPx;
+    float  width  = (float) (box.right - box.left);
+    float  height = (float) (box.bottom - box.top);
+    float  cx     = 0.0f;
+    float  cy     = 0.0f;
+    float  before = m_sceneView.zoom;
+    float  k      = 1.0f;
+
+
+
+    if (width <= 0.0f || height <= 0.0f)
+    {
+        return;
+    }
+
+    // Client point -> NDC. Y flips: client grows downward, NDC upward.
+    cx = ((float) (clientPt.x - box.left) / width)  * 2.0f - 1.0f;
+    cy = 1.0f - ((float) (clientPt.y - box.top) / height) * 2.0f;
+
+    m_sceneView.zoom = std::clamp (before * factor, s_kSceneZoomMin, s_kSceneZoomMax);
+
+    // The REALIZED ratio, not the requested one -- at a clamp the two differ,
+    // and anchoring on the request would slide the scene under a cursor that
+    // is no longer zooming.
+    k = (before > 0.0f) ? (m_sceneView.zoom / before) : 1.0f;
+
+    m_sceneView.panX = cx - k * (cx - m_sceneView.panX);
+    m_sceneView.panY = cy - k * (cy - m_sceneView.panY);
+
+    ClampSceneView();
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResetSceneView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResetSceneView()
+{
+    if (m_sceneView.IsIdentity())
+    {
+        return;
+    }
+
+    m_sceneView = DeskSceneView {};
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DeskSceneDriveCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::DeskSceneDriveCount() const
+{
+    bool  hasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+
+
+    if (!hasDisk)
+    {
+        return 0;
+    }
+
+    // The //c's drives are not carded -- one is soldered in and the second
+    // hangs off the back-panel disk port -- so its slot list says nothing
+    // about them and the internal drive is always there.
+    if (m_config.slots.empty())
+    {
+        return ShouldShowExternalDrive() ? 2 : 1;
+    }
+
+    // A card with every port empty reports zero, which is the point of being
+    // able to detach a drive at all.
+    return m_config.AttachedDiskIiDriveCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetChromeHiddenForFullscreenScene
+//
+//  Visibility, not bounds: the adopted chrome controls paint from their own
+//  cached layouts, so an empty rect is not a reliable hidden state --
+//  SetVisible is. The host caption gets its explicit switch. Symmetric: the
+//  windowed layout path calls this with `hidden = false` every pass, so
+//  leaving fullscreen restores everything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
+{
+    // A borderless-fullscreen window fills the monitor and has nothing to
+    // resize TO: its edges ARE the screen's, and leaving the resize borders
+    // armed lets a drag at a corner pull the picture down to a fraction of
+    // the screen with no caption left to put it right with.
+    m_host->SetResizable (!hidden);
+
+    m_host->SetCaptionVisible (!hidden);
+    m_mainMenu.SetVisible (!hidden);
+    // The toolbar comes back on its own in fullscreen, summoned by the top
+    // edge -- so hiding the chrome parks it and TickFullscreenToolbar owns
+    // it from there.
+    m_toolbar.SetVisible (!hidden);
+
+    if (hidden)
+    {
+        m_fsToolbarShown  = false;
+        m_fsToolbarLeftMs = 0;
+    }
+
+    m_joystickButton.SetVisible (!hidden);
+    // The band surface only exists for the 2D chrome; under the desk scene
+    // the drives paint from the scene and the band would read as a leftover
+    // bar along the window's bottom edge.
+    m_driveBandSurface.SetVisible (!hidden && !DeskSceneActive());
+    m_switchBar.SetVisible (!hidden);
+
+    // Leaving fullscreen must not hand the flat widgets back to a scene that
+    // has already retired them.
+    m_driveChrome[0].SetVisible (!hidden && !DeskSceneActive());
+    m_driveChrome[1].SetVisible (!hidden && !DeskSceneActive());
+    m_sceneDriveLabel[0].SetVisible (!hidden);
+    m_sceneDriveLabel[1].SetVisible (!hidden);
+
+    if (hidden)
+    {
+        m_driveChrome[0].Hide();
+        m_driveChrome[1].Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncCaptureBanner
+//
+//  A persistent way OUT, for as long as the pointer is held.
+//
+//  Paddle mode takes the mouse: the cursor is hidden and clipped to the
+//  window, and the only release is a key the user has to already know. The
+//  joystick button says so -- and fullscreen hides the joystick button, which
+//  leaves a captured pointer, no cursor, and nothing on screen to read. This
+//  says it over the picture instead, in both presentations, and goes away the
+//  moment the capture does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncCaptureBanner()
+{
+    RECT  client = {};
+    RECT  rc     = {};
+
+
+
+    if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_captureBanner.SetVisible (false);
+        return;
+    }
+
+    // ABOVE THE BOTTOM CHROME, not on it. Hung from the client's own bottom
+    // edge the notice straddled the switch bar, half over the scene and half
+    // over a shell band, reading as neither. Measured off the switch band
+    // rather than the drive band: under the desk scene the drive band is
+    // empty -- the scene owns the drives -- so it reports nothing to sit
+    // above. The picture is not available either; the CRT pass paints over
+    // this chrome.
+    {
+        RECT  bar    = m_switchBand.GetBounds();
+        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+                     ? bar.top : client.bottom;
+
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.bottom = bottom - m_scaler.ToPx (s_kCaptureBannerInsetDp);
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+    }
+
+    m_captureBanner.SetText        (s_kCaptureBanner);
+    m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
+    m_captureBanner.SetDpi         (m_scaler.GetDpi());
+    m_captureBanner.Layout         (rc, m_scaler);
+    m_captureBanner.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MirroredSlideStart
+//
+//  A slide start time that PRESERVES the current position when the direction
+//  reverses: a band caught half-way out and sent back should leave from where
+//  it is, not jump to the far end and crawl. The elapsed time is mirrored
+//  about the animation length, which is the same trick the drive strip's FSM
+//  plays on itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int64_t MirroredSlideStart (int64_t nowMs, int64_t animStartMs)
+{
+    int64_t  elapsed = nowMs - animStartMs;
+
+
+
+    if (elapsed >= FullscreenStripState::kSlideMs)
+    {
+        return nowMs;
+    }
+
+    return nowMs - (FullscreenStripState::kSlideMs - elapsed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TickFullscreenToolbar
+//
+//  The command toolbar on the same bargain the drive strip has at the bottom:
+//  the pointer at the top edge slides it down, leaving slides it away.
+//
+//  Laid out here rather than by the chrome dock, because in fullscreen there
+//  are no bands -- the scene owns the whole client, and the toolbar is an
+//  overlay across its top rather than a strip the viewport makes room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickFullscreenToolbar()
+{
+    RECT     client = {};
+    POINT    cursor = {};
+    int      bandH  = 0;
+    bool     want   = false;
+    int64_t  nowMs  = 0;
+
+
+
+    if (!m_d3dRenderer.IsFullscreen() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        if (m_fsToolbarShown)
+        {
+            m_fsToolbarShown = false;
+            m_toolbar.SetVisible (false);
+        }
+
+        return;
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
+    bandH = m_scaler.ToPx (m_toolbar.GetBandDp());
+
+    if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
+    {
+        // The edge zone summons; the whole band holds it open, so the
+        // pointer can travel down onto the buttons without dismissing them.
+        want = m_fsToolbarShown ? (cursor.y <= bandH)
+                                : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
+    }
+
+    // A menu opened from the toolbar keeps it up regardless of where the
+    // pointer wandered to reach the menu's items.
+    want = want || m_mainMenu.IsOpen();
+
+    if (want)
+    {
+        m_fsToolbarLeftMs = 0;
+    }
+    else if (m_fsToolbarShown && m_fsToolbarLeftMs == 0)
+    {
+        m_fsToolbarLeftMs = nowMs;
+    }
+
+    if (!want && m_fsToolbarShown &&
+        nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
+    {
+        m_fsToolbarShown  = false;
+        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+    else if (want && !m_fsToolbarShown)
+    {
+        m_fsToolbarShown  = true;
+        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // The band SLIDES: it hangs off the top by the part of itself that has
+    // not arrived, so it enters and leaves the way the drive strip does
+    // rather than blinking into place. Reversing mid-slide keeps the current
+    // position (see MirroredSlideStart) instead of snapping to the far end.
+    {
+        float  t        = std::clamp ((float) (nowMs - m_fsToolbarAnimMs) /
+                                      (float) FullscreenStripState::kSlideMs, 0.0f, 1.0f);
+        float  progress = m_fsToolbarShown ? t : 1.0f - t;
+        int    top      = client.top - (int) ((1.0f - progress) * (float) bandH);
+
+        if (progress <= 0.0f)
+        {
+            m_toolbar.SetVisible (false);
+            return;
+        }
+
+        m_toolbar.Layout     (RECT{ client.left, top, client.right, top + bandH }, m_scaler);
+        m_toolbar.SetVisible (true);
+
+        if (t < 1.0f)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutSceneCompass
+//
+//  The compass sits in the scene viewport's BOTTOM-RIGHT corner, inset far
+//  enough that it reads as furniture of the window rather than part of the
+//  machines. Hidden wherever the scene is not the thing on screen --
+//  fullscreen shows the picture, the 2D paths have no scene to turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutSceneCompass()
+{
+    RECT   vp       = m_deskScene.Composition().viewportPx;
+    LONG   sidePx   = m_scaler.ToPx (72);
+    LONG   marginPx = m_scaler.ToPx (10);
+    bool   show     = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+                      (vp.right - vp.left) > sidePx * 3;
+    RECT   rc       = {};
+
+
+
+    if (!show)
+    {
+        m_sceneCompass.SetVisible (false);
+        return;
+    }
+
+    rc.right  = vp.right  - marginPx;
+    rc.bottom = vp.bottom - marginPx;
+    rc.left   = rc.right  - sidePx;
+    rc.top    = rc.bottom - sidePx;
+
+    m_sceneCompass.SetDpi     (m_scaler.GetDpi());
+    m_sceneCompass.SetRect    (rc);
+    m_sceneCompass.SetVisible (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneDriveChrome
+//
+//  The scene owns the drives: the 2D widgets hide (still syncing state for
+//  the //c switch strip and the door FSM), the drag-drop hit registry is
+//  rebuilt from the composition's projected drive bounds so dropping a disk
+//  image on a 3D drive keeps mounting into that drive, and each drive's
+//  basename label is re-hung under those same bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneDriveChrome()
+{
+    const DeskSceneComposition &  comp = m_deskScene.Composition();
+
+
+
+    SyncSceneDriveLabels();
+    LayoutSceneCompass();
+
+    // INVISIBLE, not merely collapsed. Hide() only empties the bounds, and a
+    // visible panel with empty bounds is one stray Layout away from painting:
+    // a resize arranges the docked bands before this runs, so the retired 2D
+    // widgets flashed along the bottom edge for a frame under the 3D drives.
+    m_driveChrome[0].SetVisible (false);
+    m_driveChrome[1].SetVisible (false);
+    m_driveChrome[0].Hide();
+    m_driveChrome[1].Hide();
+
+    m_uiShell.GetHitTester().Clear();
+
+    for (int i = 0; i < comp.driveCount; i++)
+    {
+        if (comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        {
+            m_uiShell.GetHitTester().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneDriveLabels
+//
+//  Hangs the mounted image's basename in a strip under each 3D drive, where
+//  the 2D widget's label sat -- the name belongs on screen, not buried in a
+//  hover tooltip. The strip spans the drive's projected width, so the layout
+//  reserves its height above (both scene branches shrink the rect they
+//  compose into by exactly that much) and the drives never sit on it.
+//
+//  Ellipsized through the shared pure truncation helper against the real text
+//  measurement, so a long name ends in a single ellipsis instead of wrapping
+//  out of the strip. The tooltip still carries the full name.
+//
+//  Fullscreen shows no labels: the picture owns the client and the drives are
+//  only briefly on screen in the overlay strip, which has its own tooltip.
+//
+//  Windowed, the labels ride the ORBIT: they re-hang under each drive's
+//  projected bounds on every composition pass, so they stay legible from
+//  whatever angle the inspection orbit is showing rather than vanishing the
+//  moment the camera moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneDriveLabels()
+{
+    // FULLSCREEN LABELS THE STRIP'S DRIVES, not the desk's: the overlay is
+    // the only place drives appear there, and a drive worth revealing is
+    // worth naming. Its composition is the strip's, and the labels come and
+    // go with the slide.
+    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
+                                            m_stripComp.driveCount > 0;
+    const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
+    IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    bool                          visible = !fs || onStrip;
+
+
+
+    for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
+    {
+        std::wstring  basename;
+        RECT          strip = {};
+
+        if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        {
+            basename = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+
+            // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
+            // badge stamped on the faceplate -- on a case whose whole job is
+            // to look like 1983 hardware, and no Disk II ever wore one. Here
+            // it is what it actually is: a fact about the MOUNTED IMAGE,
+            // sitting beside that image's name.
+            //
+            // Ahead of the truncation on purpose. Truncation eats the TAIL,
+            // so a badge at the head survives however long the name is, and
+            // nothing downstream has to keep it out of the ellipsis by hand.
+            if (!basename.empty() && m_driveWidgetState[i].writeProtect.Any())
+            {
+                basename = std::wstring (s_kpszLock) + L" " + basename;
+            }
+        }
+
+        m_sceneDriveLabelRect[i] = RECT{};
+
+        if (basename.empty())
+        {
+            m_sceneDriveLabel[i].SetText    (L"");
+            m_sceneDriveLabel[i].SetVisible (false);
+            continue;
+        }
+
+        // Hung from the drive's projected FRONT-BOTTOM CENTER -- one fixed
+        // model point -- at a constant width, so the label rides the drive
+        // rigidly through the orbit instead of tracking a bounding box that
+        // swells and swings as the case turns.
+        {
+            int  halfW = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+
+            strip.left   = comp.driveLabelPx[i].x - halfW;
+            strip.right  = comp.driveLabelPx[i].x + halfW;
+            strip.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+            strip.bottom = strip.top + m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+        }
+
+        // A strip that does not fit inside the client is not a label, it is a
+        // stray string: the rect comes from PROJECTING the drive through the
+        // frame's camera, and a layout caught mid-resize can hand back a
+        // projection off the top of the window. The label would then paint its
+        // lower half along the window's top edge, above the caption text,
+        // flickering for as long as that pass was on screen.
+        {
+            RECT  client = {};
+
+            if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client) ||
+                strip.top < client.top || strip.bottom > client.bottom ||
+                strip.right <= strip.left)
+            {
+                m_sceneDriveLabel[i].SetText    (L"");
+                m_sceneDriveLabel[i].SetVisible (false);
+                continue;
+            }
+        }
+
+        if (text != nullptr)
+        {
+            basename = TruncateToWidth (basename, (float) (strip.right - strip.left),
+                                        [text, fontPx] (std::wstring_view run) -> float
+            {
+                float    w  = 0.0f;
+                float    h  = 0.0f;
+                HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), fontPx,
+                                                   DxuiTheme::kBodyFace, w, h);
+
+                return SUCCEEDED (hr) ? w : 0.0f;
+            });
+        }
+
+        m_sceneDriveLabel[i].SetText        (basename);
+        m_sceneDriveLabel[i].SetColor       (m_chromeTheme.driveLabel);
+        m_sceneDriveLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
+        m_sceneDriveLabel[i].SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
+        m_sceneDriveLabel[i].SetRect        (strip);
+        m_sceneDriveLabel[i].SetVisible     (true);
+
+        // Remembered so the hover can tell the strip from the case: over the
+        // name and its badge the tooltip explains the protection, over the
+        // drive it just names the disk.
+        m_sceneDriveLabelRect[i] = strip;
+    }
 }
 
 
@@ -1246,7 +2525,9 @@ HRESULT EmulatorShell::InitializeUiShell()
 
     RestoreInputAndColorPrefs();
     RecordActiveMachineSelection();
+
     SubscribeAndActivateTheme();
+
     ApplyPersistedChromePrefs();
 
     hr = FinishUiShellLayout();
@@ -1481,20 +2762,25 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // untouched. We probe with hrOpt and apply only on success, so a
     // missing key keeps the built-in default -- a genuine corrupt-file
     // error already propagated out of LoadMachineUiPrefs above.
-    hrOpt = uiPrefs->GetString ("colorMode", colorMode);
-    if (SUCCEEDED (hrOpt))
+    // NO SAVED COLOR MEANS THE MONITOR'S OWN. The machine names the monitor
+    // it ships with and the monitor owns its phosphor, so an untouched //c
+    // comes up green because a Monitor //c is green -- not because anything
+    // wrote "green" into a preference file for it.
     {
-        int  modeIdx = -1;
+        int  modeIdx = MonitorCatalog::PhosphorSettingsIndex (
+                           MonitorCatalog::ForMachineJson (doc));
 
-        if      (colorMode == "color") { modeIdx = 0; }
-        else if (colorMode == "green") { modeIdx = 1; }
-        else if (colorMode == "amber") { modeIdx = 2; }
-        else if (colorMode == "white") { modeIdx = 3; }
+        hrOpt = uiPrefs->GetString ("colorMode", colorMode);
 
-        if (modeIdx >= 0)
+        if (SUCCEEDED (hrOpt))
         {
-            SetColorModeLive (modeIdx);
+            if      (colorMode == "color") { modeIdx = 0; }
+            else if (colorMode == "green") { modeIdx = 1; }
+            else if (colorMode == "amber") { modeIdx = 2; }
+            else if (colorMode == "white") { modeIdx = 3; }
         }
+
+        SetColorModeLive (modeIdx);
     }
 
     // Speed mode (authentic / double / maximum) lives in the same UI prefs and,
@@ -1514,10 +2800,27 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // FinishUiShellLayout gates on ShouldShowExternalDrive() -- so the first
     // paint matches the saved setup. External drive defaults not-connected;
     // mouse defaults CONNECTED.
-    hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
-    if (SUCCEEDED (hrOpt))
+    //
+    // The drive's answer is the back-panel disk port. The legacy
+    // externalDriveConnected boolean is still read as a FALLBACK because the
+    // fold that retires it only runs on a version bump -- a config already at
+    // the current stamp keeps its old key until Settings next saves, and
+    // dropping the drive for that one launch would be a visible regression.
     {
-        m_externalDriveConnected = extConnected;
+        const PortConfig *  diskPort = m_config.FindPort ("disk");
+
+        if (diskPort != nullptr)
+        {
+            m_externalDriveConnected = !diskPort->device.empty();
+        }
+        else
+        {
+            hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
+            if (SUCCEEDED (hrOpt))
+            {
+                m_externalDriveConnected = extConnected;
+            }
+        }
     }
 
     hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);
@@ -1604,7 +2907,13 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // chrome controls) on top of the Apple ][ framebuffer. The
     // per-frame drive-widget tick + door-animation redraw that
     // used to live in that hook now run in RunMessageLoop.
-    if (!fHasDisk)
+    if (DeskSceneActive())
+    {
+        // The 3D scene owns the drives: widgets hidden, drop-target rects
+        // from the composition's projected drive bounds.
+        SyncSceneDriveChrome();
+    }
+    else if (!fHasDisk)
     {
         // No Slot 6 controller (stripped Apple II config) --
         // collapse the drive widgets so they paint nothing
@@ -1622,13 +2931,16 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_driveChrome[1].Hide();
     }
 
-    m_uiShell.GetHitTester().Clear();
-    if (fHasDisk)
+    if (!DeskSceneActive())
     {
-        m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-        if (ShouldShowExternalDrive())
+        m_uiShell.GetHitTester().Clear();
+        if (fHasDisk)
         {
-            m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+            m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+            if (ShouldShowExternalDrive())
+            {
+                m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+            }
         }
     }
 
@@ -2014,7 +3326,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
+    hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition
@@ -2121,11 +3433,53 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
-    m_host->GetRoot().Adopt (m_monitorFrame);
     m_host->GetRoot().Adopt (m_mainMenu);
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
+    m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
+    m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
+    m_host->GetRoot().Adopt (m_captureBanner);
+    m_host->GetRoot().Adopt (m_sceneCompass);
+
+    // The compass reports gestures; the shell owns what they mean. The signs
+    // follow the drag's bargain -- the CONTENT goes where the arrow points --
+    // so the right arrow and a rightward drag turn the scene the same way.
+    m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
+    {
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Up:     OrbitSceneBy (0.0f, -kCompassStepPitchRad); break;
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  kCompassStepPitchRad); break;
+            default: break;
+        }
+    });
+
+    m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
+    {
+        float  rate = OrbitRadPerPx();
+
+        // Axis-locked to the arrow the drag started on: the arrow names an
+        // axis, and a free two-axis tumble from a single arrow would make
+        // the four of them meaningless.
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-dxPx * rate, 0.0f); break;
+            case DxuiOrbitControl::Part::Up:
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  dyPx * rate); break;
+            default: break;
+        }
+    });
+
+    m_sceneCompass.SetOnHome ([this] ()
+    {
+        m_sceneView.orbitYawRad   = 0.0f;
+        m_sceneView.orbitPitchRad = 0.0f;
+        InvalidateSceneComposition();
+    });
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_joystickButton);
     m_host->GetRoot().Adopt (m_switchBar);
@@ -2221,6 +3575,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // path as the menu; the volume group drives the master output gain and
     // persists in GlobalUserPrefs (saved with the rest on exit).
     m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Input-mode segments route through the same toggle the band selector
+    // used, so the leave-time neutralization of held arrow / X / Z inputs
+    // runs identically.
+    m_toolbar.SetInputSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
     m_toolbar.SetVolumeSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
@@ -2344,11 +3703,21 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   bottomInsetPx = clientH - driveRect.top;   // drive band height only
 
         (void) vr;                                        // dock side-effect: bands arranged
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+
+        if (DeskSceneActive())
+        {
+            SyncSceneDriveChrome();
+        }
+        else
+        {
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+        }
+
         {
             int  bandTop    = driveRect.top;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+            m_driveBandSurface.SetVisible (!DeskSceneActive());
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
@@ -2395,33 +3764,149 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    // Skeuomorphic desk scene (opt-in): the MonitorFrame insets the viewport
-    // into its CRT screen recess and paints the platinum housing in the ring
-    // around it, with the drives scaled to sit under it. When the scene is
-    // off (compact theme, or the skeuo user has not opted in) the bare
-    // display fills the center at classic sizes.
-    if (!IsMonitorFrameEnabled())
+    // 3D desk scene (spec 018): the composition is computed for the center
+    // rect (drives included -- they are scene objects now), the viewport
+    // (the CRT target) becomes the projected glass rect, and the bottom band
+    // collapses to the joystick row via SyncChromeBands' scene branch. The
+    // settle loop is retained for the band's dock feedback.
+    if (CrtMonitorActive() && m_d3dRenderer.IsFullscreen())
     {
-        m_monitorFrame.Hide();
+        // Fullscreen presentation (FR-014): the glass fills the monitor with
+        // a straight-on camera, every chrome band hidden -- the whole client
+        // is the scene. The drive overlay strip presents the drives.
+        HRESULT               hrLayout = S_OK;
+        DeskSceneComposition  comp;
+        RECT                  full     = { 0, 0, widthPx, heightPx };
+
+        hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_scaler.GetDpi(),
+                                                      m_deskScene.Metrics(), comp);
+        BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+        m_deskScene.SetComposition (comp);
+        m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
+        viewportRect       = full;
+
+        SyncSceneDriveChrome();
+    }
+    else if (CrtMonitorActive())
+    {
+        // The basename strip under the drive row is chrome, not scene, so the
+        // composition is solved into a center rect short by its height and
+        // the labels hang in what is left.
+        int  labelStripPx = m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
+        {
+            HRESULT               hrLayout = S_OK;
+            DeskSceneComposition  comp;
+            RECT                  sceneBox = {};
+
+            center            = ComputeViewportRect (widthPx, heightPx);
+            sceneBox          = center;
+            sceneBox.bottom   = std::max (center.top, center.bottom - labelStripPx);
+
+            hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.GetDpi(), DeskSceneDriveCount(),
+                                                 m_deskScene.Metrics(), comp,
+                                                 m_scaler.ToPx (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp),
+                                                 m_sceneView);
+            BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+            m_deskScene.SetComposition (comp);
+            m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
+
+        }
+
+        viewportRect = m_deskScene.Composition().glassRectPx;
+
+        SyncSceneDriveChrome();
+
+        // The input-mode buttons sit in the scene's gap between the monitor
+        // and the drive row, where the 2D chrome kept them -- CENTERED in
+        // the gap, never over the monitor's shell.
+        {
+            const DeskSceneComposition &  comp       = m_deskScene.Composition();
+            int                           bandH      = m_scaler.ToPx (s_kJoystickButtonBandDp);
+            int                           monBottom  = comp.monitorRectPx.bottom;
+            int                           driveTop   = heightPx;
+            int                           bandTop    = 0;
+
+            for (int i = 0; i < comp.driveCount; i++)
+            {
+                driveTop = std::min (driveTop, (int) comp.driveRectPx[i].top);
+            }
+
+            // The input row lives on the command toolbar now -- there is no
+            // gap between monitor and drives to float it in since the stack
+            // became physical, and a row over the drive lids read as debris.
+            m_joystickButton.Hide();
+
+            (void) bandTop;
+            (void) monBottom;
+            (void) driveTop;
+            (void) bandH;
+        }
+    }
+    else if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+    {
+        // Monitor opted out, fullscreen: still the immersive presentation --
+        // every chrome band hidden and the picture filling the client (the
+        // renderer letterboxes inside the target bounds), just without the
+        // curved glass. The drives come from the overlay strip exactly as
+        // they do with the monitor on, so the main composition holds nothing.
+        m_chromeSceneScale = 1.0f;
+        viewportRect       = { 0, 0, widthPx, heightPx };
+
+        m_deskScene.SetComposition (DeskSceneComposition{});
+
+        SyncSceneDriveChrome();
+    }
+    else if (DeskSceneActive())
+    {
+        // Monitor opted out: the picture goes back on a flat rect at classic
+        // sizes, but the drives are NOT optional -- they compose as a 3D row
+        // in the bottom band, through the same drives-only solve (its own
+        // contained camera over the band, so FR-016 still holds within it)
+        // the fullscreen overlay strip uses. The band keeps its classic
+        // thickness, so the window geometry matches the flat chrome it
+        // replaces; the input-mode buttons keep the band's top row.
+        DeskSceneComposition  comp;
+        RECT                  band     = {};
+        RECT                  driveRow = {};
+        bool                  composed = false;
+        int                   joyH     = m_scaler.ToPx (s_kJoystickButtonBandDp);
+        int                   pad      = m_scaler.ToPx (s_kSceneDriveRowPadDp);
+
         m_chromeSceneScale = 1.0f;
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
+
+        band     = m_driveBand.GetBounds();
+        driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
+                     std::max (band.bottom - pad - m_scaler.ToPx (s_kSceneDriveLabelStripDp +
+                                                                  s_kSceneDriveLabelGapDp),
+                               (LONG) (band.top + joyH)) };
+
+        // A machine with no Disk ][ controller composes no row at all, and a
+        // band too small to solve leaves the scene empty rather than stale.
+        if (DeskSceneDriveCount() > 0)
+        {
+            composed = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(), DeskSceneDriveCount(),
+                                                      m_deskScene.Metrics(), comp,
+                                                      DeskSceneLayout::kDriveBandGazeDownRad) == S_OK;
+        }
+
+        m_deskScene.SetComposition (composed ? comp : DeskSceneComposition{});
+
+        SyncSceneDriveChrome();
     }
     else
     {
-        // Desk-scene zoom is a fixed point: the drive band scales with the
-        // monitor's SceneScale, but the band height determines the center the
-        // monitor fits into. Iterate a few passes -- the dependency is a
-        // contraction (band delta is a small fraction of center height), so
-        // this settles to within a pixel; the final pass wins.
-        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
-        {
-            center = ComputeViewportRect (widthPx, heightPx);
-            m_monitorFrame.Layout (center, m_scaler);
-            m_chromeSceneScale = m_monitorFrame.GetSceneScale() * s_kDeskDriveScale;
-        }
-
-        viewportRect = m_monitorFrame.GetScreenRect();
+        // No scene at all (compact theme, or the models never loaded): the
+        // bare display fills the center at classic sizes over the 2D drive
+        // band.
+        m_chromeSceneScale = 1.0f;
+        center             = ComputeViewportRect (widthPx, heightPx);
+        viewportRect       = center;
     }
 
     m_viewport->Layout (viewportRect, m_scaler);
@@ -2458,13 +3943,16 @@ void EmulatorShell::SyncChromeBands()
     // the emulator viewport grows into it. The widgets are already hidden and
     // un-hit-tested by the resize path when there is no controller.
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = s_kJoystickButtonBandDp;
+    int   driveBandDp = CrtMonitorActive() ? 0 : s_kJoystickButtonBandDp;
 
-    if (hasDisk)
+    if (hasDisk && !CrtMonitorActive())
     {
         // The joystick-selector portion is fixed UI; the drive-widget portion
         // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
-        // scaled widgets instead of leaving dead space around them.
+        // scaled widgets instead of leaving dead space around them. With the
+        // 3D scene active there is NO bottom band at all: the drives are
+        // scene objects and the input-mode buttons float in the scene's gap
+        // between monitor and drive row, like the 2D chrome's arrangement.
         int  widgetPortionDp = m_driveBarThicknessDp - s_kJoystickButtonBandDp;
 
         driveBandDp = s_kJoystickButtonBandDp
@@ -2512,7 +4000,16 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
     // The command toolbar rides its band: re-lay it every viewport pass so a
     // resize / DPI change reflows the buttons with the strip.
-    m_toolbar.Layout (m_toolbarBand.GetBounds(), m_scaler);
+    //
+    // EXCEPT IN FULLSCREEN, where the reveal overlay owns it. Both were
+    // laying it out -- the dock into a band the fullscreen viewport does not
+    // show, the overlay across the top -- so whichever ran last won, and the
+    // buttons painted at one height while their hit rects sat at the other.
+    // A single owner per presentation, or they disagree.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        m_toolbar.Layout (m_toolbarBand.GetBounds(), m_scaler);
+    }
 
     return m_centerBand.GetBounds();
 }
@@ -2583,6 +4080,21 @@ void EmulatorShell::ReflowChromeForMachineChange()
                         (newIsApple2c != m_chromeSizedForApple2c);
     }
 
+    // The desk wears what the machine wore, so crossing the //c boundary
+    // swaps both models. Reloading rebuilds every cached mesh, so the
+    // scene's own state is pushed again right after.
+    if (m_deskSceneReady && IsApple2c() != m_deskSceneMachineIsC)
+    {
+        HRESULT  hrModels = LoadDeskSceneModelsForMachine();
+
+        if (SUCCEEDED (hrModels))
+        {
+            m_deskScene.SetPowerLampOn (true);
+        }
+
+        IGNORE_RETURN_VALUE (hrModels, S_OK);
+    }
+
     // Resize the window by the total bottom-band delta -- the drive band
     // (disk-presence) plus the //c switch band -- but not for min/max/fullscreen
     // windows, where the user explicitly chose the size (mirrors
@@ -2641,13 +4153,18 @@ void EmulatorShell::ReflowChromeForMachineChange()
 //
 //  EmulatorShell::ShouldShowExternalDrive
 //
-//  The second drive-mount widget is fixed hardware on the //e (two-drive
-//  slot-6 controller) and every other Disk ][ machine, so it is always
-//  visible there. The //c's second drive is an optional external unit that
-//  plugs into the disk port, so it appears only when the user has marked it
-//  connected (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected).
-//  The //c is the only machine with a banked system ROM, so romBankSize is
-//  the discriminator -- the same signal that gates the built-in IWM drive.
+//  The //c's second drive is an optional external unit that plugs into the
+//  disk port, so it appears only when the user has marked it connected
+//  (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected). The //c is
+//  the only machine with a banked system ROM, so romBankSize is the
+//  discriminator -- the same signal that gates the built-in IWM drive.
+//
+//  Everywhere else the second drive is whatever is attached to the Disk ][
+//  card's second connector. That used to be unconditionally true, on the
+//  reasoning that the card is two-drive hardware -- but the CARD having two
+//  connectors was never the same claim as both of them having a drive on the
+//  end, and this is the question the 2D widgets and the desk scene both ask,
+//  so answering it from the config is what keeps them agreeing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2657,7 +4174,12 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 
 
-    return !externalIsOptional || m_externalDriveConnected;
+    if (externalIsOptional)
+    {
+        return m_externalDriveConnected;
+    }
+
+    return m_config.AttachedDiskIiDriveCount() >= kDiskIiPortCount;
 }
 
 
@@ -2715,9 +4237,12 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
     // where the drives sit at s_kDeskDriveScale, so the band math must run at
     // that scale regardless of the current window's. Scene off: the center is
     // the framebuffer directly at classic sizes.
-    if (IsMonitorFrameEnabled())
+    if (CrtMonitorActive())
     {
-        SIZE   center     = MonitorFrame::GetCenterSizeForScreenPx (framebufferWpx, framebufferHpx);
+        SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
+                                                                     m_scaler.GetDpi(), DeskSceneDriveCount(),
+                                                                     m_deskScene.Metrics(),
+                                                                     m_scaler.ToPx (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
@@ -3961,7 +5486,8 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_joystickButton.SetSkeuoStyle (!theme.compactDrives);
+    m_joystickButton.SetSkeuoStyle   (!theme.compactDrives);
+    m_toolbar.SetInputSkeuoStyle     (!theme.compactDrives);
 
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome
@@ -4011,6 +5537,21 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
+
+    // Re-run the authoritative layout unconditionally. The resize above only
+    // produces a WM_SIZE when the window size actually CHANGES -- a swap
+    // whose band delta nets out (compact bar vs the scene's joystick-only
+    // bar), a maximized window, or fullscreen all skip it, and the 3D desk
+    // scene depends on this pass: its composition only computes here, so
+    // skipping it leaves a stale camera (drives off-screen) and the
+    // outgoing theme's widgets still laid out. Idempotent when WM_SIZE
+    // already ran it.
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
+    {
+        (void) OnSize ((UINT) (rcClient.right - rcClient.left),
+                       (UINT) (rcClient.bottom - rcClient.top));
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 }
 
 
@@ -4019,26 +5560,26 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetSkeuoMonitorFrame
+//  EmulatorShell::SetCrtMonitorEnabled
 //
-//  Settings > Theme opt-in for the skeuomorphic desk scene. Persists the
-//  choice, then re-runs the authoritative OnSize layout at the current client
-//  size so the monitor framing (and the drives' desk scale) appears or
-//  disappears in place -- the window itself does not resize; Ctrl+0 reaches
-//  the mode's 100% default.
+//  Settings > Theme opt in/out for the CRT monitor -- the escape hatch back to
+//  the flat picture at classic sizes (the 3D drives stay either way).
+//  Persists the choice, then re-runs the authoritative OnSize layout at the
+//  current client size so the monitor appears or disappears in place -- the
+//  window itself does not resize; Ctrl+0 reaches the mode's 100% default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
+void EmulatorShell::SetCrtMonitorEnabled (bool enabled)
 {
     HRESULT  hr       = S_OK;
     RECT     rcClient = {};
 
 
 
-    BAIL_OUT_IF (m_globalPrefs.skeuoMonitorFrame == enabled, S_OK);
+    BAIL_OUT_IF (m_globalPrefs.crtMonitor == enabled, S_OK);
 
-    m_globalPrefs.skeuoMonitorFrame = enabled;
+    m_globalPrefs.crtMonitor = enabled;
 
     if (m_userConfigStore != nullptr)
     {
@@ -4068,6 +5609,69 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SetSceneAntiAliasing
+//
+//  The scene's multisampling, in samples (1 / 2 / 4). Applies to the very next
+//  frame -- the renderer drops its offscreen targets and rebuilds them at the
+//  new count -- so the user sees the trade they just made without restarting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetSceneAntiAliasing (int samples)
+{
+    HRESULT  hr     = S_OK;
+    int      wanted = (samples >= 4) ? 4 : ((samples >= 2) ? 2 : 1);
+
+
+
+    BAIL_OUT_IF (m_globalPrefs.sceneAntiAliasing == wanted, S_OK);
+
+    m_globalPrefs.sceneAntiAliasing = wanted;
+
+    ApplySceneAntiAliasing();
+
+    if (m_userConfigStore != nullptr)
+    {
+        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_d3dRenderer.MarkRedrawNeeded();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplySceneAntiAliasing
+//
+//  Pushes the stored count at every renderer that draws the scene. Separate
+//  from the setter because startup has to apply it too, without re-saving the
+//  file it was just read from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplySceneAntiAliasing()
+{
+    m_deskScene.SetSampleCount ((UINT) m_globalPrefs.sceneAntiAliasing);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::LayoutJoystickButton
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4081,6 +5685,20 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     int            centerY = bandTopPx + bandHeightPx / 2;
     DxuiDpiScaler  scaler;
     RECT           anchor  = { centerX, centerY, centerX, centerY };
+
+
+
+    // With the desk scene active the selector's home is the command toolbar
+    // and there is no band for it here. This is the one choke point every
+    // caller funnels through -- init, OnSize, theme apply, the cached DPI
+    // relayout -- so the gate lives HERE: gating the call sites one by one
+    // is how the retired widget kept resurrecting at the window's bottom
+    // edge whenever a path nobody remembered re-laid it.
+    if (DeskSceneActive())
+    {
+        m_joystickButton.Hide();
+        return;
+    }
 
 
 
@@ -5281,6 +6899,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     didPresent                = false;
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
+    uint32_t driveSig                  = 0;
 
 
 
@@ -5299,16 +6918,15 @@ bool EmulatorShell::TryPresentUiFrame()
     // scanlines/bloom/color-bleed toggles + magnitudes) to the
     // renderer every UI frame so user edits land on the very next
     // present. The active theme's `crtDefaults` only apply when the
-    // user hasn't customised anything yet (see MakeCrtParams).
+    // user hasn't customized anything yet (see MakeCrtParams), and they
+    // come RESOLVED -- reading the base theme here dropped the machine
+    // overrides, so the picture changed brightness whenever a resize let
+    // the other caller set the parameters instead.
     {
         const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themeManager != nullptr)
+        if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
         {
-            const LoadedTheme *  active = m_themeManager->GetActiveTheme();
-            if (active != nullptr)
-            {
-                themeDefaults = &active->crtDefaults;
-            }
+            themeDefaults = &m_themeManager->ActiveCrtDefaults();
         }
 
         CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
@@ -5338,15 +6956,27 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
+    // The capture banner and the fullscreen toolbar reveal, both per-frame
+    // because both answer where the pointer is right now.
+    SyncCaptureBanner();
+    TickFullscreenToolbar();
+
 
     for (const DriveWidgetState & st : m_driveWidgetState)
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
+        bool  motorOn    = st.motorOn.load    (memory_order_relaxed);
+        bool  diskActive = st.diskActive.load (memory_order_relaxed);
 
-        anyDriveLive = anyDriveLive                              ||
-                       st.motorOn.load    (memory_order_relaxed) ||
-                       st.diskActive.load (memory_order_relaxed);
+        anyDriveLive = anyDriveLive || motorOn || diskActive;
+
+        // Everything about a drive that is VISIBLE, folded into one word so
+        // the present vote below can ask whether it moved rather than whether
+        // it is busy.
+        driveSig = (driveSig << 3) | (motorOn ? 1u : 0u)
+                                   | (diskActive ? 2u : 0u)
+                                   | (doorMoving ? 4u : 0u);
 
         if (doorMoving)
         {
@@ -5354,16 +6984,195 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
-    // Keep presenting while any drive is live, plus the one frame after it goes
-    // idle, so the spinning / activity LED both animates through a disk load and
-    // clears afterward even when the emulator framebuffer is static (the content
-    // gate would otherwise idle before it clears).
-    if (anyDriveLive || m_anyDriveLivePrev)
+    // 3D scene drive visuals: activity lamp, door swing, and the padlock,
+    // pushed from the same per-drive state the 2D widgets mirror. The scene
+    // only rebuilds geometry when a value actually moved.
+    if (DeskSceneActive())
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        for (int i = 0; i < 2; i++)
+        {
+            const DriveWidgetState &  st       = m_driveWidgetState[i];
+            float                     t        = std::clamp ((float) (nowMs - st.animationStartTimeMs) /
+                                                             (float) DriveWidgetState::kDoorAnimationMs, 0.0f, 1.0f);
+            float                     progress = 0.0f;
+            bool                      lampOn   = st.motorOn.load    (memory_order_relaxed) ||
+                                                 st.diskActive.load (memory_order_relaxed);
+
+            switch (st.doorState)
+            {
+                case DriveWidgetState::Door::Open:     progress = 1.0f;     break;
+                case DriveWidgetState::Door::Opening:  progress = t;        break;
+                case DriveWidgetState::Door::Closing:  progress = 1.0f - t; break;
+                case DriveWidgetState::Door::Closed:   progress = 0.0f;     break;
+            }
+
+            m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+        }
+
+        // A mount or eject changes the basename strip under the drive, and
+        // neither runs a layout pass -- so watch the source paths here and
+        // re-hang the labels (with their text measurement) only on a change.
+        {
+            bool  labelsMoved = false;
+
+            for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
+            {
+                std::string  source = m_diskStore.GetSourcePath (6, i);
+
+                if (source != m_sceneLabelPath[i])
+                {
+                    m_sceneLabelPath[i] = source;
+                    labelsMoved         = true;
+                }
+            }
+
+            if (labelsMoved)
+            {
+                SyncSceneDriveLabels();
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+    }
+
+    // Fullscreen drive overlay strip (FR-015): tick the FSM from this
+    // frame's observations, apply its capture effects, and compose the slid
+    // band the hook will render.
+    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    {
+        StripInputs   inputs;
+        StripEffects  effects;
+        POINT         cursor  = {};
+        RECT          client  = {};
+        int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                       std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        GetClientRect (m_hwnd, &client);
+
+        inputs.nowMs = stripNowMs;
+
+        if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
+        {
+            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_scaler.ToPx (s_kStripEdgeZoneDp);
+            inputs.pointerOverStrip    = m_stripState.Mode() != StripMode::Hidden &&
+                                         PtInRect (&m_stripRectPx, cursor);
+        }
+
+        inputs.hotkey        = m_stripHotkeyPending;
+        m_stripHotkeyPending = false;
+
+        inputs.pinned        = m_stripBrowseOpen || m_driveTooltip.IsVisible();
+
+        // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
+        // owning the pointer. At a BASIC prompt in Mouse mode the host
+        // cursor is the only pointer there is, and the bottom edge must
+        // summon the strip -- Active gated the reveal off for the whole
+        // session on a machine whose mouse is built in.
+        inputs.guestPointer  = m_paddleCaptured    ? GuestPointerMode::Paddle
+                             : IsGuestMouseLive()    ? GuestPointerMode::Mouse
+                             :                       GuestPointerMode::None;
+        inputs.anyDriveActive = anyDriveLive;
+
+        effects = m_stripState.Tick (inputs);
+
+        if (effects.releaseCapture)
+        {
+            if (m_paddleCaptured)
+            {
+                StopPaddleCapture();
+            }
+            else
+            {
+                m_stripSuppressGuestMouse = true;
+            }
+        }
+
+        if (effects.restoreCapture == GuestPointerMode::Paddle)
+        {
+            StartPaddleCapture();
+        }
+        else if (effects.restoreCapture == GuestPointerMode::Mouse)
+        {
+            m_stripSuppressGuestMouse = false;
+        }
+
+        // The band slides up from the bottom edge: only the top
+        // `progress * height` sliver is on-screen mid-animation.
+        {
+            float  progress = m_stripState.SlideProgress (stripNowMs);
+            int    bandH    = m_scaler.ToPx (s_kStripBandDp);
+
+            if (progress > 0.0f)
+            {
+                HRESULT  hrStrip = S_OK;
+
+                RECT  driveRow = {};
+
+                m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
+                                  client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+
+                // The drives get the band LESS the name strip, the way the
+                // windowed drive band reserves it: the disk's name and its
+                // padlock belong under the drive here too, and a row composed
+                // into the whole band would put them off the screen's edge.
+                driveRow         = m_stripRectPx;
+                driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+                // The drive band's calibrated look-down, not the desk's
+                // near-level default: the band angle is what shows the
+                // drives' tops, and the fullscreen strip is the same
+                // drives-only row the windowed band composes.
+                hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
+                                                         DeskSceneDriveCount(),
+                                                         m_deskScene.Metrics(), m_stripComp,
+                                                         DeskSceneLayout::kDriveBandGazeDownRad);
+                IGNORE_RETURN_VALUE (hrStrip, S_OK);
+            }
+            else
+            {
+                m_stripRectPx = {};
+                m_stripComp   = {};
+            }
+        }
+
+        // The strip's names ride its slide: re-hung every pass so they track
+        // the band on its way in and out, and retire with it.
+        SyncSceneDriveLabels();
+
+        if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+    else
+    {
+        // Not presenting the strip (windowed, or fullscreen left): never
+        // strand a suppressed guest mouse.
+        m_stripSuppressGuestMouse = false;
+        m_stripRectPx             = {};
+    }
+
+    // Keep presenting while the drives' visible state is CHANGING, plus the
+    // one frame after it settles so the last change actually reaches the
+    // screen. Doors mid-swing vote separately above; this covers the activity
+    // lamps.
+    //
+    // CHANGING, not merely LIVE. The vote used to fire for as long as a motor
+    // was energized, and a Disk II motor stays energized until the guest
+    // writes $C0E8 -- which plenty of software simply never does once it has
+    // loaded. A demo that leaves the drive spinning is faithful hardware
+    // behavior, and it pinned Casso at a full 60 fps of nine-pass CRT
+    // post-processing forever, over a picture that had not changed in
+    // minutes. An LED that is steadily lit is not an animation.
+    if (driveSig != m_lastDriveSig || m_driveSigSettling)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
-    m_anyDriveLivePrev = anyDriveLive;
+    m_driveSigSettling = (driveSig != m_lastDriveSig);
+    m_lastDriveSig     = driveSig;
 
     // //c switch strip: refresh the disk-use LED (drive activity) and the
     // Ctrl-armed reset cue every UI frame so they track live state.
@@ -5419,6 +7228,18 @@ bool EmulatorShell::TryPresentUiFrame()
         m_toolbarTooltip.Tick   (nowMs);
         m_switchBarTooltip.Tick (nowMs);
         m_driveTooltip.Tick     (nowMs);
+
+        // A HELD COMPASS ARROW REPEATS, and a held arrow produces no messages
+        // to wake this loop -- the pointer is not moving, which is the very
+        // condition the repeat exists for. So it votes for a present the
+        // whole time it is held, not only on the frames it fires: without
+        // that the loop parks and the repeat stops between steps.
+        if (m_sceneCompass.WantsTick())
+        {
+            m_sceneCompass.Tick (nowMs);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 
     // Refresh the printer status LED; marks a redraw itself on a change so
@@ -5430,6 +7251,7 @@ bool EmulatorShell::TryPresentUiFrame()
     UpdatePrinterPreview();
 
     didPresent = m_d3dRenderer.NeedsPresent (framebufferDirtyThisFrame);
+
 
     if (didPresent)
     {
@@ -5985,14 +7807,34 @@ void EmulatorShell::PublishFramebuffer()
 
 
 
-    // The render-skip gate in RunCpuThreadFrame already decided the frame
-    // changed, so this always publishes -- no per-frame hash. Copy under the
-    // mutex, then wake the UI thread.
+    // THE UPSTREAM GATE ANSWERS A DIFFERENT QUESTION. RunCpuThreadFrame asks
+    // whether the picture COULD have changed -- a write landed in a display
+    // page, the mode moved, the flash phase flipped -- and it is deliberately
+    // conservative, because guessing wrong the other way drops a frame the
+    // user was waiting on.
+    //
+    // The flash phase is the one that matters here. It flips about four times
+    // a second whatever is on screen, so a full-screen hi-res picture with no
+    // text on it at all re-rasterized and republished at 3.7 Hz forever --
+    // byte for byte the same image every time. Downstream that was enough to
+    // keep resetting the persistence settle counter, and Casso ran the
+    // nine-pass CRT chain at a full 60 fps over a still image indefinitely.
+    //
+    // So the handoff is gated on the RESULT rather than the prediction: a
+    // frame identical to the one already published is not published again.
+    // The compare is one pass over ~840 KB, and it only runs when the cheap
+    // gate upstream already thought something moved.
     {
         lock_guard<mutex>  lock (m_framebufferMutex);
 
-        m_uiFramebuffer = m_cpuFramebuffer;
-        m_framebufferReady       = true;
+        bool  same = m_uiFramebuffer.size() == m_cpuFramebuffer.size()
+                     && memcmp (m_uiFramebuffer.data(), m_cpuFramebuffer.data(),
+                                m_cpuFramebuffer.size() * sizeof (uint32_t)) == 0;
+
+        BAIL_OUT_IF (same, S_OK);
+
+        m_uiFramebuffer    = m_cpuFramebuffer;
+        m_framebufferReady = true;
     }
 
     if (m_frameReadyEvent != nullptr)
@@ -6228,7 +8070,8 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_joystickTooltip.WantsTick()  ||
         m_switchBarTooltip.WantsTick() ||
-        m_driveTooltip.WantsTick())
+        m_driveTooltip.WantsTick()     ||
+        m_sceneCompass.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
     }
@@ -6766,6 +8609,85 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 
 
+    // The compass sees every move: armed, it owns the gesture; idle, the
+    // call is what keeps its hover highlight honest. Ahead of the drags
+    // below because a press the compass took must never feed the orbit's
+    // own anchor math as well.
+    if (!m_paddleCaptured && m_sceneCompass.OnPointerMove (x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
+    // A pan in flight owns the move outright. Measured from the ANCHOR the
+    // press recorded rather than accumulated frame to frame, so the scene
+    // tracks the cursor exactly however far or slowly it travels and a long
+    // drag cannot creep away from it.
+    //
+    // The paddle check below cannot be reached while this claims the move, so
+    // the capture is tested HERE too. A pan cannot start under paddle capture
+    // today -- the press handler bails before arming one -- but that is one
+    // early-out in another function away from being untrue, and the failure
+    // it would cause is a game whose paddles stop responding.
+    // An orbit in flight owns the move the same way a pan does, whichever
+    // button is driving it.
+    if (m_sceneOrbiting && !m_paddleCaptured &&
+        ((m_sceneOrbitLeftBtn && leftDown) ||
+         (!m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
+    {
+        // Under the slop this is still a click in the making, so the scene
+        // must not stir: a picture that shifts a pixel under a press and
+        // shifts back is worse than one that does not move at all. The
+        // right-button orbit has no click to protect and turns at once.
+        if (!m_sceneOrbitMoved &&
+            m_sceneOrbitLeftBtn &&
+            std::abs (x - m_sceneOrbitStartPx.x) <= s_kSceneOrbitSlopPx &&
+            std::abs (y - m_sceneOrbitStartPx.y) <= s_kSceneOrbitSlopPx)
+        {
+            return DxuiMessageResult::Handled;
+        }
+
+        m_sceneOrbitMoved = true;
+
+        UpdateSceneOrbit (x, y);
+        return DxuiMessageResult::Handled;
+    }
+
+    // THE TILT FOLLOWS THE POINTER, not the mark. Dragging up tips the face
+    // up and dragging down tips it down, whichever mark the gesture started
+    // on -- the marks say which way the control goes, they are not two
+    // separate handles that move in opposite senses. Screen y grows downward,
+    // so the travel is negated to get "up is up".
+    if (m_bezelTilting && leftDown && !m_paddleCaptured)
+    {
+        m_deskScene.SetBezelTilt (m_bezelTiltStartRad
+                                  + ((float) (m_bezelTiltStartPx.y - y)) * kBezelTiltRadPerPx);
+        InvalidateSceneComposition();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (m_scenePanning && leftDown && !m_paddleCaptured)
+    {
+        RECT   box    = m_deskScene.Composition().viewportPx;
+        float  width  = (float) (box.right - box.left);
+        float  height = (float) (box.bottom - box.top);
+
+        if (width > 0.0f && height > 0.0f)
+        {
+            // A pixel of cursor travel is two NDC units across the whole
+            // viewport, and NDC y runs opposite client y.
+            m_sceneView.panX = m_scenePanStartX
+                             + ((float) (x - m_scenePanStartPx.x) / width)  * 2.0f;
+            m_sceneView.panY = m_scenePanStartY
+                             - ((float) (y - m_scenePanStartPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // Paddle mode owns the pointer while captured: relative motion drives
     // the held paddle axes and the cursor is snapped back to center, so the
     // chrome never sees the move.
@@ -6867,23 +8789,89 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    // Write-protect tooltip: shown on a dwell over a protected drive,
-    // suppressed while the joystick button owns the hover (mutually
-    // exclusive bands, but be explicit).
-    if (wpDrive != nullptr && !overBtn)
+    // Drive hover tooltip, suppressed while the joystick button owns the
+    // hover (mutually exclusive bands, but be explicit). Windowed, the 3D
+    // scene's name strips already show every basename and padlock, so the
+    // only tooltip left is the padlock's WHY -- the write-protect
+    // composition, anchored to the label it explains. Dwelling on the case
+    // itself volunteers nothing the strip is not already saying. Fullscreen
+    // shows no labels, so the overlay strip's drives keep the name tooltip,
+    // joined by the write-protect composition when the disk is protected --
+    // there is no padlock anywhere else to ask. The 2D path keeps its dwell
+    // tooltip for protected drives only (the basename lives on the widget's
+    // marquee label there).
     {
-        std::wstring  imageName = std::filesystem::path (
-            m_diskStore.GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+        std::wstring  tip;
+        RECT          anchor = {};
 
-        m_driveTooltip.RequestShow (wpDrive->GetOuterRect(),
-                                    ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1,
-                                                                imageName,
-                                                                wpDrive->WriteProtect()),
-                                    nowMs);
-    }
-    else
-    {
-        m_driveTooltip.RequestHide (nowMs);
+        if (DeskSceneActive())
+        {
+            // The name strip answers for the padlock in BOTH presentations:
+            // the strip carries names and locks in fullscreen now, so the
+            // lock explains itself there the same way it does on the desk.
+            for (int i = 0; i < (int) m_sceneDriveLabelRect.size(); i++)
+            {
+                POINT  lp = { x, y };
+
+                if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
+                    PtInRect (&m_sceneDriveLabelRect[i], lp) &&
+                    m_driveWidgetState[i].writeProtect.Any())
+                {
+                    anchor = m_sceneDriveLabelRect[i];
+                    tip    = ComposeWriteProtectTooltip (
+                                 i + 1,
+                                 std::filesystem::path (m_diskStore.GetSourcePath (6, i))
+                                     .filename().wstring(),
+                                 m_driveWidgetState[i].writeProtect);
+                    break;
+                }
+            }
+        }
+
+        if (tip.empty() && DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        {
+            POINT  pt = { x, y };
+
+            if (m_stripRectPx.bottom > m_stripRectPx.top &&
+                PtInRect (&m_stripRectPx, pt) && !overBtn)
+            {
+                SceneHitResult  sceneHit = StripHit (x, y);
+
+                if (sceneHit.target == SceneHitResult::Target::Drive)
+                {
+                    std::wstring  imageName = std::filesystem::path (
+                        m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
+
+                    anchor = m_stripComp.driveRectPx[sceneHit.driveIndex];
+                    tip    = ComposeWriteProtectTooltip (
+                                 sceneHit.driveIndex + 1, imageName,
+                                 m_driveWidgetState[sceneHit.driveIndex].writeProtect);
+
+                    if (tip.empty())
+                    {
+                        tip = imageName;
+                    }
+                }
+            }
+        }
+
+        if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr && !overBtn)
+        {
+            std::wstring  imageName = std::filesystem::path (
+                m_diskStore.GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+
+            anchor = wpDrive->GetOuterRect();
+            tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
+        }
+
+        if (!tip.empty())
+        {
+            m_driveTooltip.RequestShow (anchor, tip, nowMs);
+        }
+        else
+        {
+            m_driveTooltip.RequestHide (nowMs);
+        }
     }
 
 Error:
@@ -6953,8 +8941,10 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 bool EmulatorShell::IsGuestMouseActive() const
 {
+    // The fullscreen drive strip's hotkey summon "releases" the guest mouse
+    // for the interaction; the FSM restores it when the strip hides.
     return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
-        && m_mouseConnected;
+        && m_mouseConnected && !m_stripSuppressGuestMouse;
 }
 
 
@@ -7024,7 +9014,27 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
 
 
-    if (isLive && !isInside)
+    if (isLive && CrtMonitorActive())
+    {
+        // Curvature-correct mapping (spec 018): the pixel comes from the
+        // inverse projection through the glass, so only the picture counts
+        // -- pointer positions off the glass (including what used to be
+        // letterbox bars) release the guest mouse.
+        SceneHitResult  hit = DeskSceneHit (xPx, yPx);
+
+        if (hit.target == SceneHitResult::Target::Glass)
+        {
+            fx = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
+            fy = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
+
+            m_mouse->SetHostTargetFraction (fx, fy);
+        }
+        else
+        {
+            m_mouse->ClearHostTarget();
+        }
+    }
+    else if (isLive && !isInside)
     {
         // Leaving the viewport releases the guest mouse to wherever the
         // firmware last put it (non-capturing contract).
@@ -7074,17 +9084,504 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     overGuest = hitTest == HTCLIENT
                 && IsGuestMouseLive()
                 && GetCursorPos (&pt)
-                && ScreenToClient (m_hwnd, &pt)
-                && pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right
-                && pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom;
+                && ScreenToClient (m_hwnd, &pt);
+
+    if (overGuest && CrtMonitorActive())
+    {
+        // With the desk scene, "over the display" means over the curved
+        // glass itself, not the bounding rect around it.
+        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+
+        overGuest = hit.target == SceneHitResult::Target::Glass;
+    }
+    else if (overGuest)
+    {
+        overGuest = pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right
+                 && pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom;
+    }
 
     if (overGuest)
     {
         SetCursor (nullptr);
         result = DxuiMessageResult::Handled;
     }
+    else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
+             && m_deskScene.MaxBezelTiltRad() > 0.0f
+             && GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt))
+    {
+        // A HAND OVER THE TILT MARKS, because they are the one thing on the
+        // monitor you can take hold of. Resolved through the same hit test
+        // the press uses, so the cursor changes exactly where the drag would
+        // actually start -- a hand offered anywhere else would be a promise
+        // the press does not keep.
+        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+
+        if (hit.target == SceneHitResult::Target::BezelTilt || m_bezelTilting)
+        {
+            SetCursor (LoadCursorW (nullptr, IDC_HAND));
+            result = DxuiMessageResult::Handled;
+        }
+    }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnMouseWheel
+//
+//  The wheel frames the desk scene, and WHICH WAY it frames it depends on
+//  what sent it. Windows gives a touchpad and a mouse the same message, so
+//  the message alone cannot say -- but the DELTA can. A wheel is detented and
+//  reports whole WHEEL_DELTA notches; a precision touchpad reports the finger,
+//  in fractions of one. So:
+//
+//    - a touchpad PINCH arrives as Ctrl+wheel, and zooms.
+//    - a whole notch is a mouse wheel, and zooms -- a mouse has no pinch, and
+//      taking its zoom away to gain a pan would be a poor trade.
+//    - anything else is a two-finger slide, and PANS.
+//
+//  Which makes the touchpad behave like every map and every drawing program:
+//  drag to move, pinch to scale. Horizontal wheel joins in for the same
+//  reason it used to be ignored -- panning on one axis with no way to reach
+//  the other is worse than not panning, and a precision touchpad sends both
+//  axes, so the pair of them is a real pan and either alone is not.
+//
+//  The test is deliberately one-sided: only a delta that is NOT a whole notch
+//  is treated as a touchpad. A touchpad whose driver rounds to 120 keeps
+//  zooming, which is what it did before this -- no worse, just not better.
+//
+//  Touchscreen gestures do not come through here at all. They arrive as
+//  WM_GESTURE and are handled in OnGesture, whose pinch and one-finger drag
+//  are untouched by any of this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
+{
+    int     delta   = GET_WHEEL_DELTA_WPARAM (wParam);
+    POINT   pt      = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    bool    pinch   = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+    bool    detent  = (delta % WHEEL_DELTA) == 0;
+    float   notch   = 0.0f;
+    float   factor  = 1.0f;
+
+
+
+    // Paddle capture owns the pointer: it is hidden and confined to the
+    // window because someone is playing a game with it. Nothing about a wheel
+    // notch there is a request to reframe the scene, and having the desk zoom
+    // out from under a game is the kind of thing that reads as a glitch.
+    //
+    // Mouse mode is NOT excluded. The guest mouse has no wheel to steal the
+    // notch from, so zooming stays available while pointing.
+    //
+    // Fullscreen is: the picture owns the client and the desk is not on
+    // screen, so there is no camera to move -- only hidden state to
+    // scramble for the return to windowed.
+    if (delta == 0 || !DeskSceneActive() || m_paddleCaptured ||
+        m_d3dRenderer.IsFullscreen())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Screen -> client: WM_MOUSEWHEEL packs the point in SCREEN coordinates,
+    // unlike every button message, which is a reliable way to zoom toward the
+    // wrong place on a window that is not at the origin.
+    if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Fractional notches matter: a precision touchpad sends many small
+    // deltas rather than one WHEEL_DELTA, and rounding them to whole notches
+    // turns a smooth slide into a series of jumps.
+    notch = (float) delta / (float) WHEEL_DELTA;
+
+    // Shift turns the slide into an orbit -- the touchpad's spin-the-scene,
+    // matching Shift+drag on the buttons. Content follows the fingers, and
+    // Windows reports a downward slide negative and a rightward one positive
+    // (see PanSceneByNotch), so both axes take the negative.
+    //
+    // THE KEYBOARD IS ASKED DIRECTLY, not the message. Shift+slide is the
+    // gesture Windows itself repurposes into horizontal scrolling, and the
+    // precision-touchpad path synthesizes those wheel messages WITHOUT
+    // MK_SHIFT in their keystate -- so the one gesture this branch exists
+    // for arrived flagless, fell through, and panned.
+    if (((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 ||
+         (GetKeyState (VK_SHIFT) & 0x8000) != 0) && !pinch)
+    {
+        // BOTH SIGNS ARE DERIVED FROM THE PAN, not measured one gesture at
+        // a time. The pan is the one slide mapping the user has validated:
+        // panX -= notch reads as content-follows-fingers, which pins what
+        // this hardware reports -- a rightward or upward slide arrives
+        // NEGATIVE. The drag's bargain then fixes the orbit: drag right is
+        // yaw negative and drag up is pitch negative, so a slide, carrying
+        // a negative notch for the same motion, multiplies by POSITIVE
+        // rates on both axes. The first flip fixed the vertical axis alone
+        // and left horizontal inverted, which read as "backwards" the
+        // moment the scene was spun side to side.
+        if (horizontal)
+        {
+            OrbitSceneBy (notch * s_kOrbitRadPerNotch, 0.0f);
+        }
+        else
+        {
+            OrbitSceneBy (0.0f, notch * s_kOrbitRadPerNotch);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (!pinch && !detent)
+    {
+        return PanSceneByNotch (notch, horizontal);
+    }
+
+    // A horizontal wheel that got this far is a tilt wheel, which has no
+    // second axis to pair with and so still means nothing here.
+    if (horizontal)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    factor = std::pow (s_kSceneZoomStep, notch);
+
+    ZoomSceneAt (pt, factor);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PanSceneByNotch
+//
+//  A touchpad slide, in wheel notches, moved into the scene's pan.
+//
+//  DECLINED AT 1x, exactly as the touch pan is: with the scene framed to fit,
+//  there is nowhere to pan to, and claiming the message would only take the
+//  slide away from whatever else might want it. Returning NotHandled leaves
+//  it to be scrolled by something that can.
+//
+//  THE SIGNS MATCH THE TOUCH DRAG, not the scrollbar. Windows' own convention
+//  for a wheel is that the viewport follows the fingers, so content appears to
+//  go the other way; a DRAG is the opposite bargain -- the content is what you
+//  have hold of, and it goes where your fingers go, the way it does on a map.
+//  Since this gesture exists to be the touchpad's version of the one-finger
+//  touch pan, it copies that one's relationship to the hand.
+//
+//  Which took two goes, because the reasoning above does not settle the sign
+//  on its own: it says the scene follows the fingers, and then you still have
+//  to know which way Windows reports fingers going. It reports a downward
+//  slide as a NEGATIVE vertical delta and a rightward slide as a POSITIVE
+//  horizontal one -- opposite senses, on the same hand movement -- so one of
+//  the two axes was always going to come out backward from a single rule.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
+{
+    if (m_sceneView.zoom <= 1.0f)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (horizontal)
+    {
+        m_sceneView.panX -= notch * s_kScenePanStep;
+    }
+    else
+    {
+        m_sceneView.panY -= notch * s_kScenePanStep;
+    }
+
+    ClampSceneView();
+    InvalidateSceneComposition();
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OrbitSceneBy / BeginSceneOrbit / UpdateSceneOrbit
+//
+//  The inspection orbit: the camera swings about its gaze target so every
+//  side of the devices can be looked at. The signs follow the touch drag's
+//  bargain, the same one the pan keeps -- the CONTENT goes where the fingers
+//  go. Dragging right pushes the stack's front to the right, which shows its
+//  left flank, which is the eye swinging the OTHER way; dragging down tips
+//  the top toward the viewer, which is the eye rising. Hence yaw takes the
+//  negative of the drag and pitch the positive.
+//
+//  Yaw wraps rather than clamps -- spinning past the back and around is the
+//  point. Pitch is bounded here only loosely, against unbounded wind-up while
+//  pinned; the REAL elevation clamp lives in the layout, on the total, where
+//  the seat's own baseline is known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OrbitSceneBy (float yawRad, float pitchRad)
+{
+    constexpr float  kTwoPi = 6.2831853f;
+
+
+
+    m_sceneView.orbitYawRad += yawRad;
+
+    if (m_sceneView.orbitYawRad > 3.1415927f)
+    {
+        m_sceneView.orbitYawRad -= kTwoPi;
+    }
+    else if (m_sceneView.orbitYawRad < -3.1415927f)
+    {
+        m_sceneView.orbitYawRad += kTwoPi;
+    }
+
+    m_sceneView.orbitPitchRad = std::clamp (m_sceneView.orbitPitchRad + pitchRad,
+                                            -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
+
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::BeginSceneOrbit
+//
+//  Arms an orbit drag at the press: everything after is absolute from this
+//  anchor, so the drag tracks the pointer exactly and cannot creep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BeginSceneOrbit (int x, int y)
+{
+    m_sceneOrbiting      = true;
+    m_sceneOrbitMoved    = false;
+    m_sceneOrbitStartPx  = POINT { x, y };
+    m_sceneOrbitStartYaw = m_sceneView.orbitYawRad;
+    m_sceneOrbitStartPit = m_sceneView.orbitPitchRad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OrbitRadPerPx
+//
+//  Radians per pixel of drag, FROM THE VIEWPORT, not a constant. The
+//  coordinates the handlers see are DPI-scaled, so a fixed radians-per-pixel
+//  was twice as touchy at 200% as at 100% -- a forty-degree drag came out
+//  eighty, and the first captures of this feature were of poses nobody had
+//  asked for. Tying the sweep to the viewport's width makes the same hand
+//  motion the same turn on every monitor: a drag across the window is
+//  s_kOrbitDragSweepRad, wherever it happens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float EmulatorShell::OrbitRadPerPx() const
+{
+    RECT   box = m_deskScene.Composition().viewportPx;
+    float  w   = (float) (box.right - box.left);
+
+
+
+    return s_kOrbitDragSweepRad / (std::max) (w, 200.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdateSceneOrbit
+//
+//  Absolute from the press's anchor, like the pan: a long drag tracks the
+//  cursor exactly and cannot creep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateSceneOrbit (int x, int y)
+{
+    float  radPerPx = OrbitRadPerPx();
+
+
+
+    m_sceneView.orbitYawRad   = m_sceneOrbitStartYaw
+                              - (float) (x - m_sceneOrbitStartPx.x) * radPerPx;
+    m_sceneView.orbitPitchRad = std::clamp (
+        m_sceneOrbitStartPit + (float) (y - m_sceneOrbitStartPx.y) * radPerPx,
+        -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
+
+    InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnGesture
+//
+//  Touchscreen pinch and drag, framing the desk scene exactly as the wheel
+//  and a mouse drag do.
+//
+//  Windows reports both gestures ABSOLUTELY -- a pinch as the current
+//  separation between the fingers, a pan as the current point -- so each step
+//  is the ratio or difference against the previous report, and GF_BEGIN
+//  reseeds rather than measuring the first step of a new gesture against
+//  wherever the last one ended.
+//
+//  A pinch is a RATIO, not a difference: fingers moving 20 px apart means
+//  something quite different starting from 40 px apart than from 400, and
+//  only the ratio matches what the hand is doing.
+//
+//  ptsLocation is in SCREEN coordinates like the wheel's point, not client
+//  like the button messages -- the same trap, in a second place.
+//
+//  A single-finger drag pans without the zoom gate the mouse path applies.
+//  On a mouse the press has to be shared with clicking, so panning waits
+//  until there is something to pan to; a touch drag on the backdrop has no
+//  competing meaning, and refusing to move would just read as broken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
+{
+    GESTUREINFO  info    = {};
+    POINT        pt      = {};
+    bool         handled = false;
+
+
+
+    info.cbSize = sizeof (info);
+
+    // Fullscreen shows the picture, not the desk: no gesture moves a camera
+    // that is not on screen.
+    if (!DeskSceneActive() || m_d3dRenderer.IsFullscreen() ||
+        !GetGestureInfo (reinterpret_cast<HGESTUREINFO> (lParam), &info))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    pt.x = info.ptsLocation.x;
+    pt.y = info.ptsLocation.y;
+
+    if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    switch (wParam)
+    {
+        case GID_ZOOM:
+        {
+            if ((info.dwFlags & GF_BEGIN) != 0 || m_gestureZoomLast == 0)
+            {
+                m_gestureZoomLast = info.ullArguments;
+                handled           = true;
+                break;
+            }
+
+            if (info.ullArguments > 0)
+            {
+                ZoomSceneAt (pt, (float) info.ullArguments / (float) m_gestureZoomLast);
+                m_gestureZoomLast = info.ullArguments;
+            }
+
+            handled = true;
+            break;
+        }
+
+        case GID_PAN:
+        {
+            RECT   box    = m_deskScene.Composition().viewportPx;
+            float  width  = (float) (box.right - box.left);
+            float  height = (float) (box.bottom - box.top);
+
+            // TWO fingers dragging together orbit; one finger pans. Windows
+            // reports the finger separation in ullArguments for a pan, and a
+            // single finger reports zero -- which is the whole discriminator.
+            // The two-finger form is claimed unconditionally: it has no
+            // widget meaning to preserve and orbit works at any zoom.
+            if (info.ullArguments > 0)
+            {
+                if ((info.dwFlags & GF_BEGIN) != 0)
+                {
+                    m_gesturePanLastPx = pt;
+                    handled            = true;
+                    break;
+                }
+
+                OrbitSceneBy (-(float) (pt.x - m_gesturePanLastPx.x) * OrbitRadPerPx(),
+                              (float) (pt.y - m_gesturePanLastPx.y) * OrbitRadPerPx());
+
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
+
+            // NOT CLAIMED when there is nothing to pan to. Windows promotes an
+            // unhandled gesture to mouse input, so claiming a one-finger drag
+            // at 1x would swallow it and leave touch unable to work the drive
+            // widgets at all -- the scene would gain a pan it cannot use and
+            // lose every touch drag that meant something else.
+            //
+            // Declined for the same reason while the guest mouse is live: a
+            // one-finger drag then is someone pointing, and the promotion to
+            // mouse input is exactly what has to keep happening.
+            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
+                IsGuestMouseLive())
+            {
+                break;
+            }
+
+            if ((info.dwFlags & GF_BEGIN) != 0)
+            {
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
+
+            m_sceneView.panX += ((float) (pt.x - m_gesturePanLastPx.x) / width)  * 2.0f;
+            m_sceneView.panY -= ((float) (pt.y - m_gesturePanLastPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+
+            m_gesturePanLastPx = pt;
+            handled            = true;
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if ((info.dwFlags & GF_END) != 0)
+    {
+        m_gestureZoomLast = 0;
+    }
+
+    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -7124,15 +9621,21 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 //  active -- guest software must have turned the mouse ON -- so a click at a
 //  BASIC prompt is not silently swallowed by a device nobody is reading.
 //
+//  A press on empty scene BACKGROUND arms a pan instead. It is armed last,
+//  after every widget has had its say, so dragging can never steal a click
+//  from something that wanted it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT            hr       = S_OK;
-    DxuiMessageResult  result   = DxuiMessageResult::NotHandled;
-    int                x        = ((int) (short) LOWORD (lParam));
-    int                y        = ((int) (short) HIWORD (lParam));
-    bool               consumed = false;
+    HRESULT            hr          = S_OK;
+    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
+    int                x           = ((int) (short) LOWORD (lParam));
+    int                y           = ((int) (short) HIWORD (lParam));
+    bool               consumed    = false;
+    bool               toolbarTook = false;
+    bool               chromeTook  = false;
 
 
 
@@ -7172,35 +9675,156 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
+    chromeTook = m_joystickButton.HitTest (x, y);
+
+    m_joystickButton.SetPressed (chromeTook);
 
     // Command toolbar press (button press states + slider drag start).
-    if (m_toolbar.OnToolbarLButtonDown (x, y))
+    toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
+
+    if (toolbarTook)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
+    chromeTook = chromeTook || toolbarTook;
+
     if (IsApple2c())
     {
-        m_switchBar.SetPressedPart (m_switchBar.GetPartAt (x, y));
+        Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
+
+        m_switchBar.SetPressedPart (part);
+
+        chromeTook = chromeTook || part != Apple2cSwitchBar::Part::None;
     }
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
-    // the press. Its return is moot here: nothing else in this handler
-    // depends on whether the click was consumed, and we always report the
-    // message as not fully handled.
-    consumed = m_uiShell.OnLButtonDown (x, y);
-    IGNORE_RETURN_VALUE (consumed, false);
+    // the press. We still report the message as not fully handled, but its
+    // verdict is not moot: a widget that took the press owns the release
+    // too, and the scene gestures below must not arm over it.
+    consumed   = m_uiShell.OnLButtonDown (x, y);
+    chromeTook = chromeTook || consumed;
 
-    // //c Mouse mode (non-capturing): a press over the emulator viewport is
+    // //c Mouse mode (non-capturing): a press over the emulator display is
     // the guest mouse button -- but only once guest software has turned the
     // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
-    // Chrome outside the viewport already had its chance above.
-    if (IsGuestMouseLive()
-        && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
-        && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
+    // Chrome outside the display already had its chance above. With the
+    // desk scene, "over the display" means over the curved glass itself
+    // (release stays deliberately ungated, matching the 2D contract).
+    if (IsGuestMouseLive())
     {
-        m_mouse->SetButton (true);
+        bool  overDisplay = false;
+
+        if (CrtMonitorActive())
+        {
+            SceneHitResult  hit = DeskSceneHit (x, y);
+
+            overDisplay = hit.target == SceneHitResult::Target::Glass;
+        }
+        else
+        {
+            overDisplay = x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
+                       && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom;
+        }
+
+        if (overDisplay)
+        {
+            m_mouse->SetButton (true);
+        }
+    }
+
+    // Pan arms LAST, and only on empty scene background: anything the user
+    // could have meant to click has already claimed the press by here, so a
+    // drag can never steal one. Zoomed all the way out there is nothing to
+    // pan to, so it stays disarmed and an idle drag on the backdrop does
+    // nothing rather than wobbling a scene that already fits.
+    //
+    // NOT WHILE THE GUEST MOUSE IS LIVE. //c Mouse mode maps the host pointer
+    // absolutely, and it keeps doing so over the BACKGROUND -- so a drag out
+    // there is very likely someone steering the guest cursor toward an edge,
+    // and panning would both hijack that drag and freeze the guest pointer
+    // for its duration. GuestMouseLive rather than Active on purpose: at a
+    // BASIC prompt nothing is reading the mouse, so panning stays available.
+    // Shift turns the press into an orbit -- the touchpad's road to it, where
+    // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
+    // Never in fullscreen, where the desk is not on screen.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen() &&
+        PointInSceneRect (x, y) && !chromeTook)
+    {
+        BeginSceneOrbit (x, y);
+        m_sceneOrbitLeftBtn = true;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // The compass outranks everything on the scene: it is drawn on top,
+    // so a press where it sits belongs to it.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
+        m_sceneCompass.OnPointerDown (x, y))
+    {
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
+    // the only other thing a press on the scene begins, and which would
+    // otherwise swallow the gesture.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
+        && !IsGuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
+    {
+        SceneHitResult  hit = DeskSceneHit (x, y);
+
+        if (hit.target == SceneHitResult::Target::BezelTilt)
+        {
+            m_bezelTilting      = true;
+            m_bezelTiltStartPx  = POINT { x, y };
+            m_bezelTiltStartRad = m_deskScene.BezelTiltRad();
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
+    // A PLAIN DRAG ON THE SCENE TURNS IT, AND THE SCENE INCLUDES THE MACHINE.
+    // It used to pan, and only when zoomed -- so at rest the most natural
+    // gesture in the window did nothing at all. Turning is what people expect
+    // of a 3D thing under the mouse; the pan still lives on the touchpad's
+    // two-finger slide, beside the zoom on its pinch.
+    //
+    // ARMED OVER ANYTHING THE SCENE SHOWS, not only over the empty backdrop.
+    // Requiring a target miss meant the picture and the drives' faces -- the
+    // largest and most obvious surfaces in the window, the ones a hand
+    // reaches for first -- were dead to the gesture, and a drag begun on the
+    // machine did nothing while the same drag an inch to the left turned it.
+    // A press there still MEANS what it meant; it is the release that decides
+    // which, exactly as it does for a button or for the compass:
+    //
+    //     travel past the slop  ->  a turn, and the release ends it
+    //     released inside it    ->  a click, and the chain below runs
+    //
+    // The two grab targets are excluded because a press on them already
+    // begins a different drag or a command: the bezel's tilt marks (armed
+    // above, which bails before reaching here) and a drive's door.
+    //
+    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the press.
+    // A scene hit of None is true of every pixel of the toolbar and the
+    // status bar as well -- there is no machine out there to hit -- so arming
+    // on that alone armed a turn under the command buttons, and the release
+    // that would have fired them ended the turn instead.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        !m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
+        PointInSceneRect (x, y) && !chromeTook)
+    {
+        SceneHitResult  hit    = DeskSceneHit (x, y);
+        bool            onDoor = hit.target == SceneHitResult::Target::Drive
+                                 && hit.region == DriveWidgetRegion::Eject;
+
+        if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
+        {
+            BeginSceneOrbit (x, y);
+            m_sceneOrbitLeftBtn = true;
+        }
     }
 
 Error:
@@ -7269,6 +9893,55 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    // Ending a pan consumes the release. The press it began with never
+    // reached a widget, so letting the release run the click chain would fire
+    // whatever the cursor happened to land on after the drag.
+    if (m_scenePanning)
+    {
+        m_scenePanning = false;
+        ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    // The compass's release fires its click or ends its drag, and either
+    // way the press never reached a widget, so the click chain stays out
+    // of it.
+    if (m_sceneCompass.OnPointerUp (x, y))
+    {
+        ReleaseCapture();
+        return DxuiMessageResult::Handled;
+    }
+
+    // Likewise a drag orbit's release -- BUT ONLY IF IT TURNED. A press that
+    // armed one and never travelled is a click, and swallowing its release
+    // would make every press on the machine do nothing at all. Fall through
+    // and let the chain below read it as the click it was.
+    if (m_sceneOrbiting && m_sceneOrbitLeftBtn)
+    {
+        bool  turned = m_sceneOrbitMoved;
+
+        m_sceneOrbiting   = false;
+        m_sceneOrbitMoved = false;
+
+        if (turned)
+        {
+            ReleaseCapture();
+            return DxuiMessageResult::Handled;
+        }
+    }
+
+    // ...and a bezel tilt's, which also writes where it came to rest. Saved
+    // on release rather than on every step of the drag: the tilt is a
+    // preference, not an animation, and a file rewritten per mouse-move is a
+    // file rewritten a hundred times a second.
+    if (m_bezelTilting)
+    {
+        m_bezelTilting = false;
+        ReleaseCapture();
+        PersistBezelTilt();
+        return DxuiMessageResult::Handled;
+    }
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).
@@ -7347,23 +10020,57 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 
-    for (DriveWidget & drive : m_driveChrome)
+    // Drive clicks. Scene active: the 3D drives resolve through the hit
+    // tester with the same region semantics (slot = eject + browse, body =
+    // browse); otherwise the 2D widget walk. Either way the actions route
+    // through the identical handlers -- the scene only changes how hits are
+    // found, never what they do.
+    if (DeskSceneActive())
     {
-        region = drive.HitTest (x, y);
+        POINT           pt      = { x, y };
+        bool            inStrip = m_d3dRenderer.IsFullscreen() &&
+                                  m_stripRectPx.bottom > m_stripRectPx.top &&
+                                  PtInRect (&m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
 
-        if (region == DriveWidgetRegion::Body)
+        // ONLY THE DOOR ACTS. The body region stays for hover -- the
+        // tooltip that names the disk -- but a click there does nothing:
+        // opening a drive is done by its door, and a whole case that
+        // browses on any touch turned every stray click into a dialog.
+        if (sceneHit.target == SceneHitResult::Target::Drive &&
+            sceneHit.region == DriveWidgetRegion::Eject)
         {
-            BrowseForDisk (drive.GetDrive());
+            Eject (6, sceneHit.driveIndex);
+
+            // A browse opened from the strip pins it (the FSM must not
+            // auto-hide under the dialog).
+            m_stripBrowseOpen = inStrip;
+            BrowseForDisk (sceneHit.driveIndex);
+            m_stripBrowseOpen = false;
+
             driveTook = true;
-            break;
         }
-
-        if (region == DriveWidgetRegion::Eject)
+    }
+    else
+    {
+        for (DriveWidget & drive : m_driveChrome)
         {
-            Eject (6, drive.GetDrive());
-            BrowseForDisk (drive.GetDrive());
-            driveTook = true;
-            break;
+            region = drive.HitTest (x, y);
+
+            if (region == DriveWidgetRegion::Body)
+            {
+                BrowseForDisk (drive.GetDrive());
+                driveTook = true;
+                break;
+            }
+
+            if (region == DriveWidgetRegion::Eject)
+            {
+                Eject (6, drive.GetDrive());
+                BrowseForDisk (drive.GetDrive());
+                driveTook = true;
+                break;
+            }
         }
     }
 
@@ -7418,11 +10125,21 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
-    UNREFERENCED_PARAMETER (lParam);
 
     if (m_paddleCaptured)
     {
         PushPaddleButton (1, true);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen())
+    {
+        // Right-drag orbits the scene. Unconditionally on the scene -- unlike
+        // the pan there is no widget interaction to share the button with,
+        // and orbit is useful at any zoom. Not in fullscreen, where the desk
+        // is not on screen and there is no camera to swing.
+        SetCapture (m_hwnd);
+        BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
+        m_sceneOrbitLeftBtn = false;
         result = DxuiMessageResult::Handled;
     }
 
@@ -7446,7 +10163,38 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
-    UNREFERENCED_PARAMETER (lParam);
+
+    if (m_sceneOrbiting && !m_sceneOrbitLeftBtn)
+    {
+        int      x     = (int) (short) LOWORD (lParam);
+        int      y     = (int) (short) HIWORD (lParam);
+        bool     still = std::abs (x - m_sceneOrbitStartPx.x) <= 3 &&
+                         std::abs (y - m_sceneOrbitStartPx.y) <= 3;
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        m_sceneOrbiting = false;
+        ReleaseCapture();
+
+        // Two motionless right-clicks in double-click time reset the orbit
+        // -- the pose home button, without stealing a key.
+        if (still)
+        {
+            if (nowMs - m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
+            {
+                m_sceneView.orbitYawRad   = 0.0f;
+                m_sceneView.orbitPitchRad = 0.0f;
+                m_sceneOrbitTapMs         = 0;
+                InvalidateSceneComposition();
+            }
+            else
+            {
+                m_sceneOrbitTapMs = nowMs;
+            }
+        }
+
+        return DxuiMessageResult::Handled;
+    }
 
     if (m_paddleCaptured)
     {
@@ -7588,7 +10336,7 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
     // Client size for the minimum center: the chrome-band dock adds the
     // live title / nav / drive-bar insets around the requested viewport.
     minClient = GetClientSizeForCenterPx (m_scaler.ToPx (s_kMinCenterWidthDp),
-                                       m_scaler.ToPx (s_kMinCenterHeightDp));
+                                          m_scaler.ToPx (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
     // on-strip. The width is physical client px, the same space as minClient.
@@ -8548,13 +11296,23 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
 
-        // Entering paddle mode captures the mouse, so the hover that would
-        // normally dismiss the tooltip never fires. Show the paddle notice
-        // and let it auto-dismiss after a few seconds.
-        m_joystickTooltip.ShowTimed (m_joystickButton.GetBounds(),
-                                     m_joystickButton.GetTooltipText(),
-                                     nowMs,
-                                     s_kPaddleNoticeMs);
+        // THE HUD NOTICE SAYS THIS NOW, in both presentations. Entering
+        // paddle mode used to force a tooltip up for eight seconds, because
+        // the capture means the hover that would normally dismiss one never
+        // fires -- so it had to time out instead. That put a panel over the
+        // chrome it was anchored to, on top of whatever tooltip the pointer
+        // had already summoned, and it said what the notice over the picture
+        // now says for exactly as long as the capture lasts.
+        //
+        // AND WHATEVER IS ALREADY UP GOES NOW. The click that turns paddle
+        // mode on is a click ON a control, so its tooltip is showing -- and
+        // the capture that follows takes the pointer, so the move that would
+        // dismiss it never comes. It would sit there until its lifetime ran
+        // out, which is a long time to leave a balloon over a game.
+        m_joystickTooltip.HideImmediate();
+        m_toolbarTooltip.HideImmediate();
+        m_driveTooltip.HideImmediate();
+        m_switchBarTooltip.HideImmediate();
 
         StartPaddleCapture();
     }
@@ -8597,6 +11355,8 @@ void EmulatorShell::SyncInputModeUi()
 void EmulatorShell::SyncSelectorState()
 {
     m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
+                               m_mouse != nullptr && m_mouseConnected);
+    m_toolbar.SetInputState   (m_arrowsJoystick, m_pointerMode,
                                m_mouse != nullptr && m_mouseConnected);
 }
 
@@ -9158,9 +11918,28 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
                                                        m_d3dRenderer.GetBackBufferHeight(),
                                                        dpi);
-        menuBarBounds = { 0, m_host->GetCaptionHeightPx(), static_cast<int> (width), m_host->GetCaptionHeightPx() };
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
+
+        // Fullscreen presentation (FR-014): the scene owns the whole client
+        // and every chrome element collapses. The windowed path below is the
+        // one that restores everything -- including the host caption -- when
+        // fullscreen exits, because this OnSize runs on both transitions.
+        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        {
+            SetChromeHiddenForFullscreenScene (true);
+            UpdateViewportLayout (static_cast<int> (width), renderH);
+            m_chromeSizedForHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            m_chromeSizedForApple2c = IsApple2c();
+        }
+        else
+        {
+
+        // Chrome visibility FIRST: the caption height feeds the menu bar's
+        // anchor, and a hidden caption reports zero.
+        SetChromeHiddenForFullscreenScene (false);
+
+        menuBarBounds = { 0, m_host->GetCaptionHeightPx(), static_cast<int> (width), m_host->GetCaptionHeightPx() };
         m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         // Settle the desk-scene scale (monitor fit + scaled band heights) for
@@ -9176,7 +11955,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (fHasDisk)
+            if (DeskSceneActive())
+            {
+                // The 3D scene owns the drives; nothing to lay out. The hit
+                // registry is refreshed below with the rest of the chrome.
+            }
+            else if (fHasDisk)
             {
                 LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
 
@@ -9212,22 +11996,32 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 int  bandTop    = driveRect.top;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+                m_driveBandSurface.SetVisible (!DeskSceneActive());
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
                 LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
 
             LayoutSwitchBar (dpi);
 
-            m_uiShell.GetHitTester().Clear();
-            if (fHasDisk)
+            if (DeskSceneActive())
             {
-                m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-                if (ShouldShowExternalDrive())
+                SyncSceneDriveChrome();
+            }
+            else
+            {
+                m_uiShell.GetHitTester().Clear();
+                if (fHasDisk)
                 {
-                    m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+                    m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+                    if (ShouldShowExternalDrive())
+                    {
+                        m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+                    }
                 }
             }
         }
+
+        }   // windowed chrome path
     }
 
     // (Viewport layout already settled above, before the drive widgets.)
@@ -9238,18 +12032,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         if (!m_uiFramebuffer.empty())
         {
             const ThemeCrtDefaults  * themeDefaults = nullptr;
-            LoadedTheme               resolvedTheme;
             CrtParams                 params        = {};
-            bool                      fHaveTheme    = false;
 
             if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
             {
-                resolvedTheme = m_themeManager->GetActiveResolvedTheme();
-                themeDefaults = &resolvedTheme.crtDefaults;
-                fHaveTheme    = true;
+                themeDefaults = &m_themeManager->ActiveCrtDefaults();
             }
 
-            (void) fHaveTheme;
             params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
                                     (size_t) m_colorMode.load(std::memory_order_acquire),
                                     themeDefaults,
@@ -9380,6 +12169,16 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" - ";
         title += wideName;
     }
+
+#if defined (_DEBUG)
+    // Say it outright. The build-identity stamp below appears on debug builds
+    // ONLY, so its presence was already the signal -- but that is a fact about
+    // the code, not something a caption reading "v1.17.0 x64 (...)" conveys to
+    // anyone looking at it. A debug build is ~6x the CPU of a release one for
+    // identical work, so mistaking one for the other sends you measuring the
+    // wrong binary.
+    title += L" [Debug]";
+#endif
 
     // Flag a paused / stopped emulator in every build -- those states are worth
     // surfacing because the window looks the same either way. Running is the
@@ -10180,7 +12979,5 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
     (void) yScreen;
     return DxuiMessageResult::NotHandled;
 }
-
-
 
 

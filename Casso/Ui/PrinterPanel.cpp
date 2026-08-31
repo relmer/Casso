@@ -202,6 +202,51 @@ std::string PrinterPanel::LoadTextResource (int resourceId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrinterPanel::LoadBinaryResource
+//
+//  As above, without the copy. RCDATA is mapped into the image, so the
+//  returned view stays valid for the life of the process and the caller
+//  reads a baked mesh straight out of the executable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const uint8_t> PrinterPanel::LoadBinaryResource (int resourceId)
+{
+    HINSTANCE    hInstance = GetModuleHandleW (nullptr);
+    HRSRC        hRes      = nullptr;
+    HGLOBAL      hMem      = nullptr;
+    DWORD        cbData    = 0;
+    void       * pData     = nullptr;
+
+
+
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+
+    if (hRes != nullptr)
+    {
+        cbData = SizeofResource (hInstance, hRes);
+        hMem   = LoadResource (hInstance, hRes);
+    }
+
+    if (cbData != 0 && hMem != nullptr)
+    {
+        pData = LockResource (hMem);
+    }
+
+    if (pData == nullptr)
+    {
+        return {};
+    }
+
+    return std::span<const uint8_t> (static_cast<const uint8_t *> (pData), cbData);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrinterPanel ctor / dtor
 //
 //  Defined here (not defaulted in the header) so unique_ptr<Printer3DScene>
@@ -384,15 +429,14 @@ HRESULT PrinterPanel::Create (
         {
             m_scene = std::move (scene);
 
-            // The user's ImageWriter CAD model, embedded as OBJ+MTL. Failure
-            // silently keeps the procedural body.
+            // The user's ImageWriter CAD model, embedded as a baked mesh.
+            // Failure silently keeps the procedural body.
             {
-                std::string   obj = LoadTextResource (IDR_MODEL_IMAGEWRITER_OBJ);
-                std::string   mtl = LoadTextResource (IDR_MODEL_IMAGEWRITER_MTL);
+                std::span<const uint8_t>   mesh = LoadBinaryResource (IDR_MODEL_IMAGEWRITER_MESH);
 
-                if (!obj.empty())
+                if (!mesh.empty())
                 {
-                    hr = m_scene->SetModel (obj, mtl);
+                    hr = m_scene->SetModel (mesh);
                     IGNORE_RETURN_VALUE (hr, S_OK);
                 }
             }
@@ -946,7 +990,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         revealBehind = PrinterPreviewModel::IsLiveBandOutsideSpan (platenRow, span.firstRow, span.lastRow);
 
         moved       = PrinterPreviewModel::HasSpanMoved (span.firstRow, span.lastRow,
-                                                      m_renderedSpan.firstRow, m_renderedSpan.lastRow);
+                                                         m_renderedSpan.firstRow, m_renderedSpan.lastRow);
         revealMoved = PrinterPreviewModel::RevealMoved (revealRow, revealCol,
                                                         m_renderedRevealRow, m_renderedRevealCol);
 

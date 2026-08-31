@@ -140,7 +140,7 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 ////////////////////////////////////////////////////////////////////////////////
 
 PrinterPreviewModel::InkSample PrinterPreviewModel::GetAudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
-                                                                       int revealRow, int renderedRevealRow)
+                                                                          int revealRow, int renderedRevealRow)
 {
     constexpr int   kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
 

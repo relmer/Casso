@@ -78,8 +78,32 @@ param(
 
     [string]$Filter = '',
 
-    [switch]$Scenario
+    [switch]$Scenario,
+
+    [switch]$NormalPriority,
+
+    [switch]$LowPriority
 )
+
+#
+#  OFF THE FOREGROUND'S BACK. This saturates every core and the disk with
+#  it, and nothing about it is latency-sensitive -- nobody watches a build.
+#  Lowered here rather than around the tool because Windows hands a child
+#  its parent's priority class, so this reaches MSBuild, every cl.exe it
+#  fans out, and vstest and its hosts. See scripts/HostLoad.ps1.
+#
+. (Join-Path $PSScriptRoot 'HostLoad.ps1')
+
+$priorityWas = $null
+
+if (-not $NormalPriority) {
+    $priorityWas = Set-CassoHostLoad -Priority ($LowPriority ? 'Idle' : 'BelowNormal')
+}
+
+#  Put it back on the way out however this ends -- these are run from an
+#  interactive shell as often as from a fresh one, and a session left at
+#  BelowNormal for the rest of the day is a slow shell nobody can explain.
+trap { Restore-CassoHostLoad -Priority $priorityWas; break }
 
 if ($Platform -eq 'Auto') {
     if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
@@ -311,9 +335,12 @@ if ($insideGit) {
         }
 
         Write-Host ''
+        Restore-CassoHostLoad -Priority $priorityWas
         exit 1
     }
 }
+
+Restore-CassoHostLoad -Priority $priorityWas
 
 if ($testExit -ne 0) {
     exit $testExit
