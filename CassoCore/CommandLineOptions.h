@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PickUpIntent.h"
+
 #include "AssemblerTypes.h"
 
 
@@ -126,7 +128,18 @@ struct CommandLineOptions
         enum class Encoding  { Verbatim, Text, Basic };
 
         Command   command  = Command::None;
-        Encoding  encoding = Encoding::Verbatim;
+
+        //  What a write to this image should do to any emulator running it.
+        //
+        //  HERE RATHER THAN AT THE TOP LEVEL until spec 026 gives the
+        //  assembler a flat image target to hang it beside. The intent
+        //  describes a change to an IMAGE, so it belongs wherever the image
+        //  does.
+        //
+        //  `Unstated` is what every invocation without the flag carries, and it
+        //  is a real value: the emulator asks about a change nobody explained.
+        PickUpIntent  pickUpIntent = PickUpIntent::Unstated;
+        Encoding      encoding     = Encoding::Verbatim;
         //  The command as it was typed, kept so a refusal can quote it. The
         //  enum above cannot: every word this grammar does not have maps
         //  to the same None, so "unknown disk command" could not say which.

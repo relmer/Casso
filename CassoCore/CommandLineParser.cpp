@@ -238,6 +238,10 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "logical",
     "physical",
     "block",
+
+    //  Here so `/on-change` is matched as one word rather than shredded into
+    //  the single-character flags -o -n -c -h ...
+    "on-change",
 };
 
 
@@ -943,7 +947,7 @@ const char * CommandLineParser::GetDiskCommandWord (CommandLineOptions::DiskOpti
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
-        || arg == "--load" || arg == "--exec";
+        || arg == "--load" || arg == "--exec" || arg == "--on-change";
 }
 
 
@@ -1194,6 +1198,40 @@ void CommandLineParser::ParseDiskOptions (
         //  catalog records; under `create` it is the container the image is
         //  written as. They never appear on the same command line, so one
         //  word serves both and the help says which is which under each.
+        //  What the change should do to an emulator holding this image.
+        //
+        //  `reload` IS THE SURFACE SPELLING OF TakeUpInPlace. The internal name
+        //  says what happens to the machine; the flag says what a developer
+        //  means, and "reload the disk" is the sentence they would use.
+        //
+        //  THERE IS NO `ask` VALUE. Omitting the flag already produces asking,
+        //  so a third word would be a second spelling of leaving it out.
+        if (arg == "--on-change" && hasValue)
+        {
+            std::string  value = argv[++i];
+
+            if (value == "reload")
+            {
+                options.disk.pickUpIntent = PickUpIntent::TakeUpInPlace;
+            }
+            else if (value == "restart")
+            {
+                options.disk.pickUpIntent = PickUpIntent::Restart;
+            }
+            else
+            {
+                //  Named rather than approximated, and the accepted set listed,
+                //  because a value outside a known set is a typo the reader
+                //  needs to see beside the alternatives.
+                Refusal (options) << "Error: " << value << " is not an --on-change value\n"
+                                  << "       write reload or restart\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+
+            continue;
+        }
+
         if (arg == "--type" && hasValue)
         {
             //  `init` reads it as a container too, though it takes none: the

@@ -2,30 +2,9 @@
 
 #include "Pch.h"
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PickUpIntent
-//
-//  What a change to a mounted image should do to the machine running it.
-//
-//  `Unstated` IS A REAL VALUE, not a missing one. A change written by a text
-//  editor, a copy, or a second emulator carries no intent, and that is the
-//  ordinary case for everything except this project's own command line. Holding
-//  it as a distinct value is what keeps "nobody said" from being confused with
-//  "somebody said carry on".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class PickUpIntent
-{
-    Unstated,
-    TakeUpInPlace,
-    Restart,
-};
+//  The one word the command line and the disk policy share. It lives in
+//  CassoCore because that is the layer both can reach.
+#include "../CassoCore/PickUpIntent.h"
 
 
 

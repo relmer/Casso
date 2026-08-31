@@ -263,6 +263,7 @@
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
     <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
     <ClCompile Include="Devices\Disk\PreservedCopy.cpp" />
+    <ClCompile Include="Cli\Win32IntentChannel.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -378,6 +379,7 @@
     <ClInclude Include="Devices\Disk\PreservedCopy.h" />
     <ClInclude Include="Devices\Disk\Win32ImageWatcher.h" />
     <ClInclude Include="Cli\IIntentChannel.h" />
+    <ClInclude Include="Cli\Win32IntentChannel.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />

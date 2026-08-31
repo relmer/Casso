@@ -295,6 +295,9 @@ private:
     DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
     DxuiMessageResult  OnNcLButtonUp   (LRESULT hitTest, int xScreen, int yScreen) override;
     LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+    // A writing tool stating what its change to a mounted image meant.
+    DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
     void               OnDestroy       () override;
     void               OnDpiChanged    (UINT newDpi) override;
 
@@ -809,6 +812,15 @@ private:
 
     // Positions the banner across the top of the emulator viewport.
     void    LayoutChangeBanner ();
+
+    // Opens the integrity-level hole a stated intent arrives through.
+    //
+    // SEPARATE FROM InstallDragDropTarget, WHICH ALSO INSTALLS IT. That one is
+    // called only where OLE initialization succeeded, so on a machine where it
+    // did not, every intent from a normal-integrity CassoCli to an elevated
+    // Casso would be dropped by the system without a word. Installing it here
+    // as well costs a call and removes the dependency.
+    void    InstallIntentMessageFilter ();
 
     // Asks where to save the contents of a disk whose file has gone.
     //

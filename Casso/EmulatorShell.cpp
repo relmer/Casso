@@ -45,6 +45,7 @@
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
+#include "Cli/Win32IntentChannel.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -1645,6 +1646,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     }
 
     InstallChangeReporting();
+    InstallIntentMessageFilter();
 
 Error:
     return hr;
@@ -10588,4 +10590,96 @@ Error:
     }
 
     return chose;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallIntentMessageFilter
+//
+//  Lets a stated intent cross an integrity boundary.
+//
+//  THE RECEIVER'S JOB, NOT THE SENDER'S. The filter takes the receiving window,
+//  and the sender runs inside CassoCli.exe with no window at all -- so there is
+//  nowhere else this could live.
+//
+//  THE FILTER TAKES A WINDOW MESSAGE, so it is installed for WM_COPYDATA as a
+//  whole. The registered id that distinguishes this project's messages lives in
+//  `dwData`, which the filter cannot see; it is checked in the handler instead.
+//
+//  BEST EFFORT. Where the call fails there is nothing useful to do: an intent
+//  that does not arrive falls back to asking, which is correct behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallIntentMessageFilter()
+{
+    BOOL  allowed = FALSE;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    allowed = ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
+
+    IGNORE_RETURN_VALUE (allowed, TRUE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnCopyData
+//
+//  A writing tool saying what its change to a mounted image meant.
+//
+//  THE SHELL DOES NO MATCHING. Which bay the path belongs to, whether the file
+//  actually changed, and what to do about it are all decided in core; this
+//  reads the bytes, hands them over, and returns.
+//
+//  IT RETURNS IMMEDIATELY, and it must: this runs inside the SENDER's blocking
+//  SendMessage, so anything done here is time a build spends waiting. Recording
+//  a pending change is all that happens; acting on it belongs to the thread that
+//  owns disk writes, at a moment with nothing in flight.
+//
+//  A MESSAGE FROM ANYTHING ELSE IS NOT OURS. Any process on the desktop can
+//  address a WM_COPYDATA at this window, so the registered id is checked before
+//  a single byte is read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
+{
+    const COPYDATASTRUCT *       carried    = reinterpret_cast<const COPYDATASTRUCT *> (data);
+    bool                         wellFormed = false;
+    Win32IntentChannel::Payload  payload;
+
+
+
+    UNREFERENCED_PARAMETER (sender);
+
+    if (carried == nullptr || carried->dwData != Win32IntentChannel::MessageId())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    wellFormed = Win32IntentChannel::Decode (reinterpret_cast<const Byte *> (carried->lpData),
+                                             (size_t) carried->cbData, payload);
+
+    //  A malformed payload is claimed rather than passed on: it carried our own
+    //  id, so it was meant for us and simply was not readable.
+    if (wellFormed)
+    {
+        m_diskStore.NoteExternalChange (payload.imagePath, payload.intent);
+    }
+
+    return DxuiMessageResult::Handled;
 }

@@ -2328,6 +2328,7 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_ACTIVATEAPP:   isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
         case WM_PAINT:         isHandled = IsClaimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
         case WM_GETMINMAXINFO: isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),

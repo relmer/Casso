@@ -314,6 +314,11 @@ namespace CliSwitchCoverageTests
               { return o.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic; },
               "--basic detokenizes Applesoft on the way out" },
 
+            { "disk", "on-change", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--on-change", "restart" },
+              [] (const CommandLineOptions & o)
+              { return o.disk.pickUpIntent == PickUpIntent::Restart; },
+              "--on-change says what a write means to a running emulator" },
+
             { "disk", "format", { "CassoCli", "disk", "create", "d.dsk", "--format", "prodos" },
               [] (const CommandLineOptions & o) { return o.disk.formatName == "prodos"; },
               "--format picks the filesystem" },

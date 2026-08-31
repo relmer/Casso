@@ -1004,4 +1004,23 @@ public:
         Assert::IsTrue (bare.starts_with ("Usage:"),
                         L"no banner asked for, none printed and nothing left in its place");
     }
+
+
+    TEST_METHOD (HelpText_DescribesTheOnChangeSwitchAndBothItsValues)
+    {
+        std::string  help = DiskHelpPage::BuildHelpText();
+
+
+
+        //  Constitution III: a feature that is not in the help does not exist
+        //  for the person who has to find it. This one is the whole visible
+        //  surface of a feature whose other half runs in a different process.
+        Assert::IsTrue (ContainsAsWholeToken (help, "--on-change"),
+                        L"--on-change is not described in the disk help");
+
+        //  Naming the switch without naming what may follow it leaves the
+        //  reader to guess the vocabulary.
+        Assert::IsTrue (help.find ("reload")  != std::string::npos);
+        Assert::IsTrue (help.find ("restart") != std::string::npos);
+    }
 };

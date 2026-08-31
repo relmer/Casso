@@ -313,6 +313,7 @@
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
     <ClCompile Include="EmuTests\Win32ImageWatcherTests.cpp" />
+    <ClCompile Include="EmuTests\IntentChannelTests.cpp" />
     <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
     <ClCompile Include="EmuTests\VideoRenderTests.cpp" />
     <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp" />

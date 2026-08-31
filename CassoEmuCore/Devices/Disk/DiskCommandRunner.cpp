@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
+#include "Cli/IIntentChannel.h"
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
 #include "VolumeImage.h"
@@ -1540,6 +1541,18 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
     }
 
+    //  ANNOUNCED AFTER THE COMMIT, NEVER BEFORE, and only when there was one.
+    //
+    //  A receiver reads the image when it acts on the hint, so an intent sent
+    //  first would describe contents that are not on disk yet. Here the command
+    //  has finished and the bytes are in the file.
+    //
+    //  ONLY WHEN THE COMMAND WROTE SOMETHING. Announcing a change after `list`
+    //  or `get` would send an emulator to re-read a file nothing touched, which
+    //  it would then correctly ignore -- a wasted round trip stating something
+    //  untrue.
+    AnnounceIntent (options, result);
+
     //  THE ONE COMMAND'S BLOCK, NOT ALL NINE.
     //
     //  A missing operand already answered this way and a bad option value did
@@ -2981,5 +2994,69 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::WritesTheImage
+//
+//  Whether a command puts bytes into the image it was given.
+//
+//  LISTED RATHER THAN INFERRED. "Did the file change" is not knowable from here
+//  without stat-ing it again, and a command that legitimately wrote the same
+//  bytes back would answer no.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::WritesTheImage (CommandLineOptions::DiskOptions::Command command)
+{
+    using Command = CommandLineOptions::DiskOptions::Command;
+
+    return command == Command::Put
+        || command == Command::Delete
+        || command == Command::Boot
+        || command == Command::Create
+        || command == Command::Init
+        || command == Command::SectorWrite
+        || command == Command::BlockWrite;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::AnnounceIntent
+//
+//  Tells any running emulator what this write was meant to do.
+//
+//  IT CANNOT FAIL THE RUN, and that is the contract rather than an oversight.
+//  The channel returns nothing, an emulator that misses the hint falls back to
+//  asking, and a build that failed over an undelivered courtesy would be worse
+//  than the problem this solves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::AnnounceIntent (const CommandLineOptions & options,
+                                        const DiskCommandResult  & result)
+{
+    bool  wrote  = WritesTheImage (options.disk.command);
+    bool  clean  = (result.exitStatus == DiskCommandResult::kClean);
+    bool  stated = (options.disk.pickUpIntent != PickUpIntent::Unstated);
+
+
+
+    if (m_intentChannel != nullptr && wrote && clean && stated
+        && !options.disk.imagePath.empty())
+    {
+        m_intentChannel->StateIntent (options.disk.imagePath, options.disk.pickUpIntent);
+    }
+
     return;
 }
