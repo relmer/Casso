@@ -6,31 +6,6 @@
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SubsetBoundaryReason
-//
-//  WHY a construct is refused, as a class rather than as prose.
-//
-//  The boundary is defined by the reason rather than by a fixed list, so that
-//  one capability arriving widens every construct that was waiting on it at
-//  once. A refusal that only carried its own sentence could not be grouped, and
-//  the question a developer actually asks -- "is any of this coming?" -- would
-//  have to be answered by reading every row.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class SubsetBoundaryReason
-{
-    NeedsLinker,             // the construct only means something once modules are linked
-    NeedsUnemulatedCpu,      // it selects a processor Casso does not emulate
-    OwnedByAnotherFeature,   // the capability exists elsewhere in Casso's plans
-    NeedsItsOwnDecision,     // nothing else arriving will settle what it should do
-};
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -86,13 +61,11 @@ enum class ModuleLinkage
 //
 //  SubsetBoundaryRow
 //
-//  One refused construct: how the source spells it, what it is, why it is
-//  refused, what would widen the boundary, and what -- if anything -- to do
-//  instead.
+//  One refused construct: how the source spells it, what it is, where the gap
+//  is tracked, and what -- if anything -- to do instead.
 //
-//  Everything a refusal or a help listing can say is here, so the two cannot
-//  disagree by construction rather than by anybody noticing. A message composed
-//  anywhere else would be a second source of truth the moment a row changed.
+//  Everything a refusal can say is here, so a message composed anywhere else
+//  would be a second source of truth the moment a row changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,13 +77,6 @@ struct SubsetBoundaryRow
     const char            * construct;
 
     SubsetBoundaryTrigger   trigger;
-    SubsetBoundaryReason    reason;
-
-    // Why it is refused, and what arriving would let it in. Both are prose
-    // fragments the composer places in a fixed sentence, so a row states facts
-    // rather than punctuation.
-    const char            * explanation;
-    const char            * widensWith;
 
     //  Where the gap is tracked, without the leading '#'. nullptr when no
     //  issue covers it, and the refusal then points nowhere.
@@ -166,11 +132,5 @@ public:
     static std::string                ComposeRefusal (const SubsetBoundaryRow & row,
                                                       ModuleLinkage             linkage);
 
-    // Any dialect's rows as help output, one line each. Shared for the reason
-    // the refusal wording is: where a boundary sits is a dialect's own fact, and
-    // how it is worded is not.
-    static std::string                ComposeHelpText (std::span<const SubsetBoundaryRow> rows);
-
 private:
-    static const char *               GetReasonLabel (SubsetBoundaryReason reason);
 };

@@ -955,18 +955,16 @@ namespace MerlinCommandLineTests
 
         //  THE SUBSET BOUNDARY IS NOT IN --help, AND THAT IS THE ASSERTION.
         //
-        //  Six rows, each a sentence of what the construct is, why it is refused
-        //  and what would widen it, is a page of prose in front of a reader who
-        //  typed --help wanting the flags. It moved to docs/Assembler.md.
+        //  Six rows, each a sentence of what the construct is and why it is
+        //  refused, is a page of prose in front of a reader who typed --help
+        //  wanting the flags. It lives in docs/merlin-subset.md.
         //
-        //  The table is unchanged and still composes that text -- the sweep below
-        //  proves every row reaches it -- so what this pins is only WHERE it is
-        //  printed. Without the second half, deleting the boundary table
-        //  altogether would satisfy the first.
+        //  The sweep is over the table rather than over a list written here, so
+        //  emptying the table cannot satisfy this by leaving nothing to look
+        //  for.
         TEST_METHOD (TheSubsetBoundaryIsDocumentedRatherThanPrintedInHelp)
         {
-            std::string  help    = DialectHelp::GetAllDialects ('-');
-            std::string  written = MerlinSubsetBoundary::GetHelpText();
+            std::string  help = DialectHelp::GetAllDialects ('-');
 
             Assert::IsFalse (MerlinSubsetBoundary::GetAll().empty(), L"nothing to sweep");
             Assert::IsFalse (help.find ("support ends") != std::string::npos,
@@ -976,11 +974,6 @@ namespace MerlinCommandLineTests
             {
                 Assert::IsFalse (help.find (row.construct) != std::string::npos,
                                  Fixture::Widen (std::string (row.construct) + " is still in the flag help").c_str());
-
-                Assert::IsTrue (written.find (row.spelling)  != std::string::npos,
-                                Fixture::Widen (row.spelling).c_str());
-                Assert::IsTrue (written.find (row.construct) != std::string::npos,
-                                Fixture::Widen (row.construct).c_str());
             }
         }
 

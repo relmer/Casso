@@ -4,13 +4,6 @@
 
 
 
-//  What arriving would let the linker-dependent constructs in. One string for
-//  all three, because they are one gap: a module that publishes symbols and a
-//  module that consumes them are both waiting on the same missing tool.
-static constexpr const char *  s_kpszLinkerWidening = "a relocating linker (GitHub issue #112)";
-
-
-
 //  The fix for a module that publishes symbols and consumes none. It is stated
 //  in full rather than as "remove the relocatable directive", because following
 //  that alone leaves every entry declaration behind and each one is refused in
@@ -45,9 +38,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "REL",
         "relocatable-mode assembly",
         SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::NeedsLinker,
-        "it produces a relocatable module for a linker to place, and Casso emits one absolutely located image",
-        s_kpszLinkerWidening,
         "112",
         false,
         s_kpszExportOnlyFix,
@@ -59,9 +49,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "ENT",
         "an entry symbol declaration",
         SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::NeedsLinker,
-        "it publishes a symbol for a linker to resolve from another module",
-        s_kpszLinkerWidening,
         "112",
         false,
         s_kpszExportOnlyFix,
@@ -76,9 +63,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "EXT",
         "an external symbol declaration",
         SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::NeedsLinker,
-        "the symbol is defined in another module, which would require linker support",
-        s_kpszLinkerWidening,
         "112",
         true,
         nullptr,
@@ -93,9 +77,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "XC",
         "a second CPU-selection directive (65802/65816)",
         SubsetBoundaryTrigger::SecondOccurrence,
-        SubsetBoundaryReason::NeedsUnemulatedCpu,
-        "one selects the 65C02 and a second selects the 65802/65816, which Casso does not emulate",
-        "a 65802/65816 core",
         nullptr,
         false,
         nullptr,
@@ -107,9 +88,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "TYP",
         "the output file-type directive",
         SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::OwnedByAnotherFeature,
-        "it sets the filesystem file type of the output, which means nothing without a filesystem that has types",
-        "Casso's disk file-access support, which is where filesystem file types belong",
         nullptr,
         false,
         nullptr,
@@ -125,9 +103,6 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "SAV",
         "the save-object directive",
         SubsetBoundaryTrigger::EveryOccurrence,
-        SubsetBoundaryReason::NeedsItsOwnDecision,
-        "it writes the object accumulated so far and carries on, so one assembly produces several outputs",
-        "a decision about multi-output assembly, which disk file access will not settle",
         nullptr,
         false,
         nullptr,
@@ -148,28 +123,4 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
 std::span<const SubsetBoundaryRow> MerlinSubsetBoundary::GetAll()
 {
     return s_kMerlinBoundary;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MerlinSubsetBoundary::GetHelpText
-//
-//  The boundary as help output: this dialect's own heading over the rows,
-//  worded by the shared composer.
-//
-//  The per-row wording is NOT here, because it is not Merlin's. Where the
-//  boundary sits is this table's fact; how a row reads is mechanism every
-//  dialect's boundary shares, and duplicating it here is how the tool's own help
-//  ends up describing two different sets of rules.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string MerlinSubsetBoundary::GetHelpText()
-{
-    return "Merlin constructs Casso recognizes and refuses, and why:\n"
-         + SubsetBoundary::ComposeHelpText (s_kMerlinBoundary);
 }

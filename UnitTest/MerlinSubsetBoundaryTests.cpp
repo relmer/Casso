@@ -206,8 +206,6 @@ namespace MerlinSubsetBoundaryTests
 
                 AssertSaysSomething (row.spelling,    L"spelling");
                 AssertSaysSomething (row.construct,   L"construct");
-                AssertSaysSomething (row.explanation, L"explanation");
-                AssertSaysSomething (row.widensWith,  L"what would widen the boundary");
             }
         }
 
@@ -671,103 +669,6 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreNotEqual (exporting[0].message, importing[0].message,
                                  L"one project, two shapes, two messages");
-        }
-    };
-
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  BoundaryHelpTextTests
-    //
-    //  The help text against the table it is generated from. A row added without
-    //  help coverage fails here rather than shipping, which is the property the
-    //  generation exists for -- help and implementation cannot disagree by
-    //  construction rather than by anyone noticing.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    TEST_CLASS (BoundaryHelpTextTests)
-    {
-    public:
-
-        //  The line of the help text that mentions a row's construct, or empty
-        //  when no line does. Located by the construct rather than by the
-        //  spelling, which is three characters and matches inside words.
-        static std::string LineNaming (const std::string & help, const char * construct)
-        {
-            std::string  line;
-            size_t       at    = help.find (construct);
-            size_t       start = 0;
-            size_t       end   = 0;
-
-            if (at != std::string::npos)
-            {
-                start = help.rfind ('\n', at);
-                start = (start == std::string::npos) ? 0 : start + 1;
-                end   = help.find ('\n', at);
-                end   = (end == std::string::npos) ? help.size() : end;
-                line  = help.substr (start, end - start);
-            }
-
-            return line;
-        }
-
-
-
-        TEST_METHOD (EveryRowReachesTheHelpTextWholeAndOnOneLine)
-        {
-            std::string                         help = MerlinSubsetBoundary::GetHelpText();
-            std::span<const SubsetBoundaryRow>  rows = MerlinSubsetBoundary::GetAll();
-
-            Assert::IsFalse (rows.empty(), L"nothing to check the help text against");
-
-            for (const SubsetBoundaryRow & row : rows)
-            {
-                std::string   line = LineNaming (help, row.construct);
-                std::wstring  what = std::wstring (row.spelling, row.spelling + std::strlen (row.spelling));
-
-                Assert::IsFalse (line.empty(), what.c_str());
-
-                //  All four on the SAME line, so a help text that listed every
-                //  spelling and every reason in two unrelated columns could not
-                //  pass by holding both somewhere.
-                Assert::IsTrue (line.find (row.spelling)    != std::string::npos, what.c_str());
-                Assert::IsTrue (line.find (row.explanation) != std::string::npos, what.c_str());
-                Assert::IsTrue (line.find (row.widensWith)  != std::string::npos, what.c_str());
-            }
-        }
-
-
-
-        TEST_METHOD (TheHelpTextHasOneLinePerRowAndNoOthers)
-        {
-            std::string  help  = MerlinSubsetBoundary::GetHelpText();
-            size_t       lines = 0;
-            size_t       at    = help.find ("  ");
-
-            while (at != std::string::npos)
-            {
-                lines++;
-                at = help.find ("\n  ", at + 1);
-            }
-
-            Assert::AreEqual (MerlinSubsetBoundary::GetAll().size(), lines,
-                              L"a listed construct with no row, or a row with no listing");
-        }
-
-
-
-        TEST_METHOD (TheHelpTextNamesTheReasonClassOfEveryRow)
-        {
-            std::string  help = MerlinSubsetBoundary::GetHelpText();
-
-            Assert::IsTrue (help.find ("needs a linker")                     != std::string::npos, L"linker");
-            Assert::IsTrue (help.find ("needs a CPU Casso does not emulate") != std::string::npos, L"cpu");
-            Assert::IsTrue (help.find ("owned by another part of Casso")     != std::string::npos, L"another feature");
-            Assert::IsTrue (help.find ("undecided")                          != std::string::npos, L"undecided");
         }
     };
 
