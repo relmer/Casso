@@ -64,8 +64,8 @@ public:
     // slack shows as an empty line inside the box. A caller that has a
     // renderer can ask for the real height instead.
     float  GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
-                             float                  widthPx,
-                             const DxuiDpiScaler &  scaler) const;
+                                float                  widthPx,
+                                const DxuiDpiScaler &  scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
     {

@@ -166,7 +166,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
 {
     HRESULT  hr       = S_OK;
     bool     consumed = false;
-    bool     shift    = IsShiftKeyDown   ();
+    bool     shift    = IsShiftKeyDown();
     bool     ctrl     = IsControlKeyDown();
     bool     isActive = m_focused && m_enabled;
 

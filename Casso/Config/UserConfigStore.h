@@ -79,7 +79,7 @@ public:
     static JsonValue DiffJson     (const JsonValue & currentV,
                                    const JsonValue & defaultV);
     static bool      AreJsonEqual    (const JsonValue & a,
-                                   const JsonValue & b);
+                                      const JsonValue & b);
 
 private:
     // Schema keys, string/path plumbing, and the JSON merge/delta helpers.

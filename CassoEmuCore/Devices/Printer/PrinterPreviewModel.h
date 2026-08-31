@@ -73,7 +73,7 @@ public:
     // so a word keeps buzzing across the blank gaps between its glyphs. Clamped to
     // [0, kDotsPerRow - 1].
     static InkSample   GetAudioSampleWindow (bool sweepLtr, int prevCol, int curCol,
-                                          int revealRow, int renderedRevealRow);
+                                             int revealRow, int renderedRevealRow);
 
     // Whether the pin band at absolute `revealRow` carries any ink in columns
     // [loCol, hiCol], sampled from a span raster whose row 0 is absolute

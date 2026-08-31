@@ -2122,7 +2122,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2130,7 +2130,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
         case WM_NCMOUSELEAVE:
             result = IsClaimed (m_client != nullptr ? m_client->OnNcMouseLeave()
                                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2139,7 +2139,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
-                              RepaintOnClaim::No)
+                                RepaintOnClaim::No)
                          ? 0
                          : HandleNcMouse (msg, wp, lp);
             break;
@@ -2148,7 +2148,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             if (IsClaimed (m_client != nullptr
                              ? m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y)
                              : DxuiMessageResult::NotHandled,
-                         RepaintOnClaim::No))
+                           RepaintOnClaim::No))
             {
                 DispatchNcUpToTrackedButton (lp);
                 result = 0;
@@ -2331,25 +2331,25 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
         case WM_PAINT:         isHandled = IsClaimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
         case WM_GETMINMAXINFO: isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_COMMAND:       isHandled = IsClaimed (m_client->OnCommandEx (LOWORD (wp),
                                                                           HIWORD (wp),
                                                                           reinterpret_cast<HWND> (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_MOVE:          isHandled = IsClaimed (m_client->OnMove ((int) (short) LOWORD (lp),
                                                                      (int) (short) HIWORD (lp)),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
         case WM_INITMENUPOPUP: isHandled = IsClaimed (m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
                                                                               LOWORD (lp),
                                                                               HIWORD (lp) != 0),
-                                                    RepaintOnClaim::No); break;
+                                                      RepaintOnClaim::No); break;
 
         // -- claim and repaint --
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:    isHandled = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
-                                                    RepaintOnClaim::Yes); break;
+                                                      RepaintOnClaim::Yes); break;
 
         // Touch gestures. The HGESTUREINFO is closed HERE, once, whatever the
         // client answered: the client's answer means "did I act on it", not
@@ -2390,9 +2390,9 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
 
         // -- claim and repaint unless a wheel flood is being absorbed --
         case WM_MOUSEWHEEL:    isHandled = IsClaimed (m_client->OnMouseWheel (wp, lp, false),
-                                                    RepaintOnClaim::IfNotSuppressed); break;
+                                                      RepaintOnClaim::IfNotSuppressed); break;
         case WM_MOUSEHWHEEL:   isHandled = IsClaimed (m_client->OnMouseWheel (wp, lp, true),
-                                                    RepaintOnClaim::IfNotSuppressed); break;
+                                                      RepaintOnClaim::IfNotSuppressed); break;
 
         // -- these answer with a value of their own rather than a claim --
         case WM_SETCURSOR:

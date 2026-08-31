@@ -343,7 +343,7 @@ private:
 
     static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
-                               const std::vector<HardwareEntry> & b);
+                                  const std::vector<HardwareEntry> & b);
 
     // JSON accessors and enum<->string mapping for the settings document.
     // Every reader is a SettingsPanelState method, so the block belongs to
