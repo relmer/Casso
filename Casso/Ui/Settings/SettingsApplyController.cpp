@@ -82,7 +82,6 @@ void SettingsApplyController::SnapshotBaselines()
     {
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
-        m_baselineExternalChangeAnswer = m_prefs->externalChangeAnswer;
         m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
         m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
         m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
@@ -299,7 +298,6 @@ void SettingsApplyController::CommitApply()
         anyPrintChanged =
             m_prefs->printOutputDpi          != m_baselinePrintOutputDpi          ||
             m_prefs->printDotStyle           != m_baselinePrintDotStyle           ||
-            m_prefs->externalChangeAnswer    != m_baselineExternalChangeAnswer    ||
             m_prefs->printerAudioEnabled     != m_baselinePrinterAudioEnabled     ||
             m_prefs->printerAudioVolume      != m_baselinePrinterAudioVolume      ||
             m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
@@ -353,7 +351,6 @@ void SettingsApplyController::CommitApply()
 
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
-        m_baselineExternalChangeAnswer = m_prefs->externalChangeAnswer;
         m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
         m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
         m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
@@ -445,7 +442,6 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         // delivery / printer sound, so this simply un-does the staged writes).
         m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
         m_prefs->printDotStyle    = m_baselinePrintDotStyle;
-        m_prefs->externalChangeAnswer = m_baselineExternalChangeAnswer;
         m_prefs->printerAudioEnabled     = m_baselinePrinterAudioEnabled;
         m_prefs->printerAudioVolume      = m_baselinePrinterAudioVolume;
         m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;

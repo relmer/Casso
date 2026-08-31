@@ -3332,12 +3332,6 @@ void EmulatorShell::SaveGlobalPrefs()
 
     hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
     IGNORE_RETURN_VALUE (hr, S_OK);
-
-    // The image store holds its own copy of the external-change answer, and it
-    // has to change without a restart or a re-mount. Every path that edits the
-    // preference saves it, so re-reading it here is what makes that true.
-    m_diskStore.SetFallbackAnswer (
-        ExternalChangePolicy::ParseFallbackAnswer (m_globalPrefs.externalChangeAnswer));
 }
 
 
@@ -10292,12 +10286,6 @@ void EmulatorShell::InstallChangeReporting()
             delete carried;
         }
     });
-
-    //  The answer to "what should happen when nobody stated an intent" is the
-    //  user's, kept in prefs and parsed by the policy. Read here so a session
-    //  starts with what the last one left.
-    m_diskStore.SetFallbackAnswer (
-        ExternalChangePolicy::ParseFallbackAnswer (m_globalPrefs.externalChangeAnswer));
 
     m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
     m_changeBanner.SetVisible  (false);

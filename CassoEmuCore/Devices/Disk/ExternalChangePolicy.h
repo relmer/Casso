@@ -15,33 +15,14 @@
 //  `Unstated` IS A REAL VALUE, not a missing one. A change written by a text
 //  editor, a copy, or a second emulator carries no intent, and that is the
 //  ordinary case for everything except this project's own command line. Holding
-//  it as a distinct value is what keeps the fallback from being a guess about
-//  which of the other two somebody meant.
+//  it as a distinct value is what keeps "nobody said" from being confused with
+//  "somebody said carry on".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class PickUpIntent
 {
     Unstated,
-    TakeUpInPlace,
-    Restart,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FallbackAnswer
-//
-//  What the user declared should happen when nothing states an intent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class FallbackAnswer
-{
-    Ask,
     TakeUpInPlace,
     Restart,
 };
@@ -69,11 +50,10 @@ enum class ChangeAction
     //  Take the new contents and restart the machine.
     Restart,
 
-    //  Put the question to the user, because nobody has answered it.
+    //  Put the question to the user, because nobody stated an intent.
     Ask,
 
-    //  The guest has written and the file changed: a two-sided conflict that
-    //  no configuration may resolve.
+    //  The guest has written and the file changed: a two-sided conflict.
     Conflict,
 
     //  The bytes cannot be used as this disk. Carry on with what is held.
@@ -82,19 +62,19 @@ enum class ChangeAction
     //  Wait: something else is holding the file, or the guest is mid-operation.
     Defer,
 
-    //  Keep what the emulator holds, and accept the file as seen.
+    //  Keep what the emulator holds and leave the file as it is.
     //
     //  NOT THE SAME AS Ignore, WHICH THE POLICY REACHES WHEN NOTHING HAPPENED.
-    //  This is a decision about a change that did: the user was shown both and
-    //  chose the version in memory, so the file's identity is recorded as seen
-    //  and a later flush is free to write over it. Leaving it unrecorded would
-    //  refuse that flush forever and strand the guest's work in memory.
+    //  This is a decision about a change that did: the user was told and chose
+    //  the disk in memory. The file is left exactly as the external writer left
+    //  it, and a later flush over it stays refused -- so "ignore the changes"
+    //  means ignore them, not overwrite them at the next opportunity.
     KeepHeld,
 
     //  Write what is held to a timestamped copy beside the original.
     //
-    //  AN ANSWER RATHER THAN A DECISION. Nothing chooses this on its own; it
-    //  is what the user picks when told the file behind a mounted disk is gone,
+    //  AN ANSWER RATHER THAN A DECISION. Nothing chooses this on its own; it is
+    //  what the user picks when told the file behind a mounted disk is gone,
     //  where what the emulator holds may be the only copy left.
     PreserveCopy,
 };
@@ -113,6 +93,15 @@ enum class ChangeAction
 //  emulator. Every rule this feature has about what to do lives here as a
 //  function of its inputs, so the entire decision surface is a table a test can
 //  sweep in both directions.
+//
+//  THERE IS NO CONFIGURABLE FALLBACK, and its absence is a decision rather than
+//  an omission. There was one -- a stored answer saying what to do when nobody
+//  stated an intent -- and it earned nothing: a writer that can speak states its
+//  intent and never reaches this branch, so the only writers left are text
+//  editors, copies and other emulators. Being asked about those is rare enough
+//  that a setting to suppress it would sit at its default forever, while a
+//  stored answer that disagrees with what the user meant is a real way to lose
+//  a disk. Nobody stated an intent, so we ask.
 //
 //  WHAT IT DOES NOT DECIDE is equally deliberate. It does not decide WHEN --
 //  that is the pending record's quiet period and the machine's idle moment --
@@ -141,9 +130,6 @@ public:
 
         //  What the writer said, if anything.
         PickUpIntent  intent       = PickUpIntent::Unstated;
-
-        //  What the user declared for changes that state nothing.
-        FallbackAnswer  fallback   = FallbackAnswer::Ask;
     };
 
 
@@ -159,33 +145,4 @@ public:
 
     //  Whether this action needs the user before anything happens.
     static bool          NeedsAnAnswer (ChangeAction action);
-
-    //  The stored spelling of a fallback answer, and what it means.
-    //
-    //  THE MEANING IS PARSED HERE AND THE VALUE IS STORED IN THE EXE. A
-    //  preferences struct is a place to keep a string; deciding what the
-    //  string means is a decision, and decisions live where tests reach them.
-    //
-    //  AN UNRECOGNIZED STORED VALUE FALLS BACK TO ASKING. A preferences file
-    //  edited by hand, or written by a later version, must not silently pick
-    //  the answer that discards the most.
-    static FallbackAnswer   ParseFallbackAnswer (const std::string & stored);
-    static const char *     SpellFallbackAnswer (FallbackAnswer answer);
-
-    //  The answers as an ordered list, for a control that offers them.
-    //
-    //  THE ORDER IS THE CONTRACT AND IT LIVES HERE. A settings page that
-    //  hard-coded "row 1 means reload" would be a decision inside an
-    //  executable, and the first reordering of the list would silently change
-    //  what every existing preference means. The page asks which row an answer
-    //  is and which answer a row is, and decides nothing.
-    //
-    //  A ROW OUT OF RANGE IS Ask, matching the parse: the value that acts on
-    //  nothing is what an unreadable input falls back to.
-    static int              IndexOfFallbackAnswer  (FallbackAnswer answer);
-    static FallbackAnswer   FallbackAnswerAtIndex  (int index);
-
-    //  How many answers there are, so a control cannot offer a row that has
-    //  no meaning.
-    static constexpr int    kFallbackAnswerCount = 3;
 };

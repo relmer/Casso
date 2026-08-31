@@ -94,7 +94,6 @@ public:
         orig.window.fullscreen      = true;
         orig.printOutputDpi         = 288;
         orig.printDotStyle          = "plain";
-        orig.externalChangeAnswer   = "restart";
         orig.printerAudioEnabled          = false;
         orig.printerAudioVolume           = 0.35f;
         orig.printerAudioPanOverride      = true;
@@ -131,7 +130,6 @@ public:
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
         Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
         Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
-        Assert::AreEqual (orig.externalChangeAnswer, loaded.externalChangeAnswer);
         Assert::AreEqual (orig.printerAudioEnabled,     loaded.printerAudioEnabled);
         Assert::AreEqual (orig.printerAudioVolume,      loaded.printerAudioVolume);
         Assert::AreEqual (orig.printerAudioPanOverride, loaded.printerAudioPanOverride);
@@ -411,48 +409,4 @@ public:
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }
 
-
-    TEST_METHOD (ExternalChangeAnswer_DefaultsToAsking_AndSurvivesASession)
-    {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     fresh;
-        GlobalUserPrefs     saved;
-        GlobalUserPrefs     loaded;
-        HRESULT             hr;
-
-        //  Asking is the default because the alternatives act on a running
-        //  machine without being told to.
-        Assert::AreEqual (std::string ("ask"), fresh.externalChangeAnswer);
-
-        saved.externalChangeAnswer = "reload";
-
-        hr = saved.Save (L"C:\\Casso", fs);
-        AssertSucceeded (hr);
-
-        hr = loaded.Load (L"C:\\Casso", fs);
-        AssertSucceeded (hr);
-
-        //  It has to persist across sessions: a developer who declared an
-        //  answer should not be asked again at the next launch.
-        Assert::AreEqual (std::string ("reload"), loaded.externalChangeAnswer);
-    }
-
-
-    TEST_METHOD (ExternalChangeAnswer_MissingFromAnOlderFile_ReadsAsAsking)
-    {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     loaded;
-        HRESULT             hr;
-
-        AssertSucceeded (fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
-                                          "{ \"activeTheme\": \"Retro Terminal\" }"));
-
-        hr = loaded.Load (L"C:\\Casso", fs);
-        AssertSucceeded (hr);
-
-        //  A prefs file written before this setting existed must cost the
-        //  setting, not the file -- and the value it falls back to is the one
-        //  that acts on nothing.
-        Assert::AreEqual (std::string ("ask"), loaded.externalChangeAnswer);
-    }
 };

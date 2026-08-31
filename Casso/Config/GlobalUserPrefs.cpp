@@ -42,7 +42,6 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "lastSelectedMachine",
     "lastDiskCreateFolder",
     "audioDownloadConsent",
-    "externalChangeAnswer",
     "inputMappingMode",
     "arrowsToJoystick",
     "pointerMapping",
@@ -944,7 +943,6 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
-    root.emplace_back ("externalChangeAnswer", JsonValue (externalChangeAnswer));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
     root.emplace_back ("arrowsToJoystick",     JsonValue (arrowsToJoystick));
     root.emplace_back ("pointerMapping",       JsonValue (std::string (InputMappingModeToString (pointerMapping))));
@@ -1065,7 +1063,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     lastDiskCreateFolder = GetStringOpt (v, "lastDiskCreateFolder",   lastDiskCreateFolder);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
-    externalChangeAnswer = GetStringOpt (v, "externalChangeAnswer",   externalChangeAnswer);
 
     // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";
     // when the new key is absent, a true legacy bool migrates to Joystick.

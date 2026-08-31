@@ -83,35 +83,22 @@ public:
 
 
 
-    TEST_METHOD (EveryCombinationOfIntentAndFallbackOnACleanImage)
+    TEST_METHOD (EveryIntentOnACleanImage)
     {
-        //  The sweep in the forward direction: three intents by three
-        //  fallbacks, all nine rows named.
         struct Row
         {
-            PickUpIntent    intent;
-            FallbackAnswer  fallback;
-            ChangeAction    expected;
+            PickUpIntent  intent;
+            ChangeAction  expected;
         };
 
+        //  Three intents, three rows, no second axis. The stored fallback that
+        //  used to multiply this by three is gone: a writer that can speak says
+        //  what it meant, and one that cannot leaves the question to a person.
         const Row  rows[] =
         {
-            //  A stated intent is obeyed whatever the fallback says: the
-            //  writer knew what they changed, and the fallback is for writers
-            //  who could not say.
-            { PickUpIntent::TakeUpInPlace, FallbackAnswer::Ask,           ChangeAction::TakeUpInPlace },
-            { PickUpIntent::TakeUpInPlace, FallbackAnswer::TakeUpInPlace, ChangeAction::TakeUpInPlace },
-            { PickUpIntent::TakeUpInPlace, FallbackAnswer::Restart,       ChangeAction::TakeUpInPlace },
-
-            { PickUpIntent::Restart,       FallbackAnswer::Ask,           ChangeAction::Restart },
-            { PickUpIntent::Restart,       FallbackAnswer::TakeUpInPlace, ChangeAction::Restart },
-            { PickUpIntent::Restart,       FallbackAnswer::Restart,       ChangeAction::Restart },
-
-            //  Nothing stated: the user's declared answer decides, and its
-            //  default is to ask.
-            { PickUpIntent::Unstated,      FallbackAnswer::Ask,           ChangeAction::Ask },
-            { PickUpIntent::Unstated,      FallbackAnswer::TakeUpInPlace, ChangeAction::TakeUpInPlace },
-            { PickUpIntent::Unstated,      FallbackAnswer::Restart,       ChangeAction::Restart },
+            { PickUpIntent::TakeUpInPlace, ChangeAction::TakeUpInPlace },
+            { PickUpIntent::Restart,       ChangeAction::Restart },
+            { PickUpIntent::Unstated,      ChangeAction::Ask },
         };
 
 
@@ -120,8 +107,7 @@ public:
         {
             Situation  situation = Seen();
 
-            situation.intent   = row.intent;
-            situation.fallback = row.fallback;
+            situation.intent = row.intent;
 
             AssertDecides (situation, row.expected);
         }
@@ -129,33 +115,26 @@ public:
 
 
 
-    TEST_METHOD (AConflictOutranksEveryStatedIntentAndEveryFallback)
+    TEST_METHOD (AConflictOutranksEveryStatedIntent)
     {
         //  The rule the whole feature exists for: an intent says how the guest
         //  carries on, and never that work may be discarded. If this row ever
         //  moves below the intent test, `--on-change reload` silently throws
         //  away the guest's unsaved writes.
-        const PickUpIntent    intents[]   = { PickUpIntent::Unstated,
-                                              PickUpIntent::TakeUpInPlace,
-                                              PickUpIntent::Restart };
-        const FallbackAnswer  fallbacks[] = { FallbackAnswer::Ask,
-                                              FallbackAnswer::TakeUpInPlace,
-                                              FallbackAnswer::Restart };
+        const PickUpIntent  intents[] = { PickUpIntent::Unstated,
+                                          PickUpIntent::TakeUpInPlace,
+                                          PickUpIntent::Restart };
 
 
 
         for (PickUpIntent intent : intents)
         {
-            for (FallbackAnswer fallback : fallbacks)
-            {
-                Situation  situation = Seen();
+            Situation  situation = Seen();
 
-                situation.guestDirty = true;
-                situation.intent     = intent;
-                situation.fallback   = fallback;
+            situation.guestDirty = true;
+            situation.intent     = intent;
 
-                AssertDecides (situation, ChangeAction::Conflict);
-            }
+            AssertDecides (situation, ChangeAction::Conflict);
         }
     }
 
@@ -176,7 +155,6 @@ public:
             situation.usable     = false;
             situation.guestDirty = true;
             situation.intent     = intent;
-            situation.fallback   = FallbackAnswer::TakeUpInPlace;
 
             //  There is nothing to take up, so what the guest has written is
             //  not yet the question.
@@ -196,7 +174,6 @@ public:
         situation.usable      = false;
         situation.guestDirty  = true;
         situation.intent      = PickUpIntent::Restart;
-        situation.fallback    = FallbackAnswer::Restart;
 
         //  Acting on a file still being written would read a half-written
         //  disk, and everything below this test is a judgement about contents
@@ -224,7 +201,7 @@ public:
 
         reaches.push_back (Reach { ChangeAction::Ignore, Situation() });
 
-        situation            = Seen();
+        situation             = Seen();
         situation.heldByOther = true;
         reaches.push_back (Reach { ChangeAction::Defer, situation });
 
@@ -279,32 +256,7 @@ public:
 
 
 
-    TEST_METHOD (TheStoredAnswerRoundTripsAndAnUnknownOneAsks)
-    {
-        const FallbackAnswer  answers[] = { FallbackAnswer::Ask,
-                                            FallbackAnswer::TakeUpInPlace,
-                                            FallbackAnswer::Restart };
-
-
-
-        for (FallbackAnswer answer : answers)
-        {
-            std::string  spelled = ExternalChangePolicy::SpellFallbackAnswer (answer);
-
-            Assert::IsTrue (ExternalChangePolicy::ParseFallbackAnswer (spelled) == answer,
-                            L"an answer written down and read back is the same answer");
-        }
-
-        //  A file edited by hand, or written by a later version, must not
-        //  silently pick the answer that discards the most.
-        Assert::IsTrue (ExternalChangePolicy::ParseFallbackAnswer ("")         == FallbackAnswer::Ask);
-        Assert::IsTrue (ExternalChangePolicy::ParseFallbackAnswer ("RELOAD")   == FallbackAnswer::Ask);
-        Assert::IsTrue (ExternalChangePolicy::ParseFallbackAnswer ("whatever") == FallbackAnswer::Ask);
-    }
-
-
-
-    TEST_METHOD (EveryQuestionNamesTheImageItIsAbout)
+    TEST_METHOD (EveryMessageNamesTheImageAndTheDrive)
     {
         const ChangeAction  questions[] = { ChangeAction::Ask,
                                             ChangeAction::Conflict,
@@ -314,14 +266,82 @@ public:
 
         for (ChangeAction question : questions)
         {
-            ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", question);
+            ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, question);
 
             Assert::IsTrue (prompt.IsAsked(), L"a question has answers");
             Assert::IsTrue (prompt.message.find (L"Loader.dsk") != std::wstring::npos,
-                            L"a user with several disks mounted cannot act on a "
-                            L"question that does not say which");
+                            L"a user with two disks mounted cannot act on a message "
+                            L"that does not say which");
+            Assert::IsTrue (prompt.message.find (L"Drive 2") != std::wstring::npos,
+                            L"the drive is written as the number on the machine, so a "
+                            L"zero-based bay index reads as Drive 2");
             Assert::IsFalse (prompt.title.empty());
         }
+    }
+
+
+
+    TEST_METHOD (TheAskDialogOffersAcceptingOrIgnoringAndNothingElse)
+    {
+        ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
+                                                      ChangeAction::Ask);
+
+
+
+        Assert::AreEqual ((size_t) 2, prompt.answers.size(),
+                          L"two answers: take the changes, or leave them alone");
+
+        Assert::IsTrue (prompt.answers[0].action == ChangeAction::TakeUpInPlace);
+        Assert::IsTrue (prompt.answers[1].action == ChangeAction::KeepHeld);
+
+        //  The reboot is not an answer here. It is a thing the user may do
+        //  afterwards, from the toolbar, which is why the message says why
+        //  they might want to rather than offering a third button.
+        for (const PromptAnswer & answer : prompt.answers)
+        {
+            Assert::IsTrue (answer.action != ChangeAction::Restart,
+                            L"the toolbar carries the reboot");
+        }
+    }
+
+
+
+    TEST_METHOD (EveryMessageAboutARunningMachineExplainsWhyARebootMayBeNeeded)
+    {
+        ChangePrompt  asked   = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask);
+        ChangePrompt  running = ChangePrompt::ComposePickUpReport ("Loader.dsk", 0, false);
+        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Loader.dsk", 0, true);
+        std::wstring  warning = ChangePrompt::StaleDirectoryWarning();
+
+
+
+        //  The hazard is the same whether the user was asked or merely told,
+        //  so the sentence is the same and comes from one place.
+        Assert::IsTrue (asked.message.find (warning)   != std::wstring::npos);
+        Assert::IsTrue (running.message.find (warning) != std::wstring::npos);
+
+        //  A machine that has just rebooted has already done the thing the
+        //  warning advises, so repeating it would be noise.
+        Assert::IsTrue (rebooted.message.find (warning) == std::wstring::npos);
+    }
+
+
+
+    TEST_METHOD (ThePickUpReportCarriesOnlyItsOwnDismissal)
+    {
+        ChangePrompt  running  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false);
+        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true);
+
+
+
+        //  A notice that stands until closed needs something to close it, and
+        //  that is the only action it gets: the reboot lives on the toolbar,
+        //  and a duplicate button is one more thing to dismiss.
+        Assert::AreEqual ((size_t) 1, running.answers.size());
+        Assert::AreEqual ((size_t) 1, rebooted.answers.size());
+
+        Assert::IsTrue (running.answers[0].action  == ChangeAction::Ignore);
+        Assert::IsTrue (rebooted.answers[0].action == ChangeAction::Ignore);
     }
 
 
@@ -338,7 +358,7 @@ public:
 
         for (ChangeAction action : notQuestions)
         {
-            ChangePrompt  prompt = ChangePrompt::Compose ("Work.dsk", action);
+            ChangePrompt  prompt = ChangePrompt::Compose ("Work.dsk", 0, action);
 
             Assert::IsFalse (prompt.IsAsked(), L"nothing to ask, so no blank dialog");
         }
@@ -346,61 +366,15 @@ public:
 
 
 
-    TEST_METHOD (ThePickUpReportCarriesTheRestartWhenTheMachineKeptRunning)
+    TEST_METHOD (AnUnnamedImageStillProducesAReadableMessage)
     {
-        ChangePrompt  running = ChangePrompt::ComposePickUpReport ("C:\\work\\Game.dsk", false);
-        ChangePrompt  restarted = ChangePrompt::ComposePickUpReport ("C:\\work\\Game.dsk", true);
-
-
-
-        Assert::AreEqual ((size_t) 1, running.answers.size(),
-                          L"the swap may have been the wrong call, and the recovery "
-                          L"is the action the user was not offered");
-        Assert::IsTrue (running.answers[0].action == ChangeAction::Restart);
-        Assert::IsTrue (running.message.find (L"Game.dsk") != std::wstring::npos);
-
-        Assert::AreEqual ((size_t) 0, restarted.answers.size(),
-                          L"a machine that has just restarted has nothing to offer");
-    }
-
-
-
-    TEST_METHOD (AnUnnamedImageStillProducesAReadableQuestion)
-    {
-        ChangePrompt  prompt = ChangePrompt::Compose ("", ChangeAction::Ask);
+        ChangePrompt  prompt = ChangePrompt::Compose ("", 0, ChangeAction::Ask);
 
 
 
         Assert::IsTrue (prompt.IsAsked());
         Assert::IsFalse (prompt.message.empty(), L"a question with no text is no question");
-    }
-
-
-    TEST_METHOD (TheOfferedRowsAndTheStoredAnswersAgreeInBothDirections)
-    {
-        const FallbackAnswer  answers[] = { FallbackAnswer::Ask,
-                                            FallbackAnswer::TakeUpInPlace,
-                                            FallbackAnswer::Restart };
-        int                   index     = 0;
-
-
-
-        //  The list a settings control offers is ordered here rather than in
-        //  the page, so a reordering is one edit and cannot silently change
-        //  what an existing stored preference means.
-        for (FallbackAnswer answer : answers)
-        {
-            index = ExternalChangePolicy::IndexOfFallbackAnswer (answer);
-
-            Assert::IsTrue (index >= 0 && index < ExternalChangePolicy::kFallbackAnswerCount);
-            Assert::IsTrue (ExternalChangePolicy::FallbackAnswerAtIndex (index) == answer,
-                            L"a row selected and read back is the same answer");
-        }
-
-        //  Asking is row zero: a control that cannot resolve its selection
-        //  lands on the answer that acts on nothing.
-        Assert::AreEqual (0, ExternalChangePolicy::IndexOfFallbackAnswer (FallbackAnswer::Ask));
-        Assert::IsTrue (ExternalChangePolicy::FallbackAnswerAtIndex (-1) == FallbackAnswer::Ask);
-        Assert::IsTrue (ExternalChangePolicy::FallbackAnswerAtIndex (99) == FallbackAnswer::Ask);
+        Assert::IsTrue (prompt.message.find (L"Drive 1") != std::wstring::npos,
+                        L"the drive is still named even when the file cannot be");
     }
 };

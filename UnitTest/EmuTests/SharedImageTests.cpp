@@ -130,9 +130,21 @@ public:
 
 
         //  A change arrives, settles, and the machine reaches a quiet moment.
-        void  FireAndSettle (const std::string & path)
+        //
+        //  THE INTENT IS OPTIONAL BECAUSE IT IS OPTIONAL IN LIFE. A watcher
+        //  reports every change; only this project's own command line also
+        //  says what it meant by one, and a real session that gets both gets
+        //  them in this order.
+        void  FireAndSettle (const std::string & path,
+                             PickUpIntent        intent = PickUpIntent::Unstated)
         {
             watcher.Fire (kDirectory, path);
+
+            if (intent != PickUpIntent::Unstated)
+            {
+                store.NoteExternalChange (path, intent);
+            }
+
             nowMs += MountedImageState::kQuietPeriodMs;
             store.ApplyPendingPickUp();
         }
@@ -225,10 +237,8 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         Assert::IsFalse (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
                          L"the change was dealt with");
@@ -252,8 +262,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         //  A guest write, flushed the way the motor-off hook flushes it. The
         //  flush changes the file, and a directory watcher reports that.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
@@ -326,8 +334,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         //  A disk carrying more than one thing is built by more than one
         //  command, and the developer means one build.
         rig.WriteImage (kImagePath, 0x22);
@@ -347,7 +353,7 @@ public:
                           L"measured from the LAST change, not the first");
 
         rig.WriteImage (kImagePath, 0x44);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size(), L"one build, one pick-up");
     }
@@ -508,8 +514,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         before = FirstTrackByte (rig.store);
@@ -540,8 +544,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         before = FirstTrackByte (rig.store);
 
         //  Replaced by something the loader cannot use as this disk.
@@ -568,8 +570,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         before = FirstTrackByte (rig.store);
 
         rig.files.erase (kImagePath);
@@ -591,8 +591,6 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         //  The apply runs while a report is being drawn; a further change
         //  updates the pending record rather than being dropped because
         //  something was in progress.
@@ -603,12 +601,12 @@ public:
             if (rig.reports.size() == 1)
             {
                 rig.WriteImage (kImagePath, 0x44);
-                rig.store.NoteExternalChange (kImagePath, PickUpIntent::Unstated);
+                rig.store.NoteExternalChange (kImagePath, PickUpIntent::TakeUpInPlace);
             }
         });
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         Assert::IsTrue (rig.store.SharedState (kSlot, kDrive)->Pending().seen,
                         L"the change that arrived mid-apply is still there");
@@ -629,16 +627,14 @@ public:
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-        rig.store.SetFallbackAnswer (FallbackAnswer::TakeUpInPlace);
-
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         rig.WriteImage (kImagePath, 0x33);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         rig.WriteImage (kImagePath, 0x44);
-        rig.FireAndSettle (kImagePath);
+        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         //  Three builds before the developer turns back to the emulator are
         //  three pick-ups and one report: three reports about one disk say

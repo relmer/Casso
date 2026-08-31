@@ -1872,7 +1872,6 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     situation.guestDirty  = false;
     situation.heldByOther = false;
     situation.intent      = intent;
-    situation.fallback    = m_fallback;
 
     action = ExternalChangePolicy::Decide (situation);
 
@@ -1889,7 +1888,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
         if (m_askSink && !entry.sharedState.IsAskOutstanding())
         {
             entry.sharedState.SetAskOutstanding (true);
-            m_askSink (slot, drive, ChangePrompt::Compose (entry.path, action));
+            m_askSink (slot, drive, ChangePrompt::Compose (entry.path, drive, action));
         }
 
         return;
@@ -2042,11 +2041,11 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
         if (tookUp)
         {
-            report = ChangePrompt::ComposePickUpReport (entry.path, restarted);
+            report = ChangePrompt::ComposePickUpReport (entry.path, drive, restarted);
         }
         else
         {
-            report = ChangePrompt::Compose (entry.path, action);
+            report = ChangePrompt::Compose (entry.path, drive, action);
         }
 
         if (!report.title.empty())

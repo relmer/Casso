@@ -32,7 +32,7 @@ struct PromptAnswer
 //
 //  ChangePrompt
 //
-//  A question about a changed image, and the answers it accepts.
+//  What is said about a changed image, and the answers it accepts.
 //
 //  COMPOSED IN CORE, DRAWN IN THE SHELL. Which question gets asked, what it
 //  says, which answers exist and what each one means are all decisions, and a
@@ -41,10 +41,13 @@ struct PromptAnswer
 //  entire job is to put them on the screen and report which was chosen.
 //
 //  IT IS A SEPARATE JOB FROM DECIDING. ExternalChangePolicy says what should
-//  happen; this says what to ask when what should happen is "ask". Folding the
-//  wording into the policy would give the pure decision table a dependency on
-//  presentation, and there is more than one question here -- the plain ask, the
-//  two-sided conflict, and the image that can no longer be used.
+//  happen; this says what to tell the user about it. Folding the wording into
+//  the policy would give the pure decision table a dependency on presentation,
+//  and there is more than one thing to say here.
+//
+//  EVERY MESSAGE NAMES THE IMAGE AND THE DRIVE. A user with two disks mounted
+//  cannot act on a message that says neither, and making both parameters of
+//  composition is what stops a caller from producing one that omits them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,20 +63,30 @@ struct ChangePrompt
 
 
 
-    //  The question this action calls for, about this image.
+    //  What to say about this action, for this image in this drive.
     //
-    //  THE IMAGE IS NAMED IN EVERY MESSAGE. A user with several disks mounted
-    //  cannot act on a question that does not say which one it is about, and
-    //  making the path a parameter of composition is what stops a caller from
-    //  producing one that omits it.
-    static ChangePrompt  Compose (const std::string & imagePath, ChangeAction action);
+    //  `drive` IS THE STORE'S ZERO-BASED INDEX and is written out as the
+    //  one-based number on the machine, because that is the number printed on
+    //  the drive and shown on the widget.
+    static ChangePrompt  Compose (const std::string & imagePath, int drive,
+                                  ChangeAction action);
 
     //  The report shown when contents were taken up without asking.
     //
-    //  IT CARRIES THE RESTART, and that is the point rather than a courtesy: a
-    //  swap can turn out to have been the wrong call, and the recovery is
-    //  precisely the action the user was not offered. A report that cleared
-    //  itself would take that action away with it.
-    static ChangePrompt  ComposePickUpReport (const std::string & imagePath,
-                                              bool                machineRestarted);
+    //  IT OFFERS NO REBOOT. The toolbar already carries one, and a notice with
+    //  a duplicate is one more thing to dismiss rather than one more thing to
+    //  reach for. The report says what happened and, while the machine is still
+    //  running, why a reboot might be needed; the single action it does carry
+    //  is its own dismissal, which every standing notice needs.
+    static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
+                                              bool machineRestarted);
+
+    //  Why a running program may not see a swapped disk correctly.
+    //
+    //  ONE SENTENCE IN ONE PLACE, because it is the same hazard whether the
+    //  user was asked or merely told, and two copies would drift.
+    static const wchar_t *  StaleDirectoryWarning ();
+
+    //  "Loader.dsk in Drive 1", which every message opens with.
+    static std::wstring  NameInDrive (const std::string & imagePath, int drive);
 };

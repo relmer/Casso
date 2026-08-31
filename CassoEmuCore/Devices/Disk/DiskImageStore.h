@@ -197,9 +197,6 @@ public:
     //  the quiet period is the only debounce.
     void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
 
-    //  What the user declared should happen to changes that state no intent.
-    void          SetFallbackAnswer (FallbackAnswer answer) { m_fallback = answer; }
-
     //  Restarting the machine.
     //
     //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
@@ -423,7 +420,6 @@ private:
 
     IImageWatcher *          m_watcher  = nullptr;
     IDiskFileIo *            m_fileIo   = nullptr;
-    FallbackAnswer           m_fallback = FallbackAnswer::Ask;
 
     std::function<void ()>   m_restartCallback;
     ReportSink               m_reportSink;
