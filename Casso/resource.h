@@ -96,6 +96,10 @@
 // off in a release one, and remembered either way once toggled.
 #define IDM_VIEW_FRAME_RATE         40072
 
+// The scene orbit, zoom and pan across the middle of the picture, so a
+// screenshot carries the pose it was taken from. Same default rule.
+#define IDM_VIEW_SCENE_VIEW         40073
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 

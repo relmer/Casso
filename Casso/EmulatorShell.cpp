@@ -198,6 +198,12 @@ static constexpr int     s_kFrameRateInsetDp        = 12;
 static constexpr int     s_kFrameRateWidthDp        = 120;
 static constexpr int     s_kFrameRateHeightDp       = 28;
 
+// The scene-pose readout. Wider than the frame rate because it carries five
+// numbers, and centered on the glass rather than hung off a corner: the
+// picture is the one place a screenshot of the scene always includes.
+static constexpr int     s_kScenePoseWidthDp        = 320;
+static constexpr int     s_kScenePoseHeightDp       = 24;
+
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // The scene-space disk label is rendered into a texture at a FIXED pixel
@@ -2124,6 +2130,80 @@ void EmulatorShell::SyncCaptureBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::SyncSceneViewReadout
+//
+//  The scene pose -- orbit, zoom and pan -- written across the middle of the
+//  picture.
+//
+//  IT EXISTS TO MAKE A SCREENSHOT SELF-DESCRIBING. A render fault in the desk
+//  scene is usually only visible through a narrow window of angles, and an
+//  image does not carry the pose it was taken from -- so reproducing one means
+//  guessing, and a wrong guess reads as "I cannot see the problem" when the
+//  truth is "I am not looking from where you were". With the five numbers that
+//  fully determine the view printed on the picture, any screenshot can be
+//  restored exactly.
+//
+//  DEGREES, not the radians the view actually stores: these are for a person
+//  to read off an image and say back. One decimal is 0.0017 rad, far finer
+//  than any angle a fault survives.
+//
+//  ON THE MONITOR'S PROJECTED BOUNDS, whose center lands on the glass, and NOT
+//  on glassRectPx despite that being the rect named for the job. Measured at
+//  the composed pose, glassRectPx came back 854,875..1821,1489 -- a rect whose
+//  bottom half is the monitor's base and the tops of both drives. Whatever it
+//  is tracking, it is not the CRT, so anchoring here would put the pose on the
+//  desk. monitorRectPx is the one chrome already lays out against and it lands
+//  where the monitor does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneViewReadout()
+{
+    const DeskSceneComposition &  comp      = m_deskScene.Composition();
+    RECT                          rc        = {};
+    wchar_t                       text[128] = {};
+    bool                          posed     = comp.monitorRectPx.right > comp.monitorRectPx.left &&
+                                              comp.monitorRectPx.bottom > comp.monitorRectPx.top;
+
+
+
+    if (!m_globalPrefs.showSceneView || m_host == nullptr || !posed || !DeskSceneActive())
+    {
+        m_sceneViewReadout.SetVisible (false);
+        return;
+    }
+
+    {
+        LONG  cx = (comp.monitorRectPx.left + comp.monitorRectPx.right) / 2;
+        LONG  cy = (comp.monitorRectPx.top + comp.monitorRectPx.bottom) / 2;
+        LONG  hw = m_scaler.ToPx (s_kScenePoseWidthDp) / 2;
+        LONG  hh = m_scaler.ToPx (s_kScenePoseHeightDp) / 2;
+
+        rc.left   = cx - hw;
+        rc.right  = cx + hw;
+        rc.top    = cy - hh;
+        rc.bottom = cy + hh;
+    }
+
+    swprintf_s (text, L"yaw %.1f  pitch %.1f  zoom %.2f  pan %.3f %.3f",
+                m_sceneView.orbitYawRad * 180.0f / 3.14159265f,
+                m_sceneView.orbitPitchRad * 180.0f / 3.14159265f,
+                m_sceneView.zoom, m_sceneView.panX, m_sceneView.panY);
+
+    m_sceneViewReadout.SetText        (text);
+    m_sceneViewReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_sceneViewReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_sceneViewReadout.SetDpi         (m_scaler.GetDpi());
+    m_sceneViewReadout.Layout         (rc, m_scaler);
+    m_sceneViewReadout.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::SyncFrameRateReadout
 //
 //  The frame rate over the picture, in the top-left corner.
@@ -3616,6 +3696,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveChrome[1]);
     m_host->GetRoot().Adopt (m_captureBanner);
     m_host->GetRoot().Adopt (m_fpsReadout);
+    m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneCompass);
 
     // The compass reports gestures; the shell owns what they mean. The signs
@@ -3771,6 +3852,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
+            case IDM_VIEW_SCENE_VIEW:         return m_globalPrefs.showSceneView;
 
             default:                          return false;
         }
@@ -7180,6 +7262,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // because both answer where the pointer is right now.
     SyncCaptureBanner();
     SyncFrameRateReadout();
+    SyncSceneViewReadout();
     TickFullscreenToolbar();
 
 

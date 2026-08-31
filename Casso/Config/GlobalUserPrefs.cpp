@@ -40,6 +40,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "crtMonitor",
     "showFrameRate",
+    "showSceneView",
     "sceneAntiAliasing",
     "lastSelectedMachine",
     "lastDiskCreateFolder",
@@ -945,6 +946,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
+    root.emplace_back ("showSceneView",         JsonValue (showSceneView));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
@@ -1080,6 +1082,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
+    showSceneView         = TryGetBoolOpt   (v, "showSceneView",           showSceneView);
 
     // Samples, not a quality index: 1, 2 or 4 only. Anything else is a
     // hand-edited file or a value from a build that knows more counts than

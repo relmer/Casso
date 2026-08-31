@@ -844,6 +844,10 @@ private:
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
     void    SyncFrameRateReadout ();
+
+    // The scene pose across the middle of the picture, so a screenshot of a
+    // render fault carries the angle it was taken from.
+    void    SyncSceneViewReadout ();
     void    TickFullscreenToolbar();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
@@ -1248,6 +1252,7 @@ private:
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.
     DxuiShadowedText           m_fpsReadout;
+    DxuiShadowedText           m_sceneViewReadout;
 
     // The scene compass: the visible way to turn the scene, for everyone
     // who will never guess that dragging does it. Laid out into the scene

@@ -53,6 +53,23 @@ struct GlobalUserPrefs
     bool         showFrameRate       = false;
 #endif
 
+    // The scene view -- orbit, zoom and pan -- written across the middle of
+    // the picture.
+    //
+    // A REPORTING AID, not a measurement. A render fault in the desk scene is
+    // usually only visible from one angle, and a screenshot does not carry the
+    // angle it was taken from: reproducing it then means guessing the pose,
+    // which wastes the reporter's time when the guess is wrong. With the pose
+    // printed on the picture, any screenshot is self-describing and the view
+    // can be restored exactly.
+    //
+    // Same default rule as the frame rate, and the same persistence.
+#if defined(_DEBUG)
+    bool         showSceneView       = true;
+#else
+    bool         showSceneView       = false;
+#endif
+
     // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
     // costs real GPU -- the whole scene is drawn into a target this many times
     // over -- and how much depends on the machine and the window size, so it
