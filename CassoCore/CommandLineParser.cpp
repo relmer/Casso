@@ -261,6 +261,11 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "disk1",
     "disk2",
     "trace",
+
+    //  Undocumented, and here rather than in a help table for that reason:
+    //  this list is what makes `/no-image-watch` canonicalize like every other
+    //  flag, and the help is generated from tables this one does not feed.
+    "no-image-watch",
 };
 
 
@@ -3875,6 +3880,10 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg.rfind ("--trace=", 0) == 0)
         {
             parsed.traceEntries = ParseTraceSize (arg.substr (arg.find ('=') + 1));
+        }
+        else if (arg == "--no-image-watch")
+        {
+            parsed.noImageWatch = true;
         }
     }
 

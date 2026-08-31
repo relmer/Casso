@@ -261,6 +261,8 @@
     <ClCompile Include="Devices\Disk\ProDosSkeleton.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
+    <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
+    <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
     <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
@@ -371,6 +373,9 @@
     <ClInclude Include="Devices\Disk\ProDosSkeleton.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />
     <ClInclude Include="Devices\Disk\ImageIdentity.h" />
+    <ClInclude Include="Devices\Disk\ChangePrompt.h" />
+    <ClInclude Include="Devices\Disk\Win32ImageWatcher.h" />
+    <ClInclude Include="Cli\IIntentChannel.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />

@@ -310,6 +310,8 @@
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
+    <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
+    <ClCompile Include="EmuTests\SharedImageTests.cpp" />
     <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
     <ClCompile Include="EmuTests\VideoRenderTests.cpp" />
     <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp" />
@@ -360,6 +362,7 @@
     <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceEventSinkTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
+    <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
@@ -550,6 +553,7 @@
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />

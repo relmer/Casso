@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "SettingsPanelState.h"
+#include "../../Config/GlobalUserPrefs.h"
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiDropdown.h"
@@ -49,6 +50,13 @@ public:
 
     void  SetState              (SettingsPanelState * state);
 
+    // Binds the global prefs the external-change answer lives in.
+    //
+    // GLOBAL RATHER THAN PER-MACHINE, and deliberately: what should happen
+    // when a mounted image is changed from outside is a fact about how the
+    // developer works, not about which Apple they are running.
+    void  SetPrefs              (GlobalUserPrefs * prefs) { m_prefs = prefs; }
+
     // Drive-audio preview hook. Invoked when a play button is clicked;
     // (drive 0/1, kind 0=motor 1=head 2=door, centered = play the test
     // sound panned to center so the volume is judged without bias).
@@ -65,6 +73,7 @@ public:
 
     // Test / wiring accessors.
     DxuiDropdown          & WriteModeDropdown    () { return m_writeMode; }
+    DxuiDropdown          & ExternalChangeDropdown () { return m_externalChange; }
     DxuiDropdown          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
@@ -72,6 +81,7 @@ public:
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiDropdown    & WriteModeDropdown    () const { return m_writeMode; }
+    const DxuiDropdown    & ExternalChangeDropdown () const { return m_externalChange; }
     const DxuiDropdown    & GetMechanismDropdown () const { return m_mechanism; }
 
 private:
@@ -83,10 +93,12 @@ private:
     void  ResetDriveAudioToDefaults   ();
 
     SettingsPanelState         * m_state = nullptr;
+    GlobalUserPrefs            * m_prefs = nullptr;
     TestSoundFn                  m_onTestSound;
 
     DxuiLabel                        m_wpLabel;
     DxuiLabel                        m_writeModeLabel;
+    DxuiLabel                        m_externalChangeLabel;
     DxuiLabel                        m_audioLabel;
     DxuiLabel                        m_mechLabel;
     DxuiLabel                        m_motorLabel;
@@ -96,6 +108,7 @@ private:
     DxuiLabel                        m_panTwoLabel;
 
     DxuiDropdown                     m_writeMode;
+    DxuiDropdown                     m_externalChange;
     DxuiDropdown                     m_mechanism;
     DxuiToggle                       m_driveAudio;
     std::array<DxuiCheckbox, 2>      m_writeProtect;

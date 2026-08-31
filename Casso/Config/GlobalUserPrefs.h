@@ -47,6 +47,18 @@ struct GlobalUserPrefs
     // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
     std::string  audioDownloadConsent  = "ask";
 
+    // What happens when a mounted disk image is changed by something else and
+    // the writer stated no intent -- a text editor, a copy, another emulator.
+    //   "ask"     -- put the question to the user (default)
+    //   "reload"  -- take the new contents up, leave the machine running
+    //   "restart" -- take the new contents up and restart the machine
+    //
+    // THE VALUE IS STORED HERE AND ITS MEANING IS NOT. A preferences struct is
+    // a place to keep a string; what the string means is a decision, and it
+    // lives in ExternalChangePolicy where a test can reach it. An unrecognized
+    // value parses back to asking.
+    std::string  externalChangeAnswer  = "ask";
+
     // How host arrow / pointer input maps onto the emulated game port:
     // Off leaves the keys as ordinary //e keystrokes; Joystick maps the
     // arrow keys (plus Z / X) onto the paddle axes / fire buttons with a

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskPage.h"
+#include "Devices/Disk/ExternalChangePolicy.h"
 
 #include "Core/UnicodeSymbols.h"
 
@@ -66,6 +67,7 @@ DiskPage::DiskPage (std::wstring title)
 
     Adopt (m_wpLabel);
     Adopt (m_writeModeLabel);
+    Adopt (m_externalChangeLabel);
     Adopt (m_audioLabel);
     Adopt (m_mechLabel);
     Adopt (m_motorLabel);
@@ -75,6 +77,7 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_panTwoLabel);
 
     Adopt (m_writeMode);
+    Adopt (m_externalChange);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
     for (DxuiCheckbox & checkbox : m_writeProtect)
@@ -178,6 +181,15 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
     y += rowHeight + sectionGap;
 
+    //  What happens when something else changes a mounted image and says
+    //  nothing about what it meant -- an editor, a copy, another emulator.
+    //  Tools that DO state an intent are obeyed regardless of this.
+    m_externalChangeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_externalChangeLabel.SetText (L"Changed on disk:");
+    m_externalChange.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_externalChange.SetItems ({ L"Ask me", L"Take it up", L"Take it up and restart" });
+    y += rowHeight + sectionGap;
+
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
@@ -234,9 +246,11 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
+    m_externalChangeLabel.SetDpi (dpi);
     m_audioLabel.SetDpi      (dpi);
     m_mechLabel.SetDpi       (dpi);
     m_writeMode.SetDpi       (dpi);
+    m_externalChange.SetDpi  (dpi);
     m_mechanism.SetDpi       (dpi);
     m_driveAudio.SetDpi      (dpi);
     m_writeProtect[0].SetDpi (dpi);
@@ -295,6 +309,28 @@ void DiskPage::Rebuild()
     ApplyDriveAudioChildEnabled (state->GetPrefs().floppySoundEnabled);
 
     m_writeMode.SetSelect    ([state] (int idx) { state->SetWriteMode ((SettingsWriteMode) idx); });
+
+    //  The stored value is a token and its meaning belongs to
+    //  ExternalChangePolicy, so the page maps between the token and the row
+    //  index and decides nothing else. An unrecognized stored value comes back
+    //  as Ask, which is the row this lands on.
+    if (m_prefs != nullptr)
+    {
+        GlobalUserPrefs *  prefs  = m_prefs;
+        FallbackAnswer     answer =
+            ExternalChangePolicy::ParseFallbackAnswer (prefs->externalChangeAnswer);
+
+        m_externalChange.SetSelected (ExternalChangePolicy::IndexOfFallbackAnswer (answer));
+
+        m_externalChange.SetSelect ([this, prefs] (int idx)
+        {
+            FallbackAnswer  chosen = ExternalChangePolicy::FallbackAnswerAtIndex (idx);
+
+            prefs->externalChangeAnswer = ExternalChangePolicy::SpellFallbackAnswer (chosen);
+            MarkDirty();
+        });
+    }
+
     m_mechanism.SetSelect    ([state] (int idx) { state->SetMechanism (idx == 1 ? "alps" : "shugart"); });
     m_driveAudio.SetOnChange ([this, state] (bool checked)
     {
@@ -337,6 +373,7 @@ void DiskPage::Rebuild()
 void DiskPage::SetPopupHost (DxuiHwndSource * host)
 {
     m_writeMode.SetPopupHost       (host);
+    m_externalChange.SetPopupHost (host);
     m_mechanism.SetPopupHost       (host);
 }
 

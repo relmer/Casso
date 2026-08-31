@@ -4,6 +4,9 @@
 
 #include "DiskImage.h"
 #include "MountedImageState.h"
+#include "ChangePrompt.h"
+#include "IImageWatcher.h"
+#include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
 
@@ -182,6 +185,72 @@ public:
     //  pre-commit re-check.
     void          SetIdentityReader (IdentityReader reader) { m_identityReader = std::move (reader); }
 
+    //  Where notification comes from. The shell builds the platform watcher and
+    //  hands it over; REGISTERING AND DROPPING WATCHES IS THIS CLASS'S JOB,
+    //  because mount-registers-a-watch is orchestration and orchestration is
+    //  testable. Caller-owned and may be null, which is a session with no
+    //  notification -- the check before every write still holds.
+    void          SetImageWatcher (IImageWatcher * watcher) { m_watcher = watcher; }
+
+    //  Where "is somebody else writing this right now" is answered. Optional:
+    //  without it a pick-up cannot be deferred for a third-party writer, and
+    //  the quiet period is the only debounce.
+    void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
+
+    //  What the user declared should happen to changes that state no intent.
+    void          SetFallbackAnswer (FallbackAnswer answer) { m_fallback = answer; }
+
+    //  Restarting the machine.
+    //
+    //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
+    //  machine lifecycle directly is a layering inversion; the decision stays
+    //  here and the action belongs to the shell.
+    void          SetMachineRestartCallback (std::function<void ()> cb) { m_restartCallback = std::move (cb); }
+
+    //  Showing a report that does not block the machine. Given the bay it is
+    //  about and everything to draw.
+    using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+
+    void          SetChangeReportSink (ReportSink sink) { m_reportSink = std::move (sink); }
+
+    //  Putting a question to the user.
+    //
+    //  IT ASKS AND RETURNS NOTHING. Asking happens on the thread that owns disk
+    //  writes and answering on the one that owns the screen, so a sink that
+    //  returned the answer would have to block the machine while the user read
+    //  it. The answer comes back through ResolvePendingChange instead.
+    //
+    //  Null means nothing can answer, and a change that needs an answer stays
+    //  pending rather than resolving itself by default.
+    using AskSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+
+    void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
+
+    //  The user answered a question this store asked.
+    //
+    //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
+    //  can swap an image. The shell routes it there rather than acting on the
+    //  UI thread where the answer arrived.
+    void          ResolvePendingChange (int slot, int drive, ChangeAction chosen);
+
+    //  Where "now" comes from, in milliseconds, so the quiet period can be
+    //  swept in a test without waiting for one.
+    void          SetClock (std::function<int64_t ()> clock) { m_clock = std::move (clock); }
+
+    //  A change was noticed, from a watcher or stated by a writer.
+    //
+    //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
+    //  runs on its own thread and the message channel on the UI thread, while
+    //  acting on a change belongs to the thread that owns disk writes.
+    void          NoteExternalChange (const string & path, PickUpIntent intent);
+
+    //  Act on whatever has settled. Called on the CPU thread at a moment with
+    //  no disk operation in flight.
+    void          ApplyPendingPickUp ();
+
+    //  The user dismissed the standing report for a bay.
+    void          ClearChangeReport (int slot, int drive);
+
     //  What a bay knows about its image beyond the bytes: the identity read at
     //  mount, any change noticed since, and whether a report stands. Null for
     //  an out-of-range bay.
@@ -319,9 +388,51 @@ private:
     //  the part the user will worry about.
     static wstring FormatExternalChangeMessage (const string & path);
 
-    Entry           m_entries[kSlotCount][kDriveCount];
-    FlushSink       m_flushSink;
-    ImageReader     m_imageReader;
-    IdentityReader  m_identityReader;
-    string          m_emptyPath;
+    //  Everything one bay's settled change leads to.
+    void           ApplyPendingPickUpToBay (int slot, int drive);
+
+    //  Carries out what was decided. Split from deciding so the decision has
+    //  one shape whether it came from the policy or from the user.
+    void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
+                                         const vector<Byte> & bytes);
+
+    //  Replaces a mounted image's contents WITHOUT flushing what it held.
+    //
+    //  A FLUSH HERE WOULD WRITE THE OLD DISK OVER THE NEW FILE, which is the
+    //  precise loss this feature exists to prevent. The new bytes are loaded
+    //  into a fresh image first, so a load that fails leaves the mounted disk
+    //  exactly as it was.
+    HRESULT        TakeUpContents (int slot, int drive, const vector<Byte> & bytes);
+
+    //  Registers and drops the watch on a bay's directory.
+    //
+    //  A DIRECTORY IS DROPPED ONLY WHEN NO OTHER BAY STILL NEEDS IT. Two disks
+    //  out of one folder are ordinary, and ejecting the first must not blind
+    //  the second.
+    void           BeginWatching (int slot, int drive);
+    void           EndWatching   (int slot, int drive);
+
+    //  Milliseconds now, through the injected clock when one is installed.
+    int64_t        NowMs () const;
+
+    Entry                    m_entries[kSlotCount][kDriveCount];
+    FlushSink                m_flushSink;
+    ImageReader              m_imageReader;
+    IdentityReader           m_identityReader;
+    string                   m_emptyPath;
+
+    IImageWatcher *          m_watcher  = nullptr;
+    IDiskFileIo *            m_fileIo   = nullptr;
+    FallbackAnswer           m_fallback = FallbackAnswer::Ask;
+
+    std::function<void ()>   m_restartCallback;
+    ReportSink               m_reportSink;
+    AskSink                  m_askSink;
+    std::function<int64_t ()>  m_clock;
+
+    //  Guards the pending records alone. A watcher thread records a change
+    //  while the CPU thread reads it, and those two fields are the whole of
+    //  what crosses between them -- the image, the path and the identity are
+    //  touched only by the thread that owns disk writes.
+    mutable std::mutex       m_pendingMutex;
 };

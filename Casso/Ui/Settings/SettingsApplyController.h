@@ -104,6 +104,7 @@ private:
     // whole prefs file when any of them changed at OK.
     int          m_baselinePrintOutputDpi          = 0;
     std::string  m_baselinePrintDotStyle;
+    std::string  m_baselineExternalChangeAnswer;
     bool         m_baselinePrinterAudioEnabled     = true;
     float        m_baselinePrinterAudioVolume      = 0.0f;
     bool         m_baselinePrinterAudioPanOverride = false;

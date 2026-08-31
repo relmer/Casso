@@ -379,6 +379,11 @@ HRESULT SettingsSheet::OpenModeless (
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
+
+    // Disk page: the external-change answer is a global pref too, for the same
+    // reason the printing ones are -- it describes how the user works, not
+    // which machine is running.
+    m_diskPage->SetPrefs (&prefs);
     m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.

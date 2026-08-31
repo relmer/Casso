@@ -4,6 +4,7 @@
 #include "NibblizationLayer.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "ChangePrompt.h"
 
 
 
@@ -327,6 +328,10 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  describe a file the loaded bytes did not come from, and a stamp
     //  recorded for a mount that failed would sit on an empty bay.
     At (slot, drive).sharedState.Mount (ReadIdentity (path));
+
+    //  Mount registers the watch. It is orchestration rather than platform
+    //  work, so it lives here and not in whatever built the watcher.
+    BeginWatching (slot, drive);
 
 Error:
     return hr;
@@ -1357,6 +1362,10 @@ void DiskImageStore::Eject (int slot, int drive)
         hr = FlushEntry (entry);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        //  Before the path goes: the watch is keyed by the directory the
+        //  image sits in, and there is no finding that from a cleared path.
+        EndWatching (slot, drive);
+
         entry.image.reset();
         entry.path.clear();
         entry.mounted = false;
@@ -1640,4 +1649,578 @@ wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
            L"\n\nThe file was changed by something else since it was mounted, and "
            L"writing now would discard that change. Your writes are still held in "
            L"memory and were not lost.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::NowMs
+//
+//  Milliseconds now.
+//
+//  INJECTED SO A TEST NEED NOT WAIT. The quiet period is a second, and a suite
+//  that spent one proving every coalescing rule would be a suite nobody runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DiskImageStore::NowMs() const
+{
+    int64_t  now = 0;
+
+
+
+    if (m_clock)
+    {
+        now = m_clock();
+    }
+    else
+    {
+        now = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                  std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    return now;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::NoteExternalChange
+//
+//  Somebody says this image changed.
+//
+//  IT RECORDS AND RETURNS. The watcher calls this from its own thread and the
+//  message channel from the UI thread, while reading an image and swapping it
+//  under a running guest belongs to the thread that owns disk writes. Doing the
+//  work here would race the emulator mid-sector.
+//
+//  A PATH NO BAY HOLDS IS NOT AN ERROR. A directory watch reports every file
+//  under it, and an intent may be stated for an image nothing has mounted; both
+//  are ordinary and both end here, silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent intent)
+{
+    std::lock_guard<std::mutex>  held (m_pendingMutex);
+    int64_t  now   = NowMs();
+    int      slot  = 0;
+    int      drive = 0;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            Entry &  entry = m_entries[slot][drive];
+
+            if (entry.mounted && MountedImageState::SamePath (entry.path, path))
+            {
+                entry.sharedState.NoteChange (now, intent);
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ApplyPendingPickUp
+//
+//  Act on whatever has settled, on the thread that owns disk writes.
+//
+//  CALLED OFTEN AND DOES NOTHING ALMOST EVERY TIME. It is pumped from the
+//  controller's idle callback and from motor spindown, so the common path is a
+//  loop over sixteen bays that finds nothing pending and returns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ApplyPendingPickUp()
+{
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            ApplyPendingPickUpToBay (slot, drive);
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ApplyPendingPickUpToBay
+//
+//  One bay's settled change, from noticing it to acting on it.
+//
+//  THE READ HAPPENS BEFORE THE DECISION, and that ordering is what lets the
+//  policy rank "cannot be used" above everything else: whether the new bytes
+//  can be this disk is not knowable without reading them.
+//
+//  A CHANGE THAT TURNS OUT NOT TO BE ONE IS DROPPED. A directory watch reports
+//  a write to any file in the folder and a stated intent is only a hint, so the
+//  recorded identity is what settles whether anything actually happened. This is
+//  also what stops the store's own commit from coming back as somebody else's
+//  change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
+{
+    HRESULT                            hr        = S_OK;
+    Entry                            & entry     = At (slot, drive);
+    bool                               settled   = false;
+    bool                               held      = false;
+    bool                               usable    = false;
+    bool                               unchanged = false;
+    PickUpIntent                       intent    = PickUpIntent::Unstated;
+    ChangeAction                       action    = ChangeAction::Ignore;
+    ImageIdentity                      current;
+    vector<Byte>                       bytes;
+    DiskFormat                         fmt       = DiskFormat::Dsk;
+    ExternalChangePolicy::Situation    situation;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        settled = entry.mounted
+               && entry.image != nullptr
+               && entry.sharedState.IsSettled (NowMs());
+        intent  = entry.sharedState.Pending().intent;
+    }
+
+    if (!settled)
+    {
+        return;
+    }
+
+    //  Deferred rather than refused, indefinitely and silently: the pick-up
+    //  simply happens once the hold is released. Both writers in this system
+    //  commit atomically, but a text editor or a copy tool need not, and the
+    //  quiet period alone does not cover one that takes its time.
+    if (m_fileIo != nullptr && m_fileIo->IsHeldByAnotherProcess (entry.path))
+    {
+        return;
+    }
+
+    //  DEFER EVERY PICK-UP WHILE THE GUEST HAS UNSAVED WRITES. Resolving a
+    //  two-sided conflict means preserving the version the user does not keep,
+    //  and until that exists a pick-up here would discard the guest's work --
+    //  the exact loss this feature is for. Nothing is lost by waiting: the
+    //  change stays pending and the writes stay in memory.
+    if (entry.image->IsDirty())
+    {
+        return;
+    }
+
+    current   = ReadIdentity (entry.path);
+    unchanged = entry.sharedState.Identity().Matches (current);
+
+    if (unchanged)
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+
+        return;
+    }
+
+    //  Read, and decide whether these bytes can be this disk. A trial load into
+    //  a throwaway image is the only honest answer -- the extension and the
+    //  length agree with plenty of files that will not load.
+    hr = ReadImageFile (entry.path, bytes);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = DetectFormatByExtension (entry.path, fmt);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        DiskImage  trial;
+
+        trial.LoadFromBytes (fmt, bytes, entry.path);
+        usable = trial.IsLoaded();
+    }
+
+    situation.changeSeen  = true;
+    situation.usable      = usable;
+    situation.guestDirty  = false;
+    situation.heldByOther = false;
+    situation.intent      = intent;
+    situation.fallback    = m_fallback;
+
+    action = ExternalChangePolicy::Decide (situation);
+
+    //  A question nothing can answer stays pending rather than resolving itself
+    //  by default. A headless host has no way to ask, and picking one of the
+    //  answers on the user's behalf is what the fallback exists for.
+    //
+    //  ONE QUESTION AT A TIME PER BAY. Asking cannot block -- the answer comes
+    //  from another thread -- so the change is still pending on the next idle
+    //  tick, and without this the user would be asked again sixty times a
+    //  second while reading the first one.
+    if (ExternalChangePolicy::NeedsAnAnswer (action))
+    {
+        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        {
+            entry.sharedState.SetAskOutstanding (true);
+            m_askSink (slot, drive, ChangePrompt::Compose (entry.path, action));
+        }
+
+        return;
+    }
+
+    CarryOutChangeAction (slot, drive, action, bytes);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ResolvePendingChange
+//
+//  The answer to a question this store asked.
+//
+//  THE BYTES ARE READ AGAIN HERE RATHER THAN KEPT FROM THE QUESTION. The user
+//  may have run two more builds while the prompt sat on the screen, and the
+//  version they mean is the one they just built -- not the one that was on disk
+//  when the question was composed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+
+
+
+    if (!IsValidBay (slot, drive))
+    {
+        return;
+    }
+
+    {
+        Entry &  entry = At (slot, drive);
+
+        entry.sharedState.SetAskOutstanding (false);
+
+        if (!entry.mounted || entry.image == nullptr)
+        {
+            return;
+        }
+
+        hr = ReadImageFile (entry.path, bytes);
+
+        //  Answering "take it up" about a file that has since gone is not the
+        //  same question any more. Nothing is swapped and the user is told
+        //  what they are still holding.
+        if (FAILED (hr) && chosen != ChangeAction::Ignore)
+        {
+            chosen = ChangeAction::Unusable;
+        }
+    }
+
+    CarryOutChangeAction (slot, drive, chosen, bytes);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::CarryOutChangeAction
+//
+//  Doing what was decided.
+//
+//  ONE SHAPE WHETHER THE POLICY DECIDED IT OR THE USER DID. An answer chosen in
+//  a dialog arrives here as the same value the policy would have produced, so
+//  there is no second implementation of "take it up" that can drift from the
+//  first.
+//
+//  A REPORT IS RAISED ONCE AND ABSORBS WHAT FOLLOWS. Three builds before the
+//  developer turns back to the emulator are three pick-ups and one report: the
+//  contents taken up are always the most recent, and three reports about one
+//  disk say nothing three times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
+                                           const vector<Byte> & bytes)
+{
+    HRESULT  hr        = S_OK;
+    Entry &  entry     = At (slot, drive);
+    bool     restarted = false;
+    bool     tookUp    = false;
+
+
+
+    switch (action)
+    {
+    case ChangeAction::TakeUpInPlace:
+    case ChangeAction::Restart:
+        hr = TakeUpContents (slot, drive, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            tookUp    = true;
+            restarted = (action == ChangeAction::Restart);
+        }
+        else
+        {
+            //  The bytes passed a trial load and then failed the real one.
+            //  Nothing was swapped, so the mounted disk is untouched and the
+            //  user is told what they are still holding.
+            action = ChangeAction::Unusable;
+        }
+
+        break;
+
+    case ChangeAction::KeepHeld:
+        //  The user saw both and chose the one in memory. Recording the file's
+        //  identity as seen is what lets a later flush write over it: without
+        //  it the re-check before every commit would refuse forever, and the
+        //  guest's work would be stranded in memory for the rest of the
+        //  session.
+        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+        break;
+
+    case ChangeAction::Defer:
+        //  Leave it pending. Nothing to say and nothing to clear.
+        return;
+
+    default:
+        break;
+    }
+
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+    }
+
+    if (restarted && m_restartCallback)
+    {
+        m_restartCallback();
+    }
+
+    if (m_reportSink && !entry.sharedState.IsReportStanding())
+    {
+        ChangePrompt  report;
+
+        if (tookUp)
+        {
+            report = ChangePrompt::ComposePickUpReport (entry.path, restarted);
+        }
+        else
+        {
+            report = ChangePrompt::Compose (entry.path, action);
+        }
+
+        if (!report.title.empty())
+        {
+            entry.sharedState.SetReportStanding (true);
+            m_reportSink (slot, drive, report);
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::TakeUpContents
+//
+//  Swaps a mounted image's contents for the ones on disk.
+//
+//  IT DOES NOT FLUSH, AND THAT IS THE WHOLE POINT. The ordinary remount path
+//  flushes what the bay held before loading, which here would write the old
+//  disk straight over the change that prompted the swap.
+//
+//  THE NEW BYTES LOAD INTO A FRESH IMAGE FIRST, so a load that fails leaves the
+//  mounted disk exactly as it was. The machine is running and what it holds is
+//  known-good; there is no version of this worth half-doing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> & bytes)
+{
+    HRESULT                  hr         = S_OK;
+    Entry                  & entry      = At (slot, drive);
+    SalvageAssessment        assessment;
+    HRESULT                  hrAssess   = S_OK;
+    bool                     usable     = false;
+    unique_ptr<DiskImage>    loaded     = make_unique<DiskImage> ();
+
+
+
+    loaded->LoadFromBytes (entry.format, bytes, entry.path);
+
+    usable = loaded->IsLoaded();
+    CBR (usable);
+
+    //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
+    //  to this DiskImage -- SetExternalDisk hands one over at mount -- so
+    //  replacing the unique_ptr would leave the drive reading freed memory the
+    //  instant a disk was picked up. Assigning through keeps the address the
+    //  drive was given.
+    *entry.image = std::move (*loaded);
+
+    //  The identity is refreshed from the file the bytes came from, so the
+    //  swap does not immediately look like another external change.
+    entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+
+    hrAssess             = AssessSalvage (slot, drive, assessment);
+    entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ClearChangeReport
+//
+//  The user dismissed the report for a bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ClearChangeReport (int slot, int drive)
+{
+    if (IsValidBay (slot, drive))
+    {
+        At (slot, drive).sharedState.SetReportStanding (false);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::BeginWatching
+//
+//  Takes up a watch on the directory holding a bay's image.
+//
+//  A DIRECTORY THAT CANNOT BE WATCHED IS RECORDED, NOT REPORTED. A network
+//  share or a synchronizing folder is exactly the case that produces one, and
+//  the guarantee does not live here: the check made before every write is what
+//  carries it, and notification only makes it prompt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::BeginWatching (int slot, int drive)
+{
+    Entry &  entry     = At (slot, drive);
+    string   directory = MountedImageState::DirectoryOf (entry.path);
+    bool     watching  = false;
+
+
+
+    if (m_watcher != nullptr && !directory.empty())
+    {
+        watching = m_watcher->Watch (directory,
+                                     [this] (const string & path)
+                                     {
+                                         NoteExternalChange (path, PickUpIntent::Unstated);
+                                     });
+    }
+
+    entry.sharedState.SetWatching (watching);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EndWatching
+//
+//  Drops a bay's watch, unless another bay still needs the same directory.
+//
+//  TWO DISKS OUT OF ONE FOLDER IS THE ORDINARY CASE -- a boot disk and a work
+//  disk built by the same script -- and ejecting the first must not blind the
+//  second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EndWatching (int slot, int drive)
+{
+    Entry   & entry      = At (slot, drive);
+    string    directory  = MountedImageState::DirectoryOf (entry.path);
+    bool      stillUsed  = false;
+    int       otherSlot  = 0;
+    int       otherDrive = 0;
+
+
+
+    for (otherSlot = 0; otherSlot < kSlotCount; otherSlot++)
+    {
+        for (otherDrive = 0; otherDrive < kDriveCount; otherDrive++)
+        {
+            bool  isSelf = (otherSlot == slot && otherDrive == drive);
+
+            if (!isSelf && m_entries[otherSlot][otherDrive].mounted)
+            {
+                string  other = MountedImageState::DirectoryOf (m_entries[otherSlot][otherDrive].path);
+
+                stillUsed = stillUsed || MountedImageState::SamePath (other, directory);
+            }
+        }
+    }
+
+    if (m_watcher != nullptr && !directory.empty() && !stillUsed)
+    {
+        m_watcher->Unwatch (directory);
+    }
+
+    entry.sharedState.SetWatching (false);
+
+    return;
 }

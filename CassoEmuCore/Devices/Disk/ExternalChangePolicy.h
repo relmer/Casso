@@ -81,6 +81,22 @@ enum class ChangeAction
 
     //  Wait: something else is holding the file, or the guest is mid-operation.
     Defer,
+
+    //  Keep what the emulator holds, and accept the file as seen.
+    //
+    //  NOT THE SAME AS Ignore, WHICH THE POLICY REACHES WHEN NOTHING HAPPENED.
+    //  This is a decision about a change that did: the user was shown both and
+    //  chose the version in memory, so the file's identity is recorded as seen
+    //  and a later flush is free to write over it. Leaving it unrecorded would
+    //  refuse that flush forever and strand the guest's work in memory.
+    KeepHeld,
+
+    //  Write what is held to a timestamped copy beside the original.
+    //
+    //  AN ANSWER RATHER THAN A DECISION. Nothing chooses this on its own; it
+    //  is what the user picks when told the file behind a mounted disk is gone,
+    //  where what the emulator holds may be the only copy left.
+    PreserveCopy,
 };
 
 
@@ -143,4 +159,33 @@ public:
 
     //  Whether this action needs the user before anything happens.
     static bool          NeedsAnAnswer (ChangeAction action);
+
+    //  The stored spelling of a fallback answer, and what it means.
+    //
+    //  THE MEANING IS PARSED HERE AND THE VALUE IS STORED IN THE EXE. A
+    //  preferences struct is a place to keep a string; deciding what the
+    //  string means is a decision, and decisions live where tests reach them.
+    //
+    //  AN UNRECOGNIZED STORED VALUE FALLS BACK TO ASKING. A preferences file
+    //  edited by hand, or written by a later version, must not silently pick
+    //  the answer that discards the most.
+    static FallbackAnswer   ParseFallbackAnswer (const std::string & stored);
+    static const char *     SpellFallbackAnswer (FallbackAnswer answer);
+
+    //  The answers as an ordered list, for a control that offers them.
+    //
+    //  THE ORDER IS THE CONTRACT AND IT LIVES HERE. A settings page that
+    //  hard-coded "row 1 means reload" would be a decision inside an
+    //  executable, and the first reordering of the list would silently change
+    //  what every existing preference means. The page asks which row an answer
+    //  is and which answer a row is, and decides nothing.
+    //
+    //  A ROW OUT OF RANGE IS Ask, matching the parse: the value that acts on
+    //  nothing is what an unreadable input falls back to.
+    static int              IndexOfFallbackAnswer  (FallbackAnswer answer);
+    static FallbackAnswer   FallbackAnswerAtIndex  (int index);
+
+    //  How many answers there are, so a control cannot offer a row that has
+    //  no meaning.
+    static constexpr int    kFallbackAnswerCount = 3;
 };

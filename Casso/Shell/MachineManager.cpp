@@ -1394,6 +1394,38 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         m_shell.m_refs.diskController->SetMotorOffFlushCallback ([this] ()
         {
             m_shell.m_diskStore.FlushAll();
+
+            // The disk has just stopped, so this is the quietest moment there
+            // is to swap what is under it. One line and no decisions: which
+            // bay, whether anything settled and what to do about it are all
+            // the store's.
+            m_shell.m_diskStore.ApplyPendingPickUp();
+        });
+
+        // The spindown hook above is not enough on its own, and the gap is the
+        // ordinary case rather than an edge: it fires only on a motor-on to
+        // motor-off transition, so a guest sitting at a BASIC prompt -- which
+        // is exactly where a build loop leaves it -- would never learn that its
+        // disk changed. This fires while nothing is in flight, which is nearly
+        // always, rate-limited to once an emulated frame.
+        //  Left uninstalled under --no-image-watch, which is the measurement
+        //  seam: with neither the watcher nor this, nothing learns of a change
+        //  until the emulator is about to write, and the re-check made there
+        //  is what has to carry the guarantee on its own.
+        if (!m_shell.IsImageWatchDisabled())
+        {
+            m_shell.m_refs.diskController->SetIdleCallback ([this] ()
+            {
+                m_shell.m_diskStore.ApplyPendingPickUp();
+            });
+        }
+
+        // Restarting after a pick-up. The decision is the store's and the
+        // action is the shell's -- a device-layer image store reaching machine
+        // lifecycle directly would be a layering inversion.
+        m_shell.m_diskStore.SetMachineRestartCallback ([this] ()
+        {
+            PowerCycle();
         });
     }
 

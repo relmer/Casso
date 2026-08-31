@@ -302,6 +302,17 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
+
+        //  Runs with change notification deliberately broken, so the check
+        //  made before every write can be measured on its own.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP. It is not an off-switch for a
+        //  user: with it set the emulator still refuses to write over a change
+        //  it did not see, which is the whole point of measuring it, but it
+        //  learns about changes only when it is about to write. Designed in
+        //  where the watcher is built rather than bolted on later, which is how
+        //  a developer switch ends up in the interface.
+        bool         noImageWatch = false;             // --no-image-watch
     };
 
     DiskOptions   disk;

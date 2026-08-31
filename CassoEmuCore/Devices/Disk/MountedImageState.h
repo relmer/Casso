@@ -104,6 +104,16 @@ public:
     bool  IsReportStanding () const        { return m_reportStanding; }
     void  SetReportStanding (bool standing) { m_reportStanding = standing; }
 
+    //  Whether a question has been put to the user and not yet answered.
+    //
+    //  WITHOUT IT THE QUESTION WOULD BE ASKED AGAIN EVERY IDLE TICK. Asking
+    //  runs on the thread that owns disk writes and answering happens on the
+    //  one that owns the screen, so the change necessarily stays pending while
+    //  the user reads it -- and a pending change is exactly what the pick-up
+    //  path looks for.
+    bool  IsAskOutstanding  () const          { return m_askOutstanding; }
+    void  SetAskOutstanding (bool outstanding) { m_askOutstanding = outstanding; }
+
     //  Whether two spellings of a path name the same file.
     //
     //  HERE RATHER THAN IN THE SHELL because comparing them is a rule, not a
@@ -120,4 +130,5 @@ private:
     bool           m_mounted        = false;
     bool           m_watching       = false;
     bool           m_reportStanding = false;
+    bool           m_askOutstanding = false;
 };

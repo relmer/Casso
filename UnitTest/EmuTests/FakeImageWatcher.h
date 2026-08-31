@@ -41,15 +41,22 @@ public:
 
 
 
+    //  A DIRECTORY ALREADY WATCHED SUCCEEDS WITHOUT A SECOND ENTRY, exactly as
+    //  the platform watcher does. Two disks out of one folder is ordinary, and
+    //  it is one watch; a fake that counted it twice would let a leak past.
     bool  Watch (const std::string & directory, Callback callback) override
     {
         bool  taken = !failWatch;
 
 
 
-        if (taken)
+        if (taken && callbacks.find (directory) == callbacks.end())
         {
             watched.push_back (directory);
+        }
+
+        if (taken)
+        {
             callbacks[directory] = std::move (callback);
         }
 

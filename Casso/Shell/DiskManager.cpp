@@ -6,6 +6,8 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Win32ImageWatcher.h"
+#include "Cli/Win32DiskFileIo.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
 #include "../Config/IFileSystem.h"
@@ -788,4 +790,70 @@ void DiskManager::UpdateDriveWidgets()
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
     m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
     m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskManager::InstallSharedImageSupport
+//
+//  Builds the platform pieces a shared image needs and hands them over.
+//
+//  THE HAND-OVER IS THE WHOLE JOB. Registering a watch at mount and dropping it
+//  at eject is orchestration, and orchestration lives in the store where a fake
+//  watcher can assert it; choosing which implementation to build is what an
+//  executable is for.
+//
+//  `disabled` INSTALLS ONE THAT REFUSES EVERY WATCH rather than installing
+//  none. That is the measurement seam, and the distinction matters: the store
+//  still asks, still records that it is not watching, and still refuses to
+//  write over a change it never saw -- which is precisely the guarantee being
+//  measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+//
+//  A watcher that cannot watch anything, standing in for a location that
+//  cannot be watched. Behind the seam so the degraded path is reachable
+//  without a network share.
+//
+class RefusingImageWatcher : public IImageWatcher
+{
+public:
+    bool  Watch (const std::string &, Callback) override { return false; }
+    void  Unwatch (const std::string &) override {}
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskManager::InstallSharedImageSupport
+//
+//  Hands the store the watcher and the file probe it was built with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::InstallSharedImageSupport (bool watchDisabled)
+{
+    if (watchDisabled)
+    {
+        m_imageWatcher = std::make_unique<RefusingImageWatcher> ();
+    }
+    else
+    {
+        m_imageWatcher = std::make_unique<Win32ImageWatcher> ();
+    }
+
+    //  The same platform seam the command line writes disk images through, so
+    //  "is somebody else holding this file" is answered one way in one place.
+    m_imageFileIo = std::make_unique<Win32DiskFileIo> ();
+
+    m_diskStore.SetImageWatcher (m_imageWatcher.get());
+    m_diskStore.SetFileIo       (m_imageFileIo.get());
 }

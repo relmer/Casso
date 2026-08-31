@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/IImageWatcher.h"
+#include "Devices/Disk/IDiskFileIo.h"
 
 
 class CpuManager;
@@ -86,6 +88,21 @@ public:
         m_onMountCompleted = std::move (cb);
     }
 
+    //  Builds the platform pieces a shared image needs and hands them to the
+    //  image store: the directory watcher, and the file probe that answers
+    //  whether something else is writing the image right now.
+    //
+    //  HANDING IT OVER IS ALL THIS DOES. Which directory to watch, when to
+    //  take a watch up and when to drop it are orchestration, and orchestration
+    //  is the store's, where a fake watcher can assert it. Everything here is
+    //  the choice of implementation.
+    //
+    //  `disabled` INSTALLS A WATCHER THAT REFUSES EVERY WATCH rather than
+    //  installing none. That is the measurement seam: the emulator runs with
+    //  notification broken exactly as an unwatchable share leaves it, and the
+    //  check made before every write is what has to carry the guarantee.
+    void     InstallSharedImageSupport (bool watchDisabled);
+
     void     EjectDiskInSlot6       (int drive);
     void     RemountSlot6Disks      ();
     void     MountCommandLineDisks  (const std::string & disk1Path,
@@ -145,6 +162,11 @@ private:
     UserConfigStore                                 & m_userConfigStore;
     IFileSystem                                     & m_fileSystem;
     std::array<bool, 2>                             & m_userWriteProtect;
+
+    //  Both outlive every mount, because the store holds bare pointers to them
+    //  and a watch may be taken up at any mount.
+    std::unique_ptr<IImageWatcher>  m_imageWatcher;
+    std::unique_ptr<IDiskFileIo>    m_imageFileIo;
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};

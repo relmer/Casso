@@ -98,3 +98,127 @@ bool ExternalChangePolicy::NeedsAnAnswer (ChangeAction action)
         || action == ChangeAction::Conflict
         || action == ChangeAction::Unusable;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExternalChangePolicy::ParseFallbackAnswer
+//
+//  What a stored spelling means.
+//
+//  SPELLED THE WAY audioDownloadConsent IS -- lower-case words, stored as
+//  text rather than as a number -- so a preferences file stays readable and a
+//  value written by one version is legible to the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FallbackAnswer ExternalChangePolicy::ParseFallbackAnswer (const std::string & stored)
+{
+    FallbackAnswer  answer = FallbackAnswer::Ask;
+
+
+
+    if (stored == "reload")
+    {
+        answer = FallbackAnswer::TakeUpInPlace;
+    }
+    else if (stored == "restart")
+    {
+        answer = FallbackAnswer::Restart;
+    }
+
+    return answer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExternalChangePolicy::SpellFallbackAnswer
+//
+//  How an answer is written down. The inverse of the parse above, and the two
+//  are kept together so a round trip cannot lose a value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ExternalChangePolicy::SpellFallbackAnswer (FallbackAnswer answer)
+{
+    const char *  spelling = "ask";
+
+
+
+    switch (answer)
+    {
+    case FallbackAnswer::TakeUpInPlace:  spelling = "reload";   break;
+    case FallbackAnswer::Restart:        spelling = "restart";  break;
+    default:                             spelling = "ask";      break;
+    }
+
+    return spelling;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExternalChangePolicy::IndexOfFallbackAnswer
+//
+//  Which row of an offered list this answer is.
+//
+//  ASKING IS ROW ZERO, which is the default and the one that acts on nothing --
+//  so a control that fails to find a match lands on the harmless answer rather
+//  than on one that swaps a disk under a running program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExternalChangePolicy::IndexOfFallbackAnswer (FallbackAnswer answer)
+{
+    int  index = 0;
+
+
+
+    switch (answer)
+    {
+    case FallbackAnswer::TakeUpInPlace:  index = 1;  break;
+    case FallbackAnswer::Restart:        index = 2;  break;
+    default:                             index = 0;  break;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExternalChangePolicy::FallbackAnswerAtIndex
+//
+//  Which answer a row is. The inverse of the above, kept beside it so the two
+//  cannot drift and a reordering has to be one edit rather than two.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FallbackAnswer ExternalChangePolicy::FallbackAnswerAtIndex (int index)
+{
+    FallbackAnswer  answer = FallbackAnswer::Ask;
+
+
+
+    switch (index)
+    {
+    case 1:   answer = FallbackAnswer::TakeUpInPlace;  break;
+    case 2:   answer = FallbackAnswer::Restart;        break;
+    default:  answer = FallbackAnswer::Ask;            break;
+    }
+
+    return answer;
+}

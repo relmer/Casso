@@ -79,6 +79,8 @@
 #define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
 #define WM_APP_RUN_SALVAGE     (WM_APP + 0x24)
 #define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
+#define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
+#define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
 
 // The shell the EHM notification sink forwards to. One shell per process;
 // cleared in the destructor so a late report cannot touch a dead object.
@@ -937,6 +939,11 @@ void EmulatorShell::InitAssetPathsAndStores()
                                                    *m_userConfigStore,
                                                    m_uiFs,
                                                    m_userWriteProtect);
+
+    //  The store owns the watch lifecycle; this only decides which watcher it
+    //  gets. --no-image-watch installs one that refuses every watch, so the
+    //  check made before every write can be measured on its own.
+    m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
 }
 
 
@@ -1637,6 +1644,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         InstallDragDropTarget();
     }
 
+    InstallChangeReporting();
+
 Error:
     return hr;
 }
@@ -2129,6 +2138,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_joystickButton);
     m_host->GetRoot().Adopt (m_switchBar);
+    m_host->GetRoot().Adopt (m_changeBanner);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -2753,6 +2763,10 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
     m_viewportBoundsPx = boundsPx;
     m_d3dRenderer.SetTargetBounds (boundsPx);
     m_d3dRenderer.MarkRedrawNeeded();
+
+    // The change banner sits across the top of the picture, so it moves with
+    // it. No-ops while nothing is being reported.
+    LayoutChangeBanner();
 }
 
 
@@ -3318,6 +3332,12 @@ void EmulatorShell::SaveGlobalPrefs()
 
     hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    // The image store holds its own copy of the external-change answer, and it
+    // has to change without a restart or a re-mount. Every path that edits the
+    // preference saves it, so re-reading it here is what makes that true.
+    m_diskStore.SetFallbackAnswer (
+        ExternalChangePolicy::ParseFallbackAnswer (m_globalPrefs.externalChangeAnswer));
 }
 
 
@@ -5160,6 +5180,35 @@ int EmulatorShell::RunMessageLoop()
                 continue;
             }
 
+            // A disk changed outside Casso. The store decided on the thread
+            // that owns disk writes; both of these build UI, so they land
+            // here. lParam owns a heap-allocated notice in each case.
+            if (msg.message == WM_APP_CHANGE_REPORT)
+            {
+                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    ShowChangeBanner (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
+            if (msg.message == WM_APP_CHANGE_ASK)
+            {
+                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    AskAboutChange (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
             if (msg.message == WM_APP_NOTIFY_USER)
             {
                 wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
@@ -5686,6 +5735,25 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         case IDM_DISK_SALVAGE2:
         {
             RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            break;
+        }
+
+        case IDM_DISK_RESOLVE_CHANGE:
+        {
+            // "<slot> <drive> <action>", chosen on the UI thread and carried
+            // out here, where swapping an image is safe.
+            std::istringstream  reader (cmd.payload);
+            int                 slot   = 0;
+            int                 drive  = 0;
+            int                 chosen = 0;
+
+            reader >> slot >> drive >> chosen;
+
+            if (!reader.fail())
+            {
+                m_diskStore.ResolvePendingChange (slot, drive, (ChangeAction) chosen);
+            }
+
             break;
         }
 
@@ -10184,3 +10252,230 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallChangeReporting
+//
+//  Gives the image store the two ways it has of reaching the user.
+//
+//  BOTH BOUNCE TO THE UI THREAD, because both are called from the thread that
+//  owns disk writes -- the store decides there, at a moment with nothing in
+//  flight -- and neither a panel-tree edit nor a modal may be built from it.
+//
+//  NEITHER SINK DECIDES ANYTHING. What to say, which answers exist and what
+//  each one means all arrive composed; the shell shows them and reports which
+//  was chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallChangeReporting()
+{
+    m_diskStore.SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    {
+        ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
+
+        if (m_hwnd == nullptr ||
+            !PostMessageW (m_hwnd, WM_APP_CHANGE_REPORT, 0, (LPARAM) carried))
+        {
+            delete carried;
+        }
+    });
+
+    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    {
+        ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
+
+        if (m_hwnd == nullptr ||
+            !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
+        {
+            delete carried;
+        }
+    });
+
+    //  The answer to "what should happen when nobody stated an intent" is the
+    //  user's, kept in prefs and parsed by the policy. Read here so a session
+    //  starts with what the last one left.
+    m_diskStore.SetFallbackAnswer (
+        ExternalChangePolicy::ParseFallbackAnswer (m_globalPrefs.externalChangeAnswer));
+
+    m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_changeBanner.SetVisible  (false);
+
+    m_changeBanner.SetOnAction ([this] (size_t index)
+    {
+        //  What the button means came from core with its label. The shell
+        //  reads it back rather than assuming, so a banner that grows a second
+        //  action does not need this rewritten.
+        ChangeAction  action = (index < m_changeBannerActions.size())
+                                   ? m_changeBannerActions[index]
+                                   : ChangeAction::Ignore;
+
+        m_changeBanner.SetVisible (false);
+
+        if (m_changeBannerDrive >= 0)
+        {
+            m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
+            m_changeBannerDrive = -1;
+        }
+
+        if (action == ChangeAction::Restart)
+        {
+            PostCommand (IDM_MACHINE_RESET);
+        }
+    });
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowChangeBanner
+//
+//  Raises the non-modal notice over the running machine.
+//
+//  NOTHING IN THE TREE HOSTED ONE BEFORE. The banner appears inside dialogs and
+//  on a settings page; over a running machine it has to be positioned against
+//  the emulator viewport and left there, which is what this does.
+//
+//  A NOTICE WITH NOTHING TO OFFER IS NOT SHOWN. The restart-already-happened
+//  report carries no action, and a strip that only says what already occurred
+//  would sit over the picture until dismissed for no gain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
+{
+    std::vector<std::wstring>  labels;
+    size_t                     i = 0;
+
+
+
+    m_changeBannerActions.clear();
+
+    for (i = 0; i < notice.prompt.answers.size(); i++)
+    {
+        labels.push_back (notice.prompt.answers[i].label);
+        m_changeBannerActions.push_back (notice.prompt.answers[i].action);
+    }
+
+    m_changeBanner.SetText    (notice.prompt.message);
+    m_changeBanner.SetActions (labels);
+
+    m_changeBannerDrive = notice.drive;
+
+    //  Replaced rather than stacked: a standing report absorbs later changes,
+    //  so a second one re-words the strip already on screen.
+    m_changeBanner.SetVisible (!labels.empty());
+
+    if (labels.empty())
+    {
+        m_diskStore.ClearChangeReport (notice.slot, notice.drive);
+        m_changeBannerDrive = -1;
+    }
+
+    LayoutChangeBanner();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutChangeBanner
+//
+//  Across the top of the emulator viewport, as tall as its text needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutChangeBanner()
+{
+    RECT   bounds = m_viewportBoundsPx;
+    float  height = 0.0f;
+
+
+
+    if (!m_changeBanner.IsVisible() || m_viewportBoundsPx.right <= m_viewportBoundsPx.left)
+    {
+        return;
+    }
+
+    height = m_changeBanner.GetPreferredHeightPx ((float) (bounds.right - bounds.left), m_scaler);
+
+    bounds.bottom = bounds.top + (LONG) height;
+
+    m_changeBanner.Layout (bounds, m_scaler);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AskAboutChange
+//
+//  Puts the store's question to the user.
+//
+//  THE TEXT AND THE ANSWERS COME FROM CORE. This builds a dialog out of them
+//  and nothing else -- it does not decide which answers exist, what they say,
+//  or what any of them means.
+//
+//  THE ANSWER GOES BACK BY COMMAND. Acting on it swaps an image, which belongs
+//  to the thread that owns disk writes, so it travels the same route every
+//  other mount-path action does rather than being carried out here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
+{
+    DialogDefinition  def;
+    size_t            i      = 0;
+    int               choice = 0;
+
+
+
+    if (notice.prompt.answers.empty())
+    {
+        return;
+    }
+
+    def.title = notice.prompt.title;
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { notice.prompt.message, false, std::wstring() });
+
+    for (i = 0; i < notice.prompt.answers.size(); i++)
+    {
+        bool  isLast = (i + 1 == notice.prompt.answers.size());
+
+        //  The last answer is the one that changes nothing, so it is the
+        //  default and the close-box result: dismissing a question about a
+        //  disk must not act on it.
+        def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
+                                              (int) i, isLast, isLast, false });
+    }
+
+    def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
+
+    choice = ShowModalDialog (def);
+
+    if (choice < 0 || choice >= (int) notice.prompt.answers.size())
+    {
+        choice = (int) (notice.prompt.answers.size() - 1);
+    }
+
+    PostCommand (IDM_DISK_RESOLVE_CHANGE,
+                 std::format ("{} {} {}", notice.slot, notice.drive,
+                              (int) notice.prompt.answers[choice].action));
+
+    return;
+}
