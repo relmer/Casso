@@ -260,6 +260,9 @@
     <ClCompile Include="Devices\Disk\Dos33Skeleton.cpp" />
     <ClCompile Include="Devices\Disk\ProDosSkeleton.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
+    <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
+    <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
+    <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
     <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
     <ClCompile Include="Devices\Apple2eMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
@@ -367,6 +370,10 @@
     <ClInclude Include="Devices\Disk\Dos33Skeleton.h" />
     <ClInclude Include="Devices\Disk\ProDosSkeleton.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />
+    <ClInclude Include="Devices\Disk\ImageIdentity.h" />
+    <ClInclude Include="Devices\Disk\IImageWatcher.h" />
+    <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
+    <ClInclude Include="Devices\Disk\MountedImageState.h" />
     <ClInclude Include="Video\IVideoTiming.h" />
     <ClInclude Include="Video\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />

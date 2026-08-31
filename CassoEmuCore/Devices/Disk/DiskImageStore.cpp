@@ -320,6 +320,13 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
     hr = MountFromBytes (slot, drive, path, fmt, bytes, outDiagnosis);
+    CHR (hr);
+
+    //  Recorded AFTER the read and only on success, matching the command
+    //  line's read-then-stamp order. A stamp taken before the read could
+    //  describe a file the loaded bytes did not come from, and a stamp
+    //  recorded for a mount that failed would sit on an empty bay.
+    At (slot, drive).sharedState.Mount (ReadIdentity (path));
 
 Error:
     return hr;
@@ -642,10 +649,12 @@ Error:
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
-    HRESULT       hr         = S_OK;
-    HRESULT       hrRecovery = S_OK;
-    string        recoveryPath;
-    vector<Byte>  bytes;
+    HRESULT        hr         = S_OK;
+    HRESULT        hrRecovery = S_OK;
+    bool           unchanged  = true;
+    string         recoveryPath;
+    vector<Byte>   bytes;
+    ImageIdentity  current;
 
 
 
@@ -680,6 +689,29 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // so the gate above returns before this point and the file is never
     // rewritten. The user is told at mount instead, which is earlier and is
     // where the decision actually gets made.
+    //  Immediately before committing, and whatever any watcher has or has not
+    //  reported. THIS IS THE GUARANTEE AND NOTIFICATION IS ONLY PROMPTNESS: a
+    //  missed notification, an unwatchable share, a change that arrived while
+    //  the machine was busy -- all of them end here, one stat before the write.
+    //
+    //  A BAY THAT NEVER RECORDED AN IDENTITY IS NOT CHECKED. MountFromBytes has
+    //  no file behind it, and a test that redirects reads into memory has none
+    //  either; comparing against a stat that never ran would refuse writes that
+    //  nothing has endangered.
+    if (entry.sharedState.Identity().recorded)
+    {
+        current   = ReadIdentity (entry.path);
+        unchanged = entry.sharedState.Identity().Matches (current);
+
+        //  The image KEEPS ITS DIRTY BIT, which is the whole difference between
+        //  refusing and losing: the guest's writes are still in memory and
+        //  still flushable once the conflict is settled. STG_E_NOTCURRENT says
+        //  precisely this and nothing else -- the object changed since it was
+        //  last read.
+        CBRFEx (unchanged, STG_E_NOTCURRENT,
+                EhmNotifyUser (FormatExternalChangeMessage (entry.path).c_str()));
+    }
+
     hr = entry.image->Serialize (bytes);
 
     if (FAILED (hr))
@@ -714,6 +746,19 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // must not repeat on every later eject or power cycle.
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+
+    //  The file this store just wrote is a change to it, and without this the
+    //  next flush would find its own commit sitting where the mount-time
+    //  identity used to be and refuse itself. NOT SEPARABLE FROM THE CHECK
+    //  ABOVE: the two are one mechanism, and the first one alone breaks the
+    //  second flush of every ordinary session.
+    //
+    //  Only for a bay that had an identity to begin with, so a mount from bytes
+    //  does not acquire one by being flushed.
+    if (entry.sharedState.Identity().recorded)
+    {
+        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    }
 
 Error:
     return hr;
@@ -1315,6 +1360,7 @@ void DiskImageStore::Eject (int slot, int drive)
         entry.image.reset();
         entry.path.clear();
         entry.mounted = false;
+        entry.sharedState.Eject();
     }
 }
 
@@ -1471,4 +1517,127 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::MountedSourcePaths() 
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReadIdentity
+//
+//  What the file at `path` looks like right now.
+//
+//  THROUGH THE SEAM WHEN ONE IS INSTALLED. A test that has redirected reads and
+//  writes into memory has no file to stat, and reaching past the seam to the
+//  filesystem here would have the store checking one world and writing another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
+{
+    ImageIdentity  identity;
+
+
+
+    if (m_identityReader)
+    {
+        identity = m_identityReader (path);
+    }
+    else
+    {
+        identity = ImageIdentity::ReadFromFileSystem (path);
+    }
+
+    return identity;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::SharedState
+//
+//  What a bay knows about its image beyond the bytes.
+//
+//  NULL FOR AN OUT-OF-RANGE BAY rather than a reference to a shared empty, so a
+//  caller cannot write into a placeholder and believe it recorded something.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MountedImageState * DiskImageStore::SharedState (int slot, int drive)
+{
+    MountedImageState *  state = nullptr;
+
+
+
+    if (IsValidBay (slot, drive))
+    {
+        state = &At (slot, drive).sharedState;
+    }
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::SharedState  (const)
+//
+//  The same answer for a caller that only reads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const MountedImageState * DiskImageStore::SharedState (int slot, int drive) const
+{
+    const MountedImageState *  state = nullptr;
+
+
+
+    if (IsValidBay (slot, drive))
+    {
+        state = &At (slot, drive).sharedState;
+    }
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FormatExternalChangeMessage
+//
+//  Why a commit was refused because the file moved under it.
+//
+//  IT SAYS THE WRITES ARE STILL HELD, which is the difference between this and
+//  every other flush failure and the only thing the user actually wants to
+//  know. The image keeps its dirty bit, so the writes are in memory and a later
+//  flush still carries them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso did not save changes to the disk image:\n\n" + widePath +
+           L"\n\nThe file was changed by something else since it was mounted, and "
+           L"writing now would discard that change. Your writes are still held in "
+           L"memory and were not lost.";
 }

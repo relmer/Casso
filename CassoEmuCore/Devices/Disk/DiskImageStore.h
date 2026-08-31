@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountedImageState.h"
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
 
@@ -80,8 +81,16 @@ struct SalvageAssessment
 class DiskImageStore
 {
 public:
-    using FlushSink   = std::function<HRESULT (const string &, const vector<Byte> &)>;
-    using ImageReader = std::function<HRESULT (const string &, vector<Byte> &)>;
+    using FlushSink      = std::function<HRESULT (const string &, const vector<Byte> &)>;
+    using ImageReader    = std::function<HRESULT (const string &, vector<Byte> &)>;
+
+    //  How the store learns what a file looks like right now.
+    //
+    //  A THIRD SEAM BESIDE THE OTHER TWO, and for their reason: a test that has
+    //  redirected reads and writes into memory has no file to stat, so without
+    //  it the staleness gate below would compare a recorded identity against a
+    //  missing one and refuse every flush.
+    using IdentityReader = std::function<ImageIdentity (const string &)>;
 
     static constexpr int   kSlotCount  = 8;
     static constexpr int   kDriveCount = 2;
@@ -169,6 +178,21 @@ public:
     //  read-modify-write cycle without a real file.
     void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
 
+    //  Replaces the filesystem stat behind the mount-time record and the
+    //  pre-commit re-check.
+    void          SetIdentityReader (IdentityReader reader) { m_identityReader = std::move (reader); }
+
+    //  What a bay knows about its image beyond the bytes: the identity read at
+    //  mount, any change noticed since, and whether a report stands. Null for
+    //  an out-of-range bay.
+    //
+    //  Exposed rather than wrapped, because everything built above the store --
+    //  the watch wiring, the banner, the prompt -- asks these questions of a
+    //  bay, and a dozen forwarding accessors would put one piece of state
+    //  behind two names.
+    MountedImageState *        SharedState (int slot, int drive);
+    const MountedImageState *  SharedState (int slot, int drive) const;
+
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
     //  Whether `path`'s extension names a container this build can actually
@@ -233,6 +257,10 @@ private:
         //  Answering it needs a full decode for a damaged disk, which is far
         //  too much work to repeat every time a menu is drawn.
         bool                   salvageOffered = false;
+
+        //  What this bay knows about the file behind it. Set at mount, cleared
+        //  at eject, refreshed after every commit this store makes.
+        MountedImageState      sharedState;
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
@@ -282,8 +310,18 @@ private:
     // original is untouched -- which is the thing the user will worry about.
     static wstring FormatSalvageFailedMessage (const string & path);
 
-    Entry        m_entries[kSlotCount][kDriveCount];
-    FlushSink    m_flushSink;
-    ImageReader  m_imageReader;
-    string       m_emptyPath;
+    //  The identity `path` has right now: through the seam when one is
+    //  installed, and from the filesystem when none is.
+    ImageIdentity  ReadIdentity (const string & path) const;
+
+    //  Why a commit was refused because the file changed underneath it. Names
+    //  the image, and says the writes are still held rather than lost, which is
+    //  the part the user will worry about.
+    static wstring FormatExternalChangeMessage (const string & path);
+
+    Entry           m_entries[kSlotCount][kDriveCount];
+    FlushSink       m_flushSink;
+    ImageReader     m_imageReader;
+    IdentityReader  m_identityReader;
+    string          m_emptyPath;
 };

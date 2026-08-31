@@ -309,6 +309,7 @@
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
     <ClCompile Include="EmuTests\VideoRenderTests.cpp" />
     <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp" />
@@ -593,6 +594,8 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />
+    <ClInclude Include="EmuTests\FakeImageWatcher.h" />
+    <ClInclude Include="EmuTests\FakeIntentChannel.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
     <ClInclude Include="Dxui\MockDxuiControl.h" />
     <ClInclude Include="Dxui\MockDxuiPainter.h" />

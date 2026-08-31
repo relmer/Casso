@@ -27,8 +27,8 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Establish a green baseline: run `scripts\Build.ps1` then `scripts\RunTests.ps1 -Build` for x64 Debug, and record the passing count so later runs compare against a number rather than an impression
-- [ ] T002 Reproduce the defect by hand: mount a disk, write to it with `disk put` from a second process, confirm the guest sees nothing until eject and re-insert. **Use `disk put`, not an assembly** — the assembler cannot target an image on this branch, per the spec-026 gate under Dependencies
+- [X] T001 Establish a green baseline: run `scripts\Build.ps1` then `scripts\RunTests.ps1 -Build` for x64 Debug, and record the passing count so later runs compare against a number rather than an impression
+- [X] T002 Reproduce the defect by hand: mount a disk, write to it with `disk put` from a second process, confirm the guest sees nothing until eject and re-insert. **Use `disk put`, not an assembly** — the assembler cannot target an image on this branch, per the spec-026 gate under Dependencies
 
 **Checkpoint**: Known-good starting point, and the bug seen once with your own eyes.
 
@@ -40,19 +40,19 @@
 
 **⚠️ No user story work can begin until this phase completes.**
 
-- [ ] T003 [P] Add `ImageIdentity` to `CassoEmuCore/Devices/Disk/ImageIdentity.h`/`.cpp` per [data-model.md](data-model.md): size, write time, and a `recorded` flag. **Wrap the existing `FileStamp` from `IDiskFileIo.h` rather than re-declaring its two fields**, or record in a comment why a second shape is needed. Use the has-flag idiom rather than sentinels — a zero size and a zero time are both legal, and `DiskImageSession::OpenedImage` already carries `stampRecorded` for exactly this reason
-- [ ] T004 [P] Add the `IImageWatcher` seam to `CassoEmuCore/Devices/Disk/IImageWatcher.h`: watch a directory, report a path that changed, stop watching. Interface only, mirroring `IDiskFileIo`
-- [ ] T005 [P] Add the `IIntentChannel` seam to `CassoEmuCore/Cli/IIntentChannel.h` per [contracts/channel.md](contracts/channel.md). `StateIntent` returns void — a failure to deliver degrades to the fallback, and no caller could act on an error
-- [ ] T006 Add `PickUpIntent` to `CassoEmuCore/Devices/Disk/ExternalChangePolicy.h` with `Unstated`, `TakeUpInPlace` and `Restart`. `Unstated` is a real value, not a missing one: it is what every writer that is not `CassoCli` produces
-- [ ] T007 Add `MountedImageState` and `PendingChange` to `CassoEmuCore/Devices/Disk/MountedImageState.h`/`.cpp` per [data-model.md](data-model.md)
-- [ ] T008 Give `DiskImageStore::Entry` its `sharedState` member and record an `ImageIdentity` into it at mount (FR-001) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, and clear it at eject. **Foundational rather than part of the build loop**, because the re-check below is inert without it
-- [ ] T009 Re-check the recorded identity immediately before the emulator commits (FR-003, FR-027) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, whatever the watcher has or has not reported. **A failing re-check refuses the commit and surfaces through the existing flush-error path**, and the image stays dirty so the writes are still in memory and still flushable once the conflict is resolved -- nothing is dropped; the conflict phase later refines that into a question rather than a refusal. Both later stories cite this as the guarantee that holds when a notification is missed, so it cannot be built after them
-- [ ] T010 Refresh the recorded identity after every commit the emulator itself makes (FR-004), in the same file. **FOUNDATIONAL, and not separable from the re-check above**: without it the first flush changes the file, nothing updates what was recorded, and the SECOND flush of every ordinary session fails its own re-check and is refused. The two are one mechanism and cannot straddle a checkpoint
-- [ ] T011 Register the new core files in `CassoEmuCore/CassoEmuCore.vcxproj`
-- [ ] T012 [P] Add `UnitTest/EmuTests/FakeImageWatcher.h` and `UnitTest/EmuTests/FakeIntentChannel.h`, so a test can drive a change and a stated intent with no file and no window
-- [ ] T013 Add `UnitTest/EmuTests/ImageIdentityTests.cpp` covering the comparison rules: two recorded identities matching, either unrecorded never comparing equal, and a change in size alone or in time alone being a change. **In `EmuTests/` with its peers**, where every other disk test lives
-- [ ] T014 Register the new test files in `UnitTest/UnitTest.vcxproj`
-- [ ] T015 Verify the identity tests discriminate: make the comparison ignore the `recorded` flag, confirm they go red, restore. A default-constructed identity comparing equal to a real one is the bug the flag exists to prevent
+- [X] T003 [P] Add `ImageIdentity` to `CassoEmuCore/Devices/Disk/ImageIdentity.h`/`.cpp` per [data-model.md](data-model.md): size, write time, and a `recorded` flag. **Wrap the existing `FileStamp` from `IDiskFileIo.h` rather than re-declaring its two fields**, or record in a comment why a second shape is needed. Use the has-flag idiom rather than sentinels — a zero size and a zero time are both legal, and `DiskImageSession::OpenedImage` already carries `stampRecorded` for exactly this reason
+- [X] T004 [P] Add the `IImageWatcher` seam to `CassoEmuCore/Devices/Disk/IImageWatcher.h`: watch a directory, report a path that changed, stop watching. Interface only, mirroring `IDiskFileIo`
+- [X] T005 [P] Add the `IIntentChannel` seam to `CassoEmuCore/Cli/IIntentChannel.h` per [contracts/channel.md](contracts/channel.md). `StateIntent` returns void — a failure to deliver degrades to the fallback, and no caller could act on an error
+- [X] T006 Add `PickUpIntent` to `CassoEmuCore/Devices/Disk/ExternalChangePolicy.h` with `Unstated`, `TakeUpInPlace` and `Restart`. `Unstated` is a real value, not a missing one: it is what every writer that is not `CassoCli` produces
+- [X] T007 Add `MountedImageState` and `PendingChange` to `CassoEmuCore/Devices/Disk/MountedImageState.h`/`.cpp` per [data-model.md](data-model.md)
+- [X] T008 Give `DiskImageStore::Entry` its `sharedState` member and record an `ImageIdentity` into it at mount (FR-001) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, and clear it at eject. **Foundational rather than part of the build loop**, because the re-check below is inert without it
+- [X] T009 Re-check the recorded identity immediately before the emulator commits (FR-003, FR-027) in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, whatever the watcher has or has not reported. **A failing re-check refuses the commit and surfaces through the existing flush-error path**, and the image stays dirty so the writes are still in memory and still flushable once the conflict is resolved -- nothing is dropped; the conflict phase later refines that into a question rather than a refusal. Both later stories cite this as the guarantee that holds when a notification is missed, so it cannot be built after them
+- [X] T010 Refresh the recorded identity after every commit the emulator itself makes (FR-004), in the same file. **FOUNDATIONAL, and not separable from the re-check above**: without it the first flush changes the file, nothing updates what was recorded, and the SECOND flush of every ordinary session fails its own re-check and is refused. The two are one mechanism and cannot straddle a checkpoint
+- [X] T011 Register the new core files in `CassoEmuCore/CassoEmuCore.vcxproj`
+- [X] T012 [P] Add `UnitTest/EmuTests/FakeImageWatcher.h` and `UnitTest/EmuTests/FakeIntentChannel.h`, so a test can drive a change and a stated intent with no file and no window
+- [X] T013 Add `UnitTest/EmuTests/ImageIdentityTests.cpp` covering the comparison rules: two recorded identities matching, either unrecorded never comparing equal, and a change in size alone or in time alone being a change. **In `EmuTests/` with its peers**, where every other disk test lives
+- [X] T014 Register the new test files in `UnitTest/UnitTest.vcxproj`
+- [X] T015 Verify the identity tests discriminate: make the comparison ignore the `recorded` flag, confirm they go red, restore. A default-constructed identity comparing equal to a real one is the bug the flag exists to prevent
 
 **Checkpoint**: Identity, the re-check and the seams exist and are proven. **This is a committable state in which a flush over an externally-changed image now fails visibly, with no question to answer until the conflict phase.** Phase 3's checkpoint records its equivalent caveat; this one should not be quieter.
 
