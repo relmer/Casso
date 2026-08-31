@@ -207,16 +207,50 @@
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T107 [P] Update `docs/Assembler.md` and `docs/disk-write-integrity.md` with the `--on-change` flag and the shared-image behavior, including that a pick-up is a disk swap and cannot be verified safe
-- [ ] T108 [P] Add `CHANGELOG.md` entries under `[Unreleased]`: the build loop, the conflict handling, and the two defects fixed — the temp-name collision stated as a data-loss fix
-- [ ] T109 Confirm every refusal and conflict names the image it concerns (FR-033, SC-005). A user with two disks mounted cannot act on a message that does not say which
-- [ ] T110 Measure the idle cost (FR-031, SC-006) by comparing a watched session against one with the same image mounted and watching disabled, **in the SAME build**. Comparing against NO image mounted would differ by drive emulation and the drive widget too, and would not isolate the watcher. A cross-build A/B is untrustworthy here -- clocks move between runs and swamp the signal. Threshold, in **Release** over three runs of five minutes each: p99 frame time within 2% of the not-watching session, and audio underruns per minute within one event of it -- a zero-tolerance bar on a stochastic metric fails on noise. **Force `watching = false` through the `IImageWatcher` seam** -- a test-only failing watcher -- rather than hunting for a directory the API refuses or adding a user-facing off-switch. **Suppress the idle callback in that arm too**: leaving it running in both arms cancels out the very cost this measures, since the idle tick is part of detection. Debug builds underrun on this hardware regardless, so Debug numbers prove nothing
-- [ ] T111 Confirm a session with no external change writes byte-for-byte what today's build writes, and at the same moments (FR-030, SC-003)
-- [ ] T112 Run `scripts\CheckStyle.ps1` before the first commit containing a new file, since diff mode cannot see a file that has never been committed
-- [ ] T113 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild and resolve to zero warnings. Analysis over a stale Release build fabricates LNK4020 noise
-- [ ] T114 Run the full suite in Debug and compare against the Phase 1 baseline
-- [ ] T115 Run the full suite in **Release** and compile for **ARM64**. Quality Gates 1 and 4 require both, and this feature adds two Win32 components
-- [ ] T116 Walk [quickstart.md](quickstart.md) end to end, including the two-emulator case that fails on today's build
+- [X] T107 [P] Update `docs/Assembler.md` and `docs/disk-write-integrity.md` with the `--on-change` flag and the shared-image behavior, including that a pick-up is a disk swap and cannot be verified safe
+- [X] T108 [P] Add `CHANGELOG.md` entries under `[Unreleased]`: the build loop, the conflict handling, and the two defects fixed — the temp-name collision stated as a data-loss fix
+- [X] T109 Confirm every refusal and conflict names the image it concerns (FR-033, SC-005). A user with two disks mounted cannot act on a message that does not say which
+- [ ] T110 **NOT RUN.** Measure the idle cost (FR-031, SC-006) by comparing a watched session against one with the same image mounted and watching disabled, **in the SAME build**. Comparing against NO image mounted would differ by drive emulation and the drive widget too, and would not isolate the watcher. A cross-build A/B is untrustworthy here -- clocks move between runs and swamp the signal. Threshold, in **Release** over three runs of five minutes each: p99 frame time within 2% of the not-watching session, and audio underruns per minute within one event of it -- a zero-tolerance bar on a stochastic metric fails on noise. **Force `watching = false` through the `IImageWatcher` seam** -- a test-only failing watcher -- rather than hunting for a directory the API refuses or adding a user-facing off-switch. **Suppress the idle callback in that arm too**: leaving it running in both arms cancels out the very cost this measures, since the idle tick is part of detection. Debug builds underrun on this hardware regardless, so Debug numbers prove nothing
+- [X] T111 Confirm a session with no external change writes byte-for-byte what today's build writes, and at the same moments (FR-030, SC-003)
+- [X] T112 Run `scripts\CheckStyle.ps1` before the first commit containing a new file, since diff mode cannot see a file that has never been committed
+- [X] T113 Run `scripts\Build.ps1 -RunCodeAnalysis` on a clean rebuild and resolve to zero warnings. Analysis over a stale Release build fabricates LNK4020 noise
+- [X] T114 Run the full suite in Debug and compare against the Phase 1 baseline
+- [X] T115 Run the full suite in **Release** and compile for **ARM64**. Quality Gates 1 and 4 require both, and this feature adds two Win32 components
+- [X] T116 Walk [quickstart.md](quickstart.md) end to end, including the two-emulator case that fails on today's build
+
+**What the walk found, and what is still open.** Scenario 1 works end to end
+against a real build: `disk put --on-change reload` onto a mounted image is
+noticed, taken up, and reported, with no eject; a bad `--on-change` value is
+refused naming the value; stating an intent with no emulator running exits 0;
+and a commit leaves no temporary behind. The refusal wording and the generated
+help were both read on screen.
+
+**The banner's placement over the running machine is not right yet, and this is
+a real defect rather than a rough edge.** Three things were found and two are
+fixed:
+
+1. *Fixed.* The message carried a `\n\n`, and `DxuiInfoBanner` measures its
+   height by dividing a character count by a per-line estimate without ever
+   looking for a newline -- so the box was sized for one line and the warning
+   ran out through the bottom border. Banner text is now one paragraph; dialogs
+   still get their break.
+2. *Fixed.* `DxuiActionBanner::Layout` handed the inner notice the whole strip
+   rather than the strip minus the action column, so text was laid out
+   underneath its own buttons, and the reserved column was two pixels short of
+   what Layout used. Covered by a test.
+3. **STILL OPEN.** In a wide window the notice still draws past the right edge
+   of the client area and the Dismiss button is off screen. Clamping the bounds
+   to `GetClientRect` did not fix it, and the root panel's `DxuiAbsoluteLayout`
+   is a no-op, so something else is deciding the width -- most likely the
+   scaler the shell passes versus the one the host paints with. **The feature
+   works; the notice is mispositioned.** Reproduce by mounting an image,
+   writing to it with `--on-change reload`, and widening the window.
+
+- [ ] T117 **Open defect from the walk:** the change banner draws past the right
+  edge of the client area at wide window sizes and its action goes off screen.
+  Not a wording or a policy problem -- both were verified on screen -- and not
+  in the core, which is fully covered. Start at `EmulatorShell::LayoutChangeBanner`
+  and the DPI scaler it passes
 
 ---
 

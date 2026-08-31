@@ -182,5 +182,32 @@ namespace DxuiActionBannerTests
             Assert::IsTrue (banner.GetAccessibleName() == std::wstring (L"Loader.dsk changed."));
             Assert::IsTrue (banner.GetAccessibleRole() == DxuiAccessibleRole::Label);
         }
+
+
+
+        TEST_METHOD (TheNoticeIsLaidOutClearOfItsOwnActions)
+        {
+            DxuiActionBanner  banner;
+            DxuiDpiScaler     scaler = Scaler96();
+            RECT              bounds = MakeRect (0, 0, 600, 60);
+            RECT              action = {};
+            RECT              notice = {};
+
+
+
+            banner.SetText    (L"Loader.dsk in Drive 1 was modified externally and mounted.");
+            banner.SetActions ({ L"Dismiss" });
+            banner.Layout     (bounds, scaler);
+
+            action = banner.GetAction (0)->GetBounds();
+            notice = banner.GetNoticeBounds();
+
+            //  Measured: handing the inner notice the whole strip made it wrap
+            //  its text across the buttons and draw the last line underneath
+            //  them, while the height measured for it had reserved the column.
+            Assert::IsTrue (notice.right <= action.left,
+                            L"the text must stop where the actions begin");
+            Assert::IsTrue (notice.right > notice.left);
+        }
     };
 }

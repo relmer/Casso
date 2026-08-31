@@ -94,8 +94,13 @@ float DxuiActionBanner::GetActionColumnPx (const DxuiDpiScaler & scaler) const
 
     if (count > 0)
     {
+        //  The buttons, a gap between each and one more before the text, AND
+        //  the trailing edge pad the first button is inset by. Leaving the pad
+        //  out reserves less than Layout then uses, so the text runs the last
+        //  few pixels underneath the first button.
         width = scaler.ToPxf (s_kActionWidthDip) * (float) count
-              + scaler.ToPxf (s_kActionGapDip)   * (float) count;
+              + scaler.ToPxf (s_kActionGapDip)   * (float) count
+              + scaler.ToPxf (s_kEdgePadDip);
     }
 
     return width;
@@ -148,27 +153,40 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 //
 //  DxuiActionBanner::Layout
 //
-//  The banner fills the bounds; the actions sit against its trailing edge,
-//  vertically centered, in the column reserved out of the width.
+//  The notice takes the width left over; the actions sit against the trailing
+//  edge, vertically centered, in the column reserved out of it.
+//
+//  THE INNER BANNER IS GIVEN THE REDUCED WIDTH, NOT THE WHOLE BOUNDS. Handing
+//  it everything makes it wrap its text across the full strip and draw the last
+//  line underneath the buttons -- and it disagrees with the height that was
+//  measured for it, which reserved the column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiActionBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    float  actionW = scaler.ToPxf (s_kActionWidthDip);
-    float  actionH = scaler.ToPxf (s_kActionHeightDip);
-    float  gap     = scaler.ToPxf (s_kActionGapDip);
-    float  edge    = scaler.ToPxf (s_kEdgePadDip);
-    float  right   = (float) boundsDip.right - edge;
-    float  midY    = (float) (boundsDip.top + boundsDip.bottom) * 0.5f;
-    size_t i       = 0;
+    float  actionW    = scaler.ToPxf (s_kActionWidthDip);
+    float  actionH    = scaler.ToPxf (s_kActionHeightDip);
+    float  gap        = scaler.ToPxf (s_kActionGapDip);
+    float  edge       = scaler.ToPxf (s_kEdgePadDip);
+    float  right      = (float) boundsDip.right - edge;
+    float  midY       = (float) (boundsDip.top + boundsDip.bottom) * 0.5f;
+    size_t i          = 0;
+    RECT   noticeArea = boundsDip;
 
 
 
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
-    m_banner.Layout (boundsDip, scaler);
+    noticeArea.right = boundsDip.right - (LONG) GetActionColumnPx (scaler);
+
+    if (noticeArea.right < noticeArea.left)
+    {
+        noticeArea.right = noticeArea.left;
+    }
+
+    m_banner.Layout (noticeArea, scaler);
 
     //  Laid out from the trailing edge back, so the first action is the one
     //  furthest from the edge and the order on screen reads left to right the

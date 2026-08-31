@@ -10399,11 +10399,37 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 void EmulatorShell::LayoutChangeBanner()
 {
     RECT   bounds = m_viewportBoundsPx;
+    RECT   client = {};
     float  height = 0.0f;
 
 
 
-    if (!m_changeBanner.IsVisible() || m_viewportBoundsPx.right <= m_viewportBoundsPx.left)
+    if (!m_changeBanner.IsVisible() || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    //  CLAMPED TO THE WINDOW, NOT LEFT AT THE VIEWPORT'S WIDTH. The emulator
+    //  picture keeps its own aspect and can be WIDER than the client area,
+    //  which is fine for a picture that is simply clipped -- and wrong for a
+    //  notice, which then runs its text and its buttons off the right edge
+    //  where nobody can read or press them. Measured at two window sizes: the
+    //  message ran past the frame both times and the action was never on
+    //  screen.
+    if (GetClientRect (m_hwnd, &client))
+    {
+        if (bounds.right > client.right)
+        {
+            bounds.right = client.right;
+        }
+
+        if (bounds.left < client.left)
+        {
+            bounds.left = client.left;
+        }
+    }
+
+    if (bounds.right <= bounds.left)
     {
         return;
     }

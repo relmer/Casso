@@ -111,6 +111,13 @@ struct ChangePrompt
     //
     //  ONE SENTENCE IN ONE PLACE, because it is the same hazard whether the
     //  user was asked or merely told, and two copies would drift.
+    //
+    //  IT CONTAINS NO LINE BREAK, and callers that want one add it. A banner
+    //  measures its own height by dividing the character count by a per-line
+    //  estimate and never looks for a newline, so a message carrying one is
+    //  drawn taller than the box that was sized for it -- measured, the warning
+    //  ran out through the bottom border and off the right edge of the window.
+    //  Dialogs lay text out in paragraphs and are free to add breaks.
     static const wchar_t *  StaleDirectoryWarning ();
 
     //  "Loader.dsk in Drive 1", which every message opens with.

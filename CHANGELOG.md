@@ -8,6 +8,16 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+- **Two Casso instances no longer write into each other's temporary file.**
+  The commit temporary was derived from the image path alone, so two emulators
+  sharing an image could each rename the other's bytes over the target. Data
+  loss.
+- **Casso no longer writes an image back over a change it never saw.** It
+  recorded nothing about a mounted file and re-checked nothing before writing,
+  so an external edit was overwritten silently. It now keeps the displaced
+  version.
+
 ### Changed
 - **Rebuilt the casso-rocks demo** with separate sets of DHGR and HGR images,
   dithered specifically for mono and for color displays, radically improving
@@ -24,6 +34,19 @@ Entries before versioning was introduced use dates only.
   three, so every label below it moves.
 
 ### Added
+- **Casso picks up a disk image changed outside it.** A build that
+  writes onto a mounted image reaches the running guest without an eject and
+  re-insert. `CassoCli disk put --on-change reload|restart` says what the write
+  should do; without it Casso asks. A pick-up is a disk swap and cannot be made
+  safe -- the guest holds the disk's directory in its own memory -- so every
+  notice says why a reboot may be needed.
+- **Neither version is discarded when a disk changes on both sides.** The
+  external version is mounted and Casso's is saved beside it, timestamped. If
+  that copy cannot be written, nothing is mounted and nothing is overwritten.
+- **A disk whose file is deleted or becomes unreadable offers to save what is
+  still in memory**, then empties the drive rather than reporting a disk that is
+  no longer there.
+
 - **The Harte vectors now check instruction timing, not just results.** The
   packed fixtures had discarded the per-cycle trace, so no depth of vectors
   could catch a timing error. It found three timing bugs on its first run.

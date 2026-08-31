@@ -58,6 +58,11 @@ public:
     //  The button, for a test that wants to press it or read its label.
     DxuiButton *  GetAction (size_t index);
 
+    //  Where the notice itself was laid out, which is the bounds minus the
+    //  action column. Exposed so a test can assert the text stops where the
+    //  buttons begin rather than running underneath them.
+    RECT  GetNoticeBounds () const { return m_banner.GetBounds(); }
+
     //  The height the banner needs at this width, with room for its actions.
     //  Never shorter than one button, since a notice whose action is clipped
     //  offers nothing.

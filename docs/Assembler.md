@@ -288,6 +288,37 @@ would benefit from a concrete case to be designed against.
 
 ---
 
+## Building into a disk Casso already has open
+
+The assembler writes host files. **It cannot yet write into a disk image** --
+that is spec 026 -- so a build loop that ends in a running emulator goes through
+`disk put`:
+
+```
+CassoCli as65 prog.a65 -o prog.bin
+CassoCli disk put work.dsk prog.bin --as PROG --type B --load $6000 --on-change reload
+```
+
+Casso notices the image change on its own, whichever tool made it. `--on-change`
+only says what the change should MEAN:
+
+| | |
+|---|---|
+| `reload` | Take the new contents; leave the machine running |
+| `restart` | Take the new contents and reboot the machine |
+| *(omitted)* | Casso asks |
+
+Stating it when no emulator is running is not an error, so a build script does
+not need to know whether you have Casso open.
+
+**A pick-up is a disk swap, and swapping a disk under a running program cannot
+be made safe.** The Apple keeps the disk's directory in its own memory, where
+nothing on the host can see or correct it, so a program that was running before
+the swap may not see the new disk correctly. Casso says so, and the reboot is on
+the toolbar. `restart` is the answer that removes the question.
+
+---
+
 ## Language reference
 
 | Feature | Syntax |

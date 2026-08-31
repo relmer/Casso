@@ -164,7 +164,10 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
     }
     else
     {
-        prompt.message = what + L" was modified externally and mounted.\n\n"
+        //  ONE PARAGRAPH, NO BREAK. This one is drawn in a banner, which
+        //  estimates its height from a character count and cannot see a
+        //  newline; the ask below is drawn in a dialog, which can.
+        prompt.message = what + L" was modified externally and mounted. "
                        + StaleDirectoryWarning();
     }
 

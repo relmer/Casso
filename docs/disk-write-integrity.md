@@ -354,6 +354,50 @@ without a filesystem seam in `DiskImageStore`. Said so in
 
 ---
 
+## 5b. What spec 028 added on top (branch `028-shared-disk-images`)
+
+The integrity work above made a write safe against interruption. It left a
+second question untouched: whether the file the emulator is about to write is
+still the file it read.
+
+**It was not asked at all.** The emulator held no OS handle on a mounted image
+and recorded nothing about it, so a `CassoCli` write onto a mounted disk
+succeeded, the guest never saw it, and the emulator's next flush destroyed it.
+
+| What | Where |
+|---|---|
+| Size and write time recorded at mount, re-checked before every commit | `ImageIdentity`, `DiskImageStore::FlushEntry` |
+| A directory watcher, so a change is noticed rather than merely refused | `IImageWatcher` / `Win32ImageWatcher` |
+| Deciding what to do about one, as a pure table | `ExternalChangePolicy` |
+| Saying it, image and drive named | `ChangePrompt` |
+| The version being displaced, written beside the original | `PreservedCopy` |
+| `--on-change reload\|restart`, carried process to process | `Win32IntentChannel` |
+
+**Two defects the earlier work left, both data loss:**
+
+- The commit temporary was `<image>.casso-tmp` in every process, so two
+  emulators sharing an image wrote into each other's file and one renamed the
+  other's bytes over the target. `CommitPlan` had already solved this for the
+  command line and its own comment named the emulator as the side that had not
+  adopted it.
+- Nothing re-checked the file before writing, so an external edit was
+  overwritten without a word.
+
+**A pick-up is a disk swap and cannot be made safe.** The guest caches the
+disk's structure in its own RAM -- DOS 3.3's VTOC, ProDOS's volume control
+block -- where nothing at the disk layer can see or correct it. Acting only
+when no operation is in flight bounds the damage; it does not eliminate it, and
+nothing in the product claims otherwise. Every message about a still-running
+machine says why a reboot may be needed.
+
+**`NibblizationLayer::Denibblize` is still the hazard §6 should worry about
+most.** It stops at the first undecodable sector on a track, zeroes that sector
+and every later one, and returns `S_OK` -- and `DiskImage::Serialize` puts it on
+the flush path. A guest that leaves a track partly written can still lose the
+rest of it on eject. Nothing in 028 touches that.
+
+---
+
 ## 6. Follow-ups
 
 - **Map damaged sectors to files.** Salvage reports counts per disk; per FILE
