@@ -1663,8 +1663,8 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
     {
         case BlankDiskVerdict::ContentsNotInContainer:
             text = "Error: illegal container and filesystem combination\n"
-                   "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz holds\n"
-                   "       either.\n";
+                   "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz and\n"
+                   "       .nib hold either.\n";
             break;
 
         case BlankDiskVerdict::BootableNeedsFilesystem:

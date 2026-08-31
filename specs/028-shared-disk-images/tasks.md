@@ -96,57 +96,47 @@
 - [X] T045 [US1] Verify the pick-up tests discriminate: stop refreshing the identity after the emulator's own commit, confirm they go red on a self-inflicted change, restore
 - [X] T046 [US1] **DEFER the pick-up entirely while the image is dirty**, in `CassoEmuCore/Devices/Disk/DiskImageStore.cpp`, until the conflict handling exists. Without this guard the policy emits a conflict outcome that nothing in this phase handles, and an MVP-only ship would pick up over guest writes and discard them -- the exact loss the next story exists to prevent. Remove the guard when that story lands
 - [X] T047 [US1] Add a test asserting the deferral: a dirty image plus an external change picks up NOTHING and loses NOTHING in this phase
-- [ ] T048 **FAILED, AND IT FOUND A REAL DEFECT.** Walked against a real
+- [X] T048 Walked [quickstart.md](quickstart.md) Scenario 1 against a real
   two-process build on 2026-08-31: Casso holding `work.dsk` from the command
-  line, `CassoCli` writing onto it.
+  line, `CassoCli` writing onto it. **Both arms pass.**
 
-  **What works.** `--on-change reload` is picked up within a second or two. The
-  banner slides into its own band, the scene rescales beneath it, and it reads
-  "The disk work.dsk in Drive 1 was modified externally and mounted. The Apple
-  keeps the disk's directory in its own memory, so a running program may not see
-  the new disk correctly. Reboot if it misbehaves." No eject, no re-insert. The
-  assembler's own `--disk ... --on-change` reaches it the same way, so Phase 5b
-  is wired end to end.
+  **With an intent.** `--on-change reload` is picked up within a second or two.
+  The banner slides into its own band, the scene rescales beneath it, and it
+  reads "The disk work.dsk in Drive 1 was modified externally and mounted. The
+  Apple keeps the disk's directory in its own memory, so a running program may
+  not see the new disk correctly. Reboot if it misbehaves." No eject, no
+  re-insert -- the control holds. The assembler's own `--disk ... --on-change`
+  reaches it the same way, so Phase 5b is wired end to end.
 
-  **What does not.** A change with NO stated intent produces nothing at all --
-  no banner, no question. Reproduced three ways on a freshly launched instance:
-  `CassoCli as65 --disk` without the flag, the same via `disk put`, and a plain
-  rewrite of the image's bytes by another program entirely. Waited 10 seconds;
-  nothing. **Only the `WM_COPYDATA` channel is working. The directory watcher
-  is not reaching the store in the real emulator at all.**
+  **Without one.** The modal question appears, titled "Disk modified
+  externally", reading "The disk work.dsk in Drive 1 was modified externally."
+  followed by the stale-directory warning, over `Accept the changes` and
+  `Ignore the changes`. Raised for a flag-free `as65 --disk`, for `disk put`,
+  and for a plain rewrite of the image's bytes by an unrelated program, which
+  is the writer the quickstart cares most about.
 
-  That inverts the design. The channel is the best-effort courtesy and the
-  watcher is the guarantee -- it is what covers every writer that is not
-  `CassoCli`, which the quickstart calls out as the path that must not be an
-  afterthought. As it stands, an edit from any other tool is silently invisible.
+  **A NOTE ON HOW THIS WAS NEARLY REPORTED AS A DEFECT, because the mistake is
+  cheap to repeat.** The question is a MODAL DIALOG -- a separate top-level
+  window -- while the pick-up report is a band inside the main window. A capture
+  taken by process id grabs the main window and shows no dialog, so the feature
+  looks dead. Worse, the modal blocks the main window's pump, so a banner left
+  over from an earlier step never repaints and synthetic clicks on it do
+  nothing, which reads as a second symptom of the same imaginary bug.
 
-  **Ruled out by reading the code, so the next session need not repeat it:**
-  the watcher is installed before the command-line mount (`InitAssetPathsAndStores`
-  runs at `Initialize`'s top, `MountCommandLineDisks` 90 lines later);
-  `--no-image-watch` defaults false and is set before `Initialize`;
-  `MountDiskInSlot6` does route through `DiskImageStore::Mount`, which calls
-  `BeginWatching`; both `SetChangeReportSink` and `SetAskSink` are installed;
-  and both `WM_APP_CHANGE_REPORT` and `WM_APP_CHANGE_ASK` are handled in the
-  message pump. `Win32ImageWatcherTests` pass, so the watcher works in isolation.
+  Enumerate the process's top-level windows before concluding anything is
+  missing. This build shows class `C` (the shell, 1300x900) and class `D` (the
+  dialog, 440x216) when a question is up.
 
-  **Leading hypothesis, NOT verified:** `Win32ImageWatcher::Watch` returns false
-  under startup load. It waits `kArmTimeoutMs` (2000 ms) for its worker to queue
-  the first `ReadDirectoryChangesW`, and a mount that happens during shell
-  initialization is exactly when that thread is least likely to be scheduled
-  promptly. A false return is deliberately a state rather than an error --
-  `SetWatching (false)` and carry on -- and **only mount registers a watch**, so
-  a watch lost at startup is lost for the life of the session. If that is it,
-  the fix is not a longer timeout: it is arming the watch without blocking the
-  mount, and re-arming rather than giving up once.
+  Instrumenting the chain confirmed every link works: `Watch` opens and arms
+  (`began=1`), `BeginWatching` records `watching=1`, `ReadDirectoryChangesW`
+  queues and reports the rename, and `NoteExternalChange` matches the record
+  against the mounted path. The watcher was never the problem.
 
-  **Instrument before believing the hypothesis.** Log the `bool` that
-  `BeginWatching` stores and confirm it is false, rather than assuming it.
-
-  **Not covered by the walk, and still owed:** the interactive half. The
-  workstation locks synthetic input on this machine, so the Accept/Ignore
-  buttons and Dismiss could not be clicked, and `BRUN PROG` in the guest was
-  never run to see the new bytes with its own eyes. Those need a human at the
-  keyboard.
+  **Still owed, and it needs a human at the keyboard:** this workstation locks
+  synthetic input, so the `Accept`/`Ignore` buttons and the banner's `Dismiss`
+  were never actually clicked, and `BRUN PROG` was never run in the guest to see
+  the new bytes with its own eyes. The store side of both answers is covered by
+  `SharedImageTests`; what is unproven is the click reaching it.
 
 - [X] T049 [US1] Add tests for the five decisions in this phase that nothing asserts yet, in `UnitTest/EmuTests/`: prompt composition; a change arriving mid-apply; the held-by-another-process deferral; the machine-restart callback; and the watch-degrade path. **The mid-apply and degrade rules are explicit data-model rules**, so their absence is the least defensible
 
