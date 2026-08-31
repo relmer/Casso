@@ -359,10 +359,10 @@ public:
             L"and the entries that did read are still delivered");
 
         Assert::IsTrue (result.diagnostics.find ("could not be decoded") != std::string::npos,
-            L"the diagnostic must name unrecovered sectors as unrecovered");
+            L"the diagnostic must mark unrecovered sectors as unrecovered");
 
         Assert::IsTrue (result.diagnostics.find ("INCOMPLETE") != std::string::npos,
-            L"and must say the LISTING is incomplete, not merely that the disk is damaged");
+            L"and must state the LISTING is incomplete, not merely that the disk is damaged");
     }
 
     TEST_METHOD (List_WhollyUnformattedTrack_IsCleanBecauseBlankIsNotDamage)

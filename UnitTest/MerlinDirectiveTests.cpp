@@ -509,7 +509,7 @@ namespace MerlinDirectiveTests
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (":ORPHAN BRK\n");
 
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "before any global label"),
-                            L"a local label with no enclosing global must say so");
+                            L"a local label with no enclosing global must be reported");
         }
 
 
@@ -637,7 +637,7 @@ namespace MerlinDirectiveTests
         {
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" ORG $300\n BRK\n");
 
-            Assert::AreEqual (0x0300, (int) result.startAddress, L"a source naming an origin decides its own");
+            Assert::AreEqual (0x0300, (int) result.startAddress, L"a source that gives an origin decides its own");
         }
     };
 
@@ -727,7 +727,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::AreEqual (0x9002, (int) result.symbols.at ("AFTER"),
-                              L"the resync must name the file position, not the address the last section ran at");
+                              L"the resync must give the file position, not the address the last section ran at");
         }
 
 
@@ -879,7 +879,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsFalse (result.success, L"a bare shift must stay a missing operand under AS65");
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "Missing operand"),
-                            L"and must say so rather than failing some other way");
+                            L"and must be reported rather than failing some other way");
         }
     };
 
@@ -1256,7 +1256,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsFalse (result.errors.empty(), L"an odd digit count is not a whole byte");
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "hexadecimal"),
-                            L"and the diagnostic must say what was wrong with it");
+                            L"and the diagnostic must state what was wrong with it");
         }
 
 
@@ -1267,7 +1267,7 @@ namespace MerlinDirectiveTests
             std::vector<Byte>  expected = { 0x8D, 0x8D };
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"HEX writes the bytes the digits spell");
+            Assert::IsTrue (result.bytes == expected, L"HEX writes the bytes the digits represent");
         }
 
 
@@ -1829,7 +1829,7 @@ namespace MerlinDirectiveTests
             Assert::AreEqual (1, result.errors[0].lineNumber, L"the outer one opened on line 1");
             Assert::AreEqual (3, result.errors[1].lineNumber, L"the inner one opened on line 3");
             Assert::IsTrue (result.errors[0].message.find ("ADDX") != std::string::npos,
-                            L"and each names the definition it is about");
+                            L"and each identifies the definition it is about");
             Assert::IsTrue (result.errors[1].message.find ("ADDA") != std::string::npos,
                             L"including the one an outermost-only report would omit");
         }
@@ -1930,7 +1930,7 @@ namespace MerlinDirectiveTests
             std::vector<Byte>  expected = { 0xA2, 0x04 };
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"A + KEYIN names AKEYIN, four past the table");
+            Assert::IsTrue (result.bytes == expected, L"A + KEYIN forms AKEYIN, four past the table");
         }
 
 
@@ -1949,7 +1949,7 @@ namespace MerlinDirectiveTests
             std::vector<Byte>  expected = { 0xA2, 0x03 };
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"]1END names FRSTEND while ]1 names FRST");
+            Assert::IsTrue (result.bytes == expected, L"]1END forms FRSTEND while ]1 forms FRST");
         }
 
 
@@ -2138,7 +2138,7 @@ namespace MerlinDirectiveTests
             AssemblyResult  punctuation = MerlinAssemblyFixture::AssembleMerlin (" >>>\n");
             AssemblyResult  word        = MerlinAssemblyFixture::AssembleMerlin (" PMC\n");
 
-            Assert::IsFalse (punctuation.success, L"a prefix naming no macro is not an empty line");
+            Assert::IsFalse (punctuation.success, L"a prefix that gives no macro is not an empty line");
             Assert::IsTrue  (MerlinAssemblyFixture::AnyErrorMentions (punctuation, ">>>"),
                              L"and the diagnostic must quote what was written");
             Assert::IsFalse (word.success, L"the word form must not be droppable either");
@@ -2201,7 +2201,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsFalse (result.errors.empty(), L"an unknown macro must be reported");
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "NOSUCH"),
-                            L"the diagnostic must name the macro that was not found");
+                            L"the diagnostic must identify the macro that was not found");
         }
 
 
@@ -2656,14 +2656,14 @@ namespace MerlinDirectiveTests
 
             Assert::IsFalse (result.errors.empty(), L"an unanswered prompt must fail rather than guess");
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "VERSION"),
-                            L"the diagnostic must name the symbol that needs an answer");
+                            L"the diagnostic must identify the symbol that needs an answer");
             //  The prompt arrives WITHOUT its delimiters -- the source's choice of
             //  delimiter is Merlin's syntax, not part of what it asked. Asserting
             //  the parenthesis directly against the first word is what makes that
             //  checkable; a bare substring of the prompt matches either way, and
             //  a mutation leaving the delimiters in went uncaught until this.
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "(Want 12 or 24 hour version (12/24)?)"),
-                            L"and the whole prompt, which is the only place the source says what the answer means");
+                            L"and the whole prompt, which is the only place the source explains what the answer means");
         }
 
 
@@ -3109,7 +3109,7 @@ namespace MerlinDirectiveTests
                                          " LUP LATER\n DFB $EA\n --^\nLATER EQU 3\n");
 
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "repeat count must be resolvable"),
-                            L"a forward count has no answer at the moment the block is expanded");
+                            L"a forward count has no value at the moment the block is expanded");
         }
 
 
@@ -3120,7 +3120,7 @@ namespace MerlinDirectiveTests
                                          " LUP $FFFF\n DFB $EA\n --^\n");
 
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "repeat count must be 0 to"),
-                            L"a count no source can have meant is refused rather than answered with memory");
+                            L"a count no source can have meant is refused rather than filled in from memory");
         }
 
 
@@ -3146,7 +3146,7 @@ namespace MerlinDirectiveTests
             Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the block opened, not at the end of file");
 
             Assert::IsTrue (result.errors[0].message.find ("LUP") != std::string::npos,
-                            L"named in the spelling the source actually wrote");
+                            L"quoted in the spelling the source actually wrote");
         }
 
 
@@ -3333,7 +3333,7 @@ namespace MerlinDirectiveTests
             Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the section opened");
 
             Assert::IsTrue (result.errors[0].message.find ("DUM") != std::string::npos,
-                            L"named in the spelling the source actually wrote");
+                            L"quoted in the spelling the source actually wrote");
         }
 
 
@@ -3484,7 +3484,7 @@ namespace MerlinDirectiveTests
                                                                       reader, DialectId::As65);
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::AreEqual (1, reader.CountRequests ("shared.a65"), L"AS65 asks for exactly what it was told");
+            Assert::AreEqual (1, reader.CountRequests ("shared.a65"), L"AS65 reads exactly what it was told");
             Assert::AreEqual (0, reader.CountRequests ("T.shared.a65"), L"and never for a prefixed one");
         }
     };
@@ -3559,7 +3559,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue  (selected.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (selected).c_str());
             Assert::IsTrue  (selected.extendedSetSelectedInSource,
-                             L"a source that selected the wider set must say so");
+                             L"a source that selected the wider set must record it");
             Assert::IsTrue  (narrow.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (narrow).c_str());
             Assert::IsFalse (narrow.extendedSetSelectedInSource,
                              L"and one that did not must not, or the report is true of every assembly");
@@ -3672,7 +3672,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::AreEqual (std::string ("CLOCK.24"), result.outputFileName,
-                              L"the name the source asked for");
+                              L"the name the source gave");
         }
 
 
@@ -3698,7 +3698,7 @@ namespace MerlinDirectiveTests
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::AreEqual (std::string ("build/out.bin"), result.outputFileName,
-                              L"a build script overrides what the source asks for");
+                              L"a build script overrides the name the source gave");
         }
 
 
@@ -3720,7 +3720,7 @@ namespace MerlinDirectiveTests
         {
             AssemblyResult  result = MerlinAssemblyFixture::AssembleMerlin (" DFB $01\n");
 
-            Assert::IsTrue (result.outputFileName.empty(), L"nobody named an output");
+            Assert::IsTrue (result.outputFileName.empty(), L"nobody gave an output");
         }
 
 
@@ -3770,7 +3770,7 @@ namespace MerlinDirectiveTests
             Assert::AreEqual (2, result.errors[0].lineNumber, L"reported where the definition opened");
 
             Assert::IsTrue (result.errors[0].message.find ("SHIFT") != std::string::npos,
-                            L"named by the macro the source was defining");
+                            L"identified by the macro the source was defining");
         }
     };
 
@@ -3849,7 +3849,7 @@ namespace MerlinDirectiveTests
             std::vector<Byte>  expected = { 0x20, 0x03, 0x80, 0x60 };
 
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
-            Assert::IsTrue (result.bytes == expected, L"the binding settles in the pass that knows the label");
+            Assert::IsTrue (result.bytes == expected, L"the binding settles in the pass where the label is defined");
         }
 
 
@@ -3954,7 +3954,7 @@ namespace MerlinDirectiveTests
             AssemblyResult           result = MerlinAssemblyFixture::AssembleMerlin (" VAR $1234\n");
             std::string              name   = merlin.GetPositionalParameterSymbol (1);
 
-            Assert::IsFalse (name.empty(), L"a dialect with this directive has to name the symbol it binds");
+            Assert::IsFalse (name.empty(), L"a dialect with this directive has to identify the symbol it binds");
             Assert::IsTrue (result.errors.empty(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::AreEqual ((size_t) 1, result.symbols.count (name), L"the binding landed under the profile's name");
             Assert::AreEqual (0x1234, (int) result.symbols.at (name), L"and holds what the directive assigned");
@@ -3981,7 +3981,7 @@ namespace MerlinDirectiveTests
 
             Assert::AreEqual ((size_t) 1, result.errors.size(), MerlinAssemblyFixture::FirstDiagnostic (result).c_str());
             Assert::IsTrue (MerlinAssemblyFixture::AnyErrorMentions (result, "VAR"),
-                            L"named by the directive that bound nothing");
+                            L"identified by the directive that bound nothing");
         }
 
 

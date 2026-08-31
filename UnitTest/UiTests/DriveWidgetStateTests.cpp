@@ -329,7 +329,7 @@ public:
             std::wstring (L"\"a.woz\" is write-protected (WOZ write-protect flag). "
                           L"Drive 1 is also write-protected in Settings > Disk."),
             ComposeWriteProtectTooltip (1, L"a.woz", wp),
-            L"an undamaged image still names its causes and still says 'also'");
+            L"an undamaged image still lists its causes and still includes 'also'");
     }
 
 

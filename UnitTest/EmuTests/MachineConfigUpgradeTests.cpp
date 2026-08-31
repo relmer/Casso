@@ -782,7 +782,7 @@ public:
             L"the drive the user had attached must land on the disk port.");
         Assert::IsTrue (migrated.find ("\"externalDriveConnected\"") == string::npos,
             L"the legacy boolean must be gone -- leaving it would keep two "
-            L"answers to one question on disk.");
+            L"records of one setting on disk.");
         Assert::IsTrue (migrated.find ("\"mouseConnected\"") != string::npos,
             L"unrelated UI prefs must survive the fold.");
         Assert::IsTrue (migrated.find ("\"serial1\"")  != string::npos &&

@@ -190,12 +190,12 @@ public:
         Absolute  (code, 0x8D, (Word) (kSignatureAddress + 1));    //       STA sig+1
 
         Assert::AreEqual (size_t (kHangOffset), code.size(),
-            L"the hang has to be where the jump says it is");
+            L"the hang has to be where the jump targets");
 
         Absolute  (code, 0x4C, hangAt);                            // JMP self
 
         Assert::AreEqual (size_t (kTextOffset), code.size(),
-            L"and the text has to start where the code says it does");
+            L"and the text has to start where the code places it");
 
         for (i = 0; i < banner.size(); i++)
         {
@@ -338,7 +338,7 @@ public:
         for (i = 0; i < span; i++)
         {
             Assert::AreEqual ((int) payload[i], (int) sectors[at + i],
-                L"and the first sector the loader asks for must hold the payload's first "
+                L"and the first sector the loader reads must hold the payload's first "
                 L"page, or the guest is about to execute something else entirely");
         }
     }
@@ -556,14 +556,14 @@ public:
             L"things that could have got it there");
 
         Assert::IsTrue (outcome.signature,
-            L"and the payload's own two bytes must be in memory, which says it EXECUTED "
+            L"and the payload's own two bytes must be in memory, which proves it EXECUTED "
             L"rather than merely got loaded");
 
         Assert::IsTrue (GuestSession::AnyRowIs (outcome.rows, kBanner),
             L"printing what it prints, on the guest's own screen");
 
         Assert::IsTrue (outcome.loaded == payload,
-            L"and every byte of it must be where it asked to be loaded");
+            L"and every byte of it must be at its load address");
     }
 
     TEST_METHOD (APayloadLongerThanOneTrack_ArrivesWholeAndInOrder)
@@ -644,7 +644,7 @@ public:
         Assert::AreEqual (std::string ("the payload is 24577 bytes and a direct-boot image "
                                        "loading at $6000 can carry 24576 (96 sectors)"),
             refusal,
-            L"naming what the boot path can carry from this load address");
+            L"recording what the boot path can carry from this load address");
 
         Assert::IsTrue (built.empty(), L"and producing no image");
     }

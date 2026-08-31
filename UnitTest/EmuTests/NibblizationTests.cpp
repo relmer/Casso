@@ -593,7 +593,7 @@ public:
         Assert::AreEqual (559, report.sectorsVerified);
 
         Assert::AreEqual (15, CountDecoded (report.decodedSectorMask[kTrack]),
-            L"and the report must name WHICH track lost it");
+            L"and the report must identify WHICH track lost it");
     }
 
 
@@ -1003,7 +1003,7 @@ public:
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
             L"a track with an unusable header is damaged, not blank");
-        Assert::IsTrue (report.HasDataLoss(), L"the report must say data was lost");
+        Assert::IsTrue (report.HasDataLoss(), L"the report must record that data was lost");
         Assert::AreEqual (1, report.GetUnrecoveredCount(),
             L"exactly one sector is lost -- the tail must survive");
 
@@ -1270,9 +1270,9 @@ public:
 
             Assert::IsFalse (writability.IsImageWritable(),
                 L"an image holding data between tracks must be refused outright");
-            Assert::IsTrue  (hasReason, L"the refusal must say why");
+            Assert::IsTrue  (hasReason, L"the refusal must give the reason");
             Assert::IsFalse (writability.IsTrackWritable (0),
-                L"the whole-image refusal outranks any per-track answer");
+                L"the whole-image refusal outranks any per-track result");
         }
     }
 

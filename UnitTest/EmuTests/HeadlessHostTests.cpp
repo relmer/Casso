@@ -35,7 +35,7 @@ public:
         AssertSucceeded (hr);
         Assert::IsNotNull (core.host.get());
         Assert::IsFalse (core.host->WasWindowOpened(),
-            L"HeadlessHost MUST NOT open a Win32 window before tests ask");
+            L"HeadlessHost MUST NOT open a Win32 window before tests request one");
         Assert::IsNotNull (core.audioSink,
             L"HeadlessHost wires an IAudioSink mock");
         Assert::IsNotNull (core.fixtures.get());

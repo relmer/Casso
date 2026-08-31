@@ -326,7 +326,7 @@ public:
         }
 
         Assert::AreEqual (std::string ("MERLIN"), name,
-            L"the volume this disk carries must name itself at the offset ProDOS reads");
+            L"the volume this disk carries must identify itself at the offset ProDOS reads");
 
         // The rest of the header, still at absolute offsets, so a buffer that
         // happened to spell MERLIN would not be enough.
@@ -369,7 +369,7 @@ public:
                 if (fromFile != fromMap)
                 {
                     Assert::Fail (L"a ProDOS-ordered file must hold every block where the "
-                                  L"reader's own block map says that block lives");
+                                  L"reader's own block map places that block");
                 }
             }
         }
@@ -396,7 +396,7 @@ public:
         Assert::AreEqual (3,   (int) asDsk[kVtocOffset + kVtocDosVersion],
             L"and DOS release 3");
         Assert::AreEqual (254, (int) asDsk[kVtocOffset + kVtocVolumeNumber],
-            L"and volume 254, which is what this disk's own catalog listing says");
+            L"and volume 254, which is what this disk's own catalog listing holds");
         Assert::AreEqual (122, (int) asDsk[kVtocOffset + kVtocMaxPairs],
             L"and 122 track/sector pairs to a list sector");
         Assert::AreEqual (35,  (int) asDsk[kVtocOffset + kVtocTrackCount]);
@@ -642,7 +642,7 @@ public:
 
         Assert::IsTrue (victim >= 0, L"the write must land somewhere other than the catalog track");
         Assert::IsTrue (firstPass.size() >= 2,
-            L"the refusal must span more than the damaged track, or whole-operation says nothing");
+            L"the refusal must span more than the damaged track, or whole-operation means nothing");
 
         // Pass two: the same volume with that track made Partial. The VTOC is
         // untouched, so the allocator makes the same choices.
@@ -681,7 +681,7 @@ public:
             L"and produces NOTHING -- a partial commit would be an image carrying half an edit");
 
         Assert::IsTrue (reason.find ("track " + std::to_string (victim)) != std::string::npos,
-            L"the refusal must name the track it is about");
+            L"the refusal must identify the track it is about");
 
         Assert::IsTrue (damaged == pristine, L"and the image it was handed is untouched");
     }

@@ -1147,7 +1147,7 @@ public:
         creator = string (reinterpret_cast<const char *> (info.data() + 5), kCreatorSize);
 
         Assert::AreEqual (size_t (0), creator.rfind ("Casso ", 0),
-            L"a disk Casso authored says so in creator");
+            L"a disk Casso authored records that in creator");
         Assert::IsTrue (creator.size() > 6 && creator[6] != ' ',
             L"the stamp carries a version after the name, as the format's own example does");
         Assert::AreEqual (string ("                "), creator.substr (kCreatorSize - 16),
@@ -1218,7 +1218,7 @@ public:
             L"a v1 source's creator must survive the upgrade to v2");
         Assert::AreEqual (Byte (1),  info[3],  L"synchronized existed in v1 and must survive");
         Assert::AreEqual (Byte (1),  info[4],  L"cleaned existed in v1 and must survive");
-        Assert::AreEqual (Byte (2),  info[0],  L"the emitted container is v2, so INFO must say 2");
+        Assert::AreEqual (Byte (2),  info[0],  L"the emitted container is v2, so INFO must hold 2");
         Assert::AreEqual (Byte (1),  info[37], L"disk sides has no legal zero");
         Assert::AreEqual (Byte (32), info[39], L"optimal bit timing has no legal zero");
         Assert::AreEqual (Byte (0),  info[38],
@@ -1243,7 +1243,7 @@ public:
         woz[srcInfo + 45] = 0xEE;
 
         AssertSucceeded (WozLoader::Load (woz, img));
-        Assert::IsTrue (img.IsImageWriteProtected(), L"precondition: the source says protected");
+        Assert::IsTrue (img.IsImageWriteProtected(), L"precondition: the source is marked protected");
 
         img.SetImageWriteProtected (false);
         AssertSucceeded (WozLoader::Serialize (img, out));
@@ -1820,7 +1820,7 @@ public:
         Assert::AreEqual (Byte (1), woz[WozLoader::kHeaderSize + kChunkHeader + 2],
             L"and the flag must still be set");
         Assert::AreEqual (Byte (1), woz[WozLoader::kHeaderSize + kChunkHeader + 0],
-            L"INFO must still say version 1");
+            L"INFO must still hold version 1");
     }
 
 

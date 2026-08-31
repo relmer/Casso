@@ -180,7 +180,7 @@ namespace MacroTests
             );
 
             Assert::IsFalse (result.success, L"a macro with no endm must fail the assembly");
-            Assert::IsTrue  (result.errors.size() >= 1, L"and must say so");
+            Assert::IsTrue  (result.errors.size() >= 1, L"and must report it");
             Assert::IsTrue  (result.errors[0].message.find ("Unclosed macro definition") != std::string::npos,
                              L"the message names the actual problem");
             // Stored as the parser normalized it -- mnemonics are uppercased --

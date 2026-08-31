@@ -398,7 +398,7 @@ public:
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
         Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
-            L"the notification must name the image that failed to save");
+            L"the notification must identify the image that failed to save");
     }
 
     TEST_METHOD (FlushError_nibbleImage_reportsWritesItCouldNotPersist)
@@ -427,7 +427,7 @@ public:
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed nibble flush must be surfaced");
         Assert::IsTrue   (s_flushNotifyLast.find (L"boom.nib") != wstring::npos,
-            L"the notification must name the image that failed to save");
+            L"the notification must identify the image that failed to save");
     }
 
     TEST_METHOD (FlushError_noReportOnCleanOrSuccessfulFlush)
@@ -878,7 +878,7 @@ public:
         Assert::IsTrue (img->IsWriteProtected(),
             L"a damaged image must be write-protected");
         Assert::IsTrue (img->GetWriteProtectInfo().checksumMismatch,
-            L"and it must say WHY, so the UI can explain a state the user did not choose");
+            L"and it must give the reason, so the UI can explain a state the user did not choose");
 
         // Not the image flag: that lives in the WOZ's INFO chunk, so setting
         // it would mean writing the very file being protected from writes.
@@ -1015,7 +1015,7 @@ public:
         Assert::AreEqual (560, assessment.report.sectorsVerified,
             L"the damage here is the file checksum, not the sectors -- all still verify");
         Assert::IsTrue (assessment.suggestedPath.find ("broken.salvaged.woz") != string::npos,
-            L"the suggested name says what the file is");
+            L"the suggested name describes what the file is");
     }
 
 
@@ -1218,7 +1218,7 @@ public:
             Assert::IsTrue (blob.find ("title\tSalvage Test") != string::npos,
                 L"the salvaged copy is still the same disk, so META travels");
             Assert::IsTrue (blob.find ("Casso ") != string::npos,
-                L"but Casso wrote this file and says so in creator");
+                L"but Casso wrote this file and records that in creator");
         }
     }
 
@@ -1388,7 +1388,7 @@ public:
         //  BOTH accepted totals, because either can carry either name. A
         //  clause naming one of them tells half the users the wrong thing.
         Assert::IsTrue (clause.find ("232,960") != std::string::npos,
-            L"the clause must name the standard total");
+            L"the clause must give the standard total");
         Assert::IsTrue (clause.find ("223,440") != std::string::npos,
             L"and the smaller one, which circulates under the same name");
         Assert::IsTrue (clause.find ("100,000") != std::string::npos,
@@ -1409,7 +1409,7 @@ public:
         Assert::IsTrue (noNibbles.failure == MountFailure::NotANibbleStream,
             L"right size, no assemblable nibble anywhere");
         Assert::AreNotEqual (wrongSize.Describe(), noNibbles.Describe(),
-            L"the two nibble refusals must say different things");
+            L"the two nibble refusals must differ");
     }
 
 
@@ -1659,7 +1659,7 @@ public:
 
 
         Assert::IsTrue (message.find (L"C:\\disks\\Notes.txt") != wstring::npos,
-            L"the message must name the file the user picked");
+            L"the message must identify the file the user picked");
         Assert::IsTrue (message.find (L".woz") != wstring::npos,
             L"a name no loader claims earns the list of names they do");
     }
@@ -1675,12 +1675,12 @@ public:
 
 
         Assert::IsTrue (message.find (L"C:\\disks\\Broken.dsk") != wstring::npos,
-            L"the message must name the file the user picked");
+            L"the message must identify the file the user picked");
 
         // A .dsk IS read, so reciting the supported formats back would be
         // both useless and misleading -- the extension was never the problem.
         Assert::IsTrue (message.find (L".woz") == wstring::npos,
-            L"a recognized extension must not be answered with the format list");
+            L"a recognized extension must not be met with the format list");
     }
 
 
@@ -1697,11 +1697,11 @@ public:
         // two numbers together are what tell somebody their download stopped
         // early, which is the whole reason the size is carried this far.
         Assert::IsTrue (message.find (L"4,096 bytes") != wstring::npos,
-            L"the message must say how big the file actually is");
+            L"the message must report how big the file actually is");
         Assert::IsTrue (message.find (L"143,360 bytes") != wstring::npos,
             L"and how big it should have been");
         Assert::IsTrue (message.find (L".dsk") != wstring::npos,
-            L"named as the container the file's own name promised");
+            L"identified as the container the file's own name promised");
     }
 
 
@@ -1757,9 +1757,9 @@ public:
 
 
         Assert::IsTrue (message.find (L"WOZ file header") != wstring::npos,
-            L"the missing header is the fact, and naming it is what explains the refusal");
+            L"the missing header is the fact, and reporting it is what explains the refusal");
         Assert::IsTrue (message.find (L"renamed") != wstring::npos,
-            L"a .woz that is not a WOZ is almost always a renamed file, so say so");
+            L"a .woz that is not a WOZ is almost always a renamed file, so report that");
     }
 
 
@@ -1793,7 +1793,7 @@ public:
 
 
         Assert::IsTrue (message.find (L"(unknown path)") != wstring::npos,
-            L"a missing path must be named as missing, not left as a blank gap");
+            L"a missing path must be marked as missing, not left as a blank gap");
     }
 
 

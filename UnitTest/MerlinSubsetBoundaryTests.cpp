@@ -220,7 +220,7 @@ namespace MerlinSubsetBoundaryTests
                 for (size_t j = i + 1; j < rows.size(); j++)
                 {
                     Assert::IsTrue (rows[i].token != rows[j].token,
-                                    L"two rows for one token make the lookup answer with whichever comes first");
+                                    L"two rows for one token make the lookup return whichever comes first");
                 }
             }
         }
@@ -487,7 +487,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual (2, refusals[0].lineNumber, L"reported at the second occurrence, not the first");
 
             Assert::IsTrue (refusals[0].message.find ("65802/65816") != std::string::npos,
-                            L"the refusal has to name the processor it would have selected");
+                            L"the refusal has to identify the processor it would have selected");
         }
 
 
@@ -609,7 +609,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual ((size_t) 0, Fixture::CountQuoting (refusals, kFixLine),
                               L"a fix that cannot work must not be offered");
             Assert::AreEqual ((size_t) 2, Fixture::CountQuoting (refusals, kNoFixLine),
-                              L"the two refusals that would have carried a fix say why there is none");
+                              L"the two refusals that would have carried a fix explain why there is none");
         }
 
 
@@ -624,7 +624,7 @@ namespace MerlinSubsetBoundaryTests
 
             Assert::AreEqual (Fixture::CountQuoting (refusals, kNoFixLine),
                               Fixture::CountQuoting (above, kNoFixLine),
-                              L"where the external declaration sits cannot change what the others say");
+                              L"where the external declaration sits cannot change what the others report");
         }
 
 
@@ -652,7 +652,7 @@ namespace MerlinSubsetBoundaryTests
             Assert::AreEqual ((size_t) 0, Fixture::CountQuoting (refusals, kFixLine),
                               L"this module imports, so the fix cannot work and must not be offered");
             Assert::AreEqual ((size_t) 2, Fixture::CountQuoting (refusals, kNoFixLine),
-                              L"the relocatable directive and the entry symbol say why there is none");
+                              L"the relocatable directive and the entry symbol explain why there is none");
         }
 
 

@@ -178,7 +178,7 @@ public:
             L"no temporary may be left beside the image");
 
         Assert::AreEqual (expected.size(), io.files.size(),
-            L"and nothing may be left under a name the temporary sweep does not know");
+            L"and nothing may be left under a name the temporary sweep does not cover");
 
         for (const std::string & path : expected)
         {
@@ -226,7 +226,7 @@ public:
             at++;
         }
 
-        Assert::AreEqual (size_t (1), lines, L"a refusal must name one reason, not two");
+        Assert::AreEqual (size_t (1), lines, L"a refusal must give one reason, not two");
     }
 
 
@@ -551,7 +551,7 @@ public:
         Assert::IsTrue (result.diagnostics.find ("9LIVES") != std::string::npos,
             L"the message names the name it refused");
         Assert::IsTrue (result.diagnostics.find ("starting with a letter") != std::string::npos,
-            L"and says what a legal one looks like");
+            L"and shows what a legal one looks like");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);
@@ -587,7 +587,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kClean,
                           surveyor.Run (MakePutOptions (kBlankWoz, "PROG")).exitStatus,
-            L"the survey pass must succeed, or it says nothing about which tracks are needed");
+            L"the survey pass must succeed, or it proves nothing about which tracks are needed");
 
         AssertSucceeded (VolumeImage::Load (clean, kBlankWoz, before, report));
         AssertSucceeded (VolumeImage::Load (survey.files[kBlankWoz], kBlankWoz, after, report));
@@ -631,7 +631,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("track " + std::to_string (victim))
                             != std::string::npos,
-            L"the refusal must name the track it is about");
+            L"the refusal must identify the track it is about");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);
@@ -695,7 +695,7 @@ public:
         //  still satisfy a substring of the old sentence.
         Assert::IsTrue (result.diagnostics.find (DiskImageSession::kInUseRefusalText)
                         != std::string::npos,
-            L"the reason must name the other holder, and what to do about it");
+            L"the reason must identify the other holder, and what to do about it");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);

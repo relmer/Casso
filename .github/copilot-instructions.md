@@ -669,6 +669,10 @@ and anything else that reaches a screen. It also covers `CHANGELOG.md`,
 nothing; most of the offenders below were string literals. The style gate
 checks none of this, so it is on you.
 
+It applies to what you write in chat as well. These are habits, not a filter
+applied to artifacts at the end, and the ones below are corrected most often
+in conversation.
+
 - **Write the way a programmer speaks.** Plain, ordinary developer English.
   No literary or precious constructions, no aphoristic fragments after a
   colon or dash, no rhetorical inversions, and no addressing the reader as

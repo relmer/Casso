@@ -167,7 +167,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find ("/MERLIN") != std::string::npos,
-            L"a ProDOS volume is named, not numbered");
+            L"a ProDOS volume has a name, not a number");
         Assert::IsTrue (result.output.find ("blocks free of 280") != std::string::npos,
             L"and counts in blocks rather than sectors");
     }
@@ -243,7 +243,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::IsFalse (result.hasPayload, L"a named destination is not the process output");
+        Assert::IsFalse (result.hasPayload, L"an explicit destination is not the process output");
         Assert::AreEqual (size_t (1), io.files.count ("C:\\out.bin"));
         AssertIsMakeDumpPayload (io.files["C:\\out.bin"]);
     }
@@ -323,7 +323,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (result.hasPayload);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos,
-            L"the message names the image");
+            L"the message identifies the image");
         Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos,
             L"and the file");
     }
@@ -389,7 +389,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("4,096 bytes") != std::string::npos,
-            L"the refusal says how big the file is");
+            L"the refusal reports how big the file is");
         Assert::IsTrue (result.diagnostics.find ("143,360 bytes") != std::string::npos,
             L"and how big a .dsk has to be, which is what identifies a bad download");
     }
@@ -429,7 +429,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is empty") != std::string::npos,
-            L"a zero-byte file is empty, and saying so beats an arithmetic complaint");
+            L"a zero-byte file is empty, and reporting that beats an arithmetic complaint");
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -782,7 +782,7 @@ public:
         result                = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::IsFalse (result.hasPayload, L"named a file, so nothing goes to standard output");
+        Assert::IsFalse (result.hasPayload, L"an output file was given, so nothing goes to standard output");
         Assert::IsTrue (io.files["back.bin"] == payload, L"and the file holds the sector");
     }
 
@@ -877,7 +877,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"a read with no numbering is refused");
         Assert::IsTrue (result.diagnostics.find ("--logical or --physical") != std::string::npos,
-            L"and the refusal says what to type, not merely that something is missing");
+            L"and the refusal shows what to type, not merely that something is missing");
 
         result = runner.Run (write);
 
@@ -1082,7 +1082,7 @@ public:
         text.assign (result.payload.begin(), result.payload.end());
 
         Assert::IsTrue (text.find ("MERLIN") != std::string::npos,
-            L"the volume directory key block names the volume, which only a correct "
+            L"the volume directory key block holds the volume name, which only a correct "
             L"block map could have assembled from its two sector records");
     }
 
@@ -1212,7 +1212,7 @@ public:
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, expected, refusal));
         AssertSucceeded (io.ReadAllBytes ("boot.dsk", written));
 
-        Assert::IsTrue (written == expected, L"the entry the caller named is the one built in");
+        Assert::IsTrue (written == expected, L"the entry the caller specified is the one built in");
     }
 
     //  THE TWO WAYS TO BOOT ARE REFUSED TOGETHER. Measured before the check
@@ -1270,7 +1270,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("$0900") != std::string::npos,
-                        L"the window's lower edge is named");
+                        L"the window's lower edge is reported");
         Assert::IsFalse (io.Exists ("boot.dsk"));
     }
 
@@ -1312,7 +1312,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (io.Exists ("new.dsk"), L"the image is there afterwards");
         Assert::IsTrue (result.output.find ("DOS 3.3") != std::string::npos,
-                        L"and it says what it made");
+                        L"and it reports what it made");
     }
 
     //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
@@ -1489,7 +1489,7 @@ public:
         Assert::IsTrue (pairing.diagnostics.find ("illegal container and filesystem") != std::string::npos,
                         L"the broken rule is the one reported");
         Assert::IsTrue (pairing.diagnostics.find (".po holds ProDOS") != std::string::npos,
-                        L"and the rule is spelled out");
+                        L"and the rule is stated in full");
         Assert::IsFalse (io.Exists ("wrong.po"), L"and nothing was written");
 
         options                 = MakeCreate ("badname.po");
@@ -1528,7 +1528,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         Assert::IsTrue (result.output.find ("MYDISK") != std::string::npos,
-                        L"the confirmation names the volume the disk actually has");
+                        L"the confirmation reports the volume the disk actually has");
 
         Assert::IsTrue (result.output.find ("mydisk") == std::string::npos,
                         L"and never the lower-case form, which is on no disk anywhere");
@@ -1606,7 +1606,7 @@ public:
         Assert::IsTrue (result.badCommandLine,
             L"which is what makes the edge print the page");
         Assert::IsTrue (result.diagnostics.find ("frobnicate") != std::string::npos,
-            L"and the refusal names the word that could not be read");
+            L"and the refusal quotes the word that could not be read");
         Assert::IsTrue (result.diagnostics.find ("catalog") == std::string::npos,
             L"without repeating the page's own command list under it");
     }
@@ -1765,7 +1765,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsFalse (result.hasPayload, L"nothing may be delivered under a conversion not performed");
         Assert::IsTrue (result.diagnostics.find ("--basic") != std::string::npos,
-            L"and the refusal must name the flag it is refusing");
+            L"and the refusal must quote the flag it is refusing");
 
         AssertNamesNoPlatformCode (result.diagnostics);
     }
@@ -1917,7 +1917,7 @@ public:
         Assert::AreEqual (0, io.replaceCount, L"and nothing was ever put over the image");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos,
-            L"and the refusal names the image");
+            L"and the refusal identifies the image");
     }
 
     TEST_METHOD (Commit_WhenTheReplaceFails_LeavesTheImageByteIdenticalAndRemovesTheTemporary)
@@ -2440,7 +2440,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B ") != std::string::npos,
-            L"--type B was asked for and --type B is what the catalog says");
+            L"--type B was given and --type B is what the catalog holds");
     }
 
     TEST_METHOD (Put_WithNoTypeGiven_StoresABinary)
@@ -2481,7 +2481,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus,
             L"a binary with nowhere to load is not written");
-        Assert::IsFalse (result.diagnostics.empty(), L"and the refusal says so");
+        Assert::IsFalse (result.diagnostics.empty(), L"and the refusal reports it");
     }
 
     TEST_METHOD (Put_ABinaryOntoAFreshVolume_LandsAndReadsBackByteForByte)
@@ -2700,10 +2700,10 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
-            L"the refusal must say the file is locked, not merely that something failed");
+            L"the refusal must state the file is locked, not merely that something failed");
 
         Assert::IsTrue (result.diagnostics.find ("PROG") != std::string::npos,
-            L"naming the file");
+            L"identifying the file");
         Assert::IsTrue (result.diagnostics.find (kBlankImage) != std::string::npos,
             L"and the image");
 
@@ -2732,7 +2732,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
-            L"and says the volume has no room, not something generic");
+            L"and reports the volume has no room, not something generic");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, blank);
@@ -2758,9 +2758,9 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("9LIVES") != std::string::npos,
-            L"the message names the name that was refused");
+            L"the message quotes the name that was refused");
         Assert::IsTrue (result.diagnostics.find ("starting with a letter") != std::string::npos,
-            L"and says what a legal one looks like");
+            L"and shows what a legal one looks like");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, blank);
@@ -2810,7 +2810,7 @@ public:
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" A 002 PROG") != std::string::npos,
             L"a listing placed with --basic lands under the Applesoft type without "
-            L"anybody naming one, and the whole rendered row says so");
+            L"anybody specifying one, and the whole rendered row shows it");
 
         readBack = GetFromCommittedImage (io, kBlankImage, "PROG",
                                          CommandLineOptions::DiskOptions::Encoding::Basic);
@@ -2884,7 +2884,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
 
         Assert::IsTrue (result.diagnostics.find ("line 20 ") != std::string::npos,
-            L"the refusal names the offending line number");
+            L"the refusal reports the offending line number");
 
         Assert::IsTrue (result.diagnostics.find ("20 PRINT 3") != std::string::npos,
             L"and quotes the line itself, because a number alone points at nothing in a "
@@ -2931,7 +2931,7 @@ public:
         }
 
         Assert::IsTrue (listing.find (" PROG                 $FC     1  eof=71 aux=$0801") != std::string::npos,
-            L"the whole rendered row: the BASIC type nobody named, the size, the exact "
+            L"the whole rendered row: the BASIC type nobody specified, the size, the exact "
             L"length of the tokenized program, and the address it loads at");
 
         readBack = GetFromCommittedImage (io, kProDosImage, "PROG",
@@ -2969,7 +2969,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("$0801") != std::string::npos,
-            L"and says where an Applesoft program does load");
+            L"and reports where an Applesoft program does load");
 
         AssertImageMatches (io, kBlankImage, blank);
         Assert::AreEqual (0, io.writeCount);
@@ -2995,7 +2995,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("--load") != std::string::npos,
-            L"the message must name the flag that would fix it");
+            L"the message must give the flag that would fix it");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, blank);
@@ -3091,7 +3091,7 @@ public:
         options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
 
         Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
-            L"text with no named type needs no load address");
+            L"text with no explicit type needs no load address");
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" T 002 NOTES") != std::string::npos,
             L"and lands as the filesystem's text type");
@@ -3119,12 +3119,12 @@ public:
         options.disk.hasLoadAddress = true;
 
         Assert::IsTrue (options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim,
-            L"nothing was named, which is the case under test");
+            L"nothing was specified, which is the case under test");
 
         Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PROG") != std::string::npos,
-            L"naming neither a type nor a conversion lands the filesystem's binary type");
+            L"specifying neither a type nor a conversion lands the filesystem's binary type");
     }
 
     TEST_METHOD (Put_WithTextThatHasNoAppleRepresentation_NamesTheOffendingByte)
@@ -3357,7 +3357,7 @@ public:
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("is not on this volume") != std::string::npos,
-            L"and says which of the refusals this is");
+            L"and reports which of the refusals this is");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kImage, original);
@@ -3420,7 +3420,7 @@ public:
             L"a removal that could not account for everything is not a clean one");
 
         Assert::IsTrue (result.diagnostics.find ("could not be followed") != std::string::npos,
-            L"and says what it could not do, rather than only that something was wrong");
+            L"and reports what it could not do, rather than only that something was wrong");
 
         Assert::IsTrue (ListCommittedImage (io, kBlankImage).find ("PROG") == std::string::npos,
             L"while still removing the entry, so a bad file cannot strand the volume");
@@ -3529,13 +3529,13 @@ public:
         result = runner.Run (MakeBootOptions (kImage, kDosProgram));
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
-            L"naming a program the volume holds and DOS can run is a clean operation");
+            L"specifying a program the volume holds and DOS can run is a clean operation");
 
         Assert::AreEqual (std::string(), result.diagnostics, L"with nothing to complain about");
         Assert::IsTrue (io.HasNoTemporaryFiles(), L"and nothing left beside the image");
 
         Assert::AreEqual (std::string (kDosProgram), GreetingNameIn (io.files[kImage]),
-            L"and the name the guest reads at boot is the one that was asked for -- read "
+            L"and the name the guest reads at boot is the one that was set -- read "
             L"back off the COMMITTED image, not out of a buffer the runner still held");
 
         AssertGreetingFieldHolds (io.files[kImage], kDosProgram);
@@ -3572,10 +3572,10 @@ public:
             L"a startup program DOS will not run is refused, not carried out");
 
         Assert::IsTrue (result.diagnostics.find ("RUN") != std::string::npos,
-            L"and the refusal says what DOS does at boot");
+            L"and the refusal explains what DOS does at boot");
 
         Assert::IsTrue (result.diagnostics.find (kBinaryOnTheDisk) != std::string::npos,
-            L"naming the file it is about");
+            L"identifying the file it is about");
 
         Assert::AreEqual (before, GreetingNameIn (io.files[kImage]),
             L"and the greeting the disk already had is left exactly as it was");
@@ -3599,7 +3599,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("NOSUCHFILE") != std::string::npos,
-            L"the message must name the file that is missing, not merely report a failure");
+            L"the message must identify the file that is missing, not merely report a failure");
         Assert::IsTrue (result.diagnostics.find (kImage) != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("is not on this volume") != std::string::npos);
 
@@ -3728,7 +3728,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find ("no operating system") != std::string::npos,
-            L"and says that is what is missing, rather than blaming the file");
+            L"and reports that is what is missing, rather than blaming the file");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);
@@ -3753,7 +3753,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.diagnostics.find (kProProgram) != std::string::npos);
         Assert::IsTrue (result.diagnostics.find ("type SYS") != std::string::npos,
-            L"and says what this boot path does launch");
+            L"and reports what this boot path does launch");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kProImage, original);

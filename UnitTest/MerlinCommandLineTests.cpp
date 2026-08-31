@@ -192,7 +192,7 @@ namespace MerlinCommandLineTests
             Assert::IsTrue   (opts.dialect    == DialectId::Merlin,
                               L"the subcommand selects the dialect, not merely a code path");
             Assert::IsTrue   (opts.dialectSelection == DialectSelection::Stated,
-                              L"an invocation that named a dialect must not be reported one back");
+                              L"an invocation that gave a dialect must not be reported one back");
             Assert::AreEqual (std::string ("demo.s"), opts.inputFile);
             Assert::IsTrue   (opts.unrecognizedArgument.empty());
         }
@@ -209,9 +209,9 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
             Assert::IsTrue (opts.dialectSelection == DialectSelection::Defaulted,
-                            L"nothing named a dialect, and that is what the refusal turns on");
+                            L"nothing gave a dialect, and that is what the refusal turns on");
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"and a source with no assembler named must not be assembled by guess");
+                            L"and a source with no assembler given must not be assembled by guess");
         }
 
         //  A BINARY NAMES NO ASSEMBLER BECAUSE NONE READS IT. Without this, the
@@ -223,7 +223,7 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "prog.bin" });
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                            L"a binary is loaded, not assembled, so there is nothing to name");
+                            L"a binary is loaded, not assembled, so there is nothing to specify");
             Assert::AreEqual (std::string ("prog.bin"), opts.inputFile);
         }
 
@@ -235,7 +235,7 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
             Assert::IsTrue (opts.refusalMessage.find ("--as65")  != std::string::npos,
-                            L"the refusal must name as65");
+                            L"the refusal must mention as65");
             Assert::IsTrue (opts.refusalMessage.find ("--merlin") != std::string::npos,
                             L"and Merlin, since the reader is choosing between them");
         }
@@ -252,7 +252,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (slashed.refusalMessage.find ("/as65")   != std::string::npos &&
                             slashed.refusalMessage.find ("/merlin") != std::string::npos,
-                            L"a slash command line must be answered in slashes");
+                            L"a slash command line must come back in slashes");
             Assert::IsTrue (slashed.refusalMessage.find ("--as65")  == std::string::npos,
                             L"and not in the dashed form the reader did not type");
 
@@ -456,7 +456,7 @@ namespace MerlinCommandLineTests
             //  taken about Merlin.
             Assert::IsTrue (merlin.outputFormat == CommandLineOptions::OutputFormat::Raw);
             Assert::IsTrue (as65.outputFormat   == CommandLineOptions::OutputFormat::Raw,
-                            L"and as65 writes the assembled bytes unless --flat asks otherwise");
+                            L"and as65 writes the assembled bytes unless --flat selects otherwise");
         }
 
         //  No output name is invented here. The source may name its own object,
@@ -620,7 +620,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (merlin.dialect == DialectId::Merlin, L"--merlin selects the Merlin assembler");
             Assert::IsTrue (merlin.dialectSelection == DialectSelection::Stated,
-                            L"and an invocation that named one must not be told it back");
+                            L"and an invocation that gave one must not be told it back");
 
             Assert::IsTrue (as65.dialect == DialectId::As65, L"--as65 selects as65");
             Assert::IsTrue (as65.dialectSelection == DialectSelection::Stated);
@@ -949,7 +949,7 @@ namespace MerlinCommandLineTests
             std::string  slashed = DialectHelp::GetAllDialects ('/');
 
             Assert::IsTrue  (slashed.find ("/o") != std::string::npos,
-                             L"help must come back spelled the way the tool was invoked");
+                             L"help must come back written the way the tool was invoked");
             Assert::IsFalse (slashed.find ("-o <file>") != std::string::npos);
         }
 
@@ -1071,7 +1071,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (result.errors.empty(), Fixture::Widen (Fixture::FirstError (result)).c_str());
             Assert::IsTrue (result.bytes == expected,
-                            L"the declaration reserves no space, and its size answers as a symbol");
+                            L"the declaration reserves no space, and its size is what the symbol resolves to");
         }
     };
 }

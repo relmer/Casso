@@ -156,10 +156,10 @@ public:
             int  physical = (int) kDos33SkewFromTheMaster[logical];
 
             Assert::IsTrue (physical < (int) kSectorsTrack,
-                L"every entry in DOS's own skew table must name a sector on the track");
+                L"every entry in DOS's own skew table must map to a sector on the track");
 
             Assert::IsFalse (seen[(size_t) physical],
-                L"and must name a different one, or it is not a permutation and cannot be "
+                L"and must map to a different one, or it is not a permutation and cannot be "
                 L"the mapping anything reads through");
 
             seen[(size_t) physical] = true;
@@ -167,7 +167,7 @@ public:
             Assert::AreEqual ((int) logical,
                               NibblizationLayer::GetDosFileIndexForPhysicalSector (physical),
                 L"the sector the drive presents at a physical position must be the one DOS "
-                L"3.3's own boot table says lives there");
+                L"3.3's own boot table places there");
 
             if (physical != (int) logical)
             {
@@ -360,7 +360,7 @@ public:
         //  then reads on for as long as the next sector number is below the
         //  byte it just landed at offset zero.
         Assert::AreEqual ((int) kRomReadsOnlyTheLoader, (int) built[0],
-            L"so the loader sector must ask the ROM for itself and nothing else -- a "
+            L"so the loader sector must request itself from the ROM and nothing else -- a "
             L"larger number here would have the ROM overwrite the loader with payload");
 
         Assert::AreEqual (3, (int) built[kSectorsLeftAt],
@@ -396,7 +396,7 @@ public:
             L"the loader finishes with an absolute jump");
 
         Assert::AreEqual ((int) (entry & 0xFF), (int) built[kEntryLowAt],
-            L"whose target is the entry that was asked for");
+            L"whose target is the entry that was requested");
 
         Assert::AreEqual ((int) (entry >> 8), (int) built[kEntryHighAt],
             L"both halves of it, and not the load address");
@@ -435,7 +435,7 @@ public:
 
             Assert::AreEqual ((int) page, (int) built[at],
                 L"page N has to sit in the sector the drive hands back Nth, which is what "
-                L"the loader asks for -- not in the Nth sector of the buffer");
+                L"the loader requests -- not in the Nth sector of the buffer");
 
             if (at != straight)
             {

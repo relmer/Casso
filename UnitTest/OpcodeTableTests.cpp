@@ -725,7 +725,7 @@ namespace OpcodeTableTests
                 if (expectedCycles != nullptr)
                 {
                     Assert::AreEqual ((int) expectedCycles[i], (int) entry.cycleCounts,
-                        (subject + L" does not cost what the published table says").c_str());
+                        (subject + L" does not cost what the published table lists").c_str());
                 }
 
                 visited++;
@@ -827,7 +827,7 @@ namespace OpcodeTableTests
                     Assert::AreEqual ((int) timing.opcode, (int) entry.opcode,
                         (subject + L" assembles to the wrong byte").c_str());
                     Assert::AreEqual ((int) timing.cycles, (int) entry.cycleCounts,
-                        (subject + L" does not cost what 6502.org says").c_str());
+                        (subject + L" does not cost what 6502.org lists").c_str());
                 }
             }
         }

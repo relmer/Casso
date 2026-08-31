@@ -174,7 +174,7 @@ namespace MerlinCorpusTests
             CorpusComparison   result   = CorpusHarness::Compare (expected, actual);
             std::string        text     = CorpusHarness::Describe ("hexdata", result);
 
-            Assert::IsTrue (text.find ("hexdata") != std::string::npos, L"the entry must be named");
+            Assert::IsTrue (text.find ("hexdata") != std::string::npos, L"the entry must be identified");
             Assert::IsTrue (text.find ("offset 2") != std::string::npos, L"the offset must be reported");
         }
 
@@ -683,7 +683,7 @@ namespace MerlinCorpusTests
                 }
             }
 
-            Assert::IsNotNull (found, L"the named entry has left the vendor corpus");
+            Assert::IsNotNull (found, L"the listed entry has left the vendor corpus");
 
             return *found;
         }
@@ -2610,7 +2610,7 @@ namespace MerlinCorpusTests
                 Assert::IsFalse (entry.expected.empty(),
                                  CorpusText::Widen (std::string (entry.name) + ": an empty expectation compares nothing").c_str());
                 Assert::IsNotNull (entry.merlinVersion,
-                                   L"a captured entry without a version stamp cannot say what produced it");
+                                   L"a captured entry without a version stamp cannot record what produced it");
             }
         }
 
