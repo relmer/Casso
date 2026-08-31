@@ -1570,6 +1570,52 @@ m.add_triangles("glass",
                           radius_scale=FACE_R / GLASS_HALF_DIAG),
                 KD["glass"])
 
+# ------------------------------------------------------------- tube skirt
+
+# THE FACEPLATE DOES NOT STOP AT THE PICTURE. A real tube's glass runs on
+# past the bezel and dies inside the cabinet; ours stopped a hair outside the
+# mouth, and a surface that stops has an edge you can see past.
+#
+# That edge is the fault. The rim is seated GLASS_SET back at the corners but
+# bulges FORWARD of the mouth everywhere else -- 9.67mm proud at the top and
+# bottom midpoints -- so along those edges it floats in the middle of the
+# funnel opening with nothing sealing it. From a steep angle the line of
+# sight goes over the rim and straight into the monitor's interior, above the
+# top edge of the picture and below the bottom edge of it. No lap on the
+# BEZEL can close that, because the thing with the hole in it is the tube.
+#
+# So the sheet is continued outward to the funnel's front opening, where it
+# is buried in bezel however you look at it. It is a SEPARATE PART on
+# purpose: the scene derives its display sphere and its picture band from the
+# bounding box of the part named "glass", so growing that part would grow the
+# raster with it and push the picture under the bezel.
+#
+# Same sphere, not merely a similar one. sag_sheet measures front_y at the
+# CORNERS and bulges forward from there, so a wider sheet on one sphere needs
+# its corners set back by the difference of the two sags -- otherwise it is a
+# different, deeper dome that would burst through the glass it hides behind.
+SKIRT_X0, SKIRT_X1 = BAND_X0, BAND_X1
+SKIRT_Z0, SKIRT_Z1 = BAND_Z0, BAND_Z1
+SKIRT_BURY         = 0.3          # behind the glass, so the two never fight
+
+SKIRT_HALF_DIAG = math.hypot((SKIRT_X1 - SKIRT_X0) * 0.5,
+                             (SKIRT_Z1 - SKIRT_Z0) * 0.5)
+
+
+def _sag(rr):
+    return FACE_R - math.sqrt(max(FACE_R ** 2 - rr * rr, 0.0))
+
+
+SKIRT_FRONT_Y = (-PROTRUDE + TUBE_DROP + GLASS_SET
+                 + _sag(SKIRT_HALF_DIAG) - _sag(GLASS_HALF_DIAG)
+                 + SKIRT_BURY)
+
+m.add_triangles("tube_skirt",
+                sag_sheet(SKIRT_X0, SKIRT_X1, SKIRT_Z0, SKIRT_Z1,
+                          front_y=SKIRT_FRONT_Y,
+                          radius_scale=FACE_R / SKIRT_HALF_DIAG),
+                CAVITY)
+
 # ------------------------------------------------------- power button + LED
 
 # The button, locked down: it fills the lower part of the notch and stands
