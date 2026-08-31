@@ -75,7 +75,7 @@ static constexpr SubsetBoundaryRow  s_kMerlinBoundary[] =
         "an external symbol declaration",
         SubsetBoundaryTrigger::EveryOccurrence,
         SubsetBoundaryReason::NeedsLinker,
-        "the symbol is defined in another module, and resolving that is what a linker is for",
+        "the symbol is defined in another module, which would require linker support",
         s_kpszLinkerWidening,
         true,
         nullptr,
