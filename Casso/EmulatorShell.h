@@ -140,6 +140,11 @@ public:
     EmulatorShell();
     ~EmulatorShell();
 
+    // The show state Windows handed wWinMain. Set before Initialize; the
+    // first ShowWindow honors it when the launcher asked for something
+    // particular, and falls back to the saved placement when it did not.
+    void  SetStartupShowCommand (int nCmdShow) { m_startShowCmd = nCmdShow; }
+
     HRESULT Initialize (
         HINSTANCE              hInstance,
         const wstring        & machineName,
@@ -1390,6 +1395,10 @@ private:
     // shutdown can pair the call with OleUninitialize. RegisterDragDrop
     // requires OLE (STA) on the registering thread.
     bool                                 m_fOleInitialized = false;
+
+    // SW_SHOWDEFAULT means "the launcher expressed no preference", which is
+    // what a normal double-click amounts to.
+    int                                  m_startShowCmd    = SW_SHOWDEFAULT;
 
     // Drive audio. Mixer is always allocated; per-drive sources are
     // populated only when the active machine config carries a

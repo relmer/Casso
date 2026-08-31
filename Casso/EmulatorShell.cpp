@@ -909,7 +909,38 @@ HRESULT EmulatorShell::Initialize (
     // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
     // flash of the restored-size window.
 
-    ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+    // HONOR WHAT THE LAUNCHER ASKED FOR. Windows carries a requested show
+    // state through CreateProcess into wWinMain, which is how
+    // Start-Process -WindowStyle Minimized and every scripted launch says
+    // "come up, but do not take the screen". Casso discarded it and always
+    // activated, so a build-and-run in the background stole focus from
+    // whatever the user was doing.
+    //
+    // Only a PARTICULAR request wins. SW_SHOWDEFAULT / SW_SHOW / normal is
+    // what an ordinary double-click carries and means nothing in
+    // particular, and the remembered placement -- which knows whether the
+    // window was maximized -- is the better answer for it.
+    {
+        int   show = m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
+
+        switch (m_startShowCmd)
+        {
+            case SW_HIDE:
+            case SW_MINIMIZE:
+            case SW_SHOWMINIMIZED:
+            case SW_SHOWMINNOACTIVE:
+            case SW_SHOWNOACTIVATE:
+            case SW_SHOWNA:
+                show = m_startShowCmd;
+                break;
+
+            default:
+                break;
+        }
+
+        ShowWindow (m_hwnd, show);
+    }
+
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
