@@ -51,17 +51,13 @@ public:
     void  SetTextColor   (uint32_t argb)             { m_textArgb = argb; }
     void  SetDpi         (UINT dpi)                  { m_dpi = dpi; }
 
-    // How far the shadow reaches, in PIXELS. Fewer layers is a tighter,
-    // harder rim; more is a broader, softer one.
+    // How far the shadow reaches, in PIXELS at the size the text is drawn.
     //
-    // WORTH TUNING PER SITE, because what the shadow has to survive is not
-    // the same everywhere. Over the dark desk backdrop a wide one is
-    // invisible and simply works. Over the monitor's pale case it is the
-    // conspicuous part of the drawing, and the eight compass directions
-    // stop reading as a halo and start reading as spikes -- the whole
-    // STRING is redrawn at each offset, so a short one has too little
-    // overlap to hide its own structure. A short reach keeps it a rim.
-    void  SetGlowLayers  (int layers)                { m_glowLayers = layers; }
+    // SCALE IT WITH THE FONT. The default suits body text; a caller drawing
+    // at four times that size and scaling the result down -- the desk scene
+    // renders its drive label into a texture -- wants four times the reach,
+    // or the halo shrinks to a hairline on the way to the screen.
+    void  SetGlowReachPx (int reachPx)               { m_reachPx = reachPx; }
 
     void  SetAlign       (DxuiTextHAlign h, DxuiTextVAlign v)
     {
@@ -78,12 +74,6 @@ public:
                   IDxuiTextRenderer & text,
                   const IDxuiTheme  & theme) override;
 
-    // MatrixRain's glowLayers. Ten rings of eight compass points, ring i at
-    // i PIXELS out with alpha 1 - i/10 -- the outermost contributes nothing
-    // and the innermost is nearly opaque. Pixels rather than DIPs is the
-    // original's own choice and worth keeping: the glow stays a tight edge
-    // treatment on a dense display instead of spreading until its eight
-    // directions read as spokes.
     // The shadow construction itself, so a caller that is not a control can
     // have it. The desk scene renders the drive label into a TEXTURE -- the
     // name is geometry there, and a halo painted over the scene afterwards
@@ -100,10 +90,22 @@ public:
                                 const wchar_t     * face,
                                 DxuiTextHAlign      hAlign,
                                 DxuiTextVAlign      vAlign,
-                                int                 glowLayers);
+                                int                 reachPx);
 
-    static constexpr int    kGlowLayers = 10;
-    static constexpr float  kFontDip    = 13.0f;
+    // MatrixRain's glowLayers: ten rings, ring r at r PIXELS out with alpha
+    // 1 - r/10, so the outermost contributes nothing and the innermost is
+    // nearly opaque. Pixels rather than DIPs is the original's own choice and
+    // worth keeping: the glow stays an edge treatment on a dense display
+    // rather than one that grows with the display.
+    static constexpr int    kGlowReachPx     = 10;
+    static constexpr float  kFontDip         = 13.0f;
+
+    // How far apart the samples around a ring sit, and the bounds on how
+    // many that works out to. Close enough that a ring reads as a ring;
+    // capped so the widest and faintest do not dominate the cost.
+    static constexpr float  kSampleSpacingPx = 1.5f;
+    static constexpr int    kMinRingSamples  = 8;
+    static constexpr int    kMaxRingSamples  = 32;
 
 private:
     std::wstring     m_text;
@@ -111,7 +113,7 @@ private:
     uint32_t         m_textArgb    = 0xFFFFFFFF;
     float            m_fontSizeDip = kFontDip;
     UINT             m_dpi         = 96;
-    int              m_glowLayers  = kGlowLayers;
+    int              m_reachPx     = kGlowReachPx;
     DxuiTextHAlign   m_hAlign      = DxuiTextHAlign::Center;
     DxuiTextVAlign   m_vAlign      = DxuiTextVAlign::Center;
 };

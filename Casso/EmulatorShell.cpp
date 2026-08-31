@@ -194,15 +194,9 @@ static const std::wstring         s_kCaptureBanner =
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
-// A SHORTER GLOW REACH than a notice takes. The desk scene's pale case is
-// the worst background the shadow has to survive, and at the notice's reach
-// the eight compass directions stopped reading as a halo and started
-// reading as spikes: the whole string is redrawn at each offset, and three
-// words have too little overlap to hide that. Four pixels keeps it a rim.
 static constexpr int     s_kFrameRateInsetDp        = 12;
 static constexpr int     s_kFrameRateWidthDp        = 120;
 static constexpr int     s_kFrameRateHeightDp       = 28;
-static constexpr int     s_kFrameRateGlowLayers     = 4;
 
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
@@ -211,7 +205,18 @@ static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 // type size: big enough that a name stays crisp when the drive is near the
 // camera, and it costs one texture per drive.
 static constexpr float   s_kSceneDiskLabelFontPx      = 48.0f;
-static constexpr int     s_kSceneDiskLabelGlowLayers  = 6;
+// The reach scales with the font, since the texture is authored at
+// s_kSceneDiskLabelFontPx and then shrunk by the scene: a body-text reach
+// would arrive as a hairline.
+//
+// AGAINST THE INK, NOT THE DIP. kGlowReachPx is ten PIXELS and kFontDip is
+// thirteen DIPS, which are the same number only at 96 dpi; scaling one by
+// the other gave the label twice the halo-to-glyph ratio the readout has,
+// and it read as a black slab behind the name rather than as a shadow.
+// This is that ratio at the density the scene is actually drawn on.
+static constexpr float   s_kSceneDiskLabelReachRatio  = 0.38f;
+static constexpr int     s_kSceneDiskLabelReachPx     =
+    (int) (s_kSceneDiskLabelFontPx * s_kSceneDiskLabelReachRatio);
 static constexpr float   s_kSceneDiskLabelMaxPx       = 900.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
@@ -2142,7 +2147,6 @@ void EmulatorShell::SyncFrameRateReadout()
 
     m_fpsReadout.SetText        (text);
     m_fpsReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
-    m_fpsReadout.SetGlowLayers  (s_kFrameRateGlowLayers);
     m_fpsReadout.SetAlign       (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     m_fpsReadout.SetDpi         (m_scaler.GetDpi());
     m_fpsReadout.Layout         (rc, m_scaler);
@@ -2425,8 +2429,8 @@ void EmulatorShell::RenderSceneDiskLabel (int drive, const std::wstring & name)
         return;
     }
 
-    w = (UINT) (tw + 2.0f * (float) s_kSceneDiskLabelGlowLayers + 2.0f);
-    h = (UINT) (th + 2.0f * (float) s_kSceneDiskLabelGlowLayers + 2.0f);
+    w = (UINT) (tw + 2.0f * (float) s_kSceneDiskLabelReachPx + 2.0f);
+    h = (UINT) (th + 2.0f * (float) s_kSceneDiskLabelReachPx + 2.0f);
 
     hr = text->BeginDrawToTexture (w, h);
 
@@ -2439,7 +2443,7 @@ void EmulatorShell::RenderSceneDiskLabel (int drive, const std::wstring & name)
     DxuiShadowedText::PaintShadowed (*text, name.c_str(), 0.0f, 0.0f, (float) w, (float) h,
                                      m_chromeTheme.driveLabel, fontPx, DxuiTheme::kBodyFace,
                                      DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                     s_kSceneDiskLabelGlowLayers);
+                                     s_kSceneDiskLabelReachPx);
 
     hr = text->EndDrawToTexture (&srv);
 

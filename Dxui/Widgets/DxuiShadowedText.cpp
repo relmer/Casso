@@ -32,9 +32,8 @@ void DxuiShadowedText::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 //
 //  The glow, then the line. This is MatrixRain's DrawFeatheredGlow, ported:
 //
-//      for (int i = glowLayers; i > 0; --i)
-//          offset  = i
-//          opacity = 1 - i / glowLayers
+//      for (int r = reachPx; r > 0; --r)
+//          opacity = 1 - r / reachPx
 //          draw the string in black at that offset in the eight compass
 //          directions, skipping the center
 //
@@ -75,7 +74,7 @@ void DxuiShadowedText::Paint (IDxuiPainter      & painter,
                    (float) (bounds.right - bounds.left),
                    (float) (bounds.bottom - bounds.top),
                    m_textArgb, m_fontSizeDip * (float) m_dpi / 96.0f, face,
-                   m_hAlign, m_vAlign, m_glowLayers);
+                   m_hAlign, m_vAlign, m_reachPx);
 }
 
 
@@ -103,36 +102,44 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
                                       const wchar_t     * face,
                                       DxuiTextHAlign      hAlign,
                                       DxuiTextVAlign      vAlign,
-                                      int                 glowLayers)
+                                      int                 reachPx)
 {
     const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::kBodyFace;
     HRESULT          hr      = S_OK;
 
 
 
-    for (int i = glowLayers; i > 0; i--)
+    // RINGS ARE CIRCLES, sampled by angle. They used to be the eight
+    // neighbours of a 3x3 grid, which is a SQUARE of offsets: the four
+    // diagonals land at r * sqrt(2) rather than at r, so every ring stuck
+    // out at its corners and the halo grew four spikes at 45 degrees. It
+    // reads as a star over any background pale enough to show it.
+    //
+    // Samples scale with the circumference, so the ring stays continuous
+    // as it widens instead of separating into beads. The cap keeps the
+    // outermost rings -- the faintest, where gaps would not show anyway --
+    // from dominating the cost.
+    for (int r = reachPx; r > 0; r--)
     {
-        float     offset  = (float) i;
-        float     opacity = 1.0f - ((float) i / (float) glowLayers);
-        uint32_t  shadow  = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
+        float   radius  = (float) r;
+        float   opacity = 1.0f - (radius / (float) reachPx);
+        int     samples = (int) (6.2831853f * radius / kSampleSpacingPx + 0.5f);
 
-        for (int dx = -1; dx <= 1; dx++)
+        uint32_t   shadow = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
+
+        samples = std::clamp (samples, kMinRingSamples, kMaxRingSamples);
+
+        for (int i = 0; i < samples; i++)
         {
-            for (int dy = -1; dy <= 1; dy++)
-            {
-                if (dx == 0 && dy == 0)
-                {
-                    continue;
-                }
+            float   theta = 6.2831853f * (float) i / (float) samples;
 
-                hr = renderer.DrawString (text,
-                                          x + offset * (float) dx,
-                                          y + offset * (float) dy,
-                                          width, height, shadow, fontPx, useFace,
-                                          hAlign, vAlign,
-                                          DxuiFontWeight::Normal, false);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-            }
+            hr = renderer.DrawString (text,
+                                      x + radius * std::cos (theta),
+                                      y + radius * std::sin (theta),
+                                      width, height, shadow, fontPx, useFace,
+                                      hAlign, vAlign,
+                                      DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 
