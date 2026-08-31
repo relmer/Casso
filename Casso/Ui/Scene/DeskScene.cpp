@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include "Core/StartupTrace.h"
 
 #include "Ui/Scene/DeskScene.h"
 
@@ -78,15 +77,11 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
     hr = m_monitor.Load (monitorKind, monitorMesh);
     CHRA (hr);
 
-    StartupTrace::Stamp ("          monitor DeskSceneModel::Load (OBJ parse)");
-
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
     // them here beats making every caller say it twice and disagree once.
     hr = m_drive.Load (driveKind, driveMesh);
     CHRA (hr);
-
-    StartupTrace::Stamp ("          drive DeskSceneModel::Load (OBJ parse)");
 
     // The per-drive legend: the number differs per drive, so it is stamped
     // here rather than into the shared model. Everything about how it is set
@@ -184,53 +179,16 @@ void DeskScene::BuildDerivedGeometry()
     BuildLampGlow (m_monitor, kMonitorGlowRgb, m_monitorGlowVerts);
     BuildLampGlow (m_drive,   DriveGlowRgb (m_drive.Kind()), m_driveGlowVerts);
 
-    StartupTrace::Stamp ("          BuildLampGlow x2 (occlusion bake)");
-
     BuildContactShadow (m_monitor, kMonitorShadowMarginSideMm, kMonitorShadowMarginDepthMm,
                         m_monitorShadowVerts);
     BuildContactShadow (m_drive,   kShadowMarginSideMm,        kShadowMarginDepthMm,
                         m_driveShadowVerts);
-
-    StartupTrace::Stamp ("          BuildContactShadow x2");
 
     m_modelsLoaded = true;
     m_glassUvDirty = true;
     m_lampsDirty   = true;
 
     TouchGeometry();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DeskScene::ReportGeometryBytes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DeskScene::ReportGeometryBytes() const
-{
-    const size_t   kVertex = sizeof (Dxui3DRenderer::Vertex);
-    long long      derived = 0;
-
-
-
-    StartupTrace::Count ("monitor opaque verts (CPU)", (long long) (m_monitor.OpaqueVerts().size() * kVertex));
-    StartupTrace::Count ("monitor tiltable verts",     (long long) (m_monitor.TiltableVerts().size() * kVertex));
-    StartupTrace::Count ("monitor glass + lamp verts", (long long) ((m_monitor.GlassVerts().size()
-                                                                    + m_monitor.LampVerts().size()) * kVertex));
-    StartupTrace::Count ("drive opaque verts (CPU)",   (long long) (m_drive.OpaqueVerts().size() * kVertex));
-    StartupTrace::Count ("drive door + lamp verts",    (long long) ((m_drive.DoorVerts().size()
-                                                                    + m_drive.LampVerts().size()) * kVertex));
-
-    derived = (long long) ((m_glassVerts.size() + m_pictureVerts.size() + m_pictureDepthVerts.size()
-                            + m_maskVerts.size() + m_sheenVerts.size() + m_monitorGlowVerts.size()
-                            + m_driveGlowVerts.size() + m_monitorShadowVerts.size()
-                            + m_driveShadowVerts.size()) * kVertex);
-
-    StartupTrace::Count ("derived scene verts (glow, shadow, glass)", derived);
 }
 
 

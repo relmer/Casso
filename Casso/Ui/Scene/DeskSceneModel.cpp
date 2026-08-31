@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include "Core/StartupTrace.h"
 
 #include "Ui/Scene/DeskSceneModel.h"
 
@@ -500,12 +499,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
 
     lampKd = IsMonitorKind (kind) ? kMonitorLampKd : kDriveLampKd;
 
-    StartupTrace::Stamp ("            (model Load entry)");
-
     hr = MeshBlob::Read (meshBlob, triangles, materialNames, smoothNormals);
     CHRA (hr);
-
-    StartupTrace::Stamp ("            MeshBlob::Read (blob -> triangles)");
 
     // Move the room's ceiling lights into this model's own coordinates so
     // the per-face bake needs no transform: the model's x-center rests on
@@ -658,8 +653,6 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             AppendLitTri (m_opaque, tri, corners);
         }
     }
-
-    StartupTrace::Stamp ("            classify + AppendLitTri (triangles -> vertex buffers)");
 
     // Glass tint is forced white: the picture must pass through unmodified,
     // whatever Kd identified the sheet.

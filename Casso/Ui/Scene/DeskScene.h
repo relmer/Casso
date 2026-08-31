@@ -59,11 +59,6 @@ public:
 
     const DeskSceneModel &  MonitorModel () const { return m_monitor; }
 
-    // Byte counts of every CPU-side vertex array the scene holds, written
-    // into the startup trace so the working set can be accounted for
-    // rather than estimated.
-    void  ReportGeometryBytes () const;
-
     // THE BEZEL'S TILT, in radians, positive tipping the top back.
     //
     // Carried as a transform rather than baked into the vertices, which is

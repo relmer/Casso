@@ -202,7 +202,6 @@
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
-    <ClInclude Include="Core\StartupTrace.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
     <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />

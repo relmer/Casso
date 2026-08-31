@@ -414,10 +414,6 @@
     <None Include="Shaders\Settings\gaussian_h.hlsl" />
     <None Include="Shaders\Settings\gaussian_v.hlsl" />
     <None Include="Shaders\Settings\settings_compose.hlsl" />
-    <None Include="Shaders\Ui\ui_solid.hlsl" />
-    <None Include="Shaders\Ui\ui_textured.hlsl" />
-    <None Include="Shaders\Ui\ui_glyph.hlsl" />
-    <None Include="Shaders\Ui\ui_glow.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

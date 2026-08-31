@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include "Core/StartupTrace.h"
 
 #include "Render/Dxui3DRenderer.h"
 
@@ -63,17 +62,11 @@ HRESULT Dxui3DRenderer::Initialize (ID3D11Device * device, ID3D11DeviceContext *
     m_device  = device;
     m_context = context;
 
-    StartupTrace::Stamp ("        (Dxui3DRenderer::Initialize entry)");
-
     hr = CreateShaders();
     CHR (hr);
 
-    StartupTrace::Stamp ("        CreateShaders (precompiled bytecode)");
-
     hr = CreatePipelineState();
     CHR (hr);
-
-    StartupTrace::Stamp ("        CreatePipelineState");
 
     // 1x1 opaque white: untextured geometry samples it so the vertex tint IS
     // the surface color, and the one shader pair covers both cases.

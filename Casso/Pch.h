@@ -23,8 +23,6 @@
 #include <d2d1helper.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
-#include <dxgi1_4.h>   // IDXGIAdapter3::QueryVideoMemoryInfo, for the startup memory report
-#include <psapi.h>     // GetProcessMemoryInfo, likewise
 #include <dcomp.h>
 
 #include <crtdbg.h>

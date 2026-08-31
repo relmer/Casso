@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include "Core/StartupTrace.h"
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
@@ -52,7 +51,6 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shcore.lib")
 
 // Embed Common Controls v6 dependency in the binary's activation
@@ -826,12 +824,8 @@ HRESULT EmulatorShell::Initialize (
     // is replayed once the window exists.
     s_pNotifyShell = this;
 
-    StartupTrace::Stamp ("EmulatorShell::Initialize entry");
-
     RegisterChromeDock();
     InitAssetPathsAndStores();
-
-    StartupTrace::Stamp ("  RegisterChromeDock + InitAssetPathsAndStores");
 
     // Bring up OLE on the UI thread before any RegisterDragDrop / IFileDialog
     // (drive-widget click-to-browse) needs the STA apartment. OleInitialize
@@ -847,25 +841,15 @@ HRESULT EmulatorShell::Initialize (
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
-    StartupTrace::Stamp ("  OleInitialize + RegisterBuiltinDevices");
-
     AllocateFramebuffers();
 
-    StartupTrace::Stamp ("  AllocateFramebuffers");
-
     PrimeChromeThemeEarly();
-
-    StartupTrace::Stamp ("  PrimeChromeThemeEarly");
 
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
-    StartupTrace::Stamp ("  CreateEmulatorWindow (D3D device + swap chain)");
-
     hr = BuildMachineDevices (config);
     CHR (hr);
-
-    StartupTrace::Stamp ("  BuildMachineDevices (ROMs, CPU, bus)");
 
     // Mark the display pages so a write into them raises the bus video-dirty
     // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
@@ -886,12 +870,8 @@ HRESULT EmulatorShell::Initialize (
     hr = InitializeRenderer();
     CHR (hr);
 
-    StartupTrace::Stamp ("  InitializeRenderer TOTAL");
-
     hr = InitializeUiShell();
     CHR (hr);
-
-    StartupTrace::Stamp ("  InitializeUiShell");
 
     // Native-only bootstrap baseline: legacy chrome overlay retired
     // ahead of the native painter. Keep existing command/menu path active.
@@ -902,11 +882,8 @@ HRESULT EmulatorShell::Initialize (
     // not just the normal rect it was created with: showing maximized
     // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
     // flash of the restored-size window.
-    StartupTrace::Stamp ("  (pre ShowWindow)");
 
     ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
-
-    StartupTrace::Stamp ("  ShowWindow");
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
@@ -928,11 +905,8 @@ HRESULT EmulatorShell::Initialize (
     // disk. Mounting first then power-cycling silently throws away the
     // user's freshly-mounted image (the engine ticks but AdvanceOneBit
     // exits early because trackBits[0] == 0).
-    StartupTrace::Stamp ("  ReconcileInitialClientSize + UpdateWindowTitle");
 
     PowerCycle();
-
-    StartupTrace::Stamp ("  PowerCycle");
 
     // Every mount reports its outcome through here, not just this one:
     // the recent-disks entry, the damage check, and the failure report all
@@ -947,76 +921,7 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
-    StartupTrace::Stamp ("  MountCommandLineDisks");
-
     ApplyPersistedAudioPrefs();
-
-    StartupTrace::Stamp ("  ApplyPersistedAudioPrefs");
-
-    // Memory accounting, written alongside the timeline. The desk scene is
-    // most of this process's footprint and the split between CPU heap and
-    // D3D is not guessable: on an integrated GPU there is no dedicated video
-    // memory, so D3D allocations land in system RAM and show up in the
-    // working set alongside everything else.
-    {
-        PROCESS_MEMORY_COUNTERS_EX     pmc        = {};
-        ComPtr<IDXGIDevice>            dxgiDevice;
-        ComPtr<IDXGIAdapter>           adapter;
-        ComPtr<IDXGIAdapter3>          adapter3;
-        DXGI_QUERY_VIDEO_MEMORY_INFO   local      = {};
-        DXGI_QUERY_VIDEO_MEMORY_INFO   nonLocal   = {};
-        HRESULT                        hrDxgi     = E_FAIL;
-        HRESULT                        hrAdapter  = E_FAIL;
-        HRESULT                        hrAdapter3 = E_FAIL;
-        HRESULT                        hrLocal    = E_FAIL;
-        HRESULT                        hrNonLocal = E_FAIL;
-        BOOL                           gotProcess = FALSE;
-
-
-
-        gotProcess = GetProcessMemoryInfo (GetCurrentProcess(),
-                                           reinterpret_cast<PROCESS_MEMORY_COUNTERS *> (&pmc),
-                                           sizeof (pmc));
-
-        if (gotProcess)
-        {
-            StartupTrace::Count ("process working set",   (long long) pmc.WorkingSetSize);
-            StartupTrace::Count ("process private bytes", (long long) pmc.PrivateUsage);
-        }
-
-        if (m_host != nullptr && m_host->GetDevice() != nullptr)
-        {
-            hrDxgi = m_host->GetDevice()->QueryInterface (IID_PPV_ARGS (&dxgiDevice));
-        }
-
-        if (SUCCEEDED (hrDxgi))
-        {
-            hrAdapter = dxgiDevice->GetAdapter (adapter.GetAddressOf());
-        }
-
-        if (SUCCEEDED (hrAdapter))
-        {
-            hrAdapter3 = adapter.As (&adapter3);
-        }
-
-        if (SUCCEEDED (hrAdapter3))
-        {
-            hrLocal    = adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local);
-            hrNonLocal = adapter3->QueryVideoMemoryInfo (0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocal);
-        }
-
-        if (SUCCEEDED (hrLocal))
-        {
-            StartupTrace::Count ("D3D local segment usage", (long long) local.CurrentUsage);
-        }
-
-        if (SUCCEEDED (hrNonLocal))
-        {
-            StartupTrace::Count ("D3D non-local segment usage", (long long) nonLocal.CurrentUsage);
-        }
-
-        m_deskScene.ReportGeometryBytes();
-    }
 
 Error:
     return hr;
@@ -1266,8 +1171,6 @@ HRESULT EmulatorShell::InitializeRenderer()
                                    m_viewportBoundsPx);
     CHR (hr);
 
-    StartupTrace::Stamp ("    D3DRenderer::Initialize (9 CRT shaders compiled)");
-
     // Desk scene (spec 018): shares the host device with the framebuffer
     // renderer. Failure (broken embedded asset) asserts in debug and leaves
     // the 2D chrome paths active.
@@ -1275,8 +1178,6 @@ HRESULT EmulatorShell::InitializeRenderer()
         HRESULT  hrScene = InitializeDeskScene();
 
         IGNORE_RETURN_VALUE (hrScene, S_OK);
-
-        StartupTrace::Stamp ("    InitializeDeskScene TOTAL");
     }
 
     // Composite the Apple ][ framebuffer before the host paints chrome on
@@ -1591,15 +1492,11 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
 
 
-    StartupTrace::Stamp ("        LoadTextResource x4 (obj/mtl text)");
-
     haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
     CBRA (haveMeshes);
 
     hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh);
     CHRA (hr);
-
-    StartupTrace::Stamp ("        DeskScene::LoadModels TOTAL");
 
     m_deskSceneMachineIsC = isC;
 
@@ -1634,20 +1531,14 @@ HRESULT EmulatorShell::InitializeDeskScene()
     hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
     CHRA (hr);
 
-    StartupTrace::Stamp ("      DeskScene::Initialize (scene shaders/RTs)");
-
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
-
-    StartupTrace::Stamp ("      LoadDeskSceneModelsForMachine TOTAL");
 
     // A powered monitor's lamp is lit for as long as the machine exists;
     // drive activity arrives per frame from the drive state sync.
     m_deskScene.SetPowerLampOn (true);
 
     ApplySceneAntiAliasing();
-
-    StartupTrace::Stamp ("      ApplySceneAntiAliasing");
 
     {
         wchar_t   debugValue[8] = {};
@@ -2629,30 +2520,18 @@ HRESULT EmulatorShell::InitializeUiShell()
     hr = m_uiShell.Initialize (&m_d3dRenderer);
     CHR (hr);
 
-    StartupTrace::Stamp ("      UiShell::Initialize (painter + text renderer)");
-
     hr = WireUiShellChromeAndThemes();
     CHR (hr);
-
-    StartupTrace::Stamp ("      WireUiShellChromeAndThemes (ThemeManager::Discover)");
 
     RestoreInputAndColorPrefs();
     RecordActiveMachineSelection();
 
-    StartupTrace::Stamp ("      RestoreInputAndColorPrefs + RecordActiveMachineSelection");
-
     SubscribeAndActivateTheme();
-
-    StartupTrace::Stamp ("      SubscribeAndActivateTheme");
 
     ApplyPersistedChromePrefs();
 
-    StartupTrace::Stamp ("      ApplyPersistedChromePrefs");
-
     hr = FinishUiShellLayout();
     CHR (hr);
-
-    StartupTrace::Stamp ("      FinishUiShellLayout");
 
 Error:
     return hr;

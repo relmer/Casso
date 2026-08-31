@@ -140,22 +140,18 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 //  CreateShaders
 //
-//  Compiles the painter's vertex / pixel shader pair and its input layout.
+//  Creates the painter's vertex / pixel shader pair and its input layout.
 //
 //  The vertex format is 2D position plus color and nothing else -- no texture
 //  coordinate, because this painter draws only solid geometry. Anything
 //  textured goes through the 3D renderer, and anything glyph-shaped through
 //  the text renderer, so the painter stays the cheapest of the three.
 //
-//  Shader source is embedded as string literals rather than as resources,
-//  since both are a few lines and belong beside the vertex struct they must
-//  agree with.
+//  Nothing is compiled here. The pair arrives as bytecode from fxc, which
+//  reports a shader error against its own source file at build time rather
+//  than against an anonymous blob at launch.
 //
-//  The names passed to D3DCompile are for DIAGNOSTICS only; they make a
-//  compile error name which of the two shaders failed instead of reporting
-//  against an anonymous blob.
-//
-//  The input layout is validated against the compiled vertex-shader blob, so a
+//  The input layout is validated against the vertex shader's bytecode, so a
 //  mismatch between the struct and the shader signature fails at startup
 //  rather than as garbage geometry.
 //
