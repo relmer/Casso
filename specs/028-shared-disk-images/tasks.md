@@ -147,9 +147,23 @@
   Re-check `Get-Process LogonUI` before believing input is unavailable, rather
   than carrying the conclusion forward.
 
-  **Still owed:** `BRUN PROG` has never been run in the guest to see the new
-  bytes with its own eyes. Everything up to the guest reading the disk is
-  proven; the guest reading it is not.
+  **The guest read the new bytes with its own eyes.** Pasted `HOME` + `BRUN
+  PROG` into the machine (Edit > Paste, IDM_EDIT_PASTE, beats synthesizing
+  keystrokes). A build writing $C1 to $0400 put `A` in the top-left cell.
+  Rebuilt to $DA with `--on-change reload` and pasted the same command again,
+  with no eject, no re-insert and no reset: the cell became `Z`. That is the
+  whole feature, demonstrated on a real 6502 rather than in a fake.
+
+  **TWO MEASUREMENT TRAPS COST AN HOUR HERE, both of which made working code
+  look broken.** First, the clipboard framebuffer capture returns the PREVIOUS
+  screenshot when the emulator has not refreshed it, so four captures in a row
+  were identical and the machine read as frozen -- it was running fine the
+  whole time. Clear the clipboard first and poll for a new image; scratchpad
+  `Framebuffer.ps1` does. Second, a test program that called `COUT` ($FDED) and
+  returned never came back to the DOS prompt, which looked like the pick-up had
+  wedged the machine. Writing straight to $0400 returns cleanly. When the
+  emulator appears stuck after a change, reproduce WITHOUT the change before
+  blaming it.
 
 - [X] T049 [US1] Add tests for the five decisions in this phase that nothing asserts yet, in `UnitTest/EmuTests/`: prompt composition; a change arriving mid-apply; the held-by-another-process deferral; the machine-restart callback; and the watch-degrade path. **The mid-apply and degrade rules are explicit data-model rules**, so their absence is the least defensible
 
