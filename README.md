@@ -284,11 +284,12 @@ parameter change against live output.
 
 <p align="center"><img src="Assets/feat-crt-effects.png" alt="Display tab CRT controls: monitor preset, brightness, contrast, gamma, scanlines, bloom, color bleed, persistence" width="540" /></p>
 
-An opt-in **CRT monitor desk scene** frames the display in a procedurally-drawn
-period Apple Monitor //c, with the drives scaled to sit in proportion beneath it
-and the whole scene zooming together as the window resizes.
+The **CRT monitor** that frames the display is one of the CAD models described
+above, lit and shadowed with the rest of the desk scene. It can be turned off
+with **3D CRT monitor** on **Settings → Theme**, which leaves the drives
+standing on the desk under a flat picture.
 
-<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="Skeuomorphic CRT monitor desk scene, the emulator display framed in an Apple Monitor //c" width="460" /></p>
+<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="The emulator display framed in a period Apple CRT monitor on the desk scene" width="460" /></p>
 
 ### Themed chrome
 
