@@ -24,7 +24,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  anything on the way out: a WOZ flush hands back the same nibble stream it
 //  was given, damage included, and is lossless whatever the tracks hold. An
 //  earlier version of this file mounted a WOZ and proved nothing -- the write
-//  it observed was correct behaviour, not the bug.
+//  it observed was correct behavior, not the bug.
 //
 //  This is the path a user reaches the decoder by: a .dsk in a bay, the guest
 //  writing to it, and the store persisting on eject, power cycle or reset.
