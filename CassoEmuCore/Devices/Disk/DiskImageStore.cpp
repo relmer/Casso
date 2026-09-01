@@ -370,6 +370,11 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  work, so it lives here and not in whatever built the watcher.
     BeginWatching (slot, drive);
 
+    //  A disk went in. The shell wires the controller and lights the door from
+    //  here rather than from the path that called Mount, so a command-line
+    //  mount and a picker mount and a machine-switch remount all react alike.
+    EmitBayChange (slot, drive, BayChange::Inserted);
+
 Error:
     return hr;
 }
@@ -1521,6 +1526,10 @@ void DiskImageStore::Eject (int slot, int drive)
         entry.path.clear();
         entry.mounted = false;
         entry.sharedState.Eject();
+
+        //  The disk left. Emitted after the bay is empty, so the handler that
+        //  detaches the controller sees the post-eject state.
+        EmitBayChange (slot, drive, BayChange::Ejected);
     }
 }
 
@@ -1834,6 +1843,33 @@ int64_t DiskImageStore::NowMs() const
     }
 
     return now;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EmitBayChange
+//
+//  Tells the shell a bay's disk changed.
+//
+//  EVERY MUTATION PATH ENDS HERE. Mount, user eject, pick-up, lost file -- the
+//  door and its sounds are lit from this one call, so a new path that moves a
+//  disk cannot forget to. A null sink is a headless or test session with no
+//  drive on screen, and does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
+{
+    if (m_bayChangeSink)
+    {
+        m_bayChangeSink (slot, drive, change);
+    }
+
+    return;
 }
 
 
@@ -2563,6 +2599,11 @@ HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
 
+    //  The disk in the drive was replaced under the running machine. Swapped,
+    //  not Inserted: the door opens and closes rather than only closing,
+    //  because from the user's seat a disk came out and another went in.
+    EmitBayChange (slot, drive, BayChange::Swapped);
+
 Error:
     return hr;
 }
@@ -2963,6 +3004,10 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
         entry.salvageOffered = false;
         entry.sharedState.Eject();
     }
+
+    //  A file that vanished empties the drive the same as a user eject, and
+    //  the door and its sound follow the same way.
+    EmitBayChange (slot, drive, BayChange::Ejected);
 
     return;
 }

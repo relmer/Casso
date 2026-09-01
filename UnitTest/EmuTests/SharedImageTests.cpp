@@ -97,6 +97,10 @@ public:
         std::vector<ChangePrompt>                      questions;
         int                                            restarts = 0;
 
+        //  Every bay change the store announced, in order, so a test can prove
+        //  the one signal the shell reacts to fires on each path.
+        std::vector<DiskImageStore::BayChange>         bayChanges;
+
 
 
         Rig()
@@ -163,6 +167,11 @@ public:
             });
 
             store.SetMachineRestartCallback ([this] () { restarts++; });
+
+            store.SetBayChangeSink ([this] (int, int, DiskImageStore::BayChange change)
+            {
+                bayChanges.push_back (change);
+            });
         }
 
 
@@ -664,6 +673,92 @@ public:
         Assert::IsTrue (offered.find (ChangePrompt::FileName (
                             rig.store.GetSourcePath (kSlot, kDrive))) != std::wstring::npos,
                         L"and the bay is on the file the user was promised");
+    }
+
+
+
+    //  THE ONE SIGNAL EVERY PATH FIRES. The shell turns a bay change into the
+    //  drive door, its sounds, the debug event and the controller pointer, in
+    //  one handler -- so every path that can move a disk has to announce it,
+    //  and each announces the right kind. A pick-up is a Swap (door opens and
+    //  closes), a mount is an Insert (door closes), and both a user eject and
+    //  a vanished file are an Eject (door opens).
+    TEST_METHOD (EveryBayChangeIsAnnouncedWithItsKind)
+    {
+        using BayChange = DiskImageStore::BayChange;
+
+
+
+        //  Mount -> Inserted.
+        {
+            Rig  rig;
+
+            rig.WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+            Assert::AreEqual ((size_t) 1, rig.bayChanges.size());
+            Assert::IsTrue (rig.bayChanges[0] == BayChange::Inserted);
+        }
+
+        //  Pick-up of an external change -> Swapped.
+        {
+            Rig  rig;
+
+            rig.WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+            rig.WriteImage (kImagePath, 0x22);
+            rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+
+            Assert::AreEqual ((size_t) 2, rig.bayChanges.size());
+            Assert::IsTrue (rig.bayChanges[1] == BayChange::Swapped);
+        }
+
+        //  User eject -> Ejected.
+        {
+            Rig  rig;
+
+            rig.WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+            rig.store.Eject (kSlot, kDrive);
+
+            Assert::AreEqual ((size_t) 2, rig.bayChanges.size());
+            Assert::IsTrue (rig.bayChanges[1] == BayChange::Ejected);
+        }
+
+        //  A file that vanished, then the drive emptied -> Ejected.
+        {
+            Rig  rig;
+
+            rig.WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+            rig.files.erase (kImagePath);
+            rig.Stamp (kImagePath);
+            rig.FireAndSettle (kImagePath);
+
+            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+            Assert::IsTrue (!rig.bayChanges.empty());
+            Assert::IsTrue (rig.bayChanges.back() == BayChange::Ejected);
+        }
+
+        //  Keeping the disk during a conflict moves its file but leaves the
+        //  disk in the drive, so it is NOT a bay change -- no door, no sound.
+        {
+            Rig  rig;
+
+            rig.WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+            rig.WriteImage (kImagePath, 0x22);
+            rig.FireAndSettle (kImagePath);
+            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+            //  One Inserted from the mount, and nothing from the keep.
+            Assert::AreEqual ((size_t) 1, rig.bayChanges.size());
+            Assert::IsTrue (rig.bayChanges[0] == BayChange::Inserted);
+        }
     }
 
 

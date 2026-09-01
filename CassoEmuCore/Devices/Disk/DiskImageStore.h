@@ -236,6 +236,32 @@ public:
 
     void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
 
+    //  What happened to the disk in a bay.
+    //
+    //  Inserted  a disk went into an empty or freshly mounted bay.
+    //  Ejected   a bay's disk left, whether the user asked or the file vanished.
+    //  Swapped   the disk was replaced under the running machine, a pick-up of
+    //            an external change. It reads as the door opening and closing
+    //            where a plain insert only closes.
+    enum class BayChange { Inserted, Ejected, Swapped };
+
+    //  A bay's disk changed, and the shell should react: re-point the
+    //  controller, re-apply write protection, log the debug event, and drive
+    //  the door and its sounds.
+    //
+    //  ONE SIGNAL FOR EVERY PATH. A mount, a user eject, a pick-up, a file that
+    //  vanished -- each ends here, so the door and the speaker are lit from one
+    //  place rather than from every path that can move a disk. The store knows
+    //  when a bay changed; what to do about it on screen is the shell's, and a
+    //  fake sink lets a test assert the store fired without a drive on screen.
+    //
+    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where every path that can
+    //  change a bay already runs. The handler does its controller and audio
+    //  work there, exactly as the mount path did before this was central.
+    using BayChangeSink = std::function<void (int slot, int drive, BayChange change)>;
+
+    void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
+
     //  The user answered a question this store asked.
     //
     //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
@@ -511,6 +537,11 @@ private:
     //  Milliseconds now, through the injected clock when one is installed.
     int64_t        NowMs () const;
 
+    //  Tells the shell a bay's disk changed, when a sink is installed. The one
+    //  chokepoint every mutation path calls, so the door and its sounds cannot
+    //  be lit from a path that forgot to.
+    void           EmitBayChange (int slot, int drive, BayChange change);
+
     Entry                    m_entries[kSlotCount][kDriveCount];
     FlushSink                m_flushSink;
     ImageReader              m_imageReader;
@@ -524,6 +555,7 @@ private:
     string                   m_machineName;
     ReportSink               m_reportSink;
     AskSink                  m_askSink;
+    BayChangeSink            m_bayChangeSink;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
 
