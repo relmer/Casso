@@ -86,6 +86,17 @@ public:
     virtual InstructionSetProvider  CreateInstructionSetProvider (const CommandLineOptions & options, const Cpu & cpu) const = 0;
 
 protected:
+    //  What the sink had to say about a write that failed. Nothing for the sink
+    //  that writes host files, which says its own piece as it goes.
+    static void          ReportSinkDiagnostics (const ArtifactSink & sink);
+
+    //  What the invocation asked for against what the source turned out to
+    //  produce. Neither question can be answered before the assembly: how many
+    //  outputs there are, and whether one states a file type, are facts about
+    //  the source.
+    HRESULT              RefuseUnusableOutputRequest (const CommandLineOptions & options,
+                                                      const AssemblyResult & result) const;
+
     //  What the object file is called. The default is the name the flags
     //  resolved; a dialect whose source can name its own object overrides it.
     virtual std::string  ResolveOutputName       (const CommandLineOptions & options, const AssemblyResult & result) const;

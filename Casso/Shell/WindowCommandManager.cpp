@@ -1114,7 +1114,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
     // interpretation the MRU uses.
-    for (const DiskImageStore::MountedSource & mounted : m_shell.m_diskStore.MountedSourcePaths())
+    for (const DiskImageStore::MountedSource & mounted : m_shell.m_diskStore.GetMountedSourcePaths())
     {
         std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
                            mounted.path.size());

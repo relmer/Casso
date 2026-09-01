@@ -195,8 +195,8 @@ public:
             L"AbsentName");
 
         Assert::IsTrue (msg.find ("missing required key") != std::string::npos,
-                        L"an absent key must say so plainly");
-        Assert::IsTrue (msg.find ("name") != std::string::npos, L"and must name the key");
+                        L"an absent key must be reported plainly");
+        Assert::IsTrue (msg.find ("name") != std::string::npos, L"and must identify the key");
     }
 
 

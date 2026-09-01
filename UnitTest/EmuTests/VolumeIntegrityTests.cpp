@@ -234,7 +234,7 @@ public:
 
         Assert::IsFalse (report.IsCatalogFullyParsed());
         Assert::IsFalse (report.IsClean(),
-            L"answers derived from a catalog that did not fully parse are not trustworthy");
+            L"results derived from a catalog that did not fully parse are not trustworthy");
     }
 
     TEST_METHOD (IntegrityReport_ConsistentVolume_IsClean)

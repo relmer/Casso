@@ -211,7 +211,7 @@ namespace DialectReportingTests
             CpuReport                      cpu     = Fixture::MakeCpu ("6502", CpuSelection::StatedOnCommandLine);
             std::vector<DialectReportLine> lines   = DialectReporting::BuildReport (options, cpu);
 
-            Assert::AreEqual ((size_t) 0, lines.size(), L"nothing was asked for, so nothing is reported");
+            Assert::AreEqual ((size_t) 0, lines.size(), L"nothing was requested, so nothing is reported");
         }
 
 

@@ -630,7 +630,7 @@ public:
 
         Assert::IsTrue (st.GetPrefs().externalDriveConnected,
             L"an occupied disk port means attached, whatever the stale "
-            L"boolean beside it says.");
+            L"boolean beside it holds.");
         Assert::IsFalse (st.IsDirty(),
             L"reading the port is not a user edit.");
     }
@@ -1111,8 +1111,8 @@ public:
             }
         }
 
-        Assert::IsTrue (sawC, L"The sound+speech model must be named as the product");
-        Assert::IsTrue (sawA, L"The sound-only model must be named as the product");
+        Assert::IsTrue (sawC, L"The sound+speech model must be identified as the product");
+        Assert::IsTrue (sawA, L"The sound-only model must be identified as the product");
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
         st.Apply (sink, outJson);

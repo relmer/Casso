@@ -542,7 +542,8 @@ Two specific practices fall out of this:
 above that reduce to a mechanical test: empty-paren spacing, anonymous
 namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 `goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
-messages, the banner/blank-line structure rules (CS0014–CS0017), and
+messages, lookup tables in an executable (CS0021), the banner/blank-line
+structure rules (CS0014–CS0017), and
 declaration-run column alignment (CS0019, flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
 have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
@@ -557,6 +558,25 @@ function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
 no path, or a failed read; `TryExtractFirstHDropPath` says which. When
 converting a function away from `HRESULT`, rename it to suit. Not gated yet;
 see `docs/coding-standards-backlog.md`.
+
+**Lookup tables in an executable (CS0021).** A `case X::Y: return "..."` under
+`Casso/` or `CassoCli/` is a mapping, and a mapping is a decision, which
+Principle VI puts in a core library where `UnitTest` can reach it. The rule is
+narrow on purpose: only a switch arm returning a string literal, so dispatching
+and computing switches are untouched.
+
+It exists because the failure is not cosmetic. `CreateDiskDialog` held three of
+these -- format to extension, format to caption, filling to caption -- and each
+ended in a `default:` arm answering with another entry's name, so a value added
+without an arm was silently rendered as something else rather than refused. One
+of them would have shipped a create dialog naming a nibble image `.woz`. Living
+in the exe, which the test assembly does not link, nothing could reach them to
+notice; the fix was to move them, after which the tests wrote themselves.
+
+`Include` in the check table is the inverse of `Exclude` and matches a path
+PREFIX, where `Exclude` matches a suffix. Do not reuse one for the other: the
+first version of CS0021 did, matched nothing, and reported a clean tree while
+checking no files at all.
 
 **`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
 approval. Returning it overloads the result with a second, private meaning (
@@ -639,6 +659,59 @@ the pre-merge gate.
   `HarteTests.off` to keep the ordinary suite fast, so rename it back before
   starting CPU work. The runner prints which depth it ran. See
   [docs/testing.md](../docs/testing.md)
+
+## User-Facing Prose
+
+Applies to every word a user can read. That includes string literals in the
+source: help text, error messages, verdicts, dialog and menu text, tooltips,
+and anything else that reaches a screen. It also covers `CHANGELOG.md`,
+`README.md`, docs and commit messages. Sitting inside a `.cpp` file exempts
+nothing; most of the offenders below were string literals. The style gate
+checks none of this, so it is on you.
+
+It applies to what you write in chat as well. These are habits, not a filter
+applied to artifacts at the end, and the ones below are corrected most often
+in conversation.
+
+- **Write the way a programmer speaks.** Plain, ordinary developer English.
+  No literary or precious constructions, no aphoristic fragments after a
+  colon or dash, no rhetorical inversions, and no addressing the reader as
+  "you" in a CHANGELOG.
+- **Never use "name", "named" or "naming" as the verb for specifying
+  something.** This is the most persistent offender by a wide margin. Not
+  "a source now names `--as65` or `--merlin`", "refused by name", "the
+  dialect is named, not guessed", "an image you name". Use **specify, pass,
+  give, list, report, include**, or recast the sentence. Ordinary uses are
+  fine and always were: a file name, a volume name, naming a variable.
+- **No conversational or anthropomorphic verbs.** Flags, tools and disks do
+  not say, ask, speak, want, know, wonder, spell or shape anything. Not "or
+  say which with `--type`", "`--bootable` and `--boot` ask for different
+  disks", "`--logical` speaks the numbering catalogs use". Also out:
+  "answered" and "is answered with", and "grammar" where a reader wants
+  "command-line parsing".
+- **Do not state the obvious as though it were profound.** "There is no
+  default to guess with", "blocks have only one numbering, so there is
+  nothing to state". Cut the sentence.
+- **Dashes abut the text they join** (`word--word`), never spaced. Most
+  dashes are better rewritten away.
+- **Error messages take a fixed shape.** Line 1 is a short categorical
+  label, not a sentence about the input. Line 2 onward states the rule as
+  complete, capitalized, punctuated sentences with serial commas.
+
+      Error: illegal volume name
+             ProDOS volume names are 1-15 characters, starting with a
+             letter, and can include letters, digits, and periods.
+
+  Not `Error: 1BAD is not a name ProDOS can put on a volume` followed by a
+  lowercase fragment.
+- **CHANGELOG entries are terse and stand alone.** One or two lines giving
+  the user-visible effect, then stop; mechanism, numbers and the
+  wrong-then-right arc belong in the commit message. Group aggressively
+  instead of enumerating, put GitHub references first (`GH #115: ...`), and
+  never cross-reference another entry, because entries get skimmed and
+  reordered. Version headings are the one place wordplay is wanted.
+- **When I rewrite your prose, that version is the model.** Match it and
+  stop proposing improvements to it.
 
 ## Commit Messages
 

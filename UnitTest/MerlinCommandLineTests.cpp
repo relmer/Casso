@@ -192,7 +192,7 @@ namespace MerlinCommandLineTests
             Assert::IsTrue   (opts.dialect    == DialectId::Merlin,
                               L"the subcommand selects the dialect, not merely a code path");
             Assert::IsTrue   (opts.dialectSelection == DialectSelection::Stated,
-                              L"an invocation that named a dialect must not be reported one back");
+                              L"an invocation that gave a dialect must not be reported one back");
             Assert::AreEqual (std::string ("demo.s"), opts.inputFile);
             Assert::IsTrue   (opts.unrecognizedArgument.empty());
         }
@@ -209,9 +209,9 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
             Assert::IsTrue (opts.dialectSelection == DialectSelection::Defaulted,
-                            L"nothing named a dialect, and that is what the refusal turns on");
+                            L"nothing gave a dialect, and that is what the refusal turns on");
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"and a source with no assembler named must not be assembled by guess");
+                            L"and a source with no assembler given must not be assembled by guess");
         }
 
         //  A BINARY NAMES NO ASSEMBLER BECAUSE NONE READS IT. Without this, the
@@ -223,7 +223,7 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "prog.bin" });
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
-                            L"a binary is loaded, not assembled, so there is nothing to name");
+                            L"a binary is loaded, not assembled, so there is nothing to specify");
             Assert::AreEqual (std::string ("prog.bin"), opts.inputFile);
         }
 
@@ -235,7 +235,7 @@ namespace MerlinCommandLineTests
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "run", "demo.a65" });
 
             Assert::IsTrue (opts.refusalMessage.find ("--as65")  != std::string::npos,
-                            L"the refusal must name as65");
+                            L"the refusal must mention as65");
             Assert::IsTrue (opts.refusalMessage.find ("--merlin") != std::string::npos,
                             L"and Merlin, since the reader is choosing between them");
         }
@@ -252,7 +252,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (slashed.refusalMessage.find ("/as65")   != std::string::npos &&
                             slashed.refusalMessage.find ("/merlin") != std::string::npos,
-                            L"a slash command line must be answered in slashes");
+                            L"a slash command line must come back in slashes");
             Assert::IsTrue (slashed.refusalMessage.find ("--as65")  == std::string::npos,
                             L"and not in the dashed form the reader did not type");
 
@@ -277,21 +277,33 @@ namespace MerlinCommandLineTests
                               L"the name after -o must not also be taken for the source");
         }
 
-        TEST_METHOD (ListingFlagAlone_GoesToStdout)
+        //  A LISTING PER OBJECT, which is why the flag takes no name and does
+        //  not go to standard output. A Merlin source may save itself several
+        //  times and each save is its own program; neither one file nor one
+        //  stream can hold those apart, so each listing is written beside the
+        //  object it describes. The name is settled after the assembly, so
+        //  nothing is resolved at parse time beyond "not standard output".
+        TEST_METHOD (ListingFlagAlone_NamesNoFileAndIsNotStdout)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-l" });
 
-            Assert::IsTrue (opts.generateListing);
-            Assert::IsTrue (opts.listingToStdout);
-            Assert::IsTrue (opts.listingFile.empty());
+            Assert::IsTrue  (opts.generateListing);
+            Assert::IsFalse (opts.listingToStdout, L"a Merlin listing is a file, not a stream");
+            Assert::IsTrue  (opts.listingFile.empty(), L"and the name comes from the object, later");
         }
 
-        TEST_METHOD (ListingFlag_TakesAnAttachedName)
+        //  Refused BY NAME rather than walked letter by letter. The row still
+        //  takes a value so that `-lout.lst` arrives here whole; without that the
+        //  walk would read `o`, `u`, `t` as flags and answer with a row of
+        //  unknown-flag complaints that says nothing about the real mistake.
+        TEST_METHOD (ListingFlag_RefusesAnAttachedName)
         {
             CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-lout.lst" });
 
-            Assert::AreEqual (std::string ("out.lst"), opts.listingFile);
-            Assert::IsFalse  (opts.listingToStdout);
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"a name cannot serve several listings");
+            Assert::IsTrue (opts.refusalMessage.find ("takes no filename") != std::string::npos,
+                            L"and the refusal says which rule was broken");
         }
 
         //  Deliberately unlike the as65 form, which also accepts a separated
@@ -304,7 +316,7 @@ namespace MerlinCommandLineTests
 
             Assert::AreEqual (std::string ("demo.s"), opts.inputFile,
                               L"the word after -l is the source, not the listing");
-            Assert::IsTrue   (opts.listingToStdout);
+            Assert::IsTrue   (opts.generateListing);
             Assert::IsTrue   (opts.listingFile.empty());
         }
 
@@ -456,7 +468,7 @@ namespace MerlinCommandLineTests
             //  taken about Merlin.
             Assert::IsTrue (merlin.outputFormat == CommandLineOptions::OutputFormat::Raw);
             Assert::IsTrue (as65.outputFormat   == CommandLineOptions::OutputFormat::Raw,
-                            L"and as65 writes the assembled bytes unless --flat asks otherwise");
+                            L"and as65 writes the assembled bytes unless --flat selects otherwise");
         }
 
         //  No output name is invented here. The source may name its own object,
@@ -620,7 +632,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (merlin.dialect == DialectId::Merlin, L"--merlin selects the Merlin assembler");
             Assert::IsTrue (merlin.dialectSelection == DialectSelection::Stated,
-                            L"and an invocation that named one must not be told it back");
+                            L"and an invocation that gave one must not be told it back");
 
             Assert::IsTrue (as65.dialect == DialectId::As65, L"--as65 selects as65");
             Assert::IsTrue (as65.dialectSelection == DialectSelection::Stated);
@@ -949,24 +961,22 @@ namespace MerlinCommandLineTests
             std::string  slashed = DialectHelp::GetAllDialects ('/');
 
             Assert::IsTrue  (slashed.find ("/o") != std::string::npos,
-                             L"help must come back spelled the way the tool was invoked");
+                             L"help must come back written the way the tool was invoked");
             Assert::IsFalse (slashed.find ("-o <file>") != std::string::npos);
         }
 
         //  THE SUBSET BOUNDARY IS NOT IN --help, AND THAT IS THE ASSERTION.
         //
-        //  Six rows, each a sentence of what the construct is, why it is refused
-        //  and what would widen it, is a page of prose in front of a reader who
-        //  typed --help wanting the flags. It moved to docs/Assembler.md.
+        //  Six rows, each a sentence of what the construct is and why it is
+        //  refused, is a page of prose in front of a reader who typed --help
+        //  wanting the flags. It lives in docs/Assembler.md.
         //
-        //  The table is unchanged and still composes that text -- the sweep below
-        //  proves every row reaches it -- so what this pins is only WHERE it is
-        //  printed. Without the second half, deleting the boundary table
-        //  altogether would satisfy the first.
+        //  The sweep is over the table rather than over a list written here, so
+        //  emptying the table cannot satisfy this by leaving nothing to look
+        //  for.
         TEST_METHOD (TheSubsetBoundaryIsDocumentedRatherThanPrintedInHelp)
         {
-            std::string  help    = DialectHelp::GetAllDialects ('-');
-            std::string  written = MerlinSubsetBoundary::GetHelpText();
+            std::string  help = DialectHelp::GetAllDialects ('-');
 
             Assert::IsFalse (MerlinSubsetBoundary::GetAll().empty(), L"nothing to sweep");
             Assert::IsFalse (help.find ("support ends") != std::string::npos,
@@ -976,11 +986,6 @@ namespace MerlinCommandLineTests
             {
                 Assert::IsFalse (help.find (row.construct) != std::string::npos,
                                  Fixture::Widen (std::string (row.construct) + " is still in the flag help").c_str());
-
-                Assert::IsTrue (written.find (row.spelling)  != std::string::npos,
-                                Fixture::Widen (row.spelling).c_str());
-                Assert::IsTrue (written.find (row.construct) != std::string::npos,
-                                Fixture::Widen (row.construct).c_str());
             }
         }
 
@@ -1078,7 +1083,7 @@ namespace MerlinCommandLineTests
 
             Assert::IsTrue (result.errors.empty(), Fixture::Widen (Fixture::FirstError (result)).c_str());
             Assert::IsTrue (result.bytes == expected,
-                            L"the declaration reserves no space, and its size answers as a symbol");
+                            L"the declaration reserves no space, and its size is what the symbol resolves to");
         }
     };
 }

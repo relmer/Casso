@@ -161,7 +161,7 @@ namespace CliSwitchCoverageTests
 
             { "as65", "p", { "CassoCli", "as65", "p.a65", "-p" },
               [] (const CommandLineOptions & o) { return o.pass1Listing; },
-              "-p asks for the pass 1 listing" },
+              "-p writes the pass 1 listing" },
 
             { "as65", "c", { "CassoCli", "as65", "p.a65", "-c" },
               [] (const CommandLineOptions & o) { return o.cycleCounts; },
@@ -181,11 +181,11 @@ namespace CliSwitchCoverageTests
 
             { "as65", "t", { "CassoCli", "as65", "p.a65", "-t" },
               [] (const CommandLineOptions & o) { return o.symbolTable; },
-              "-t asks for the symbol table" },
+              "-t generates the symbol table" },
 
             { "as65", "g", { "CassoCli", "as65", "p.a65", "-g" },
               [] (const CommandLineOptions & o) { return o.debugInfo; },
-              "-g asks for debug information" },
+              "-g writes debug information" },
 
             { "as65", "v", { "CassoCli", "as65", "p.a65", "-v" },
               [] (const CommandLineOptions & o) { return o.verbose; },
@@ -205,6 +205,22 @@ namespace CliSwitchCoverageTests
               { return o.outputFormat == CommandLineOptions::OutputFormat::DosBinary; },
               "--dos-bin writes the DOS 3.3 header and the span" },
 
+            { "as65", "disk", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk" },
+              [] (const CommandLineOptions & o) { return o.imagePath == "work.dsk"; },
+              "--disk writes the object into that image" },
+
+            { "as65", "as", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--as", "PROG" },
+              [] (const CommandLineOptions & o) { return o.onDiskName == "PROG"; },
+              "--as names the object on the volume" },
+
+            { "as65", "type", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--type", "BIN" },
+              [] (const CommandLineOptions & o) { return o.imageTypeName == "BIN"; },
+              "--type sets the filesystem type" },
+
+            { "as65", "startup", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk", "--startup" },
+              [] (const CommandLineOptions & o) { return o.setStartupProgram; },
+              "--startup makes the object the volume's startup program" },
+
             //
             //  merlin
             //
@@ -212,10 +228,14 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.outputFile == "out.bin"; },
               "-o names the output" },
 
-            { "merlin", "l", { "CassoCli", "merlin", "p.s", "-lprog.lst" },
+            //  No filename, unlike the as65 row above: a Merlin source may cut
+            //  itself into several objects and each gets a listing named after
+            //  its own, so nothing is resolved at parse time beyond asking for
+            //  one and saying it is not standard output.
+            { "merlin", "l", { "CassoCli", "merlin", "p.s", "-l" },
               [] (const CommandLineOptions & o)
-              { return o.generateListing && o.listingFile == "prog.lst"; },
-              "-l<file> writes the listing there" },
+              { return o.generateListing && !o.listingToStdout && o.listingFile.empty(); },
+              "-l asks for a listing beside each object" },
 
             { "merlin", "v", { "CassoCli", "merlin", "p.s", "-v" },
               [] (const CommandLineOptions & o) { return o.verbose; },
@@ -227,7 +247,7 @@ namespace CliSwitchCoverageTests
                   auto  found = o.predefinedSymbols.find ("HOURS");
                   return found != o.predefinedSymbols.end() && found->second == 12;
               },
-              "-d answers the question the source would have asked the operator" },
+              "-d predefines the symbol the source would otherwise prompt for" },
 
             { "merlin", "flat", { "CassoCli", "merlin", "p.s", "--flat" },
               [] (const CommandLineOptions & o)
@@ -238,6 +258,22 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o)
               { return o.outputFormat == CommandLineOptions::OutputFormat::DosBinary; },
               "--dos-bin writes the DOS 3.3 header and the span" },
+
+            { "merlin", "disk", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk" },
+              [] (const CommandLineOptions & o) { return o.imagePath == "work.dsk"; },
+              "--disk writes the object into that image" },
+
+            { "merlin", "as", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--as", "PROG" },
+              [] (const CommandLineOptions & o) { return o.onDiskName == "PROG"; },
+              "--as beats the name the source gave" },
+
+            { "merlin", "type", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--type", "BIN" },
+              [] (const CommandLineOptions & o) { return o.imageTypeName == "BIN"; },
+              "--type beats the type the source gave" },
+
+            { "merlin", "startup", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk", "--startup" },
+              [] (const CommandLineOptions & o) { return o.setStartupProgram; },
+              "--startup makes the object the volume's startup program" },
 
             //
             //  run
@@ -272,7 +308,7 @@ namespace CliSwitchCoverageTests
             { "run", "warn", { "CassoCli", "run", "p.a65", "--as65", "--warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::Warn; },
-              "--warn asks for warnings, which is also the default" },
+              "--warn enables warnings, which is also the default" },
 
             { "run", "no-warn", { "CassoCli", "run", "p.a65", "--as65", "--no-warn" },
               [] (const CommandLineOptions & o)
@@ -423,6 +459,14 @@ namespace CliSwitchCoverageTests
                     names.insert (Bare (option));
                 }
             }
+
+            //  Both dialects, because sending the object onto a disk is the
+            //  assembler's capability rather than one dialect's: a dialect is
+            //  not required to have directives for a developer to reach it.
+            for (const CommandLineParser::ImageTargetFlag & target : CommandLineParser::GetImageTargetFlags())
+            {
+                names.insert (Bare (target.option));
+            }
         }
         else if (mode == "run")
         {
@@ -524,6 +568,68 @@ namespace CliSwitchCoverageTests
                                        + one.option + "', but a case exercises it").c_str());
             }
         }
+
+        //  The options that describe a placement on a volume, with no volume.
+        //
+        //  REFUSED RATHER THAN IGNORED, which is the same failure the pass
+        //  below catches in its general form: a flag accepted and dropped on
+        //  the floor tells a build script that a command line it got wrong had
+        //  worked. Swept over both assembler grammars and both prefixes,
+        //  because the options belong to the assembler rather than a dialect.
+        TEST_METHOD (ImageOptionsWithoutAnImage_AreRefused)
+        {
+            const char *  kModes[]   = { "as65", "merlin" };
+            const char *  kSources[] = { "p.a65", "p.s" };
+            const char *  kOptions[] = { "--as", "--type", "--startup" };
+            size_t        mode       = 0;
+            size_t        option     = 0;
+
+            for (mode = 0; mode < std::size (kModes); mode++)
+            {
+                for (option = 0; option < std::size (kOptions); option++)
+                {
+                    std::vector<std::string>  argv = { "CassoCli", kModes[mode], kSources[mode], kOptions[option] };
+                    CommandLineOptions        options;
+
+                    //  The two that take a value get one, so what is refused is
+                    //  the missing image rather than a missing operand.
+                    if (std::string (kOptions[option]) != "--startup")
+                    {
+                        argv.push_back ("VALUE");
+                    }
+
+                    ArgVector  args (argv);
+
+                    options = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                    Assert::IsTrue (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                                    Widen (std::string (kModes[mode]) + " " + kOptions[option]
+                                           + " with no image should be refused").c_str());
+                    Assert::IsTrue (options.refusalMessage.find ("no image was named") != std::string::npos,
+                                    L"and the refusal should say why");
+                }
+            }
+        }
+
+
+
+        //  The same options WITH an image are ordinary, so the refusal above is
+        //  about the missing image and not about the options themselves.
+        TEST_METHOD (ImageOptionsWithAnImage_AreAccepted)
+        {
+            std::vector<std::string>  argv = { "CassoCli", "merlin", "p.s",
+                                               "--disk", "d.dsk", "--as", "PROG",
+                                               "--type", "BIN", "--startup" };
+            ArgVector                 args (argv);
+            CommandLineOptions        options = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+            Assert::IsTrue (options.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"an image was named, so nothing is stray");
+            Assert::AreEqual (std::string ("PROG"), options.onDiskName, L"and the name took effect");
+            Assert::IsTrue (options.setStartupProgram, L"as did the startup request");
+        }
+
+
 
         //  Every switch parses without refusal AND is visible in the result.
         //  Accepting a flag and then dropping it on the floor is the failure
@@ -738,6 +844,56 @@ namespace CliSwitchCoverageTests
             return exitCode;
         }
 
+        //  ONE NAME CANNOT SERVE SEVERAL FILES. Applying it to each output in
+        //  turn leaves each overwriting the last, and the tool would report
+        //  success having written one file where the source asked for several.
+        //
+        //  Deliberately NOT the case two saves under one name make: there the
+        //  SOURCE said so and the period assembler allows it, where here an
+        //  option said it about outputs its author could not have seen.
+        TEST_METHOD (ASingleNameForSeveralOutputs_IsRefused)
+        {
+            OneSource           reader (" ORG $300\n LDA #$11\n SAV ONE\n LDA #$22\n SAV TWO\n");
+            MemorySink                      sink;
+            CommandLineOptions              options;
+            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::Merlin);
+            HRESULT                         hr       = S_OK;
+            int                             exitCode = -1;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile  = "in-memory.s";
+            options.imagePath  = "work.dsk";
+            options.onDiskName = "ONENAME";
+
+            hr = mode->Run (options, exitCode, &reader, &sink);
+
+            Assert::IsTrue (FAILED (hr), L"one name was given for two outputs");
+            Assert::AreEqual (As65ExitStatus::kNoOutput, exitCode, L"and nothing was written");
+        }
+
+
+
+        //  The same source with no single name is fine, so the refusal above is
+        //  about the name rather than about producing several outputs.
+        TEST_METHOD (SeveralOutputsWithoutASingleName_IsAccepted)
+        {
+            OneSource           reader (" ORG $300\n LDA #$11\n SAV ONE\n LDA #$22\n SAV TWO\n");
+            MemorySink                      sink;
+            CommandLineOptions              options;
+            std::unique_ptr<AssemblerMode>  mode     = AssemblerMode::CreateFor (DialectId::Merlin);
+            HRESULT                         hr       = S_OK;
+            int                             exitCode = -1;
+
+            options.dialect   = DialectId::Merlin;
+            options.inputFile = "in-memory.s";
+
+            hr = mode->Run (options, exitCode, &reader, &sink);
+
+            Assert::IsTrue (SUCCEEDED (hr), L"several outputs are ordinary");
+        }
+
+
+
         //  as65: "3 - Errors during assembly."
         TEST_METHOD (AnAssemblyError_IsThree)
         {
@@ -766,7 +922,7 @@ namespace CliSwitchCoverageTests
             MemorySink  sink;
 
             Assert::AreEqual (0, StatusUsing (clean, sink));
-            Assert::IsTrue (sink.wroteBinary, L"and the object was asked for");
+            Assert::IsTrue (sink.wroteBinary, L"and the object was written");
             Assert::IsTrue (sink.bytes > 0,   L"with something in it");
         }
 
@@ -1002,7 +1158,7 @@ namespace CliSwitchCoverageTests
             }
 
             Assert::IsTrue (CommandLine::GetUsageStream() == stdout,
-                            L"and is put back, so an asked-for page stays pipeable");
+                            L"and is put back, so a requested page stays pipeable");
         }
 
         //  `-h` MEANS TWO THINGS AND THE POSITION DECIDES WHICH. On its own it

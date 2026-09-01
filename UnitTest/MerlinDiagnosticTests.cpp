@@ -71,7 +71,7 @@ namespace MerlinDiagnosticTests
 
             Assert::IsFalse (result.errors.empty(), L"the bad line inside the include must be an error");
             Assert::AreEqual (std::string ("helper.a65"), result.errors[0].file,
-                              L"an error inside an included file must name that file, not the top-level input");
+                              L"an error inside an included file must identify that file, not the top-level input");
         }
 
 
@@ -101,7 +101,7 @@ namespace MerlinDiagnosticTests
 
             Assert::IsFalse (result.errors.empty(), L"an unclosed conditional must be an error");
             Assert::AreEqual (std::string ("opener.a65"), result.errors[0].file,
-                              L"an unclosed IF must name the file it OPENED in, not the last file processed");
+                              L"an unclosed IF must identify the file it OPENED in, not the last file processed");
         }
 
 
@@ -125,7 +125,7 @@ namespace MerlinDiagnosticTests
 
             Assert::IsFalse (result.errors.empty(), L"an unterminated macro must be an error");
             Assert::AreEqual (std::string ("opener.a65"), result.errors[0].file,
-                              L"an unterminated macro must name the file its definition OPENED in");
+                              L"an unterminated macro must identify the file its definition OPENED in");
         }
 
 
@@ -141,7 +141,7 @@ namespace MerlinDiagnosticTests
 
             Assert::IsFalse (result.errors.empty());
             Assert::AreEqual (0, result.errors[0].column,
-                              L"AS65 knows no column, and 0 means exactly that");
+                              L"AS65 records no column, and 0 means exactly that");
         }
     };
 
@@ -363,7 +363,7 @@ namespace MerlinDiagnosticTests
             for (const AssemblyError & error : result.errors)
             {
                 Assert::AreEqual (0, error.column,
-                                  L"as65 records no columns, and every one of its diagnostics must still say so");
+                                  L"as65 records no columns, and every one of its diagnostics must still report 0");
             }
         }
     };

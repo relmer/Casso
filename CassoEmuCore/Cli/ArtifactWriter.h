@@ -62,6 +62,17 @@ public:
     virtual HRESULT  WriteListing (const AssemblyResult & result,
                                    const CommandLineOptions & options,
                                    const std::vector<DialectReportLine> & reports) = 0;
+
+    //  What went wrong, in the words a reader sees. Empty when nothing did, and
+    //  empty by default for a sink that says its own piece as it goes.
+    //
+    //  ON THE INTERFACE BECAUSE THE CALLER IS THE ONE WITH A CONSOLE. A sink
+    //  that writes onto a volume carries its refusals rather than printing them,
+    //  which is what lets a test read them -- and for one release that meant
+    //  nobody printed them at all: every refusal on the disk path exited
+    //  non-zero and said nothing. The tests could not see it, because what they
+    //  assert is that the sink PRODUCES the text.
+    virtual const std::string &  GetDiagnostics() const;
 };
 
 
@@ -93,6 +104,30 @@ public:
 class ArtifactWriter
 {
 public:
+    //  How many artifact sets an assembly's outputs call for, and what each one
+    //  is called.
+    //
+    //  ONE SOURCE PRODUCING SEVERAL PROGRAMS PRODUCES SEVERAL OF EVERYTHING.
+    //  A single listing spanning all of them makes a reader hunting for one walk
+    //  past the others, and a single debug file is worse than inconvenient: its
+    //  index runs from address to name, and two outputs may both begin at $0300,
+    //  so the entries collide and one name silently wins. Splitting is what makes
+    //  the by-address half answerable at all.
+    //
+    //  The name comes from the output's own name with the extension replaced, so
+    //  the artifacts sit beside the file they describe.
+    static std::string     ResolveArtifactName (const std::string & outputName,
+                                                const std::string & extension);
+
+    //  One output's share of an assembly: its bytes, its listing lines, and the
+    //  symbols defined within it.
+    //
+    //  What sits above the first output -- the equates and macro definitions --
+    //  goes into EVERY one of these rather than into the first, because a file
+    //  missing the definitions its code refers to does not stand alone, and
+    //  standing alone is the whole point of splitting.
+    static AssemblyResult  ForOutput           (const AssemblyResult & result, size_t index);
+
     //  The object file, in whichever format the flags selected.
     static HRESULT  WriteBinary      (const AssemblyResult & result,
                                       const CommandLineOptions & options);

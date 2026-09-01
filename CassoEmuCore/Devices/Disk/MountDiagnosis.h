@@ -36,6 +36,17 @@
 //      NotAWozFile         named .woz, but the WOZ header is not there
 //      MalformedWoz        a real WOZ header over chunks that do not hold up
 //      Unrecognized        the loader refused for a reason nothing above names
+//      WrongSizeForNibble  a nibble image that is neither 232,960 nor 223,440
+//                          bytes. Separate from WrongSizeForFormat because a
+//                          nibble image has TWO valid lengths and different
+//                          arithmetic behind them; one clause cannot name both
+//                          sets of numbers without going vague about each.
+//      NotANibbleStream    a nibble image of an accepted length in which no
+//                          nibble assembles anywhere. This is the only content
+//                          check the format permits: it carries no signature,
+//                          header or checksum, so a file that is the right size
+//                          and holds high bits is indistinguishable from a real
+//                          one until something tries to boot it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +60,8 @@ enum class MountFailure
     NotAWozFile,
     MalformedWoz,
     Unrecognized,
+    WrongSizeForNibble,
+    NotANibbleStream,
 };
 
 
@@ -93,6 +106,16 @@ public:
     static string        FormatByteCount (size_t byteCount);
 
     //  ".dsk" and friends, for naming the container in a sentence. A format
-    //  outside the four answers "disk", so the sentence still reads.
-    static const char *  ExtensionFor    (DiskFormat fmt);
+    //  outside the known set answers "disk", so the sentence still reads.
+    //  PRIMARY because a format may answer to more than one extension --
+    //  nibble images are both .nib and .nb2 -- and this returns the
+    //  representative name rather than the file's own.
+    static const char *  GetPrimaryExtension (DiskFormat fmt);
+
+    //  The same answer for an interface: the extension as wide text, and the
+    //  container's name for a chooser -- ".dsk" and "DSK". Both derive from
+    //  the one list above, so a surface cannot name a container something the
+    //  rest of Casso does not call it.
+    static std::wstring  GetPrimaryExtensionText (DiskFormat fmt);
+    static std::wstring  GetContainerCaption     (DiskFormat fmt);
 };

@@ -123,7 +123,7 @@ public:
         HRESULT hr = mgr.Activate ("NoSuchTheme");
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), hr,
-            L"An unknown theme name must fail, and the code must say why");
+            L"An unknown theme name must fail, and the code must give the reason");
         Assert::IsTrue (mgr.GetActiveThemeName().empty());
     }
 

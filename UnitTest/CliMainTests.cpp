@@ -130,7 +130,7 @@ namespace CliMainTests
             Assert::AreEqual (0, Run ({ "CassoCli", "--version" }));
 
             Assert::AreNotEqual (0, Run ({ "CassoCli" }),
-                                 L"naming no mode at all is a usage error");
+                                 L"giving no mode at all is a usage error");
         }
 
         //  A MODE NAMED WITH NOTHING AFTER IT OPENS ITS PAGE AND STILL FAILS. It
