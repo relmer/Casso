@@ -87,6 +87,15 @@ struct ChangePrompt
     std::wstring               message;
     std::vector<PromptAnswer>  answers;
 
+    //  Whether this one closes itself after a while.
+    //
+    //  ONLY THE PICK-UP NOTICE DOES. The user configured that behavior with a
+    //  switch, so making them dismiss a notice about it is charging them twice
+    //  for something they already opted into. The notices about a copy being
+    //  written, or failing to be, report something they did NOT ask for and
+    //  stand until read.
+    bool                       selfDismisses = false;
+
     //  Whether there is anything to show at all. An action that needs no answer
     //  composes an empty prompt rather than a blank dialog.
     bool  IsAsked () const { return !answers.empty(); }

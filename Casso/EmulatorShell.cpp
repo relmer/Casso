@@ -132,6 +132,35 @@ static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHe
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
+
+//  How long the change band stands before closing itself. Long enough to read
+//  twice without hurrying, short enough that a build loop does not leave a
+//  strip on the screen all afternoon.
+static constexpr int64_t s_kChangeBannerHoldMs  = 30000;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangeBannerNowMs
+//
+//  Milliseconds off the monotonic clock.
+//
+//  MONOTONIC, NOT WALL CLOCK. The band's countdown must not lurch when the
+//  system clock is corrected under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int64_t ChangeBannerNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                         std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
 static constexpr int     s_kLabelBottomGapDp    = 2;
 
 // Vertical extent (dp) of the joystick-mode button's band -- the strip
@@ -5384,7 +5413,8 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int       s_kDialogWidthDip   = 440;
+    constexpr int       s_kBaseWidthDip     = 440;
+    constexpr int       s_kMaxWidthDip      = 760;
     constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
     constexpr int       s_kMinHeightDip     = 120;
     constexpr int       s_kMaxHeightDip     = 620;
@@ -5406,6 +5436,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     std::vector<MessageDialog::Button>  buttons;
     HRESULT                             hr        = S_OK;
     int                                 heightDip = 0;
+    int                                 widthDip  = 0;
     int                                 result    = -1;
 
 
@@ -5450,12 +5481,27 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
     }
 
+    //  WIDE ENOUGH FOR ITS OWN BUTTONS. The width was a hard 440 while the
+    //  height already grew with the text, so a dialog whose buttons carry a
+    //  filename -- "Insert the modified work.dsk" -- pushed the row past the
+    //  left margin and hard against the frame with no gap at all. Measured
+    //  with the same estimate the row lays itself out with, so the two cannot
+    //  come to disagree.
+    widthDip = DxuiButtonRow::kEdgePadDip * 2;
+
+    for (const DialogButton & button : def.buttons)
+    {
+        widthDip += DxuiButtonRow::GetWidthForLabel (button.label) + DxuiButtonRow::kGapDip;
+    }
+
+    widthDip = std::clamp (widthDip - DxuiButtonRow::kGapDip, s_kBaseWidthDip, s_kMaxWidthDip);
+
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
     params.title                    = def.title;
     params.hInstance                = m_hInstance;
     params.ownerHwnd                = m_hwnd;
-    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.initialSizeDip           = { widthDip, heightDip };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -6969,6 +7015,8 @@ bool EmulatorShell::TryPresentUiFrame()
     uint32_t driveSig                  = 0;
 
 
+
+    ExpireChangeBannerIfDue();
 
     // Copy latest framebuffer under lock, then present with vsync
     {
@@ -13148,16 +13196,8 @@ void EmulatorShell::InstallChangeReporting()
                                    ? m_changeBannerActions[index]
                                    : ChangeAction::Ignore;
 
-        m_changeBanner.SetVisible (false);
-
-        if (m_changeBannerDrive >= 0)
-        {
-            m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
-            m_changeBannerDrive = -1;
-        }
-
-        //  Dismissing it gives the space back to the picture.
-        ReflowChromeForChangeBand();
+        //  Dismissing it and its countdown running out are the same thing.
+        HideChangeBanner();
 
         if (action == ChangeAction::Restart)
         {
@@ -13207,6 +13247,14 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     m_changeBanner.SetActions (labels);
 
     m_changeBannerDrive = notice.drive;
+
+    //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
+    //  the strip already on screen, and a countdown left running from the
+    //  previous one would take the new wording away early.
+    m_changeBannerHideAtMs = notice.prompt.selfDismisses
+                                 ? (ChangeBannerNowMs() + s_kChangeBannerHoldMs)
+                                 : 0;
+    m_changeBannerTickMs   = ChangeBannerNowMs();
 
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
@@ -13615,6 +13663,93 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
     }
 
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HideChangeBanner
+//
+//  Closes the change band and gives its height back to the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HideChangeBanner()
+{
+    m_changeBanner.SetVisible (false);
+    m_changeBannerHideAtMs = 0;
+
+    if (m_changeBannerDrive >= 0)
+    {
+        m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
+        m_changeBannerDrive = -1;
+    }
+
+    ReflowChromeForChangeBand();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ExpireChangeBannerIfDue
+//
+//  Closes the band once its time is up.
+//
+//  HOVERING SUSPENDS THE COUNTDOWN RATHER THAN RESTARTING IT. Brushing across
+//  the strip on the way to something else should not buy it another thirty
+//  seconds, and reading it should not be interrupted. Moving the deadline
+//  along with the clock while the pointer is on it does both.
+//
+//  DRIVEN OFF THE UI FRAME rather than a timer, because the band is only worth
+//  taking away while there are frames to draw it in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ExpireChangeBannerIfDue()
+{
+    int64_t  now     = ChangeBannerNowMs();
+    int64_t  elapsed = now - m_changeBannerTickMs;
+    POINT    cursor  = {};
+    RECT     bounds  = {};
+    bool     hovered = false;
+
+
+
+    m_changeBannerTickMs = now;
+
+    if (m_changeBannerHideAtMs == 0 || !m_changeBanner.IsVisible())
+    {
+        return;
+    }
+
+    bounds = m_changeBanner.GetBounds();
+
+    if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor))
+    {
+        hovered = (cursor.x >= bounds.left && cursor.x < bounds.right
+                && cursor.y >= bounds.top  && cursor.y < bounds.bottom);
+    }
+
+    if (hovered)
+    {
+        m_changeBannerHideAtMs += elapsed;
+        return;
+    }
+
+    if (now >= m_changeBannerHideAtMs)
+    {
+        HideChangeBanner();
+    }
+
+    return;
 }
 
 

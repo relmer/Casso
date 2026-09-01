@@ -979,6 +979,12 @@ private:
     // not be pressed.
     bool    OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y);
 
+    //  Closes the change band and gives its height back to the picture.
+    void    HideChangeBanner ();
+
+    //  Closes it once its time is up, unless the pointer is resting on it.
+    void    ExpireChangeBannerIfDue ();
+
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
     int     GetChangeBandThicknessPx (int clientWidthPx) const;
@@ -1254,6 +1260,14 @@ private:
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
     int                         m_changeBannerDrive = -1;
+
+    //  When the change band closes itself, and the frame that last looked.
+    //  Zero means it stands until dismissed. Hovering does not extend the
+    //  wait, it suspends it: the deadline moves with the clock while the
+    //  pointer is over the band, so what is left when the pointer leaves is
+    //  what was left when it arrived.
+    int64_t                     m_changeBannerHideAtMs = 0;
+    int64_t                     m_changeBannerTickMs   = 0;
 
     // What each of the banner's buttons means, in the order they were drawn.
     // The labels and the meanings are both core's; keeping the meanings beside

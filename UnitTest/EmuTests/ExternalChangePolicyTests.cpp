@@ -533,6 +533,33 @@ public:
 
 
 
+    //  ONLY THE NOTICE ABOUT SOMETHING THE USER ASKED FOR CLOSES ITSELF. They
+    //  configured the pick-up with a switch, so making them dismiss a notice
+    //  about it charges them twice for the same decision. The others report
+    //  something they did not ask for and stand until read.
+    TEST_METHOD (OnlyThePickUpNoticeClosesItself)
+    {
+        ChangePrompt  pickUp   = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+                                                                    "Apple //e");
+        ChangePrompt  conflict = ChangePrompt::ComposeConflictReport ("Game.dsk", 0, "Game.x.dsk");
+        ChangePrompt  failed   = ChangePrompt::ComposeSaveFailure ("Game.dsk", 0, "Game.x.dsk",
+                                                                   E_FAIL,
+                                                                   SaveFailureCause::ExternalChange);
+        ChangePrompt  asked    = ChangePrompt::Compose ("Game.dsk", 0, ChangeAction::Ask);
+
+
+
+        Assert::IsTrue (pickUp.selfDismisses);
+
+        Assert::IsFalse (conflict.selfDismisses,
+                         L"a copy was written and the user has to learn its name");
+        Assert::IsFalse (failed.selfDismisses,
+                         L"this is the only trace that the writes are still only in memory");
+        Assert::IsFalse (asked.selfDismisses, L"a question cannot answer itself");
+    }
+
+
+
     TEST_METHOD (ThePickUpReportCarriesOnlyItsOwnDismissal)
     {
         ChangePrompt  running  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,

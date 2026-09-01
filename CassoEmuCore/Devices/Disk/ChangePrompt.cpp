@@ -243,6 +243,9 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
 
+    //  The write asked for this, so the notice does not need dismissing.
+    prompt.selfDismisses = true;
+
     return prompt;
 }
 
