@@ -9,8 +9,17 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **Frame rate and scene pose readouts** on the View menu, off by default.
-- **The mounted disk's name shows under its drive** in the desk scene.
+- **Casso picks up a disk image changed outside it.** A build writing onto a
+  mounted image reaches the running guest with no eject and re-insert.
+  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
+  specifies what happens; without it you get a prompt.
+- **Neither version is lost when a disk changes on both sides.** The file keeps
+  what the other program wrote and yours is saved beside it, timestamped. Both
+  ends apply that rule, so which one noticed first no longer decides the
+  outcome. If the copy cannot be written, nothing is mounted or overwritten and
+  you are offered somewhere else to put it.
+- **A disk whose file is deleted or becomes unreadable offers to save what is
+  still in memory**, then empties the drive.
 - **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
   the binary onto a volume instead of to a file on the host, and the binary can be run
   automatically at boot with `--startup`. The binary's origin comes directly
@@ -31,30 +40,21 @@ Entries before versioning was introduced use dates only.
   The Merlin subset boundary falls from six unsupported constructs to four. The
   remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
   and a second `XC`, which needs a 65816 core.
-- **Casso picks up a disk image changed outside it.** A build writing onto a
-  mounted image reaches the running guest with no eject and re-insert.
-  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
-  specifies what happens; without it you get a prompt.
-- **Neither version is lost when a disk changes on both sides.** The file keeps
-  what the other program wrote and yours is saved beside it, timestamped. Both
-  ends apply that rule, so which one noticed first no longer decides the
-  outcome. If the copy cannot be written, nothing is mounted or overwritten and
-  you are offered somewhere else to put it.
-- **A disk whose file is deleted or becomes unreadable offers to save what is
-  still in memory**, then empties the drive.
+- **The mounted disk's name shows under its drive** in the desk scene.
+- **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
 - **Massively faster startup**: Casso comes up in well under a second, and the
   executable is ~80% smaller.
-- **Casso uses the show state passed by its launcher**, so a background launch
-  no longer takes the foreground.
-- **Window placement is saved only when the user moves or resizes the window.**
-- **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Merlin's `-l` takes no filename and writes files rather than standard
   output.** One name cannot serve a source that saves itself twice, so listings
   are named after the objects instead. A filename supplied anyway is refused by
   name. `as65 -l` is unchanged: it keeps its filename and its standard-output
   default, and an as65 source has no way to produce a second output.
+- **Casso uses the show state passed by its launcher**, so a background launch
+  no longer takes the foreground.
+- **Window placement is saved only when the user moves or resizes the window.**
+- **Ctrl-0 now also resets the bezel tilt** with the view.
 
 ### Fixed
 - **Two Casso instances no longer write into each other's temporary file.** The
