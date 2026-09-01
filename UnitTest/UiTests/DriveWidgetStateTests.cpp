@@ -163,6 +163,65 @@ public:
 
 
 
+    //  An eject that lands during a swap's open half must leave the empty
+    //  drive resting OPEN, not roll the pending close shut on nothing. The
+    //  pick-up runs on the CPU thread and the door poll on the UI thread, so
+    //  an eject inside the ~350 ms open window is a real interleaving.
+    TEST_METHOD (EjectDuringReinsertOpen_LeavesEmptyDriveOpen)
+    {
+        DriveWidgetState  st;
+        const int64_t     kAnim = DriveWidgetState::kDoorAnimationMs;
+
+        st.BeginInsert (L"work.dsk", 0);
+        st.TickDoorAnimation (kAnim);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed);
+
+        // Swap begins: door opening, close queued.
+        st.BeginReinsert (1000);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Opening);
+
+        // The user ejects mid-open.
+        st.BeginEject (1000 + kAnim / 2);
+
+        // Run past both animation halves.
+        st.TickDoorAnimation (1000 + kAnim);
+        st.TickDoorAnimation (1000 + kAnim + kAnim);
+
+        Assert::IsFalse (st.IsMounted(), L"the drive is empty after the eject");
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Open,
+                        L"an empty drive rests open -- the queued close must not seal it");
+    }
+
+
+
+    //  A mount of a different disk during a swap's open half must not strand
+    //  the pending close, or a much-later eject of that disk would seal the
+    //  emptied drive shut.
+    TEST_METHOD (InsertDuringReinsertOpen_DoesNotStrandThePendingClose)
+    {
+        DriveWidgetState  st;
+        const int64_t     kAnim = DriveWidgetState::kDoorAnimationMs;
+
+        st.BeginInsert (L"a.dsk", 0);
+        st.TickDoorAnimation (kAnim);
+
+        st.BeginReinsert (1000);                 // swap A: opening, close queued
+        st.BeginInsert (L"b.dsk", 1000 + kAnim / 2);   // mount B mid-open
+        st.TickDoorAnimation (1000 + kAnim + kAnim);   // settle: B closed
+
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed);
+
+        // Much later, eject B. The empty drive must rest open.
+        st.BeginEject (9000);
+        st.TickDoorAnimation (9000 + kAnim);
+
+        Assert::IsFalse (st.IsMounted());
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Open,
+                        L"a stranded reinsert must not seal a later eject shut");
+    }
+
+
+
     //  A swap while the door is already open (an empty drive that somehow took
     //  one) has only the close half left to do -- it must not re-open.
     TEST_METHOD (BeginReinsert_FromOpen_JustCloses)

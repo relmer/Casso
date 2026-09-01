@@ -693,9 +693,14 @@ void Disk2AudioSource::OnDiskInserted()
 
 
 
-    m_diskPresent = true;
-    m_doorBuf     = &m_doorCloseBuf;
-    m_doorPos     = 0;
+    m_diskPresent   = true;
+    m_doorBuf       = &m_doorCloseBuf;
+    m_doorPos       = 0;
+
+    //  A plain insert is a single one-shot. Clear any queued close left by a
+    //  swap that was interrupted before its open sample finished, or that
+    //  close would replay on top of this one.
+    m_doorThenClose = false;
 
     if (m_audioEventSink != nullptr)
     {
@@ -752,10 +757,15 @@ void Disk2AudioSource::OnDiskEjected()
 
 
 
-    m_diskPresent = false;
-    m_doorBuf     = &m_doorOpenBuf;
-    m_doorPos     = 0;
-    m_motorPos    = 0;
+    m_diskPresent   = false;
+    m_doorBuf       = &m_doorOpenBuf;
+    m_doorPos       = 0;
+    m_motorPos      = 0;
+
+    //  A plain eject is a single one-shot. Clear any queued close left by a
+    //  swap that was interrupted before its open sample finished, or the door
+    //  would audibly close on an empty drive.
+    m_doorThenClose = false;
 
     if (m_audioEventSink != nullptr)
     {

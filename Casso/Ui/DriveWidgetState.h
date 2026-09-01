@@ -88,6 +88,11 @@ struct DriveWidgetState
     {
         mountedImagePath = path;
 
+        // A plain insert is not a reinsert. Clear a pending open-then-close
+        // left by a swap this insert interrupts, or the door would roll into
+        // an unasked-for close when the open half finishes.
+        reinsertPending = false;
+
         if (doorState == Door::Open || doorState == Door::Opening)
         {
             doorState            = Door::Closing;
@@ -105,6 +110,11 @@ struct DriveWidgetState
     {
         mountedImagePath.clear();
 
+        // An eject is not a reinsert. Clear a pending open-then-close left by a
+        // swap this eject interrupts, or the open half would roll into a close
+        // and seal the door on a drive that is now empty.
+        reinsertPending = false;
+
         if (doorState == Door::Closed || doorState == Door::Closing)
         {
             doorState            = Door::Opening;
@@ -118,6 +128,10 @@ struct DriveWidgetState
     // then closes it again whether or not a disk was actually chosen.
     void StartDoorTransition (Door target, int64_t nowMs)
     {
+        // A browse open/close is not a reinsert. Clear a pending open-then-close
+        // so a swap interrupted by the file dialog does not later roll shut.
+        reinsertPending = false;
+
         if (target == Door::Opening &&
             (doorState == Door::Closed || doorState == Door::Closing))
         {
