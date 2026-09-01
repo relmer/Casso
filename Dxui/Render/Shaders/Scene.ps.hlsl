@@ -22,7 +22,7 @@ cbuffer Light : register(b1)
     row_major float4x4 shadow1;
     float4 shadowParm;   // x texel (0 disables), y bias, z strength
     row_major float4x4 lampShadow;
-    float4 lampShadowParm;   // x texel (0 disables), y bias
+    float4 lampShadowParm;   // x texel (0 disables), y bias, zw throw cone
     float4 parm3;            // x pebble pitch (mm), y pebble amount
 // THE SPILL'S CEILING, per channel: the lens's own color, and only as
 // much of it as the surface has ROOM for.
@@ -297,8 +297,22 @@ float4 main (PSIn input) : SV_TARGET
                         }
                     }
                 }
+// THE THROW ENDS INSIDE THE MAPPED CONE. Off the map every sample resolves the
+// same way, so whichever way it resolves draws the frustum's own outline onto
+// the model: as shadow it sank the lamp down a dark well, as lit it let the
+// lamp shine THROUGH the pocket it sits in and stain the case beside it. Ending
+// the light where the map ends leaves nothing out there to resolve, and costs
+// nothing the map was for -- the button shadows its notch floor forty degrees
+// off axis, well inside this.
+                float  cone = 1.0f;
+                if (lampShadowParm.z > -1.0f)
+                {
+                    cone = smoothstep (lampShadowParm.z, lampShadowParm.w,
+                                       dot (lampDir.xyz, -L));
+                }
+
                 float3 spill = base.rgb * lampCol.rgb * emit * recv
-                             * fade * lvis
+                             * fade * lvis * cone
                              * (lampPos.w * lampPos.w) / (rr * rr);
                 float3 head = saturate (1.0f - lit);
                 lit += min (spill, head * lampCap.rgb * 0.5f);

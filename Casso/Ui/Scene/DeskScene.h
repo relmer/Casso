@@ -495,6 +495,14 @@ private:
     // housing, and the notch floor sits well off the lens's axis.
     static constexpr float  kLampShadowFovDeg = 120.0f;
 
+    // Where the lamp's throw ends, in degrees off the lens's facing, faded
+    // between the two. The frustum above is a square pyramid, so the cone it
+    // inscribes is half its opening; stopping there keeps every lit surface on
+    // the map. The inner angle only softens the edge, and both sit far outside
+    // the forty degrees the power button's own shadow needs.
+    static constexpr float  kLampConeOuterDeg = kLampShadowFovDeg * 0.5f;
+    static constexpr float  kLampConeInnerDeg = kLampShadowFovDeg * 0.5f - 8.0f;
+
     HRESULT  FillLampShadow (const DeskSceneModel & model,
                              int                    slot,
                              Dxui3DRenderer::StaticMesh & mesh,

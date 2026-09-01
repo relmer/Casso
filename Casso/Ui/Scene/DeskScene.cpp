@@ -503,6 +503,13 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
                 lighting.lampShadowSlot  = isMonitor ? kLampSlotMonitor : kLampSlotDrive;
                 lighting.lampShadowTexel = 1.0f / (float) kLampShadowTexels;
                 lighting.lampShadowBias  = kLampShadowBias;
+
+                // The throw stops inside the cone the frustum inscribes, so the
+                // lamp never lights a surface the map has no opinion about. Set
+                // WITH the map and not without it: an unshadowed lamp has no
+                // boundary to hide and keeps its full reach.
+                lighting.lampConeCosOuter = std::cos (kLampConeOuterDeg * 3.14159265f / 180.0f);
+                lighting.lampConeCosInner = std::cos (kLampConeInnerDeg * 3.14159265f / 180.0f);
             }
         }
     }
