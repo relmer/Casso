@@ -29,6 +29,7 @@ public:
     {
         DoorOpen,
         DoorClose,
+        DoorReinsert,
         SpinStart,
         SpinStop,
     };

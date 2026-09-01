@@ -5,6 +5,7 @@
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Devices/Disk/IImageWatcher.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/BayChange.h"
 
 
 class CpuManager;
@@ -104,6 +105,21 @@ public:
     void     InstallSharedImageSupport (bool watchDisabled);
 
     void     EjectDiskInSlot6       (int drive);
+
+    //  The one reaction to a disk changing in a bay, whoever caused it: a user
+    //  mount or eject, a pick-up of an external change, a file that vanished.
+    //  Re-points the controller, re-applies write protection, logs the debug
+    //  event, and drives the drive door and its sounds. The store calls this
+    //  through its bay-change sink, so no path lights the door itself.
+    //
+    //  WHY THE DOOR IS SPLIT. A plain insert or eject changes the file in the
+    //  bay, and the source-path poll in UpdateDriveWidgets animates the door
+    //  from that. A swap leaves the same file with new contents, so the poll
+    //  cannot see it -- the open-then-close door for a swap is published from
+    //  here as the one event the poll misses. Sound is driven here in all
+    //  three cases.
+    void     OnBayChange            (int slot, int drive, BayChange change);
+
     void     RemountSlot6Disks      ();
     void     MountCommandLineDisks  (const std::string & disk1Path,
                                      const std::string & disk2Path);

@@ -75,6 +75,12 @@ struct DriveWidgetState
     int64_t           animationStartTimeMs = 0;
     uint64_t          lastSyncEventId      = 0;
 
+    // Set by BeginReinsert: the door opens, then closes on its own. A disk was
+    // replaced under the running machine, which reads as it coming out and
+    // another going in -- one gesture the path poll cannot see, since the file
+    // in the drive did not change.
+    bool              reinsertPending      = false;
+
     // UI-thread mutators (pure logic)
 
     // Records a new mount and starts close-door animation if needed.
@@ -126,7 +132,31 @@ struct DriveWidgetState
         }
     }
 
-    // Advances Opening->Open and Closing->Closed after the delay.
+    // A disk replaced under the running machine: open, then close on our own.
+    // The disk stays in the drive throughout -- the file behind it is what
+    // changed -- so the path poll never sees it and this is the only way the
+    // door moves. From a closed door the open half runs first; from an open
+    // one (an empty drive that somehow took a swap) the close half is all that
+    // is left to do.
+    void BeginReinsert     (int64_t nowMs)
+    {
+        if (doorState == Door::Closed || doorState == Door::Closing)
+        {
+            doorState            = Door::Opening;
+            animationStartTimeMs = nowMs;
+            reinsertPending      = true;
+        }
+        else
+        {
+            doorState            = Door::Closing;
+            animationStartTimeMs = nowMs;
+            reinsertPending      = false;
+        }
+    }
+
+    // Advances Opening->Open and Closing->Closed after the delay. A pending
+    // reinsert turns the end of the open half straight into the close half,
+    // so the door does not rest open between the two.
     void TickDoorAnimation (int64_t nowMs)
     {
         int64_t  elapsed = nowMs - animationStartTimeMs;
@@ -138,7 +168,16 @@ struct DriveWidgetState
 
         if (doorState == Door::Opening)
         {
-            doorState = Door::Open;
+            if (reinsertPending)
+            {
+                reinsertPending      = false;
+                doorState            = Door::Closing;
+                animationStartTimeMs = nowMs;
+            }
+            else
+            {
+                doorState = Door::Open;
+            }
         }
         else if (doorState == Door::Closing)
         {

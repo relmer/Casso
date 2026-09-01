@@ -10,6 +10,7 @@
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
+#include "BayChange.h"
 
 
 
@@ -235,15 +236,6 @@ public:
     using AskSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
 
     void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
-
-    //  What happened to the disk in a bay.
-    //
-    //  Inserted  a disk went into an empty or freshly mounted bay.
-    //  Ejected   a bay's disk left, whether the user asked or the file vanished.
-    //  Swapped   the disk was replaced under the running machine, a pick-up of
-    //            an external change. It reads as the door opening and closing
-    //            where a plain insert only closes.
-    enum class BayChange { Inserted, Ejected, Swapped };
 
     //  A bay's disk changed, and the shell should react: re-point the
     //  controller, re-apply write protection, log the debug event, and drive

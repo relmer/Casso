@@ -99,7 +99,7 @@ public:
 
         //  Every bay change the store announced, in order, so a test can prove
         //  the one signal the shell reacts to fires on each path.
-        std::vector<DiskImageStore::BayChange>         bayChanges;
+        std::vector<BayChange>         bayChanges;
 
 
 
@@ -168,7 +168,7 @@ public:
 
             store.SetMachineRestartCallback ([this] () { restarts++; });
 
-            store.SetBayChangeSink ([this] (int, int, DiskImageStore::BayChange change)
+            store.SetBayChangeSink ([this] (int, int, BayChange change)
             {
                 bayChanges.push_back (change);
             });
@@ -685,7 +685,7 @@ public:
     //  a vanished file are an Eject (door opens).
     TEST_METHOD (EveryBayChangeIsAnnouncedWithItsKind)
     {
-        using BayChange = DiskImageStore::BayChange;
+        using BayChange = BayChange;
 
 
 
