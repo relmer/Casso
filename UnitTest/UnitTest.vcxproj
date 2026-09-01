@@ -353,6 +353,7 @@
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
     <ClCompile Include="EmuTests\DamagedDisk.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskDecodeTests.cpp" />
+    <ClCompile Include="EmuTests\DamagedDiskFlushTests.cpp" />
     <ClCompile Include="EmuTests\DiskReadbackTests.cpp" />
     <ClCompile Include="EmuTests\EmuValidationSuiteTests.cpp" />
     <ClCompile Include="EmuTests\BackwardsCompatTests.cpp" />
