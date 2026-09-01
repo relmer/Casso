@@ -1641,8 +1641,30 @@ _outer = rect_ring(GLASS_X0 - SKIRT_OUT, GLASS_X1 + SKIRT_OUT,
 MOUTH_PLANE_Y = -PROTRUDE + TUBE_DROP
 
 
+# HOW FAR BEHIND THE MOUTH the outer edge sits. Small: enough that the bezel
+# covers it from every angle, not so much that the cone loses its depth.
+SKIRT_EDGE_BEHIND = 0.2
+
+
 def skirt_edge_y(x, z):
-    return min(skirt_y(x, z) - 2.0, MOUTH_PLANE_Y - 1.0)
+    """The outer edge's depth: a PLANE just behind the mouth, which is why it
+    ignores where on the ring it is asked about.
+
+    IT MUST NOT COME OUT IN FRONT OF THE BEZEL. Pulled forward past the mouth
+    plane it does block every sightline into the bore, which is what it was
+    for -- but it also protrudes through the opening it is hiding behind, and
+    a dark cone lying over the bezel's lip then OWNS the visible edge along
+    the middle of each side while the mask ring still owns it around the
+    corners. Those two curves have different shapes, so the opening changed
+    slope partway along its bottom run and read as a lump rather than one arc.
+
+    Behind the mouth the bezel owns its own opening the whole way round, and
+    the seal survives it: the cone still spans the annulus, a fraction of a
+    millimeter further back, and the tube ring's underlap covers the rest.
+    Checked at 60, 70.3 and 75 degrees of yaw, top and bottom, which is where
+    the bore wall used to show as a beige band.
+    """
+    return MOUTH_PLANE_Y + SKIRT_EDGE_BEHIND
 
 
 _lip  = [(x, skirt_y(x, z), z) for (x, z) in _inner]
