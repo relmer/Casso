@@ -1328,8 +1328,8 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[92] = (m_shadowSlot >= 0 || m_lighting.lampShadowSlot < 0)
                     ? 0.0f : m_lighting.lampShadowTexel;
         lightCb[93] = m_lighting.lampShadowBias;
-        lightCb[94] = 0.0f;
-        lightCb[95] = 0.0f;
+        lightCb[94] = m_lighting.lampConeCosOuter;
+        lightCb[95] = m_lighting.lampConeCosInner;
 
         // Never zero: the shader divides the position by this to find its
         // bump cell, and only the pebble branch reads it -- so a zero here

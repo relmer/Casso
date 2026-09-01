@@ -149,6 +149,25 @@ public:
         float  lampShadowBias  = 0.0f;
         int    lampShadowSlot  = -1;
 
+        // HOW WIDE THE LAMP MAY THROW AT ALL, as the cosine of the angle off
+        // its facing, ramped between the two so the edge is not a line.
+        //
+        // A LAMP MUST NOT LIGHT WHAT ITS MAP CANNOT SHADOW. The map is a
+        // pyramid pinned to the lens, so past the cone that pyramid inscribes
+        // there is no occlusion data at all and every sample resolves the same
+        // way -- which draws the pyramid itself onto the model. Read as shadow
+        // it sank the lamp down a dark well; read as lit it let the lamp shine
+        // THROUGH the pocket it sits in, and the Monitor II's indicator cast a
+        // green stain on a reveal groove forty millimeters away that its own
+        // notch wall stands squarely in front of.
+        //
+        // Ending the throw inside the mapped cone retires the question: there
+        // is no light out there to be wrong about. Nothing is given up, since
+        // what the map exists for -- the power button shadowing its own notch
+        // floor, forty degrees off axis -- sits well within the cone.
+        float  lampConeCosOuter = -1.0f;  // -1 leaves the throw unbounded
+        float  lampConeCosInner = -1.0f;
+
         // The pebble finish's grain: how far apart the bumps sit, in the
         // vertices' own units (mm here), and how hard each tilts the normal.
         // Only vertices carrying a nonzero `pebble` are affected at all.

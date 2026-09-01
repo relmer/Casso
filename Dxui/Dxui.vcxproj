@@ -145,6 +145,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Core\DxuiFrameRate.cpp" />
     <ClCompile Include="Core\DxuiAbsoluteLayout.cpp" />
     <ClCompile Include="Core\DxuiAnimation.cpp" />
     <ClCompile Include="Core\DxuiDockLayout.cpp" />
@@ -167,7 +168,7 @@
     <ClCompile Include="Widgets\DxuiButton.cpp" />
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
     <ClCompile Include="Widgets\DxuiDropdown.cpp" />
-    <ClCompile Include="Widgets\DxuiHudNotice.cpp" />
+    <ClCompile Include="Widgets\DxuiShadowedText.cpp" />
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
@@ -203,6 +204,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiFrameRate.h" />
     <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />
     <ClInclude Include="Core\DxuiEvents.h" />
@@ -235,6 +237,7 @@
     <ClInclude Include="Widgets\DxuiDropdown.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiHudNotice.h" />
+    <ClInclude Include="Widgets\DxuiShadowedText.h" />
     <ClInclude Include="Widgets\DxuiOrbitControl.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />

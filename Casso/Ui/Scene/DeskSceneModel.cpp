@@ -569,7 +569,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             AppendFlatTri (m_glass, tri);
         }
         else if (IsMonitorKind (kind) &&
-                 (part == s_kpszBezel || part == s_kpszTiltUp || part == s_kpszTiltDown))
+                 (part == s_kpszBezel || part == s_kpszTubeSkirt ||
+                  part == s_kpszTiltUp || part == s_kpszTiltDown))
         {
             // The assembly, and the two marks that move it. The marks stay
             // part of it -- they are molded into the bezel and travel with
@@ -579,7 +580,10 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
 
             AppendLitTri (m_tiltable, tri, corners);
 
-            if (part != s_kpszBezel)
+            // The two MARKS by name, rather than "anything but the bezel":
+            // the skirt joined this group and would otherwise have been read
+            // as a tilt grip and grown the hit box across the whole face.
+            if (part == s_kpszTiltUp || part == s_kpszTiltDown)
             {
                 GrowTiltGrip ((part == s_kpszTiltUp) ? 1 : -1, first);
             }

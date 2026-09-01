@@ -29,6 +29,7 @@
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -138,6 +139,11 @@ class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public I
 public:
     EmulatorShell();
     ~EmulatorShell();
+
+    // The show state Windows handed wWinMain. Set before Initialize; the
+    // first ShowWindow honors it when the launcher asked for something
+    // particular, and falls back to the saved placement when it did not.
+    void  SetStartupShowCommand (int nCmdShow) { m_startShowCmd = nCmdShow; }
 
     HRESULT Initialize (
         HINSTANCE              hInstance,
@@ -284,6 +290,8 @@ private:
     void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
+    void               OnExitSizeMove  () override;
+    void               OnUserWindowStateCommand () override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
     DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
@@ -821,6 +829,7 @@ private:
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();
 
+
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
     // //c switch strip -- so the glass-fill scene owns the whole client.
@@ -829,6 +838,11 @@ private:
     // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
+    void    SyncFrameRateReadout ();
+
+    // The scene pose across the middle of the picture, so a screenshot of a
+    // render fault carries the angle it was taken from.
+    void    SyncSceneViewReadout ();
     void    TickFullscreenToolbar();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
@@ -1209,7 +1223,9 @@ private:
     // 2D widget carried below its body, kept on screen rather than demoted to
     // a hover tooltip. Positioned from the composition's projected drive
     // bounds; empty (and invisible) when that drive holds no disk.
-    std::array<DxuiLabel, 2>  m_sceneDriveLabel;
+    // The mounted image's name under each drive. CHROME, not scene geometry:
+    // it is read at a fixed size wherever the desk is posed.
+    std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
 
     // Where each of those strips landed, empty when a drive shows no name.
     // The write-protect tooltip belongs to the strip now that the padlock
@@ -1227,6 +1243,11 @@ private:
     // cursor gone and no way out shown is how a user ends up killing the
     // process. This rides above the picture in both presentations.
     DxuiHudNotice              m_captureBanner;
+
+    // The frames-per-second readout. Shadowed rather than a notice: it
+    // wants a corner, not the centered band a notification takes.
+    DxuiShadowedText           m_fpsReadout;
+    DxuiShadowedText           m_sceneViewReadout;
 
     // The scene compass: the visible way to turn the scene, for everyone
     // who will never guess that dragging does it. Laid out into the scene
@@ -1376,6 +1397,18 @@ private:
     // shutdown can pair the call with OleUninitialize. RegisterDragDrop
     // requires OLE (STA) on the registering thread.
     bool                                 m_fOleInitialized = false;
+
+    // SW_SHOWDEFAULT means "the launcher expressed no preference", which is
+    // what a normal double-click amounts to.
+    int                                  m_startShowCmd    = SW_SHOWDEFAULT;
+
+    // Whether the window is maximized as far as the last SAVED placement
+    // is concerned. A change here is a user maximizing or restoring, which
+    // is worth persisting even though it never enters the OS drag loop.
+    // Set when the user issues a maximize / restore and cleared by the
+    // OnSize that carries it out, which is where the new placement is
+    // actually readable.
+    bool                                 m_userStateChange = false;
 
     // Drive audio. Mixer is always allocated; per-drive sources are
     // populated only when the active machine config carries a
