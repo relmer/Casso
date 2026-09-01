@@ -31,16 +31,17 @@ Entries before versioning was introduced use dates only.
   The Merlin subset boundary falls from six unsupported constructs to four. The
   remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
   and a second `XC`, which needs a 65816 core.
-
-### Fixed
-- **Two Casso instances no longer write into each other's temporary file.**
-  The commit temporary was derived from the image path alone, so two emulators
-  sharing an image could each rename the other's bytes over the target. Data
-  loss.
-- **Casso no longer writes an image back over a change it never saw.** It
-  recorded nothing about a mounted file and re-checked nothing before writing,
-  so an external edit was overwritten silently. It now keeps the displaced
-  version.
+- **Casso picks up a disk image changed outside it.** A build writing onto a
+  mounted image reaches the running guest with no eject and re-insert.
+  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
+  specifies what happens; without it you get a prompt.
+- **Neither version is lost when a disk changes on both sides.** The file keeps
+  what the other program wrote and yours is saved beside it, timestamped. Both
+  ends apply that rule, so which one noticed first no longer decides the
+  outcome. If the copy cannot be written, nothing is mounted or overwritten and
+  you are offered somewhere else to put it.
+- **A disk whose file is deleted or becomes unreadable offers to save what is
+  still in memory**, then empties the drive.
 
 ### Changed
 - **Massively faster startup**: Casso comes up in well under a second, and the
@@ -56,6 +57,12 @@ Entries before versioning was introduced use dates only.
   default, and an as65 source has no way to produce a second output.
 
 ### Fixed
+- **Two Casso instances no longer write into each other's temporary file.** The
+  commit temporary came from the image path alone, so two emulators sharing an
+  image could each rename the other's bytes over the target.
+- **Casso no longer writes an image back over a change it never saw.** It
+  recorded nothing about a mounted file and re-checked nothing before writing,
+  so an external edit was overwritten silently.
 - **Monitor II**: tube-to-bezel gap at steep angles, the bezel opening's
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
@@ -143,46 +150,6 @@ Entries before versioning was introduced use dates only.
 - **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization; `NOOPT` and `-n`
   disable it.** A backward, in-range `JMP` assembles to two bytes instead of
   three, so every label below it moves.
-
-### Added
-- **The assembler states what its write should do.** `as65` and `merlin` take
-  `--on-change reload|restart` beside `--disk`, so a build that assembles
-  straight onto a mounted image tells the running emulator what to do with it
-  and the loop is one command. It changes no assembled byte.
-- **Casso picks up a disk image changed outside it.** A build that writes onto
-  a mounted image reaches the running guest without an eject and re-insert.
-  `--on-change reload|reboot` specifies what a running Casso does with the
-  modified disk, on both the assembler and `disk put`; without it you get a
-  prompt. That notice closes itself after 30 seconds, since the switch already
-  said what to do, and hovering suspends the countdown rather than restarting
-  it.
-- **Neither version is discarded when a disk changes on both sides.** The file
-  stays with whoever changed it and your version is saved beside it,
-  timestamped. Both ends apply that rule, so the outcome no longer depends on
-  which noticed first -- it used to come down to whichever of the watcher and
-  the drive's spindown was quicker, about a second each.
-- **Keeping the disk in the drive writes it out at once.** It relied on a later
-  flush to save the version being kept, but a disk the guest never wrote to is
-  not dirty and a flush of a clean image does nothing, so quitting or ejecting
-  discarded the version the user had just chosen to keep.
-- **A copy that cannot be written offers somewhere else to put it.** The
-  failure gives the whole path it tried and the system's own reason, with a
-  Save as... button, instead of advice about freeing space. It also no longer
-  retries on every idle tick, which cost a full image read and another failed
-  write sixty times a second for as long as the folder stayed full.
-- **A disk whose file is deleted or becomes unreadable offers to save what is
-  still in memory**, then empties the drive rather than reporting a disk that is
-  no longer there.
-
-- **The Harte vectors now check instruction timing, not just results.** The
-  packed fixtures had discarded the per-cycle trace, so no depth of vectors
-  could catch a timing error. It found three timing bugs on its first run.
-- **The Harte vectors now cover the undocumented opcodes.** 77 of the 79
-  illegal NMOS opcodes had no vectors at all, so their tests loaded nothing
-  and passed. All 79 now run at full depth and came out clean.
-- **An offline cycle reference at `docs/cycle-reference.md`.** Every opcode's
-  mnemonic, addressing mode, length, and base cycle count for the 6502 and
-  65C02, generated from the emulator's own instruction tables.
 
 ### Removed
 - **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
