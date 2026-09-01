@@ -17,7 +17,10 @@ Entries before versioning was introduced use dates only.
 - **Casso detects external changes to mounted disk images.** A build writing onto a
   mounted image reaches the running guest with no eject and re-insert.
   `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
-  specifies what happens; without it you get a prompt.
+  specifies what happens; without it you get a prompt. The drive door opens
+  and closes with both sounds when the disk is swapped, and opens with its
+  sound when the file behind a mounted disk is deleted -- the same reactions a
+  hand-inserted or ejected disk gets, from one place.
 - **Merlin's `SAV` is implemented**, allowing one assembly to produce multiple
   binaries. It writes the span accumulated since the previous save and
   continues.

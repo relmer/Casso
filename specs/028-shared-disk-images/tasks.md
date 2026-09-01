@@ -432,6 +432,25 @@ and the scene rescales back into the space.
   bar never receiving clicks, and the rescue name carrying no timestamp -- are
   fixed and verified on screen at true resolution
 
+- [X] ~~T118~~ **Resolved.** The store-driven paths -- a pick-up, a vanished
+  file -- moved a disk without the door, its sounds, the debug event or the
+  controller re-point that a hand mount or eject got, because those were lit
+  inside `MountDiskInSlot6` and `EjectDiskInSlot6` alone. `EjectLostImage`
+  also reset the image the controller still pointed at: a use-after-free on
+  the next guest disk access. The store now announces every bay change
+  (`BayChange` Inserted / Ejected / Swapped) through one sink, and
+  `DiskManager::OnBayChange` is the sole reaction; the two shell paths lost
+  their scattered copies. A swap animates the door open then close with both
+  sounds -- the one transition the source-path poll cannot see, so it rides a
+  `DoorReinsert` sync event. Keeping a version is deliberately not a bay
+  change: the disk never leaves the drive. An adversarial review found two
+  latch leaks (the door's `reinsertPending`, the audio's `m_doorThenClose`)
+  when an insert or eject interrupted a swap mid-open; both fixed and
+  regression-tested, the door one confirmed to fail without its fix. Swap
+  door verified on a real build (latch lifts and reseats across a 10-frame
+  burst). The per-frame wide-path rebuild in `UpdateDriveWidgets` was gated
+  on a narrow diff while here.
+
 **Checkpoint**: Gates green, documentation current, quickstart walked. Commit.
 
 ---
