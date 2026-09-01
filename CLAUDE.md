@@ -51,17 +51,17 @@ default buys no capability.
 
 ## Who is where
 
-**`028-shared-disk-images` is in progress on its branch** (2026-08-31): an
-image changed outside the emulator is picked up by a running one. Landed through
-Phase 5a; Phase 5b is the assembler's `--on-change`, which was waiting on 026 and
-is no longer blocked. Another session owns it. Coordinate before touching
-`DiskImageStore`, `CommitPlan` or `EmulatorShell`.
+**`028-shared-disk-images` is COMPLETE on its branch and not merged**
+(2026-09-01): an image changed outside the emulator is picked up by a running
+one. All 116 tasks walked, including both real-build scenarios. Another session
+owns it. Coordinate before touching `DiskImageStore`, `CommitPlan`,
+`ChangePrompt` or `EmulatorShell`.
 
-**`027-nibble-images` is IMPLEMENTED on its branch and not merged**
-(2026-08-30): mount, write-back on the live flush path, the `disk` commands, and
-a boot test on a real 6502. Another session owns it. Coordinate before touching
-`MountDiagnosis`, `BlankDiskBuilder`, `DiskCommandRunner`, `VolumeImage`,
-`DiskImage`, `DiskImageStore` or `NibblizationLayer`.
+One sub-case is still owed and is worth knowing about: forcing the copy to fail
+by denying new-file creation on the folder never reached the refusal dialog at
+all. **Unverified hypothesis:** `IsHeldByAnotherProcess` opens the file to
+answer, and an access-denied may read as "somebody else is writing", which is a
+silent indefinite defer. Instrument that call before believing it.
 
 **Open specs**, each to be picked up in its own session. Read the spec itself
 for detail; this is an index, not a status report.
@@ -72,8 +72,7 @@ for detail; this is an index, not a status report.
 | 022 disk image formats | 021; large media on GH #101 / #93 |
 | 023 ca65 dialect | nothing; full compatibility needs a linker (GH #58) |
 | 025 game compat patcher | nothing; builds on unmerged `game-patch-table` |
-| 027 nibble images | implemented, awaiting merge |
-| 028 shared disk images | in progress; see above |
+| 028 shared disk images | complete, awaiting merge; see above |
 | per-slot card config (GH #124) | not yet written |
 
 <!-- SPECKIT START -->
