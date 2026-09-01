@@ -938,15 +938,24 @@ public:
 
 
 
-    TEST_METHOD (SavingTheInMemoryCopyWritesItAndThenEmptiesTheDrive)
+    //  SAVING KEEPS THE DISK IN THE DRIVE, on the file the user picked.
+    //  Serialize writes a whole image rather than a fragment, so once it lands
+    //  the drive has somewhere to live -- and it used to be emptied anyway,
+    //  which handed back a complete disk and then made the user go and find it.
+    //  Keeping a version during a conflict already behaved this way; one act
+    //  should not have two outcomes.
+    TEST_METHOD (SavingTheInMemoryCopyKeepsItInTheDrive)
     {
         Rig          rig;
         std::string  chosen = "C:\\elsewhere\\Rescued.dsk";
+        Byte         held   = 0;
 
 
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        held = FirstTrackByte (rig.store);
 
         rig.files.erase (kImagePath);
         rig.Stamp (kImagePath);
@@ -956,13 +965,15 @@ public:
 
         rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
 
-        //  The save happens BEFORE the eject, always: the eject is what
-        //  discards the in-memory disk.
         Assert::IsTrue (rig.files.count (chosen) == 1,
                         L"what the emulator held may be the only copy left");
-        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
-                         L"a drive holding a disk whose file is gone reports "
-                         L"something untrue");
+
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive),
+                        L"the disk is still in the drive");
+        Assert::AreEqual (chosen, rig.store.GetSourcePath (kSlot, kDrive),
+                          L"and the drive reads and writes the rescued file now");
+        Assert::AreEqual ((int) held, (int) FirstTrackByte (rig.store),
+                          L"the disk itself is untouched -- only its file moved");
     }
 
 

@@ -2290,8 +2290,22 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
                     return;
                 }
+
+                //  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED.
+                //  Serialize writes a whole image, not a fragment, so the drive
+                //  now has somewhere to live -- and emptying it would mean
+                //  handing back a complete disk and then making them go and
+                //  find it. Keeping a version during a conflict already works
+                //  this way, and one act should not have two outcomes.
+                entry.image->ClearDirty();
+
+                hr = RepointBayToFile (slot, drive, savePath);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                return;
             }
 
+            //  Nothing was saved, so there is nothing to point at.
             EjectLostImage (slot, drive);
 
             return;

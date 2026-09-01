@@ -370,7 +370,8 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                        + where + L" still has its contents in memory.";
     }
 
-    prompt.message += L" Would you like to save them? " + where + L" will be empty either way.";
+    prompt.message += L" Would you like to save them? " + where
+                    + L" will be empty if you don't.";
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Don't save", ChangeAction::KeepHeld });

@@ -353,10 +353,10 @@ public:
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
         Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
 
-        //  The drive is emptied whichever is chosen, and that is the part no
-        //  answer undoes. Neither wording used to mention it.
-        Assert::IsTrue (deleted.message.find (L"empty either way") != std::wstring::npos);
-        Assert::IsTrue (unreadable.message.find (L"empty either way") != std::wstring::npos);
+        //  Declining is the only answer that empties the drive, and saying so
+        //  is the point: saving keeps the disk, on the file the user picks.
+        Assert::IsTrue (deleted.message.find (L"empty if you don't") != std::wstring::npos);
+        Assert::IsTrue (unreadable.message.find (L"empty if you don't") != std::wstring::npos);
     }
 
 

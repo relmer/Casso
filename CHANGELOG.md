@@ -14,6 +14,10 @@ Entries before versioning was introduced use dates only.
   automatically at boot with `--startup`. The binary's origin comes directly
   from its assembly rather than a --load parameter. This reduces the dev inner
   loop from six commands to three.
+- **Casso detects external changes to mounted disk images.** A build writing onto a
+  mounted image reaches the running guest with no eject and re-insert.
+  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
+  specifies what happens; without it you get a prompt.
 - **Merlin's `SAV` is implemented**, allowing one assembly to produce multiple
   binaries. It writes the span accumulated since the previous save and
   continues.
@@ -25,44 +29,34 @@ Entries before versioning was introduced use dates only.
   program walk past the others.
 - **Merlin now supports `TYP`** to set the filesystem type for the output file,
   specified as a ProDOS type byte.
-
-  The Merlin subset boundary falls from six unsupported constructs to four. The
-  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
-  and a second `XC`, which needs a 65816 core.
-- **Casso picks up a disk image changed outside it.** A build writing onto a
-  mounted image reaches the running guest with no eject and re-insert.
-  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
-  specifies what happens; without it you get a prompt.
-- **Neither version is lost when a disk changes on both sides.** The file keeps
-  what the other program wrote and yours is saved beside it, timestamped. Both
-  ends apply that rule, so which one noticed first no longer decides the
-  outcome. If the copy cannot be written, nothing is mounted or overwritten and
-  you are offered somewhere else to put it.
+- **Conflict resolution when a mounted disk changes on both sides.** The 
+  external changes to the original disk image are kept, and local changes within
+  Casso are saved in a timestamped copy alongside it. Casso prompts the user to
+  pick which disk to mount in the drive.
 - **A disk whose file is deleted or becomes unreadable offers to save what is
-  still in memory**, then empties the drive.
-- **The mounted disk's name shows under its drive** in the desk scene.
+  still in memory.** Casso writes a complete image to wherever you choose and
+  the drive keeps running on it. Decline and the drive is emptied, since the
+  file behind it is gone.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
-- **Massively faster startup**: Casso comes up in well under a second, and the
-  executable is ~80% smaller.
-- **Merlin's `-l` takes no filename and writes files rather than standard
-  output.** One name cannot serve a source that saves itself twice, so listings
-  are named after the objects instead. A filename supplied anyway is refused by
-  name. `as65 -l` is unchanged: it keeps its filename and its standard-output
-  default, and an as65 source has no way to produce a second output.
+- **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
+  under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
+  optimizing tesselation, and precompiling shaders. 
+- **Merlin's `-l` listing flag supports multiple files.** Listings are named 
+  the same as the binaries they generate. Removed support for writing listings
+  to stdout.
+- **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
-- **Ctrl-0 now also resets the bezel tilt** with the view.
 
 ### Fixed
-- **Two Casso instances no longer write into each other's temporary file.** The
-  commit temporary came from the image path alone, so two emulators sharing an
-  image could each rename the other's bytes over the target.
-- **Casso no longer writes an image back over a change it never saw.** It
-  recorded nothing about a mounted file and re-checked nothing before writing,
-  so an external edit was overwritten silently.
+- **Two Casso instances sharing a disk image could corrupt it.** Saving an
+  image writes a temporary file beside it and then renames that over the
+  original. The temporary's name came from the image path alone, so both
+  instances used the same one and could overwrite each other's before the
+  rename put it in place.
 - **Monitor II**: tube-to-bezel gap at steep angles, the bezel opening's
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
