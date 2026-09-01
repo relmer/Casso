@@ -601,6 +601,73 @@ public:
     //  a no-op, so ejecting or quitting threw away the very version the user
     //  had just chosen to keep, silently. Writing it at the moment of the
     //  choice is the only form of "kept" that survives the session.
+    //  THE RACE A REAL WALKTHROUGH FOUND. The external change is noticed
+    //  BEFORE the guest write makes the image dirty, so the ordinary question
+    //  goes up first. The guest then writes, the flush finds the same
+    //  collision from the other end, and settles it while that question is
+    //  still on screen.
+    //
+    //  Both ends used to pick the copy's name independently, so the dialog
+    //  offered a file that was never created -- measured five seconds apart --
+    //  and the flush moved the bay, leaving the user answering about a file it
+    //  no longer had.
+    TEST_METHOD (AFlushDuringAnOpenQuestionUsesTheNameTheQuestionShowed)
+    {
+        Rig           rig;
+        std::wstring  offered;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Clean when the change lands, so this is a question and not a
+        //  conflict.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(), L"a question, not a conflict");
+
+        offered = rig.questions[0].message;
+
+        Assert::IsTrue (offered.find (L".dsk") != std::wstring::npos,
+                        L"the question tells the user where their disk would go");
+
+        //  NOW the guest writes, and the flush finds the collision from the
+        //  other end while that question is still up.
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"the guest's version is written -- that part is not optional");
+
+        Assert::IsTrue (offered.find (ChangePrompt::FileName (rig.PreservedPaths()[0]))
+                            != std::wstring::npos,
+                        L"and under the name the open question is already showing");
+
+        //  THE ANSWER STILL OWNS THE OUTCOME. Moving the bay here is what left
+        //  the user answering about a file it no longer had.
+        Assert::AreEqual (std::string (kImagePath), rig.store.GetSourcePath (kSlot, kDrive),
+                          L"the bay has not moved while the question stands");
+
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"and nothing was reported over the top of the question");
+
+        //  Answering it now does what it said, and does not make a second copy
+        //  of the same disk.
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"still one copy, not two");
+        Assert::IsTrue (offered.find (ChangePrompt::FileName (
+                            rig.store.GetSourcePath (kSlot, kDrive))) != std::wstring::npos,
+                        L"and the bay is on the file the user was promised");
+    }
+
+
+
     TEST_METHOD (KeepingACleanDiskWritesItOutRatherThanLeavingItInMemory)
     {
         Rig     rig;

@@ -784,7 +784,14 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         if (!unchanged)
         {
             string   original = entry.path;
-            HRESULT  hrKeep   = PreserveHeldVersion (entry, preservedPath);
+            bool     asked    = entry.sharedState.IsAskOutstanding();
+            HRESULT  hrKeep   = S_OK;
+
+            //  Under the name the question already showed, when there is a
+            //  question. Reserving happens once, wherever it happens first.
+            preservedPath = entry.preservedPath;
+
+            hrKeep = PreserveHeldVersion (entry, preservedPath);
 
             //  A preserve that did not happen stops the write. The image KEEPS
             //  ITS DIRTY BIT, which is the difference between refusing and
@@ -797,11 +804,24 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
             CBRFEx (keptExternal, STG_E_NOTCURRENT,
                     EhmNotifyUser (FormatExternalChangeMessage (original).c_str()));
 
-            //  On disk under its own name, so the bay carries nothing unsaved
-            //  and belongs to the copy rather than to the file somebody else
-            //  changed.
+            //  On disk under its own name, so the bay carries nothing unsaved.
+            entry.preservedPath    = preservedPath;
+            entry.preservedWritten = true;
+
             entry.image->SetSourceCrcMismatch (false);
             entry.image->ClearDirty();
+
+            //  A QUESTION ALREADY ON SCREEN OWNS WHAT HAPPENS NEXT. Writing the
+            //  copy is not optional -- the guest's work would be gone otherwise
+            //  -- but moving the bay and reporting are the ANSWER's job. Doing
+            //  them here settled the matter underneath an open dialog, which
+            //  left the user being asked about a file the bay no longer had.
+            //  The copy is on disk under the name that dialog is showing, so
+            //  either answer still does what it says.
+            if (asked)
+            {
+                BAIL_OUT_IF (true, S_OK);
+            }
 
             hrKeep = RepointBayToFile (entry.slot, entry.drive, preservedPath);
             IGNORE_RETURN_VALUE (hrKeep, S_OK);
@@ -2080,6 +2100,8 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
         //  It is on disk under its own name now, so the bay carries nothing
         //  unsaved and the change that follows is no longer a conflict.
+        entry.preservedWritten = true;
+
         entry.image->ClearDirty();
 
         situation.guestDirty = false;
@@ -2109,21 +2131,24 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
             entry.sharedState.SetAskedAction (action);
 
             {
-                string   copyPath = entry.preservedPath;
-                bool     written  = !copyPath.empty();
-                HRESULT  hrName   = S_OK;
+                HRESULT  hrName = S_OK;
 
-                //  A conflict wrote the copy before anything was asked. With no
-                //  conflict there is nothing on disk yet, so the prompt needs
-                //  the name the copy WOULD take.
-                if (!written)
+                //  RESERVED, NOT JUST CALCULATED. The name shown here is the
+                //  one the copy will take whoever writes it -- this bay's own
+                //  flush may get there first, while this question is still on
+                //  screen. Working it out again at that point produced a
+                //  different name and left the dialog offering a file nobody
+                //  ever created.
+                if (entry.preservedPath.empty())
                 {
-                    hrName = FindFreePreservedPath (entry.path, copyPath);
+                    hrName = FindFreePreservedPath (entry.path, entry.preservedPath);
                     IGNORE_RETURN_VALUE (hrName, S_OK);
                 }
 
-                m_askSink (slot, drive, ChangePrompt::Compose (entry.path, drive, action,
-                                                               copyPath, written));
+                m_askSink (slot, drive,
+                           ChangePrompt::Compose (entry.path, drive, action,
+                                                  entry.preservedPath,
+                                                  entry.preservedWritten));
             }
         }
 
@@ -2357,7 +2382,10 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         //  to was not dirty, so quitting or ejecting discarded the very thing
         //  the user had just chosen to keep, without a word. A file on disk is
         //  the only form of "kept" that survives.
-        if (entry.preservedPath.empty())
+        //  The flush may have written it already, under the very name the
+        //  question showed. Writing again would make a second copy of the same
+        //  disk and leave the first orphaned.
+        if (!entry.preservedWritten)
         {
             hr = PreserveHeldVersion (entry, entry.preservedPath);
 
@@ -2367,6 +2395,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
                 preservedPath = entry.preservedPath;
                 break;
             }
+
+            entry.preservedWritten = true;
         }
 
         preservedPath = entry.preservedPath;
@@ -2381,6 +2411,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         entry.preservedPath.clear();
+        entry.preservedWritten = false;
 
         break;
 
@@ -2404,8 +2435,10 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     if (tookUp)
     {
         preservedPath = entry.preservedPath;
-        preserved     = preserved || !preservedPath.empty();
+        preserved     = preserved || entry.preservedWritten;
+
         entry.preservedPath.clear();
+        entry.preservedWritten = false;
     }
 
     if (restarted && m_restartCallback)
@@ -2580,7 +2613,9 @@ HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & ne
         //  directory this bay was using.
         EndWatching (slot, drive);
 
-        entry.path = newPath;
+        entry.path             = newPath;
+        entry.preservedPath.clear();
+        entry.preservedWritten = false;
 
         //  A fresh identity for the new file, and nothing pending against the
         //  old one. Mount is what records both.
@@ -2821,8 +2856,13 @@ HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
     hr = entry.image->Serialize (bytes);
     CHR (hr);
 
-    hr = FindFreePreservedPath (entry.path, outPath);
-    CHR (hr);
+    //  A name already reserved is used as it is. Choosing a fresh one here is
+    //  what let a question and a flush disagree about where the copy went.
+    if (outPath.empty())
+    {
+        hr = FindFreePreservedPath (entry.path, outPath);
+        CHR (hr);
+    }
 
     hr = WritePreserved (outPath, bytes);
     CHR (hr);

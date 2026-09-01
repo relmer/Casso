@@ -244,10 +244,16 @@
   being shown a filename that does not exist and asked something already
   settled.
 
-  The two ends can both act on one change, and there is no way to withdraw a
-  question once it is on screen. A fix wants either a withdraw channel so the
-  store can take down a question its own flush path has settled, or the copy's
-  name reserved when the question is raised so the two cannot disagree.
+  **FIXED.** The copy's name is now RESERVED when the question is raised rather
+  than worked out again by whoever writes the file, so both ends use the name
+  the user is already looking at. And a flush that finds the collision while a
+  question is outstanding does the half that cannot wait -- writing the copy,
+  because the guest's work would be gone otherwise -- and leaves moving the bay
+  and reporting to the answer. The question stays true and stays answerable.
+
+  Covered by `AFlushDuringAnOpenQuestionUsesTheNameTheQuestionShowed`, which
+  reproduces the ordering exactly: question first, guest write second, flush
+  third. Removing the guard fails it.
 
   **NOT REACHED: the read-only refusal.** Denying new-file creation on the
   folder (`icacls /deny (WD)`) does keep the image dirty, because the flush's

@@ -364,14 +364,18 @@ private:
         //  at eject, refreshed after every commit this store makes.
         MountedImageState      sharedState;
 
-        //  Where the guest's version was written when a conflict was resolved,
-        //  and empty when there was no conflict.
+        //  The name the guest's version goes under, and whether it is there
+        //  yet.
         //
-        //  CARRIED BECAUSE THE ANSWER ARRIVES LATER. The copy is written the
-        //  moment the conflict is found, but the question about the external
-        //  file is answered on another thread; "keep what I have" then only
-        //  has to point the bay at a file that already exists.
+        //  RESERVED BEFORE IT IS WRITTEN, and that separation is the point. A
+        //  question tells the user the name it WOULD take, and the flush path
+        //  may then write the copy while that question is still on screen. If
+        //  the two worked it out independently they produced different names,
+        //  and the dialog ended up offering a file that was never created --
+        //  measured, five seconds apart. Reserving it once means whoever writes
+        //  it writes the name the user was already shown.
         string                 preservedPath;
+        bool                   preservedWritten = false;
 
         //  Which bay this is.
         //
