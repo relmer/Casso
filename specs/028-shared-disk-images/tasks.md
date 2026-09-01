@@ -207,21 +207,61 @@
 - [X] T074 [US2] Verify the conflict tests discriminate: let a stated intent resolve the conflict by discarding, confirm they go red, restore. This is the rule most likely to be "simplified" later by someone reading the intent as a policy for everything
 - [X] T075 [US2] Verify the preserve-first ordering discriminates: write the preserved copy AFTER taking up the external contents, confirm the test that reads it back goes red, restore
 - [X] T076 [US2] Register this phase's new files in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
-- [ ] T077 [US2] Walk [quickstart.md](quickstart.md) Scenarios 2 and 4 against a real build, reading the preserved copy back to confirm it holds the guest's file
+- [X] T077 Walked [quickstart.md](quickstart.md) Scenarios 2 and 4 against a
+  real build on 2026-08-31, driving the guest by pasting into it (Edit > Paste,
+  IDM_EDIT_PASTE) and reading every image back with `disk list` / `disk get`.
 
-**Checkpoint**: Both versions survive every path, including when the file itself goes away.
+  **Scenario 2, the case that must NOT prompt: passes.** The guest saved
+  GUESTFILE from Applesoft with nothing else touching the file. It went
+  straight into the image: no copy beside it, no question, and the catalog read
+  back with the file in it.
 
----
+  **Scenario 2, the conflict: passes, and the backup was read back.** An
+  external write was raced against a guest SAVE. A copy appeared
+  (`w.20260831-231233-01.dsk`), the original kept what the other program wrote,
+  and the drive moved onto the copy. The copy's catalog carried the guest's
+  RACEFILE, and extracting it gave `11 08 14 00 BA 22 "CONFLICT" 22 00 00 00`
+  -- `20 PRINT "CONFLICT"`, intact. That program existed ONLY in the emulator's
+  memory beforehand, so this is the promise the feature is for, demonstrated
+  rather than asserted.
 
-## Phase 5: User Story 1 completion — intent stated by the writer (P1)
+  **Scenario 4: passes.** Deleting the mounted file raised "Disk file is
+  missing" over the right body and both answers, and "Don't save" emptied the
+  drive, which the drive widget showed.
 
-**Goal**: The tool that writes the image says what the change should do.
+  **DEFECT FOUND: A QUESTION CAN GO STALE UNDER THE USER.** When the external
+  change is detected BEFORE the guest's write makes the image dirty, the
+  ordinary question is raised first. Its dialog is modal and blocks the UI
+  thread. The guest's save then finishes, the motor spins down, and the FLUSH
+  path resolves the conflict underneath the open dialog -- writing the copy and
+  repointing the bay. The dialog is then a question about a file the bay no
+  longer has, and it offers a filename that was never used: it showed
+  `...231228-01.dsk` while the copy actually written was `...231233-01.dsk`,
+  five seconds later.
 
-**⚠️ SPLIT BY DEPENDENCY.** The `disk` subcommand half is buildable today. The assembler half needs spec 026's flat image-target options and its `ImageArtifactSink`, neither of which is on this branch.
+  Nothing was lost and answering it did no damage -- the repoint had already
+  cleared the pending change, so the answer fell through -- but the user is
+  being shown a filename that does not exist and asked something already
+  settled.
 
-**Independent test**: `disk put` with `--on-change restart` onto a mounted image restarts the machine; with `--on-change reload` it does not.
+  The two ends can both act on one change, and there is no way to withdraw a
+  question once it is on screen. A fix wants either a withdraw channel so the
+  store can take down a question its own flush path has settled, or the copy's
+  name reserved when the question is raised so the two cannot disagree.
 
-### Buildable now — the `disk` grammar
+  **NOT REACHED: the read-only refusal.** Denying new-file creation on the
+  folder (`icacls /deny (WD)`) does keep the image dirty, because the flush's
+  temporary cannot be created -- that part worked, and raised the existing
+  flush-failure notice. But the external change that followed produced no
+  conflict, no copy and no dialog at all. **Hypothesis, NOT verified:**
+  `IsHeldByAnotherProcess` opens the file to answer, and an access-denied from
+  the folder's ACL may be read as "somebody else is writing", which is a silent
+  indefinite Defer. Instrument that call before believing it.
+
+  Two unrelated things worth fixing, both pre-existing: the flush-failure
+  notice is titled "Casso" rather than a condition, and it advises trying a
+  `.woz` image because WOZ "round-trips writes reliably" -- which is wrong
+  advice when the real cause is permissions.
 
 - [X] T079 [US1] Add `pickUpIntent` to `CommandLineOptions` in `CassoCore/CommandLineOptions.h` (FR-005), beside the nested `disk` group until 026 provides the flat fields
 - [X] T080 [US1] Add the `--on-change` row to the `disk` grammar in `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](contracts/cli.md), plus the long-option entry so `/on-change` is not shredded into single characters. Document that `reload` is the surface spelling of `TakeUpInPlace`
