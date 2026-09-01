@@ -65,6 +65,35 @@ public:
     virtual HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) = 0;
     virtual HRESULT  PopClipRect   ()                                                        = 0;
 
+    // OFF-SCREEN TEXT, for callers that need glyphs as a TEXTURE rather
+    // than on the back buffer -- the desk scene's drive label, which is
+    // geometry in the scene and has to be sampled by a shader like any
+    // other surface.
+    //
+    // Between these two calls the renderer draws into a fresh transparent
+    // target of the given size, at 96 dpi so a DIP is a pixel, and the
+    // usual DrawString applies. End hands back a shader resource view over
+    // it and restores whatever target was bound before.
+    //
+    // WHAT to draw is deliberately not decided here. The shadow treatment
+    // lives with the widget that owns it, and this is only the surface to
+    // put it on; a text renderer that knew about halos would be the wrong
+    // place for the next caller that wants something else.
+    //
+    // Not pure: a mock that never renders has nothing useful to say here.
+    virtual HRESULT  BeginDrawToTexture (UINT widthPx, UINT heightPx)
+    {
+        UNREFERENCED_PARAMETER (widthPx);
+        UNREFERENCED_PARAMETER (heightPx);
+        return E_NOTIMPL;
+    }
+
+    virtual HRESULT  EndDrawToTexture (ID3D11ShaderResourceView ** outSrv)
+    {
+        UNREFERENCED_PARAMETER (outSrv);
+        return E_NOTIMPL;
+    }
+
     // Shear subsequently-drawn text so vertical strokes lean right by tanX
     // (the top edge kicks right relative to yPivotDip; nothing shifts at the
     // pivot). Used to render labels at the //c case-switch slant. Defaulted to

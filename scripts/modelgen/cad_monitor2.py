@@ -356,6 +356,27 @@ except Exception as exc:
           f"({type(exc).__name__}: {exc}) -- shipping it SHARP",
           file=sys.stderr)
 
+# THE NOTCH HAS TWO MOUTHS. It is cut from the front AND through the top, so
+# the top face carries an opening of its own, and the slab above reaches only
+# 1.5 mm back from the front face -- it rounds the front opening and the first
+# sliver of the top one, and never sees the edge where the notch's BACK WALL
+# meets the top of the case, 25 mm behind it. That edge shipped as a knife
+# edge while the sides around it were broken over, which is exactly how it
+# read: soft everywhere but across the back.
+#
+# Its own selector and its own try, for the reason the first one has: the case
+# has no edge set that names this opening, and a refusal should say so rather
+# than take the front's round-over down with it.
+try:
+    case = (case.edges(cq.selectors.BoxSelector(
+                (NX0 - 2.0, NOTCH_REAR_Y - 1.5, H - 1.5),
+                (NX0 + NOTCH_W + 2.0, NOTCH_REAR_Y + 1.5, H + 1.5)))
+                .fillet(NOTCH_EDGE_R))
+except Exception as exc:
+    print(f"WARNING: power notch rear top: round-over FAILED "
+          f"({type(exc).__name__}: {exc}) -- shipping it SHARP",
+          file=sys.stderr)
+
 # The brand recess, down the strip below the icons: a shallow rounded-corner
 # pocket exactly RIDGE_H deep. The scene stands the cassowary in it at the
 # same RIDGE_H thickness, so the mark's face finishes FLUSH with the frame
@@ -1463,6 +1484,29 @@ MOUTH_RR     = MOUTH_R - GLASS_INSET - MOUTH_LAP
 
 FUNNEL_FRONT_R = MOUTH_RR + FUNNEL_RUN
 
+# HOW DEEP THE TUBE IS SEATED. Its rim was left on the mouth's own plane,
+# which put the sheet's CROWN -- a full sag ahead of the rim -- out past the
+# front of the bezel that is supposed to contain it. Seen from the side the
+# tube appeared to burst through the bezel's face. Seated back by this much,
+# the crown sits behind the bezel's front face.
+#
+# It lives up here because the funnel below is cut to REACH it.
+GLASS_SET = 4.5
+
+# THE BORE IS STRAIGHT AND THE SEAL IS THE SKIRT. Two earlier shapes both
+# tried to close the tube/bezel gap with the BEZEL -- lapping the mouth over
+# the rim, then carrying the funnel inward until it touched the glass -- and
+# each traded one leak for another: the funnel-contact collar put a beige
+# ring of bezel around the glass edge, and seen from seventy degrees of yaw
+# that ring surfaced as a floating sliver between the dark tube margin and
+# the picture (sampled: bezel, shadow, skirt-dark, BEIGE, glass -- the collar
+# is the beige).
+#
+# The right part to seal with is the TUBE: the skirt below carries the
+# faceplate out past the mouth and turns it back into the cabinet, so every
+# sightline over the rim lands on dark glass rather than on case plastic.
+# With that seal in place the bezel needs no reach of its own, and the bore
+# goes back to the straight tunnel the funnel meets at the mouth.
 funnel = cq.Solid.makeLoft([
     round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
     round_rect_wire(-PROTRUDE + TUBE_DROP, MX0,     MX1,     MZ0,     MZ1,     MOUTH_RR),
@@ -1492,24 +1536,152 @@ m.add("bezel", bezel, BEZEL, angular=CORNER_ANG)
 GLASS_HALF_DIAG = math.hypot((GX1 - GX0 - GLASS_INSET * 2.0) * 0.5,
                              (GZ1 - GZ0 - GLASS_INSET * 2.0) * 0.5)
 
-# HOW DEEP THE TUBE IS SEATED. Its rim was left on the mouth's own plane,
-# which put the sheet's CROWN -- a full sag ahead of the rim -- out past the
-# front of the bezel that is supposed to contain it. Seen from the side the
-# tube appeared to burst through the bezel's face.
-#
-# Seated back by this much, two things come right at once: the crown sits
-# behind the bezel's front face, and the rim sits behind the mouth, so the
-# bezel LAPS the tube instead of meeting it edge to edge. That lap is also
-# what covers the funnel's inner ramp, which used to show as beige wedges
-# cutting into the picture wherever the two surfaces crossed.
-GLASS_SET = 4.5
-
 m.add_triangles("glass",
                 sag_sheet(GX0 + GLASS_INSET, GX1 - GLASS_INSET,
                           GZ0 + GLASS_INSET, GZ1 - GLASS_INSET,
                           front_y=-PROTRUDE + TUBE_DROP + GLASS_SET,
                           radius_scale=FACE_R / GLASS_HALF_DIAG),
                 KD["glass"])
+
+# ------------------------------------------------------------- tube skirt
+
+# THE FACEPLATE DOES NOT STOP AT THE PICTURE. A real tube's glass runs past
+# the bezel and turns back into the cabinet; ours stopped a hair outside the
+# mouth, and a surface that stops has an edge you can see past.
+#
+# That edge is the fault. The rim is seated GLASS_SET back at the corners but
+# bulges FORWARD of the mouth everywhere else -- 9.67mm proud at the top and
+# bottom midpoints -- so along those edges it floated in the middle of the
+# funnel opening with nothing sealing it, and from a steep angle the line of
+# sight went over the rim straight into the monitor's interior. No lap on the
+# BEZEL can close that, because the thing with the hole in it is the tube.
+#
+# A LIP AND A WALL, not a wide sheet. Continuing the dome outward to the
+# funnel's mouth was the first try and it was wrong: a shallow sphere and a
+# 60 degree funnel run nearly parallel, so the two surfaces met along a broad
+# near-tangent band and fought there -- ragged corners, and a gray sliver
+# lying along the top of the picture. Carrying the dome just far enough to
+# clear the mouth and then turning it STRAIGHT BACK crosses the funnel at a
+# steep angle instead, so the intersection is a clean line and the wall is
+# behind bezel a millimeter later.
+#
+# It is a SEPARATE PART because the scene derives its display sphere and its
+# picture band from the bounding box of the part named "glass"; growing that
+# part would grow the raster with it and push the picture under the bezel.
+SKIRT_OUT     = 5.0        # how far past the glass rim the dome carries on
+SKIRT_BACK    = 30.0       # how far the wall then dives into the cabinet
+SKIRT_BURY    = 0.25       # behind the glass, so the two never fight
+# FOUR MILLIMETERS UNDER THE RIM, for the tube ring's reason (its own underlap
+# is kTubeUnderlapMm = 3): the skirt sits a quarter millimeter BEHIND a glass
+# that curls away from it, and a raking sightline slips under a half-millimeter
+# inner edge, over the glass crest, and onto the beige funnel ramp behind --
+# the last surviving sliver of case around the picture. Four covers the gap
+# to under four degrees, flatter than anything the orbit can reach.
+SKIRT_UNDER   = 4.0        # started inside the rim, so the seam cannot crack
+SKIRT_PER_SIDE = 48
+
+GLASS_X0, GLASS_X1 = GX0 + GLASS_INSET, GX1 - GLASS_INSET
+GLASS_Z0, GLASS_Z1 = GZ0 + GLASS_INSET, GZ1 - GLASS_INSET
+GLASS_CX, GLASS_CZ = (GLASS_X0 + GLASS_X1) * 0.5, (GLASS_Z0 + GLASS_Z1) * 0.5
+
+
+def _sag(rr):
+    return FACE_R - math.sqrt(max(FACE_R ** 2 - rr * rr, 0.0))
+
+
+def skirt_y(x, z):
+    """The tube's own sphere, the one sag_sheet lays the glass on -- so the
+    lip continues the faceplate rather than approximating it."""
+    rr = math.hypot(x - GLASS_CX, z - GLASS_CZ)
+
+    return (-PROTRUDE + TUBE_DROP + GLASS_SET
+            - (_sag(GLASS_HALF_DIAG) - _sag(rr)) + SKIRT_BURY)
+
+
+def rect_ring(x0, x1, z0, z1, per_side):
+    """A rectangle's perimeter as points. Two rings sampled this way
+    correspond point for point, so the band between them cannot twist."""
+    pts = []
+
+    for i in range(per_side):
+        pts.append((x0 + (x1 - x0) * i / per_side, z1))
+
+    for i in range(per_side):
+        pts.append((x1, z1 + (z0 - z1) * i / per_side))
+
+    for i in range(per_side):
+        pts.append((x1 + (x0 - x1) * i / per_side, z0))
+
+    for i in range(per_side):
+        pts.append((x0, z0 + (z1 - z0) * i / per_side))
+
+    return pts
+
+
+_inner = rect_ring(GLASS_X0 + SKIRT_UNDER, GLASS_X1 - SKIRT_UNDER,
+                   GLASS_Z0 + SKIRT_UNDER, GLASS_Z1 - SKIRT_UNDER, SKIRT_PER_SIDE)
+_outer = rect_ring(GLASS_X0 - SKIRT_OUT, GLASS_X1 + SKIRT_OUT,
+                   GLASS_Z0 - SKIRT_OUT, GLASS_Z1 + SKIRT_OUT, SKIRT_PER_SIDE)
+
+# THE LIP RISES THROUGH THE MOUTH, it does not stay at the glass's depth.
+#
+# Left at the glass surface, the lip leaves a window: the bore starts at the
+# mouth plane and the glass front sits GLASS_SET behind it, so a raking
+# sightline slips over the mouth lip, through that gap, and lands on the
+# bore's own wall -- beige, since the bore is cut from bezel stock. Sampled
+# at seventy degrees of yaw that wall is a floating beige band between the
+# dark margin and the picture, which reads as seeing into the case.
+#
+# Pulled forward past the mouth plane, the lip becomes a dark cone spanning
+# the whole window. Every exterior sightline into the bore crosses the
+# annulus between the mouth ring and the skirt's outer edge somewhere in
+# that depth range, so every one of them now lands on tube rather than case.
+# The cone interpenetrates the funnel where the glass already bulges proud;
+# the depth buffer resolves it, and the funnel hides whatever it overlaps.
+MOUTH_PLANE_Y = -PROTRUDE + TUBE_DROP
+
+
+# HOW FAR BEHIND THE MOUTH the outer edge sits. Small: enough that the bezel
+# covers it from every angle, not so much that the cone loses its depth.
+SKIRT_EDGE_BEHIND = 0.2
+
+
+def skirt_edge_y(x, z):
+    """The outer edge's depth: a PLANE just behind the mouth, which is why it
+    ignores where on the ring it is asked about.
+
+    IT MUST NOT COME OUT IN FRONT OF THE BEZEL. Pulled forward past the mouth
+    plane it does block every sightline into the bore, which is what it was
+    for -- but it also protrudes through the opening it is hiding behind, and
+    a dark cone lying over the bezel's lip then OWNS the visible edge along
+    the middle of each side while the mask ring still owns it around the
+    corners. Those two curves have different shapes, so the opening changed
+    slope partway along its bottom run and read as a lump rather than one arc.
+
+    Behind the mouth the bezel owns its own opening the whole way round, and
+    the seal survives it: the cone still spans the annulus, a fraction of a
+    millimeter further back, and the tube ring's underlap covers the rest.
+    Checked at 60, 70.3 and 75 degrees of yaw, top and bottom, which is where
+    the bore wall used to show as a beige band.
+    """
+    return MOUTH_PLANE_Y + SKIRT_EDGE_BEHIND
+
+
+_lip  = [(x, skirt_y(x, z), z) for (x, z) in _inner]
+_edge = [(x, skirt_edge_y(x, z), z) for (x, z) in _outer]
+_back = [(x, y + SKIRT_BACK, z) for (x, y, z) in _edge]
+
+_skirt_tris = []
+
+for _i in range(len(_lip)):
+    _j = (_i + 1) % len(_lip)
+
+    _skirt_tris.append((_lip[_i],  _edge[_i], _edge[_j]))
+    _skirt_tris.append((_lip[_i],  _edge[_j], _lip[_j]))
+    _skirt_tris.append((_edge[_i], _back[_i], _back[_j]))
+    _skirt_tris.append((_edge[_i], _back[_j], _edge[_j]))
+
+m.add_triangles("tube_skirt", _skirt_tris, CAVITY)
 
 # ------------------------------------------------------- power button + LED
 
@@ -1523,9 +1695,21 @@ m.add_triangles("glass",
 # something that disappears into the case. Everything above the frame line,
 # though, is molded surface, and a molded outside corner in plastic is the
 # exception rather than the rule.
+#
+# AND THE BOTTOM IS BURIED, not floated. It used to start a millimeter above
+# the notch floor, which is a real slot under a real button: the power LED
+# sits higher up the rear wall, and the shallow rays that clear the button's
+# bottom edge came out through that slot and lit a strip of floor in front of
+# it. The button correctly shadowed everything else, so the light read as
+# leaking out from under the button -- which is exactly what it was doing.
+# Seating the bottom below the floor closes the slot; a sliding fit has
+# nowhere for light to get through.
+BTN_BURY = 2.0
+
 button = (cq.Workplane("XY")
-          .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5, centered=(False, False, False))
-          .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 + 1.0))
+          .box(NOTCH_W - 3.0, BTN_D, NOTCH_H - 8.5 + 1.0 + BTN_BURY,
+               centered=(False, False, False))
+          .translate((NX0 + 1.5, BTN_REAR_Y - BTN_D, NZ0 - BTN_BURY))
           .edges(">Z").fillet(1.5))
 
 m.add("button", button, BEZEL_DK)

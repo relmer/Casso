@@ -41,6 +41,34 @@ struct GlobalUserPrefs
     // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
     bool         crtMonitor          = true;
 
+    // The frames-per-second readout over the picture.
+    //
+    // OFF UNTIL ASKED FOR, in every build. It used to default on in a debug
+    // build, on the reasoning that the build being worked on wants the number
+    // in view. It is a debugging instrument either way, and one that sits on
+    // the picture; a debug build is what the scene is normally LOOKED at in,
+    // so defaulting it on put an overlay across most of the looking. Turn it
+    // on from the View menu when there is a question for it to answer, and the
+    // stored value wins from then on.
+    bool         showFrameRate       = false;
+
+    // The scene view -- orbit, zoom and pan -- written across the middle of
+    // the picture.
+    //
+    // A REPORTING AID, not a measurement. A render fault in the desk scene is
+    // usually only visible from one angle, and a screenshot does not carry the
+    // angle it was taken from: reproducing it then means guessing the pose,
+    // which wastes the reporter's time when the guess is wrong. With the pose
+    // printed on the picture, any screenshot is self-describing and the view
+    // can be restored exactly.
+    //
+    // Same default rule as the frame rate, and the same persistence: off until
+    // asked for, then remembered. It earned its keep -- the CRT-to-bezel
+    // hunt was reproduced from a pose read straight off a screenshot -- but a
+    // line of numbers across the middle of the picture is for the report, not
+    // for the ordinary view.
+    bool         showSceneView       = false;
+
     // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
     // costs real GPU -- the whole scene is drawn into a target this many times
     // over -- and how much depends on the machine and the window size, so it

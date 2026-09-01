@@ -425,6 +425,8 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     // and nothing happens -- so these one-offs are load-bearing, not clutter.
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
     else if (id == IDM_VIEW_RESET_SCENE)                                   { OnViewCommand (id); }
+    else if (id == IDM_VIEW_FRAME_RATE)                                    { OnViewCommand (id); }
+    else if (id == IDM_VIEW_SCENE_VIEW)                                    { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -822,6 +824,21 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_RESET_SCENE:
         {
             m_shell.ResetSceneView();
+            break;
+        }
+
+        case IDM_VIEW_FRAME_RATE:
+        {
+            // Persisted, so the choice outlives the session in either build.
+            m_shell.m_globalPrefs.showFrameRate = !m_shell.m_globalPrefs.showFrameRate;
+            m_shell.SaveGlobalPrefs();
+            break;
+        }
+
+        case IDM_VIEW_SCENE_VIEW:
+        {
+            m_shell.m_globalPrefs.showSceneView = !m_shell.m_globalPrefs.showSceneView;
+            m_shell.SaveGlobalPrefs();
             break;
         }
 

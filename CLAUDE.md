@@ -49,6 +49,10 @@ changing an as65 default. There is no flag for the span: `--raw` existed for one
 revision and was retired, because a flag whose only effect is to select the
 default buys no capability.
 
+**1.20's disk file access did not unblock Merlin's `TYP`.** It shipped as a
+separate `disk` command, not as an assembler output target, so no assembler path
+touched a disk image. 026 closed that gap (merge `0afa7359`).
+
 ## Who is where
 
 **`028-shared-disk-images` is COMPLETE on its branch and not merged**
@@ -62,6 +66,14 @@ by denying new-file creation on the folder never reached the refusal dialog at
 all. **Unverified hypothesis:** `IsHeldByAnotherProcess` opens the file to
 answer, and an access-denied may read as "somebody else is writing", which is a
 silent indefinite defer. Instrument that call before believing it.
+
+027 shipped in 1.22.0 (merge `322de943`), which released the seven disk files it
+had been holding.
+
+**"Did it ship" is not "is the branch an ancestor of master".** A feature branch
+usually gains commits AFTER its merge, so `git merge-base --is-ancestor
+origin/<branch> origin/master` answers no for work that shipped. Ask whether the
+merge commit or the code is on master instead.
 
 **Open specs**, each to be picked up in its own session. Read the spec itself
 for detail; this is an index, not a status report.

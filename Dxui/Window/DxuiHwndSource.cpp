@@ -1773,14 +1773,32 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     BAIL_OUT_IF (!canPaint, S_OK);
 
     // Walk the panel tree. Painter buffers geometry between Begin / End; the
-    // text renderer composites Direct2D over the same target between
-    // BeginDraw / EndDraw. The D2D bitmap is bound once per back-buffer
-    // lifetime by CreateBackBufferRtv.
+    // text renderer RECORDS its Direct2D between BeginDrawDeferred and
+    // EndDrawDeferred, which replays it. The D2D bitmap is bound once per
+    // back-buffer lifetime by CreateBackBufferRtv.
+    //
+    // THE TEXT PASS IS RECORDED BECAUSE THE TWO PASSES INTERLEAVE. One tree
+    // walk emits both, so D2D text is recorded while the painter is still
+    // buffering the fills that belong UNDERNEATH it, and the order only comes
+    // out right because the painter flushes first. Drawing straight at the
+    // back buffer made that a bet on Direct2D holding its whole batch until
+    // EndDraw, which it never promised: past a few hundred draws it flushes on
+    // its own, and everything recorded before the flush landed on the back
+    // buffer early -- where the painter's fills, arriving after, covered it.
+    // The menu bar, first to paint and sitting on a filled strip, disappeared;
+    // the toolbar a few rows below it survived, which is what made this look
+    // like a text problem rather than an ordering one.
+    //
+    // A command list holds no pixels, so an early flush has nothing to land
+    // on; the recording replays once, after the fills. A private BITMAP fixes
+    // the ordering too and pays a full-screen clear and a full-screen blit
+    // every frame for it, which is the window-area cost GH #131 is about.
+    // Recording pays neither.
     hr = m_painter->Begin (widthPx, heightPx);
     CHRA (hr);
     painterBegun = true;
 
-    hr = m_textRenderer->BeginDraw();
+    hr = m_textRenderer->BeginDrawDeferred();
     CHRA (hr);
     textBegun = true;
 
@@ -1801,7 +1819,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     painterBegun = false;
     CHRA (hr);
 
-    hr = m_textRenderer->EndDraw();
+    hr = m_textRenderer->EndDrawDeferred();
     textBegun = false;
     CHRA (hr);
 
@@ -1816,7 +1834,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
         CHRA (hr);
         painterBegun = true;
 
-        hr = m_textRenderer->BeginDraw();
+        hr = m_textRenderer->BeginDrawDeferred();
         CHRA (hr);
         textBegun = true;
 
@@ -1826,7 +1844,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
         painterBegun = false;
         CHRA (hr);
 
-        hr = m_textRenderer->EndDraw();
+        hr = m_textRenderer->EndDrawDeferred();
         textBegun = false;
         CHRA (hr);
     }
@@ -1837,7 +1855,9 @@ Error:
     // inconsistent state.
     if (textBegun)
     {
-        (void) m_textRenderer->EndDraw();
+        // Replayed rather than simply ended, so the bail-out still leaves the
+        // D2D target pointed back at the back buffer instead of at a list.
+        (void) m_textRenderer->EndDrawDeferred();
     }
 
     if (painterBegun)
@@ -1873,6 +1893,26 @@ void DxuiHwndSource::PresentFrame()
 
     hr = m_swapChain->Present (m_params.presentSyncInterval, 0);
     CHRA (hr);
+
+    // The frame reached the screen, so it counts. Measured here rather
+    // than around the paint because a paint the shell skipped is not a
+    // dropped frame, and a present that blocked on vsync is the interval
+    // the user actually saw.
+    {
+        LARGE_INTEGER   now  = {};
+        LARGE_INTEGER   freq = {};
+
+        QueryPerformanceCounter   (&now);
+        QueryPerformanceFrequency (&freq);
+
+        if (m_lastPresentQpc != 0 && freq.QuadPart > 0)
+        {
+            m_frameRate.Tick ((float) ((double) (now.QuadPart - m_lastPresentQpc)
+                                       / (double) freq.QuadPart));
+        }
+
+        m_lastPresentQpc = now.QuadPart;
+    }
 
     if (m_compDevice)
     {
@@ -2185,17 +2225,35 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             result = 0;
             break;
 
+        case WM_SYSCOMMAND:
+            // The user working the caption. SC_MINIMIZE is deliberately not
+            // here: a minimized window has no placement worth storing, and
+            // the shell already refuses to store one.
+            if ((wp & 0xFFF0) == SC_MAXIMIZE || (wp & 0xFFF0) == SC_RESTORE)
+            {
+                if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
+            }
+
+            isHandled = false;
+            break;
+
         case WM_ENTERSIZEMOVE:
             // The OS is about to run its own modal move / size loop, during
             // which our outer pump stops. Arm the keep-alive tick so the
             // client can keep painting; report not-handled so the OS loop
             // still starts normally.
             BeginModalKeepAlive();
+
+            if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
+
             isHandled = false;
             break;
 
         case WM_EXITSIZEMOVE:
             EndModalKeepAlive();
+
+            if (m_client != nullptr) { m_client->OnExitSizeMove(); }
+
             isHandled = false;
             break;
 

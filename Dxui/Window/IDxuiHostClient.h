@@ -383,6 +383,23 @@ public:
     // keeps moving. A held-still drag produces no WM_MOVING / WM_SIZING at
     // all, so this timer tick is the only signal during it. The host owns
     // the timer entirely -- the client just supplies the per-frame work.
+    // The OS move / size loop, which runs only for a USER-DRIVEN drag of
+    // the caption or a border. Programmatic SetWindowPos and ShowWindow
+    // produce WM_MOVE and WM_SIZE without ever entering it, so this pair
+    // is how a client tells "the user moved the window" from "something
+    // moved the window".
+    // A window-state command the USER issued: the caption buttons, the
+    // system menu, a caption double-click, Win+Up / Win+Down. Maximizing
+    // and restoring never enter the OS drag loop, so this is the only way
+    // to tell them from a programmatic ShowWindow doing the same thing.
+    //
+    // Fires BEFORE the resize, so a client that wants the resulting
+    // placement has to wait for the OnSize that follows.
+    virtual void  OnUserWindowStateCommand () {}
+
+    virtual void  OnEnterSizeMove    () {}
+    virtual void  OnExitSizeMove     () {}
+
     virtual void  OnModalLoopTick    ()
     {
     }

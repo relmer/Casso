@@ -224,6 +224,19 @@ static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
 
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
+// The readout sits in the bottom-left corner, inset far enough that its
+// shadow clears the edges.
+//
+static constexpr int     s_kFrameRateInsetDp        = 12;
+static constexpr int     s_kFrameRateWidthDp        = 120;
+static constexpr int     s_kFrameRateHeightDp       = 28;
+
+// The scene-pose readout. Wider than the frame rate because it carries five
+// numbers, and centered on the glass rather than hung off a corner: the
+// picture is the one place a screenshot of the scene always includes.
+static constexpr int     s_kScenePoseWidthDp        = 320;
+static constexpr int     s_kScenePoseHeightDp       = 24;
+
 static constexpr float   s_kSceneDriveLabelFontDip  = 11.0f;
 
 // Padding around the 3D drive row when the CRT monitor is opted out and the
@@ -916,7 +929,38 @@ HRESULT EmulatorShell::Initialize (
     // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
     // flash of the restored-size window.
 
-    ShowWindow (m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW);
+    // HONOR WHAT THE LAUNCHER ASKED FOR. Windows carries a requested show
+    // state through CreateProcess into wWinMain, which is how
+    // Start-Process -WindowStyle Minimized and every scripted launch says
+    // "come up, but do not take the screen". Casso discarded it and always
+    // activated, so a build-and-run in the background stole focus from
+    // whatever the user was doing.
+    //
+    // Only a PARTICULAR request wins. SW_SHOWDEFAULT / SW_SHOW / normal is
+    // what an ordinary double-click carries and means nothing in
+    // particular, and the remembered placement -- which knows whether the
+    // window was maximized -- is the better answer for it.
+    {
+        int   show = m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
+
+        switch (m_startShowCmd)
+        {
+            case SW_HIDE:
+            case SW_MINIMIZE:
+            case SW_SHOWMINIMIZED:
+            case SW_SHOWMINNOACTIVE:
+            case SW_SHOWNOACTIVATE:
+            case SW_SHOWNA:
+                show = m_startShowCmd;
+                break;
+
+            default:
+                break;
+        }
+
+        ShowWindow (m_hwnd, show);
+    }
+
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized
@@ -1591,6 +1635,57 @@ HRESULT EmulatorShell::InitializeDeskScene()
         }
     }
 
+    // THE POSE READOUT, READ BACK IN. The readout on the picture exists so a
+    // screenshot says where it was taken from; this is the other half, so that
+    // pose can be flown to exactly instead of hunted for with the wheel. A
+    // fault that only shows past sixty degrees of yaw is not reachable by
+    // guesswork, and "I could not reproduce it" is the wrong answer when the
+    // reporter told you the angle.
+    //
+    // Same five numbers the readout prints, same order, comma separated:
+    //
+    //     CASSO_SCENE_POSE=yaw,pitch,zoom,panX,panY[,bezelTilt]
+    //
+    // Degrees in, radians stored, because degrees are what the readout shows.
+    // Absent or unparseable leaves the composed pose alone. The bezel's lean
+    // is optional and last: it is not part of the orbit, but a fault that
+    // only shows while the bezel is tilted needs it reproducible too.
+    {
+        wchar_t   poseValue[128] = {};
+
+        if (GetEnvironmentVariableW (L"CASSO_SCENE_POSE", poseValue, ARRAYSIZE (poseValue)) > 0)
+        {
+            float  yawDeg   = 0.0f;
+            float  pitchDeg = 0.0f;
+            float  zoom     = 1.0f;
+            float  panX     = 0.0f;
+            float  panY     = 0.0f;
+            float  tiltDeg  = 0.0f;
+            int    got      = swscanf_s (poseValue, L"%f,%f,%f,%f,%f,%f",
+                                         &yawDeg, &pitchDeg, &zoom, &panX, &panY,
+                                         &tiltDeg);
+
+            if (got >= 2)
+            {
+                m_sceneView.orbitYawRad   = yawDeg * 3.14159265f / 180.0f;
+                m_sceneView.orbitPitchRad = pitchDeg * 3.14159265f / 180.0f;
+                m_sceneView.zoom          = (got >= 3 && zoom > 0.0f) ? zoom : 1.0f;
+                m_sceneView.panX          = (got >= 4) ? panX : 0.0f;
+                m_sceneView.panY          = (got >= 5) ? panY : 0.0f;
+
+                // The bezel leans independently of the orbit, and a fault
+                // that only shows while it is leaning needs it reproducible
+                // too. Optional, so a five-value pose still reads.
+                if (got >= 6)
+                {
+                    m_deskScene.SetBezelTilt (tiltDeg * 3.14159265f / 180.0f);
+                }
+
+                InvalidateSceneComposition();
+            }
+        }
+    }
+
     m_deskSceneReady = true;
 
 Error:
@@ -1871,7 +1966,28 @@ void EmulatorShell::ClampSceneView()
     slack = std::max (0.0f, m_sceneView.zoom - 1.0f);
 
     m_sceneView.panX = std::clamp (m_sceneView.panX, -slack, slack);
-    m_sceneView.panY = std::clamp (m_sceneView.panY, -slack, slack);
+
+    // DOWNWARD, THE DRIVE IS NOT THE BOTTOM OF THE SCENE. The mounted
+    // image's name hangs below the drive, outside the composed bounds the
+    // slack is measured from, so at the pan limit the drive is at the edge
+    // and its name is past it -- unreachable, however far you drag.
+    //
+    // Clamping the name into the viewport instead was the wrong cure: it
+    // detaches the label from the thing it names. Give the pan the strip's
+    // own height as extra room and the name stays where it belongs.
+    {
+        RECT   vp    = m_deskScene.Composition().viewportPx;
+        int    vh    = vp.bottom - vp.top;
+        float  extra = 0.0f;
+
+        if (vh > 0)
+        {
+            extra = 2.0f * (float) m_scaler.ToPx (s_kSceneDriveLabelStripDp +
+                                                  s_kSceneDriveLabelGapDp) / (float) vh;
+        }
+
+        m_sceneView.panY = std::clamp (m_sceneView.panY, -slack - extra, slack + extra);
+    }
 }
 
 
@@ -1947,12 +2063,23 @@ void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
 
 void EmulatorShell::ResetSceneView()
 {
-    if (m_sceneView.IsIdentity())
+    // THE BEZEL LEANS TOO, and it is part of how the scene is posed even
+    // though it does not live in DeskSceneView -- it is a property of the
+    // MODEL rather than of the camera. Reset has to put back everything the
+    // user can move, or the one control that says "start over" leaves the
+    // monitor still tipped and has to be followed by hand.
+    bool  tilted = m_deskScene.BezelTiltRad() != 0.0f;
+
+
+
+    if (m_sceneView.IsIdentity() && !tilted)
     {
         return;
     }
 
     m_sceneView = DeskSceneView {};
+
+    m_deskScene.SetBezelTilt (0.0f);
     InvalidateSceneComposition();
 }
 
@@ -2038,8 +2165,6 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
     // has already retired them.
     m_driveChrome[0].SetVisible (!hidden && !DeskSceneActive());
     m_driveChrome[1].SetVisible (!hidden && !DeskSceneActive());
-    m_sceneDriveLabel[0].SetVisible (!hidden);
-    m_sceneDriveLabel[1].SetVisible (!hidden);
 
     if (hidden)
     {
@@ -2103,6 +2228,146 @@ void EmulatorShell::SyncCaptureBanner()
     m_captureBanner.SetDpi         (m_scaler.GetDpi());
     m_captureBanner.Layout         (rc, m_scaler);
     m_captureBanner.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneViewReadout
+//
+//  The scene pose -- orbit, zoom and pan -- written across the middle of the
+//  picture.
+//
+//  IT EXISTS TO MAKE A SCREENSHOT SELF-DESCRIBING. A render fault in the desk
+//  scene is usually only visible through a narrow window of angles, and an
+//  image does not carry the pose it was taken from -- so reproducing one means
+//  guessing, and a wrong guess reads as "I cannot see the problem" when the
+//  truth is "I am not looking from where you were". With the five numbers that
+//  fully determine the view printed on the picture, any screenshot can be
+//  restored exactly.
+//
+//  DEGREES, not the radians the view actually stores: these are for a person
+//  to read off an image and say back. One decimal is 0.0017 rad, far finer
+//  than any angle a fault survives.
+//
+//  ON THE MONITOR'S PROJECTED BOUNDS, whose center lands on the glass, and NOT
+//  on glassRectPx despite that being the rect named for the job. Measured at
+//  the composed pose, glassRectPx came back 854,875..1821,1489 -- a rect whose
+//  bottom half is the monitor's base and the tops of both drives. Whatever it
+//  is tracking, it is not the CRT, so anchoring here would put the pose on the
+//  desk. monitorRectPx is the one chrome already lays out against and it lands
+//  where the monitor does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneViewReadout()
+{
+    const DeskSceneComposition &  comp      = m_deskScene.Composition();
+    RECT                          rc        = {};
+    wchar_t                       text[128] = {};
+    bool                          posed     = comp.monitorRectPx.right > comp.monitorRectPx.left &&
+                                              comp.monitorRectPx.bottom > comp.monitorRectPx.top;
+
+
+
+    if (!m_globalPrefs.showSceneView || m_host == nullptr || !posed || !DeskSceneActive())
+    {
+        m_sceneViewReadout.SetVisible (false);
+        return;
+    }
+
+    {
+        LONG  cx = (comp.monitorRectPx.left + comp.monitorRectPx.right) / 2;
+        LONG  cy = (comp.monitorRectPx.top + comp.monitorRectPx.bottom) / 2;
+        LONG  hw = m_scaler.ToPx (s_kScenePoseWidthDp) / 2;
+        LONG  hh = m_scaler.ToPx (s_kScenePoseHeightDp) / 2;
+
+        rc.left   = cx - hw;
+        rc.right  = cx + hw;
+        rc.top    = cy - hh;
+        rc.bottom = cy + hh;
+    }
+
+    swprintf_s (text, L"yaw %.1f  pitch %.1f  zoom %.2f  pan %.3f %.3f",
+                m_sceneView.orbitYawRad * 180.0f / 3.14159265f,
+                m_sceneView.orbitPitchRad * 180.0f / 3.14159265f,
+                m_sceneView.zoom, m_sceneView.panX, m_sceneView.panY);
+
+    m_sceneViewReadout.SetText        (text);
+    m_sceneViewReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_sceneViewReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_sceneViewReadout.SetDpi         (m_scaler.GetDpi());
+    m_sceneViewReadout.Layout         (rc, m_scaler);
+    m_sceneViewReadout.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncFrameRateReadout
+//
+//  The frame rate over the picture, in the top-left corner.
+//
+//  COUNTED AT THE PRESENT, not here: DxuiHwndSource ticks its counter when
+//  a frame actually reaches the screen, so a paint the shell skipped is not
+//  a dropped frame and a present that waited on vsync reports the interval
+//  the user saw. This only reads the figure and places it.
+//
+//  One decimal, because whether the scene holds sixty is the question and a
+//  rounded integer answers it ambiguously at the boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncFrameRateReadout()
+{
+    RECT     client   = {};
+    RECT     rc       = {};
+    wchar_t  text[32] = {};
+
+
+
+    if (!m_globalPrefs.showFrameRate || m_host == nullptr
+        || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_fpsReadout.SetVisible (false);
+        return;
+    }
+
+    // ABOVE THE BOTTOM CHROME, by the capture banner's rule and for its
+    // reason: hung from the client edge the readout straddles the switch
+    // bar, half over the scene and half over a shell band.
+    //
+    // MEASURED OFF THE CHROME, NEVER OFF THE SCENE. Anchored to the toolbar
+    // band this drifted up and down while the scene was being orbited: the
+    // bands report different bounds as the composition changes under them,
+    // so a readout hung off one wanders with the thing it is measuring. The
+    // switch bar does not move, and the client edge behind it does not
+    // either.
+    {
+        RECT  bar    = m_switchBand.GetBounds();
+        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+                     ? bar.top : client.bottom;
+
+        rc.left   = client.left + m_scaler.ToPx (s_kFrameRateInsetDp);
+        rc.right  = rc.left + m_scaler.ToPx (s_kFrameRateWidthDp);
+        rc.bottom = bottom - m_scaler.ToPx (s_kFrameRateInsetDp);
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kFrameRateHeightDp);
+    }
+
+    swprintf_s (text, L"%.1f fps", m_host->GetFramesPerSecond());
+
+    m_fpsReadout.SetText        (text);
+    m_fpsReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
+    m_fpsReadout.SetAlign       (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_fpsReadout.SetDpi         (m_scaler.GetDpi());
+    m_fpsReadout.Layout         (rc, m_scaler);
+    m_fpsReadout.SetVisible     (true);
 }
 
 
@@ -2366,19 +2631,19 @@ void EmulatorShell::SyncSceneDriveLabels()
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                         fontPx  = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
     bool                          visible = !fs || onStrip;
+    float                         fontDip = s_kSceneDriveLabelFontDip;
 
 
 
     for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
     {
-        std::wstring  basename;
-        RECT          strip = {};
+        std::wstring  name;
+        RECT          rc = {};
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            basename = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+            name = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
 
             // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
             // badge stamped on the faceplate -- on a case whose whole job is
@@ -2389,79 +2654,59 @@ void EmulatorShell::SyncSceneDriveLabels()
             // Ahead of the truncation on purpose. Truncation eats the TAIL,
             // so a badge at the head survives however long the name is, and
             // nothing downstream has to keep it out of the ellipsis by hand.
-            if (!basename.empty() && m_driveWidgetState[i].writeProtect.Any())
+            if (!name.empty() && m_driveWidgetState[i].writeProtect.Any())
             {
-                basename = std::wstring (s_kpszLock) + L" " + basename;
+                name = std::wstring (s_kpszLock) + L" " + name;
             }
         }
 
-        m_sceneDriveLabelRect[i] = RECT{};
-
-        if (basename.empty())
-        {
-            m_sceneDriveLabel[i].SetText    (L"");
-            m_sceneDriveLabel[i].SetVisible (false);
-            continue;
-        }
-
-        // Hung from the drive's projected FRONT-BOTTOM CENTER -- one fixed
-        // model point -- at a constant width, so the label rides the drive
-        // rigidly through the orbit instead of tracking a bounding box that
-        // swells and swings as the case turns.
+        // A FIXED TYPE SIZE, NOT SCENE GEOMETRY. Standing the name on the
+        // desk let it foreshorten and scale with the pose, which reads well
+        // until the desk is small -- and then the one thing on screen whose
+        // whole job is to be READ is the thing too small to read. Worse,
+        // zoomed in it left the viewport entirely and could not be panned
+        // back, because it hung off the drive rather than off the window.
+        //
+        // So it is chrome again: the same size wherever the scene is posed,
+        // hung off the drive's projected anchor -- one model point rather
+        // than the drive's swelling bounds, so it rides the orbit rigidly.
+        if (!name.empty())
         {
             int  halfW = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+            int  strip = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
 
-            strip.left   = comp.driveLabelPx[i].x - halfW;
-            strip.right  = comp.driveLabelPx[i].x + halfW;
-            strip.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-            strip.bottom = strip.top + m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-        }
+            rc.left   = comp.driveLabelPx[i].x - halfW;
+            rc.right  = comp.driveLabelPx[i].x + halfW;
+            rc.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+            rc.bottom = rc.top + strip;
 
-        // A strip that does not fit inside the client is not a label, it is a
-        // stray string: the rect comes from PROJECTING the drive through the
-        // frame's camera, and a layout caught mid-resize can hand back a
-        // projection off the top of the window. The label would then paint its
-        // lower half along the window's top edge, above the caption text,
-        // flickering for as long as that pass was on screen.
-        {
-            RECT  client = {};
-
-            if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client) ||
-                strip.top < client.top || strip.bottom > client.bottom ||
-                strip.right <= strip.left)
+            if (text != nullptr)
             {
-                m_sceneDriveLabel[i].SetText    (L"");
-                m_sceneDriveLabel[i].SetVisible (false);
-                continue;
+                // The same DIP-to-pixel the widget itself paints at, so the
+                // width this truncates to is the width it renders.
+                float  px = fontDip * (float) m_scaler.GetDpi() / 96.0f;
+
+                name = TruncateToWidth (name, (float) (rc.right - rc.left),
+                                        [text, px] (std::wstring_view run) -> float
+                {
+                    float    w  = 0.0f;
+                    float    h  = 0.0f;
+                    HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), px,
+                                                       DxuiTheme::kBodyFace, w, h);
+
+                    return SUCCEEDED (hr) ? w : 0.0f;
+                });
             }
         }
 
-        if (text != nullptr)
-        {
-            basename = TruncateToWidth (basename, (float) (strip.right - strip.left),
-                                        [text, fontPx] (std::wstring_view run) -> float
-            {
-                float    w  = 0.0f;
-                float    h  = 0.0f;
-                HRESULT  hr = text->MeasureString (std::wstring (run).c_str(), fontPx,
-                                                   DxuiTheme::kBodyFace, w, h);
-
-                return SUCCEEDED (hr) ? w : 0.0f;
-            });
-        }
-
-        m_sceneDriveLabel[i].SetText        (basename);
-        m_sceneDriveLabel[i].SetColor       (m_chromeTheme.driveLabel);
-        m_sceneDriveLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
-        m_sceneDriveLabel[i].SetTextAlign   (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_sceneDriveLabel[i].SetText        (name);
+        m_sceneDriveLabel[i].SetFontSizeDip (fontDip);
+        m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
-        m_sceneDriveLabel[i].SetRect        (strip);
-        m_sceneDriveLabel[i].SetVisible     (true);
+        m_sceneDriveLabel[i].Layout         (rc, m_scaler);
+        m_sceneDriveLabel[i].SetVisible     (!name.empty());
 
-        // Remembered so the hover can tell the strip from the case: over the
-        // name and its badge the tooltip explains the protection, over the
-        // drive it just names the disk.
-        m_sceneDriveLabelRect[i] = strip;
+        m_sceneDriveLabelRect[i] = name.empty() ? RECT{} : rc;
     }
 }
 
@@ -3487,9 +3732,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
+    m_host->GetRoot().Adopt (m_captureBanner);
+    m_host->GetRoot().Adopt (m_fpsReadout);
+    m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
-    m_host->GetRoot().Adopt (m_captureBanner);
     m_host->GetRoot().Adopt (m_sceneCompass);
 
     // The compass reports gestures; the shell owns what they mean. The signs
@@ -3645,6 +3892,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
+            case IDM_VIEW_FRAME_RATE:         return m_globalPrefs.showFrameRate;
+            case IDM_VIEW_SCENE_VIEW:         return m_globalPrefs.showSceneView;
 
             default:                          return false;
         }
@@ -4475,8 +4724,51 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
         m_mainMenu.Hide();
     }
 
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnExitSizeMove
+//
+//  WHERE THE WINDOW'S PLACEMENT IS PERSISTED, and the only place a move or a
+//  drag-resize is.
+//
+//  It used to be saved from OnMove and OnSize, which fire for a PROGRAMMATIC
+//  SetWindowPos exactly as they do for the user: a script that positioned the
+//  window to photograph it, or any tool that nudged it, silently overwrote the
+//  size and place the user had chosen. The OS drag loop runs only for a real
+//  drag of the caption or a border, so its end is the moment that means "the
+//  user put it here".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnExitSizeMove()
+{
+    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnUserWindowStateCommand
+//
+//  Notes that the maximize or restore about to happen is the USER'S. The
+//  resize has not run yet, so the placement is not readable here; OnSize
+//  spends the flag once the window has actually changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnUserWindowStateCommand()
+{
+    m_userStateChange = true;
 }
 
 
@@ -7074,6 +7366,8 @@ bool EmulatorShell::TryPresentUiFrame()
     // The capture banner and the fullscreen toolbar reveal, both per-frame
     // because both answer where the pointer is right now.
     SyncCaptureBanner();
+    SyncFrameRateReadout();
+    SyncSceneViewReadout();
     TickFullscreenToolbar();
 
 
@@ -8667,7 +8961,10 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 
 void EmulatorShell::OnDestroy()
 {
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    // NOT SAVED HERE. Exit is not a placement the user chose: whatever the
+    // window happened to be doing when it closed would overwrite what they
+    // last put it at deliberately. The two paths above have already stored
+    // every change that was theirs.
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
@@ -12218,7 +12515,16 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     InvalidateRect (m_hwnd, nullptr, FALSE);
     UpdateWindow   (m_hwnd);
 
-    m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    // A MAXIMIZE OR RESTORE THE USER ASKED FOR, carried out. Those never
+    // enter the OS drag loop, so OnExitSizeMove cannot see them; the flag
+    // is what says this one was theirs rather than a programmatic
+    // ShowWindow, which produces an identical WM_SIZE.
+    if (m_userStateChange)
+    {
+        m_userStateChange = false;
+        m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 

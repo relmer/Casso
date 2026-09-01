@@ -467,6 +467,15 @@ public:
     static constexpr float  kGlassLiftMm      = 2.0f;
 
     static constexpr const char *  s_kpszBezel    = "bezel";
+
+    // The tube's faceplate past the picture: the lip that carries the dome
+    // out beyond the mouth and the wall that turns it back into the cabinet.
+    //
+    // PART OF THE TILTING ASSEMBLY, because the glass it continues is. Left
+    // with the case it stayed put while the bezel leaned, and a wall that no
+    // longer lines up with its own faceplate cuts across the picture -- which
+    // is what "portions of the CRT disappear when I tilt the bezel" was.
+    static constexpr const char *  s_kpszTubeSkirt = "tube_skirt";
     static constexpr const char *  s_kpszTiltUp   = "tilt_up";
     static constexpr const char *  s_kpszTiltDown = "tilt_down";
 

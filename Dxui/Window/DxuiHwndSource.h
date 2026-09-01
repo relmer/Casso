@@ -5,6 +5,7 @@
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiFrameRate.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
 
@@ -407,6 +408,11 @@ public:
     // Host-owned text renderer; null in adopt / synthetic mode (host owns no paint pump).
     IDxuiTextRenderer    *  GetTextRenderer    () const { return m_textRenderer.get(); }
 
+    // Frames per second over the last completed second, counted at the
+    // PRESENT rather than at the paint: what reached the screen, not what
+    // the shell considered drawing. Zero until the first window closes.
+    float                   GetFramesPerSecond () const { return m_frameRate.GetFramesPerSecond(); }
+
     //
     //  Optional before-present hook. Installed by a consumer (e.g.
     //  the Apple ][ framebuffer renderer) that wants to composite
@@ -648,6 +654,11 @@ private:
     std::wstring                      m_className;
     CreateParams                      m_params;
     DxuiDpiScaler                     m_scaler;
+
+    // Ticked from PresentFrame off a QPC delta. m_lastPresentQpc is zero
+    // until the first frame, which has no predecessor to be a delta from.
+    DxuiFrameRate                     m_frameRate;
+    long long                         m_lastPresentQpc = 0;
 
     // m_device / m_context now live in the DxuiRenderTarget base (protected);
     // this subclass still creates + tears them down in CreateDeviceAndSwapChain

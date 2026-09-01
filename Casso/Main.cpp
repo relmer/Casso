@@ -460,7 +460,7 @@ int WINAPI wWinMain (
 
 
     UNREFERENCED_PARAMETER (hPrevInstance);
-    UNREFERENCED_PARAMETER (nCmdShow);
+    shell->SetStartupShowCommand (nCmdShow);
 
     // Per-monitor DPI awareness v2. Without this Windows bitmap-scales
     // the entire window up on high-DPI displays, which makes every DX

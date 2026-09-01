@@ -297,6 +297,11 @@ public:
     // scene nothing, because the drive row already stands 85 mm ahead of the
     // monitor and sets the composition's forward bound.
     static constexpr float  kShadowMarginSideMm         = 9.0f;
+
+    // The mounted image's name below the drive: how tall the text stands
+    // on the desk, and how far under the drive it sits. Millimetres, like
+    // every other dimension in the scene, so it scales with the hardware
+    // rather than with the window.
     static constexpr float  kShadowMarginDepthMm        = 34.0f;
     static constexpr float  kMonitorShadowMarginSideMm  = 26.0f;
     static constexpr float  kMonitorShadowMarginDepthMm = 90.0f;
@@ -314,6 +319,22 @@ public:
     static constexpr int    kPictureGridCols = 24;
     static constexpr int    kPictureGridRows = 18;
     static constexpr float  kPictureLiftMm   = 0.45f;
+
+    // How far the tube ring reaches back UNDER the picture, rather than
+    // stopping flush with it.
+    //
+    // A lift is a cliff. The picture floats kPictureLiftMm off this surface,
+    // so band edge to band edge the two sheets meet at a step and not a seam,
+    // and a ray grazing over the picture's edge goes through that step and out
+    // the far side. With the ring stopping at the band it came out on the
+    // case's front panel, which sits behind the glass and is BEIGE: a bright
+    // hairline traced the picture's top and left edges whenever the scene was
+    // spun far enough to see the tube edge-on.
+    //
+    // kPictureLiftMm * tan (80 deg) is 2.6mm, so three covers the step at any
+    // angle worth drawing. Being generous costs nothing -- the strip is under
+    // the picture, which is opaque, at every angle nearer than that.
+    static constexpr float  kTubeUnderlapMm  = 3.0f;
 
     // The unlit tube's tint -- near-black with the faint green of period
     // glass.
@@ -474,6 +495,14 @@ private:
     // housing, and the notch floor sits well off the lens's axis.
     static constexpr float  kLampShadowFovDeg = 120.0f;
 
+    // Where the lamp's throw ends, in degrees off the lens's facing, faded
+    // between the two. The frustum above is a square pyramid, so the cone it
+    // inscribes is half its opening; stopping there keeps every lit surface on
+    // the map. The inner angle only softens the edge, and both sit far outside
+    // the forty degrees the power button's own shadow needs.
+    static constexpr float  kLampConeOuterDeg = kLampShadowFovDeg * 0.5f;
+    static constexpr float  kLampConeInnerDeg = kLampShadowFovDeg * 0.5f - 8.0f;
+
     HRESULT  FillLampShadow (const DeskSceneModel & model,
                              int                    slot,
                              Dxui3DRenderer::StaticMesh & mesh,
@@ -574,19 +603,20 @@ private:
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
-    Dxui3DRenderer::StaticMesh            m_labelMesh[2];
-    Dxui3DRenderer::StaticMesh            m_monitorTiltMesh;
-    Dxui3DRenderer::StaticMesh            m_monitorShadowMesh;
-    Dxui3DRenderer::StaticMesh            m_driveShadowMesh;
-    Dxui3DRenderer::StaticMesh            m_monitorGlowMesh;
-    Dxui3DRenderer::StaticMesh            m_driveGlowMesh;
-    Dxui3DRenderer::StaticMesh            m_glassMesh;
-    Dxui3DRenderer::StaticMesh            m_pictureMesh;
-    Dxui3DRenderer::StaticMesh            m_maskMesh;
-    Dxui3DRenderer::StaticMesh            m_sheenMesh;
-    Dxui3DRenderer::StaticMesh            m_monitorLampMesh;
-    Dxui3DRenderer::StaticMesh            m_driveLampMesh[2];
-    uint32_t                              m_geometryRev = 1;
+
+    Dxui3DRenderer::StaticMesh             m_labelMesh[2];
+    Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;
+    Dxui3DRenderer::StaticMesh             m_monitorShadowMesh;
+    Dxui3DRenderer::StaticMesh             m_driveShadowMesh;
+    Dxui3DRenderer::StaticMesh             m_monitorGlowMesh;
+    Dxui3DRenderer::StaticMesh             m_driveGlowMesh;
+    Dxui3DRenderer::StaticMesh             m_glassMesh;
+    Dxui3DRenderer::StaticMesh             m_pictureMesh;
+    Dxui3DRenderer::StaticMesh             m_maskMesh;
+    Dxui3DRenderer::StaticMesh             m_sheenMesh;
+    Dxui3DRenderer::StaticMesh             m_monitorLampMesh;
+    Dxui3DRenderer::StaticMesh             m_driveLampMesh[2];
+    uint32_t                               m_geometryRev       = 1;
 
     // Rebuilt geometry means both the GPU copies and the plate are stale.
     // A change that only alters WHAT IS DRAWN -- a door part-way open, a
