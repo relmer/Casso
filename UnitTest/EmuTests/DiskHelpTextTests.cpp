@@ -283,6 +283,36 @@ public:
         }
     }
 
+    //  The create block promises which containers a new image can be made as.
+    //  That promise is read off the container table, not typed: typed, it
+    //  said `dsk, do, po, or woz` for a whole release after `nib` shipped.
+    TEST_METHOD (HelpText_TheCreateBlock_NamesEveryAdvertisedContainer)
+    {
+        std::string  help  = DiskHelpPage::BuildHelpText();
+        size_t       count = 0;
+        const DiskCommandRunner::ContainerName *  names =
+            DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t       at    = help.find ("Valid types are: ");
+
+
+
+        Assert::IsTrue (at != std::string::npos, L"the create block states the valid types");
+
+        {
+            std::string  line = help.substr (at, help.find ('\n', at) - at);
+
+            for (size_t i = 0; i < count; i++)
+            {
+                Assert::IsTrue (line.find (names[i].name) != std::string::npos,
+                    (std::wstring (L"the create help must name ")
+                     + std::wstring (names[i].name, names[i].name + strlen (names[i].name))).c_str());
+            }
+
+            Assert::IsTrue (line.find ('%') == std::string::npos,
+                L"the placeholder was expanded, not printed");
+        }
+    }
+
     TEST_METHOD (HelpText_EveryCommandTheDiskGrammarAccepts_AppearsInTheHelp)
     {
         std::string  help     = DiskHelpPage::BuildHelpText();

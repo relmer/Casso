@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -1660,8 +1661,25 @@ public:
 
         Assert::IsTrue (message.find (L"C:\\disks\\Notes.txt") != wstring::npos,
             L"the message must identify the file the user picked");
-        Assert::IsTrue (message.find (L".woz") != wstring::npos,
-            L"a name no loader claims earns the list of names they do");
+
+        //  Every container the tool advertises, read off the same table the
+        //  tool reads -- a name added there and left out here is exactly the
+        //  drift this used to have, when the sentence named four of five.
+        {
+            size_t  count = 0;
+            const DiskCommandRunner::ContainerName *  names =
+                DiskCommandRunner::GetAdvertisedContainers (count);
+
+            Assert::IsTrue (count >= 5, L"the table is not shorter than what shipped");
+
+            for (size_t i = 0; i < count; i++)
+            {
+                wstring  dotted = L"." + wstring (names[i].name, names[i].name + strlen (names[i].name));
+
+                Assert::IsTrue (message.find (dotted) != wstring::npos,
+                    (L"the refusal must name " + dotted).c_str());
+            }
+        }
     }
 
 

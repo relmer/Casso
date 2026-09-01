@@ -3,6 +3,7 @@
 #include "DiskHelpPage.h"
 #include "CommandLineHelp.h"
 #include "CommandLineParser.h"
+#include "DiskCommandRunner.h"
 
 
 
@@ -123,7 +124,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "                               [%Lbootable [<image>]]\n"
         "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
-                                   "Valid types are: dsk, do, po, or woz\n"
+                                   "Valid types are: %C\n"
         "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
@@ -234,7 +235,11 @@ std::span<const DiskHelpPage::DiskCommandHelp> DiskHelpPage::GetCommandHelp()
 //
 //  DiskHelpPage::ApplyPrefixes
 //
-//  %L and %S become the long and short prefix the reader asked for.
+//  %L and %S become the long and short prefix the reader asked for. %C becomes
+//  the list of container names read off the one table that defines them, so a
+//  sentence promising what the tool accepts is never typed out by hand: the
+//  hand-typed one here said `dsk, do, po, or woz` for a release after `nib`
+//  shipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,6 +263,11 @@ std::string DiskHelpPage::ApplyPrefixes (const std::string & text, char flagPref
         else if (isPlaceholder && text[i + 1] == 'S')
         {
             out += shortPrefix;
+            i++;
+        }
+        else if (isPlaceholder && text[i + 1] == 'C')
+        {
+            out += DiskCommandRunner::FormatContainerWordList ("", "or");
             i++;
         }
         else
