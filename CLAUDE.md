@@ -51,8 +51,7 @@ default buys no capability.
 
 **1.20's disk file access did not unblock Merlin's `TYP`.** It shipped as a
 separate `disk` command, not as an assembler output target, so no assembler path
-touches a disk image. Closing that gap is what 026 is for; its spec lives on
-branch `026-assembler-to-disk` and is not on master.
+touched a disk image. 026 closed that gap (merge `0afa7359`).
 
 ## Who is where
 
@@ -73,7 +72,6 @@ for detail; this is an index, not a status report.
 | 022 disk image formats | 021; large media on GH #101 / #93 |
 | 023 ca65 dialect | nothing; full compatibility needs a linker (GH #58) |
 | 025 game compat patcher | nothing; builds on unmerged `game-patch-table` |
-| 026 assembler to disk | nothing; spec is on its branch only |
 | per-slot card config (GH #124) | not yet written |
 
 <!-- SPECKIT START -->
