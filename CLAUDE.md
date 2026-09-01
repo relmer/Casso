@@ -63,7 +63,8 @@ called 027 unmerged after 1.22.0 had shipped it, which sent a session off to
 merge work already on master. A list kept true by hand is a list that will lie.
 
 **`028-shared-disk-images`** (2026-09-01): another session is holding
-`DiskImageStore`, `CommitPlan`, `ChangePrompt` and `EmulatorShell`. Coordinate
+`DiskImageStore`, `CommitPlan`, `ChangePrompt`, `EmulatorShell`, `DiskManager`,
+`DriveWidgetState`, `DriveWidgetController` and `Disk2AudioSource`. Coordinate
 before touching those.
 
 **"Did it ship" is not "is the branch an ancestor of master".** A feature branch
