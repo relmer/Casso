@@ -586,6 +586,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
                                                  DriveWidgetController::SyncAction::DoorClose, nowMs);
                 m_diskAudioSources[drive]->OnDiskInserted();
             }
+
             break;
 
         case BayChange::Swapped:
@@ -596,6 +597,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
                                                  DriveWidgetController::SyncAction::DoorReinsert, nowMs);
                 m_diskAudioSources[drive]->OnDiskSwapped();
             }
+
             break;
     }
 }
@@ -789,15 +791,23 @@ void DiskManager::UpdateDriveWidgets()
         // mountedImagePath -- single writer (UI thread), source of
         // truth is the DiskImageStore. Reflect door FSM transitions
         // when mount state changes.
-        // Decode the store's native-narrow source path back to wide via
-        // fs::path (the inverse of the fs::path(...).string() narrowing the
-        // mount path used). A manual wstring(begin,end) widen would
-        // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
-        // and render as a tofu box in the drive label.
-        wPath = fs::path (src).wstring();
-
-        if (wPath != st.mountedImagePath)
+        //
+        // THE NARROW PATH IS DIFFED FIRST, so the wide conversion below runs
+        // only on the frame a disk actually goes in or out, not on every one
+        // of the ~60 frames a second this loop runs to sample drive activity.
+        // A mount or eject is rare; the string it changes is not worth
+        // rebuilding continuously.
+        if (src != m_lastDriveSourcePath[drive])
         {
+            m_lastDriveSourcePath[drive] = src;
+
+            // Decode the store's native-narrow source path back to wide via
+            // fs::path (the inverse of the fs::path(...).string() narrowing the
+            // mount path used). A manual wstring(begin,end) widen would
+            // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
+            // and render as a tofu box in the drive label.
+            wPath = fs::path (src).wstring();
+
             if (wPath.empty())
             {
                 st.BeginEject (nowMs);

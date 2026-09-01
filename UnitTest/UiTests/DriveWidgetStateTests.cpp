@@ -125,6 +125,62 @@ public:
                         L"insert into already-closed drive should not start an animation");
     }
 
+
+
+    //  A disk replaced under the running machine: the door opens, then closes
+    //  on its own. This is the one door move the source-path poll cannot see,
+    //  because the file in the drive did not change -- only its contents did.
+    TEST_METHOD (BeginReinsert_FromClosed_OpensThenClosesOnItsOwn)
+    {
+        DriveWidgetState  st;
+        const int64_t     kAnim = DriveWidgetState::kDoorAnimationMs;
+
+        // Settle to Closed (a mounted drive at rest).
+        st.BeginInsert (L"work.dsk", 0);
+        st.TickDoorAnimation (kAnim);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed);
+
+        // The swap: opens first.
+        st.BeginReinsert (1000);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Opening,
+                        L"a swap opens the door first");
+
+        // Mid-open it is still opening, not resting.
+        st.TickDoorAnimation (1000 + kAnim - 1);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Opening);
+
+        // The open half completing rolls straight into closing -- it never
+        // rests Open, because the disk is going back in.
+        st.TickDoorAnimation (1000 + kAnim);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closing,
+                        L"the open half rolls into the close half, no rest between");
+
+        // And the close half settles Closed.
+        st.TickDoorAnimation (1000 + kAnim + kAnim);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed,
+                        L"the door ends closed with the new disk seated");
+    }
+
+
+
+    //  A swap while the door is already open (an empty drive that somehow took
+    //  one) has only the close half left to do -- it must not re-open.
+    TEST_METHOD (BeginReinsert_FromOpen_JustCloses)
+    {
+        DriveWidgetState  st;   // default door is Open
+
+
+
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Open);
+
+        st.BeginReinsert (0);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closing,
+                        L"an already-open door only needs to close");
+
+        st.TickDoorAnimation (DriveWidgetState::kDoorAnimationMs);
+        Assert::IsTrue (st.doorState == DriveWidgetState::Door::Closed);
+    }
+
     TEST_METHOD (MotorAndActiveFlags_RoundTripViaAtomics)
     {
         DriveWidgetState  st;

@@ -186,6 +186,14 @@ private:
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};
+
+    //  The narrow source path each drive showed last frame, so UpdateDriveWidgets
+    //  can tell whether the file in the bay changed with a cheap std::string
+    //  compare and skip the wide-path conversion when it did not. Without this
+    //  every frame built a fresh fs::path(src).wstring() for a value that
+    //  changes only on a mount or eject.
+    std::array<std::string, 2>  m_lastDriveSourcePath  {};
+
     bool                     m_coldBootMountWindow  = true;
     bool                     m_programmaticRemount  = false;
 };
