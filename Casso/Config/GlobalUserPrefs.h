@@ -43,15 +43,14 @@ struct GlobalUserPrefs
 
     // The frames-per-second readout over the picture.
     //
-    // DEFAULTS BY BUILD, not by taste: a debug build is the one being
-    // worked on and wants the number in view, and a release build is being
-    // used rather than measured. Once the user toggles it the stored value
-    // wins in both.
-#if defined(_DEBUG)
-    bool         showFrameRate       = true;
-#else
+    // OFF UNTIL ASKED FOR, in every build. It used to default on in a debug
+    // build, on the reasoning that the build being worked on wants the number
+    // in view. It is a debugging instrument either way, and one that sits on
+    // the picture; a debug build is what the scene is normally LOOKED at in,
+    // so defaulting it on put an overlay across most of the looking. Turn it
+    // on from the View menu when there is a question for it to answer, and the
+    // stored value wins from then on.
     bool         showFrameRate       = false;
-#endif
 
     // The scene view -- orbit, zoom and pan -- written across the middle of
     // the picture.
@@ -63,12 +62,12 @@ struct GlobalUserPrefs
     // printed on the picture, any screenshot is self-describing and the view
     // can be restored exactly.
     //
-    // Same default rule as the frame rate, and the same persistence.
-#if defined(_DEBUG)
-    bool         showSceneView       = true;
-#else
+    // Same default rule as the frame rate, and the same persistence: off until
+    // asked for, then remembered. It earned its keep -- the CRT-to-bezel
+    // hunt was reproduced from a pose read straight off a screenshot -- but a
+    // line of numbers across the middle of the picture is for the report, not
+    // for the ordinary view.
     bool         showSceneView       = false;
-#endif
 
     // Multisampling for the 3D desk scene, in SAMPLES: 1 (off), 2, or 4. It
     // costs real GPU -- the whole scene is drawn into a target this many times
