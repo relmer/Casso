@@ -1493,71 +1493,33 @@ FUNNEL_FRONT_R = MOUTH_RR + FUNNEL_RUN
 # It lives up here because the funnel below is cut to REACH it.
 GLASS_SET = 4.5
 
-# THE FUNNEL DOES NOT STOP AT THE MOUTH. It carries on at the same rake until
-# it is inside the glass, so the bezel and the tube TOUCH.
+# THE BORE IS STRAIGHT AND THE SEAL IS THE SKIRT. Two earlier shapes both
+# tried to close the tube/bezel gap with the BEZEL -- lapping the mouth over
+# the rim, then carrying the funnel inward until it touched the glass -- and
+# each traded one leak for another: the funnel-contact collar put a beige
+# ring of bezel around the glass edge, and seen from seventy degrees of yaw
+# that ring surfaced as a floating sliver between the dark tube margin and
+# the picture (sampled: bezel, shadow, skirt-dark, BEIGE, glass -- the collar
+# is the beige).
 #
-# Stopping at the mouth and boring straight back from there left an open ring
-# between the two: the rim is seated GLASS_SET back, the bezel lapped it by
-# MOUTH_LAP, and a lap of half a millimeter over a seat of four and a half
-# stops hiding that ring at atan(0.5 / 4.5) -- SIX DEGREES off normal. Past
-# that the scene can be spun to look down the bore, and the bore is cut from
-# the bezel, so what showed was CASE-COLORED PLASTIC around the picture: from
-# above it filled the top of the opening, from below the bottom.
-#
-# Widening the lap only moves that threshold; carrying the funnel down onto
-# the glass removes the ring itself, and there is then no angle that can see
-# between them. The two solids simply interpenetrate -- no boolean is wanted
-# or needed, the depth buffer resolves it -- so the run is taken past contact
-# rather than exactly to it.
-#
-# STEEPER THAN THE FUNNEL IT CONTINUES, which is the whole trick. Run on at
-# the visible 60 degrees it reaches the glass 2.6mm inboard of the mouth, and
-# the picture band leaves only 4.5mm of clearance at the top and bottom edges
-# -- so the bezel arrived within 1.4mm of the raster, swallowed most of the
-# dark tube margin, and at sixty degrees of yaw the two surfaces went nearly
-# tangent to the view ray and z-fought into a ragged beige seam along the
-# picture. That was a worse fault than the ring it fixed.
-#
-# Nothing requires the hidden run to match the visible rake: it lives behind
-# the mouth lip and is only ever seen edge-on. At 80 degrees it still lands
-# inside the glass -- it reaches GLASS_SET deep 0.79mm in, where the sagging
-# rim has only risen 0.24mm to meet it -- and gives back 1.8mm of margin.
-CONTACT_RAKE_DEG = 80.0
-
-FUNNEL_BITE = GLASS_SET / math.tan(math.radians(CONTACT_RAKE_DEG))
-
-CX0, CX1    = MX0 + FUNNEL_BITE, MX1 - FUNNEL_BITE
-CZ0, CZ1    = MZ0 + FUNNEL_BITE, MZ1 - FUNNEL_BITE
-CONTACT_RR  = max(MOUTH_RR - FUNNEL_BITE, 0.2)
-CONTACT_Y   = -PROTRUDE + TUBE_DROP + GLASS_SET
-
-# TWO RULED LOFTS, NOT ONE THREE-SECTION LOFT. Lofting band -> mouth ->
-# contact in a single call makes the wall a spline through three sections,
-# and OCCT meshes that far more coarsely than the simple ruled patch it
-# replaced at the same angular tolerance: the funnel's rounded corners came
-# out visibly scalloped. Two lofts between matching pairs are each ruled
-# again, and cutting them one after the other leaves the same cavity.
-funnel_face = cq.Solid.makeLoft([
+# The right part to seal with is the TUBE: the skirt below carries the
+# faceplate out past the mouth and turns it back into the cabinet, so every
+# sightline over the rim lands on dark glass rather than on case plastic.
+# With that seal in place the bezel needs no reach of its own, and the bore
+# goes back to the straight tunnel the funnel meets at the mouth.
+funnel = cq.Solid.makeLoft([
     round_rect_wire(-PROTRUDE,             BAND_X0, BAND_X1, BAND_Z0, BAND_Z1, FUNNEL_FRONT_R),
     round_rect_wire(-PROTRUDE + TUBE_DROP, MX0,     MX1,     MZ0,     MZ1,     MOUTH_RR),
 ])
 
-funnel_reach = cq.Solid.makeLoft([
-    round_rect_wire(-PROTRUDE + TUBE_DROP, MX0, MX1, MZ0, MZ1, MOUTH_RR),
-    round_rect_wire(CONTACT_Y,             CX0, CX1, CZ0, CZ1, CONTACT_RR),
-])
-
-bezel = bezel.cut(cq.Workplane(obj=funnel_face))
-bezel = bezel.cut(cq.Workplane(obj=funnel_reach))
+bezel = bezel.cut(cq.Workplane(obj=funnel))
 
 # The tunnel behind the mouth carries the SAME rounded profile. Cut square,
 # its corners stood proud of the funnel's rounded ones and left a wedge of
-# bezel hanging into each corner of the opening. It starts where the funnel
-# ends, not at the mouth, or it would hollow out the reach the funnel just
-# made.
+# bezel hanging into each corner of the opening.
 tunnel = cq.Solid.makeLoft([
-    round_rect_wire(CONTACT_Y,             CX0, CX1, CZ0, CZ1, CONTACT_RR),
-    round_rect_wire(CONTACT_Y + CAVITY_D,  CX0, CX1, CZ0, CZ1, CONTACT_RR),
+    round_rect_wire(-PROTRUDE + TUBE_DROP,             MX0, MX1, MZ0, MZ1, MOUTH_RR),
+    round_rect_wire(-PROTRUDE + TUBE_DROP + CAVITY_D,  MX0, MX1, MZ0, MZ1, MOUTH_RR),
 ])
 
 bezel = bezel.cut(cq.Workplane(obj=tunnel))
@@ -1609,7 +1571,13 @@ m.add_triangles("glass",
 SKIRT_OUT     = 5.0        # how far past the glass rim the dome carries on
 SKIRT_BACK    = 30.0       # how far the wall then dives into the cabinet
 SKIRT_BURY    = 0.25       # behind the glass, so the two never fight
-SKIRT_UNDER   = 0.5        # started inside the rim, so the seam cannot crack
+# FOUR MILLIMETERS UNDER THE RIM, for the tube ring's reason (its own underlap
+# is kTubeUnderlapMm = 3): the skirt sits a quarter millimeter BEHIND a glass
+# that curls away from it, and a raking sightline slips under a half-millimeter
+# inner edge, over the glass crest, and onto the beige funnel ramp behind --
+# the last surviving sliver of case around the picture. Four covers the gap
+# to under four degrees, flatter than anything the orbit can reach.
+SKIRT_UNDER   = 4.0        # started inside the rim, so the seam cannot crack
 SKIRT_PER_SIDE = 48
 
 GLASS_X0, GLASS_X1 = GX0 + GLASS_INSET, GX1 - GLASS_INSET
@@ -1655,8 +1623,30 @@ _inner = rect_ring(GLASS_X0 + SKIRT_UNDER, GLASS_X1 - SKIRT_UNDER,
 _outer = rect_ring(GLASS_X0 - SKIRT_OUT, GLASS_X1 + SKIRT_OUT,
                    GLASS_Z0 - SKIRT_OUT, GLASS_Z1 + SKIRT_OUT, SKIRT_PER_SIDE)
 
+# THE LIP RISES THROUGH THE MOUTH, it does not stay at the glass's depth.
+#
+# Left at the glass surface, the lip leaves a window: the bore starts at the
+# mouth plane and the glass front sits GLASS_SET behind it, so a raking
+# sightline slips over the mouth lip, through that gap, and lands on the
+# bore's own wall -- beige, since the bore is cut from bezel stock. Sampled
+# at seventy degrees of yaw that wall is a floating beige band between the
+# dark margin and the picture, which reads as seeing into the case.
+#
+# Pulled forward past the mouth plane, the lip becomes a dark cone spanning
+# the whole window. Every exterior sightline into the bore crosses the
+# annulus between the mouth ring and the skirt's outer edge somewhere in
+# that depth range, so every one of them now lands on tube rather than case.
+# The cone interpenetrates the funnel where the glass already bulges proud;
+# the depth buffer resolves it, and the funnel hides whatever it overlaps.
+MOUTH_PLANE_Y = -PROTRUDE + TUBE_DROP
+
+
+def skirt_edge_y(x, z):
+    return min(skirt_y(x, z) - 2.0, MOUTH_PLANE_Y - 1.0)
+
+
 _lip  = [(x, skirt_y(x, z), z) for (x, z) in _inner]
-_edge = [(x, skirt_y(x, z), z) for (x, z) in _outer]
+_edge = [(x, skirt_edge_y(x, z), z) for (x, z) in _outer]
 _back = [(x, y + SKIRT_BACK, z) for (x, y, z) in _edge]
 
 _skirt_tris = []
