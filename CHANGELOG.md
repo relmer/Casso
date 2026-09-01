@@ -9,55 +9,47 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **The assembler writes its object into a disk image.** `--disk <image>` sends
-  the object onto a volume instead of to a host file, with `--as` naming it
-  there, `--type` giving it a filesystem type and `--startup` making it the
-  program the volume runs at boot. The documented build loop drops from six
-  commands to three.
-- **The load address comes from the source's origin.** There is no `--load` on
-  the assembler and there must not be: placing an assembled file used to mean
-  restating the origin the source already declared, with nothing checking the
-  two agreed, so a source whose origin moved produced a file the guest loaded
-  at the wrong address.
-- **Merlin's `TYP` is implemented.** It sets the filesystem type the output
-  takes, stated as a ProDOS type byte. The accepted set is Merlin's own —
-  `$00`, `$06`, `$F0` through `$F7` and `$FF` — plus `$04` text and `$FC`
-  Applesoft, which Merlin lists in neither direction. Text, binary and Applesoft
-  map to both filesystems; the rest are refused on DOS 3.3 by name rather than
-  approximated, because DOS 3.3 has five types and none of them means a system
-  program, a command file, or no type at all. A byte outside the set is refused
-  naming the byte, as Merlin's own `ILLEGAL FILE TYPE` does.
-- **Merlin's `SAV` is implemented, and one assembly can produce several
-  files.** It writes the span accumulated since the previous save and carries
-  on, with the accumulation emptied, so no byte appears in two outputs and each
-  records the address its own first byte assembles to. It works with or without
-  a disk: without one it writes host files.
-- **A second `DSK` closes the file the first opened and begins another**, so a
-  source carrying two produces two files with no `SAV` anywhere. It used to
-  keep only the last name, which is indistinguishable from Merlin for one
-  occurrence and wrong for two.
-
-  The Merlin subset boundary falls from six refused constructs to four. The
-  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
-  and a second `XC`, which needs a 65816 core.
+- **Frame rate and scene pose readouts** on the View menu, off by default.
+- **The mounted disk's name shows under its drive** in the desk scene.
+- **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
+  the binary onto a volume instead of to a file on the host, and the binary can be run
+  automatically at boot with `--startup`. The binary's origin comes directly
+  from its assembly rather than a --load parameter. This reduces the dev inner
+  loop from six commands to three.
+- **Merlin's `SAV` is implemented**, allowing one assembly to produce multiple
+  binaries. It writes the span accumulated since the previous save and
+  continues.
+- **Merlin now accepts multiple `DSK` directives**, so one assembly can write
+  several binaries, as `SAV` does.
 - **An assembly producing several outputs produces a listing for each**, named
   after the object it describes, holding that object's code and the equates
   above it. One listing spanning every output made a reader looking for one
   program walk past the others.
+- **Merlin now supports `TYP`** to set the filesystem type for the output file,
+  specified as a ProDOS type byte.
+
+  The Merlin subset boundary falls from six unsupported constructs to four. The
+  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
+  and a second `XC`, which needs a 65816 core.
 
 ### Changed
-- **`CassoCli run` now requires `--as65` or `--merlin` for a source file.** It
-  used to assume as65. Binaries are unaffected.
+- **Massively faster startup**: Casso comes up in well under a second, and the
+  executable is ~80% smaller.
+- **Casso uses the show state passed by its launcher**, so a background launch
+  no longer takes the foreground.
+- **Window placement is saved only when the user moves or resizes the window.**
+- **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Merlin's `-l` takes no filename and writes files rather than standard
   output.** One name cannot serve a source that saves itself twice, so listings
   are named after the objects instead. A filename supplied anyway is refused by
   name. `as65 -l` is unchanged: it keeps its filename and its standard-output
   default, and an as65 source has no way to produce a second output.
-- **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization, and `NOOPT` /
-  `-n` switch it off.** It was the one optimization Casso did not do, so a
-  backward, in-range `JMP` now assembles to two bytes instead of three and
-  every label below it moves. `OPT`, `NOOPT` and `-n` are now implemented
-  rather than ignored.
+
+### Fixed
+- **Monitor II**: tube-to-bezel gap at steep angles, the bezel opening's
+  contour, power LED spill onto the case beside its notch, power button and
+  funnel seating.
+- **Chrome text could be painted over by the controls under it.**
 
 ## [1.22.0]: The one with nibble support
 
@@ -68,24 +60,12 @@ Entries before versioning was introduced use dates only.
 - **Faster disk decoding**: ~2x on formatted tracks and ~100x on unformatted
   ones, for every image format.
 
-## [1.21.0]: The one where the skeuomorphic theme goes to 11
+## [1.21.0]: The one where skeuomorphism goes to 11
 
 ### Added
 
-- Tilt the Monitor II by the marks on its bezel. Remembered per monitor.
-- Drag the scene to rotate it.
-- Corner compass: arrows rotate (hold to repeat), drag to turn, orb resets.
-  Shift+two-finger drag on touchpad. Ctrl-0 to reset.
-- The //c comes up green, from the Monitor //c it shipped with. Still
-  overridable per machine.
-- Restore window placement on launch, maximized included.
-- Settings > Theme: scene antialiasing (off / 2x / 4x). Preview shows the
-  real scene.
-- Drive 2 on any machine with a Disk ][ interface; drive count comes from
-  the card's ports.
 - A real-time 3D desk scene replaces the skeuomorphic theme's 2D chrome.
-  The picture maps onto spherical-sag glass, and input is inverse-projected
-  through the curvature so a click lands on the right emulated pixel.
+  The emulator's video output maps onto spherical-sag glass.
 - Four new device models (Monitor II, Monitor //c, Disk II, Disk IIc),
   CAD-built from photographs at true dimensions. Openings are boolean cuts
   and edges are real fillets.
@@ -96,19 +76,28 @@ Entries before versioning was introduced use dates only.
   cassowary, drive numbers, IN USE, the disk ][ logotype.
 - Drive doors animate on mount and eject. The Disk II swings on its
   cantilever; the Disk IIc slides back and lifts.
-- Everything the 2D drive band did carries over: activity lights, write-
-  protect padlock and tooltips, drag-and-drop, slot click ejects and
-  browses, body click browses.
-- Alt+Enter fills the monitor with the picture alone; the drives live in a
-  slide-up strip revealed by pointer dwell or Ctrl+D.
-- Settings > Theme can drop the CRT monitor and put the picture back on a
-  flat rect. The 3D drives stay either way.
-- Compact themes (DarkModern, RetroTerminal) keep their 2D widgets.
+- Tilt the Monitor II by the marks on its bezel, just like the real thing.
+  Remembered per monitor.
 - Per-pixel shading from two lights plus a specular highlight, with the
   power lamp as a real light in the same pass.
 - Shadows are cast across the desk, and each device has a contact shadow
   under it.
 - Lamps are lit lenses in a recess rather than painted marks.
+- Corner compass: arrows rotate (hold to repeat), drag to turn, orb resets.
+  Shift+two-finger drag on touchpad. Ctrl-0 to reset.
+- The //c comes up green, from the Monitor //c it shipped with. Still
+  overridable per machine.
+- Restore window placement on launch, maximized included.
+- Settings > Theme: scene antialiasing (off / 2x / 4x). Preview shows the
+  real scene.
+- Drive 2 on any machine with a Disk ][ interface; drive count comes from
+  the card's ports.
+- In full-screen mode, the drives slide up when the mouse cursor goes to
+  the bottom of the screen.
+- In Settings > Theme, the Skeuomorphic theme can drop the CRT monitor to
+  save space and put the video output back on a flat rect. The 3D drives
+  stay either way.
+- Compact themes (DarkModern, RetroTerminal) keep their flat widgets.
 
 - **The Harte vectors now check instruction timing, not just results.** The
   packed fixtures had discarded the per-cycle trace, so no depth of vectors
@@ -147,9 +136,7 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
-- Clicks no longer pass through the monitor to a drive behind it; back faces
-  are not clickable.
-- The drive door's click target follows the door.
+- The drive door's click target follows the door and must be visible to hit.
 - Switching machines no longer leaves the previous monitor's bezel behind.
 - Command toolbar clicks are no longer swallowed by the scene.
 - Reduce GPU use when idle.
@@ -157,16 +144,9 @@ Entries before versioning was introduced use dates only.
   device) no longer trips an assertion; audio reopens the new default.
 - Eject and mount take effect while the machine is paused. The CPU thread
   now services the command queue without stepping the emulation.
-
-- **The casso-rocks demo signs off instead of just vanishing** -- a thank-you
-  line that stays on screen with the BASIC prompt under it. It also wipes the
-  monitor question the moment it is answered, so a reset partway through no
-  longer lands on a screen that still looks like a prompt and no longer
-  answers.
 - **The demo stops the drive once the last track is read** instead of leaving
   the motor spinning for as long as it is up, and ESC out of the cycle no
   longer leaves the key in the latch for Applesoft to swallow.
-- **`run` echoed flags back with a dash even on a `/`-style command line.**
 - **`-c` listings omitted the cycle count for 59 65C02 opcodes, and printed the
   NMOS value for `JMP (abs)`.** Counts now come off the instruction itself, the
   same value the emulator bills. NMOS counts are unchanged.
