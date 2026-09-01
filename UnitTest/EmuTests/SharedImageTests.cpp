@@ -917,8 +917,8 @@ public:
         rig.FireAndSettle (kImagePath);
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
-        Assert::IsTrue (rig.questions[0].title.find (L"missing") != std::wstring::npos,
-                        L"a user who deleted the file needs to be told it is missing");
+        Assert::IsTrue (rig.questions[0].title.find (L"removed") != std::wstring::npos,
+                        L"a user whose file was deleted needs to be told it is gone");
 
         //  Present, but not this disk any more.
         rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);

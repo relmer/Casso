@@ -359,22 +359,27 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
 
     if (action == ChangeAction::Deleted)
     {
-        prompt.title   = L"Disk file is missing";
+        prompt.title   = L"Mounted disk has been removed";
         prompt.message = file + L" is no longer on disk, but " + where
-                       + L" still has its contents in memory.";
+                       + L" still has the disk in memory.";
     }
     else
     {
-        prompt.title   = L"Disk file can't be read";
+        prompt.title   = L"Mounted disk can't be read";
         prompt.message = file + L" is still there, but Casso can't read it as a disk any more. "
-                       + where + L" still has its contents in memory.";
+                       + where + L" still has the disk in memory.";
     }
 
-    prompt.message += L" Would you like to save them? " + where
-                    + L" will be empty if you don't.";
+    //  BOTH OUTCOMES, EACH ON ITS OWN LINE. Saving used to eject as well, so
+    //  the message only had to describe the loss; now that the drive carries on
+    //  the better outcome is the one the reader most needs stated.
+    prompt.message += L"\n\nSave as... writes the disk out and " + where
+                    + L" keeps running on the new file.";
+
+    prompt.message += L"\n\nDiscard empties " + where + L" and the disk is gone.";
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
-    prompt.answers.push_back (PromptAnswer { L"Don't save", ChangeAction::KeepHeld });
+    prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::KeepHeld });
 
     return prompt;
 }

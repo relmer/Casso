@@ -341,10 +341,10 @@ public:
 
 
 
-        //  A user who deleted the file needs to be told it is missing; one
-        //  whose share dropped needs to be told it cannot be read.
-        Assert::IsTrue (deleted.title.find (L"missing")   != std::wstring::npos);
-        Assert::IsTrue (unreadable.title.find (L"read")   != std::wstring::npos);
+        //  A user whose file was deleted needs to be told it is gone; one whose
+        //  share dropped needs to be told it cannot be read.
+        Assert::IsTrue (deleted.title.find (L"removed") != std::wstring::npos);
+        Assert::IsTrue (unreadable.title.find (L"read") != std::wstring::npos);
         Assert::IsTrue (deleted.title != unreadable.title);
 
         //  Both offer the same two things, because both end the same way.
@@ -353,10 +353,11 @@ public:
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
         Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
 
-        //  Declining is the only answer that empties the drive, and saying so
-        //  is the point: saving keeps the disk, on the file the user picks.
-        Assert::IsTrue (deleted.message.find (L"empty if you don't") != std::wstring::npos);
-        Assert::IsTrue (unreadable.message.find (L"empty if you don't") != std::wstring::npos);
+        //  BOTH outcomes are stated. Saving keeps the disk on the file the user
+        //  picks; only discarding empties the drive.
+        Assert::IsTrue (deleted.message.find (L"keeps running") != std::wstring::npos);
+        Assert::IsTrue (deleted.message.find (L"the disk is gone") != std::wstring::npos);
+        Assert::IsTrue (unreadable.message.find (L"keeps running") != std::wstring::npos);
     }
 
 
