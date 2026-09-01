@@ -60,7 +60,7 @@ public:
         vector<Byte>  decoded;
 
         DamagedDisk::BuildGoodDos33 (image);
-        DamagedDisk::BreakOneSector (image, 20, 5);
+        DamagedDisk::BreakSector (image, 20, 5);
 
         HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
 
@@ -77,7 +77,7 @@ public:
         SectorDecodeReport  report;
 
         DamagedDisk::BuildGoodDos33 (image);
-        DamagedDisk::BreakOneSector (image, 20, 5);
+        DamagedDisk::BreakSector (image, 20, 5);
 
         AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
@@ -101,7 +101,7 @@ public:
     }
 
     //  A sector whose header decodes cleanly into the WRONG slot. Distinct
-    //  from BreakOneSector: nothing here fails its checksum, so the failure is
+    //  from BreakSector: nothing here fails its checksum, so the failure is
     //  about where the content landed rather than whether it could be read.
     //
     //  THIS DOES NOT DISTINGUISH COVERAGE FROM COUNTING, and an earlier version
@@ -114,18 +114,36 @@ public:
     //  describes: sixteen slots ALL filled because one sector arrived twice.
     //  Sixteen sectors cannot do that -- it needs a track carrying a
     //  seventeenth address field -- so it is still uncovered. Producing one
-    //  means splicing a field into the bit stream, not rewriting an existing
-    //  one, which is why this helper cannot reach it yet.
+    //  means splicing a field into the bit stream, and a sector is 3,164 bits,
+    //  so that splice cannot be a byte-range copy.
     TEST_METHOD (ASectorDecodedIntoTheWrongSlot_Fails)
     {
         DiskImage     image;
         vector<Byte>  decoded;
 
         DamagedDisk::BuildGoodDos33 (image);
-        DamagedDisk::DuplicateSectorIntoSlot (image, 20, 5, 4);
+        DamagedDisk::RedirectSectorToSlot (image, 20, 5, 4);
 
         HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
 
         Assert::IsTrue (FAILED (hr), L"a sector landing in another's slot leaves its own empty");
+    }
+
+
+    //  THE HELPER MUST REACH THE WHOLE TRACK. A sector is 3,164 bits, so each
+    //  one shifts the alignment by 4 bits and only 8 of the 16 address fields
+    //  begin on a byte boundary. The first version of this helper scanned
+    //  byte-wise, found those 8, and renumbered them -- so "sector 5" damaged
+    //  sector 10 and the tests passed anyway. This is the assertion that would
+    //  have caught it.
+    TEST_METHOD (TheHelperAddressesAllSixteenSectors_NotTheEightThatAreByteAligned)
+    {
+        DiskImage  image;
+
+        DamagedDisk::BuildGoodDos33 (image);
+
+        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack,
+                          DamagedDisk::CountAddressFields (image, 20),
+                          L"a bit-wise scan must find every address field on the track");
     }
 };
