@@ -132,11 +132,24 @@
   queues and reports the rename, and `NoteExternalChange` matches the record
   against the mounted path. The watcher was never the problem.
 
-  **Still owed, and it needs a human at the keyboard:** this workstation locks
-  synthetic input, so the `Accept`/`Ignore` buttons and the banner's `Dismiss`
-  were never actually clicked, and `BRUN PROG` was never run in the guest to see
-  the new bytes with its own eyes. The store side of both answers is covered by
-  `SharedImageTests`; what is unproven is the click reaching it.
+  **The buttons were clicked, on a real build.** Choosing "Keep your current
+  version" closed the dialog, wrote `work.20260831-223158-01.dsk`, and moved
+  Drive 1's label onto it. The two files then held what they should: the
+  original carried the byte CassoCli wrote and the copy carried the byte that
+  had been in the drive. The band's own 30-second timeout was watched out and
+  the scene took the height back.
+
+  **A NOTE ON A CAVEAT THAT WAS STALE FOR AN HOUR.** An earlier pass concluded
+  synthetic clicks could not land here and wrote that down as a property of the
+  machine. It was a property of the MOMENT: the session happened to be locked,
+  `LogonUI` was running, and input to the desktop went nowhere. Once unlocked,
+  `SetCursorPos` plus `mouse_event` on the dialog's own HWND works fine.
+  Re-check `Get-Process LogonUI` before believing input is unavailable, rather
+  than carrying the conclusion forward.
+
+  **Still owed:** `BRUN PROG` has never been run in the guest to see the new
+  bytes with its own eyes. Everything up to the guest reading the disk is
+  proven; the guest reading it is not.
 
 - [X] T049 [US1] Add tests for the five decisions in this phase that nothing asserts yet, in `UnitTest/EmuTests/`: prompt composition; a change arriving mid-apply; the held-by-another-process deferral; the machine-restart callback; and the watch-degrade path. **The mid-apply and degrade rules are explicit data-model rules**, so their absence is the least defensible
 
