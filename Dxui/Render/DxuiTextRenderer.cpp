@@ -467,6 +467,133 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BeginDrawDeferred
+//
+//  Points the context at a fresh command list, so everything this pass draws
+//  is RECORDED rather than rasterized. EndDrawDeferred replays it.
+//
+//  This is what the interleaved page pass needs. Direct2D flushes a batch
+//  whenever it likes, so text aimed straight at the back buffer can land
+//  before the painter's fills and be covered by them. A command list holds no
+//  pixels, so an early flush has nowhere to put anything and the recording
+//  simply continues.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::BeginDrawDeferred()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_targetBound);
+
+    // A closed list cannot be reopened, so the pass gets its own.
+    m_cmdList.Reset();
+
+    hr = m_d2dContext->CreateCommandList (m_cmdList.GetAddressOf());
+    CHRA (hr);
+
+    m_d2dContext->SetTarget (m_cmdList.Get());
+    m_d2dContext->BeginDraw();
+    m_drawing = true;
+
+Error:
+    if (FAILED (hr))
+    {
+        m_cmdList.Reset();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndDrawDeferred
+//
+//  Closes the recording, puts the back buffer back, and draws the recording
+//  onto it. Replay happens AFTER the caller has flushed its own geometry,
+//  which is the whole point: the text lands on top no matter how much of it
+//  there was.
+//
+//  Calling this without a matching BeginDrawDeferred is a no-op, matching
+//  EndDraw, so an early-out paint path need not track whether it began.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EndDrawDeferred()
+{
+    HRESULT  hr           = S_OK;
+    HRESULT  hrEnd        = S_OK;
+    bool     isTargetLost = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    BAIL_OUT_IF (!m_drawing, S_OK);
+
+    hrEnd        = m_d2dContext->EndDraw();
+    m_drawing    = false;
+    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
+
+    // The target goes back FIRST and unconditionally. Leaving the context
+    // aimed at a command list would strand every later pass on a recording
+    // nothing replays.
+    m_d2dContext->SetTarget (m_target.Get());
+
+    if (isTargetLost)
+    {
+        UnbindBackBuffer();
+    }
+
+    // The recording is dropped rather than replayed when the pass that made
+    // it failed: half a frame's text over a frame the caller may not have
+    // finished is worse than none of it.
+    BAIL_OUT_IF (isTargetLost, S_OK);
+
+    hr = hrEnd;
+    CHRA (hr);
+
+    CBRA (m_cmdList);
+
+    hr = m_cmdList->Close();
+    CHRA (hr);
+
+    m_d2dContext->BeginDraw();
+    m_d2dContext->DrawImage (m_cmdList.Get());
+    hrEnd        = m_d2dContext->EndDraw();
+    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
+
+    if (isTargetLost)
+    {
+        UnbindBackBuffer();
+    }
+
+    BAIL_OUT_IF (isTargetLost, S_OK);
+
+    hr = hrEnd;
+    CHRA (hr);
+
+Error:
+    m_cmdList.Reset();
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginDrawOffscreen
 //
 //  Drop-in alternative to BeginDraw that targets a private offscreen

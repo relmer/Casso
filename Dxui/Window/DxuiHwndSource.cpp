@@ -1773,11 +1773,11 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     BAIL_OUT_IF (!canPaint, S_OK);
 
     // Walk the panel tree. Painter buffers geometry between Begin / End; the
-    // text renderer collects Direct2D into its own offscreen layer between
-    // BeginDrawOffscreen / EndDrawComposite. The D2D bitmap is bound once per
+    // text renderer RECORDS its Direct2D between BeginDrawDeferred and
+    // EndDrawDeferred, which replays it. The D2D bitmap is bound once per
     // back-buffer lifetime by CreateBackBufferRtv.
     //
-    // THE TEXT LAYER IS OFFSCREEN BECAUSE THE TWO PASSES INTERLEAVE. One tree
+    // THE TEXT PASS IS RECORDED BECAUSE THE TWO PASSES INTERLEAVE. One tree
     // walk emits both, so D2D text is recorded while the painter is still
     // buffering the fills that belong UNDERNEATH it, and the order only comes
     // out right because the painter flushes first. Drawing straight at the
@@ -1789,13 +1789,16 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the toolbar a few rows below it survived, which is what made this look
     // like a text problem rather than an ordering one.
     //
-    // Against a private bitmap an early flush is harmless: it lands in the
-    // layer, and the layer composites once, after the fills.
+    // A command list holds no pixels, so an early flush has nothing to land
+    // on; the recording replays once, after the fills. A private BITMAP fixes
+    // the ordering too and pays a full-screen clear and a full-screen blit
+    // every frame for it, which is the window-area cost GH #131 is about.
+    // Recording pays neither.
     hr = m_painter->Begin (widthPx, heightPx);
     CHRA (hr);
     painterBegun = true;
 
-    hr = m_textRenderer->BeginDrawOffscreen();
+    hr = m_textRenderer->BeginDrawDeferred();
     CHRA (hr);
     textBegun = true;
 
@@ -1816,7 +1819,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     painterBegun = false;
     CHRA (hr);
 
-    hr = m_textRenderer->EndDrawComposite();
+    hr = m_textRenderer->EndDrawDeferred();
     textBegun = false;
     CHRA (hr);
 
@@ -1831,7 +1834,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
         CHRA (hr);
         painterBegun = true;
 
-        hr = m_textRenderer->BeginDrawOffscreen();
+        hr = m_textRenderer->BeginDrawDeferred();
         CHRA (hr);
         textBegun = true;
 
@@ -1841,7 +1844,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
         painterBegun = false;
         CHRA (hr);
 
-        hr = m_textRenderer->EndDrawComposite();
+        hr = m_textRenderer->EndDrawDeferred();
         textBegun = false;
         CHRA (hr);
     }
@@ -1852,9 +1855,9 @@ Error:
     // inconsistent state.
     if (textBegun)
     {
-        // Composited rather than simply ended, so the bail-out still leaves the
-        // D2D target pointed back at the back buffer instead of at the layer.
-        (void) m_textRenderer->EndDrawComposite();
+        // Replayed rather than simply ended, so the bail-out still leaves the
+        // D2D target pointed back at the back buffer instead of at a list.
+        (void) m_textRenderer->EndDrawDeferred();
     }
 
     if (painterBegun)

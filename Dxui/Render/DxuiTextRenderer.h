@@ -46,6 +46,23 @@ public:
     HRESULT  BeginDrawOffscreen ();
     HRESULT  EndDrawComposite   ();
 
+    // Record this pass instead of drawing it, and replay it at EndDrawDeferred.
+    //
+    // WHAT THE PAGE PASS USES, because it interleaves with the painter: the
+    // panel tree emits D2D text and D3D fills in one walk, and the text is
+    // only on top because the painter flushes first. Direct2D does not hold a
+    // batch that long -- past a few hundred draws it flushes on its own, and
+    // whatever it already put on the back buffer the fills then cover.
+    //
+    // A command list has no pixels, so there is nothing for an early flush to
+    // land on; it accumulates until Close and replays where the caller says.
+    // BeginDrawOffscreen solves the same problem with a real bitmap, and pays
+    // a full-screen clear and a full-screen blit every frame for it -- 16 ms
+    // at 2880x1824, which is the window-area cost GH #131 is about. This pays
+    // neither.
+    HRESULT  BeginDrawDeferred ();
+    HRESULT  EndDrawDeferred   ();
+
     // Glyphs as a TEXTURE. See IDxuiTextRenderer for what these are for;
     // the target is created on demand and grown to fit, and the view handed
     // back stays valid until the next BeginDrawToTexture.
@@ -227,6 +244,11 @@ private:
     D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
     ComPtr<ID2D1Bitmap1>        m_target;
     ComPtr<ID2D1Bitmap1>        m_offscreen;
+
+    // The page pass's recording, live only between BeginDrawDeferred and
+    // EndDrawDeferred. A command list cannot be reopened once closed, so this
+    // is a fresh one per frame rather than a cached resource.
+    ComPtr<ID2D1CommandList>    m_cmdList;
 
     // The text-as-texture target, and the D3D texture behind it that the
     // scene samples. Kept across calls and only recreated when a larger
