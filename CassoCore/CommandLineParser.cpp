@@ -286,7 +286,7 @@ static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
     //  from the three above: they describe where the object lands, this
     //  describes what should happen to somebody already holding the image.
     //  Omitting it asks the user, so there is no value that spells that.
-    { "--on-change", " <what>", "What a running Casso should do with the changed image: reload or restart" },
+    { "--on-change", " <action>", "Specifies how Casso behaves when its mounted disk file changes. reload inserts the modified disk; reboot inserts it and reboots the machine" },
 };
 
 
@@ -1234,12 +1234,9 @@ void CommandLineParser::ParseDiskOptions (
         //  word serves both and the help says which is which under each.
         //  What the change should do to an emulator holding this image.
         //
-        //  `reload` IS THE SURFACE SPELLING OF TakeUpInPlace. The internal name
-        //  says what happens to the machine; the flag says what a developer
-        //  means, and "reload the disk" is the sentence they would use.
-        //
-        //  THERE IS NO `ask` VALUE. Omitting the flag already produces asking,
-        //  so a third word would be a second spelling of leaving it out.
+        //  THERE IS NO THIRD VALUE FOR "PROMPT ME". Omitting the flag already
+        //  produces the prompt, so a third word would be a second spelling of
+        //  leaving it out.
         if (arg == "--on-change" && hasValue)
         {
             std::string  value = argv[++i];
@@ -1249,8 +1246,9 @@ void CommandLineParser::ParseDiskOptions (
                 //  Named rather than approximated, and the accepted set listed,
                 //  because a value outside a known set is a typo the reader
                 //  needs to see beside the alternatives.
-                Refusal (options) << "Error: " << value << " is not an --on-change value\n"
-                                  << "       write reload or restart\n";
+                Refusal (options) << "Error: unknown value for "
+                                  << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
+                                  << "       expected: reload or reboot\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -1599,9 +1597,10 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 //
 //  Reads an --on-change value into an intent.
 //
-//  `reload` IS THE SURFACE SPELLING OF TakeUpInPlace. The internal name says
-//  what happens to the machine; the flag says what a developer means, and
-//  "reload the disk" is the sentence they would use.
+//  `reload` AND `reboot` ARE THE SURFACE SPELLINGS of TakeUpInPlace and
+//  Restart. The internal names describe what happens to the machine; the
+//  flag values match the words the notices use, so one word means one
+//  thing across the tool and the emulator.
 //
 //  THERE IS NO `ask` VALUE. Omitting the flag already produces asking, so a
 //  third word would be a second spelling of leaving it out.
@@ -1622,7 +1621,7 @@ bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIn
     {
         outIntent = PickUpIntent::TakeUpInPlace;
     }
-    else if (value == "restart")
+    else if (value == "reboot")
     {
         outIntent = PickUpIntent::Restart;
     }
@@ -1675,9 +1674,9 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
                                              : typed  ? "--type"
                                              : starts ? "--startup"
                                              :          "--on-change", options.flagPrefix)
-                          << " describes a file on a volume, and no image was named\n"
-                          << "       add " << FormatLongOption ("--disk", options.flagPrefix)
-                          << " <image>, or drop the option\n";
+                          << " is only valid when "
+                          << FormatLongOption ("--disk", options.flagPrefix)
+                          << " is also specified.\n";
 
         options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
     }
@@ -2609,9 +2608,9 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
         {
             if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
             {
-                Refusal (options) << "Error: " << attachedValue << " is not an "
-                                  << FormatLongOption ("--on-change", options.flagPrefix) << " value\n"
-                                  << "       write reload or restart\n";
+                Refusal (options) << "Error: unknown value for "
+                                  << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
+                                  << "       expected: reload or reboot\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
@@ -3450,9 +3449,9 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
         {
             if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
             {
-                Refusal (options) << "Error: " << attachedValue << " is not an "
-                                  << FormatLongOption ("--on-change", options.flagPrefix) << " value\n"
-                                  << "       write reload or restart\n";
+                Refusal (options) << "Error: unknown value for "
+                                  << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
+                                  << "       expected: reload or reboot\n";
 
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }

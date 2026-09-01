@@ -212,7 +212,7 @@ public:
     //  change acted on, and a notice already up for that bay is re-worded
     //  rather than joined by a second one. Emitting only the first would keep
     //  one notice at the cost of it going stale: measured, a `reload` followed
-    //  by a `restart` left the bar still advising a reboot that had already
+    //  by a `reboot` left the bar still advising a reboot that had already
     //  happened.
     using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
 

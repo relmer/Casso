@@ -697,6 +697,12 @@ in conversation.
   disks", "`--logical` speaks the numbering catalogs use". Also out:
   "answered" and "is answered with", and "grammar" where a reader wants
   "command-line parsing".
+
+  **This covers HEADINGS and chat, which is where it keeps surviving.** A
+  write, a change, an option or a build has no wants, intentions or knowledge.
+  Not "the change stated what it wanted" (2026-08-31, a section heading in
+  chat), "what the write means", "the flag knows". Describe the mechanism:
+  "the write specified reload or restart", "run with --on-change".
 - **Do not state the obvious as though it were profound.** "There is no
   default to guess with", "blocks have only one numbering, so there is
   nothing to state". Cut the sentence.

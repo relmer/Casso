@@ -308,14 +308,14 @@ CassoCli disk put work.dsk prog.bin --as PROG --type B --load $6000 --on-change 
 omission: the address comes from the origin the source declared, so the two
 cannot disagree.
 
-Casso notices the image change on its own, whichever tool made it. `--on-change`
-only says what the change should MEAN:
+Casso detects the change on its own, whichever tool wrote it. `--on-change`
+specifies what happens next:
 
 | | |
 |---|---|
-| `reload` | Take the new contents; leave the machine running |
-| `restart` | Take the new contents and reboot the machine |
-| *(omitted)* | Casso asks |
+| `reload` | Insert the modified disk; leave the machine running |
+| `reboot` | Insert the modified disk and reboot the machine |
+| *(omitted)* | Casso prompts you |
 
 Stating it when no emulator is running is not an error, so a build script does
 not need to know whether you have Casso open.

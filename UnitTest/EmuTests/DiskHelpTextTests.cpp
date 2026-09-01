@@ -1018,9 +1018,9 @@ public:
         Assert::IsTrue (ContainsAsWholeToken (help, "--on-change"),
                         L"--on-change is not described in the disk help");
 
-        //  Naming the switch without naming what may follow it leaves the
-        //  reader to guess the vocabulary.
-        Assert::IsTrue (help.find ("reload")  != std::string::npos);
-        Assert::IsTrue (help.find ("restart") != std::string::npos);
+        //  A switch listed without the values it takes leaves the reader to
+        //  guess the vocabulary.
+        Assert::IsTrue (help.find ("reload") != std::string::npos);
+        Assert::IsTrue (help.find ("reboot") != std::string::npos);
     }
 };

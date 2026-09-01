@@ -76,7 +76,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "put | write",
         "Write a file from the host to the disk",
         "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
-        "                                   [%Ltext | %Lbasic] [%Lon-change <what>]",
+        "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
@@ -84,9 +84,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
         "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
         "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n"
-        "  %Lon-change <what>      What this write should do to a running Casso that has the image mounted:"
-                                   " reload takes up the new contents and leaves the machine running; restart takes them up and reboots it."
-                                   " Without this switch Casso asks. Stating it when nothing is running is not an error\n",
+        "  %Lon-change <action>    Specifies how Casso behaves when its mounted disk file changes."
+                                   " reload inserts the modified disk; reboot inserts it and reboots the machine\n",
         "To store a human-readable Applesoft BASIC program to disk, use the %Lbasic switch to tokenize the program into Applesoft BASIC's"
         " runnable format. If the Applesoft BASIC program is already tokenized (e.g., you retrieved it from disk without using %Lbasic),"
         " you can simply put it on another disk without conversion.  Use %Lbasic only when conversion from plain text to tokenized Applesoft"

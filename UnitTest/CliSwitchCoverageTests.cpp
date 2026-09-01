@@ -222,9 +222,9 @@ namespace CliSwitchCoverageTests
               "--startup makes the object the volume's startup program" },
 
             { "as65", "on-change", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk",
-                                     "--on-change", "restart" },
+                                     "--on-change", "reboot" },
               [] (const CommandLineOptions & o) { return o.pickUpIntent == PickUpIntent::Restart; },
-              "--on-change says what the write means to a running emulator" },
+              "--on-change specifies what a running Casso does with the modified disk" },
 
             //
             //  merlin
@@ -284,7 +284,7 @@ namespace CliSwitchCoverageTests
                                        "--on-change", "reload" },
               [] (const CommandLineOptions & o)
               { return o.pickUpIntent == PickUpIntent::TakeUpInPlace; },
-              "--on-change says what the write means to a running emulator" },
+              "--on-change specifies what a running Casso does with the modified disk" },
 
             //
             //  run
@@ -361,7 +361,7 @@ namespace CliSwitchCoverageTests
               { return o.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Basic; },
               "--basic detokenizes Applesoft on the way out" },
 
-            { "disk", "on-change", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--on-change", "restart" },
+            { "disk", "on-change", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--on-change", "reboot" },
               [] (const CommandLineOptions & o)
               { return o.disk.pickUpIntent == PickUpIntent::Restart; },
               "--on-change says what a write means to a running emulator" },
@@ -626,7 +626,7 @@ namespace CliSwitchCoverageTests
                     Assert::IsTrue (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
                                     Widen (std::string (kModes[mode]) + " " + kOptions[option]
                                            + " with no image should be refused").c_str());
-                    Assert::IsTrue (options.refusalMessage.find ("no image was named") != std::string::npos,
+                    Assert::IsTrue (options.refusalMessage.find ("is only valid when") != std::string::npos,
                                     L"and the refusal should say why");
                 }
             }
