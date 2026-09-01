@@ -770,33 +770,54 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         current   = ReadIdentity (entry.path);
         unchanged = entry.sharedState.Identity().Matches (current);
 
-        //  THE SAME CONFLICT AS THE ONE THE WATCHER FINDS, discovered at the
-        //  other end. Notification failed, or the user chose to ignore the
-        //  change, and now the emulator is about to write its own version over
-        //  a version it never took up.
+        //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
+        //  Notification failed, or the change landed while this write was
+        //  already under way, and the guest's version is about to go over a
+        //  version this store never took up.
         //
-        //  THE RULE IS THE SAME IN BOTH DIRECTIONS: the version being
-        //  DISPLACED is the one preserved. Here that is the file's.
+        //  THE FILE STAYS WITH WHOEVER CHANGED IT. The guest's version moves to
+        //  a file of its own and the bay follows it; the original keeps what
+        //  the other program wrote and is not touched here at all. The watcher
+        //  path applies exactly this rule, so one collision produces the same
+        //  two files whichever end found it. It did not use to: which version
+        //  kept the original name came down to which side was quicker.
         if (!unchanged)
         {
-            HRESULT       hrRead = ReadImageFile (entry.path, external);
-            HRESULT       hrKeep = hrRead;
-
-            if (SUCCEEDED (hrRead))
-            {
-                hrKeep = PreserveGivenBytes (entry, external, preservedPath);
-            }
-
-            keptExternal = SUCCEEDED (hrKeep);
+            string   original = entry.path;
+            HRESULT  hrKeep   = PreserveHeldVersion (entry, preservedPath);
 
             //  A preserve that did not happen stops the write. The image KEEPS
             //  ITS DIRTY BIT, which is the difference between refusing and
             //  losing: the guest's writes are still in memory and still
-            //  flushable once there is somewhere to put the other version.
+            //  flushable once there is somewhere to put them.
             //  STG_E_NOTCURRENT says precisely this -- the object changed since
             //  it was last read.
+            keptExternal = SUCCEEDED (hrKeep);
+
             CBRFEx (keptExternal, STG_E_NOTCURRENT,
-                    EhmNotifyUser (FormatExternalChangeMessage (entry.path).c_str()));
+                    EhmNotifyUser (FormatExternalChangeMessage (original).c_str()));
+
+            //  On disk under its own name, so the bay carries nothing unsaved
+            //  and belongs to the copy rather than to the file somebody else
+            //  changed.
+            entry.image->SetSourceCrcMismatch (false);
+            entry.image->ClearDirty();
+
+            hrKeep = RepointBayToFile (entry.slot, entry.drive, preservedPath);
+            IGNORE_RETURN_VALUE (hrKeep, S_OK);
+
+            //  Composed from the path the bay HAD, since that is the file the
+            //  message is about and the repoint above has already moved it.
+            if (m_reportSink)
+            {
+                m_reportSink (entry.slot, entry.drive,
+                              ChangePrompt::ComposeConflictReport (original, entry.drive,
+                                                                  preservedPath, false));
+            }
+
+            //  Nothing is written over the original. It is not this bay's file
+            //  any more.
+            BAIL_OUT_IF (true, S_OK);
         }
     }
 
@@ -2021,6 +2042,51 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
     action = ExternalChangePolicy::Decide (situation);
 
+    //  A CONFLICT IS RESOLVED INTO AN ORDINARY CHANGE, HERE, BEFORE ANYTHING
+    //  ELSE IS DECIDED. The guest's version goes to a file of its own straight
+    //  away, which is the whole guarantee: once it is on disk nothing that
+    //  follows can lose it, and what follows is then the same decision any
+    //  external change gets.
+    //
+    //  THE FILE ALWAYS STAYS WITH WHOEVER CHANGED IT, and the guest's version
+    //  is always the one that moves. The flush path applies the same rule from
+    //  the other end, so the outcome no longer depends on which of the two
+    //  found the collision first -- it used to, and the winner was whichever
+    //  side happened to be quicker.
+    if (action == ChangeAction::Conflict)
+    {
+        hr = PreserveHeldVersion (entry, entry.preservedPath);
+
+        if (FAILED (hr))
+        {
+            //  Nothing is mounted and nothing is overwritten. The pending
+            //  change is DROPPED RATHER THAN RETRIED: retrying costs a full
+            //  image read and a failed write on every idle tick, sixty times a
+            //  second for as long as the folder stays full. The next change to
+            //  the file, or the next flush, tries again.
+            {
+                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+                entry.sharedState.ClearPending();
+            }
+
+            if (m_reportSink)
+            {
+                m_reportSink (slot, drive,
+                              ChangePrompt::ComposePreserveFailure (entry.path, drive));
+            }
+
+            return;
+        }
+
+        //  It is on disk under its own name now, so the bay carries nothing
+        //  unsaved and the change that follows is no longer a conflict.
+        entry.image->ClearDirty();
+
+        situation.guestDirty = false;
+        action               = ExternalChangePolicy::Decide (situation);
+    }
+
     //  A file that is simply gone gets its own sentence rather than sharing
     //  one with a file that is present and unreadable.
     if (action == ChangeAction::Unusable && !PathExists (entry.path))
@@ -2189,41 +2255,6 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
     switch (action)
     {
-    case ChangeAction::Conflict:
-        //  BOTH VERSIONS SURVIVE, and the order is the guarantee: what the
-        //  guest wrote goes to a file of its own BEFORE the thing that
-        //  replaces it is mounted. Reversed, a failure between the two steps
-        //  would lose the only copy of the guest's work.
-        hr = PreserveHeldVersion (entry, preservedPath);
-
-        if (FAILED (hr))
-        {
-            //  The whole promise is that a version is never destroyed. A
-            //  preserve that did not happen therefore stops everything: the
-            //  external contents are NOT mounted, the change stays pending,
-            //  and both versions are still where they were.
-            preserveFail = true;
-            break;
-        }
-
-        preserved = true;
-
-        hr = TakeUpContents (slot, drive, bytes);
-
-        if (SUCCEEDED (hr))
-        {
-            //  The guest's writes are on disk under their own name now, so
-            //  the mounted image is no longer carrying anything unsaved.
-            entry.image->ClearDirty();
-            tookUp = true;
-        }
-        else
-        {
-            action = ChangeAction::Unusable;
-        }
-
-        break;
-
     case ChangeAction::TakeUpInPlace:
     case ChangeAction::Restart:
         hr = TakeUpContents (slot, drive, bytes);
@@ -2244,13 +2275,39 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         break;
 
     case ChangeAction::KeepHeld:
-        //  The user was told and chose the disk in memory.
+        //  The user kept the disk that is in the drive, so it gets a file of
+        //  its own and the bay moves onto it. The original keeps whatever the
+        //  other program wrote.
         //
-        //  THE RECORDED IDENTITY IS DELIBERATELY LEFT STALE. Refreshing it
-        //  here would license the guest's next flush to write straight over
-        //  the change that was just ignored, which is not what "ignore the
-        //  changes" means. The stale identity keeps the file's version alive:
-        //  the flush that eventually comes preserves it first.
+        //  WRITTEN NOW RATHER THAN AT SOME LATER FLUSH. Deferring it meant the
+        //  kept version lived only in memory: a disk the guest had not written
+        //  to was not dirty, so quitting or ejecting discarded the very thing
+        //  the user had just chosen to keep, without a word. A file on disk is
+        //  the only form of "kept" that survives.
+        if (entry.preservedPath.empty())
+        {
+            hr = PreserveHeldVersion (entry, entry.preservedPath);
+
+            if (FAILED (hr))
+            {
+                preserveFail = true;
+                break;
+            }
+        }
+
+        preservedPath = entry.preservedPath;
+        preserved     = true;
+
+        entry.image->ClearDirty();
+
+        //  The disk in the drive is untouched by this; only the file behind it
+        //  changes. Repointing also drops the pending change, which is right:
+        //  the file it referred to is not this bay's any more.
+        hr = RepointBayToFile (slot, drive, preservedPath);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        entry.preservedPath.clear();
+
         break;
 
     case ChangeAction::Defer:
@@ -2266,6 +2323,15 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         std::lock_guard<std::mutex>  guard (m_pendingMutex);
 
         entry.sharedState.ClearPending();
+    }
+
+    //  Whatever was decided, the conflict is over: either the copy was taken
+    //  up as the bay's file or the external version went in beside it.
+    if (tookUp)
+    {
+        preservedPath = entry.preservedPath;
+        preserved     = preserved || !preservedPath.empty();
+        entry.preservedPath.clear();
     }
 
     if (restarted && m_restartCallback)
@@ -2383,6 +2449,57 @@ void DiskImageStore::ClearChangeReport (int slot, int drive)
     }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::RepointBayToFile
+//
+//  Moves a bay onto a different file. The disk in the drive does not change.
+//
+//  A SAVE-AS RATHER THAN A MOUNT. Nothing is loaded and nothing is swapped, so
+//  a guest reading the drive sees no interruption; only the file this bay will
+//  read and write from here on is different.
+//
+//  THE WATCH MOVES WITH IT, and the old file stops being this bay's business.
+//  Two disks out of one folder share a watch, so the common case of a
+//  timestamped copy beside its original costs nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & newPath)
+{
+    HRESULT  hr     = S_OK;
+    bool     usable = IsValidBay (slot, drive) && !newPath.empty();
+
+
+
+    CBR (usable);
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        CBR (entry.mounted && entry.image != nullptr);
+
+        //  Before the path moves, while EndWatching can still tell which
+        //  directory this bay was using.
+        EndWatching (slot, drive);
+
+        entry.path = newPath;
+
+        //  A fresh identity for the new file, and nothing pending against the
+        //  old one. Mount is what records both.
+        entry.sharedState.Mount (ReadIdentity (newPath));
+
+        BeginWatching (slot, drive);
+    }
+
+Error:
+    return hr;
 }
 
 

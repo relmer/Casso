@@ -368,7 +368,13 @@ public:
 
 
 
-    TEST_METHOD (AFlushOverAnExternalChangeKeepsTheFilesVersionBeforeWriting)
+    //  THE OUTCOME MUST NOT DEPEND ON WHICH END FOUND THE COLLISION. This is
+    //  the flush half; the watcher half is below. Both leave the original
+    //  holding the other program's version and the guest's version in a file
+    //  of its own, so the same collision produces the same two files either
+    //  way. It did not use to: whichever side was quicker decided which
+    //  version kept the original name.
+    TEST_METHOD (AFlushOverAnExternalChangeLeavesTheFileAloneAndMovesTheGuestsVersion)
     {
         Rig  rig;
 
@@ -386,15 +392,19 @@ public:
 
         AssertSucceeded (rig.store.Flush (kSlot, kDrive));
 
-        //  The rule is the same in both directions: the version being
-        //  DISPLACED is the one preserved. Here that is the file's.
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"the original still holds what the other program wrote");
+
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
-        Assert::AreEqual ((int) 0x33,
-                          (int) rig.files[rig.PreservedPaths()[0]][0],
-                          L"the preserved copy holds the version the write displaced");
+        Assert::AreNotEqual ((int) 0x33,
+                             (int) rig.files[rig.PreservedPaths()[0]][0],
+                             L"and the guest's version went to a file of its own");
 
         Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
-                         L"and the guest's writes went to the image itself");
+                         L"which leaves nothing unsaved in the bay");
+
+        Assert::AreEqual (rig.PreservedPaths()[0], rig.store.GetSourcePath (kSlot, kDrive),
+                          L"and the bay now reads and writes that file");
     }
 
 
@@ -584,6 +594,60 @@ public:
 
 
 
+    //  THE HOLE THIS CLOSES. Keeping used to leave the chosen version in
+    //  memory and nothing else: the recorded identity was left stale so that a
+    //  LATER flush would preserve the file's version first. But a disk the
+    //  guest had not written to was not dirty, and a flush of a clean image is
+    //  a no-op, so ejecting or quitting threw away the very version the user
+    //  had just chosen to keep, silently. Writing it at the moment of the
+    //  choice is the only form of "kept" that survives the session.
+    TEST_METHOD (KeepingACleanDiskWritesItOutRatherThanLeavingItInMemory)
+    {
+        Rig     rig;
+        Byte    kept = 0;
+        string  where;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        kept = FirstTrackByte (rig.store);
+
+        //  Nothing from the guest, so the bay is clean -- which is exactly the
+        //  case that used to lose the disk.
+        Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty());
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"keeping wrote the kept version to a file of its own");
+
+        where = rig.PreservedPaths()[0];
+
+        Assert::AreEqual (where, rig.store.GetSourcePath (kSlot, kDrive),
+                          L"and the bay reads and writes that file from here on");
+
+        Assert::AreEqual ((int) 0x22, (int) rig.files[kImagePath][0],
+                          L"while the original keeps what the other program wrote");
+
+        //  The disk in the drive did not move. Keeping is a save-as, not a
+        //  swap, so a guest mid-read sees nothing at all.
+        Assert::AreEqual ((int) kept, (int) FirstTrackByte (rig.store),
+                          L"the disk in the drive is untouched");
+
+        //  And it outlives the session, which is the whole point.
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue (rig.files.find (where) != rig.files.end(),
+                        L"the kept version is still on disk after the eject");
+    }
+
+
+
     TEST_METHOD (AnAnswerOfKeepWhatIHaveLetsALaterFlushProceed)
     {
         Rig  rig;
@@ -675,9 +739,28 @@ public:
         Assert::AreEqual ((int) before, (int) FirstTrackByte (rig.store),
                           L"nothing was mounted over the guest's work");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty());
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
-                        L"and the change is still pending, to be tried again");
         Assert::AreEqual ((size_t) 1, rig.reports.size(), L"the user is told why");
+
+        //  AND IT DOES NOT SPIN. The change is dropped rather than left
+        //  pending: leaving it meant a full image read and another failed
+        //  write on every idle tick, sixty times a second for as long as the
+        //  folder stayed full. The next change to the file, or the next flush,
+        //  is what tries again.
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
+                         L"the change is not left pending");
+
+        {
+            size_t  i = 0;
+
+            for (i = 0; i < 100; i++)
+            {
+                rig.nowMs += MountedImageState::kQuietPeriodMs;
+                rig.store.ApplyPendingPickUp();
+            }
+        }
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size(),
+                          L"and a hundred idle ticks later it has still done nothing more");
     }
 
 

@@ -359,6 +359,15 @@ private:
         //  at eject, refreshed after every commit this store makes.
         MountedImageState      sharedState;
 
+        //  Where the guest's version was written when a conflict was resolved,
+        //  and empty when there was no conflict.
+        //
+        //  CARRIED BECAUSE THE ANSWER ARRIVES LATER. The copy is written the
+        //  moment the conflict is found, but the question about the external
+        //  file is answered on another thread; "keep what I have" then only
+        //  has to point the bay at a file that already exists.
+        string                 preservedPath;
+
         //  Which bay this is.
         //
         //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
@@ -372,6 +381,14 @@ private:
     // Every public accessor takes a caller-supplied slot/drive pair, so each
     // one range-checks before GetEntry() indexes the fixed array.
     static bool   IsValidBay        (int slot, int drive);
+
+    //  Moves a mounted bay onto a different file without disturbing the disk
+    //  in it. The image, and everything the guest can observe, is untouched;
+    //  what changes is which file the bay reads and writes from here on.
+    //
+    //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
+    //  sees nothing at all.
+    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
 
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
