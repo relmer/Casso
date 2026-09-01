@@ -56,11 +56,13 @@ branch `026-assembler-to-disk` and is not on master.
 
 ## Who is where
 
-**`027-nibble-images` is IMPLEMENTED on its branch and not merged**
-(2026-08-30): mount, write-back on the live flush path, the `disk` commands, and
-a boot test on a real 6502. Another session owns it. Coordinate before touching
-`MountDiagnosis`, `BlankDiskBuilder`, `DiskCommandRunner`, `VolumeImage`,
-`DiskImage`, `DiskImageStore` or `NibblizationLayer`.
+**Nothing is held right now.** 027 shipped in 1.22.0 (merge `322de943`), which
+released the seven disk files it had been holding.
+
+**"Did it ship" is not "is the branch an ancestor of master".** A feature branch
+usually gains commits AFTER its merge, so `git merge-base --is-ancestor
+origin/<branch> origin/master` answers no for work that shipped. Ask whether the
+merge commit or the code is on master instead.
 
 **Open specs**, each to be picked up in its own session. Read the spec itself
 for detail; this is an index, not a status report.
@@ -72,7 +74,6 @@ for detail; this is an index, not a status report.
 | 023 ca65 dialect | nothing; full compatibility needs a linker (GH #58) |
 | 025 game compat patcher | nothing; builds on unmerged `game-patch-table` |
 | 026 assembler to disk | nothing; spec is on its branch only |
-| 027 nibble images | implemented, awaiting merge |
 | per-slot card config (GH #124) | not yet written |
 
 <!-- SPECKIT START -->
