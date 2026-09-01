@@ -812,7 +812,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
             {
                 m_reportSink (entry.slot, entry.drive,
                               ChangePrompt::ComposeConflictReport (original, entry.drive,
-                                                                  preservedPath, false));
+                                                                  preservedPath));
             }
 
             //  Nothing is written over the original. It is not this bay's file
@@ -867,16 +867,6 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     if (entry.sharedState.Identity().recorded)
     {
         entry.sharedState.SetIdentity (ReadIdentity (entry.path));
-    }
-
-    //  Told after the write rather than before it, so the message describes
-    //  something that has finished happening rather than something being
-    //  attempted.
-    if (keptExternal && m_reportSink)
-    {
-        m_reportSink (entry.slot, entry.drive,
-                      ChangePrompt::ComposeConflictReport (entry.path, entry.drive,
-                                                           preservedPath, true));
     }
 
 Error:
@@ -2070,10 +2060,19 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
                 entry.sharedState.ClearPending();
             }
 
-            if (m_reportSink)
+            //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
+            //  and a notice has nowhere to put one. The bay is left with the
+            //  question outstanding so a second failure does not stack a
+            //  second dialog on the first.
+            if (m_askSink && !entry.sharedState.IsAskOutstanding())
             {
-                m_reportSink (slot, drive,
-                              ChangePrompt::ComposePreserveFailure (entry.path, drive));
+                entry.sharedState.SetAskOutstanding (true);
+                entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+                m_askSink (slot, drive,
+                           ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                             entry.preservedPath, hr,
+                                                             SaveFailureCause::ExternalChange));
             }
 
             return;
@@ -2109,7 +2108,23 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
             entry.sharedState.SetAskOutstanding (true);
             entry.sharedState.SetAskedAction (action);
 
-            m_askSink (slot, drive, ChangePrompt::Compose (entry.path, drive, action));
+            {
+                string   copyPath = entry.preservedPath;
+                bool     written  = !copyPath.empty();
+                HRESULT  hrName   = S_OK;
+
+                //  A conflict wrote the copy before anything was asked. With no
+                //  conflict there is nothing on disk yet, so the prompt needs
+                //  the name the copy WOULD take.
+                if (!written)
+                {
+                    hrName = FindFreePreservedPath (entry.path, copyPath);
+                    IGNORE_RETURN_VALUE (hrName, S_OK);
+                }
+
+                m_askSink (slot, drive, ChangePrompt::Compose (entry.path, drive, action,
+                                                               copyPath, written));
+            }
         }
 
         return;
@@ -2160,6 +2175,58 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             return;
         }
 
+        //  "Save as..." after a copy could not be written where this store
+        //  chose. The disk stays in the drive and the bay moves onto the file
+        //  the user picked, which is the same outcome as keeping it -- only the
+        //  folder is theirs rather than ours.
+        if (entry.sharedState.AskedAction() == ChangeAction::Conflict)
+        {
+            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+            {
+                vector<Byte>  held;
+
+                hr = entry.image->Serialize (held);
+
+                if (SUCCEEDED (hr))
+                {
+                    hr = WritePreserved (savePath, held);
+                }
+
+                if (FAILED (hr))
+                {
+                    //  Still nowhere to put it. The disk is untouched and the
+                    //  question stands rather than being quietly dropped.
+                    entry.sharedState.SetAskOutstanding (true);
+
+                    if (m_askSink)
+                    {
+                        m_askSink (slot, drive,
+                                   ChangePrompt::ComposeSaveFailure (
+                                       entry.path, drive, savePath, hr,
+                                       SaveFailureCause::ExternalChange));
+                    }
+
+                    return;
+                }
+
+                entry.image->ClearDirty();
+                entry.preservedPath.clear();
+
+                hr = RepointBayToFile (slot, drive, savePath);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            {
+                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+                entry.sharedState.ClearPending();
+            }
+
+            return;
+        }
+
         //  An answer about a file that has gone is being given to a question
         //  that no longer applies. Saving what is held and emptying the drive
         //  is the only thing still on offer.
@@ -2188,10 +2255,12 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 {
                     entry.sharedState.SetAskOutstanding (true);
 
-                    if (m_reportSink)
+                    if (m_askSink)
                     {
-                        m_reportSink (slot, drive,
-                                      ChangePrompt::ComposePreserveFailure (entry.path, drive));
+                        m_askSink (slot, drive,
+                                   ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                                     savePath, hr,
+                                                                     SaveFailureCause::FileLost));
                     }
 
                     return;
@@ -2250,6 +2319,10 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     bool     preserved    = false;
     bool     preserveFail = false;
     string   preservedPath;
+    //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
+    //  any of these messages are about by the time they are composed. Captured
+    //  before anything can move it.
+    string   original     = entry.path;
 
 
 
@@ -2290,7 +2363,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
             if (FAILED (hr))
             {
-                preserveFail = true;
+                preserveFail  = true;
+                preservedPath = entry.preservedPath;
                 break;
             }
         }
@@ -2339,6 +2413,24 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         m_restartCallback();
     }
 
+    //  A COPY THAT COULD NOT BE WRITTEN IS A QUESTION, not a notice: it offers
+    //  somewhere else to put the file, and a notice has nowhere to put an
+    //  answer. It leaves the drive exactly as it was either way.
+    if (preserveFail)
+    {
+        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        {
+            entry.sharedState.SetAskOutstanding (true);
+            entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+            m_askSink (slot, drive,
+                       ChangePrompt::ComposeSaveFailure (original, drive, preservedPath, hr,
+                                                         SaveFailureCause::ExternalChange));
+        }
+
+        return;
+    }
+
     //  EVERY TIME, NOT ONLY THE FIRST. The sink re-words a notice already up
     //  for this bay rather than raising a second, so absorbing further changes
     //  costs nothing -- and reporting only the first left the bar saying
@@ -2347,22 +2439,21 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     {
         ChangePrompt  report;
 
-        if (preserveFail)
+        //  TAKING UP IS REPORTED AHEAD OF PRESERVING, because a conflict that
+        //  was taken up did both and the pick-up is the headline; the copy is a
+        //  clause on the end of it.
+        if (tookUp)
         {
-            report = ChangePrompt::ComposePreserveFailure (entry.path, drive);
+            report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
+                                                        m_machineName, preservedPath);
         }
         else if (preserved)
         {
-            report = ChangePrompt::ComposeConflictReport (entry.path, drive,
-                                                          preservedPath, false);
-        }
-        else if (tookUp)
-        {
-            report = ChangePrompt::ComposePickUpReport (entry.path, drive, restarted);
+            report = ChangePrompt::ComposeConflictReport (original, drive, preservedPath);
         }
         else
         {
-            report = ChangePrompt::Compose (entry.path, drive, action);
+            report = ChangePrompt::Compose (original, drive, action);
         }
 
         if (!report.title.empty())
@@ -2737,11 +2828,9 @@ HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
     CHR (hr);
 
 Error:
-    if (FAILED (hr))
-    {
-        outPath.clear();
-    }
-
+    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
+    //  raised for a failed copy prints where it tried to write, and clearing it
+    //  here left that notice with nothing to show but an error code.
     return hr;
 }
 
@@ -2775,11 +2864,9 @@ HRESULT DiskImageStore::PreserveGivenBytes (const Entry & entry, const vector<By
     CHR (hr);
 
 Error:
-    if (FAILED (hr))
-    {
-        outPath.clear();
-    }
-
+    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
+    //  raised for a failed copy prints where it tried to write, and clearing it
+    //  here left that notice with nothing to show but an error code.
     return hr;
 }
 

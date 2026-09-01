@@ -8,32 +8,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChangePrompt::NameInDrive
+//  ChangePrompt::FileName
 //
-//  The image as the user will recognize it, and where it is.
-//
-//  THE LEAF NAME, NOT THE WHOLE PATH. A notice is read in a hurry and the
-//  directory is the part already known; a full path pushes the one word that
-//  identifies the disk off the end of the line.
-//
-//  THE DRIVE NUMBER IS ONE-BASED HERE AND ZERO-BASED EVERYWHERE ELSE. The
-//  conversion happens once, at the edge, because the number on the machine is
-//  the number the user is looking at.
+//  The file a message is about, without its folder.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ChangePrompt::NameInDrive (const std::string & imagePath, int drive)
+std::wstring ChangePrompt::FileName (const std::string & imagePath)
 {
-    std::wstring  leaf  = fs::path (imagePath).filename().wstring();
-    std::wstring  where = L"Drive " + std::to_wstring (drive + 1);
-
-
-
-    //  A disk with no name is named by where it is, rather than by a
-    //  placeholder that says nothing -- and the sentence form below then reads
-    //  "The disk in Drive 1" instead of doubling the article.
-    return leaf.empty() ? where
-                        : (leaf + L" in " + where);
+    return fs::path (imagePath).filename().wstring();
 }
 
 
@@ -42,29 +25,18 @@ std::wstring ChangePrompt::NameInDrive (const std::string & imagePath, int drive
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChangePrompt::SentenceSubject
+//  ChangePrompt::DriveLabel
 //
-//  The same thing NameInDrive names, in a form a sentence can start with.
+//  Which drive, in the numbering printed on the machine.
 //
-//  THE ARTICLE EXISTS TO CARRY THE CAPITAL. Opening with the filename would
-//  either start a sentence in lower case or require capitalizing a name that is
-//  not spelled that way on disk, and a message about a specific file must not
-//  misspell it.
+//  THE CONVERSION HAPPENS ONCE, AT THE EDGE, because the number on the drive is
+//  the number the user is looking at while they read this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ChangePrompt::SentenceSubject (const std::string & imagePath, int drive)
+std::wstring ChangePrompt::DriveLabel (int drive)
 {
-    std::wstring  leaf = fs::path (imagePath).filename().wstring();
-
-
-
-    //  "The disk work.dsk in Drive 1", or "The disk in Drive 1" where there is
-    //  no name to give. Built from the parts rather than by prefixing the
-    //  mid-sentence form, which would read "The disk Drive 1" for the unnamed
-    //  case.
-    return leaf.empty() ? (L"The disk in " + NameInDrive (imagePath, drive))
-                        : (L"The disk "    + NameInDrive (imagePath, drive));
+    return L"Drive " + std::to_wstring (drive + 1);
 }
 
 
@@ -73,24 +45,65 @@ std::wstring ChangePrompt::SentenceSubject (const std::string & imagePath, int d
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChangePrompt::StaleDirectoryWarning
+//  ChangePrompt::DescribeError
 //
-//  Why a reboot might be needed after a disk is swapped underneath a running
-//  program.
+//  The code, and the system's own words for it when it has any.
 //
-//  IT SAYS WHY RATHER THAN JUST WHAT. "Reboot if it misbehaves" alone reads as
-//  superstition; the reason -- that the guest holds the previous disk's
-//  directory in its own RAM, where nothing at the disk layer can see or correct
-//  it -- is what makes the advice actionable.
-//
-//  NO BUTTON GOES WITH IT. The toolbar already carries a reboot.
+//  THE CODE IS ALWAYS PRINTED, even when the text is good. Text alone cannot be
+//  searched for reliably -- it is translated -- and a bug report that quotes
+//  only "access is denied" has thrown away the one part that identifies which
+//  failure it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * ChangePrompt::StaleDirectoryWarning()
+std::wstring ChangePrompt::DescribeError (HRESULT reason)
 {
-    return L"The Apple keeps the disk's directory in its own memory, so a running "
-           L"program may not see the new disk correctly. Reboot if it misbehaves.";
+    wchar_t        code[16] = {};
+    wchar_t *      text     = nullptr;
+    DWORD          length   = 0;
+    std::wstring   described;
+
+
+
+    swprintf_s (code, L"0x%08X", (unsigned int) reason);
+
+    described = code;
+
+    length = FormatMessageW (FORMAT_MESSAGE_ALLOCATE_BUFFER
+                                 | FORMAT_MESSAGE_FROM_SYSTEM
+                                 | FORMAT_MESSAGE_IGNORE_INSERTS,
+                             nullptr,
+                             (DWORD) reason,
+                             MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+                             (LPWSTR) &text,
+                             0,
+                             nullptr);
+
+    if (length > 0 && text != nullptr)
+    {
+        std::wstring  words (text, length);
+
+        //  FormatMessage ends its sentences with a line break, which would put
+        //  the rest of the notice on a line of its own.
+        while (!words.empty()
+            && (words.back() == L'\r' || words.back() == L'\n' || words.back() == L' '))
+        {
+            words.pop_back();
+        }
+
+        if (!words.empty())
+        {
+            described += L" ";
+            described += words;
+        }
+    }
+
+    if (text != nullptr)
+    {
+        LocalFree (text);
+    }
+
+    return described;
 }
 
 
@@ -101,41 +114,64 @@ const wchar_t * ChangePrompt::StaleDirectoryWarning()
 //
 //  ChangePrompt::Compose
 //
-//  What to say about this action.
+//  The question put when something else changed a mounted file.
 //
-//  THE ONLY QUESTION WITH TWO REAL ANSWERS IS THE PLAIN ONE. A change nobody
-//  stated an intent for is the one case where the user genuinely has a choice
-//  and no way to have expressed it in advance.
+//  THE BUTTONS SAY WHAT THEY DO. They were "Accept the changes" and "Ignore the
+//  changes", which named the external edit twice and said nothing about the
+//  disk in the drive; a reader could reasonably take "ignore" for "throw the
+//  new file away". Each label now states the action, and the body states its
+//  consequence.
 //
-//  AN ACTION THAT IS NOT A QUESTION COMPOSES NOTHING, which is what lets a
-//  caller compose unconditionally and draw only what came back with answers.
+//  KEEPING IS A SAVE-AS, NOT A SWAP. The disk in the drive does not move, so
+//  the sentence about it is a rename and not an insertion. That is also what
+//  the store does: it writes the copy and points the bay at it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
-                                    ChangeAction action)
+                                    ChangeAction action,
+                                    const std::string & copyPath,
+                                    bool copyAlreadyWritten)
 {
     ChangePrompt  prompt;
-    std::wstring  what = SentenceSubject (imagePath, drive);
+    std::wstring  file  = FileName (imagePath);
+    std::wstring  where = DriveLabel (drive);
+    std::wstring  copy  = FileName (copyPath);
 
 
 
     switch (action)
     {
     case ChangeAction::Ask:
-        prompt.title   = L"Disk modified externally";
-        prompt.message = what + L" was modified externally.\n\n"
-                       + StaleDirectoryWarning();
+        prompt.title   = L"Disk modified outside Casso";
 
-        //  Accept and Ignore rather than a pair naming "the current disk":
-        //  which disk is current is exactly what the reader does not know yet,
-        //  and both labels here name the changes instead, which is what the
-        //  sentence above is about.
-        //
-        //  IGNORING DOES NOT MEAN OVERWRITING LATER. The file is left as the
-        //  external writer left it, and a flush over it stays refused.
-        prompt.answers.push_back (PromptAnswer { L"Accept the changes", ChangeAction::TakeUpInPlace });
-        prompt.answers.push_back (PromptAnswer { L"Ignore the changes", ChangeAction::KeepHeld });
+        prompt.message = L"Another program modified " + file + L" while it was in " + where + L".";
+
+        //  A conflict wrote the copy before anything was asked, so the guest's
+        //  writes are already safe and the reader is told so up front.
+        if (copyAlreadyWritten && !copy.empty())
+        {
+            prompt.message += L" Your writes to it hadn't been saved yet, so we saved them as "
+                            + copy + L".";
+        }
+
+        prompt.message += L"\n\nInsert the modified " + file + L" into " + where + L".";
+
+        prompt.message += L"\n\nKeep your current version in " + where + L".";
+
+        if (!copy.empty())
+        {
+            prompt.message += copyAlreadyWritten
+                                  ? (L" It's already saved as " + copy + L".")
+                                  : (L" We'll rename it to " + copy
+                                     + L" so that it doesn't conflict with the " + file
+                                     + L" that the other program modified.");
+        }
+
+        prompt.answers.push_back (PromptAnswer { L"Insert the modified " + file,
+                                                 ChangeAction::TakeUpInPlace });
+        prompt.answers.push_back (PromptAnswer { L"Keep your current version",
+                                                 ChangeAction::KeepHeld });
         break;
 
     case ChangeAction::Unusable:
@@ -160,46 +196,49 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 //
 //  ChangePrompt::ComposePickUpReport
 //
-//  What is said after contents were taken up without asking.
+//  What is shown after contents went in without a question.
 //
-//  IT OFFERS NO REBOOT, AND THAT IS THE POINT OF SAYING WHY. The user did not
-//  choose this swap, so the reboot has to be reachable -- but the toolbar
-//  already carries one, and a notice with a duplicate button is a thing to
-//  dismiss rather than a thing to use. The warning names the hazard and the
-//  toolbar answers it.
+//  IT CARRIES NO REBOOT BUTTON AND NO WARNING ABOUT ONE. The toolbar already
+//  has a reboot, and the audience for this feature knows what a swapped disk
+//  does to a running program; a paragraph explaining it read as alarming for
+//  something that is working exactly as asked.
 //
-//  THE ONE ACTION IT DOES CARRY IS ITS OWN DISMISSAL. The notice stands until
-//  the user closes it -- absorbing further changes rather than stacking -- so
-//  something has to close it.
-//
-//  A MACHINE THAT HAS JUST REBOOTED GETS NO WARNING. Rebooting is what clears
-//  the stale directory, so repeating the advice would be telling the user to do
-//  what was just done for them.
+//  THE ONE ACTION IT DOES CARRY IS ITS OWN DISMISSAL, which every standing
+//  notice needs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, int drive,
-                                                bool machineRestarted)
+                                                bool machineRebooted,
+                                                const std::string & machineName,
+                                                const std::string & copyPath)
 {
     ChangePrompt  prompt;
-    std::wstring  what = SentenceSubject (imagePath, drive);
+    std::wstring  file    = FileName (imagePath);
+    std::wstring  where   = DriveLabel (drive);
+    std::wstring  copy    = FileName (copyPath);
+    std::wstring  machine = fs::path (machineName).wstring();
 
 
 
-    prompt.title = L"Disk modified externally";
+    prompt.title = L"Disk modified outside Casso";
 
-    if (machineRestarted)
+    if (machineRebooted)
     {
-        prompt.message = what + L" was modified externally and mounted. "
-                                L"The machine was rebooted.";
+        prompt.message = L"CassoCli modified " + file + L", inserted it into " + where;
+
+        prompt.message += machine.empty() ? L", and rebooted the machine."
+                                          : (L", and rebooted the " + machine + L".");
     }
     else
     {
-        //  ONE PARAGRAPH, NO BREAK. This one is drawn in a banner, which
-        //  estimates its height from a character count and cannot see a
-        //  newline; the ask below is drawn in a dialog, which can.
-        prompt.message = what + L" was modified externally and mounted. "
-                       + StaleDirectoryWarning();
+        prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where + L".";
+    }
+
+    if (!copy.empty())
+    {
+        prompt.message += L" Your writes to it hadn't been saved yet, so we saved them as "
+                        + copy + L".";
     }
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
@@ -215,47 +254,31 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
 //
 //  ChangePrompt::ComposeConflictReport
 //
-//  What is said once both versions have been dealt with.
+//  What is shown when a flush found the file changed and moved out of its way.
 //
-//  IT NAMES WHERE THE OTHER ONE WENT, which is the entire reason this is worth
-//  saying at all. "There was a conflict" helps nobody; "your changes are in
-//  Loader.20260830-014233.dsk" is a thing the user can act on.
-//
-//  THE TWO DIRECTIONS READ DIFFERENTLY ON PURPOSE. Displacing the guest's work
-//  is the surprising one and leads with what was saved; displacing the file's
-//  version happens when the emulator writes out, and leads with what was kept.
+//  THE FILE STAYED WITH WHOEVER CHANGED IT. That is the rule in both
+//  directions, so this says where the guest's version went rather than which
+//  version won.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath, int drive,
-                                                  const std::string & preservedPath,
-                                                  bool                keptWhatTheGuestWrote)
+                                                  const std::string & copyPath)
 {
     ChangePrompt  prompt;
-    std::wstring  what      = NameInDrive (imagePath, drive);
-    std::wstring  preserved = fs::path (preservedPath).filename().wstring();
-    std::wstring  name      = fs::path (imagePath).filename().wstring();
+    std::wstring  file  = FileName (imagePath);
+    std::wstring  where = DriveLabel (drive);
+    std::wstring  copy  = FileName (copyPath);
 
 
 
-    prompt.title = L"Conflicting changes to " + what;
+    prompt.title   = L"Disk modified outside Casso";
 
-    if (keptWhatTheGuestWrote)
-    {
-        prompt.message = SentenceSubject (imagePath, drive) +
-            L" was changed externally, and also within Casso. What Casso wrote is "
-            L"now in the file, and we've saved the external version to " +
-            preserved + L".";
-    }
-    else
-    {
-        prompt.message = SentenceSubject (imagePath, drive) +
-            L" was changed externally, and also within Casso. The external changes "
-            L"are already mounted, and we've saved your changes within Casso to " +
-            preserved + L".";
-    }
+    prompt.message = L"Another program modified " + file + L", so we saved your changes as "
+                   + copy + L". " + where + L" now uses that file, and " + file
+                   + L" keeps the other program's changes.";
 
-    prompt.answers.push_back (PromptAnswer { L"OK", ChangeAction::Ignore });
+    prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
 
     return prompt;
 }
@@ -266,31 +289,43 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChangePrompt::ComposePreserveFailure
+//  ChangePrompt::ComposeSaveFailure
 //
-//  What is said when the displaced version could not be written anywhere.
+//  A copy that could not be written.
 //
-//  IT SAYS WHAT DID NOT HAPPEN, not only what failed. The user's question at
-//  that moment is whether they have lost anything, and the answer is no --
-//  nothing was replaced, precisely because the copy could not be made.
+//  NOTHING PROCEEDED, and the message says so, because the action this was
+//  protecting is the one that would have destroyed the version being copied.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ChangePrompt ChangePrompt::ComposePreserveFailure (const std::string & imagePath, int drive)
+ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, int drive,
+                                               const std::string & attemptedPath,
+                                               HRESULT             reason,
+                                               SaveFailureCause    cause)
 {
     ChangePrompt  prompt;
+    std::wstring  file  = FileName (imagePath);
+    std::wstring  where = DriveLabel (drive);
+    std::wstring  full  = fs::path (attemptedPath).wstring();
 
 
 
-    prompt.title   = L"Could not save a second copy of " + NameInDrive (imagePath, drive);
-    prompt.message = SentenceSubject (imagePath, drive) +
-        L" was changed externally, and also within Casso. Neither version has "
-        L"been touched: Casso could not write the second copy, so it did not "
-        L"replace anything.\n\n"
-        L"Free some space or check the folder's permissions, and the disk will be "
-        L"picked up on the next change.";
+    prompt.title = L"Error saving to disk";
 
-    prompt.answers.push_back (PromptAnswer { L"OK", ChangeAction::Ignore });
+    prompt.message = (cause == SaveFailureCause::FileLost)
+                         ? (file + L" is gone. We tried to save your changes to")
+                         : (L"Another program modified " + file
+                            + L". We tried to save your changes to");
+
+    prompt.message += L"\n\n" + full + L"\n\nError: " + DescribeError (reason) + L"\n\n";
+
+    prompt.message += (cause == SaveFailureCause::FileLost)
+                          ? (L"Your disk is still in " + where + L".")
+                          : (L"Your changes are still in " + where + L", and the modified "
+                             + file + L" hasn't been inserted.");
+
+    prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
+    prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
 
     return prompt;
 }
@@ -303,15 +338,10 @@ ChangePrompt ChangePrompt::ComposePreserveFailure (const std::string & imagePath
 //
 //  ChangePrompt::ComposeLostFile
 //
-//  What is said when the file behind a mounted disk has gone or become
-//  unreadable.
+//  The file behind a mounted disk has gone, or stopped being readable.
 //
-//  THE TWO TITLES ARE NOT INTERCHANGEABLE. A user who deleted the file needs to
-//  be told it is deleted; one whose share dropped needs to be told it cannot be
-//  reached. "Something went wrong with your disk" serves neither.
-//
-//  THE OFFER IS NOT CONDITIONAL ON THE GUEST HAVING WRITTEN. With the file
-//  gone, the bytes in memory may be the only copy of that disk that exists.
+//  THE DRIVE IS EMPTIED EITHER WAY, and the message says so. That is the part
+//  no answer undoes, and neither wording mentioned it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,29 +349,28 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                                             ChangeAction action)
 {
     ChangePrompt  prompt;
-    std::wstring  what = SentenceSubject (imagePath, drive);
+    std::wstring  file  = FileName (imagePath);
+    std::wstring  where = DriveLabel (drive);
 
 
 
     if (action == ChangeAction::Deleted)
     {
-        prompt.title   = what + L" has been deleted";
-        prompt.message = L"The file behind this disk no longer exists. Casso is still "
-                         L"holding its contents in memory.\n\n"
-                         L"Would you like to save the in-memory copy?";
+        prompt.title   = L"Disk file is missing";
+        prompt.message = file + L" is no longer on disk, but " + where
+                       + L" still has its contents in memory.";
     }
     else
     {
-        prompt.title   = what + L" is no longer accessible";
-        prompt.message = L"The file behind this disk can no longer be read as this "
-                         L"disk. Casso is still holding its contents in memory.\n\n"
-                         L"Would you like to save the in-memory copy?";
+        prompt.title   = L"Disk file can't be read";
+        prompt.message = file + L" is still there, but Casso can't read it as a disk any more. "
+                       + where + L" still has its contents in memory.";
     }
 
-    //  The drive is emptied either way -- a drive holding a disk whose file is
-    //  gone reports something untrue -- so neither answer is "carry on".
-    prompt.answers.push_back (PromptAnswer { L"Save a copy...", ChangeAction::PreserveCopy });
-    prompt.answers.push_back (PromptAnswer { L"Don't save",     ChangeAction::KeepHeld });
+    prompt.message += L" Would you like to save them? " + where + L" will be empty either way.";
+
+    prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
+    prompt.answers.push_back (PromptAnswer { L"Don't save", ChangeAction::KeepHeld });
 
     return prompt;
 }

@@ -2724,6 +2724,11 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // correctly-resolved (per-variant) theme.
     m_themeManager->SetActiveMachineName (m_config.name);
 
+    //  The notices about a changed disk mention the machine, and "the Apple"
+    //  is not what is in front of the user. Set beside the theme's copy so the
+    //  two cannot come to disagree about which machine is running.
+    m_diskStore.SetMachineName (m_config.name);
+
     hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
     if (FAILED (hrActivate))
     {

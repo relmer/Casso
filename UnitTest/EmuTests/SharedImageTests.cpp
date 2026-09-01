@@ -739,7 +739,11 @@ public:
         Assert::AreEqual ((int) before, (int) FirstTrackByte (rig.store),
                           L"nothing was mounted over the guest's work");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty());
-        Assert::AreEqual ((size_t) 1, rig.reports.size(), L"the user is told why");
+        //  A QUESTION, NOT A NOTICE, because it offers somewhere else to put
+        //  the file and a notice has nowhere to put an answer.
+        Assert::AreEqual ((size_t) 1, rig.questions.size(), L"the user is told why");
+        Assert::IsTrue (rig.questions[0].answers.size() == 2,
+                        L"and is offered a way out rather than homework");
 
         //  AND IT DOES NOT SPIN. The change is dropped rather than left
         //  pending: leaving it meant a full image read and another failed
@@ -759,7 +763,7 @@ public:
             }
         }
 
-        Assert::AreEqual ((size_t) 1, rig.reports.size(),
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
                           L"and a hundred idle ticks later it has still done nothing more");
     }
 
@@ -846,8 +850,8 @@ public:
         rig.FireAndSettle (kImagePath);
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
-        Assert::IsTrue (rig.questions[0].title.find (L"deleted") != std::wstring::npos,
-                        L"a user who deleted the file needs to be told it is deleted");
+        Assert::IsTrue (rig.questions[0].title.find (L"missing") != std::wstring::npos,
+                        L"a user who deleted the file needs to be told it is missing");
 
         //  Present, but not this disk any more.
         rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
@@ -860,7 +864,7 @@ public:
         rig.FireAndSettle (kImagePath);
 
         Assert::AreEqual ((size_t) 2, rig.questions.size());
-        Assert::IsTrue (rig.questions[1].title.find (L"no longer accessible")
+        Assert::IsTrue (rig.questions[1].title.find (L"can't be read")
                             != std::wstring::npos,
                         L"and one whose share dropped needs to be told that instead");
     }
@@ -1077,26 +1081,23 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        //  Taken up with the machine left running: the notice says why a
-        //  reboot might be wanted.
+        //  Taken up with the machine left running.
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size());
-        Assert::IsTrue (rig.reports[0].message.find (ChangePrompt::StaleDirectoryWarning())
-                            != std::wstring::npos);
+        Assert::IsTrue (rig.reports[0].message.find (L"rebooted") == std::wstring::npos,
+                        L"nothing was rebooted, so the notice must not claim otherwise");
 
-        //  Then one that reboots. The notice must stop advising a reboot that
-        //  has now been done for the user.
+        //  Then one that reboots. The notice standing from the first change is
+        //  re-worded in place rather than left saying what stopped being true.
         rig.WriteImage (kImagePath, 0x33);
         rig.FireAndSettle (kImagePath, PickUpIntent::Restart);
 
         Assert::AreEqual (1, rig.restarts);
         Assert::AreEqual ((size_t) 2, rig.reports.size());
-        Assert::IsTrue (rig.reports[1].message.find (ChangePrompt::StaleDirectoryWarning())
-                            == std::wstring::npos,
-                        L"the machine was just rebooted; telling the user to reboot "
-                        L"is telling them to do what was done for them");
+        Assert::IsTrue (rig.reports[1].message.find (L"rebooted") != std::wstring::npos,
+                        L"the second change did reboot, and the notice has to follow");
     }
 
 

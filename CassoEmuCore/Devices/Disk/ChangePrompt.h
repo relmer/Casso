@@ -30,24 +30,54 @@ struct PromptAnswer
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SaveFailureCause
+//
+//  Why a copy was being written when the write failed.
+//
+//  THE TWO READ NOTHING ALIKE and used to share one message. A file that was
+//  deleted was reported with "another program modified it", which is not what
+//  happened and sends the reader looking for a program that does not exist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class SaveFailureCause
+{
+    //  Something else rewrote the file while it was in a drive.
+    ExternalChange,
+
+    //  The file is gone, or is no longer readable as a disk.
+    FileLost,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ChangePrompt
 //
-//  What is said about a changed image, and the answers it accepts.
+//  What the user is told about a changed image, and the answers it accepts.
 //
-//  COMPOSED IN CORE, DRAWN IN THE SHELL. Which question gets asked, what it
-//  says, which answers exist and what each one means are all decisions, and a
+//  COMPOSED IN CORE, DRAWN IN THE SHELL. Which question is put, what it says,
+//  which answers exist and what each one means are all decisions, and a
 //  decision that lives in an executable is a decision no test can reach. The
 //  shell receives a title, a message and a list of labeled answers, and its
 //  entire job is to put them on the screen and report which was chosen.
 //
-//  IT IS A SEPARATE JOB FROM DECIDING. ExternalChangePolicy says what should
-//  happen; this says what to tell the user about it. Folding the wording into
-//  the policy would give the pure decision table a dependency on presentation,
-//  and there is more than one thing to say here.
+//  IT IS A SEPARATE JOB FROM DECIDING. ExternalChangePolicy settles what should
+//  happen; this settles what to tell the user about it. Folding the wording
+//  into the policy would give the pure decision table a dependency on
+//  presentation, and there is more than one thing to tell them here.
 //
-//  EVERY MESSAGE NAMES THE IMAGE AND THE DRIVE. A user with two disks mounted
-//  cannot act on a message that says neither, and making both parameters of
+//  EVERY MESSAGE CARRIES THE FILE AND THE DRIVE. A user with two disks mounted
+//  cannot act on a message that gives neither, and making both parameters of
 //  composition is what stops a caller from producing one that omits them.
+//
+//  A TITLE IS A CONDITION, NOT AN INSTANCE. "Disk modified outside Casso", not
+//  "work.dsk modified outside Casso". The specifics belong in the body, where
+//  there is room for them, and a title that repeats the first line of the body
+//  word for word is a wasted line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,43 +93,54 @@ struct ChangePrompt
 
 
 
-    //  What to say about this action, for this image in this drive.
+    //  The question put when something else changed a mounted file and nothing
+    //  stated what the change was for.
     //
     //  `drive` IS THE STORE'S ZERO-BASED INDEX and is written out as the
     //  one-based number on the machine, because that is the number printed on
     //  the drive and shown on the widget.
+    //
+    //  `copyPath` IS WHERE THE VERSION IN THE DRIVE GOES IF IT IS KEPT, and
+    //  `copyAlreadyWritten` says whether it is there yet. A conflict writes it
+    //  before asking anything, so the two cases differ by one tense: "we'll
+    //  rename it to" against "it's already saved as".
     static ChangePrompt  Compose (const std::string & imagePath, int drive,
-                                  ChangeAction action);
+                                  ChangeAction action,
+                                  const std::string & copyPath   = std::string(),
+                                  bool copyAlreadyWritten        = false);
 
-    //  The report shown when contents were taken up without asking.
+    //  The notice shown once contents were taken up without a question, which
+    //  only happens when the write stated what it was for.
     //
-    //  IT OFFERS NO REBOOT. The toolbar already carries one, and a notice with
-    //  a duplicate is one more thing to dismiss rather than one more thing to
-    //  reach for. The report says what happened and, while the machine is still
-    //  running, why a reboot might be needed; the single action it does carry
-    //  is its own dismissal, which every standing notice needs.
+    //  IT ATTRIBUTES THE WRITE TO CassoCli, and can, because this notice is
+    //  unreachable any other way: the intent travels over a channel nothing
+    //  else sends on. The question above stays general, since any program at
+    //  all can raise that one.
+    //
+    //  `machineName` IS THE MACHINE AS THE USER KNOWS IT -- "Apple //e" --
+    //  because "the Apple" is not what is in front of them.
     static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
-                                              bool machineRestarted);
+                                              bool machineRebooted,
+                                              const std::string & machineName,
+                                              const std::string & copyPath = std::string());
 
-    //  What is said once a conflict has been resolved.
-    //
-    //  A REPORT, NOT A QUESTION. Both versions survive whatever happens, so
-    //  there is no wrong answer to protect the user from -- only a fact to
-    //  tell them, including where the version that did not stay mounted went.
+    //  The notice shown when a flush found the file changed underneath it and
+    //  moved the guest's version to a file of its own.
     static ChangePrompt  ComposeConflictReport (const std::string & imagePath, int drive,
-                                                const std::string & preservedPath,
-                                                bool                keptWhatTheGuestWrote);
+                                                const std::string & copyPath);
 
-    //  What is said when the version that would be displaced could not be
-    //  written anywhere.
+    //  The failure shown when a copy could not be written.
     //
-    //  THE ACTION THAT WOULD HAVE DESTROYED IT DOES NOT PROCEED, so this says
-    //  what did not happen as well as what failed. A preserve that silently
-    //  did not happen breaks the promise exactly where it matters most.
-    static ChangePrompt  ComposePreserveFailure (const std::string & imagePath, int drive);
+    //  IT CARRIES THE PATH IT TRIED AND WHAT THE SYSTEM SAID, and offers
+    //  somewhere else to put the file. A message that only advises freeing
+    //  space leaves the user to find the folder and guess the reason.
+    static ChangePrompt  ComposeSaveFailure (const std::string & imagePath, int drive,
+                                             const std::string & attemptedPath,
+                                             HRESULT             reason,
+                                             SaveFailureCause    cause);
 
-    //  What is said when the file behind a mounted disk has gone or can no
-    //  longer be read, with the offer to save what is still in memory.
+    //  What is shown when the file behind a mounted disk has gone or can no
+    //  longer be read, with the offer to write out what is still in memory.
     //
     //  THE OFFER DOES NOT DEPEND ON THE GUEST HAVING WRITTEN. With the file
     //  gone, what the emulator holds may be the only copy of that disk either
@@ -107,27 +148,17 @@ struct ChangePrompt
     static ChangePrompt  ComposeLostFile (const std::string & imagePath, int drive,
                                           ChangeAction action);
 
-    //  Why a running program may not see a swapped disk correctly.
-    //
-    //  ONE SENTENCE IN ONE PLACE, because it is the same hazard whether the
-    //  user was asked or merely told, and two copies would drift.
-    //
-    //  IT CONTAINS NO LINE BREAK, and callers that want one add it. A banner
-    //  measures its own height by dividing the character count by a per-line
-    //  estimate and never looks for a newline, so a message carrying one is
-    //  drawn taller than the box that was sized for it -- measured, the warning
-    //  ran out through the bottom border and off the right edge of the window.
-    //  Dialogs lay text out in paragraphs and are free to add breaks.
-    static const wchar_t *  StaleDirectoryWarning ();
+    //  "work.dsk". The file alone, never the path: a message about a disk in a
+    //  drive is about the disk, and a folder in the middle of a sentence buries
+    //  the one word the reader is looking for. The failure above is the
+    //  exception, and prints the whole path deliberately.
+    static std::wstring  FileName (const std::string & imagePath);
 
-    //  "Loader.dsk in Drive 1", for the middle of a sentence or a title.
-    static std::wstring  NameInDrive (const std::string & imagePath, int drive);
+    //  "Drive 1", from the store's zero-based index.
+    static std::wstring  DriveLabel (int drive);
 
-    //  "The disk Loader.dsk in Drive 1", for the START of one.
-    //
-    //  A SENTENCE MAY NOT OPEN WITH A FILENAME. Capitalizing the name would be
-    //  a lie about what the file is called, and leaving it lower-case opens
-    //  every notice this feature shows with a small letter. The article carries
-    //  the capital so the name stays exactly as it is on disk.
-    static std::wstring  SentenceSubject (const std::string & imagePath, int drive);
+    //  "0x80070070 There is not enough space on the disk." The code always, the
+    //  system's own text when there is one, because a bare code sends the
+    //  reader to a search engine and text alone cannot be looked up at all.
+    static std::wstring  DescribeError (HRESULT reason);
 };

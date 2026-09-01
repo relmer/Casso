@@ -272,19 +272,24 @@ public:
 
 
 
-    TEST_METHOD (EveryMessageNamesTheImageAndTheDrive)
+    TEST_METHOD (EveryMessageGivesTheFileAndTheDrive)
     {
         std::vector<ChangePrompt>  prompts;
 
 
 
-        prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Ask));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Ask,
+                                                  "C:\\work\\Loader.20260830-014233-01.dsk"));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Unusable));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Deleted));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\Loader.dsk", 1, false));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\Loader.dsk", 1, false,
+                                                              "Apple //e"));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\Loader.dsk", 1,
-                                                                "C:\\work\\Loader.x.dsk", false));
-        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\\work\\Loader.dsk", 1));
+                                                                "C:\\work\\Loader.x.dsk"));
+        prompts.push_back (ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 1,
+                                                             "C:\\work\\Loader.x.dsk",
+                                                             E_ACCESSDENIED,
+                                                             SaveFailureCause::ExternalChange));
 
         for (const ChangePrompt & prompt : prompts)
         {
@@ -293,11 +298,37 @@ public:
             Assert::IsTrue (prompt.IsAsked(), L"every one of these is acted on or dismissed");
             Assert::IsTrue (whole.find (L"Loader.dsk") != std::wstring::npos,
                             L"a user with two disks mounted cannot act on a message "
-                            L"that does not say which");
+                            L"that does not give which");
             Assert::IsTrue (whole.find (L"Drive 2") != std::wstring::npos,
                             L"the drive is written as the number on the machine, so a "
                             L"zero-based bay index reads as Drive 2");
             Assert::IsFalse (prompt.title.empty());
+        }
+    }
+
+
+
+    //  A TITLE IS A CONDITION AND A BODY IS AN INSTANCE. The title used to
+    //  repeat the body's first line almost word for word, which spent a line
+    //  saying nothing twice.
+    TEST_METHOD (TitlesDescribeTheConditionRatherThanTheFile)
+    {
+        const ChangePrompt  prompts[] = {
+            ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0, ChangeAction::Ask),
+            ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0, ChangeAction::Deleted),
+            ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0, ChangeAction::Unusable),
+            ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 0, "C:\\x.dsk",
+                                              E_FAIL, SaveFailureCause::FileLost),
+        };
+
+
+
+        for (const ChangePrompt & prompt : prompts)
+        {
+            Assert::IsTrue (prompt.title.find (L"Loader") == std::wstring::npos,
+                            (L"the title carries an instance: " + prompt.title).c_str());
+            Assert::IsTrue (prompt.title.find (L".dsk") == std::wstring::npos,
+                            (L"the title carries a filename: " + prompt.title).c_str());
         }
     }
 
@@ -310,81 +341,130 @@ public:
 
 
 
-        //  A user who deleted the file needs to be told it is deleted; one
-        //  whose share dropped needs to be told it cannot be reached.
-        Assert::IsTrue (deleted.title.find (L"deleted") != std::wstring::npos);
-        Assert::IsTrue (unreadable.title.find (L"no longer accessible") != std::wstring::npos);
+        //  A user who deleted the file needs to be told it is missing; one
+        //  whose share dropped needs to be told it cannot be read.
+        Assert::IsTrue (deleted.title.find (L"missing")   != std::wstring::npos);
+        Assert::IsTrue (unreadable.title.find (L"read")   != std::wstring::npos);
+        Assert::IsTrue (deleted.title != unreadable.title);
 
         //  Both offer the same two things, because both end the same way.
         Assert::AreEqual ((size_t) 2, deleted.answers.size());
         Assert::AreEqual ((size_t) 2, unreadable.answers.size());
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
         Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
+
+        //  The drive is emptied whichever is chosen, and that is the part no
+        //  answer undoes. Neither wording used to mention it.
+        Assert::IsTrue (deleted.message.find (L"empty either way") != std::wstring::npos);
+        Assert::IsTrue (unreadable.message.find (L"empty either way") != std::wstring::npos);
     }
 
 
 
-    TEST_METHOD (TheConflictReportNamesWhereTheOtherVersionWent)
+    TEST_METHOD (TheConflictReportGivesWhereTheGuestsVersionWent)
     {
-        ChangePrompt  keptFile  = ChangePrompt::ComposeConflictReport (
-                                      "C:\\work\\Loader.dsk", 0,
-                                      "C:\\work\\Loader.20260830-014233.dsk", false);
-        ChangePrompt  keptGuest = ChangePrompt::ComposeConflictReport (
-                                      "C:\\work\\Loader.dsk", 0,
-                                      "C:\\work\\Loader.20260830-014233.dsk", true);
+        ChangePrompt  report = ChangePrompt::ComposeConflictReport (
+                                   "C:\\work\\Loader.dsk", 0,
+                                   "C:\\work\\Loader.20260830-014233-01.dsk");
 
 
 
-        //  "There was a conflict" helps nobody. The name of the file holding
-        //  the other version is the thing the user can act on.
-        Assert::IsTrue (keptFile.message.find (L"Loader.20260830-014233.dsk")
-                            != std::wstring::npos);
-        Assert::IsTrue (keptGuest.message.find (L"Loader.20260830-014233.dsk")
+        //  "There was a conflict" helps nobody. The file holding the other
+        //  version is the thing the user can act on.
+        Assert::IsTrue (report.message.find (L"Loader.20260830-014233-01.dsk")
                             != std::wstring::npos);
 
-        //  The two directions read differently, because different things
-        //  happened.
-        Assert::IsTrue (keptFile.message != keptGuest.message);
+        //  The folder is not repeated into the sentence; the file is enough,
+        //  and the path buries it.
+        Assert::IsTrue (report.message.find (L"C:\\work") == std::wstring::npos);
 
         //  It is a report: one action, and that action is dismissal.
-        Assert::AreEqual ((size_t) 1, keptFile.answers.size());
-        Assert::IsTrue (keptFile.answers[0].action == ChangeAction::Ignore);
+        Assert::AreEqual ((size_t) 1, report.answers.size());
+        Assert::IsTrue (report.answers[0].action == ChangeAction::Ignore);
     }
 
 
 
-    TEST_METHOD (APreserveFailureSaysWhatDidNotHappen)
+    //  THE FAILURE IS THE ONE MESSAGE THAT PRINTS A WHOLE PATH. Where it tried
+    //  to write is the actionable part when the reason is permissions, and the
+    //  folder is what the user has to go and look at.
+    TEST_METHOD (ASaveFailureGivesThePathTheCodeAndAWayOut)
     {
-        ChangePrompt  prompt = ChangePrompt::ComposePreserveFailure ("Loader.dsk", 0);
+        ChangePrompt  prompt = ChangePrompt::ComposeSaveFailure (
+                                   "C:\\work\\Loader.dsk", 0,
+                                   "C:\\work\\Loader.20260830-014233-01.dsk",
+                                   E_ACCESSDENIED,
+                                   SaveFailureCause::ExternalChange);
 
 
+
+        Assert::IsTrue (prompt.message.find (L"C:\\work\\Loader.20260830-014233-01.dsk")
+                            != std::wstring::npos,
+                        L"the whole path it tried");
+
+        Assert::IsTrue (prompt.message.find (L"0x80070005") != std::wstring::npos,
+                        L"and the code, which is the part that can be searched for");
 
         //  The user's question at that moment is whether they have lost
         //  anything, and the answer is no -- precisely because the copy could
-        //  not be made.
-        Assert::IsTrue (prompt.message.find (L"Neither version has been touched")
-                            != std::wstring::npos);
-        Assert::AreEqual ((size_t) 1, prompt.answers.size());
+        //  not be written.
+        Assert::IsTrue (prompt.message.find (L"still in Drive 1") != std::wstring::npos);
+
+        //  Somewhere else to put it beats advice about freeing space.
+        Assert::AreEqual ((size_t) 2, prompt.answers.size());
+        Assert::IsTrue (prompt.answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (prompt.answers[1].action == ChangeAction::Ignore);
     }
 
 
 
-    TEST_METHOD (TheAskDialogOffersAcceptingOrIgnoringAndNothingElse)
+    //  THE TWO CAUSES USED TO SHARE ONE MESSAGE, so a file that had been
+    //  deleted was reported with "another program modified it" -- which is not
+    //  what happened, and sends the reader looking for a program that does not
+    //  exist.
+    TEST_METHOD (ASaveFailureAfterALostFileDoesNotBlameAnotherProgram)
+    {
+        ChangePrompt  lost = ChangePrompt::ComposeSaveFailure ("Loader.dsk", 0, "x.dsk",
+                                                               E_FAIL,
+                                                               SaveFailureCause::FileLost);
+        ChangePrompt  changed = ChangePrompt::ComposeSaveFailure ("Loader.dsk", 0, "x.dsk",
+                                                                  E_FAIL,
+                                                                  SaveFailureCause::ExternalChange);
+
+
+
+        Assert::IsTrue (lost.message.find (L"Another program") == std::wstring::npos,
+                        L"nothing modified a file that is gone");
+        Assert::IsTrue (changed.message.find (L"Another program") != std::wstring::npos);
+        Assert::IsTrue (lost.message != changed.message);
+    }
+
+
+
+    TEST_METHOD (TheQuestionOffersInsertingOrKeepingAndNothingElse)
     {
         ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
-                                                      ChangeAction::Ask);
+                                                      ChangeAction::Ask,
+                                                      "C:\\work\\Loader.x.dsk");
 
 
 
         Assert::AreEqual ((size_t) 2, prompt.answers.size(),
-                          L"two answers: take the changes, or leave them alone");
+                          L"two answers: put the modified disk in, or keep the one in there");
 
         Assert::IsTrue (prompt.answers[0].action == ChangeAction::TakeUpInPlace);
         Assert::IsTrue (prompt.answers[1].action == ChangeAction::KeepHeld);
 
-        //  The reboot is not an answer here. It is a thing the user may do
-        //  afterwards, from the toolbar, which is why the message says why
-        //  they might want to rather than offering a third button.
+        //  THE LABELS STATE THE ACTION. They were "Accept the changes" and
+        //  "Ignore the changes", which described the external edit twice and
+        //  the disk in the drive not at all -- and "ignore" reads as throwing
+        //  the new file away, which is the one thing it does not do.
+        Assert::IsTrue (prompt.answers[0].label.find (L"Loader.dsk") != std::wstring::npos,
+                        L"the insert names the disk going in");
+        Assert::IsTrue (prompt.answers[1].label.find (L"Keep") != std::wstring::npos);
+
+        //  The reboot is not an answer here. It is something the user may do
+        //  afterwards, from the toolbar.
         for (const PromptAnswer & answer : prompt.answers)
         {
             Assert::IsTrue (answer.action != ChangeAction::Restart,
@@ -394,31 +474,71 @@ public:
 
 
 
-    TEST_METHOD (EveryMessageAboutARunningMachineExplainsWhyARebootMayBeNeeded)
+    //  KEEPING IS A SAVE-AS AND THE MESSAGE HAS TO SAY WHICH TENSE. A conflict
+    //  writes the copy before anything is put to the user, so by then it
+    //  already exists; with no conflict there is nothing on disk yet.
+    TEST_METHOD (TheQuestionSaysWhetherTheCopyExistsYet)
     {
-        ChangePrompt  asked   = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask);
-        ChangePrompt  running = ChangePrompt::ComposePickUpReport ("Loader.dsk", 0, false);
-        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Loader.dsk", 0, true);
-        std::wstring  warning = ChangePrompt::StaleDirectoryWarning();
+        ChangePrompt  before = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask,
+                                                      "Loader.20260830-014233-01.dsk", false);
+        ChangePrompt  after  = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask,
+                                                      "Loader.20260830-014233-01.dsk", true);
 
 
 
-        //  The hazard is the same whether the user was asked or merely told,
-        //  so the sentence is the same and comes from one place.
-        Assert::IsTrue (asked.message.find (warning)   != std::wstring::npos);
-        Assert::IsTrue (running.message.find (warning) != std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"We'll rename it") != std::wstring::npos);
+        Assert::IsTrue (after.message.find  (L"already saved as") != std::wstring::npos);
 
-        //  A machine that has just rebooted has already done the thing the
-        //  warning advises, so repeating it would be noise.
-        Assert::IsTrue (rebooted.message.find (warning) == std::wstring::npos);
+        //  And the one that already happened says so up front, because the
+        //  reader's first question is whether their work survived.
+        Assert::IsTrue (after.message.find (L"hadn't been saved yet") != std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"hadn't been saved yet") == std::wstring::npos);
+    }
+
+
+
+    //  "The Apple" is not what is in front of them.
+    TEST_METHOD (TheRebootNoticeGivesTheMachineTheUserHas)
+    {
+        ChangePrompt  enhanced = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true,
+                                                                    "Apple //e Enhanced");
+        ChangePrompt  unnamed  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true, "");
+
+
+
+        Assert::IsTrue (enhanced.message.find (L"Apple //e Enhanced") != std::wstring::npos);
+
+        //  A machine with no name still produces a sentence.
+        Assert::IsTrue (unnamed.message.find (L"the machine") != std::wstring::npos);
+    }
+
+
+
+    //  THE CAVEAT IS GONE. It explained that a running program may misread a
+    //  swapped disk, and read as alarming for something working exactly as
+    //  asked. The audience for this feature knows what a swapped disk does.
+    TEST_METHOD (ThePickUpNoticeDoesNotLectureAboutRebooting)
+    {
+        ChangePrompt  running = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+                                                                   "Apple //e");
+
+
+
+        Assert::IsTrue (running.message.find (L"misbehav") == std::wstring::npos);
+        Assert::IsTrue (running.message.find (L"directory") == std::wstring::npos);
+        Assert::IsTrue (running.message.find (L"CassoCli") != std::wstring::npos,
+                        L"this notice is unreachable except through the message channel, "
+                        L"so it can attribute the write");
     }
 
 
 
     TEST_METHOD (ThePickUpReportCarriesOnlyItsOwnDismissal)
     {
-        ChangePrompt  running  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false);
-        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true);
+        ChangePrompt  running  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+                                                                    "Apple //e");
+        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true,
+                                                                    "Apple //e");
 
 
 
@@ -437,7 +557,7 @@ public:
     TEST_METHOD (AnActionThatIsNotAQuestionComposesNothing)
     {
         //  Conflict is here now: it composes through its own report, which
-        //  needs the preserved path this one has no way to supply.
+        //  needs the copy's path this one has no way to supply.
         const ChangeAction  notQuestions[] = { ChangeAction::Ignore,
                                                ChangeAction::TakeUpInPlace,
                                                ChangeAction::Restart,
@@ -451,67 +571,63 @@ public:
         {
             ChangePrompt  prompt = ChangePrompt::Compose ("Work.dsk", 0, action);
 
-            Assert::IsFalse (prompt.IsAsked(), L"nothing to ask, so no blank dialog");
+            Assert::IsFalse (prompt.IsAsked(), L"nothing to put, so no blank dialog");
         }
     }
 
 
 
-    TEST_METHOD (EveryMessageStartsItsSentenceWithACapital)
+    //  THE FILE IS REPRODUCED EXACTLY AS IT IS ON DISK, never re-cased to make
+    //  a sentence read better. A message that changes the spelling of the file
+    //  sends the user looking for something that is not there.
+    TEST_METHOD (EveryMessageSpellsTheFileTheWayDiskDoes)
     {
         std::vector<ChangePrompt>  prompts;
 
 
 
-        prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Ask));
+        prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Ask,
+                                                  "C:\\work\\loader.x.dsk"));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Deleted));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Unusable));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, false));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, true));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, false,
+                                                              "Apple //e"));
+        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, true,
+                                                              "Apple //e"));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\loader.dsk", 0,
-                                                                "C:\\work\\loader.x.dsk", false));
-        prompts.push_back (ChangePrompt::ComposePreserveFailure ("C:\\work\\loader.dsk", 0));
+                                                                "C:\\work\\loader.x.dsk"));
+        prompts.push_back (ChangePrompt::ComposeSaveFailure ("C:\\work\\loader.dsk", 0,
+                                                             "C:\\work\\loader.x.dsk", E_FAIL,
+                                                             SaveFailureCause::ExternalChange));
 
-        //  THE FILENAME IS LOWER CASE ON PURPOSE. A sentence may not open with
-        //  it: capitalizing would misspell the file, and leaving it would open
-        //  every notice with a small letter. The article carries the capital.
         for (const ChangePrompt & prompt : prompts)
         {
             Assert::IsFalse (prompt.message.empty());
-            Assert::IsTrue (iswupper (prompt.message[0]) != 0,
-                            (L"sentence starts lower case: " + prompt.message).c_str());
-
-            //  And the name is still spelled the way it is on disk.
-            Assert::IsTrue (prompt.message.find (L"loader.dsk") != std::wstring::npos
-                         || prompt.title.find   (L"loader.dsk") != std::wstring::npos);
+            Assert::IsTrue (prompt.message.find (L"loader.dsk") != std::wstring::npos,
+                            (L"the file was re-cased: " + prompt.message).c_str());
+            Assert::IsTrue (prompt.message.find (L"Loader.dsk") == std::wstring::npos);
         }
     }
 
 
 
-    TEST_METHOD (AnUnnamedImageDoesNotDoubleTheArticle)
+    //  The folder belongs in exactly one message.
+    TEST_METHOD (OnlyTheFailurePrintsAWholePath)
     {
-        std::wstring  subject = ChangePrompt::SentenceSubject ("", 0);
+        ChangePrompt  asked = ChangePrompt::Compose ("C:\\deep\\folder\\loader.dsk", 0,
+                                                     ChangeAction::Ask,
+                                                     "C:\\deep\\folder\\loader.x.dsk");
+        ChangePrompt  failed = ChangePrompt::ComposeSaveFailure (
+                                   "C:\\deep\\folder\\loader.dsk", 0,
+                                   "C:\\deep\\folder\\loader.x.dsk", E_FAIL,
+                                   SaveFailureCause::ExternalChange);
 
 
 
-        //  Building the sentence form by prefixing the mid-sentence one would
-        //  read "The disk Drive 1" here.
-        Assert::IsTrue (subject == std::wstring (L"The disk in Drive 1"), subject.c_str());
-        Assert::IsTrue (ChangePrompt::NameInDrive ("", 0) == std::wstring (L"Drive 1"));
+        Assert::IsTrue (asked.message.find (L"deep") == std::wstring::npos,
+                        L"a folder in the middle of a sentence buries the file");
+        Assert::IsTrue (failed.message.find (L"deep") != std::wstring::npos,
+                        L"except here, where the folder is the actionable part");
     }
 
-
-
-    TEST_METHOD (AnUnnamedImageStillProducesAReadableMessage)
-    {
-        ChangePrompt  prompt = ChangePrompt::Compose ("", 0, ChangeAction::Ask);
-
-
-
-        Assert::IsTrue (prompt.IsAsked());
-        Assert::IsFalse (prompt.message.empty(), L"a question with no text is no question");
-        Assert::IsTrue (prompt.message.find (L"Drive 1") != std::wstring::npos,
-                        L"the drive is still named even when the file cannot be");
-    }
 };

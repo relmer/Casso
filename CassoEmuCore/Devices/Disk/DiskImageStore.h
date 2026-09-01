@@ -198,6 +198,11 @@ public:
     //  the quiet period is the only debounce.
     void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
 
+    //  The machine as the user knows it, for the notices that mention it.
+    //  "Apple //e" rather than "the Apple", which is not what is in front of
+    //  them. Empty is allowed and the notices fall back to "the machine".
+    void          SetMachineName (const string & name) { m_machineName = name; }
+
     //  Restarting the machine.
     //
     //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
@@ -512,6 +517,7 @@ private:
     IDiskFileIo *            m_fileIo   = nullptr;
 
     std::function<void ()>   m_restartCallback;
+    string                   m_machineName;
     ReportSink               m_reportSink;
     AskSink                  m_askSink;
     std::function<int64_t ()>  m_clock;
