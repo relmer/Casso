@@ -13746,30 +13746,35 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
     def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
 
-    choice = ShowModalDialog (def);
-
-    if (choice < 0 || choice >= (int) notice.prompt.answers.size())
-    {
-        choice = (int) (notice.prompt.answers.size() - 1);
-    }
-
-    chosen = notice.prompt.answers[choice].action;
-
-    //  Saving needs a destination, and only this thread can ask for one. A
-    //  cancelled picker is the same outcome as declining, so it becomes the
-    //  other answer rather than an error.
-    if (chosen == ChangeAction::PreserveCopy)
+    //  THE QUESTION STANDS UNTIL IT IS ANSWERED. Saving needs a destination,
+    //  and only this thread can ask for one; but a picker the user backs out of
+    //  is not an answer to the question. It used to be taken as declining --
+    //  which on the lost-file notice is Discard, so cancelling a file dialog
+    //  threw the disk away. Now it returns to the question, and only a
+    //  completed save or an explicit other answer closes it.
+    for (;;)
     {
         std::wstring  savePath;
+
+        choice = ShowModalDialog (def);
+
+        if (choice < 0 || choice >= (int) notice.prompt.answers.size())
+        {
+            choice = (int) (notice.prompt.answers.size() - 1);
+        }
+
+        chosen = notice.prompt.answers[choice].action;
+
+        if (chosen != ChangeAction::PreserveCopy)
+        {
+            break;
+        }
 
         if (AskWhereToSaveLostDisk (m_diskStore.GetSourcePath (notice.slot, notice.drive),
                                     savePath))
         {
             saveTarget = fs::path (savePath).string();
-        }
-        else
-        {
-            chosen = ChangeAction::KeepHeld;
+            break;
         }
     }
 

@@ -353,11 +353,22 @@ public:
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
         Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
 
-        //  Only the outcome the screen will not show for itself. Saving keeps
-        //  the disk and the drive's label reports it; discarding leaves nothing
-        //  to look at, so it is spelled out.
-        Assert::IsTrue (deleted.message.find (L"the disk is gone") != std::wstring::npos);
-        Assert::IsTrue (unreadable.message.find (L"the disk is gone") != std::wstring::npos);
+        //  The path leads on its own line, then what the screen will not show
+        //  for itself: the disk is still in memory and can be saved or
+        //  discarded. Nothing explains Discard; people know what it means.
+        for (const ChangePrompt * p : { &deleted, &unreadable })
+        {
+            size_t  gap = p->message.find (L"\n\n");
+
+            Assert::IsTrue (gap != std::wstring::npos && gap > 0,
+                            L"the path is the first line, set off by a blank one");
+            Assert::IsTrue (p->message.find (L"still has the disk's contents in memory")
+                                != std::wstring::npos);
+            Assert::IsTrue (p->message.find (L"save it to a new file or discard it")
+                                != std::wstring::npos);
+            Assert::IsTrue (p->message.find (L"the disk is gone") == std::wstring::npos,
+                            L"Discard is not glossed");
+        }
     }
 
 
@@ -639,8 +650,11 @@ public:
 
 
 
-    //  The folder belongs in exactly one message.
-    TEST_METHOD (OnlyTheFailurePrintsAWholePath)
+    //  The whole path appears only where it is the thing to act on: the save
+    //  failure (where to look) and the lost file (which file vanished), each on
+    //  a line of its own. A question about a disk in a drive names the file
+    //  alone.
+    TEST_METHOD (TheWholePathAppearsOnlyWhereItIsTheActionablePart)
     {
         ChangePrompt  asked = ChangePrompt::Compose ("C:\\deep\\folder\\loader.dsk", 0,
                                                      ChangeAction::Ask,
@@ -649,13 +663,17 @@ public:
                                    "C:\\deep\\folder\\loader.dsk", 0,
                                    "C:\\deep\\folder\\loader.x.dsk", E_FAIL,
                                    SaveFailureCause::ExternalChange);
+        ChangePrompt  lost   = ChangePrompt::ComposeLostFile ("C:\\deep\\folder\\loader.dsk", 0,
+                                                              ChangeAction::Deleted);
 
 
 
         Assert::IsTrue (asked.message.find (L"deep") == std::wstring::npos,
                         L"a folder in the middle of a sentence buries the file");
         Assert::IsTrue (failed.message.find (L"deep") != std::wstring::npos,
-                        L"except here, where the folder is the actionable part");
+                        L"the failure prints where to look");
+        Assert::IsTrue (lost.message.rfind (L"C:\\deep\\folder\\loader.dsk", 0) == 0,
+                        L"the lost-file notice leads with the whole path, on its own line");
     }
 
 };

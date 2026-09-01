@@ -451,6 +451,18 @@ and the scene rescales back into the space.
   burst). The per-frame wide-path rebuild in `UpdateDriveWidgets` was gated
   on a narrow diff while here.
 
+- [X] ~~T119~~ **Resolved.** The removed-disk notice leads with the whole path
+  on a line of its own, then one sentence: the drive still has the disk's
+  contents in memory and they can be saved to a new file or discarded. The
+  gloss on Discard is gone. Reviewing it surfaced a real defect: a cancelled
+  Save-as picker was converted to the "other" answer, which on this notice is
+  Discard -- backing out of a file dialog threw the disk away. The question
+  now stands until answered; a cancelled picker returns to it. Proven on a
+  real build without synthetic input: a posted Save-as click opened the
+  picker, WM_CLOSE cancelled it, and the notice was re-created under a new
+  handle with the disk still in Drive 1. Harness lesson recorded: posted mouse
+  messages must use the window's logical coordinates, not physical ones.
+
 **Checkpoint**: Gates green, documentation current, quickstart walked. Commit.
 
 ---

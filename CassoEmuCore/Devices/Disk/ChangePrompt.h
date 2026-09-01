@@ -157,10 +157,11 @@ struct ChangePrompt
     static ChangePrompt  ComposeLostFile (const std::string & imagePath, int drive,
                                           ChangeAction action);
 
-    //  "work.dsk". The file alone, never the path: a message about a disk in a
+    //  "work.dsk". The file alone, not the path: a message about a disk in a
     //  drive is about the disk, and a folder in the middle of a sentence buries
-    //  the one word the reader is looking for. The failure above is the
-    //  exception, and prints the whole path deliberately.
+    //  the one word the reader is looking for. Two notices print the whole
+    //  path deliberately -- the save failure and the lost file -- and both put
+    //  it on a line of its own, where it is the thing to act on.
     static std::wstring  FileName (const std::string & imagePath);
 
     //  "Drive 1", from the store's zero-based index.

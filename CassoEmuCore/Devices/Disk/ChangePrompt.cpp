@@ -343,8 +343,13 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
 //
 //  The file behind a mounted disk has gone, or stopped being readable.
 //
-//  THE DRIVE IS EMPTIED EITHER WAY, and the message says so. That is the part
-//  no answer undoes, and neither wording mentioned it.
+//  THE PATH LEADS, ON A LINE OF ITS OWN. The title says what happened and the
+//  first line says to which file, in full, because which file is the one thing
+//  the reader has to check. It is the one notice besides the save failure that
+//  prints a whole path, and it does so on its own line rather than buried in a
+//  sentence. What follows is only what the screen will not show for itself:
+//  the disk is still in memory, and the two things that can be done with it.
+//  "Discard" needs no gloss; people know what it means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,29 +357,17 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                                             ChangeAction action)
 {
     ChangePrompt  prompt;
-    std::wstring  file  = FileName (imagePath);
+    std::wstring  full  = fs::path (imagePath).wstring();
     std::wstring  where = DriveLabel (drive);
 
 
 
-    if (action == ChangeAction::Deleted)
-    {
-        prompt.title   = L"Mounted disk has been removed";
-        prompt.message = file + L" is no longer on disk, but " + where
-                       + L" still has the disk in memory.";
-    }
-    else
-    {
-        prompt.title   = L"Mounted disk can't be read";
-        prompt.message = file + L" is still there, but Casso can't read it as a disk any more. "
-                       + where + L" still has the disk in memory.";
-    }
+    prompt.title = (action == ChangeAction::Deleted) ? L"Mounted disk has been removed"
+                                                     : L"Mounted disk can't be read";
 
-    //  ONLY THE OUTCOME THE SCREEN WILL NOT SHOW FOR ITSELF. Saving writes
-    //  the disk out and the drive carries on, which the drive's own label
-    //  reports the moment it happens; saying it here says twice what is about
-    //  to be visible once. Discarding leaves nothing behind to look at.
-    prompt.message += L" Discard empties " + where + L" and the disk is gone.";
+    prompt.message = full + L"\n\n" + where
+                   + L" still has the disk's contents in memory. "
+                     L"You can save it to a new file or discard it.";
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::KeepHeld });
