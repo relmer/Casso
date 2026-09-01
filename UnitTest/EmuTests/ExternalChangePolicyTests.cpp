@@ -353,11 +353,11 @@ public:
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
         Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
 
-        //  BOTH outcomes are stated. Saving keeps the disk on the file the user
-        //  picks; only discarding empties the drive.
-        Assert::IsTrue (deleted.message.find (L"keeps running") != std::wstring::npos);
+        //  Only the outcome the screen will not show for itself. Saving keeps
+        //  the disk and the drive's label reports it; discarding leaves nothing
+        //  to look at, so it is spelled out.
         Assert::IsTrue (deleted.message.find (L"the disk is gone") != std::wstring::npos);
-        Assert::IsTrue (unreadable.message.find (L"keeps running") != std::wstring::npos);
+        Assert::IsTrue (unreadable.message.find (L"the disk is gone") != std::wstring::npos);
     }
 
 

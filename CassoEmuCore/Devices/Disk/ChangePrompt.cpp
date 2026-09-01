@@ -370,13 +370,11 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                        + where + L" still has the disk in memory.";
     }
 
-    //  BOTH OUTCOMES, EACH ON ITS OWN LINE. Saving used to eject as well, so
-    //  the message only had to describe the loss; now that the drive carries on
-    //  the better outcome is the one the reader most needs stated.
-    prompt.message += L"\n\nSave as... writes the disk out and " + where
-                    + L" keeps running on the new file.";
-
-    prompt.message += L"\n\nDiscard empties " + where + L" and the disk is gone.";
+    //  ONLY THE OUTCOME THE SCREEN WILL NOT SHOW FOR ITSELF. Saving writes
+    //  the disk out and the drive carries on, which the drive's own label
+    //  reports the moment it happens; saying it here says twice what is about
+    //  to be visible once. Discarding leaves nothing behind to look at.
+    prompt.message += L" Discard empties " + where + L" and the disk is gone.";
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::KeepHeld });
