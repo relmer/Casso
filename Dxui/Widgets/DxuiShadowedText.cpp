@@ -109,29 +109,35 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
 
 
 
-    // RINGS ARE CIRCLES, sampled by angle. They used to be the eight
-    // neighbours of a 3x3 grid, which is a SQUARE of offsets: the four
-    // diagonals land at r * sqrt(2) rather than at r, so every ring stuck
-    // out at its corners and the halo grew four spikes at 45 degrees. It
-    // reads as a star over any background pale enough to show it.
+    // RINGS ARE CIRCLES, and EIGHT SAMPLES EACH, which is what the original
+    // cost.
     //
-    // Samples scale with the circumference, so the ring stays continuous
-    // as it widens instead of separating into beads. The cap keeps the
-    // outermost rings -- the faintest, where gaps would not show anyway --
-    // from dominating the cost.
+    // They used to be the eight neighbours of a 3x3 grid, which is a SQUARE of
+    // offsets: the four diagonals land at r * sqrt(2) rather than at r, so
+    // every ring stuck out at its corners and the halo grew four spikes at 45
+    // degrees. Putting the same eight samples on a CIRCLE is the whole fix --
+    // the spikes were the grid's shape, not a shortage of samples.
+    //
+    // Scaling the count with the circumference instead was a mistake with a
+    // price: it took a ten-pixel reach from 80 redraws of the string to 218,
+    // and since every sample redraws the WHOLE string, four labels at that
+    // rate cost 16 ms a frame and put a 60 fps scene onto 30. Nothing in the
+    // picture paid for it.
+    //
+    // Odd rings are rotated half a step so successive rings interleave rather
+    // than lining their samples up along the same radii, which is what would
+    // otherwise show as faint spokes.
     for (int r = reachPx; r > 0; r--)
     {
         float   radius  = (float) r;
         float   opacity = 1.0f - (radius / (float) reachPx);
-        int     samples = (int) (6.2831853f * radius / kSampleSpacingPx + 0.5f);
+        float   phase   = ((r & 1) != 0) ? (3.14159265f / (float) kRingSamples) : 0.0f;
 
         uint32_t   shadow = ((uint32_t) (opacity * 255.0f + 0.5f) << 24);
 
-        samples = std::clamp (samples, kMinRingSamples, kMaxRingSamples);
-
-        for (int i = 0; i < samples; i++)
+        for (int i = 0; i < kRingSamples; i++)
         {
-            float   theta = 6.2831853f * (float) i / (float) samples;
+            float   theta = phase + 6.2831853f * (float) i / (float) kRingSamples;
 
             hr = renderer.DrawString (text,
                                       x + radius * std::cos (theta),

@@ -100,12 +100,11 @@ public:
     static constexpr int    kGlowReachPx     = 10;
     static constexpr float  kFontDip         = 13.0f;
 
-    // How far apart the samples around a ring sit, and the bounds on how
-    // many that works out to. Close enough that a ring reads as a ring;
-    // capped so the widest and faintest do not dominate the cost.
-    static constexpr float  kSampleSpacingPx = 1.5f;
-    static constexpr int    kMinRingSamples  = 8;
-    static constexpr int    kMaxRingSamples  = 32;
+    // Samples per ring. EIGHT, flat, which is the count the original drew and
+    // the count that holds 60 fps: every sample redraws the whole string, so
+    // this multiplies straight into the frame. Scaling it with the ring's
+    // circumference tripled the work for a halo nobody could tell apart.
+    static constexpr int    kRingSamples     = 8;
 
 private:
     std::wstring     m_text;
