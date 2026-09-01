@@ -160,15 +160,27 @@ Entries before versioning was introduced use dates only.
   `--on-change reload|restart` beside `--disk`, so a build that assembles
   straight onto a mounted image tells the running emulator what to do with it
   and the loop is one command. It changes no assembled byte.
-- **Casso picks up a disk image changed outside it.** A build that
-  writes onto a mounted image reaches the running guest without an eject and
-  re-insert. `CassoCli disk put --on-change reload|restart` says what the write
-  should do; without it Casso asks. A pick-up is a disk swap and cannot be made
-  safe -- the guest holds the disk's directory in its own memory -- so every
-  notice says why a reboot may be needed.
-- **Neither version is discarded when a disk changes on both sides.** The
-  external version is mounted and Casso's is saved beside it, timestamped. If
-  that copy cannot be written, nothing is mounted and nothing is overwritten.
+- **Casso picks up a disk image changed outside it.** A build that writes onto
+  a mounted image reaches the running guest without an eject and re-insert.
+  `--on-change reload|reboot` specifies what a running Casso does with the
+  modified disk, on both the assembler and `disk put`; without it you get a
+  prompt. That notice closes itself after 30 seconds, since the switch already
+  said what to do, and hovering suspends the countdown rather than restarting
+  it.
+- **Neither version is discarded when a disk changes on both sides.** The file
+  stays with whoever changed it and your version is saved beside it,
+  timestamped. Both ends apply that rule, so the outcome no longer depends on
+  which noticed first -- it used to come down to whichever of the watcher and
+  the drive's spindown was quicker, about a second each.
+- **Keeping the disk in the drive writes it out at once.** It relied on a later
+  flush to save the version being kept, but a disk the guest never wrote to is
+  not dirty and a flush of a clean image does nothing, so quitting or ejecting
+  discarded the version the user had just chosen to keep.
+- **A copy that cannot be written offers somewhere else to put it.** The
+  failure gives the whole path it tried and the system's own reason, with a
+  Save as... button, instead of advice about freeing space. It also no longer
+  retries on every idle tick, which cost a full image read and another failed
+  write sixty times a second for as long as the folder stayed full.
 - **A disk whose file is deleted or becomes unreadable offers to save what is
   still in memory**, then empties the drive rather than reporting a disk that is
   no longer there.
