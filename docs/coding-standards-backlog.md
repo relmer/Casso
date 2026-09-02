@@ -836,6 +836,13 @@ VerbNoun violation, and they have one fix. 38 renames, listed there.
 
 ### 6. Function names are VerbNoun, mostly done
 
+**The rule itself now lives in `.github/copilot-instructions.md` under
+"Function Names", which is the file every session is told to read.** It was
+only ever recorded here before, and this file describes itself as a work queue,
+so a reader who found it read the convention as cleanup rather than as a rule in
+force. Branch 028 then added nine violations without ever being told. What
+follows is the derivation method and the renames still owed, not the rule.
+
 A function name must begin with a verb. `GetPrimaryExtension`, not `ExtensionFor`;
 `HasReachedCap`, not `CapReached`. A noun-first name reads as a value rather
 than an action. `OnXxx` handlers are the standing exception. A *verb*-first name
@@ -923,33 +930,55 @@ link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
 `AppleKeyboard::InputSink` had to be renamed with the call site in
 `UnitTest/Dxui/` excluded by name.
 
-**Still outstanding, and why:**
+**Still outstanding, 19 declarations.** 027 renamed most of what it was holding
+itself, so the old list of held names is gone; what follows is a re-derivation
+against master at `76d3c778`.
 
-* ~~**Anything `Dxui` also declares.**~~ DONE. `Bounds`, `Label`, `Text`,
-  `PreferredHeightDip`, `RectContains` and `CursorForPoint` moved on both sides
-  together in the Dxui sweep below.
-* **The seven files branch `027-nibble-images` is holding.** `MountDiagnosis`,
-  `BlankDiskBuilder`, `DiskCommandRunner`, `VolumeImage`, `DiskImage`,
-  `DiskImageStore` and `NibblizationLayer` were not touched, call sites
-  included. That defers `ExtensionFor` (027 renames it to `GetPrimaryExtension`
-  itself), `SectorRecordOffset`, `WithPrefix`, `Dos33TypeLetter`, `Session`,
-  `At`, `MountedSourcePaths`, `ChangedTracks`, and four more whose declarations
-  are elsewhere but whose callers are not: `ProDosSkeleton::BlockByteOffset`,
-  `Dos33Skeleton::SectorOffset`, `StockBootDisks::PathFor` / `FileNameFor`, and
-  `DiskCommandResult::Failure`.
-* **Master added five more while this branch was open**, all reachable only
-  through those same held files: `BlankDiskBuilder::WritableContainers` and
-  `ContainersFor`, `DiskCommandRunner::AdvertisedContainers` and
-  `ContainerWordList`, and `CountedNoun::Of`, whose 39 call sites include 20 in
-  `DiskCommandRunner.cpp`. `ContainersFor` is worth noting: 027's own plan
-  already names it as unacceptable, so 027 fixes it either way. `CountedNoun::Of`
-  is the only one with a real question attached -- `CountedNoun::Of (5, "sector")`
-  is a deliberate fluent reading, and `Format` is the verb if the rule wins.
-* **`NibblizationLayer`'s two index mappers**, `PoFileIndexForDosLogicalSector`
-  and `DosFileIndexForPhysicalSector`, are in that set. Whoever renames them:
-  the comment blocks above them record which direction each maps and why a
-  hand-written inverse table was dangerous. That is the reason those functions
-  exist. Move the prose intact; do not summarize it.
+*Deferred by the original sweep, and now unblocked.* Both `*Offset` functions
+carry comment blocks recording which direction each maps and why a hand-written
+inverse table was dangerous. That prose is the reason those functions exist.
+Move it intact; do not summarize it.
+
+| Current | File |
+|---|---|
+| `ProDosSkeleton::BlockByteOffset` | `ProDosSkeleton.h:42` |
+| `Dos33Skeleton::SectorOffset` | `Dos33Skeleton.h:39` |
+| `StockBootDisks::PathFor` / `FileNameFor` | `StockBootDisks.h:49`, `:61` |
+| `DiskCommandResult::Failure` | `DiskCommandResult.h:48` |
+
+*Added by branch 028 after the sweep,* which is what prompted moving the rule
+into the standards file. Five of the nine sit in one accessor block.
+
+| Current | File | Becomes |
+|---|---|---|
+| `AskedAction` | `MountedImageState.h:124` | `GetAskedAction` |
+| `Identity` | `MountedImageState.h:74` | `GetIdentity` |
+| `Pending` | `MountedImageState.h:93` | `GetPending` |
+| `SamePath` | `MountedImageState.h:132` | `IsSamePath` |
+| `DirectoryOf` | `MountedImageState.h:135` | `GetDirectory` |
+| `ChangePrompt::FileName` | `ChangePrompt.h:165` | `GetFileName` |
+| `Win32IntentChannel::MessageId` | `Win32IntentChannel.h:43` | `GetMessageId` |
+| `DiskImageStore::NowMs` | `DiskImageStore.h:537` | `GetNowMs` |
+| `DiskImageStore::PathExists` | `DiskImageStore.h:509` | `DoesPathExist` |
+
+*Missed by the sweep itself,* found by re-running the shape pass. `NowMs` in
+`WasapiAudio` predates the sweep entirely, which is what exposed the gap.
+
+| Current | File | Becomes |
+|---|---|---|
+| `WasapiAudio::NowMs` | `WasapiAudio.h:78` | `GetNowMs` |
+| `DeskSceneModel::DoorBoundsAt` | `DeskSceneModel.h:285` | `GetDoorBoundsAt` |
+| `DiskCommandRunner::OnDiskNameFor` | `DiskCommandRunner.h:319` | `GetOnDiskName` |
+| `MeshBlob::KeyOf` | `MeshBlob.h:100` | `MakeKey` |
+| `MeshNormals::KeyOf` | `MeshNormals.h:91` | `MakeKey` |
+
+**The cheap re-derivation is the `NounOf` / `NounFor` / `NounAt` / `NounFrom`
+declaration shapes.** Tree-wide that returns 29 hits, of which most are
+verb-first names carrying a trailing preposition (`GetPartAt`, `WriteByteAt`,
+`ReadNibbleAt`) and are correct. The broad two-pass scan returns 369 candidates
+that are overwhelmingly a short verb list rejecting `ToJson`, `Shutdown` and
+`Widen`, so it needs reading rather than trusting. Neither figure is the answer
+on its own.
 
 **Proof that a rename sweep changed nothing else.** Line counts are identical in
 all 261 files, and every changed line was checked token by token: 2,059 tokens
