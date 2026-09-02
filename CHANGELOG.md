@@ -61,7 +61,7 @@ Entries before versioning was introduced use dates only.
   that used to be queued for a window that never appeared is shown before
   Casso exits.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
-  user to download it from Casso's disk picker and retry.** It used to
+  user to open Casso and use the disk picker to download it.** It used to
   instruct a first run of the emulator, which downloads nothing.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
