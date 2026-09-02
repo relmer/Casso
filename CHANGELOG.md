@@ -64,6 +64,8 @@ Entries before versioning was introduced use dates only.
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
 - **Chrome text could be painted over by the controls under it.**
+- **The write-protect padlock beside a disk's name in the 3D scene looked
+  like an orange smudge.** The 2D drive widget now shows the same padlock.
 
 ## [1.22.0]: The one with nibble support
 

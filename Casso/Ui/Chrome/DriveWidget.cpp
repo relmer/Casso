@@ -123,46 +123,6 @@ void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DriveWidget::DrawPadlock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DriveWidget::DrawPadlock (IDxuiPainter & painter,
-                              float left, float top, float w, float h,
-                              uint32_t fill, uint32_t shade, uint32_t hole)
-{
-    float  bodyTop   = top + h * 0.42f;
-    float  bodyH     = h - (bodyTop - top);
-    float  shackleW  = w * 0.62f;
-    float  shackleX  = left + (w - shackleW) * 0.5f;
-    float  thickness = std::max (1.0f, w * 0.16f);
-    float  shackleH  = bodyTop - top;
-    float  holeW     = std::max (1.0f, w * 0.20f);
-    float  holeX     = left + (w - holeW) * 0.5f;
-    float  holeY     = bodyTop + bodyH * 0.28f;
-
-
-
-    // Shackle: a squared arch (two posts + a top bar) open at the
-    // bottom where it disappears behind the lock body.
-    painter.FillRect (shackleX,                        top, shackleW,  thickness, shade);
-    painter.FillRect (shackleX,                        top, thickness, shackleH,  shade);
-    painter.FillRect (shackleX + shackleW - thickness, top, thickness, shackleH,  shade);
-
-    // Body with a 1px darker border so it reads on any faceplate.
-    painter.FillRect    (left, bodyTop, w, bodyH, fill);
-    painter.OutlineRect (left, bodyTop, w, bodyH, 1.0f, shade);
-
-    // Keyhole.
-    painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DriveWidget::DrawDamageBadge
 //
 //  A warning triangle with an exclamation mark, drawn where the padlock would
@@ -1023,9 +983,28 @@ void DriveWidget::PaintBasenameLabel (
 
     if (locked)
     {
+        // The padlock is a glyph, so its box is the glyph's own measure at
+        // the label's size; the fixed size only stands in when measuring
+        // fails.
         badgeW   = (float) Scale (damaged ? kDamageBadgeWidthPx  : kWpBadgeWidthPx,  dpi);
         badgeH   = (float) Scale (damaged ? kDamageBadgeHeightPx : kWpBadgeHeightPx, dpi);
         badgeGap = (float) Scale (kWpBadgeLabelGapPx, dpi);
+
+        if (!damaged)
+        {
+            float  glyphW = 0.0f;
+            float  glyphH = 0.0f;
+
+            hr = text.MeasureString (s_kpszLock, basenameDip, kFontFamily, glyphW, glyphH);
+
+            if (SUCCEEDED (hr) && glyphW > 0.0f && glyphH > 0.0f)
+            {
+                badgeW = glyphW;
+                badgeH = glyphH;
+            }
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     // What the name gets: the strip, less the badge and its gap.
@@ -1059,8 +1038,13 @@ void DriveWidget::PaintBasenameLabel (
         }
         else
         {
-            DrawPadlock (painter, badgeX, badgeY, badgeW, badgeH,
-                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
+            // The same lock glyph the 3D scene's name strip shows, so the two
+            // presentations wear one badge.
+            hr = text.DrawString (s_kpszLock, badgeX, badgeY, badgeW, badgeH,
+                                  theme.driveLabel, basenameDip, kFontFamily,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                  DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 
