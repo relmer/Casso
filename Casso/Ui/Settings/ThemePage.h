@@ -5,7 +5,6 @@
 #include "../Chrome/CassoTheme.h"
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
-#include "../Chrome/JoystickToggleButton.h"
 #include "../Chrome/MainMenu.h"
 #include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
@@ -122,9 +121,8 @@ private:
     static constexpr int  kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
     static constexpr int  kPrevTitleBarDp      = 32;
     static constexpr int  kPrevNavStripDp      = 32;
-    static constexpr int  kPrevDriveBarFullDp  = 225;
-    static constexpr int  kPrevDriveBarCmptDp  = 105;
-    static constexpr int  kPrevJoystickBandDp  = 43;
+    static constexpr int  kPrevDriveBarFullDp  = 190;
+    static constexpr int  kPrevDriveBarCmptDp  = 70;
     // No system-button or caption/menu font metrics here any more: the real
     // DxuiCaptionBar and MainMenu carry their own, and a second set of
     // numbers describing the same chrome is precisely how the mock drifted
@@ -200,7 +198,6 @@ private:
                                      const std::function<std::wstring (int)>              & mountedPathSource,
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                      std::array<DriveWidget, 2>           & previewDrives,
-                                     JoystickToggleButton                 & previewButton,
                                      DxuiCaptionBar                       & previewCaption,
                                      MainMenu                             & previewMenu,
                                      bool                                 & chromeConfigured,
@@ -247,11 +244,6 @@ private:
     // but the widgets' Layout / SetCompact / SyncFromState are not.
     mutable std::array<DriveWidget, 2>  m_previewDrives;
     mutable bool                        m_previewDrivesInitialized = false;
-
-    // Preview-only joystick-mode toggle button. Rendered "on" so the
-    // theme preview also shows the lit blue LED in the band above the
-    // drive widgets, mirroring the live chrome.
-    mutable JoystickToggleButton        m_previewJoystickButton;
 
     // The app's OWN caption bar and menu, instanced for the preview rather
     // than redrawn by hand. Neither is adopted or wired to anything -- they

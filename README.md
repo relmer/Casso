@@ -328,8 +328,8 @@ per-machine deltas under `machines`.
 <p align="center"><img src="Assets/feat-settings.png" alt="Settings, Machine tab: machine and CPU speed dropdowns, the //e memory map, and the device tree with the slot 1 printer, slot 4 Mockingboard and slot 6 Disk ][ controller" width="540" /></p>
 
 Press **F10** to drive the painted chrome from the keyboard: a Tab focus ring
-walks the menu titles, the Joystick Mode button, and the drive widgets, and never
-leaks keystrokes through to the emulated keyboard.
+walks the menu titles and the drive widgets, and never leaks keystrokes through
+to the emulated keyboard.
 
 ### Disks
 

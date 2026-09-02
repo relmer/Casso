@@ -72,6 +72,12 @@ Entries before versioning was introduced use dates only.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
   user to download it from Casso's disk picker and retry.** It used to
   instruct a first run of the emulator, which downloads nothing.
+- **The Dark Modern and Retro Terminal themes drew a stale input-mode bar.**
+  The joystick, paddle and mouse selector moved to the command toolbar, but
+  the flat themes kept a second copy in a band above the drive widgets. That
+  band and its code are gone, so the drives sit directly under the picture
+  and the window is 43 dp shorter. The F10 focus ring now walks the menu
+  titles and the drives.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both

@@ -99,7 +99,6 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    const std::function<std::wstring (int)>              & mountedPathSource,
                                    const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                    std::array<DriveWidget, 2>           & previewDrives,
-                                   JoystickToggleButton                 & previewButton,
                                    DxuiCaptionBar                       & previewCaption,
                                    MainMenu                             & previewMenu,
                                    bool                                 & chromeConfigured,
@@ -121,11 +120,11 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
 
     // Bottom inset: a full/compact drive bar when the machine has a Disk ][
-    // controller, else just the joystick band (mirrors the live chrome's
-    // Phase D reclaim). Drives both the aspect ratio and the painted band.
+    // controller, else nothing (mirrors the live chrome's Phase D reclaim).
+    // Drives both the aspect ratio and the painted band.
     int  driveBandDp = hasDisk
         ? (theme.compactDrives ? kPrevDriveBarCmptDp : kPrevDriveBarFullDp)
-        : kPrevJoystickBandDp;
+        : 0;
 
 
 
@@ -343,35 +342,12 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
 
         // Only paint the drive widgets when the machine has a Disk ][
         // controller. With none, driveBandDp has already collapsed the
-        // bar to the joystick band, so the preview shows just the band
-        // fill + joystick button -- matching the live chrome's Phase D
-        // reclaim. (The widgets were laid out above but go undrawn.)
+        // bar to nothing -- matching the live chrome's Phase D reclaim.
+        // (The widgets were laid out above but go undrawn.)
         if (hasDisk && !scene3d)
         {
             previewDrives[0].Paint (painter, text, theme);
             previewDrives[1].Paint (painter, text, theme);
-        }
-
-        // Joystick-mode toggle button -- preview as "on" so the lit
-        // blue LED reads in the band above the drives, matching the
-        // live chrome's resting state when the user toggled it on.
-        {
-            int   bandHeight = std::max (1, ScalePx (kPrevJoystickBandDp));
-            int   bandTop    = driveTop;
-            int   centerX    = prevRect.left + prevW / 2;
-            int   centerY    = bandTop + bandHeight / 2;
-            RECT  anchor     = { centerX, centerY, centerX, centerY };
-
-            previewButton.SetTextRenderer (&text);
-            previewButton.SetOn           (true);
-            previewButton.Layout          (anchor, previewScaler);
-
-            // The scene's drives stand where this band is; the live chrome
-            // retired this button from the bottom for the same reason.
-            if (!scene3d)
-            {
-                previewButton.Paint (painter, text, theme);
-            }
         }
     }
 
@@ -854,7 +830,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window
