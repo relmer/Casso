@@ -102,6 +102,11 @@ Entries before versioning was introduced use dates only.
   emulated screen and cover the same share of the picture everywhere. A radius
   keeps the size it had at 100% zoom, so larger windows get more spread than
   before and smaller ones less.
+- **Ctrl+0 resets the window size again**, as it does in most applications, and
+  the 3D scene's view reset moves to Ctrl+Shift+0. Ctrl+0 had been reassigned to
+  the scene, which left it doing nothing at all under the flat themes, where
+  there is no scene to reset. The keymap help and the menu now agree with the
+  keys.
 - **The wrong number of scanlines was drawn outside the 3D desk scene.** The
   192 lines an Apple II draws were spread over the whole window rather than
   over the picture, so the letterbox bars took a share of them and the count
