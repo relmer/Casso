@@ -38,7 +38,7 @@ the other, so the demo ships both and your answer picks one:
 
 <p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome.</sub></p>
 
-`CassoCli` accelerates the retro development loop, with no third-party tool in it:
+`CassoCli` accelerates the retro development loop, with no need for third-party tools:
 
 - **Assembler** — from-scratch, AS65-compatible, and assembles Merlin; ca65 next
 - **Disk management** — create, initialize, catalog, read and write files,
