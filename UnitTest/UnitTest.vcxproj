@@ -237,6 +237,7 @@
     <ClCompile Include="EmuTests\DemoAssets.cpp" />
     <ClCompile Include="CliMainTests.cpp" />
     <ClCompile Include="CliSwitchCoverageTests.cpp" />
+    <ClCompile Include="Win32DiskFileIoTests.cpp" />
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />

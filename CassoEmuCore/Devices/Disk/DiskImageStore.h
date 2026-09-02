@@ -439,9 +439,16 @@ private:
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure. When a
     // recovery image was written, its path is named so the user can retrieve
     // the session rather than only being told what was lost.
+    //
+    //  `reason` IS PRINTED, code and system text both. The notice used to name
+    //  no cause at all and then advise switching to .woz, which is wrong
+    //  advice for a folder that refused the write; the system's own words for
+    //  the failure are the useful part.
+    //
     //  recoveryPath is optional: the write-protect path has no recovery copy
     //  to name, and the message says something useful either way.
     static wstring FormatFlushLossMessage (const string & path,
+                                           HRESULT        reason,
                                            const string & recoveryPath = string());
 
     // Preserves an image that could not be serialized to its own format,

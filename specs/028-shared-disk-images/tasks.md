@@ -255,19 +255,34 @@
   reproduces the ordering exactly: question first, guest write second, flush
   third. Removing the guard fails it.
 
-  **NOT REACHED: the read-only refusal.** Denying new-file creation on the
-  folder (`icacls /deny (WD)`) does keep the image dirty, because the flush's
-  temporary cannot be created -- that part worked, and raised the existing
-  flush-failure notice. But the external change that followed produced no
-  conflict, no copy and no dialog at all. **Hypothesis, NOT verified:**
-  `IsHeldByAnotherProcess` opens the file to answer, and an access-denied from
-  the folder's ACL may be read as "somebody else is writing", which is a silent
-  indefinite Defer. Instrument that call before believing it.
+  **RESOLVED (2026-09-01): the read-only refusal is reached.** The hypothesis
+  was wrong: `IsHeldByAnotherProcess` opens with GENERIC_READ and reports held
+  only on ERROR_SHARING_VIOLATION, so an access-denied cannot read as a hold.
+  Re-run on the final build with the folder create-denied (`icacls /deny
+  (WD,AD)`): the guest dirtied the disk, the flush failed and raised its
+  notice, the notice was dismissed, and the external change that followed
+  produced the conflict and the "Error saving to disk" dialog within 1.5 s,
+  with the disk left in the drive. The same dialog appears on the
+  keep-your-version path against a clean disk. The likeliest account of the
+  original "no dialog" is the flush-failure notice still standing as a modal
+  when the change arrived -- the walk did not record dismissing it -- but that
+  is an inference, not a reproduction; what is proven is that the sequence now
+  reaches the dialog.
 
-  Two unrelated things worth fixing, both pre-existing: the flush-failure
-  notice is titled "Casso" rather than a condition, and it advises trying a
-  `.woz` image because WOZ "round-trips writes reliably" -- which is wrong
-  advice when the real cause is permissions.
+  What the walk DID expose, and is fixed: every disk write reported E_FAIL --
+  "0x80004005 Unspecified error" -- for any failure, because the file-IO seam
+  and the store's own atomic writer both went through fstreams and a CBR.
+  `Win32DiskFileIo::ReadAllBytes`/`WriteAllBytes` and the store's
+  `WriteFileAtomically`/`TryWriteRecoveryImage` now write through CreateFileW
+  with CWR and carry the rename's error code, so both dialogs read "0x80070005
+  Access is denied." Tests assert ERROR_PATH_NOT_FOUND, ERROR_ACCESS_DENIED and
+  ERROR_FILE_NOT_FOUND and, separately, never E_FAIL.
+
+  Of the two pre-existing notice defects, one is fixed: the flush-failure
+  notice now prints the code and the system's words and no longer advises a
+  `.woz` image for a permission failure. Its "Casso" title stands: the EHM
+  notifier carries a message and no title, and changing that contract is a
+  cross-cutting change for its own commit.
 
 - [X] T079 [US1] Add `pickUpIntent` to `CommandLineOptions` in `CassoCore/CommandLineOptions.h` (FR-005), beside the nested `disk` group until 026 provides the flat fields
 - [X] T080 [US1] Add the `--on-change` row to the `disk` grammar in `CassoCore/CommandLineParser.cpp` per [contracts/cli.md](contracts/cli.md), plus the long-option entry so `/on-change` is not shredded into single characters. Document that `reload` is the surface spelling of `TakeUpInPlace`

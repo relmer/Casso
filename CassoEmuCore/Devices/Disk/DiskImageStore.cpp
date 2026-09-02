@@ -547,6 +547,7 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
 ////////////////////////////////////////////////////////////////////////////////
 
 wstring DiskImageStore::FormatFlushLossMessage (const string & path,
+                                                HRESULT        reason,
                                                 const string & recoveryPath)
 {
     wstring  widePath     = fs::path (path).wstring();
@@ -560,8 +561,12 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
         widePath = L"(unknown path)";
     }
 
-    message = L"Casso could not save changes to the disk image:\n\n" + widePath +
-              L"\n\nThe file on disk is unchanged.";
+    //  The code and the system's own words for it, the same way every other
+    //  disk notice reports a failure. A notice that names no cause sends the
+    //  reader guessing, and this one used to guess for them -- wrongly.
+    message = L"Casso could not save changes to the disk image:\n\n" + widePath
+            + L"\n\nError: " + ChangePrompt::DescribeError (reason)
+            + L"\n\nThe file on disk is unchanged.";
 
     // A refusal that leaves the user with no way back to their work is only
     // half a fix, so say where the work went rather than only what failed.
@@ -573,8 +578,10 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
     }
     else
     {
-        message += L" Your recent writes were NOT persisted. If this is a .dsk, "
-                   L"try a .woz image. WOZ round-trips writes reliably.";
+        //  True and actionable, where the old text advised a format change
+        //  that cannot help a permission or disk-space failure.
+        message += L" Your recent writes have not been saved. The disk in the drive "
+                   L"still has them.";
     }
 
     return message;
@@ -645,7 +652,6 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
     bool          haveImage = entry.image != nullptr;
     bool          havePath  = !entry.path.empty();
     bool          haveName  = false;
-    bool          fileOk    = false;
     vector<Byte>  wozBytes;
 
 
@@ -676,7 +682,7 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
         }
     }
 
-    CBR (haveName);
+    CBREx (haveName, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
     if (m_flushSink)
     {
@@ -685,13 +691,29 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
     }
     else
     {
-        ofstream  file (candidate, ios::binary);
+        //  Same rule as WriteFileAtomically: the filesystem's own code for a
+        //  refusal travels out, not E_FAIL. The name was just verified free,
+        //  so CREATE_NEW is faithful and refuses a race for it rather than
+        //  overwriting whoever won.
+        std::wstring  wide     = fs::path (candidate).wstring();
+        HANDLE        file     = INVALID_HANDLE_VALUE;
+        DWORD         written  = 0;
+        DWORD         lastErr  = ERROR_SUCCESS;
+        DWORD         expected = static_cast<DWORD> (wozBytes.size());
+        BOOL          ok       = FALSE;
 
-        fileOk = file.good();
-        CBR (fileOk);
+        file = CreateFileW (wide.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CWR (file != INVALID_HANDLE_VALUE);
 
-        file.write (reinterpret_cast<const char *> (wozBytes.data()),
-                    static_cast<streamsize> (wozBytes.size()));
+        ok      = WriteFile (file, wozBytes.data(), static_cast<DWORD> (wozBytes.size()),
+                             &written, nullptr);
+        lastErr = ok ? ERROR_SUCCESS : GetLastError();
+
+        CloseHandle (file);
+
+        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
+        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
     outPath = candidate;
@@ -854,12 +876,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         IGNORE_RETURN_VALUE (hrRecovery, S_OK);
     }
 
-    CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+    CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
     else if (!entry.path.empty())
     {
@@ -872,7 +894,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         // a flush that cannot land is exactly when the session's only
         // lossless copy of the disk is the one sitting beside the original.
         hr = WriteFileAtomically (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
 
     // The file now carries a freshly computed CRC that matches it, so the
@@ -919,11 +941,11 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
 {
     HRESULT           hr        = S_OK;
     bool              hasPath   = !path.empty();
-    bool              wroteOk   = false;
     bool              foundFree = false;
     unsigned          attempt   = 0;
     string            tempPath;
     std::error_code   ec;
+    size_t            byteCount = bytes.size();
 
 
 
@@ -953,30 +975,48 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
         }
     }
 
-    CBR (foundFree);
+    CBREx (foundFree, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
+    //  A disk image is a few hundred KB; a payload past 4 GB is a caller bug.
+    CBRAEx (byteCount <= MAXDWORD, E_INVALIDARG);
+
+    //  THE REAL ERROR TRAVELS. This went through an ofstream and a CBR, which
+    //  turned a folder that refused the temporary, a read-only target and a
+    //  full disk all into E_FAIL -- and the save-failure notice, built to
+    //  print the code and the system's own words for it, said "0x80004005
+    //  Unspecified error" for a permission problem. CreateFileW and CWR carry
+    //  the Win32 code out whole. The write's error is captured BEFORE the
+    //  handle closes, because CloseHandle would overwrite it.
     {
-        ofstream  file (tempPath, ios::binary | ios::trunc);
+        std::wstring  wideTemp = fs::path (tempPath).wstring();
+        HANDLE        file     = INVALID_HANDLE_VALUE;
+        DWORD         written  = 0;
+        DWORD         lastErr  = ERROR_SUCCESS;
+        DWORD         expected = static_cast<DWORD> (byteCount);
+        BOOL          ok       = TRUE;
 
-        wroteOk = file.good();
+        file = CreateFileW (wideTemp.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CWR (file != INVALID_HANDLE_VALUE);
 
-        if (wroteOk && !bytes.empty())
+        if (!bytes.empty())
         {
-            file.write (reinterpret_cast<const char *> (bytes.data()),
-                        static_cast<streamsize> (bytes.size()));
+            ok      = WriteFile (file, bytes.data(), static_cast<DWORD> (bytes.size()),
+                                 &written, nullptr);
+            lastErr = ok ? ERROR_SUCCESS : GetLastError();
         }
 
-        file.close();
+        CloseHandle (file);
 
-        wroteOk = wroteOk && file.good();
+        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
+        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
-    CBR (wroteOk);
-
     // Rename replaces an existing target, so the swap is one filesystem
-    // operation: readers see either the old file or the new one.
+    // operation: readers see either the old file or the new one. The code the
+    // filesystem gave for a refusal travels with it rather than becoming E_FAIL.
     fs::rename (tempPath, path, ec);
-    CBR (!ec);
+    CBREx (!ec, HRESULT_FROM_WIN32 (ec.value()));
 
 Error:
     if (FAILED (hr))
@@ -1081,10 +1121,10 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         CHR (hr);
 
         hr = ReadImageFile (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         if (m_flushSink)
         {
@@ -1095,7 +1135,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
             hr = WriteFileAtomically (entry.path, bytes);
         }
 
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         // The live image follows the file, and only once the file has
         // actually changed -- so a failed write leaves the two agreeing.
