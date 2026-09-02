@@ -4,6 +4,7 @@
 #include "KeystrokeInjector.h"
 #include "Devices/Apple2eMmu.h"
 #include "Video/CharacterRomData.h"
+#include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -48,55 +49,7 @@ public:
 
     static constexpr uint64_t  kColdBootCycles  = 5'000'000ULL;
     static constexpr uint64_t  kAfterCommand    = 2'000'000ULL;
-    static constexpr int       kMaxAncestorWalk = 10;
 
-
-    // Find the directory containing `Machines/` by walking up from CWD.
-    // Mirrors the resolver pattern in BackwardsCompatTests so these
-    // tests stay filesystem-independent across CI vs local builds.
-    fs::path FindRepoRoot()
-    {
-        std::error_code ec;
-        fs::path        cursor  = fs::current_path (ec);
-        fs::path        root;
-        bool            walking = !ec;
-
-        for (int i = 0; walking && root.empty() && i < kMaxAncestorWalk; i++)
-        {
-            if (fs::exists (cursor / "Machines", ec) &&
-                fs::is_directory (cursor / "Machines", ec))
-            {
-                root = cursor;
-            }
-            else if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-            {
-                // Reached the drive root without finding Machines/.
-                walking = false;
-            }
-            else
-            {
-                cursor = cursor.parent_path();
-            }
-        }
-
-        return root;
-    }
-
-
-    fs::path FindRomPath (const std::string & relPath)
-    {
-        fs::path  root = FindRepoRoot();
-        fs::path  full;
-
-        // Empty root means no repo, and joining relPath onto an empty path
-        // would silently resolve against the CWD instead.
-        if (!root.empty())
-        {
-            full = root / relPath;
-        }
-
-        return full;
-    }
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
@@ -105,17 +58,21 @@ public:
 
 
 
-        fs::path romPath = FindRomPath ("ROMs/Apple2e_Video.rom");
-        if (romPath.empty() || !fs::exists (romPath))
+        //  A COMMITTED FIXTURE, so there is nothing to skip over. This asked
+        //  for `ROMs/Apple2e_Video.rom` until 2026-09-02 -- a directory this
+        //  repository has never had -- so the case skipped everywhere while
+        //  the ROM it wanted sat in UnitTest/Fixtures, and the runner
+        //  reported that as a pass.
         {
-            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
-                                  "not present (CI runners do not provision "
-                                  "Apple-owned ROMs).\n");
-            return;
-        }
+            FixtureProvider       fixtures;
+            std::vector<uint8_t>  romBytes;
 
-        hr = rom.LoadFromFile (romPath.string());
-        AssertSucceeded (hr, L"Must load Apple2e_Video.rom");
+            AssertSucceeded (fixtures.OpenFixture ("Apple2e_Video.rom", romBytes),
+                L"the committed //e character ROM must be readable");
+
+            hr = rom.LoadFromMemory (romBytes.data(), romBytes.size());
+            AssertSucceeded (hr, L"and must decode as a character ROM");
+        }
 
         for (int y = 0; y < 8; y++)
         {
