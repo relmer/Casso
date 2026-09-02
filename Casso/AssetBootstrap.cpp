@@ -10,6 +10,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
+#include "Core/TextEncoding.h"
 #include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
@@ -23,6 +24,7 @@
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiPanel.h"
 #include "Window/DxuiDialogWindow.h"
+#include "Window/DxuiMessageBox.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiSearchBox.h"
 #include "Core/UnicodeSymbols.h"
@@ -117,11 +119,13 @@ static constexpr RomSpec s_kRomCatalog[] =
 //
 //  BootDiskSpec
 //
-//  Apple master disk images we offer to download from the Asimov
-//  mirror when a user starts a machine with a Disk ][ controller and
-//  no disk has ever been mounted in drive 1. The on-disk filename
-//  matches the canonical Asimov filename so a savvy user can drop
-//  their own copy into Disks/ and have it picked up.
+//  Apple master disk images downloaded from the Asimov mirror when the
+//  user picks one in the boot or insert disk picker, or clicks Download
+//  in Create New Disk. Nothing fetches them on its own. The on-disk
+//  filename is shorter than the Asimov one; a copy dropped into Disks/
+//  under that name is picked up without a download. StockBootDisks in
+//  CassoEmuCore holds the same two names for the command line, so a
+//  change here is a change there too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1769,10 +1773,12 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 //
 //  DownloadStockBootDisk
 //
-//  Pure download helper used by PromptBootDiskMru's "Download..." rows.
-//  Fetches `spec` from the Asimov mirror, writes it under `diskDir`,
-//  and returns the absolute path in `outDiskPath`. No UI; the caller
-//  owns the prompt and progress reporting.
+//  Pure download helper behind the DOS 3.3 / ProDOS rows of the boot and
+//  insert disk pickers and, through EnsureStockBootDisk, the Download
+//  button in Create New Disk. Returns at once when the file is already
+//  under `diskDir`; otherwise fetches `spec` from the Asimov mirror,
+//  writes it there, and returns the absolute path in `outDiskPath`. No
+//  UI; the caller owns the prompt and any error reporting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1830,7 +1836,61 @@ Error:
         WinHttpCloseHandle (hSession);
     }
 
+    //  A write that failed partway leaves a truncated file, and the check at
+    //  the top would hand that back as the download on the next attempt.
+    if (FAILED (hr))
+    {
+        fs::remove (destPath, ec);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportStockDiskDownloadFailure
+//
+//  The one place a failed stock download is shown. Both pickers call it and
+//  then come back up, so the user reads why and still has every alternative
+//  in front of them. The reason is DownloadStockBootDisk's own text, which
+//  states what went wrong (no network, an HTTP status, a wrong size, a file
+//  that could not be written) rather than only that something did.
+//
+//  The reason goes through NarrowToWide rather than the file's AsciiToWide,
+//  because a write failure interpolates the cache path, and that path carries
+//  the user's account name in the process's narrow code page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void ReportStockDiskDownloadFailure (
+    HWND                     hwndParent,
+    const IDxuiTheme       * theme,
+    const wstring          & caption,
+    const BootDiskSpec     & spec,
+    string_view              error,
+    const wchar_t          * choices)
+{
+    wstring  text;
+
+
+
+    text  = L"Download failed\n\n";
+    text += format (L"Casso could not download the {} master from the Asimov archive.\n",
+                    AsciiToWide (spec.shortLabel));
+
+    if (!error.empty())
+    {
+        text += TextEncoding::NarrowToWide (string (error));
+        text += L".\n";
+    }
+
+    text += choices;
+
+    DxuiMessageBox (hwndParent, theme, text.c_str(), caption.c_str(), MB_OK | MB_ICONWARNING);
 }
 
 
@@ -2535,6 +2595,11 @@ Error:
 //  somewhere to go). Picking a row mounts that image (downloading on
 //  demand for the stock rows); the Skip button leaves the slot empty.
 //
+//  A stock download that fails is reported in a themed box and the picker
+//  comes back, so the user can try again, choose another disk, Skip, or
+//  close. The only failure this returns is a machine whose embedded config
+//  cannot be read.
+//
 //  On return:
 //    outDiskPath = path to mount, or empty if the user skipped / the
 //                  machine has no Disk ][ controller.
@@ -2567,15 +2632,15 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *>            shownDownloads;
-    std::vector<const DownloadRow *>            mruLabels;
-    std::vector<DiskMruPickerSession::ModelRow> models;
-    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
-    int                   chosen        = s_kSkipResult;
-    int                   mruCount      = (int) mruEntries.size();
-    int                   downloadCount = 0;
-    int                   rowCount      = 0;
-    error_code            ec;
+    std::vector<const DownloadRow *>             shownDownloads;
+    std::vector<const DownloadRow *>             mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow>  models;
+    CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
+    int                                          chosen         = s_kSkipResult;
+    int                                          mruCount       = (int) mruEntries.size();
+    int                                          downloadCount  = 0;
+    int                                          rowCount       = 0;
+    error_code                                   ec;
 
 
 
@@ -2670,30 +2735,55 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         models.push_back (std::move (row));
     }
 
-    session.SetText          (title, intro);
-    session.SetModelRows     (std::move (models));
-    session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
-    session.SetCloseBoxResult (s_kCloseBoxResult);
+    //  A stock download that fails comes back here instead of ending the
+    //  picker. The user reads why, and the picker already holds every
+    //  alternative: the same row again, another disk, Skip, or the close box.
+    //  Each pass builds a fresh session, because Run configures its widgets
+    //  once and themes them from a local, so the rows are copied in rather
+    //  than moved.
+    for (;;)
+    {
+        DiskMruPickerSession    session (hInstance, hwndParent, themeName);
+        const BootDiskSpec    * spec    = nullptr;
 
-    chosen = session.Run();
+
+
+        session.SetText          (title, intro);
+        session.SetModelRows     (models);
+        session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
+        session.SetCloseBoxResult (s_kCloseBoxResult);
+
+        chosen = session.Run();
+
+        //  The close box, Skip, and the MRU rows all end the picker.
+        if (chosen < mruCount || chosen >= rowCount)
+        {
+            break;
+        }
+
+        spec = shownDownloads[(size_t) (chosen - mruCount)]->spec;
+        hr   = DownloadStockBootDisk (*spec, diskDir, outDiskPath, outError);
+
+        if (SUCCEEDED (hr))
+        {
+            break;
+        }
+
+        ReportStockDiskDownloadFailure (hwndParent, &theme, title, *spec, outError,
+                                        L"Try again, choose another disk, or click Skip to "
+                                        L"start with an empty drive.");
+
+        outError.clear();
+        hr = S_OK;
+    }
 
     if (chosen == s_kCloseBoxResult)
     {
         outUserClosed = true;
     }
-    else if (chosen == s_kSkipResult)
-    {
-        // user skipped; outDiskPath stays empty
-    }
     else if (chosen >= 0 && chosen < mruCount)
     {
         outDiskPath = mruEntries[(size_t) chosen].path.wstring();
-    }
-    else if (chosen >= mruCount && chosen < rowCount)
-    {
-        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
-        hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
-        CHR (hr);
     }
 
 Error:
@@ -2712,7 +2802,9 @@ Error:
 //  ProDOS "Download" rows, but the dialog footer offers Browse... /
 //  Cancel instead of Skip. Browse pops back to the caller which then
 //  fires the existing IFileOpenDialog path. Cancel / close box leaves
-//  the drive untouched.
+//  the drive untouched. A stock download that fails is reported in a
+//  themed box and the picker comes back, rather than returning the
+//  failure to a caller that has nothing to show for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2742,15 +2834,15 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *>            shownDownloads;
-    std::vector<const DownloadRow *>            mruLabels;
-    std::vector<DiskMruPickerSession::ModelRow> models;
-    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
-    int                   chosen        = s_kCancelResult;
-    int                   mruCount      = (int) mruEntries.size();
-    int                   downloadCount = 0;
-    int                   rowCount      = 0;
-    error_code            ec;
+    std::vector<const DownloadRow *>             shownDownloads;
+    std::vector<const DownloadRow *>             mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow>  models;
+    CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
+    int                                          chosen         = s_kCancelResult;
+    int                                          mruCount       = (int) mruEntries.size();
+    int                                          downloadCount  = 0;
+    int                                          rowCount       = 0;
+    error_code                                   ec;
 
 
 
@@ -2853,38 +2945,58 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         models.push_back (std::move (row));
     }
 
-    session.SetText          (title, intro);
-    session.SetModelRows     (std::move (models));
-    session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
-    session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
-    session.SetCloseBoxResult (s_kCloseBoxResult);
+    //  Same retry shape as PromptBootDiskMru: a failed stock download is
+    //  shown, then the picker comes back with every alternative still on it.
+    for (;;)
+    {
+        DiskMruPickerSession    session (hInstance, hwndParent, themeName);
+        const BootDiskSpec    * spec    = nullptr;
 
-    chosen = session.Run();
+
+
+        session.SetText          (title, intro);
+        session.SetModelRows     (models);
+        session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
+        session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
+        session.SetCloseBoxResult (s_kCloseBoxResult);
+
+        chosen = session.Run();
+
+        //  Browse..., Cancel, the close box, the MRU rows, and the pinned
+        //  create-new row all end the picker.
+        if (chosen < mruCount || chosen >= rowCount)
+        {
+            break;
+        }
+
+        spec = shownDownloads[(size_t) (chosen - mruCount)]->spec;
+        hr   = DownloadStockBootDisk (*spec, diskDir, outDiskPath, outError);
+
+        if (SUCCEEDED (hr))
+        {
+            break;
+        }
+
+        ReportStockDiskDownloadFailure (hwndParent, &theme, title, *spec, outError,
+                                        L"Try again, choose another disk, or click Cancel.");
+
+        outError.clear();
+        hr = S_OK;
+    }
 
     if (chosen == s_kBrowseResult)
     {
         outBrowse = true;
     }
-    else if (chosen == s_kCloseBoxResult || chosen == s_kCancelResult)
-    {
-        // user canceled; outDiskPath stays empty
-    }
     else if (chosen >= 0 && chosen < mruCount)
     {
         outDiskPath = mruEntries[(size_t) chosen].path.wstring();
-    }
-    else if (chosen >= mruCount && chosen < rowCount)
-    {
-        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
-        hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
-        CHR (hr);
     }
     else if (chosen == rowCount)
     {
         outCreateNew = true;
     }
 
-Error:
     return hr;
 }
 

@@ -122,7 +122,9 @@ public:
     // resolved yet, even when the MRU is empty -- the download rows
     // give a fresh install somewhere to go. Picking a row mounts it
     // (downloading on demand for the stock rows); Skip leaves the
-    // slot empty.
+    // slot empty. A stock download that fails is reported in a themed
+    // box and the picker comes back; outError is set only for a failure
+    // that ends the picker (an embedded config that cannot be read).
     //
     // On return:
     //   outDiskPath = path to mount, or empty if the user skipped /
@@ -144,7 +146,9 @@ public:
     // and ProDOS stock masters so the picker is never empty even on
     // a fresh install. The "Browse..." footer button falls through to
     // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
-    // leaves the slot untouched.
+    // leaves the slot untouched. A stock download that fails is reported
+    // in a themed box and the picker comes back, so it is not returned as
+    // a failure.
     //
     // On return:
     //   outDiskPath  = path to mount, or empty if the user canceled

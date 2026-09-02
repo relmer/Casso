@@ -280,7 +280,10 @@ static HRESULT LoadMachineConfig (
             hr = AssetBootstrap::PromptBootDiskMru (
                 hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
 
-            CHRN (hr, format (L"Boot disk download failed:\n{}",
+            // A failed download is shown by the picker itself, which then
+            // comes back; what reaches here is a machine whose embedded
+            // config could not be read.
+            CHRN (hr, format (L"Boot disk picker failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
 
             // Closing the boot-disk picker is the same clean-shutdown
@@ -479,7 +482,9 @@ int WINAPI wWinMain (
     // themed dialog rather than a system message box. Installed here, before
     // anything can fail, so a command-line or machine-config failure is
     // reported too; those happen before the shell exists, so the sink queues
-    // them and the shell replays them once there is a window.
+    // them and the shell replays them once there is a window. When startup
+    // fails before there is one, the Error tail shows the queue in a system
+    // box instead.
 
     SetNotifyFunction (&EmulatorShell::NotifyUser);
 
@@ -639,8 +644,13 @@ Error:
 
     // exitCode is still 0 for any bail, including BAIL_OUT_IF (userExited) --
     // dismissing a startup dialog is a clean exit, not a failure.
+    //
+    // Anything still queued was never shown, because the window that drains
+    // the queue never appeared. Show it the one way left before exiting with
+    // a failure code.
     if (FAILED (hr))
     {
+        EmulatorShell::ShowPendingNotificationsWithoutWindow();
         exitCode = 1;
     }
 
