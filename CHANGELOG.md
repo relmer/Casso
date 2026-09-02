@@ -71,6 +71,10 @@ Entries before versioning was introduced use dates only.
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
 - **Chrome text could be painted over by the controls under it.**
+- **The write-protect padlock beside a disk's name in the 3D scene was
+  distorted.** Changed to use the emoji lock character to avoid conflicts 
+  with the text shadow effect and improve overall icon clarity. The 2D drive
+  widget now uses the same padlock.
 
 ## [1.22.0]: The one with nibble support
 

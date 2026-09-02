@@ -102,6 +102,13 @@ public:
     virtual void     PushTextSkew  (float tanX, float yPivotDip) { (void) tanX; (void) yPivotDip; }
     virtual void     PopTextSkew   ()                            {}
 
+    // Draw color-font glyphs (emoji) as their monochrome outlines in the brush
+    // color until the matching pop. A shadow pass wants the glyph's SHAPE in
+    // black; with color fonts on, the glyph keeps its own palette and the
+    // brush only sets alpha. Defaulted to a no-op for mocks. Not nestable.
+    virtual void     PushMonochromeGlyphs ()                     {}
+    virtual void     PopMonochromeGlyphs  ()                     {}
+
     // Font-handle convenience overloads: unpack a theme DxuiFontHandle into
     // the face / size / weight triple. Defaulted (not pure) so existing
     // mocks need not implement them.

@@ -1266,7 +1266,8 @@ HRESULT DxuiTextRenderer::DrawString (
         // legacy unclipped behavior. The layout owns the box (widthDip x
         // heightDip); the origin carries any cap-height vertical shift applied
         // to layoutRect above.
-        D2D1_DRAW_TEXT_OPTIONS  opts = D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
+        D2D1_DRAW_TEXT_OPTIONS  opts = m_monochromeGlyphs ? D2D1_DRAW_TEXT_OPTIONS_NONE
+                                                          : D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
 
         if (!wrap)
         {

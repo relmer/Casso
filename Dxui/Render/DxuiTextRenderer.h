@@ -99,6 +99,9 @@ public:
     void     PushTextSkew     (float tanX, float yPivotDip) override;
     void     PopTextSkew      () override;
 
+    void     PushMonochromeGlyphs () override { m_monochromeGlyphs = true;  }
+    void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
+
     HRESULT  FillRect         (float    xDip,
                                float    yDip,
                                float    widthDip,
@@ -288,4 +291,7 @@ private:
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;
     float                             m_globalAlpha = 1.0f;
+
+    // See PushMonochromeGlyphs: while set, DrawString leaves color fonts off.
+    bool                              m_monochromeGlyphs = false;
 };
