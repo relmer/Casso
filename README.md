@@ -288,12 +288,11 @@ parameter change against live output.
 
 <p align="center"><img src="Assets/feat-crt-effects.png" alt="Display tab CRT controls: monitor preset, brightness, contrast, gamma, scanlines, bloom, color bleed, persistence" width="540" /></p>
 
-The **CRT monitor** that frames the display is one of the CAD models described
-above, lit and shadowed with the rest of the desk scene. It can be turned off
-with **3D CRT monitor** on **Settings → Theme**, which leaves the drives
-standing on the desk under a flat picture.
-
-<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="The emulator display framed in a period Apple CRT monitor on the desk scene" width="460" /></p>
+The **CRT monitor** that frames the display is one of the CAD models pictured
+under [What's New](#the-skeuomorphic-theme-goes-to-11-121), lit and shadowed
+with the rest of the desk scene. It can be turned off with **3D CRT monitor**
+on **Settings → Theme**, which leaves the drives standing on the desk under a
+flat picture.
 
 ### Themed chrome
 
@@ -305,23 +304,28 @@ machine reset. Each ships under `Resources/Themes/<Name>/` with a `theme.json`
 describing colors, CRT defaults, drive visuals, and other UI tokens; see
 [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the authoring surface.
 
-<p align="center"><img src="Assets/feat-themes.png" alt="Theme picker hot-swapping between Skeuomorphic, Dark Modern, and Retro Terminal" width="540" /></p>
+<p align="center"><img src="Assets/feat-themes.png" alt="Settings, Theme tab: the theme dropdown open over a live preview of the desk scene showing the casso-rocks demo" width="540" /></p>
 
-**Skeuomorphic drive widgets** carry realistic Disk II faceplates: a
-perspective-projected case top, vent slits, a cantilever door that tilts up and
-back to reveal a recessed finger-pull, a status LED, and the rainbow cassowary
-logo. Click a drive to pick an image or drag one onto it. A write-protected disk
-shows a brass padlock, and hovering explains why it's protected.
+**The drives are Disk II models on the desk**, the same CAD objects as the
+monitor, with the DRIVE 1 and IN USE marks, the `disk ][` logotype and the
+cassowary badge molded into the faceplate. An empty drive rests with its door
+open, as the real one does; mounting a disk swings the door shut on its
+cantilever, and ejecting swings it open again. The IN USE lamp is a real red
+light in the shading pass, lit whenever the motor runs. The mounted image's
+name sits under each drive, and a write-protected disk wears a padlock beside
+its name, with hover text explaining why it is protected. Click a drive's door
+to pick an image, or drag one onto the drive.
 
-<p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
+<p align="center"><img src="Assets/feat-drive-widgets.png" alt="Two Disk II drives on the desk: Drive 1 loaded with Karateka.woz, its red IN USE lamp lit and a padlock beside the name, Drive 2 empty with its door open" width="700" /></p>
 
-A consolidated **Settings panel** holds machine selection, emulation speed, video
-color mode, disk write mode, floppy sound and mechanism, write protect, the theme
-picker, and the CRT controls, in one non-modal in-window panel with full keyboard
-navigation. Preferences persist to `%LOCALAPPDATA%\Casso\UserPrefs.json` — global
-UI state under `global`, per-machine deltas under `machines`.
+A consolidated **Settings** sheet holds machine selection and its slots,
+emulation speed, disk write mode, floppy sound and mechanism, write protect, the
+theme picker, the CRT controls and printer options, in one non-modal window with
+full keyboard navigation. Preferences persist to
+`%LOCALAPPDATA%\Casso\UserPrefs.json` — global UI state under `global`,
+per-machine deltas under `machines`.
 
-<p align="center"><img src="Assets/feat-settings.png" alt="Settings panel, Machine tab with machine, CPU speed, write protect, write mode, and drive audio controls" width="540" /></p>
+<p align="center"><img src="Assets/feat-settings.png" alt="Settings, Machine tab: machine and CPU speed dropdowns, the //e memory map, and the device tree with the slot 1 printer, slot 4 Mockingboard and slot 6 Disk ][ controller" width="540" /></p>
 
 Press **F10** to drive the painted chrome from the keyboard: a Tab focus ring
 walks the menu titles, the Joystick Mode button, and the drive widgets, and never
@@ -335,7 +339,7 @@ images straight off the wire — protection schemes and all.
 
 | Karateka | Choplifter | Lode Runner |
 | :---: | :---: | :---: |
-| ![Karateka booting in Casso](Assets/game-karateka.png) | ![Choplifter title screen in Casso](Assets/game-choplifter.png) | ![Lode Runner running in Casso](Assets/game-loderunner.png) |
+| ![Karateka on the Apple //e desk scene, the hero squaring off with the first guard](Assets/game-karateka.png) | ![Choplifter's title screen on the desk scene, the drive lamp still lit from loading](Assets/game-choplifter.png) | ![Lode Runner's demo running on the desk scene](Assets/game-loderunner.png) |
 
 `.woz`, `.dsk`, `.do`, `.po`, `.nib` and `.nb2` images all mount — drag one onto a
 drive, pick it from the dialog, or name it on the command line. Casso can **create
@@ -386,7 +390,7 @@ an original 95-glyph dot-matrix font, and The Print Shop prints banners, signs
 and greeting cards in four-color glory, its command set locked from real byte
 captures.
 
-<p align="center"><img src="Assets/printer-preview.png" alt="Casso printing a Print Shop sign on an emulated Apple //e Enhanced, with the live 3D ImageWriter II preview feeding fanfold paper" width="100%" /></p>
+<p align="center"><img src="Assets/printer-preview.png" alt="Casso at The Print Shop's sign print menu on an Apple //e, beside the live 3D ImageWriter II preview with the printed sign on fanfold paper" width="100%" /></p>
 
 Output appears in a live 3D preview — the project's own CAD model — with fanfold
 paper, tractor-feed holes and perforations feeding out of the platen as you
