@@ -96,6 +96,12 @@ Entries before versioning was introduced use dates only.
   distorted.** Changed to use the emoji lock character to avoid conflicts 
   with the text shadow effect and improve overall icon clarity. The 2D drive
   widget now uses the same padlock.
+- **Bloom and color bleed changed with the window size.** Both were measured in
+  output pixels, so the same settings tightened as the window grew and looked
+  different again on the 3D desk scene. They are now measured in pixels of the
+  emulated screen and cover the same share of the picture everywhere. A radius
+  keeps the size it had at 100% zoom, so larger windows get more spread than
+  before and smaller ones less.
 
 ## [1.22.0]: The one with nibble support
 

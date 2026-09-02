@@ -256,6 +256,145 @@ public:
     }
 
 
+    TEST_METHOD (MakeCrtParams_LeavesPixelScaleAtUnity)
+    {
+        GlobalUserPrefs  prefs;
+
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
+
+        // MakeCrtParams resolves what the effects are worth, not how big a
+        // picture they land on; CrtPostProcess::Process fills the scale in
+        // from the fitted rect. Unity here means a radius still counts
+        // target texels for anyone who never sets it.
+        Assert::AreEqual (1.0f, params.pixelScaleX);
+        Assert::AreEqual (1.0f, params.pixelScaleY);
+    }
+
+
+    TEST_METHOD (ComputeCrtPixelScale_CountsTargetTexelsPerEmulatedPixel)
+    {
+        RECT           oneToOne = { 0,   0,   560,  384 };
+        RECT           doubled  = { 0,   0,   1120, 768 };
+        RECT           offset   = { 200, 100, 760,  484 };
+        CrtPixelScale  scale    = {};
+
+
+
+        // The emulated framebuffer drawn at its own size: one emulated
+        // pixel IS one target texel, which is the reference the shipped
+        // radii are numbered against.
+        scale = ComputeCrtPixelScale (oneToOne, 560, 384);
+        Assert::AreEqual (1.0f, scale.x);
+        Assert::AreEqual (1.0f, scale.y);
+
+        scale = ComputeCrtPixelScale (doubled, 560, 384);
+        Assert::AreEqual (2.0f, scale.x);
+        Assert::AreEqual (2.0f, scale.y);
+
+        // Only the rect's SIZE matters. The desk scene hands the chain a
+        // rect anchored at the texture origin and the flat path hands it a
+        // letterboxed one, and the same picture must scale the same way.
+        scale = ComputeCrtPixelScale (offset, 560, 384);
+        Assert::AreEqual (1.0f, scale.x);
+        Assert::AreEqual (1.0f, scale.y);
+    }
+
+
+    TEST_METHOD (ComputeCrtPixelScale_MeasuredDeskAndFlatTargetsDisagree)
+    {
+        RECT           deskSmall = { 0, 0, 371,  255 };
+        RECT           deskWide  = { 0, 0, 705,  484 };
+        RECT           flat      = { 0, 0, 1000, 685 };
+        CrtPixelScale  scale     = {};
+
+
+
+        // Three fitted rects measured off the running app at 144 dpi: the
+        // desk scene in a small window, the desk scene at the default
+        // window, and the flat path in that same small window. They span
+        // nearly a factor of three, which is exactly how much the bloom
+        // used to change for settings the user never touched.
+        scale = ComputeCrtPixelScale (deskSmall, 560, 384);
+        Assert::AreEqual (0.6625f, scale.x, 0.0001f);
+
+        scale = ComputeCrtPixelScale (deskWide, 560, 384);
+        Assert::AreEqual (1.2589f, scale.x, 0.0001f);
+
+        scale = ComputeCrtPixelScale (flat, 560, 384);
+        Assert::AreEqual (1.7857f, scale.x, 0.0001f);
+    }
+
+
+    TEST_METHOD (ComputeCrtPixelScale_KeepsARadiusOnTheSameShareOfThePicture)
+    {
+        constexpr float  kRadiusEmulatedPx = 3.0f;
+
+        RECT           tightRect = { 0, 0, 371,  255 };
+        RECT           wideRect  = { 0, 0, 1000, 685 };
+        CrtPixelScale  tightSc   = ComputeCrtPixelScale (tightRect, 560, 384);
+        CrtPixelScale  wideSc    = ComputeCrtPixelScale (wideRect, 560, 384);
+        float          tightSh   = 0.0f;
+        float          wideSh    = 0.0f;
+
+
+
+        // The whole point of the change, stated as the property it buys:
+        // the blur's reach, divided by the width of the picture it lands
+        // on, is the same number at both sizes. Before the scale existed
+        // the numerator was constant instead, so this ratio moved with the
+        // window.
+        tightSh = (kRadiusEmulatedPx * tightSc.x) / (float) (tightRect.right - tightRect.left);
+        wideSh  = (kRadiusEmulatedPx * wideSc.x)  / (float) (wideRect.right  - wideRect.left);
+
+        Assert::AreEqual (tightSh, wideSh, 0.00001f);
+        Assert::AreEqual (kRadiusEmulatedPx / 560.0f, tightSh, 0.00001f);
+    }
+
+
+    TEST_METHOD (ComputeCrtPixelScale_DegenerateInputsYieldUnity)
+    {
+        RECT           empty  = {};
+        RECT           fitted = { 0, 0, 1120, 768 };
+        CrtPixelScale  scale  = {};
+
+
+
+        // A frame that is about to draw nothing must not divide by zero,
+        // and must not hand the shaders a zero step either -- unity leaves
+        // the kernels exactly where they were before the scale existed.
+        scale = ComputeCrtPixelScale (empty, 560, 384);
+        Assert::AreEqual (1.0f, scale.x);
+        Assert::AreEqual (1.0f, scale.y);
+
+        scale = ComputeCrtPixelScale (fitted, 0, 0);
+        Assert::AreEqual (1.0f, scale.x);
+        Assert::AreEqual (1.0f, scale.y);
+
+        scale = ComputeCrtPixelScale (fitted, -560, -384);
+        Assert::AreEqual (1.0f, scale.x);
+        Assert::AreEqual (1.0f, scale.y);
+    }
+
+
+    TEST_METHOD (ComputeCrtPixelScale_TracksTheAspectFitTheRendererUses)
+    {
+        RECT           content = { 0, 0, 1000, 845 };
+        RECT           fitted  = ComputeAspectFitRectInRect (content, 560, 384);
+        CrtPixelScale  scale   = ComputeCrtPixelScale (fitted, 560, 384);
+
+
+
+        // The renderer feeds this the rect ComputeAspectFitRectInRect
+        // produced, so the two have to agree. The fit rounds to whole
+        // pixels, which is why both axes are carried rather than one.
+        Assert::AreEqual (1000L, (long) (fitted.right - fitted.left));
+        Assert::AreEqual (685L,  (long) (fitted.bottom - fitted.top));
+        Assert::AreEqual (1000.0f / 560.0f, scale.x, 0.00001f);
+        Assert::AreEqual (685.0f  / 384.0f, scale.y, 0.00001f);
+        Assert::AreNotEqual (scale.x, scale.y);
+    }
+
+
     TEST_METHOD (ComputeLetterboxRect_HandlesPillarboxAndLetterbox)
     {
         RECT  lb = {};

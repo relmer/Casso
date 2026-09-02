@@ -4,15 +4,17 @@
 // SPDX-License-Identifier: CC0-1.0
 // Casso modifications: simplified separable horizontal Gaussian.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };
 static const float W[5] = { 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216 };
 float4 main (PSInput i) : SV_TARGET
 {
+    // g_pixelScaleX is target texels per emulated pixel, so the radius is
+    // read as a distance across the PICTURE rather than across the target.
     float  tx   = 1.0 / max (g_outputW, 1.0);
-    float  step = tx * max (g_bloomRadius, 0.001);
+    float  step = tx * max (g_pixelScaleX, 0.001) * max (g_bloomRadius, 0.001);
     float3 acc  = tex.Sample (sam, i.uv).rgb * W[0];
     [unroll] for (int k = 1; k < 5; ++k)
     {

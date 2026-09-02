@@ -37,11 +37,16 @@ struct CrtParams
     float    contrast           = 1.0f;
     float    gamma              = 1.0f;
     float    persistence        = 0.0f;
-    // D3D11 requires constant buffer sizes to be a multiple of 16
-    // bytes; the 10 fields above pack to 40 bytes, so pad to 48.
-    // These slots are intentionally unused by every shader.
-    float    _pad0              = 0.0f;
-    float    _pad1              = 0.0f;
+    // Target texels per emulated pixel, one axis each. The blur and
+    // bleed kernels step by these, so a radius given in emulated
+    // pixels covers the same share of the picture at every window
+    // size. `CrtPostProcess::Process` fills them in; 1.0 means the
+    // picture is drawn at 1:1 and a radius is a target texel again.
+    //
+    // The 12 fields also pack to exactly 48 bytes, which is the
+    // multiple of 16 D3D11 requires of a constant buffer.
+    float    pixelScaleX        = 1.0f;
+    float    pixelScaleY        = 1.0f;
 };
 
 
@@ -64,9 +69,9 @@ struct CrtParams
 //  Parameters are resolved PER MODE, since color and the three monochrome
 //  phosphors want different scanline and bloom strengths.
 //
-//  Output dimensions are taken because several parameters are expressed
-//  relative to the rendered size, so the same settings look the same at any
-//  window size.
+//  Output dimensions are taken because the blur kernels step in units of the
+//  render target's texels, so they have to know how big one is. What a radius
+//  MEANS is settled separately, by the pixel scale below.
 //
 //  Declared as a free function so the resolution rules can be unit-tested
 //  without a device, a window, or a theme manager.
@@ -136,6 +141,41 @@ CrtUvRect  ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CrtPixelScale
+//
+//  How many render-target texels one emulated pixel covers, per axis.
+//
+//  The blur and bleed kernels can only step in texels of the target they draw
+//  into, and that target grows with the window and differs between the desk
+//  scene and the flat themes. A radius counted in those texels therefore
+//  covers a different share of the picture in every one of those cases. This
+//  factor converts a radius given in emulated pixels into the texels the
+//  kernels need, which is what makes one setting look the same everywhere.
+//
+//  Both axes are carried because the aspect fit rounds to whole pixels, so
+//  the two scales differ slightly even though the fit preserves the aspect.
+//
+//  Free function for the same reason as the fits above: unit-testable with no
+//  GPU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CrtPixelScale
+{
+    float  x = 1.0f;
+    float  y = 1.0f;
+};
+
+CrtPixelScale  ComputeCrtPixelScale (const RECT & fittedRect,
+                                     int          sourceW,
+                                     int          sourceH);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CrtPostProcess
 //
 //  Owns the GPU resources for the CRT shader chain:
@@ -171,7 +211,9 @@ public:
                          const CrtParams          & params,
                          const RECT               & viewportRect,
                          int                        backBufferW,
-                         int                        backBufferH);
+                         int                        backBufferH,
+                         int                        sourceW,
+                         int                        sourceH);
     void     Shutdown   ();
 
 private:
