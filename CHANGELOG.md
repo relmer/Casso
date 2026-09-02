@@ -70,7 +70,7 @@ Entries before versioning was introduced use dates only.
   that used to be queued for a window that never appeared is shown before
   Casso exits.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
-  user to download it from Casso's disk picker and retry.** It used to
+  user to open Casso and use the disk picker to download it.** It used to
   instruct a first run of the emulator, which downloads nothing.
 - **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
