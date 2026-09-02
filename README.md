@@ -36,7 +36,7 @@ the other, so the demo ships both and your answer picks one:
   <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same demo on an Apple //c green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
 </tr></table>
 
-<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome.</sub></p>
+<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome. The desk is one of three themes: Dark Modern and Retro Terminal are flat, and fullscreen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
 
 `CassoCli` accelerates the retro development loop, with no need for third-party tools:
 
@@ -292,7 +292,11 @@ The **CRT monitor** that frames the display is one of the CAD models pictured
 under [What's New](#the-skeuomorphic-theme-goes-to-11-121), lit and shadowed
 with the rest of the desk scene. It can be turned off with **3D CRT monitor**
 on **Settings → Theme**, which leaves the drives standing on the desk under a
-flat picture.
+flat picture. Alt+Enter goes fullscreen: every chrome band hides and the glass
+fills the screen edge to edge, with the drives available as an overlay strip
+from the View menu.
+
+<p align="center"><img src="Assets/feat-fullscreen.png" alt="Casso fullscreen: Lode Runner filling the whole display, with only the rounded corners of the glass left of the desk scene" width="100%" /></p>
 
 ### Themed chrome
 
@@ -303,8 +307,17 @@ Retro Terminal) hot-swap from **Settings → Theme** with no restart and no
 machine reset. Each ships under `Resources/Themes/<Name>/` with a `theme.json`
 describing colors, CRT defaults, drive visuals, and other UI tokens; see
 [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the authoring surface.
+The two flat themes keep the chrome to a menu, a toolbar and a row of compact
+drives, so the picture gets the window:
 
-<p align="center"><img src="Assets/feat-themes.png" alt="Settings, Theme tab: the theme dropdown open over a live preview of the desk scene showing the casso-rocks demo" width="540" /></p>
+<table align="center" width="100%"><tr>
+  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with two compact drive widgets in a row below the picture" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
+</tr></table>
+
+<p align="center"><sub>Retro Terminal turns the CRT effects up: scanlines at three quarters strength, a wide bloom and color bleed, all still yours to adjust on the Display tab.</sub></p>
+
+<p align="center"><img src="Assets/theme-retro-detail.png" alt="A 1:1 detail of the Retro Terminal picture: the CASSO title with visible scanlines and phosphor bloom" width="640" /></p>
 
 **The drives are Disk II models on the desk**, the same CAD objects as the
 monitor, with the DRIVE 1 and IN USE marks, the `disk ][` logotype and the
@@ -328,8 +341,8 @@ per-machine deltas under `machines`.
 <p align="center"><img src="Assets/feat-settings.png" alt="Settings, Machine tab: machine and CPU speed dropdowns, the //e memory map, and the device tree with the slot 1 printer, slot 4 Mockingboard and slot 6 Disk ][ controller" width="540" /></p>
 
 Press **F10** to drive the painted chrome from the keyboard: a Tab focus ring
-walks the menu titles, the Joystick Mode button, and the drive widgets, and never
-leaks keystrokes through to the emulated keyboard.
+walks the menu titles and the drive widgets, and never leaks keystrokes through
+to the emulated keyboard.
 
 ### Disks
 

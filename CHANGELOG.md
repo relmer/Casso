@@ -55,6 +55,15 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
+  built as a plain member and given its words afterward painted with a hard-coded
+  white rather than the theme's own text color. Whole settings pages are built that
+  way, so both flat themes read as white on green or white on graphite.
+- **The scene compass stayed on screen under the flat themes.** It is the control for
+  turning the 3D desk, and the flat themes have no desk to turn. Switching to one from
+  a skeuomorphic theme left the arrows painted over the picture.
+- **The 3D CRT monitor checkbox is gone on the flat themes.** They never draw the
+  monitor, so the setting had nothing to apply to. The rows below it close the gap.
 - **A failed stock boot-disk download is reported instead of exiting or doing
   nothing.** The boot and insert disk pickers report the reason and come back,
   so the user can try again, pick another disk, or back out. A startup failure
@@ -63,6 +72,17 @@ Entries before versioning was introduced use dates only.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
   user to open Casso and use the disk picker to download it.** It used to
   instruct a first run of the emulator, which downloads nothing.
+- **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
+  Terminal kept the caption, menu bar and drive bar around a stretched
+  picture. They now collapse the way the desk scene does: the picture fills
+  the screen, the toolbar slides in from the top edge, and the drives slide
+  up from the bottom edge or on the View menu's strip command.
+- **The Dark Modern and Retro Terminal themes drew a stale input-mode bar.**
+  The joystick, paddle and mouse selector moved to the command toolbar, but
+  the flat themes kept a second copy in a band above the drive widgets. That
+  band and its code are gone, so the drives sit directly under the picture
+  and the window is 43 dp shorter. The F10 focus ring now walks the menu
+  titles and the drives.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both

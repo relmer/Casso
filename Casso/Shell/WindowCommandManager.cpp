@@ -478,7 +478,7 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
         if (!connected && m_shell.m_pointerMode == InputMappingMode::Mouse)
         {
             // Drops Mouse mode; SetPointerMapping re-syncs the selector as a
-            // side effect (SyncInputModeUi -> SyncSelectorState + relayout).
+            // side effect (SyncInputModeUi -> SyncSelectorState).
             m_shell.SetPointerMapping (InputMappingMode::Off);
         }
         else
@@ -486,11 +486,9 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             // Availability changed with no mode change (reconnect, or a
             // disconnect while not in Mouse mode): refresh the selector so
             // the Mouse segment reappears / disappears -- SetState flips the
-            // availability flag and the relayout rebuilds the 2<->3 segment
-            // geometry + hit map. UI-thread routed (posted WM_COMMAND), so
-            // relaying the button here is safe.
+            // availability flag and the toolbar rebuilds the 2<->3 segment
+            // geometry + hit map. UI-thread routed (posted WM_COMMAND).
             m_shell.SyncSelectorState();
-            m_shell.RelayoutJoystickButton();
         }
     }
 }
@@ -947,10 +945,10 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_DRIVE_STRIP:
         {
-            // Only meaningful in the fullscreen desk scene; the FSM consumes
-            // the edge on its next tick (releasing a guest capture if one is
-            // held). Elsewhere the drives are already on screen.
-            if (m_shell.DeskSceneActive() && m_shell.m_d3dRenderer.IsFullscreen())
+            // Only meaningful in fullscreen; the FSM consumes the edge on its
+            // next tick (releasing a guest capture if one is held). Windowed,
+            // the drives are already on screen.
+            if (m_shell.m_d3dRenderer.IsFullscreen())
             {
                 m_shell.m_stripHotkeyPending = true;
                 m_shell.m_d3dRenderer.MarkRedrawNeeded();

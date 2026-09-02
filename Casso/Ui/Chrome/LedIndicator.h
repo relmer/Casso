@@ -40,7 +40,7 @@ public:
     //
     //  Position the indicator at (x, y) in pixels, with halo + core
     //  rects sized off the supplied DPI. Used by parent widgets
-    //  (DriveWidget, JoystickToggleButton) that compute LED placement
+    //  (DriveWidget) that compute LED placement
     //  inline with their own geometry. The IDxuiControl::Layout
     //  override below derives the same placement from the bounds rect
     //  origin.

@@ -73,6 +73,10 @@ public:
     //  use this overload must set an explicit color. Kept for pre-role
     //  call sites; the tree paints through the theme overload below.
     //
+    //  A label that never pinned a color has nothing but the fallback
+    //  white here, which is why this overload is the wrong one to reach
+    //  for: pass the theme and the label follows it.
+    //
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     {
         DrawResolved (painter, text, m_argb, (m_fontDip > 0.0f) ? m_fontDip : s_kFallbackFontDip);
@@ -132,12 +136,21 @@ private:
 
     std::wstring    m_text;
     std::wstring    m_fontFace     = DxuiTheme::kBodyFace;
+    // Only reachable through SetColor or the theme-less Paint overload; a
+    // themed paint resolves the role instead.
     uint32_t        m_argb         = 0xFFFFFFFF;
     float           m_fontDip      = s_kFallbackFontDip;
     DxuiTextHAlign  m_hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign  m_vAlign       = DxuiTextVAlign::Center;
     DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
     DxuiTextRole    m_role         = DxuiTextRole::Body;
-    bool            m_useThemeRole = false;
+
+    // Theme resolution is the DEFAULT, including for the default-constructed
+    // label. It was once opt-in, set only by the text-taking constructor and
+    // by SetTextRole, so a label declared as a bare member and given its words
+    // through SetText painted with m_argb -- the hard-coded white below. Whole
+    // settings pages build their labels that way, and every one of them drew
+    // white text on the retro and modern palettes. SetColor still opts out.
+    bool            m_useThemeRole = true;
     DxuiDpiScaler   m_scaler;
 };

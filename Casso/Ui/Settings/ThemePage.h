@@ -5,7 +5,6 @@
 #include "../Chrome/CassoTheme.h"
 #include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
-#include "../Chrome/JoystickToggleButton.h"
 #include "../Chrome/MainMenu.h"
 #include "Window/DxuiCaptionBar.h"
 #include "../IDriveCommandSink.h"
@@ -67,8 +66,8 @@ public:
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
     // The CRT monitor opt in/out (the monitor alone -- the 3D drives always
-    // render). The checkbox applies live through the callback and is enabled
-    // only while a skeuomorphic (non-compact) theme is selected.
+    // render). The checkbox applies live through the callback and shows only
+    // while a skeuomorphic (non-compact) theme is selected.
     using CrtMonitorFn = std::function<void (bool enabled)>;
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
@@ -122,9 +121,8 @@ private:
     static constexpr int  kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
     static constexpr int  kPrevTitleBarDp      = 32;
     static constexpr int  kPrevNavStripDp      = 32;
-    static constexpr int  kPrevDriveBarFullDp  = 225;
-    static constexpr int  kPrevDriveBarCmptDp  = 105;
-    static constexpr int  kPrevJoystickBandDp  = 43;
+    static constexpr int  kPrevDriveBarFullDp  = 190;
+    static constexpr int  kPrevDriveBarCmptDp  = 70;
     // No system-button or caption/menu font metrics here any more: the real
     // DxuiCaptionBar and MainMenu carry their own, and a second set of
     // numbers describing the same chrome is precisely how the mock drifted
@@ -200,7 +198,6 @@ private:
                                      const std::function<std::wstring (int)>              & mountedPathSource,
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                                      std::array<DriveWidget, 2>           & previewDrives,
-                                     JoystickToggleButton                 & previewButton,
                                      DxuiCaptionBar                       & previewCaption,
                                      MainMenu                             & previewMenu,
                                      bool                                 & chromeConfigured,
@@ -209,9 +206,20 @@ private:
 
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
-    // Enables the CRT-monitor checkbox only while the selected theme is
-    // skeuomorphic (compact themes never draw the monitor).
-    void  UpdateCrtMonitorCheckboxEnabled ();
+    // Shows the CRT-monitor checkbox only while the selected theme is
+    // skeuomorphic. A compact theme has no monitor to opt out of, so the row
+    // is taken AWAY rather than grayed: a permanently dead control on the two
+    // flat themes is a question the user cannot answer. Re-runs the page
+    // layout so the edge-smoothing row closes the gap.
+    void  UpdateCrtMonitorCheckboxVisible ();
+
+    // True while the CRT row occupies a row of its own. Layout reads it to
+    // place everything below, and to size the space above the preview.
+    bool  m_crtRowShown = true;
+
+    // The page rect the last Layout ran against, so a selection change can
+    // re-run it without waiting for a resize.
+    RECT  m_lastLayoutRect = {};
 
     ThemeSelectFn        m_onThemeSelected;
     FramebufferSourceFn  m_framebufferSource;
@@ -236,11 +244,6 @@ private:
     // but the widgets' Layout / SetCompact / SyncFromState are not.
     mutable std::array<DriveWidget, 2>  m_previewDrives;
     mutable bool                        m_previewDrivesInitialized = false;
-
-    // Preview-only joystick-mode toggle button. Rendered "on" so the
-    // theme preview also shows the lit blue LED in the band above the
-    // drive widgets, mirroring the live chrome.
-    mutable JoystickToggleButton        m_previewJoystickButton;
 
     // The app's OWN caption bar and menu, instanced for the preview rather
     // than redrawn by hand. Neither is adopted or wired to anything -- they

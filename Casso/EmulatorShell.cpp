@@ -163,12 +163,11 @@ static int64_t ChangeBannerNowMs()
 
 static constexpr int     s_kLabelBottomGapDp    = 2;
 
-// Vertical extent (dp) of the joystick-mode button's band -- the strip
-// at the top of the bottom drive-bar inset that hosts only the button.
-// Sized as ~8 dp top gap + a ~27 dp button (s_kPadYDp*2 + ~15 dp content)
-// + ~8 dp bottom gap. Bumping the button's font / padding requires
-// updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
-static constexpr int     s_kJoystickButtonBandDp = 43;
+// Vertical clearance (dp) the desk scene keeps between the monitor and the
+// drive row. It began as the band that held the input-mode button under the
+// 2D chrome. The button moved to the command toolbar and the band went, but
+// the scene was composed against this gap, so the value stays.
+static constexpr int     s_kSceneDriveGapDp = 43;
 
 // Presentation pacing. At Maximum speed the CPU runs flat-out, but we only
 // rasterize + publish a framebuffer this often (wall clock), so the render
@@ -288,16 +287,15 @@ static constexpr Byte    s_kPaddleCenterByte         = 127;
 static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
 
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
-// -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7 =
-// the joystick-mode toggle button; 8/9 = drive widgets 1/2. The ring wraps
-// modulo s_kChromeFocusCount when traversed with Tab.
+// -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7/8 =
+// drive widgets 1/2. The ring wraps modulo s_kChromeFocusCount when traversed
+// with Tab.
 static constexpr int     s_kChromeFocusNone          = -1;
 static constexpr int     s_kChromeFocusMenuFirst     = 0;
 static constexpr int     s_kChromeFocusMenuLast      = 6;
-static constexpr int     s_kChromeFocusButton        = 7;
-static constexpr int     s_kChromeFocusDrive0        = 8;
-static constexpr int     s_kChromeFocusDrive1        = 9;
-static constexpr int     s_kChromeFocusCount         = 10;
+static constexpr int     s_kChromeFocusDrive0        = 7;
+static constexpr int     s_kChromeFocusDrive1        = 8;
+static constexpr int     s_kChromeFocusCount         = 9;
 
 
 
@@ -690,8 +688,8 @@ EmulatorShell::EmulatorShell()
 //  Dirty disks are flushed before anything owning them unwinds, so a clean
 //  quit never loses user writes (T097 / FR-025).
 //
-//  Adopted chrome is released explicitly. m_mainMenu, m_driveChrome, and
-//  m_joystickButton are registered into m_host->GetRoot() as RAW pointers via
+//  Adopted chrome is released explicitly. m_mainMenu and m_driveChrome
+//  are registered into m_host->GetRoot() as RAW pointers via
 //  DxuiPanel::Adopt, and they are members of this object -- so field-by-field
 //  destruction below would leave the host's panel tree holding pointers into
 //  a partially destroyed shell. ClearAdopted cuts those links while every
@@ -782,7 +780,7 @@ EmulatorShell::~EmulatorShell()
 
     // Drop the host's adopted-chrome references before the chrome
     // members or m_host itself go out of scope. The chrome controls
-    // (m_mainMenu, m_driveChrome, m_joystickButton) are raw-pointer-
+    // (m_mainMenu, m_driveChrome) are raw-pointer-
     // registered into m_host->GetRoot() via DxuiPanel::Adopt; releasing
     // the adoption here keeps the panel from ever holding a dangling
     // pointer during the field-by-field destruction below. (The caption
@@ -2154,7 +2152,6 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
         m_fsToolbarLeftMs = 0;
     }
 
-    m_joystickButton.SetVisible (!hidden);
     // The band surface only exists for the 2D chrome; under the desk scene
     // the drives paint from the scene and the band would read as a leftover
     // bar along the window's bottom edge.
@@ -2874,7 +2871,6 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // contract without needing the renderer passed as a Layout
     // parameter on every call.
     m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
-    m_joystickButton.SetTextRenderer     (&m_uiShell.GetTextRenderer());
     m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
     m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
 
@@ -3778,7 +3774,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         InvalidateSceneComposition();
     });
     m_host->GetRoot().Adopt (m_toolbar);
-    m_host->GetRoot().Adopt (m_joystickButton);
     m_host->GetRoot().Adopt (m_switchBar);
     m_host->GetRoot().Adopt (m_changeBanner);
 
@@ -3795,11 +3790,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // full-ownership host owns the device, so its pool makes real popups.
     m_mainMenu.SetPopupHost (m_host.get());
 
-    // The joystick-button hover tooltip renders through the host popup
-    // pool too; its dwell timer is driven from the main frame loop's
-    // Tick. SetTheme seeds the tooltip surface colors.
-    m_joystickTooltip.SetPopupHost (m_host.get());
-    m_joystickTooltip.SetTheme     (m_chromeTheme);
+    // The hover tooltips render through the host popup pool too; their
+    // dwell timers are driven from the main frame loop's Tick. SetTheme
+    // seeds the tooltip surface colors.
     m_toolbarTooltip.SetPopupHost  (m_host.get());
     m_toolbarTooltip.SetTheme      (m_chromeTheme);
 
@@ -4013,14 +4006,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
         }
 
-        {
-            int  bandTop    = driveRect.top;
-            int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
-
-            m_driveBandSurface.SetVisible (!DeskSceneActive());
-            m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
-            LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
-        }
+        m_driveBandSurface.SetVisible (!DeskSceneActive());
+        m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
 
         LayoutSwitchBar (dpi);
     }
@@ -4107,7 +4094,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
             hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.GetDpi(), DeskSceneDriveCount(),
                                                  m_deskScene.Metrics(), comp,
-                                                 m_scaler.ToPx (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp),
+                                                 m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp),
                                                  m_sceneView);
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
@@ -4119,32 +4106,6 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         viewportRect = m_deskScene.Composition().glassRectPx;
 
         SyncSceneDriveChrome();
-
-        // The input-mode buttons sit in the scene's gap between the monitor
-        // and the drive row, where the 2D chrome kept them -- CENTERED in
-        // the gap, never over the monitor's shell.
-        {
-            const DeskSceneComposition &  comp       = m_deskScene.Composition();
-            int                           bandH      = m_scaler.ToPx (s_kJoystickButtonBandDp);
-            int                           monBottom  = comp.monitorRectPx.bottom;
-            int                           driveTop   = heightPx;
-            int                           bandTop    = 0;
-
-            for (int i = 0; i < comp.driveCount; i++)
-            {
-                driveTop = std::min (driveTop, (int) comp.driveRectPx[i].top);
-            }
-
-            // The input row lives on the command toolbar now -- there is no
-            // gap between monitor and drives to float it in since the stack
-            // became physical, and a row over the drive lids read as debris.
-            m_joystickButton.Hide();
-
-            (void) bandTop;
-            (void) monBottom;
-            (void) driveTop;
-            (void) bandH;
-        }
     }
     else if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
     {
@@ -4168,12 +4129,11 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         // contained camera over the band, so FR-016 still holds within it)
         // the fullscreen overlay strip uses. The band keeps its classic
         // thickness, so the window geometry matches the flat chrome it
-        // replaces; the input-mode buttons keep the band's top row.
+        // replaces.
         DeskSceneComposition  comp;
         RECT                  band     = {};
         RECT                  driveRow = {};
         bool                  composed = false;
-        int                   joyH     = m_scaler.ToPx (s_kJoystickButtonBandDp);
         int                   pad      = m_scaler.ToPx (s_kSceneDriveRowPadDp);
 
         m_chromeSceneScale = 1.0f;
@@ -4181,10 +4141,10 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         viewportRect       = center;
 
         band     = m_driveBand.GetBounds();
-        driveRow = { pad, band.top + joyH + pad / 2, widthPx - pad,
+        driveRow = { pad, band.top + pad / 2, widthPx - pad,
                      std::max (band.bottom - pad - m_scaler.ToPx (s_kSceneDriveLabelStripDp +
                                                                   s_kSceneDriveLabelGapDp),
-                               (LONG) (band.top + joyH)) };
+                               (LONG) band.top) };
 
         // A machine with no Disk ][ controller composes no row at all, and a
         // band too small to solve leaves the scene empty rather than stale.
@@ -4199,14 +4159,31 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         SyncSceneDriveChrome();
     }
+    else if (m_d3dRenderer.IsFullscreen())
+    {
+        // No scene, fullscreen: the same bargain the desk scene makes. Every
+        // chrome band is hidden, the picture fills the client (the renderer
+        // letterboxes inside the target bounds), and the drives come back as
+        // the flat widgets riding the overlay strip.
+        m_chromeSceneScale = 1.0f;
+        viewportRect       = { 0, 0, widthPx, heightPx };
+    }
     else
     {
         // No scene at all (compact theme, or the models never loaded): the
         // bare display fills the center at classic sizes over the 2D drive
         // band.
+        //
+        // The compass has to be put away HERE. Every other arm reaches it
+        // through SyncSceneDriveChrome, which this one has no reason to call,
+        // so switching from a skeuo theme to a compact one left the arrows
+        // painted over the flat display -- a control for turning a scene that
+        // is no longer on screen.
         m_chromeSceneScale = 1.0f;
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
+
+        LayoutSceneCompass();
     }
 
     m_viewport->Layout (viewportRect, m_scaler);
@@ -4237,26 +4214,20 @@ void EmulatorShell::SyncChromeBands()
 
 
     // When the machine has no Disk ][ controller, remove the drive-widget area
-    // entirely (#84 Phase D): the drive band collapses to just the joystick-mode
-    // button band (joystick input is independent of disk presence), reclaiming
+    // entirely (#84 Phase D): the drive band collapses to nothing, reclaiming
     // the ~180 dp the drive widgets + their in-use indicators would occupy so
     // the emulator viewport grows into it. The widgets are already hidden and
     // un-hit-tested by the resize path when there is no controller.
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = CrtMonitorActive() ? 0 : s_kJoystickButtonBandDp;
+    int   driveBandDp = 0;
 
     if (hasDisk && !CrtMonitorActive())
     {
-        // The joystick-selector portion is fixed UI; the drive-widget portion
-        // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
-        // scaled widgets instead of leaving dead space around them. With the
-        // 3D scene active there is NO bottom band at all: the drives are
-        // scene objects and the input-mode buttons float in the scene's gap
-        // between monitor and drive row, like the 2D chrome's arrangement.
-        int  widgetPortionDp = m_driveBarThicknessDp - s_kJoystickButtonBandDp;
-
-        driveBandDp = s_kJoystickButtonBandDp
-                    + (int) lroundf ((float) widgetPortionDp * m_chromeSceneScale);
+        // The band zooms with the desk scene (m_chromeSceneScale) so it hugs
+        // the scaled widgets instead of leaving dead space around them. With
+        // the 3D scene active there is NO bottom band at all: the drives are
+        // scene objects.
+        driveBandDp = (int) lroundf ((float) m_driveBarThicknessDp * m_chromeSceneScale);
     }
 
     // The //c switch strip only exists on the //c; everywhere else the band
@@ -4417,8 +4388,8 @@ void EmulatorShell::ReflowChromeForMachineChange()
     if (haveWindow && layoutChanged &&
         !IsIconic (m_hwnd) && !IsZoomed (m_hwnd) && !m_d3dRenderer.IsFullscreen())
     {
-        int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
-        int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : 0;
+        int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : 0;
         int  oldSwitchDp = m_chromeSizedForApple2c ? s_kSwitchBandDp : 0;
         int  newSwitchDp = newIsApple2c            ? s_kSwitchBandDp : 0;
         int  deltaPx     = (m_scaler.ToPx (newDriveDp)  - m_scaler.ToPx (oldDriveDp)) +
@@ -4557,7 +4528,7 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
                                                                      m_scaler.GetDpi(), DeskSceneDriveCount(),
                                                                      m_deskScene.Metrics(),
-                                                                     m_scaler.ToPx (s_kJoystickButtonBandDp + s_kStripEdgeZoneDp));
+                                                                     m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
         float  savedScale = m_chromeSceneScale;
 
         m_chromeSceneScale = s_kDeskDriveScale;
@@ -5869,15 +5840,14 @@ Error:
 void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
     // Bottom drive-bar thickness, full and compact. Layout: drive widget
-    // (body + label strip + 2 dp bottom margin) bottom-anchored, with a
-    // ~43 dp band above for the joystick-mode toggle button (8 dp gap +
-    // ~27 dp button + 8 dp gap). Drive widget total height is body 160 +
-    // label-strip gap 2 + label strip 18 = 180 dp (full) / 60 dp (compact).
-    // With the desk scene on, SyncChromeBands scales the widget portion by
-    // m_chromeSceneScale (s_kDeskDriveScale at 100%), so the band hugs the
-    // scaled drives without a separate constant.
-    constexpr int  s_kFullDriveBarDp    = 225;
-    constexpr int  s_kCompactDriveBarDp = 105;
+    // (body + label strip + 2 dp bottom margin) bottom-anchored under an
+    // 8 dp gap. Drive widget total height is body 160 + label-strip gap 2 +
+    // label strip 18 = 180 dp (full) / 60 dp (compact). With the desk scene
+    // on, SyncChromeBands scales the band by m_chromeSceneScale
+    // (s_kDeskDriveScale at 100%), so it hugs the scaled drives without a
+    // separate constant.
+    constexpr int  s_kFullDriveBarDp    = 190;
+    constexpr int  s_kCompactDriveBarDp = 70;
 
 
 
@@ -5897,7 +5867,6 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_joystickButton.SetSkeuoStyle   (!theme.compactDrives);
     m_toolbar.SetInputSkeuoStyle     (!theme.compactDrives);
 
     // Push the nav/dropdown palette onto the menu bar so both the
@@ -6077,75 +6046,6 @@ void EmulatorShell::ApplySceneAntiAliasing()
     m_deskScene.SetSampleCount ((UINT) m_globalPrefs.sceneAntiAliasing);
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::LayoutJoystickButton
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LayoutJoystickButton (int clientW,
-                                          int bandTopPx,
-                                          int bandHeightPx,
-                                          UINT dpi)
-{
-    int            centerX = clientW / 2;
-    int            centerY = bandTopPx + bandHeightPx / 2;
-    DxuiDpiScaler  scaler;
-    RECT           anchor  = { centerX, centerY, centerX, centerY };
-
-
-
-    // With the desk scene active the selector's home is the command toolbar
-    // and there is no band for it here. This is the one choke point every
-    // caller funnels through -- init, OnSize, theme apply, the cached DPI
-    // relayout -- so the gate lives HERE: gating the call sites one by one
-    // is how the retired widget kept resurrecting at the window's bottom
-    // edge whenever a path nobody remembered re-laid it.
-    if (DeskSceneActive())
-    {
-        m_joystickButton.Hide();
-        return;
-    }
-
-
-
-    m_joyBtnClientW    = clientW;
-    m_joyBtnBandTop    = bandTopPx;
-    m_joyBtnBandHeight = bandHeightPx;
-    m_joyBtnDpi        = dpi;
-
-    scaler.SetDpi (dpi);
-    SyncSelectorState();
-    m_joystickButton.Layout (anchor, scaler);
-    // m_joystickTooltip is a deferred popup: it derives its DPI from its
-    // popup host (set via SetPopupHost) at show time, so no SetDpi here.
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::RelayoutJoystickButton
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RelayoutJoystickButton()
-{
-    DXUI_ASSERT_UI_THREAD();   // measures text through the Dxui renderer
-
-    if (m_joyBtnClientW <= 0)
-    {
-        return;
-    }
-
-    LayoutJoystickButton (m_joyBtnClientW, m_joyBtnBandTop, m_joyBtnBandHeight, m_joyBtnDpi);
-}
 
 
 
@@ -6803,7 +6703,6 @@ void EmulatorShell::UpdateChromeFocusVisuals()
         m_mainMenu.ClearFocus();
     }
 
-    m_joystickButton.SetFocused (index == s_kChromeFocusButton);
     m_driveChrome[0].SetFocused (index == s_kChromeFocusDrive0);
     m_driveChrome[1].SetFocused (index == s_kChromeFocusDrive1);
 }
@@ -6817,9 +6716,9 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 //  EmulatorShell::HandleChromeFocusKey
 //
 //  Own every keydown while the chrome keyboard-focus ring is active. Tab /
-//  Shift+Tab traverse the whole ring (menu titles -> button -> drives,
-//  wrapping); Left/Right move among the menu titles; Enter/Space/Down open a
-//  dropdown or activate the focused button/drive; Esc/F10 leave the ring. When
+//  Shift+Tab traverse the whole ring (menu titles -> drives, wrapping);
+//  Left/Right move among the menu titles; Enter/Space/Down open a dropdown
+//  or activate the focused drive; Esc/F10 leave the ring. When
 //  a dropdown is open, keys delegate to MainMenu and the index is reconciled
 //  with whatever the menu did. Always consumes the key.
 //
@@ -6891,8 +6790,8 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
         m_mainMenu.Open ((MainMenuId) index, true);
     }
 
-    // The joystick-mode button or a drive widget is focused. Left/Right walk
-    // the whole ring so horizontal arrows feel natural along the bottom bar.
+    // A drive widget is focused. Left/Right walk the whole ring so horizontal
+    // arrows feel natural along the bottom bar.
     else if (vk == VK_LEFT)
     {
         SetChromeFocusIndex ((index - 1 + s_kChromeFocusCount) % s_kChromeFocusCount);
@@ -6903,11 +6802,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     }
     else if (vk == VK_RETURN || vk == VK_SPACE)
     {
-        if (index == s_kChromeFocusButton)
-        {
-            CycleInputMappingMode();
-        }
-        else if (index == s_kChromeFocusDrive0)
+        if (index == s_kChromeFocusDrive0)
         {
             BrowseForDisk (m_driveChrome[0].GetDrive());
         }
@@ -7238,11 +7133,9 @@ int EmulatorShell::RunMessageLoop()
 
                 // A switch may have changed the default pointer mode on the CPU
                 // thread (ApplyDefaultPointerForMachine defers its UI reflection
-                // here to stay off the CPU thread). Sync the selector state and
-                // relayout the joystick button on the UI thread; both are
-                // idempotent when nothing changed.
+                // here to stay off the CPU thread). Sync the selector state on
+                // the UI thread; it is idempotent when nothing changed.
                 SyncSelectorState();
-                RelayoutJoystickButton();
                 continue;
             }
 
@@ -7483,8 +7376,14 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // Fullscreen drive overlay strip (FR-015): tick the FSM from this
     // frame's observations, apply its capture effects, and compose the slid
-    // band the hook will render.
-    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    // band the hook will render. The flat themes ride the same FSM with the
+    // 2D widgets laid into the band, so fullscreen hides the drives the same
+    // way everywhere and brings them back the same way too.
+    bool  stripHasDrives = DeskSceneActive()
+                         ? DeskSceneDriveCount() > 0
+                         : (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+    if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
@@ -7543,47 +7442,81 @@ bool EmulatorShell::TryPresentUiFrame()
         }
 
         // The band slides up from the bottom edge: only the top
-        // `progress * height` sliver is on-screen mid-animation.
+        // `progress * height` sliver is on-screen mid-animation. The flat
+        // widgets' band is the windowed drive bar's height; the scene's is
+        // the row its drives compose into.
         {
             float  progress = m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = m_scaler.ToPx (s_kStripBandDp);
+            int    bandH    = DeskSceneActive() ? m_scaler.ToPx (s_kStripBandDp)
+                                                : m_scaler.ToPx (m_driveBarThicknessDp);
 
             if (progress > 0.0f)
             {
-                HRESULT  hrStrip = S_OK;
-
-                RECT  driveRow = {};
-
                 m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
 
-                // The drives get the band LESS the name strip, the way the
-                // windowed drive band reserves it: the disk's name and its
-                // padlock belong under the drive here too, and a row composed
-                // into the whole band would put them off the screen's edge.
-                driveRow         = m_stripRectPx;
-                driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+                if (DeskSceneActive())
+                {
+                    HRESULT  hrStrip  = S_OK;
+                    RECT     driveRow = {};
 
-                // The drive band's calibrated look-down, not the desk's
-                // near-level default: the band angle is what shows the
-                // drives' tops, and the fullscreen strip is the same
-                // drives-only row the windowed band composes.
-                hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
-                                                         DeskSceneDriveCount(),
-                                                         m_deskScene.Metrics(), m_stripComp,
-                                                         DeskSceneLayout::kDriveBandGazeDownRad);
-                IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                    // The drives get the band LESS the name strip, the way the
+                    // windowed drive band reserves it: the disk's name and its
+                    // padlock belong under the drive here too, and a row composed
+                    // into the whole band would put them off the screen's edge.
+                    driveRow         = m_stripRectPx;
+                    driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+                    // The drive band's calibrated look-down, not the desk's
+                    // near-level default: the band angle is what shows the
+                    // drives' tops, and the fullscreen strip is the same
+                    // drives-only row the windowed band composes.
+                    hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
+                                                             DeskSceneDriveCount(),
+                                                             m_deskScene.Metrics(), m_stripComp,
+                                                             DeskSceneLayout::kDriveBandGazeDownRad);
+                    IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                }
+                else
+                {
+                    // The flat widgets sit in the band wherever the slide has
+                    // put it this frame, bottom-anchored the way the windowed
+                    // bar anchors them, over the band's own surface. They paint
+                    // after the picture, so they ride over it.
+                    m_driveBandSurface.SetBounds (m_stripRectPx);
+                    m_driveBandSurface.SetVisible (true);
+                    LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
+                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f);
+
+                    if (!ShouldShowExternalDrive())
+                    {
+                        m_driveChrome[1].Hide();
+                    }
+                }
             }
             else
             {
                 m_stripRectPx = {};
                 m_stripComp   = {};
+
+                if (!DeskSceneActive())
+                {
+                    m_driveBandSurface.SetVisible (false);
+                    m_driveChrome[0].SetVisible (false);
+                    m_driveChrome[1].SetVisible (false);
+                    m_driveChrome[0].Hide();
+                    m_driveChrome[1].Hide();
+                }
             }
         }
 
         // The strip's names ride its slide: re-hung every pass so they track
-        // the band on its way in and out, and retire with it.
-        SyncSceneDriveLabels();
+        // the band on its way in and out, and retire with it. The flat
+        // widgets carry their own names.
+        if (DeskSceneActive())
+        {
+            SyncSceneDriveLabels();
+        }
 
         if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
         {
@@ -7668,7 +7601,6 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        m_joystickTooltip.Tick  (nowMs);
         m_toolbarTooltip.Tick   (nowMs);
         m_switchBarTooltip.Tick (nowMs);
         m_driveTooltip.Tick     (nowMs);
@@ -8542,8 +8474,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 
 
 
-    if (m_joystickTooltip.WantsTick()  ||
-        m_switchBarTooltip.WantsTick() ||
+    if (m_switchBarTooltip.WantsTick() ||
         m_driveTooltip.WantsTick()     ||
         m_sceneCompass.WantsTick())
     {
@@ -9078,7 +9009,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     int                x            = ((int) (short) LOWORD (lParam));
     int                y            = ((int) (short) HIWORD (lParam));
     bool               leftDown     = (wParam & MK_LBUTTON) != 0;
-    bool               overBtn      = false;
     bool               shellHandled = false;
     DriveWidget *      wpDrive      = nullptr;
     int64_t            nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -9211,20 +9141,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (shellHandled, S_OK);
 
-    overBtn = m_joystickButton.HitTest (x, y);
-    m_joystickButton.SetHovered (overBtn);
-    m_joystickButton.SetHoverPoint (x, y);
-
-    if (overBtn)
-    {
-        // Per-segment tooltip: each device explains its own mapping.
-        m_joystickTooltip.RequestShow (m_joystickButton.GetBounds(),
-                                       m_joystickButton.GetTooltipTextAt (x, y), nowMs);
-    }
-    else
-    {
-        m_joystickTooltip.RequestHide (nowMs);
-    }
 
     // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
     // hovered button's label surfaces as a tooltip (no labels on the strip).
@@ -9310,7 +9226,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             POINT  pt = { x, y };
 
             if (m_stripRectPx.bottom > m_stripRectPx.top &&
-                PtInRect (&m_stripRectPx, pt) && !overBtn)
+                PtInRect (&m_stripRectPx, pt))
             {
                 SceneHitResult  sceneHit = StripHit (x, y);
 
@@ -9332,7 +9248,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             }
         }
 
-        if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr && !overBtn)
+        if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr)
         {
             std::wstring  imageName = std::filesystem::path (
                 m_diskStore.GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
@@ -9385,9 +9301,6 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
         drive.UpdateMarqueeHover (false, nowMs);
     }
 
-    m_joystickButton.SetHovered (false);
-    m_joystickButton.SetPressed (false);
-    m_joystickTooltip.RequestHide (nowMs);
     m_toolbar.OnToolbarMouseLeave();
     m_toolbarTooltip.RequestHide (nowMs);
     m_driveTooltip.RequestHide (nowMs);
@@ -10160,10 +10073,6 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    chromeTook = m_joystickButton.HitTest (x, y);
-
-    m_joystickButton.SetPressed (chromeTook);
-
     // Command toolbar press (button press states + slider drag start).
     toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
 
@@ -10370,7 +10279,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     bool                    toolbarTook   = false;
     bool                    shellTook     = false;
     bool                    onSwitchPart  = false;
-    bool                    onModeButton  = false;
     bool                    wasSuppressed = false;
     bool                    driveTook     = false;
     bool                    canGrabPaddle = false;
@@ -10446,7 +10354,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
 
     ReleaseCapture();
-    m_joystickButton.SetPressed (false);
 
     // Command toolbar release: click dispatch / mute toggle / slider drop.
     toolbarTook = m_toolbar.OnToolbarLButtonUp (x, y);
@@ -10478,31 +10385,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     }
 
     BAIL_OUT_IF (onSwitchPart, S_OK);
-
-    // Cycling the input-mode button routes through the same path as the
-    // Machine menu command so the leave-time neutralization of held
-    // arrow / X / Z inputs runs.
-    onModeButton = m_joystickButton.HitTest (x, y);
-
-    if (onModeButton)
-    {
-        switch (m_joystickButton.GetSegmentAt (x, y))
-        {
-            case InputDeviceSelector::Segment::Joystick:
-                ToggleInputMappingMode (InputMappingMode::Joystick);
-                break;
-            case InputDeviceSelector::Segment::Paddle:
-                ToggleInputMappingMode (InputMappingMode::Paddle);
-                break;
-            case InputDeviceSelector::Segment::Mouse:
-                ToggleInputMappingMode (InputMappingMode::Mouse);
-                break;
-            default:
-                break;
-        }
-    }
-
-    BAIL_OUT_IF (onModeButton, S_OK);
 
     // If we just finished an OLE drop on a drive widget, the OS posts
     // a WM_LBUTTONUP that lands here on top of the drive. Swallow it
@@ -10549,17 +10431,20 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             region = drive.HitTest (x, y);
 
-            if (region == DriveWidgetRegion::Body)
+            if (region == DriveWidgetRegion::Body || region == DriveWidgetRegion::Eject)
             {
-                BrowseForDisk (drive.GetDrive());
-                driveTook = true;
-                break;
-            }
+                if (region == DriveWidgetRegion::Eject)
+                {
+                    Eject (6, drive.GetDrive());
+                }
 
-            if (region == DriveWidgetRegion::Eject)
-            {
-                Eject (6, drive.GetDrive());
+                // In fullscreen the widget is riding the overlay strip, and a
+                // browse opened from the strip pins it (the FSM must not
+                // auto-hide under the dialog).
+                m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
                 BrowseForDisk (drive.GetDrive());
+                m_stripBrowseOpen = false;
+
                 driveTook = true;
                 break;
             }
@@ -11801,7 +11686,6 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         // the capture that follows takes the pointer, so the move that would
         // dismiss it never comes. It would sit there until its lifetime ran
         // out, which is a long time to leave a balloon over a game.
-        m_joystickTooltip.HideImmediate();
         m_toolbarTooltip.HideImmediate();
         m_driveTooltip.HideImmediate();
         m_switchBarTooltip.HideImmediate();
@@ -11827,7 +11711,6 @@ void EmulatorShell::SyncInputModeUi()
 {
     m_globalPrefs.inputMappingMode = GetDisplayInputMode();
     SyncSelectorState();
-    RelayoutJoystickButton();
     SaveGlobalPrefs();
 }
 
@@ -11846,8 +11729,6 @@ void EmulatorShell::SyncInputModeUi()
 
 void EmulatorShell::SyncSelectorState()
 {
-    m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
-                               m_mouse != nullptr && m_mouseConnected);
     m_toolbar.SetInputState   (m_arrowsJoystick, m_pointerMode,
                                m_mouse != nullptr && m_mouseConnected);
 }
@@ -11874,18 +11755,16 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         && m_pointerMode == InputMappingMode::Off)
     {
         // State only -- NO chrome work here. This runs on the CPU thread
-        // during SwitchMachine, and the selector sync / joystick-button
-        // relayout measure text through the Dxui renderer, which is
-        // UI-thread-only (DxuiAssertUiThread fired on a //c -> //e switch).
-        // Both paths already relayout on the UI thread afterwards: a machine
-        // switch posts WM_APP_DXUI_UPDATE_TITLE, whose handler runs
-        // ReflowChromeForMachineChange -> OnSize -> LayoutJoystickButton
-        // (which SyncSelectorState()s itself), and the launch path lays out
-        // the chrome later in Initialize.
+        // during SwitchMachine, and the selector sync measures text through
+        // the Dxui renderer, which is UI-thread-only (DxuiAssertUiThread
+        // fired on a //c -> //e switch). Both paths already sync on the UI
+        // thread afterwards: a machine switch posts WM_APP_DXUI_UPDATE_TITLE,
+        // whose handler runs ReflowChromeForMachineChange, and the launch
+        // path lays out the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
 
-        // SyncSelectorState / RelayoutJoystickButton touch Dxui (text
-        // measurement) and assert the UI thread. On a machine switch this runs
+        // SyncSelectorState touches Dxui (text measurement) and asserts the
+        // UI thread. On a machine switch this runs
         // on the CPU thread, so defer the chrome reflection to the post-switch
         // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
         // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
@@ -11899,11 +11778,6 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         }
 
         SyncSelectorState();
-
-        if (m_hwnd != nullptr)
-        {
-            RelayoutJoystickButton();
-        }
     }
 }
 
@@ -12413,11 +12287,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
 
-        // Fullscreen presentation (FR-014): the scene owns the whole client
-        // and every chrome element collapses. The windowed path below is the
-        // one that restores everything -- including the host caption -- when
-        // fullscreen exits, because this OnSize runs on both transitions.
-        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        // Fullscreen presentation (FR-014): the picture owns the whole client
+        // and every chrome element collapses, whichever theme is on. The
+        // windowed path below is the one that restores everything --
+        // including the host caption -- when fullscreen exits, because this
+        // OnSize runs on both transitions.
+        if (m_d3dRenderer.IsFullscreen())
         {
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);
@@ -12484,14 +12359,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             m_chromeSizedForHasDisk = fHasDisk;
             m_chromeSizedForApple2c = IsApple2c();
 
-            {
-                int  bandTop    = driveRect.top;
-                int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
-
-                m_driveBandSurface.SetVisible (!DeskSceneActive());
-                m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
-                LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
-            }
+            m_driveBandSurface.SetVisible (!DeskSceneActive());
+            m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             LayoutSwitchBar (dpi);
 

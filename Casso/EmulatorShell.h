@@ -866,23 +866,6 @@ private:
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
 
-    // Positions the joystick-mode toggle button vertically centered in the
-    // empty band above the drive widgets (the top portion of the bottom
-    // drive-bar inset) and centered horizontally in the window. bandTopPx
-    // and bandHeightPx bracket that band; the caller derives them from
-    // the layout result so the button sits the same whether or not a
-    // Slot 6 controller is mounted.
-    void    LayoutJoystickButton (int clientW,
-                                  int bandTopPx,
-                                  int bandHeightPx,
-                                  UINT dpi);
-
-    // Re-run the input-mode button layout from the last cached geometry,
-    // so the frame resizes immediately when the mode (and thus the label
-    // width) changes between resize / DPI events. No-op until the first
-    // LayoutJoystickButton has cached valid geometry.
-    void    RelayoutJoystickButton ();
-
     // Position the printer status indicator in the command-bar dead space to
     // the right of the centered drive widgets, or Hide() it when the machine
     // has no printer card. Does not affect drive centering.
@@ -1295,8 +1278,6 @@ private:
     // the buttons is what stops the shell from inventing one.
     std::vector<ChangeAction>   m_changeBannerActions;
 
-    InputDeviceSelector  m_joystickButton;   // Segmented device selector
-    DxuiTooltip          m_joystickTooltip;
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
@@ -1311,7 +1292,7 @@ private:
     // rests over a write-protected drive. Explains that the disk is
     // write-protected and names the source(s) -- image flag, user
     // setting, or an unwritable backing file. Shares the host popup pool
-    // with m_joystickTooltip (the hover regions are mutually exclusive).
+    // with the other chrome tooltips (the hover regions are mutually exclusive).
     DxuiTooltip               m_driveTooltip;
 
     // Live per-drive user write-protect preference (Settings > Disk
@@ -1372,14 +1353,6 @@ private:
     bool                       m_fsToolbarShown    = false;
     int64_t                    m_fsToolbarLeftMs   = 0;
     int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
-
-    // Last geometry passed to LayoutJoystickButton, cached so
-    // RelayoutJoystickButton can resize the button in place when the
-    // input mode (and thus the label width) changes between layout passes.
-    int   m_joyBtnClientW    = 0;
-    int   m_joyBtnBandTop    = 0;
-    int   m_joyBtnBandHeight = 0;
-    UINT  m_joyBtnDpi        = 96;
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
     // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();

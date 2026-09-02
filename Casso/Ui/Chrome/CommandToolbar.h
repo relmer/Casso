@@ -20,7 +20,7 @@
 //  Settings, Printer (with its status LED, replacing the retired standalone
 //  printer indicator), the master Volume slider + Mute, Screenshot, Reset,
 //  and Power. Buttons are frameless until hovered / pressed (matching
-//  JoystickToggleButton) and dispatch their existing IDM_* command through
+//  the drive widgets) and dispatch their existing IDM_* command through
 //  the same HandleCommand path as the menu, so the toolbar adds no new
 //  command semantics.
 //

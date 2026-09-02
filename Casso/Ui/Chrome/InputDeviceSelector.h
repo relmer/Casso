@@ -18,8 +18,9 @@ class IDxuiTheme;
 //
 //  InputDeviceSelector
 //
-//  Segmented two-group device selector replacing the JoystickToggleButton
-//  cycle-toggle in the drive bar. Reflects the split input model:
+//  Segmented two-group device selector on the command toolbar. It replaced
+//  the cycle-toggle that once sat in the drive bar. Reflects the split input
+//  model:
 //
 //      [LED icon Joystick mode]  |  [LED icon Paddle mode] [LED icon Mouse mode]
 //        Keys group                  Pointer group (radio; both may be off)

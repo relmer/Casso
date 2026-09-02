@@ -867,14 +867,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);
-    m_monitorLabel.Paint    (painter, text);
+    m_monitorLabel.Paint    (painter, text, theme);
     m_monitor.SetTheme      (&theme);
     m_monitor.PaintBase     (painter, text);
 
     // Text-color row: label, dropdown base, and a swatch of the resolved
     // color. The dropdown menu paints last (with the monitor menu).
     SetAlphaForRow (-1, m_textColorRowRect);
-    m_textColorLabel.Paint  (painter, text);
+    m_textColorLabel.Paint  (painter, text, theme);
     m_textColor.SetTheme    (&theme);
     m_textColor.PaintBase   (painter, text);
     {
@@ -889,7 +889,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     SetAlphaForRow (kControlBrightness, m_brightnessRowRect);
     PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
-    m_brightnessLabel.Paint (painter, text);
+    m_brightnessLabel.Paint (painter, text, theme);
     m_brightness.Paint      (painter, text, theme);
     DrawIndicator (m_brightnessRowRect,
                    FloatMatches (m_brightness.GetValue() / 100.0f, m_hint.values.brightness),
@@ -897,7 +897,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     SetAlphaForRow (kControlContrast, m_contrastRowRect);
     PaintBackingIfFocused (kControlContrast, m_contrastRowRect);
-    m_contrastLabel.Paint   (painter, text);
+    m_contrastLabel.Paint   (painter, text, theme);
     m_contrast.Paint        (painter, text, theme);
     DrawIndicator (m_contrastRowRect,
                    FloatMatches (m_contrast.GetValue() / 100.0f, m_hint.values.contrast),
@@ -905,7 +905,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     SetAlphaForRow (kControlGamma, m_gammaRowRect);
     PaintBackingIfFocused (kControlGamma, m_gammaRowRect);
-    m_gammaLabel.Paint      (painter, text);
+    m_gammaLabel.Paint      (painter, text, theme);
     m_gamma.Paint           (painter, text, theme);
     DrawIndicator (m_gammaRowRect,
                    FloatMatches (m_gamma.GetValue(), m_hint.values.gamma),
@@ -913,14 +913,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     // Scanlines section: label in the left column, toggle in the value column.
     SetAlphaForRow (-1, m_scanlinesEnRowRect);
-    m_scanlinesLabel.Paint (painter, text);
+    m_scanlinesLabel.Paint (painter, text, theme);
     m_scanlinesEn.Paint    (painter, text, theme);
     DrawIndicator (m_scanlinesEnRowRect,
                    m_scanlinesEn.IsChecked() == m_hint.values.scanlinesEnabled,
                    m_hint.scanlinesFromTheme);
     SetAlphaForRow (kControlScanlinesInt, m_scanlinesIntRowRect);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
-    m_scanlinesIntLabel.Paint (painter, text);
+    m_scanlinesIntLabel.Paint (painter, text, theme);
     m_scanlinesInt.Paint      (painter, text, theme);
     DrawIndicator (m_scanlinesIntRowRect,
                    FloatMatches (m_scanlinesInt.GetValue() / 100.0f, m_hint.values.scanlinesIntensity),
@@ -928,21 +928,21 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     // Bloom section
     SetAlphaForRow (-1, m_bloomEnRowRect);
-    m_bloomLabel.Paint (painter, text);
+    m_bloomLabel.Paint (painter, text, theme);
     m_bloomEn.Paint    (painter, text, theme);
     DrawIndicator (m_bloomEnRowRect,
                    m_bloomEn.IsChecked() == m_hint.values.bloomEnabled,
                    m_hint.bloomFromTheme);
     SetAlphaForRow (kControlBloomRadius, m_bloomRadiusRowRect);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
-    m_bloomRadiusLabel.Paint (painter, text);
+    m_bloomRadiusLabel.Paint (painter, text, theme);
     m_bloomRadius.Paint      (painter, text, theme);
     DrawIndicator (m_bloomRadiusRowRect,
                    FloatMatches (m_bloomRadius.GetValue(), m_hint.values.bloomRadius),
                    m_hint.bloomFromTheme);
     SetAlphaForRow (kControlBloomStrength, m_bloomStrengthRowRect);
     PaintBackingIfFocused (kControlBloomStrength, m_bloomStrengthRowRect);
-    m_bloomStrengthLabel.Paint (painter, text);
+    m_bloomStrengthLabel.Paint (painter, text, theme);
     m_bloomStrength.Paint      (painter, text, theme);
     DrawIndicator (m_bloomStrengthRowRect,
                    FloatMatches (m_bloomStrength.GetValue() / 100.0f, m_hint.values.bloomStrength),
@@ -950,14 +950,14 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     // Color-bleed section
     SetAlphaForRow (-1, m_colorBleedEnRowRect);
-    m_colorBleedLabel.Paint (painter, text);
+    m_colorBleedLabel.Paint (painter, text, theme);
     m_colorBleedEn.Paint    (painter, text, theme);
     DrawIndicator (m_colorBleedEnRowRect,
                    m_colorBleedEn.IsChecked() == m_hint.values.colorBleedEnabled,
                    m_hint.colorBleedFromTheme);
     SetAlphaForRow (kControlColorBleedW, m_colorBleedWRowRect);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
-    m_colorBleedWLabel.Paint (painter, text);
+    m_colorBleedWLabel.Paint (painter, text, theme);
     m_colorBleedW.Paint      (painter, text, theme);
     DrawIndicator (m_colorBleedWRowRect,
                    FloatMatches (m_colorBleedW.GetValue(), m_hint.values.colorBleedWidth),
@@ -965,7 +965,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     SetAlphaForRow (kControlPersistence, m_persistenceRowRect);
     PaintBackingIfFocused (kControlPersistence, m_persistenceRowRect);
-    m_persistenceLabel.Paint (painter, text);
+    m_persistenceLabel.Paint (painter, text, theme);
     m_persistence.Paint      (painter, text, theme);
     DrawIndicator (m_persistenceRowRect,
                    FloatMatches (m_persistence.GetValue() / 100.0f, m_hint.values.persistence),
