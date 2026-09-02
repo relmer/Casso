@@ -683,6 +683,11 @@ public:
     //  and each announces the right kind. A pick-up is a Swap (door opens and
     //  closes), a mount is an Insert (door closes), and both a user eject and
     //  a vanished file are an Eject (door opens).
+    //  THE RIGS ARE ON THE HEAP, not the stack. Each one carries a
+    //  DiskImageStore and two maps, and five of them in one frame come to
+    //  about seventeen kilobytes, which trips C6262 -- an error here, since CI
+    //  builds with CodeAnalysisTreatWarningsAsErrors. Scoping them separately
+    //  does not help: the analyzer measures the frame, not the live set.
     TEST_METHOD (EveryBayChangeIsAnnouncedWithItsKind)
     {
         using BayChange = BayChange;
@@ -691,73 +696,73 @@ public:
 
         //  Mount -> Inserted.
         {
-            Rig  rig;
+            auto  rig = std::make_unique<Rig>();
 
-            rig.WriteImage (kImagePath, 0x11);
-            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
 
-            Assert::AreEqual ((size_t) 1, rig.bayChanges.size());
-            Assert::IsTrue (rig.bayChanges[0] == BayChange::Inserted);
+            Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[0] == BayChange::Inserted);
         }
 
         //  Pick-up of an external change -> Swapped.
         {
-            Rig  rig;
+            auto  rig = std::make_unique<Rig>();
 
-            rig.WriteImage (kImagePath, 0x11);
-            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
 
-            rig.WriteImage (kImagePath, 0x22);
-            rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+            rig->WriteImage (kImagePath, 0x22);
+            rig->FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-            Assert::AreEqual ((size_t) 2, rig.bayChanges.size());
-            Assert::IsTrue (rig.bayChanges[1] == BayChange::Swapped);
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
         }
 
         //  User eject -> Ejected.
         {
-            Rig  rig;
+            auto  rig = std::make_unique<Rig>();
 
-            rig.WriteImage (kImagePath, 0x11);
-            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
-            rig.store.Eject (kSlot, kDrive);
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+            rig->store.Eject (kSlot, kDrive);
 
-            Assert::AreEqual ((size_t) 2, rig.bayChanges.size());
-            Assert::IsTrue (rig.bayChanges[1] == BayChange::Ejected);
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[1] == BayChange::Ejected);
         }
 
         //  A file that vanished, then the drive emptied -> Ejected.
         {
-            Rig  rig;
+            auto  rig = std::make_unique<Rig>();
 
-            rig.WriteImage (kImagePath, 0x11);
-            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
 
-            rig.files.erase (kImagePath);
-            rig.Stamp (kImagePath);
-            rig.FireAndSettle (kImagePath);
+            rig->files.erase (kImagePath);
+            rig->Stamp (kImagePath);
+            rig->FireAndSettle (kImagePath);
 
-            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
-            Assert::IsTrue (!rig.bayChanges.empty());
-            Assert::IsTrue (rig.bayChanges.back() == BayChange::Ejected);
+            Assert::IsTrue (!rig->bayChanges.empty());
+            Assert::IsTrue (rig->bayChanges.back() == BayChange::Ejected);
         }
 
         //  Keeping the disk during a conflict moves its file but leaves the
         //  disk in the drive, so it is NOT a bay change -- no door, no sound.
         {
-            Rig  rig;
+            auto  rig = std::make_unique<Rig>();
 
-            rig.WriteImage (kImagePath, 0x11);
-            AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
 
-            rig.WriteImage (kImagePath, 0x22);
-            rig.FireAndSettle (kImagePath);
-            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+            rig->WriteImage (kImagePath, 0x22);
+            rig->FireAndSettle (kImagePath);
+            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
             //  One Inserted from the mount, and nothing from the keep.
-            Assert::AreEqual ((size_t) 1, rig.bayChanges.size());
-            Assert::IsTrue (rig.bayChanges[0] == BayChange::Inserted);
+            Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[0] == BayChange::Inserted);
         }
     }
 
