@@ -60,9 +60,9 @@ Entries before versioning was introduced use dates only.
   so the user can try again, pick another disk, or back out. A startup failure
   that used to be queued for a window that never appeared is shown before
   Casso exits.
-- **The `disk create --bootable` diagnostic for a missing master points to
-  Casso's disk picker.** It used to send the user to a first run of the
-  emulator, which downloads nothing.
+- **The `disk create --bootable` diagnostic for a missing master instructs the
+  user to download it from Casso's disk picker and retry.** It used to
+  instruct a first run of the emulator, which downloads nothing.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both
