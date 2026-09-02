@@ -53,6 +53,22 @@ so they structurally cannot run in the unit suite by accident: CI names
 to run them. A case that cannot reach the master FAILS rather than skipping,
 because a guest-visible gate that never started a guest has checked nothing.
 
+**Run them before landing a change to what a guest reads**: anything under
+`CassoEmuCore/Devices/Disk/`, the Disk II controller, or the Applesoft
+tokenizer. Nothing triggers this suite for you -- not CI, not a task, not the
+pre-push hook -- so the rule in
+[.github/copilot-instructions.md](../.github/copilot-instructions.md) is the
+only thing standing between a disk-layer change and a guest nobody asked.
+The disks are fetched on demand by `scripts/FetchStockDisks.ps1`, which
+`-Scenario` runs first, so the whole cost is one command and about nine
+seconds in Release.
+
+Six of these cases spent a long time in the unit suite instead, logging
+SKIPPED and returning when the master was absent -- which the runner reports
+as a pass. On any machine without the disks they announced success while
+checking nothing. That is the shape the separate binary exists to prevent,
+and it is why absence here is a failure.
+
 One scenario case doubles as a fixture generator: the Applesoft construct
 corpus (`UnitTest/Fixtures/Basic/`) is regenerated only by typing the
 committed listing into a booted master, never from the tokenizer's own

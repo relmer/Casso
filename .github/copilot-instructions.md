@@ -718,6 +718,34 @@ the pre-merge gate.
   `HarteTests.off` to keep the ordinary suite fast, so rename it back before
   starting CPU work. The runner prints which depth it ran. See
   [docs/testing.md](../docs/testing.md)
+- **Changes to what a guest reads require the scenario suite**:
+  `scripts/RunTests.ps1 -Build -Scenario`. It boots real DOS 3.3 and ProDOS
+  guests over images the code under test produced, which is the only check
+  that answers whether a real operating system agrees with us. A tokenizer
+  compared against its own detokenizer, or a disk read back through the
+  writer's own understanding, agrees with itself perfectly while being wrong.
+  Trigger areas, all of which the suite exercises directly:
+  - `CassoEmuCore/Devices/Disk/` -- the nibblization layer, the DOS 3.3 and
+    ProDOS volumes and skeletons, `BlankDiskBuilder`, `DirectBootBuilder`,
+    `DiskCommandRunner`, `DiskImageStore`, `VolumeImage`
+  - `CassoEmuCore/Devices/Disk2Controller` -- the drive and its sequencer
+  - `CassoCore/ApplesoftTokenizer` -- the bytes Applesoft itself would store
+- **The scenario suite is not run by CI and nothing else triggers it**, which
+  is the whole reason this rule exists. CI runs `UnitTest.dll` only, and no
+  task or hook invokes the scenario binary. Six cases once sat in the unit
+  suite logging SKIPPED and returning, which the runner reported as passes:
+  they announced success while checking nothing, on every machine without the
+  disks. Running it is one command and about nine seconds in Release.
+- **The disks it needs are fetched for you.** `-Scenario` runs
+  `scripts/FetchStockDisks.ps1` first, which downloads the DOS 3.3 System
+  Master and ProDOS Users Disk only when this machine has neither a copy under
+  `Disks/Apple/` nor one in the emulator's cache. Both are gitignored. A fetch
+  that cannot supply a missing disk stops the run rather than letting it
+  proceed half-armed.
+- **If a required suite could not run, state that in the summary rather than
+  omitting it.** An unrun suite reported as nothing is indistinguishable from
+  a suite that passed, which is the failure "Degraded Operation Must Be
+  Observable" exists to prevent. Give the suite and the reason.
 
 ## User-Facing Prose
 
