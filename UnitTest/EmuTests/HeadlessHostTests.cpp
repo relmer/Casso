@@ -46,23 +46,14 @@ public:
     // the 65C02: the RESET vector points into ROM, a cold PowerCycle enters
     // it, and the CPU then runs firmware (PC stays in the $C000-$FFFF ROM
     // window). A 6502 mis-wire would derail the moment the enhanced ROM hits
-    // a CMOS opcode. Skips when the copyrighted enhanced //e ROM is absent.
+    // a CMOS opcode.
+    //
+    // THE ENHANCED ROM IS A COMMITTED FIXTURE, so there is nothing to skip
+    // over. This case skipped whenever it was absent, which was everywhere:
+    // the ROM was ignored rather than tracked, so the only 65C02 firmware
+    // cold boot in the suite reported a pass without booting anything.
     TEST_METHOD (BuildApple2eEnhanced_ColdBootsFirmwareOn65C02)
     {
-        {
-            FixtureProvider       fp;
-            std::vector<uint8_t>  probe;
-            HRESULT               hrProbe = fp.OpenFixture ("Apple2eEnhanced.rom", probe);
-
-            if (FAILED (hrProbe) || probe.size() != 0x4000)
-            {
-                Logger::WriteMessage (
-                    "SKIPPED: UnitTest/Fixtures/Apple2eEnhanced.rom absent "
-                    "(copyrighted enhanced //e ROM, provisioned on demand).\n");
-                return;
-            }
-        }
-
         HeadlessHost   host;
         EmulatorCore   core;
 

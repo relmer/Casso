@@ -11,6 +11,7 @@
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/CharacterRom.h"
 #include "Video/CharacterRomData.h"
+#include "FixtureProvider.h"
 #include "Video/NtscColorTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -1038,59 +1039,38 @@ public:
     //  path must NOT fire for the //e ROM; doing so re-inverts the
     //  pre-inverted bitmap and produces an empty cell.
     //
-    //  These tests load the real Apple2e_Video.rom via
-    //  CharacterRomData::LoadFromFile (skipping cleanly on CI
-    //  runners that don't provision Apple-owned ROMs) and assert
-    //  that an inverse-space cell renders as solid green pixels in
-    //  both 40-col and 80-col text modes.
+    //  These tests load the real Apple2e_Video.rom and assert that an
+    //  inverse-space cell renders as solid green pixels in both 40-col and
+    //  80-col text modes.
+    //
+    //  THE ROM IS A COMMITTED FIXTURE, so there is nothing to skip over. It
+    //  was reached through an ancestor walk for `ROMs/Apple2e_Video.rom`
+    //  until 2026-09-02 -- a directory this repository has never had -- so
+    //  both cases skipped on every machine and every CI run while the ROM
+    //  they wanted sat in UnitTest/Fixtures. A skip the runner reports as a
+    //  pass is the one outcome worse than a failure.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static fs::path FindIIeCharRom()
+    static void LoadIIeCharRom (CharacterRomData & outRom)
     {
-        fs::path  cursor  = fs::current_path();
-        fs::path  found;
-        bool      walking = true;
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  romBytes;
 
-        for (int depth = 0; walking && found.empty() && depth < 8; depth++)
-        {
-            fs::path  candidate = cursor / "ROMs" / "Apple2e_Video.rom";
+        AssertSucceeded (fixtures.OpenFixture ("Apple2e_Video.rom", romBytes),
+            L"the committed //e character ROM must be readable");
 
-            if (fs::exists (candidate))
-            {
-                found = candidate;
-            }
-            else if (cursor.parent_path() == cursor)
-            {
-                // Drive root: this checkout does not provision the ROM.
-                walking = false;
-            }
-            else
-            {
-                cursor = cursor.parent_path();
-            }
-        }
-
-        return found;
+        AssertSucceeded (outRom.LoadFromMemory (romBytes.data(), romBytes.size()),
+            L"and must decode as a character ROM");
     }
 
     TEST_METHOD (IIeRom_AppleTextMode_InverseSpace_RendersSolidBlock)
     {
-        fs::path          romPath = FindIIeCharRom();
         CharacterRomData  rom;
-        HRESULT           hrLoad  = S_OK;
         MemoryBus         bus;
 
-        if (romPath.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
-                                  "not present (CI runners do not provision "
-                                  "Apple-owned ROMs).\n");
-            return;
-        }
+        LoadIIeCharRom (rom);
 
-        hrLoad = rom.LoadFromFile (romPath.string());
-        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
         Assert::IsTrue (rom.HasAltCharSet(),
             L"4K //e ROM must register as having alt-set");
 
@@ -1123,25 +1103,14 @@ public:
 
     TEST_METHOD (IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock)
     {
-        fs::path          romPath = FindIIeCharRom();
         CharacterRomData  rom;
-        HRESULT           hrLoad  = S_OK;
         MemoryBus         bus;
         constexpr int     kCellW  = 7;
         constexpr int     kCellH  = 16;
         constexpr int     kRow    = 16;
         constexpr int     kCol    = 7;
 
-        if (romPath.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
-                                  "not present (CI runners do not provision "
-                                  "Apple-owned ROMs).\n");
-            return;
-        }
-
-        hrLoad = rom.LoadFromFile (romPath.string());
-        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
+        LoadIIeCharRom (rom);
 
         // Mirror the //e PR#3 cursor placement: prompt ']' ($DD) at
         // aux $0480 (col 0 of row 1), inverse-space cursor ($20) at

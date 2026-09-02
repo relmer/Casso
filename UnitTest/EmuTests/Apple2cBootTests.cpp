@@ -53,15 +53,6 @@ public:
     static constexpr size_t  kRomSize      = 0x8000;   // 32K, two 16K banks
     static constexpr Word    kMonitorReset = 0xFA62;   // ROM 4 RESET vector target
 
-    bool Apple2cRomAvailable()
-    {
-        FixtureProvider        fp;
-        std::vector<uint8_t>   bytes;
-        HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
-
-        return SUCCEEDED (hrOpen) && bytes.size() == kRomSize;
-    }
-
     // The //c cold-boots its firmware end-to-end. With no disk inserted it
     // clears the screen, prints the "Apple //c" banner, probes the built-in IWM
     // drive, and -- finding no bootable disk -- displays "Check Disk Drive.",
@@ -73,12 +64,6 @@ public:
         std::string screen;
 
 
-
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
 
         HeadlessHost host; EmulatorCore core;
         AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
@@ -106,12 +91,6 @@ public:
     // If either regresses, the bank stays on 0 and this fails.
     TEST_METHOD (StaC028TogglesRomBankExactlyOnce)
     {
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
-
         HeadlessHost host; EmulatorCore core;
         AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
         core.PowerCycle();
@@ -150,12 +129,6 @@ public:
         DiskImage * img = nullptr;
 
 
-
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
 
         // 18-byte boot sector assembled by hand (only base-6502 opcodes so it
         // runs on the //e/][/][+ too). Loaded by the boot ROM at $0801:
@@ -226,12 +199,6 @@ public:
 
 
 
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
-
         // Any non-blank disk works -- the nibblizer frames every track with
         // sync + address marks, so even a mostly-zero image streams valid bytes.
         std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
@@ -283,15 +250,6 @@ public:
 
 
 
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage (
-                "SKIP: UnitTest/Fixtures/Apple2c.rom absent "
-                "(copyrighted //c ROM 4, provisioned on demand).");
-            return;
-        }
-
-
         AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         Assert::IsTrue (core.HasApple2e(),
@@ -334,12 +292,6 @@ public:
         const Word            pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
 
 
-
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
 
         AssertSucceeded (fp.OpenFixture ("Apple2c.rom", rom));
 
@@ -386,15 +338,6 @@ public:
 
 
 
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage (
-                "SKIP: UnitTest/Fixtures/Apple2c.rom absent "
-                "(copyrighted //c ROM 4, provisioned on demand).");
-            return;
-        }
-
-
         AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         core.PowerCycle();
@@ -432,12 +375,6 @@ public:
         Byte    outC060 = 0;
 
 
-
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
 
         auto  bootWithSwitch = [] (bool switchIn, size_t & outCols, Byte & outC060)
         {

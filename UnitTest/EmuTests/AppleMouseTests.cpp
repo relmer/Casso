@@ -36,17 +36,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 // namespace was there for.
 static constexpr size_t   s_kRomSize = 0x8000;
 
-static bool Apple2cRomAvailable()
-{
-    FixtureProvider        fp;
-    std::vector<uint8_t>   bytes;
-    HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
-
-
-
-    return SUCCEEDED (hrOpen) && bytes.size() == s_kRomSize;
-}
-
 // IOU switch addresses ($C058-$C05F while access is enabled).
 static constexpr Word  s_kDisXy  = 0xC058;
 static constexpr Word  s_kEnbXy  = 0xC059;
@@ -382,12 +371,6 @@ public:
 
 
 
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-            return;
-        }
-
 
         AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
@@ -411,13 +394,6 @@ public:
     // status hole. Skips when the ROM fixture is absent.
     TEST_METHOD (FirmwareTracksMotionAndButton_TransparentMode)
     {
-        // The real ROM 4 firmware is the oracle here, so with no ROM fixture
-        // there is nothing to test against -- skip rather than assert.
-        if (!Apple2cRomAvailable())
-        {
-            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
-        }
-        else
         {
             HeadlessHost  host;
             EmulatorCore  core;
@@ -539,11 +515,12 @@ public:
     {
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
         std::ifstream f (kDiskPath, std::ios::binary);
-        // Needs both the ROM fixture and a machine-local DOS 3.3 disk, so this
-        // one only runs on a developer box that has them.
-        if (!Apple2cRomAvailable() || !f.good())
+        // Needs a machine-local writable DOS 3.3 disk at the hard-coded path
+        // above, so this one only runs on a developer box that has it. The //c
+        // ROM is a committed fixture and no longer part of the condition.
+        if (!f.good())
         {
-            Logger::WriteMessage ("SKIPPED: ROM or local DOS 3.3 disk absent");
+            Logger::WriteMessage ("SKIPPED: local writable DOS 3.3 disk absent");
         }
         else
         {
@@ -687,9 +664,9 @@ public:
 
         std::ifstream f (kDiskPath, std::ios::binary);
 
-        if (skipWhy == nullptr && (!Apple2cRomAvailable() || !f.good()))
+        if (skipWhy == nullptr && !f.good())
         {
-            skipWhy = "SKIPPED: ROM or local DOS 3.3 disk absent";
+            skipWhy = "SKIPPED: local writable DOS 3.3 disk absent";
         }
 
         if (skipWhy != nullptr)
