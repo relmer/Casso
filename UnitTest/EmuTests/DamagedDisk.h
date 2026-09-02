@@ -65,24 +65,48 @@ public:
     //  unrecovered count as well as disturbing coverage. It does NOT isolate
     //  coverage from counting: filling all sixteen slots while duplicating one
     //  sector needs a seventeenth address field, which rewriting an existing
-    //  header cannot produce.
+    //  header cannot produce. DuplicateSector is that case.
     static void  RedirectSectorToSlot (DiskImage & inOutImage,
                                        int         track,
                                        int         sectorNumber,
                                        int         claimSlot);
 
+    //  Splices a second copy of sector `sectorNumber` into `track`, directly
+    //  after the original, so the track carries seventeen address fields and
+    //  every one of its sixteen slots is filled, one of them twice. Nothing is
+    //  left empty, so the unrecovered count stays at zero and only coverage can
+    //  tell this track from a healthy one. The track GROWS by the copy rather
+    //  than giving up sync gap for it; the .cpp says why, and why the copy has
+    //  to go directly after the original rather than at the end.
+    static void  DuplicateSector (DiskImage & inOutImage, int track, int sectorNumber);
+
     //  How many address fields the track carries, found bit-wise. 16 on a disk
-    //  this tree built. Exposed so a test can assert the helper is reaching the
-    //  whole track rather than the 8 a byte scan would find.
+    //  this tree built, 17 after DuplicateSector. Exposed so a test can assert
+    //  the helper is reaching the whole track rather than the 8 a byte scan
+    //  would find.
     static int   CountAddressFields (const DiskImage & image, int track);
 
 private:
+    //  Bit offset of the first address prologue at or after `fromBit`, or
+    //  SIZE_MAX. The one bit-wise scan every lookup here is built on -- see the
+    //  header comment for why it cannot be a byte scan.
+    static size_t  FindAddressFieldFrom (const vector<Byte> & bits,
+                                         size_t               bitCount,
+                                         size_t               fromBit);
+
     //  Bit offset of the address field whose decoded sector is `sectorNumber`,
-    //  or SIZE_MAX. Scans BIT-wise, because sector fields do not start on byte
-    //  boundaries -- see the header comment.
+    //  or SIZE_MAX.
     static size_t  FindAddressFieldBySector (const vector<Byte> & bits,
                                              size_t               bitCount,
                                              int                  sectorNumber);
+
+    //  Copies `count` bits one at a time, so neither end has to sit on a byte
+    //  boundary. Both ranges must lie within their buffers.
+    static void    CopyBits (const vector<Byte> & src,
+                             size_t               srcAt,
+                             vector<Byte>       & dst,
+                             size_t               dstAt,
+                             size_t               count);
 
     //  The nibble beginning at `bitAt`, MSB first.
     static Byte    ReadNibbleAtBit (const vector<Byte> & bits, size_t bitAt);
