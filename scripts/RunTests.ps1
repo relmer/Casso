@@ -230,7 +230,8 @@ if ($Scenario) {
     # boot real guests, which is exactly why they live in their own DLL.
     Write-Host ''
     Write-Host 'SCENARIO SUITE -- system tests, NOT the unit-test suite.' -ForegroundColor Yellow
-    Write-Host '  Needs external inputs (the stock DOS 3.3 System Master) and boots real guests.' -ForegroundColor DarkGray
+    Write-Host '  Needs external inputs (the stock DOS 3.3 System Master and ProDOS Users Disk)' -ForegroundColor DarkGray
+    Write-Host '  and boots real guests.' -ForegroundColor DarkGray
     Write-Host ''
 }
 
