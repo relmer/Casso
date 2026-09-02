@@ -45,9 +45,10 @@
 .NOTES
     Exit codes: 0 = every image is available, 1 = at least one is missing.
 
-    A failure here is not fatal to a test run. The cases report the absence
-    themselves, listing both locations and how to fill one, and that message
-    is more use than anything this script could add.
+    RunTests.ps1 treats a non-zero exit as fatal, and the asymmetry above is
+    why that is safe: a machine holding an image never reaches the network,
+    so being offline exits 0. What is left is a run that cannot boot the
+    guests it exists to boot.
 #>
 [CmdletBinding()]
 param (
@@ -225,8 +226,9 @@ foreach ($asset in $assets) {
 if ($missing -gt 0) {
     Write-Host ''
     Write-Host "Stock disks: $missing of $($assets.Count) could not be fetched." -ForegroundColor Yellow
-    Write-Host '  The scenario cases that need one will fail and report which.' -ForegroundColor DarkGray
-    Write-Host '  Picking DOS 3.3 or ProDOS in the emulator disk picker also installs one.' -ForegroundColor DarkGray
+    Write-Host '  The scenario suite boots these, so it cannot run without them.' -ForegroundColor DarkGray
+    Write-Host '  Picking DOS 3.3 or ProDOS in the emulator disk picker also installs one,' -ForegroundColor DarkGray
+    Write-Host '  as does dropping a copy at Disks/Apple/ under the repo root.' -ForegroundColor DarkGray
     Write-Host ''
     exit 1
 }

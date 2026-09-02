@@ -239,16 +239,16 @@ if ($Scenario) {
     # manual step, and a rule requiring these cases before a merge is only
     # worth writing if obeying it is cheap.
     #
-    # NOT fatal, deliberately. Offline with the images already here is a
-    # working run, and when one really is absent the case that needs it fails
-    # with a message listing both locations and how to fill them -- better
-    # than anything this script could report from out here.
+    # FATAL, because the only way this fails is an image that is missing AND
+    # could not be downloaded. A machine that already has one never reaches
+    # the network, so being offline is not a failure here. What is left is a
+    # run that cannot do its job, and reporting that once beats letting it
+    # surface as a dozen identical case failures.
     $fetchScript = Join-Path $PSScriptRoot 'FetchStockDisks.ps1'
 
     & $fetchScript
     if ($LASTEXITCODE -ne 0) {
-        Write-Host 'Continuing: the cases needing a missing image will report it themselves.' -ForegroundColor DarkGray
-        Write-Host ''
+        throw 'Cannot run the scenario suite without the stock disks it boots. See above.'
     }
 }
 
