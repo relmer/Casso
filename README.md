@@ -251,10 +251,12 @@ driven by the machine's own mouse firmware. Its two latching case switches are
 modeled on a control strip: **80/40** drives `$C060`, and the **keyboard** switch
 flips the typed stream to Dvorak.
 
-On first launch Casso fetches the ROMs, sample disks, and Disk II audio samples
-it needs, with your consent, so a fresh `Casso.exe` boots to a usable BASIC
-prompt with nothing installed by hand. `Machines/` and `Devices/` are fully
-runtime-managed — delete either and the next launch rebuilds it.
+On first launch Casso fetches the ROMs and Disk II audio samples it needs, with
+your consent, and its boot disk picker offers the DOS 3.3 System Master and
+ProDOS Users Disk, downloaded from the Asimov archive when picked, so a fresh
+`Casso.exe` boots to a usable BASIC prompt with nothing installed by hand.
+`Machines/` and `Devices/` are fully runtime-managed — delete either and the
+next launch rebuilds it.
 
 ### CPU
 
@@ -487,11 +489,14 @@ core. See [docs/testing.md](docs/testing.md).
 
 ### Run the emulator
 
-Run `Casso` with no arguments for an Apple II+ with an empty drive. ROMs and
-sample disks are fetched on first launch, with your consent.
+Run `Casso` with no arguments for an Apple //e, or the machine you picked last
+time, with the disk it had last time. ROMs are fetched on first launch, with
+your consent; the boot disk picker then offers the DOS 3.3 System Master and
+ProDOS Users Disk, which Casso downloads from the Asimov archive when one is
+picked.
 
 ```powershell
-# Launch the emulator (defaults to Apple II+)
+# Launch the emulator (defaults to the Apple //e)
 Casso
 
 # Pick a machine

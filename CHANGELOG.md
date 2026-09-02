@@ -55,6 +55,13 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **A failed stock boot-disk download is reported instead of exiting or doing
+  nothing.** The boot and insert disk pickers report the reason and come back,
+  so the user can try again, pick another disk, or back out. A startup failure
+  that used to be queued for a window that never appeared is shown before
+  Casso exits.
+- **`disk create --bootable` with no cached master now points at the disk
+  picker**, instead of a first run that no longer downloads anything.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both

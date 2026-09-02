@@ -82,6 +82,26 @@ public:
     // "this image will still boot".
     static constexpr const char *  kGreetingName = "HELLO";
 
+    // What a case logs when it cannot find its image, before returning
+    // without checking anything. Both places the resolver tries are listed,
+    // with the two ways to fill one, so the line in the output is enough to
+    // act on.
+    static constexpr const char *  kDos33Missing  =
+        "SKIPPED: DOS 3.3 System Master not found\n"
+        "         Tried Disks/Apple/dos33-master.dsk under the working directory and its\n"
+        "         parents, then %LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk.\n"
+        "         To get it, pick the DOS 3.3 row in Casso's Boot Disk or Insert Disk\n"
+        "         picker once, which downloads it into that cache, or place a copy at\n"
+        "         the repo path, which is gitignored. This case checked nothing.\n";
+
+    static constexpr const char *  kProDosMissing =
+        "SKIPPED: ProDOS Users Disk not found\n"
+        "         Tried Disks/Apple/prodos-users.dsk under the working directory and its\n"
+        "         parents, then %LOCALAPPDATA%\\Casso\\Disks\\ProDOS Users Disk.dsk.\n"
+        "         To get it, pick the ProDOS row in Casso's Boot Disk or Insert Disk\n"
+        "         picker once, which downloads it into that cache, or place a copy at\n"
+        "         the repo path, which is not gitignored. This case checked nothing.\n";
+
     static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
     {
         std::error_code    ec;
@@ -104,12 +124,18 @@ public:
 
     static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
     {
-        // Walk up from the current working directory to find a sibling
-        // of `Machines/` containing the requested file. Mirrors the
-        // resolver in BackwardsCompatTests / Pr3AuxClearTest so the
-        // test stays filesystem-portable. Returns an empty vector if
-        // the file doesn't exist (CI runners don't have the DOS 3.3
-        // master disk in the repo); the caller treats that as "skip".
+        // Two places are tried, in order: `relPath` under the working
+        // directory and each of its parents, up to ten levels (the same
+        // walk BackwardsCompatTests and Pr3AuxClearTest use), then the
+        // emulator's download cache, %LOCALAPPDATA%\Casso\Disks, under the
+        // file name the emulator saves the image as. Returns an empty
+        // vector when neither has it; the caller logs SKIPPED and returns
+        // without checking anything, on a developer machine and on CI alike.
+        //
+        // The images are Apple-owned and not committed. To get one, pick the
+        // DOS 3.3 or ProDOS row in the Boot Disk or Insert Disk picker once,
+        // which downloads it into the cache, or place a copy at the repo
+        // path. Only dos33-master.dsk is gitignored there.
         std::error_code        ec;
         std::filesystem::path  cursor  = std::filesystem::current_path (ec);
         std::vector<Byte>      bytes;
@@ -134,10 +160,9 @@ public:
             }
         }
 
-        // The repo copy is optional; a developer machine usually has the
-        // stock master in the GUI's asset-download cache instead, filed
-        // under its catalog display name. Read-only fallback, still
-        // skip-if-missing on machines with neither.
+        // The cache the emulator downloads into, and the same one
+        // GuestSession::RequireDos33Master reads. Read-only: nothing here
+        // downloads.
         if (bytes.empty())
         {
             const wchar_t *  cacheName = nullptr;
@@ -236,10 +261,7 @@ public:
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout (typical for CI "
-                                  "runners). Test passes locally where the "
-                                  "disk image is present.\n");
+            Logger::WriteMessage (kDos33Missing);
             return;
         }
 
@@ -339,8 +361,7 @@ public:
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
+            Logger::WriteMessage (kDos33Missing);
             return;
         }
 
@@ -444,8 +465,7 @@ public:
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
+            Logger::WriteMessage (kDos33Missing);
             return;
         }
 
@@ -587,8 +607,7 @@ public:
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (raw.empty())
         {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
+            Logger::WriteMessage (kDos33Missing);
             return;
         }
 
@@ -688,7 +707,7 @@ public:
         payload.dosMasterSectors = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
         if (payload.dosMasterSectors.empty())
         {
-            Logger::WriteMessage ("SKIPPED: DOS 3.3 master not available.\n");
+            Logger::WriteMessage (kDos33Missing);
             return;
         }
 
@@ -761,7 +780,7 @@ public:
         payload.proDosUsersDisk = ReadDskOrEmpty ("Disks/Apple/prodos-users.dsk");
         if (payload.proDosUsersDisk.empty())
         {
-            Logger::WriteMessage ("SKIPPED: ProDOS Users Disk not available.\n");
+            Logger::WriteMessage (kProDosMissing);
             return;
         }
 

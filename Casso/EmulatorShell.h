@@ -589,6 +589,13 @@ public:
     // because the CPU thread can't drain its queue while paused.
     void StepInstructionWhilePaused ();
 
+    // The failure-path counterpart of FlushPendingNotifications. Only
+    // CreateEmulatorWindow drains the queue, and a startup that fails before
+    // it never gets there. wWinMain calls this on its failure exit; a system
+    // box is the only surface left. Static because it runs after the shell
+    // has given up.
+    static void  ShowPendingNotificationsWithoutWindow ();
+
 private:
     // Machine switching delegated to MachineManager. Kept as a
     // public delegator so the existing IDM_FILE_OPEN command-queue

@@ -98,9 +98,12 @@ std::vector<Byte> GuestSession::RequireDos33Master()
     Assert::IsFalse (bytes.empty(),
         L"the stock DOS 3.3 master is REQUIRED by this gate and was not found, either as "
         L"Disks/Apple/dos33-master.dsk in a parent of the working directory or as "
-        L"%LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk. This case fails rather "
-        L"than skipping: a guest-visible gate that never started a guest has checked "
-        L"nothing, and a skip is indistinguishable in the output from a case that ran");
+        L"%LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk. To get it, pick the "
+        L"DOS 3.3 row in Casso's Boot Disk or Insert Disk picker once, which downloads it "
+        L"into that cache, or place a copy at the repo path, which is gitignored. This "
+        L"case fails rather than skipping: a guest-visible gate that never started a "
+        L"guest has checked nothing, and a skip is indistinguishable in the output from "
+        L"a case that ran");
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");
