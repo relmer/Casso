@@ -55,6 +55,15 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
+  built as a plain member and given its words afterward painted with a hard-coded
+  white rather than the theme's own text color. Whole settings pages are built that
+  way, so both flat themes read as white on green or white on graphite.
+- **The scene compass stayed on screen under the flat themes.** It is the control for
+  turning the 3D desk, and the flat themes have no desk to turn. Switching to one from
+  a skeuomorphic theme left the arrows painted over the picture.
+- **The 3D CRT monitor checkbox is gone on the flat themes.** They never draw the
+  monitor, so the setting had nothing to apply to. The rows below it close the gap.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both

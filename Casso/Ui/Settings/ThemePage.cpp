@@ -490,19 +490,38 @@ float ThemePage::StopForSamples (int samples)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThemePage::UpdateCrtMonitorCheckboxEnabled
+//  ThemePage::UpdateCrtMonitorCheckboxVisible
+//
+//  The CRT monitor belongs to the skeuomorphic presentation alone, so on a
+//  compact theme the checkbox is REMOVED, not disabled: there is no monitor to
+//  opt out of, and a grayed control still asks the user to reason about a
+//  setting that cannot apply. The rows below close up behind it, which is what
+//  the re-layout is for -- an empty gap where the checkbox used to be reads as
+//  a rendering fault.
+//
+//  A layout re-run needs a rect, and the only one that is right is the rect
+//  the page was last laid out against; before the first Layout there is none,
+//  and none is needed, since that Layout will read the flag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::UpdateCrtMonitorCheckboxEnabled()
+void ThemePage::UpdateCrtMonitorCheckboxVisible()
 {
     std::string  selected = GetSelectedThemeId();
     bool         isSkeuo  = !selected.empty()
                             && !CassoTheme::MakeByName (selected).compactDrives;
+    bool         changed  = (isSkeuo != m_crtRowShown);
 
 
 
+    m_crtRowShown = isSkeuo;
+    m_crtMonitorCheckbox.SetVisible (isSkeuo);
     m_crtMonitorCheckbox.SetEnabled (isSkeuo);
+
+    if (changed && m_lastLayoutRect.right > m_lastLayoutRect.left)
+    {
+        Layout (m_lastLayoutRect, m_scaler);
+    }
 }
 
 
@@ -580,14 +599,14 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
         }
 
         m_activeIndex = idx;
-        UpdateCrtMonitorCheckboxEnabled();
+        UpdateCrtMonitorCheckboxVisible();
         if (m_onThemeSelected)
         {
             m_onThemeSelected (m_themeIds[(size_t) idx]);
         }
     });
 
-    UpdateCrtMonitorCheckboxEnabled();
+    UpdateCrtMonitorCheckboxVisible();
 }
 
 
@@ -635,8 +654,12 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   y          = rect.top  + pad;
     int   rowGap     = scaler.ToPx (8);
     int   previewGap = scaler.ToPx (24);
-    // Three rows above the preview now: theme, the CRT opt-in, edge smoothing.
-    int   previewTop = y + 3 * rowHeight + 2 * rowGap + previewGap;
+    // Theme, then edge smoothing, with the CRT opt-in between them only on a
+    // skeuomorphic theme -- so the stack above the preview is two rows or
+    // three depending on whether that row is shown.
+    int   rowsAbove  = m_crtRowShown ? 3 : 2;
+    int   aaRowIndex = m_crtRowShown ? 2 : 1;
+    int   previewTop = y + rowsAbove * rowHeight + (rowsAbove - 1) * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
     int   applyWidth = 0;
@@ -695,13 +718,17 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
         m_crtMonitorCheckbox.Layout (cbRect, scaler);
         m_crtMonitorCheckbox.SetDpi (dpi);
+
+        // Layout writes bounds unconditionally, so re-assert the hidden state
+        // the selection put the row in -- a compact theme keeps it away.
+        m_crtMonitorCheckbox.SetVisible (m_crtRowShown);
     }
 
     // Edge-smoothing row under it, laid out on the same grid as the theme row
     // so the label column lines up: label at the left, a short slider beside
     // it (three stops need no width, and a full-width one reads as continuous).
     {
-        int   aaTop     = y + (rowHeight + rowGap) * 2;
+        int   aaTop     = y + (rowHeight + rowGap) * aaRowIndex;
         int   aaSliderW = scaler.ToPx (150);
 
         m_aaLabel.Layout  (MakeRect (x, aaTop, labelWidth, rowHeight), scaler);
@@ -711,6 +738,7 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_aaSlider.SetDpi (dpi);
     }
 
+    m_lastLayoutRect     = rect;
     m_previewRect.left   = x;
     m_previewRect.top    = previewTop;
     m_previewRect.right  = std::max ((LONG) x, (LONG) (rect.right  - pad));
@@ -783,11 +811,15 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     m_themeDropdown.SetTheme    (&theme);
 
-    m_themeLabel.Paint            (painter, text);
+    m_themeLabel.Paint            (painter, text, theme);
     m_themeDropdown.PaintBase     (painter, text);
     m_applyNowButton.Paint        (painter, text, theme);
-    m_crtMonitorCheckbox.Paint  (painter, text, theme);
-    m_aaLabel.Paint             (painter, text);
+    if (m_crtRowShown)
+    {
+        m_crtMonitorCheckbox.Paint (painter, text, theme);
+    }
+
+    m_aaLabel.Paint             (painter, text, theme);
     m_aaSlider.Paint            (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted

@@ -4204,9 +4204,17 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         // No scene at all (compact theme, or the models never loaded): the
         // bare display fills the center at classic sizes over the 2D drive
         // band.
+        //
+        // The compass has to be put away HERE. Every other arm reaches it
+        // through SyncSceneDriveChrome, which this one has no reason to call,
+        // so switching from a skeuo theme to a compact one left the arrows
+        // painted over the flat display -- a control for turning a scene that
+        // is no longer on screen.
         m_chromeSceneScale = 1.0f;
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
+
+        LayoutSceneCompass();
     }
 
     m_viewport->Layout (viewportRect, m_scaler);
