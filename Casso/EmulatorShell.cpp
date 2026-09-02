@@ -7303,17 +7303,30 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
-        bool  motorOn    = st.motorOn.load    (memory_order_relaxed);
-        bool  diskActive = st.diskActive.load (memory_order_relaxed);
+        bool  motorOn          = st.motorOn.load    (memory_order_relaxed);
+        bool  diskActive       = st.diskActive.load (memory_order_relaxed);
+        int   headQuarterTrack = st.headQuarterTrack.load  (memory_order_relaxed);
 
         anyDriveLive = anyDriveLive || motorOn || diskActive;
 
         // Everything about a drive that is VISIBLE, folded into one word so
         // the present vote below can ask whether it moved rather than whether
         // it is busy.
-        driveSig = (driveSig << 3) | (motorOn ? 1u : 0u)
-                                   | (diskActive ? 2u : 0u)
-                                   | (doorMoving ? 4u : 0u);
+        //
+        // The head position is in here because a 2D theme draws it: a seek
+        // with the motor already running changes no flag, so without this the
+        // readout would sit still until something else asked for a frame.
+        //
+        // EIGHT bits, because the value is in quarter-tracks and runs to 139.
+        // Six bits was the first cut and it aliased: quarter-track 64 folded
+        // onto 0, so a seek across the outer half of the disk moved the
+        // signature not at all. The unknown -1 folds to 0xFF, which is past
+        // the largest real position. Eleven bits per drive over two drives
+        // stays well inside the word.
+        driveSig = (driveSig << 11) | (motorOn ? 1u : 0u)
+                                    | (diskActive ? 2u : 0u)
+                                    | (doorMoving ? 4u : 0u)
+                                    | ((uint32_t) (headQuarterTrack & 0xFF) << 3);
 
         if (doorMoving)
         {

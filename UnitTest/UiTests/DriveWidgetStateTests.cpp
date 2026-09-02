@@ -33,6 +33,30 @@ public:
                          L"motor flag should default false");
         Assert::IsFalse (st.diskActive.load(),
                          L"diskActive should default false");
+        Assert::AreEqual (-1, st.headQuarterTrack.load(),
+                          L"head position defaults to unknown, not track 0");
+    }
+
+
+    TEST_METHOD (HeadQuarterTrack_UnknownIsDistinctFromPositionZero)
+    {
+        DriveWidgetState  st;
+
+        // A machine with no Disk ][ controller never has a head position, and
+        // a readout that drew that as track 0 would park a marker at the outer
+        // edge of a drive that does not exist. The sentinel has to survive the
+        // round trip rather than being clamped on the way through.
+        Assert::AreEqual (-1, st.headQuarterTrack.load(),
+                          L"unknown is the initial value");
+
+        st.headQuarterTrack.store (0);
+        Assert::AreEqual (0, st.headQuarterTrack.load(),
+                          L"quarter-track 0 is a real position, stored as itself");
+
+        st.headQuarterTrack.store (139);
+        Assert::AreEqual (139, st.headQuarterTrack.load(),
+                          L"the outermost quarter-track survives, so the units "
+                          L"are the engine's rather than whole tracks");
     }
 
     TEST_METHOD (BeginInsert_FromOpenDoor_TransitionsToClosing)

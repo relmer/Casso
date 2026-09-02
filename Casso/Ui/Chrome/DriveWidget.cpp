@@ -322,6 +322,8 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.writeProtect          = state.writeProtect;
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
+    m_state.headQuarterTrack.store (state.headQuarterTrack.load (std::memory_order_relaxed),
+                             std::memory_order_relaxed);
 
     m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
