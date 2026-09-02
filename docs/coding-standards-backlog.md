@@ -834,7 +834,7 @@ items 1-4 must be named accordingly.
 renamed twice: a name like `CapReached` is both a bool-return violation and a
 VerbNoun violation, and they have one fix. 38 renames, listed there.
 
-### 6. Function names are VerbNoun, mostly done
+### 6. Function names are VerbNoun, DONE
 
 **The rule itself now lives in `.github/copilot-instructions.md` under
 "Function Names", which is the file every session is told to read.** It was
