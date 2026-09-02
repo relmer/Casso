@@ -290,6 +290,44 @@ would benefit from a concrete case to be designed against.
 
 ---
 
+## Building into a disk Casso already has open
+
+A build loop that ends in a running emulator is one command:
+
+```
+CassoCli as65 prog.a65 --disk work.dsk --as PROG --type B --on-change reload
+```
+
+The same flag is on `disk put`, for a file the assembler did not produce:
+
+```
+CassoCli disk put work.dsk prog.bin --as PROG --type B --load $6000 --on-change reload
+```
+
+**There is no `--load` on the assembler**, and that is the point rather than an
+omission: the address comes from the origin the source declared, so the two
+cannot disagree.
+
+Casso detects the change on its own, whichever tool wrote it. `--on-change`
+specifies what happens next:
+
+| | |
+|---|---|
+| `reload` | Insert the modified disk; leave the machine running |
+| `reboot` | Insert the modified disk and reboot the machine |
+| *(omitted)* | Casso prompts you |
+
+Stating it when no emulator is running is not an error, so a build script does
+not need to know whether you have Casso open.
+
+**A pick-up is a disk swap, and swapping a disk under a running program cannot
+be made safe.** The Apple keeps the disk's directory in its own memory, where
+nothing on the host can see or correct it, so a program that was running before
+the swap may not see the new disk correctly. Casso says so, and the reboot is on
+the toolbar. `restart` is the answer that removes the question.
+
+---
+
 ## Language reference
 
 | Feature | Syntax |

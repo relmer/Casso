@@ -82,6 +82,11 @@ public:
     void   OnDiskInserted() override;
     void   OnDiskEjected() override;
 
+    //  A disk was replaced under the running machine: the door open sound then
+    //  the close sound, back to back, with the disk present throughout. Not on
+    //  IDriveAudioSink because only the shared-image pick-up path reaches it.
+    void   OnDiskSwapped();
+
     // Called once per audio frame by DriveAudioMixer with the current
     // CPU cycle (FR-005 idle timeout).
     void   Tick (uint64_t currentCycle);
@@ -191,6 +196,13 @@ private:
     vector<float>         m_doorCloseBuf;
     const vector<float> * m_doorBuf = nullptr;
     uint32_t              m_doorPos = 0;
+
+    // A swap plays the open one-shot and then the close one-shot back to back,
+    // because a disk came out and another went in. Set by OnDiskSwapped and
+    // cleared when MixDoor rolls the open sample into the close one -- the door
+    // buffer is a single one-shot, so the second sound is queued by this flag
+    // rather than by a second buffer.
+    bool                  m_doorThenClose = false;
 
     // Dedicated audition channel for the settings-panel play buttons. A
     // one-shot that plays a chosen buffer once through at m_testVolume,

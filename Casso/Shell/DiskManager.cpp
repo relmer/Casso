@@ -6,6 +6,8 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Win32ImageWatcher.h"
+#include "Cli/Win32DiskFileIo.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
 #include "../Config/IFileSystem.h"
@@ -414,7 +416,6 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 {
     HRESULT              hr         = S_OK;
     Disk2Controller  *   controller = FindSlot6Controller();
-    DiskImage         *  external   = nullptr;
     bool                 attempted  = false;
     MountDiagnosis       diagnosis;
 
@@ -429,27 +430,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     // The diagnosis rides out with the outcome. Without it the shell would be
     // left re-deriving a reason from the file name, which can only ever tell
     // an unreadable extension from everything else.
+    // The store announces the insert through its bay-change sink, so
+    // re-pointing the controller, re-applying write protection, the debug
+    // event, and the door and its sound all happen in OnBayChange -- fired
+    // from inside this call, before it returns. Cold-boot suppression of the
+    // sound lives there too.
     hr = m_diskStore.Mount (6, drive, path, diagnosis);
     CHR (hr);
-
-    external = m_diskStore.GetImage (6, drive);
-    controller->SetExternalDisk (drive, external);
-
-    // Re-assert the user's per-drive write-protect preference and probe
-    // the backing file's writability onto the freshly loaded image (the
-    // image's own embedded flag is already set by its loader). Without
-    // this, a new mount would silently drop a standing user WP setting
-    // and let the guest write to a read-only host file.
-    ApplyExternalWriteProtect (drive, external, path);
-
-    // The store-based mount path bypasses the controller's own
-    // MountDisk method, so fire the IDisk2EventSink hook explicitly
-    // here so the debug window sees the insert. Cold boot mounts
-    // still fire on the controller side (the debug window is rarely
-    // open at app launch and the user wants to see the mount that
-    // ran without their click); the cold-boot suppression below is
-    // audio-only (FR-013).
-    controller->NotifyDiskInserted (drive);
 
     // Persist this drive's mount path so the next launch / next time
     // this machine is selected auto-mounts the same disk. Don't
@@ -461,24 +448,6 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
         HRESULT       hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
                                                                 drive, m_currentMachineName, wPath);
         IGNORE_RETURN_VALUE (hrReg, S_OK);
-    }
-
-    // Drive-audio door-close (FR-013). Cold-boot mounts (command-line,
-    // last-session restoration, autoload) MUST be suppressed -- they
-    // happen before the user has interacted with the running //e and
-    // shouldn't audibly slam the drive door at app launch. Post-
-    // startup mounts (user-initiated mid-session) always fire.
-    if (!m_coldBootMountWindow &&
-        !m_programmaticRemount &&
-        drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
-    {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, GetNowMs());
-        m_driveWidgets.PublishSyncEvent (drive,
-                                         DriveWidgetController::SyncAction::DoorClose,
-                                         GetNowMs());
-        m_diskAudioSources[drive]->OnDiskInserted();
     }
 
 Error:
@@ -501,29 +470,15 @@ Error:
 //
 //  EjectDiskInSlot6
 //
-//  Auto-flushes dirty bits via the store and detaches the controller's
-//  external disk.
+//  Auto-flushes dirty bits via the store, which announces the eject through
+//  its bay-change sink -- so detaching the controller, the debug event, the
+//  door and its sound all happen in OnBayChange, not here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
-    Disk2Controller *  controller = FindSlot6Controller();
-
-
-
     m_diskStore.Eject (6, drive);
-
-    if (controller != nullptr)
-    {
-        controller->SetExternalDisk (drive, nullptr);
-
-        // Mirror the insert path: fire the controller-level event
-        // sink so the debug window logs the eject. Fires AFTER the
-        // external disk is detached so any sink that inspects the
-        // controller sees the post-eject state.
-        controller->NotifyDiskEjected (drive);
-    }
 
     // Clear the per-machine remembered path so the next launch comes
     // up empty in this slot.
@@ -533,19 +488,117 @@ void DiskManager::EjectDiskInSlot6 (int drive)
                                                            drive, m_currentMachineName, L"");
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
+}
 
-    // Drive-audio door-open (FR-014). Eject events always fire (no
-    // cold-boot eject case in practice -- the app launches with the
-    // drive bay closed).
-    if (drive >= 0 &&
-        static_cast<size_t> (drive) < m_diskAudioSources.size() &&
-        m_diskAudioSources[drive] != nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnBayChange
+//
+//  The store's bay-change sink. One reaction to a disk changing in a bay,
+//  whoever moved it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::OnBayChange (int slot, int drive, BayChange change)
+{
+    Disk2Controller *  controller = nullptr;
+    DiskImage *        image      = nullptr;
+    bool               inserted   = false;
+    bool               suppressFx = false;
+    int64_t            nowMs      = 0;
+
+
+
+    //  Slot 6 is the only bay with a drive on screen; the store has eight.
+    if (slot != 6 || drive < 0 || drive >= DiskImageStore::kDriveCount)
     {
-        m_wasapiAudio.RecordDriveDoorSyncEvent (drive, GetNowMs());
-        m_driveWidgets.PublishSyncEvent (drive,
-                                         DriveWidgetController::SyncAction::DoorOpen,
-                                         GetNowMs());
-        m_diskAudioSources[drive]->OnDiskEjected();
+        return;
+    }
+
+    controller = FindSlot6Controller();
+    image      = m_diskStore.GetImage (6, drive);
+    inserted   = (change != BayChange::Ejected);
+
+    //  Insert and swap sounds are held during the cold-boot mount window and a
+    //  programmatic remount (reset / power-cycle rebuild); an eject sound
+    //  always plays. This is the pre-central rule of MountDiskInSlot6 and
+    //  EjectDiskInSlot6, kept in one place.
+    suppressFx = m_coldBootMountWindow || m_programmaticRemount;
+
+    //  Re-point the controller at what the store now holds -- the new image on
+    //  an insert or a swap, null on an eject, which restores the internal disk.
+    if (controller != nullptr)
+    {
+        controller->SetExternalDisk (drive, image);
+    }
+
+    //  Re-assert the effective write protection on a disk that just arrived:
+    //  the user's per-drive preference plus the backing file's read-only state.
+    if (inserted && image != nullptr)
+    {
+        ApplyExternalWriteProtect (drive, image, m_diskStore.GetSourcePath (6, drive));
+    }
+
+    //  The debug event fires whichever way the disk went, and is not held at
+    //  cold boot: the debug log is not something a launch should hide.
+    if (controller != nullptr)
+    {
+        if (inserted)
+        {
+            controller->NotifyDiskInserted (drive);
+        }
+        else
+        {
+            controller->NotifyDiskEjected (drive);
+        }
+    }
+
+    //  Door and sound. The visual door for a plain insert or eject rides the
+    //  source-path poll in UpdateDriveWidgets, which sees the file in the bay
+    //  change; a swap keeps the same file, so its open-then-close door is
+    //  published here as the event the poll cannot infer.
+    if (drive >= static_cast<int> (m_diskAudioSources.size()) ||
+        m_diskAudioSources[drive] == nullptr)
+    {
+        return;
+    }
+
+    nowMs = GetNowMs();
+
+    switch (change)
+    {
+        case BayChange::Ejected:
+            m_wasapiAudio.RecordDriveDoorSyncEvent (drive, nowMs);
+            m_driveWidgets.PublishSyncEvent (drive,
+                                             DriveWidgetController::SyncAction::DoorOpen, nowMs);
+            m_diskAudioSources[drive]->OnDiskEjected();
+            break;
+
+        case BayChange::Inserted:
+            if (!suppressFx)
+            {
+                m_wasapiAudio.RecordDriveDoorSyncEvent (drive, nowMs);
+                m_driveWidgets.PublishSyncEvent (drive,
+                                                 DriveWidgetController::SyncAction::DoorClose, nowMs);
+                m_diskAudioSources[drive]->OnDiskInserted();
+            }
+
+            break;
+
+        case BayChange::Swapped:
+            if (!suppressFx)
+            {
+                m_wasapiAudio.RecordDriveDoorSyncEvent (drive, nowMs);
+                m_driveWidgets.PublishSyncEvent (drive,
+                                                 DriveWidgetController::SyncAction::DoorReinsert, nowMs);
+                m_diskAudioSources[drive]->OnDiskSwapped();
+            }
+
+            break;
     }
 }
 
@@ -723,21 +776,38 @@ void DiskManager::UpdateDriveWidgets()
             if (evt.driveId == drive)
             {
                 st.lastSyncEventId = evt.eventId;
+
+                // A swap keeps the same file in the bay, so the path diff
+                // below never sees it. OnBayChange publishes this instead, and
+                // it is the one door transition that comes from an event
+                // rather than from the store's path. Open, then close.
+                if (evt.action == DriveWidgetController::SyncAction::DoorReinsert)
+                {
+                    st.BeginReinsert (nowMs);
+                }
             }
         }
 
         // mountedImagePath -- single writer (UI thread), source of
         // truth is the DiskImageStore. Reflect door FSM transitions
         // when mount state changes.
-        // Decode the store's native-narrow source path back to wide via
-        // fs::path (the inverse of the fs::path(...).string() narrowing the
-        // mount path used). A manual wstring(begin,end) widen would
-        // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
-        // and render as a tofu box in the drive label.
-        wPath = fs::path (src).wstring();
-
-        if (wPath != st.mountedImagePath)
+        //
+        // THE NARROW PATH IS DIFFED FIRST, so the wide conversion below runs
+        // only on the frame a disk actually goes in or out, not on every one
+        // of the ~60 frames a second this loop runs to sample drive activity.
+        // A mount or eject is rare; the string it changes is not worth
+        // rebuilding continuously.
+        if (src != m_lastDriveSourcePath[drive])
         {
+            m_lastDriveSourcePath[drive] = src;
+
+            // Decode the store's native-narrow source path back to wide via
+            // fs::path (the inverse of the fs::path(...).string() narrowing the
+            // mount path used). A manual wstring(begin,end) widen would
+            // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
+            // and render as a tofu box in the drive label.
+            wPath = fs::path (src).wstring();
+
             if (wPath.empty())
             {
                 st.BeginEject (nowMs);
@@ -788,4 +858,79 @@ void DiskManager::UpdateDriveWidgets()
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
     m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
     m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskManager::InstallSharedImageSupport
+//
+//  Builds the platform pieces a shared image needs and hands them over.
+//
+//  THE HAND-OVER IS THE WHOLE JOB. Registering a watch at mount and dropping it
+//  at eject is orchestration, and orchestration lives in the store where a fake
+//  watcher can assert it; choosing which implementation to build is what an
+//  executable is for.
+//
+//  `disabled` INSTALLS ONE THAT REFUSES EVERY WATCH rather than installing
+//  none. That is the measurement seam, and the distinction matters: the store
+//  still asks, still records that it is not watching, and still refuses to
+//  write over a change it never saw -- which is precisely the guarantee being
+//  measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+//
+//  A watcher that cannot watch anything, standing in for a location that
+//  cannot be watched. Behind the seam so the degraded path is reachable
+//  without a network share.
+//
+class RefusingImageWatcher : public IImageWatcher
+{
+public:
+    bool  Watch (const std::string &, Callback) override { return false; }
+    void  Unwatch (const std::string &) override {}
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskManager::InstallSharedImageSupport
+//
+//  Hands the store the watcher and the file probe it was built with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::InstallSharedImageSupport (bool watchDisabled)
+{
+    if (watchDisabled)
+    {
+        m_imageWatcher = std::make_unique<RefusingImageWatcher> ();
+    }
+    else
+    {
+        m_imageWatcher = std::make_unique<Win32ImageWatcher> ();
+    }
+
+    //  The same platform seam the command line writes disk images through, so
+    //  "is somebody else holding this file" is answered one way in one place.
+    m_imageFileIo = std::make_unique<Win32DiskFileIo> ();
+
+    m_diskStore.SetImageWatcher (m_imageWatcher.get());
+    m_diskStore.SetFileIo       (m_imageFileIo.get());
+
+    //  Every path that moves a disk ends at OnBayChange, so the door, its
+    //  sounds and the debug event are lit from one place. Set here, before the
+    //  command-line disks mount, so a cold-boot mount reaches the same handler
+    //  (which suppresses its launch-time sound).
+    m_diskStore.SetBayChangeSink ([this] (int slot, int drive, BayChange change)
+    {
+        OnBayChange (slot, drive, change);
+    });
 }

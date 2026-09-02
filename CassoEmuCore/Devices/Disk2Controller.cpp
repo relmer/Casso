@@ -567,6 +567,68 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
     {
         m_engine[m_activeDrive].Tick (cpuCycles);
     }
+
+    PumpIdleCallback (cpuCycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PumpIdleCallback
+//
+//  Offers the CPU thread to whoever wants a quiet moment on it.
+//
+//  THE SPINDOWN HOOK CANNOT SERVE THIS. It fires on a motor-on to motor-off
+//  transition, so a guest that never touched the drive -- a machine sitting at
+//  a BASIC prompt, which is where a build loop leaves it -- reaches it never.
+//
+//  "NO OPERATION IN FLIGHT" IS SPIN-UP AND NOTHING ELSE. The controller has no
+//  notion of a transfer in progress; what it has is a window during which reads
+//  are suppressed because the drive has not come up to speed, and that window
+//  is precisely the moment when swapping the bytes under the guest would be
+//  seen. Between accesses with the motor running is otherwise as quiet a moment
+//  as the motor being off.
+//
+//  RATE-LIMITED, because Tick is pumped per instruction and the condition is
+//  nearly always true. Without the gate this would be an indirect call on
+//  essentially every instruction the machine executes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::PumpIdleCallback (uint32_t cpuCycles)
+{
+    bool  quiet = false;
+
+
+
+    //  Remembered across the whole window, not sampled at its end. Spin-up
+    //  lasts a few hundred cycles and the window is a frame, so a sample at
+    //  the boundary would nearly always find the drive quiet again and hand
+    //  out a turn in the middle of the very operation this avoids.
+    if (m_motorSpinupRemaining > 0)
+    {
+        m_busySinceIdleCallback = true;
+    }
+
+    m_cyclesSinceIdleCallback += cpuCycles;
+
+    if (m_cyclesSinceIdleCallback >= kIdleCallbackCycles)
+    {
+        quiet = !m_busySinceIdleCallback;
+
+        m_cyclesSinceIdleCallback = 0;
+        m_busySinceIdleCallback   = false;
+
+        if (quiet && m_idleCallback)
+        {
+            m_idleCallback();
+        }
+    }
+
+    return;
 }
 
 

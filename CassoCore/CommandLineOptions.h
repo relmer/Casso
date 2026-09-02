@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PickUpIntent.h"
+
 #include "AssemblerTypes.h"
 
 
@@ -126,7 +128,18 @@ struct CommandLineOptions
         enum class Encoding  { Verbatim, Text, Basic };
 
         Command   command  = Command::None;
-        Encoding  encoding = Encoding::Verbatim;
+
+        //  What a write to this image should do to any emulator running it.
+        //
+        //  HERE RATHER THAN AT THE TOP LEVEL until spec 026 gives the
+        //  assembler a flat image target to hang it beside. The intent
+        //  describes a change to an IMAGE, so it belongs wherever the image
+        //  does.
+        //
+        //  `Unstated` is what every invocation without the flag carries, and it
+        //  is a real value: the emulator asks about a change nobody explained.
+        PickUpIntent  pickUpIntent = PickUpIntent::Unstated;
+        Encoding      encoding     = Encoding::Verbatim;
         //  The command as it was typed, kept so a refusal can quote it. The
         //  enum above cannot: every word this grammar does not have maps
         //  to the same None, so "unknown disk command" could not say which.
@@ -302,6 +315,17 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
+
+        //  Runs with change notification deliberately broken, so the check
+        //  made before every write can be measured on its own.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP. It is not an off-switch for a
+        //  user: with it set the emulator still refuses to write over a change
+        //  it did not see, which is the whole point of measuring it, but it
+        //  learns about changes only when it is about to write. Designed in
+        //  where the watcher is built rather than bolted on later, which is how
+        //  a developer switch ends up in the interface.
+        bool         noImageWatch = false;             // --no-image-watch
     };
 
     DiskOptions   disk;
@@ -322,6 +346,15 @@ struct CommandLineOptions
     std::string   onDiskName;                      // --as <name>, overrides DSK and SAV
     std::string   imageTypeName;                   // --type <t>, overrides TYP
     bool          setStartupProgram = false;       // --startup
+
+    //  What the assembler says a pick-up of this image should do, carried to a
+    //  running emulator after the write lands.
+    //
+    //  BESIDE THE IMAGE TARGET RATHER THAN IN THE `disk` GROUP, because it is
+    //  answered by the same `imagePath` question above: an assembly that writes
+    //  onto an image may state an intent, and one that does not has nothing to
+    //  state it about.
+    PickUpIntent  pickUpIntent = PickUpIntent::Unstated;   // --on-change <what>
 
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be

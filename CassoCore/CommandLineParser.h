@@ -387,6 +387,12 @@ public:
     // dialect's.
     static std::span<const ImageTargetFlag>  GetImageTargetFlags();
 
+    // Reads an --on-change value into an intent, answering false for a word
+    // that is not one. One function rather than one per grammar: `disk put`
+    // and both assembler grammars take the same flag, and three copies of a
+    // two-word mapping is three places for them to drift apart.
+    static bool         TryReadPickUpIntent (const std::string & value, PickUpIntent & outIntent);
+
     // Refuses the options that describe a placement on a volume when no volume
     // was named. Both assembler grammars ask, the options being the
     // assembler's rather than a dialect's.

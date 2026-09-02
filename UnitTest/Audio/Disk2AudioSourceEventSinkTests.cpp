@@ -269,6 +269,68 @@ public:
         Assert::IsTrue   (sink.log[1].sound == SoundKind::DoorOpen);
     }
 
+    //  A disk swapped under the running machine plays the door OPEN sound, and
+    //  then rolls into the CLOSE sound when the open one-shot finishes -- one
+    //  door gesture, both sounds, in that order. The close event is emitted
+    //  only when it actually begins, so the log reads in the order it is heard.
+    TEST_METHOD (DiskSwapped_firesDoorOpenThenDoorCloseAsTheOpenFinishes)
+    {
+        Disk2AudioSource          src;
+        RecordingAudioEventSink   sink;
+        float                     out[64] = {};
+
+        src.SetSampleBufferForTest (L"DoorOpen",  vector<float> (16, 0.5f));
+        src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.5f));
+        src.SetAudioEventSink (&sink);
+
+        src.OnDiskSwapped();
+
+        //  The open sound starts immediately; the close has not begun yet.
+        Assert::AreEqual (size_t (1), sink.log.size());
+        Assert::IsTrue   (sink.log[0].which == RecordingAudioEventSink::Kind::Started);
+        Assert::IsTrue   (sink.log[0].sound == SoundKind::DoorOpen);
+
+        //  Render past the 16-sample open one-shot: MixDoor rolls into the
+        //  close sample and the close event fires.
+        src.GeneratePCM (out, 32);
+
+        Assert::AreEqual (size_t (2), sink.log.size());
+        Assert::IsTrue   (sink.log[1].which == RecordingAudioEventSink::Kind::Started);
+        Assert::IsTrue   (sink.log[1].sound == SoundKind::DoorClose);
+    }
+
+    //  A swap that is interrupted before its open sample finishes must not
+    //  leave the queued close to fire on the next eject or insert. An eject
+    //  ending with the door-close sound would say a disk was sealed into a
+    //  drive that is actually empty.
+    TEST_METHOD (SwapInterruptedByEject_DoesNotLeakTheQueuedDoorClose)
+    {
+        Disk2AudioSource          src;
+        RecordingAudioEventSink   sink;
+        float                     out[64] = {};
+
+        src.SetSampleBufferForTest (L"DoorOpen",  vector<float> (16, 0.5f));
+        src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 0.5f));
+
+        //  A swap arms the queued close, and the open sample plays only partway.
+        src.OnDiskSwapped();
+        src.GeneratePCM (out, 8);
+
+        //  Now an eject interrupts it, before the open one-shot finished.
+        src.SetAudioEventSink (&sink);
+        src.OnDiskEjected();
+
+        //  Render well past both one-shots. The only door sound is the eject's
+        //  own open -- the swap's close does NOT replay.
+        src.GeneratePCM (out, 64);
+
+        for (const auto & e : sink.log)
+        {
+            Assert::IsTrue (e.sound != SoundKind::DoorClose,
+                            L"the queued close leaked past the interrupting eject");
+        }
+    }
+
     TEST_METHOD (DiskInsertedWithMissingBuffer_firesAudioSilentBufferMissing)
     {
         Disk2AudioSource          src;

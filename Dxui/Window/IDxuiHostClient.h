@@ -114,6 +114,20 @@ public:
         return 0;
     }
 
+    // WM_COPYDATA. wParam = the sending HWND; lParam = COPYDATASTRUCT *.
+    //
+    // The payload belongs to the SENDER and is valid only for the duration of
+    // this call, so an override must copy anything it wants to keep. Return
+    // ``Handled`` when the message was one this client understands; a client
+    // that does not recognize it should return ``NotHandled`` so the host falls
+    // through to DefWindowProc.
+    virtual DxuiMessageResult  OnCopyData       (WPARAM sender, LPARAM data)
+    {
+        UNREFERENCED_PARAMETER (sender);
+        UNREFERENCED_PARAMETER (data);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_DRAWITEM. wParam = control id; lParam = DRAWITEMSTRUCT *.
     // The client is responsible for drawing the owner-drawn item
     // and should return TRUE (as LRESULT) to indicate the item

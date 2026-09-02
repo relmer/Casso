@@ -9,13 +9,18 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
-- **Frame rate and scene pose readouts** on the View menu, off by default.
-- **The mounted disk's name shows under its drive** in the desk scene.
 - **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
   the binary onto a volume instead of to a file on the host, and the binary can be run
   automatically at boot with `--startup`. The binary's origin comes directly
   from its assembly rather than a --load parameter. This reduces the dev inner
   loop from six commands to three.
+- **Casso detects external changes to mounted disk images.** A build writing onto a
+  mounted image reaches the running guest with no eject and re-insert.
+  `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
+  specifies what happens; without it you get a prompt. The drive door opens
+  and closes with both sounds when the disk is swapped, and opens with its
+  sound when the file behind a mounted disk is deleted -- the same reactions a
+  hand-inserted or ejected disk gets, from one place.
 - **Merlin's `SAV` is implemented**, allowing one assembly to produce multiple
   binaries. It writes the span accumulated since the previous save and
   continues.
@@ -27,25 +32,34 @@ Entries before versioning was introduced use dates only.
   program walk past the others.
 - **Merlin now supports `TYP`** to set the filesystem type for the output file,
   specified as a ProDOS type byte.
-
-  The Merlin subset boundary falls from six unsupported constructs to four. The
-  remaining ones are `REL`, `ENT` and `EXT`, which need the relocating linker,
-  and a second `XC`, which needs a 65816 core.
+- **Conflict resolution when a mounted disk changes on both sides.** The 
+  external changes to the original disk image are kept, and local changes within
+  Casso are saved in a timestamped copy alongside it. Casso prompts the user to
+  pick which disk to mount in the drive.
+- **A disk whose file is deleted or becomes unreadable offers to save what is
+  still in memory.** Casso writes a complete image to wherever you choose and
+  the drive keeps running on it. Decline and the drive is emptied, since the
+  file behind it is gone.
+- **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
-- **Massively faster startup**: Casso comes up in well under a second, and the
-  executable is ~80% smaller.
+- **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
+  under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
+  optimizing tesselation, and precompiling shaders. 
+- **Merlin's `-l` listing flag supports multiple files.** Listings are named 
+  the same as the binaries they generate. Removed support for writing listings
+  to stdout.
+- **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
-- **Ctrl-0 now also resets the bezel tilt** with the view.
-- **Merlin's `-l` takes no filename and writes files rather than standard
-  output.** One name cannot serve a source that saves itself twice, so listings
-  are named after the objects instead. A filename supplied anyway is refused by
-  name. `as65 -l` is unchanged: it keeps its filename and its standard-output
-  default, and an as65 source has no way to produce a second output.
 
 ### Fixed
+- **Two Casso instances sharing a disk image could corrupt it.** Saving an
+  image writes a temporary file beside it and then renames that over the
+  original. The temporary's name came from the image path alone, so both
+  instances used the same one and could overwrite each other's before the
+  rename put it in place.
 - **Monitor II**: tube-to-bezel gap at steep angles, the bezel opening's
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
@@ -133,6 +147,10 @@ Entries before versioning was introduced use dates only.
 - **`as65 -x` now performs AS65's `JMP`-to-`BRA` optimization; `NOOPT` and `-n`
   disable it.** A backward, in-range `JMP` assembles to two bytes instead of
   three, so every label below it moves.
+
+### Removed
+- **`test-bands.hgr` and `lores-bars.lores`** -- both lived only on the demo
+  disk, and `scripts/HgrPreprocess.py` still generates either on demand.
 
 ### Fixed
 

@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -180,6 +182,138 @@ public:
     //  Throughput still has a gate. Stability of an elapsed-time measurement on
     //  a shared machine is not something a unit test can assert.
     //
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Shared-image detection cost (spec 028, FR-031 / SC-006)
+    //
+    //  WHAT THIS FEATURE ADDED THAT RUNS ALL THE TIME is one thing: a callback
+    //  the disk controller fires once per emulated frame, which walks the
+    //  sixteen bays looking for a change that has settled. The watcher threads
+    //  are blocked in ReadDirectoryChangesW and consume nothing until the
+    //  kernel wakes them, so there is no steady-state figure to take from them.
+    //
+    //  MEASURED DIRECTLY RATHER THAN THROUGH FRAME TIME, and that is the whole
+    //  point of doing it this way. The emulator is SPEED-CAPPED: it targets
+    //  1.02 MHz and sleeps the rest of each frame, so work added to the CPU
+    //  thread eats headroom instead of moving frame time. A frame-time A/B is
+    //  near-blind to this by construction until the cost is enormous -- and it
+    //  would mostly be measuring the host's scheduler, which is exactly why the
+    //  run-to-run variance gate above this was deleted.
+    //
+    //  The spec originally asked for three five-minute Release runs per arm
+    //  comparing p99 frame time. That buys statistical comfort on a metric that
+    //  cannot see the thing; this answers the question in milliseconds.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    //  Every bay full, which is the worst case for a walk over the bays.
+    static constexpr int       kIdleProbeCalls   = 1'000'000;
+
+    //  One emulated frame at 1.0205 MHz, matching Disk2Controller's own gate.
+    static constexpr double    kFrameCycles      = 17030.0;
+    static constexpr double    kApple2ClockHz    = 1'020'484.0;
+
+    //  The budget this tree already holds itself to: ~1% of one host core while
+    //  throttled, which is 9.775 ms of host time per second of emulated time.
+    static constexpr double    kOnePercentCoreMsPerEmulatedSecond = 9.775;
+
+
+    //  A store with every bay mounted, so the per-frame walk has the most work
+    //  it can ever have.
+    static void  FillEveryBay (DiskImageStore & store)
+    {
+        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0x00);
+        int                slot  = 0;
+        int                drive = 0;
+
+        for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+        {
+            for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+            {
+                HRESULT  hr = store.MountFromBytes (slot, drive, "perf.dsk",
+                                                    DiskFormat::Dsk, image);
+
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+        }
+    }
+
+
+#ifdef NDEBUG
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  SharedImageIdleProbe_CostsNothingTheUserCanFeel
+    //
+    //  FR-031 / SC-006, measured rather than asserted.
+    //
+    //  THE COMPARISON IS AGAINST THE TREE'S OWN THROTTLED BUDGET -- 1% of a
+    //  core, 9.775 ms of host time per emulated second -- rather than against
+    //  an absolute nanosecond figure, which would mean nothing on a different
+    //  machine. Sixty of these run per emulated second, and the whole feature
+    //  is allowed a thousandth of that budget.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (SharedImageIdleProbe_CostsNothingTheUserCanFeel)
+    {
+        DiskImageStore   store;
+        LARGE_INTEGER    startQpc      = {};
+        LARGE_INTEGER    endQpc        = {};
+        int64_t          freqHz        = QpcFrequencyHz();
+        double           elapsedMs     = 0.0;
+        double           nsPerCall     = 0.0;
+        double           msPerSecond   = 0.0;
+        double           shareOfBudget = 0.0;
+        int              i             = 0;
+        wchar_t          msg[512]      = {};
+
+
+
+        Assert::IsTrue (freqHz > 0);
+
+        FillEveryBay (store);
+
+        //  Warm the caches, so the figure is the steady-state cost rather than
+        //  the first walk's page faults.
+        for (i = 0; i < 1000; i++)
+        {
+            store.ApplyPendingPickUp();
+        }
+
+        QueryPerformanceCounter (&startQpc);
+
+        for (i = 0; i < kIdleProbeCalls; i++)
+        {
+            store.ApplyPendingPickUp();
+        }
+
+        QueryPerformanceCounter (&endQpc);
+
+        elapsedMs = ElapsedMs (startQpc.QuadPart, endQpc.QuadPart, freqHz);
+        nsPerCall = (elapsedMs * 1'000'000.0) / (double) kIdleProbeCalls;
+
+        //  Sixty walks per emulated second, which is what the controller's own
+        //  rate limit produces.
+        msPerSecond   = (nsPerCall * (kApple2ClockHz / kFrameCycles)) / 1'000'000.0;
+        shareOfBudget = msPerSecond / kOnePercentCoreMsPerEmulatedSecond;
+
+        swprintf_s (msg,
+            L"idle probe: %.1f ns/call, %.5f ms per emulated second, "
+            L"%.4f%% of the 1%%-of-a-core budget",
+            nsPerCall, msPerSecond, shareOfBudget * 100.0);
+        Logger::WriteMessage (msg);
+
+        //  A thousandth of the throttled budget. Generous by design: the point
+        //  is to catch this turning into something that walks disks or takes a
+        //  contended lock, not to police a handful of nanoseconds.
+        Assert::IsTrue (shareOfBudget <= 0.001, msg);
+    }
+
+#endif // NDEBUG
+
 
 #else // !NDEBUG
 

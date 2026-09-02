@@ -61,12 +61,22 @@ struct BootPayload;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class IIntentChannel;
+
+
 class DiskCommandRunner
 {
 public:
 
 
     explicit DiskCommandRunner (IDiskFileIo & fileIo);
+
+    //  Where a stated intent is announced once the image has been written.
+    //
+    //  OPTIONAL, AND NULL IS THE ORDINARY CASE IN A TEST. Nothing about a disk
+    //  command depends on anybody hearing it, so a runner with no channel does
+    //  everything a runner with one does, minus the announcement.
+    void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
 
     DiskCommandResult  Run (const CommandLineOptions & options);
 
@@ -336,6 +346,17 @@ public:
     DiskImageSession &  GetSession ()  { return m_session; }
 
 private:
+    //  Whether a command puts bytes into the image it was given.
+    static bool  WritesTheImage (CommandLineOptions::DiskOptions::Command command);
+
+    //  Tells any running emulator what this write was meant to do.
+    void         AnnounceIntent (const CommandLineOptions & options,
+                                 const DiskCommandResult  & result);
+
+    //  Caller-owned; null means nothing is announced, which is every test and
+    //  every caller that has no emulator to talk to.
+    IIntentChannel    * m_intentChannel = nullptr;
+
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;
     std::string         m_banner;

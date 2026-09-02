@@ -120,6 +120,28 @@ public:
     // the next eject / exit. Caller-owned; null = no-op (tests, headless).
     void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
 
+    // Idle hook. Invoked on the CPU thread when no disk operation is in
+    // flight, which is nearly always -- the motor is off, or on and between
+    // accesses.
+    //
+    // THE SPINDOWN HOOK ABOVE IS NOT ENOUGH, and the gap is the ordinary case
+    // rather than an edge. It fires only on a motor-on to motor-off transition
+    // with the spindown timer expiring, so a guest sitting at a BASIC prompt --
+    // which is exactly how a build loop leaves the machine -- never reaches it
+    // and never learns that its disk changed.
+    //
+    // RATE-LIMITED TO ONCE PER EMULATED FRAME. Tick is pumped per instruction
+    // and "no operation in flight" is true nearly always, so an ungated
+    // callback would be an indirect dispatch on essentially every instruction.
+    // Caller-owned; null = no-op (tests, headless).
+    void          SetIdleCallback (std::function<void ()> cb) { m_idleCallback = std::move (cb); }
+
+    // How often the idle callback may fire, in CPU cycles. One emulated frame
+    // at 1.0205 MHz -- 60 chances a second to notice a change, which is far
+    // more promptness than a build loop needs and far less work than a
+    // per-instruction dispatch.
+    static constexpr uint32_t  kIdleCallbackCycles = 17030;
+
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
@@ -157,6 +179,9 @@ private:
     void   UpdateEngineSelection();
     Byte   HandleReadDispatch();
     void   CatchUpToCpu();
+
+    // Offers the idle callback a turn, at most once per emulated frame.
+    void   PumpIdleCallback (uint32_t cpuCycles);
 
     int                  m_slot;
     Word                 m_ioStart;
@@ -206,6 +231,21 @@ private:
     // Fired on the CPU thread when the motor finishes spinning down; the
     // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
     std::function<void ()>    m_motorOffFlushCallback;
+
+    // Fired on the CPU thread at most once per emulated frame while no disk
+    // operation is in flight (see SetIdleCallback).
+    std::function<void ()>    m_idleCallback;
+
+    // Cycles since the idle callback last fired, which is what rate-limits it.
+    uint32_t                  m_cyclesSinceIdleCallback = 0;
+
+    // Whether anything was in flight at any point since the last turn.
+    //
+    // ACCUMULATED ACROSS THE WINDOW RATHER THAN SAMPLED AT ITS END. Spin-up
+    // lasts a few hundred cycles and the window is a frame, so a sample taken
+    // at the boundary would almost always find the drive quiet again and offer
+    // a turn in the middle of the operation it was meant to avoid.
+    bool                      m_busySinceIdleCallback   = false;
 
     const uint64_t *          m_cpuCycleSource = nullptr;
     uint64_t                  m_lastCpuSync    = 0;

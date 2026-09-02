@@ -3,6 +3,7 @@
 #include "DiskHelpPage.h"
 #include "CommandLineHelp.h"
 #include "CommandLineParser.h"
+#include "DiskCommandRunner.h"
 
 
 
@@ -76,14 +77,16 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "put | write",
         "Write a file from the host to the disk",
         "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
-        "                                   [%Ltext | %Lbasic]",
+        "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
                                    " TXT, BIN, BAS and SYS. A file it cannot identify is stored as a binary\n"
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
         "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
-        "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n",
+        "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n"
+        "  %Lon-change <action>    Specifies how Casso behaves when its mounted disk file changes."
+                                   " reload inserts the modified disk; reboot inserts it and reboots the machine\n",
         "To store a human-readable Applesoft BASIC program to disk, use the %Lbasic switch to tokenize the program into Applesoft BASIC's"
         " runnable format. If the Applesoft BASIC program is already tokenized (e.g., you retrieved it from disk without using %Lbasic),"
         " you can simply put it on another disk without conversion.  Use %Lbasic only when conversion from plain text to tokenized Applesoft"
@@ -121,7 +124,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "                               [%Lbootable [<image>]]\n"
         "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
-                                   "Valid types are: dsk, do, po, or woz\n"
+                                   "Valid types are: %C\n"
         "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
@@ -232,7 +235,11 @@ std::span<const DiskHelpPage::DiskCommandHelp> DiskHelpPage::GetCommandHelp()
 //
 //  DiskHelpPage::ApplyPrefixes
 //
-//  %L and %S become the long and short prefix the reader asked for.
+//  %L and %S become the long and short prefix the reader asked for. %C becomes
+//  the list of container names read off the one table that defines them, so a
+//  sentence promising what the tool accepts is never typed out by hand: the
+//  hand-typed one here said `dsk, do, po, or woz` for a release after `nib`
+//  shipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -256,6 +263,11 @@ std::string DiskHelpPage::ApplyPrefixes (const std::string & text, char flagPref
         else if (isPlaceholder && text[i + 1] == 'S')
         {
             out += shortPrefix;
+            i++;
+        }
+        else if (isPlaceholder && text[i + 1] == 'C')
+        {
+            out += DiskCommandRunner::FormatContainerWordList ("", "or");
             i++;
         }
         else

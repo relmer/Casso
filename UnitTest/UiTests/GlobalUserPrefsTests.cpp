@@ -412,4 +412,5 @@ public:
         Assert::AreEqual ((size_t) 1, prefs.recentDisks.size());
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }
+
 };

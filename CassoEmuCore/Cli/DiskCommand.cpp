@@ -3,6 +3,7 @@
 #include "CommandLine.h"
 #include "DiskCommand.h"
 #include "Win32DiskFileIo.h"
+#include "Win32IntentChannel.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 
@@ -44,8 +45,9 @@
 
 int DiskCommand::Run (const CommandLineOptions & options)
 {
-    Win32DiskFileIo    fileIo;
-    DiskCommandRunner  runner (fileIo);
+    Win32DiskFileIo     fileIo;
+    Win32IntentChannel  intentChannel;
+    DiskCommandRunner   runner (fileIo);
     DiskCommandResult  result;
     HRESULT            hr       = S_OK;
     int                exitCode = 0;
@@ -55,6 +57,11 @@ int DiskCommand::Run (const CommandLineOptions & options)
     //  The banner is the executable's to know: the disk help is assembled in
     //  the core library, which has no VERSION_STRING of its own.
     runner.SetBanner (CommandLine::BuildBanner());
+
+    //  The composition root, mirroring how the emulator's shell hands its
+    //  watcher over: this is the only place that decides which implementation
+    //  the runner talks through, and the runner decides everything else.
+    runner.SetIntentChannel (&intentChannel);
 
     result   = runner.Run (options);
     exitCode = result.exitStatus;
