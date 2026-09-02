@@ -1973,7 +1973,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
                 (result.diagnostics    += std::string ("Error: the ")
                                         + (isProDos ? "ProDOS" : "DOS 3.3")
                                         + " master has not been downloaded\n"
-                                        + ApplyPrefix ("       Run the emulator once to download it, "
+                                        + ApplyPrefix ("       Pick it in Casso's disk picker to download it, "
                                                        "or supply a master\n"
                                                        "       image with %Lbootable <image>.\n"),
                  result.exitStatus      = DiskCommandResult::kNoOutput,
