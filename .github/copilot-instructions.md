@@ -777,11 +777,14 @@ in conversation.
   "answered" and "is answered with", and "grammar" where a reader wants
   "command-line parsing".
 
-  **This covers HEADINGS and chat, which is where it keeps surviving.** A
-  write, a change, an option or a build has no wants, intentions or knowledge.
-  Not "the change stated what it wanted" (2026-08-31, a section heading in
-  chat), "what the write means", "the flag knows". Describe the mechanism:
-  "the write specified reload or restart", "run with --on-change".
+  **This covers HEADINGS, commit subjects and chat, which is where it keeps
+  surviving.** A write, a change, an option or a build has no wants,
+  intentions or knowledge, and neither does a theme, a page or a widget. Not
+  "the change stated what it wanted" (2026-08-31, a section heading in chat),
+  "what the write means", "the flag knows". Every commit subject takes the
+  label-and-list shape under Commit Messages, which leaves no place for a
+  subsystem to act. Describe the mechanism: "the write specified reload or
+  restart", "run with --on-change".
 - **Do not state the obvious as though it were profound.** "There is no
   default to guess with", "blocks have only one numbering, so there is
   nothing to state". Cut the sentence.
@@ -809,12 +812,24 @@ in conversation.
 ## Commit Messages
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`
-- **Scope is always required**: never omit it
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
+- **Scope is always required**: never omit it, on a `merge` as much as on any
+  other type
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`,
+  `ci`, `build`, `merge`
+- **A subject is a label, not a sentence.** Give a short noun label for the
+  area, then the specific changes in parentheses. This is not a style
+  preference. A sentence needs a subject, the only subject on offer is the
+  area being changed, and an area cannot act, so writing a sentence produces
+  an anthropomorphic subject every time.
 - Examples:
-  - `feat(cpu): implement PHA/PLA stack operations`
-  - `fix(ops): correct ShiftLeft dispatch to use ASL not ROL`
-  - `test(adc): add signed overflow edge cases`
+  - `feat(cpu): stack operations (PHA, PLA)`
+  - `fix(ops): ShiftLeft dispatch (ASL not ROL)`
+  - `test(adc): signed overflow edge cases`
+  - `merge(theme): 2D theme fixes (incorrect text color, hide CRT checkbox, hide compass)`
+- Counterexamples, all rewritten by the owner on 2026-09-02:
+  - Not `merge: the flat themes gain their own colors`
+  - Not `merge: the flat themes paint their text and shed the chrome they never draw`
+  - Not `docs(standards): give merge subjects a shape and ban the personification they invite`
 
 ## Branching and Merging
 
