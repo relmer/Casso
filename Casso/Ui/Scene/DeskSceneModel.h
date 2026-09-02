@@ -282,7 +282,7 @@ public:
     // Posed through the SAME motion the vertices take, rather than by a
     // second copy of the arithmetic, so a remodeled door or a changed
     // mechanism moves the target with it. False when this model has no door.
-    bool  DoorBoundsAt (float progress, float outMin[3], float outMax[3]) const;
+    bool  GetDoorBoundsAt (float progress, float outMin[3], float outMax[3]) const;
 
     // The door at `progress` (0 shut, 1 open), by whichever motion this drive
     // actually has. One call, so a caller cannot pose a sliding latch as a
@@ -591,7 +591,7 @@ private:
     std::vector<DeskLampAnchor>          m_lamps;
     std::vector<DeskRegionBox>           m_regions;
     CurvedDisplaySurface                 m_surface;
-    // The door assembly's extent with the door SHUT, which DoorBoundsAt
+    // The door assembly's extent with the door SHUT, which GetDoorBoundsAt
     // poses to wherever the door has travelled.
     float                                m_doorMin[3]  = {};
     float                                m_doorMax[3]  = {};

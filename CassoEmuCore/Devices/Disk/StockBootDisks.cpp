@@ -22,11 +22,11 @@ static constexpr const wchar_t *  s_kpszProDosUsersDisk = L"ProDOS Users Disk.ds
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StockBootDisks::FileNameFor
+//  StockBootDisks::GetFileName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * StockBootDisks::FileNameFor (Which disk)
+const wchar_t * StockBootDisks::GetFileName (Which disk)
 {
     return (disk == Which::Dos33Master) ? s_kpszDos33Master : s_kpszProDosUsersDisk;
 }
@@ -64,17 +64,17 @@ std::string StockBootDisks::CacheDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StockBootDisks::PathFor
+//  StockBootDisks::GetPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string StockBootDisks::PathFor (Which disk)
+std::string StockBootDisks::GetPath (Which disk)
 {
     std::filesystem::path  directory = CacheDirectory();
 
 
 
-    return (directory / FileNameFor (disk)).string();
+    return (directory / GetFileName (disk)).string();
 }
 
 
@@ -98,5 +98,5 @@ bool StockBootDisks::IsCached (Which disk)
 
 
 
-    return std::filesystem::exists (std::filesystem::path (PathFor (disk)), ec);
+    return std::filesystem::exists (std::filesystem::path (GetPath (disk)), ec);
 }

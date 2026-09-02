@@ -9,14 +9,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosSkeleton::BlockByteOffset
+//  ProDosSkeleton::GetBlockByteOffset
 //
 //  The buffer holds DOS 3.3 logical sectors; a ProDOS block is two 256-byte
 //  halves spread across the block's track per the interleave table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t ProDosSkeleton::BlockByteOffset (int block, size_t offsetInBlock)
+size_t ProDosSkeleton::GetBlockByteOffset (int block, size_t offsetInBlock)
 {
     int     track  = block / kBlocksPerTrack;
     int     sub    = block % kBlocksPerTrack;
@@ -42,8 +42,8 @@ size_t ProDosSkeleton::BlockByteOffset (int block, size_t offsetInBlock)
 
 void ProDosSkeleton::WriteWord (vector<Byte> & buffer, int block, size_t offsetInBlock, Word value)
 {
-    buffer[BlockByteOffset (block, offsetInBlock)]     = (Byte) (value & 0xFF);
-    buffer[BlockByteOffset (block, offsetInBlock + 1)] = (Byte) (value >> 8);
+    buffer[GetBlockByteOffset (block, offsetInBlock)]     = (Byte) (value & 0xFF);
+    buffer[GetBlockByteOffset (block, offsetInBlock + 1)] = (Byte) (value >> 8);
 }
 
 
@@ -106,29 +106,29 @@ HRESULT ProDosSkeleton::Write (vector<Byte> & buffer, const std::string & volume
     // Volume-directory header (first entry of the key block).
     header = kOffFirstEntry;
 
-    buffer[BlockByteOffset (kDirKeyBlock, header + kHdrOffTypeName)] =
+    buffer[GetBlockByteOffset (kDirKeyBlock, header + kHdrOffTypeName)] =
         (Byte) (kStorageVolumeDir | (Byte) nameBytes);
 
     for (i = 0; i < nameBytes; i++)
     {
-        buffer[BlockByteOffset (kDirKeyBlock, header + kHdrOffName + i)] =
+        buffer[GetBlockByteOffset (kDirKeyBlock, header + kHdrOffName + i)] =
             (Byte) toupper ((unsigned char) volumeName[i]);
     }
 
-    buffer[BlockByteOffset (kDirKeyBlock, header + kHdrOffAccess)]          = kAccessDefault;
-    buffer[BlockByteOffset (kDirKeyBlock, header + kHdrOffEntryLength)]     = kEntryLength;
-    buffer[BlockByteOffset (kDirKeyBlock, header + kHdrOffEntriesPerBlock)] = kEntriesPerBlock;
+    buffer[GetBlockByteOffset (kDirKeyBlock, header + kHdrOffAccess)]          = kAccessDefault;
+    buffer[GetBlockByteOffset (kDirKeyBlock, header + kHdrOffEntryLength)]     = kEntryLength;
+    buffer[GetBlockByteOffset (kDirKeyBlock, header + kHdrOffEntriesPerBlock)] = kEntriesPerBlock;
 
     WriteWord (buffer, kDirKeyBlock, header + kHdrOffFileCount,     0);
     WriteWord (buffer, kDirKeyBlock, header + kHdrOffBitmapPointer, (Word) kBitmapBlock);
     WriteWord (buffer, kDirKeyBlock, header + kHdrOffTotalBlocks,   (Word) kTotalBlocks);
 
     // Volume bitmap: blocks 0-6 in use, 7-279 free.
-    buffer[BlockByteOffset (kBitmapBlock, 0)] = 0x01;
+    buffer[GetBlockByteOffset (kBitmapBlock, 0)] = 0x01;
 
     for (i = 1; i < (size_t) (kTotalBlocks / 8); i++)
     {
-        buffer[BlockByteOffset (kBitmapBlock, i)] = 0xFF;
+        buffer[GetBlockByteOffset (kBitmapBlock, i)] = 0xFF;
     }
 
 Error:
@@ -171,7 +171,7 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
     {
         for (i = 0; i < (size_t) kBlockByteSize; i++)
         {
-            buffer[BlockByteOffset (block, i)] = usersDisk[BlockByteOffset (block, i)];
+            buffer[GetBlockByteOffset (block, i)] = usersDisk[GetBlockByteOffset (block, i)];
         }
     }
 
@@ -263,7 +263,7 @@ HRESULT ProDosReader::ExtractFile (
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;
-            Byte    typeLen = volume[ProDosSkeleton::BlockByteOffset (dirBlock, at)];
+            Byte    typeLen = volume[ProDosSkeleton::GetBlockByteOffset (dirBlock, at)];
             size_t  len     = (size_t) (typeLen & 0x0F);
             bool    match   = ((typeLen & 0xF0) != ProDosSkeleton::kStorageInactive)
                            && (len == nameBytes);
@@ -271,7 +271,7 @@ HRESULT ProDosReader::ExtractFile (
 
             for (i = 0; match && i < len; i++)
             {
-                Byte  c = volume[ProDosSkeleton::BlockByteOffset (
+                Byte  c = volume[ProDosSkeleton::GetBlockByteOffset (
                               dirBlock, at + ProDosSkeleton::kEntOffName + i)];
 
                 match = toupper ((unsigned char) c)
@@ -288,29 +288,29 @@ HRESULT ProDosReader::ExtractFile (
 
         if (!found)
         {
-            dirBlock = volume[ProDosSkeleton::BlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock)]
-                     | (volume[ProDosSkeleton::BlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock + 1)] << 8);
+            dirBlock = volume[ProDosSkeleton::GetBlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock)]
+                     | (volume[ProDosSkeleton::GetBlockByteOffset (dirBlock, ProDosSkeleton::kOffNextBlock + 1)] << 8);
         }
     }
 
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    storage = (Byte) (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset)] & 0xF0);
+    storage = (Byte) (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset)] & 0xF0);
 
     keyPointer = (Word)
-        (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer)]
-       | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer + 1)] << 8));
+        (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer)]
+       | (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffKeyPointer + 1)] << 8));
 
     eof = (uint32_t)
-         (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof)]
-        | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 1)] << 8)
-        | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 2)] << 16));
+         (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof)]
+        | (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 1)] << 8)
+        | (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffEof + 2)] << 16));
 
-    outFileType = volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffFileType)];
+    outFileType = volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffFileType)];
 
     outAuxType = (Word)
-        (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType)]
-       | (volume[ProDosSkeleton::BlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType + 1)] << 8));
+        (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType)]
+       | (volume[ProDosSkeleton::GetBlockByteOffset ((int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType + 1)] << 8));
 
     // Resolve the data-block list per storage type. A zero block number in
     // an index is a sparse hole, kept in the list and emitted as zeros.
@@ -336,8 +336,8 @@ HRESULT ProDosReader::ExtractFile (
             for (i = 0; gathered && i < (int) ProDosSkeleton::kPointersPerIndex; i++)
             {
                 Word  indexBlock = (Word)
-                    (volume[ProDosSkeleton::BlockByteOffset (keyPointer, (size_t) i)]
-                   | (volume[ProDosSkeleton::BlockByteOffset (keyPointer,
+                    (volume[ProDosSkeleton::GetBlockByteOffset (keyPointer, (size_t) i)]
+                   | (volume[ProDosSkeleton::GetBlockByteOffset (keyPointer,
                           (size_t) i + ProDosSkeleton::kPointersPerIndex)] << 8));
 
                 if (indexBlock != 0)
@@ -375,7 +375,7 @@ HRESULT ProDosReader::ExtractFile (
 
         for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
         {
-            data.push_back (readable ? volume[ProDosSkeleton::BlockByteOffset (block, i)]
+            data.push_back (readable ? volume[ProDosSkeleton::GetBlockByteOffset (block, i)]
                                      : (Byte) 0);
         }
     }
@@ -422,8 +422,8 @@ bool ProDosReader::AppendIndexedBlocks (
     for (i = 0; i < (int) ProDosSkeleton::kPointersPerIndex; i++)
     {
         Word  block = (Word)
-            (volume[ProDosSkeleton::BlockByteOffset (indexBlock, (size_t) i)]
-           | (volume[ProDosSkeleton::BlockByteOffset (indexBlock,
+            (volume[ProDosSkeleton::GetBlockByteOffset (indexBlock, (size_t) i)]
+           | (volume[ProDosSkeleton::GetBlockByteOffset (indexBlock,
                   (size_t) i + ProDosSkeleton::kPointersPerIndex)] << 8));
 
         // Zero is a sparse hole and legitimate; anything past the volume is
@@ -448,7 +448,7 @@ bool ProDosReader::AppendIndexedBlocks (
 //  ProDosReader::IsBlockInRange
 //
 //  Block numbers index straight into the sector buffer through
-//  BlockByteOffset, which multiplies out to a byte offset without checking
+//  GetBlockByteOffset, which multiplies out to a byte offset without checking
 //  anything. A block past the volume therefore does not return wrong data --
 //  it reads past the end of the buffer. Every pointer followed here came off
 //  a disk that may be damaged or hostile, so none is trusted.
@@ -483,7 +483,7 @@ HRESULT ProDosFileWriter::AllocateBlock (vector<Byte> & buffer, Word & outBlock)
 
     for (block = 0; !found && block < ProDosSkeleton::kTotalBlocks; block++)
     {
-        size_t  at   = ProDosSkeleton::BlockByteOffset (
+        size_t  at   = ProDosSkeleton::GetBlockByteOffset (
                            ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
         Byte    mask = (Byte) (0x80 >> (block % 8));
 
@@ -560,7 +560,7 @@ HRESULT ProDosFileWriter::WriteFile (
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;
-            Byte    typeLen = buffer[ProDosSkeleton::BlockByteOffset (dirBlock, at)];
+            Byte    typeLen = buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, at)];
 
             if ((typeLen & 0xF0) == ProDosSkeleton::kStorageInactive)
             {
@@ -602,14 +602,14 @@ HRESULT ProDosFileWriter::WriteFile (
     {
         for (i = 0; i < dataBlocks.size(); i++)
         {
-            buffer[ProDosSkeleton::BlockByteOffset (keyBlock, i)]       = (Byte) (dataBlocks[i] & 0xFF);
-            buffer[ProDosSkeleton::BlockByteOffset (keyBlock, i + 256)] = (Byte) (dataBlocks[i] >> 8);
+            buffer[ProDosSkeleton::GetBlockByteOffset (keyBlock, i)]       = (Byte) (dataBlocks[i] & 0xFF);
+            buffer[ProDosSkeleton::GetBlockByteOffset (keyBlock, i + 256)] = (Byte) (dataBlocks[i] >> 8);
         }
     }
 
     for (i = 0; i < dataBytes; i++)
     {
-        buffer[ProDosSkeleton::BlockByteOffset (dataBlocks[i / 512], i % 512)] = bytes[i];
+        buffer[ProDosSkeleton::GetBlockByteOffset (dataBlocks[i / 512], i % 512)] = bytes[i];
     }
 
     // The directory entry.
@@ -618,40 +618,40 @@ HRESULT ProDosFileWriter::WriteFile (
                                    : ProDosSkeleton::kStorageSapling;
         size_t  base    = entryAt;
 
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base)] =
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base)] =
             (Byte) (storage | (Byte) nameBytes);
 
         for (i = 0; i < nameBytes; i++)
         {
-            buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffName + i)] =
+            buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffName + i)] =
                 (Byte) toupper ((unsigned char) fileName[i]);
         }
 
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffFileType)]       = fileType;
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer)]     = (Byte) (keyBlock & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer + 1)] = (Byte) (keyBlock >> 8);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed)]     = (Byte) (blocksUsed & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed + 1)] = (Byte) (blocksUsed >> 8);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof)]            = (Byte) (dataBytes & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 1)]        = (Byte) ((dataBytes >> 8) & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 2)]        = (Byte) ((dataBytes >> 16) & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAccess)]         = ProDosSkeleton::kAccessDefault;
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType)]        = (Byte) (auxType & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType + 1)]    = (Byte) (auxType >> 8);
-        buffer[ProDosSkeleton::BlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffHeaderPointer)]  = (Byte) ProDosSkeleton::kDirKeyBlock;
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffFileType)]       = fileType;
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer)]     = (Byte) (keyBlock & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffKeyPointer + 1)] = (Byte) (keyBlock >> 8);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed)]     = (Byte) (blocksUsed & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffBlocksUsed + 1)] = (Byte) (blocksUsed >> 8);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof)]            = (Byte) (dataBytes & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 1)]        = (Byte) ((dataBytes >> 8) & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffEof + 2)]        = (Byte) ((dataBytes >> 16) & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAccess)]         = ProDosSkeleton::kAccessDefault;
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType)]        = (Byte) (auxType & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffAuxType + 1)]    = (Byte) (auxType >> 8);
+        buffer[ProDosSkeleton::GetBlockByteOffset (dirBlock, base + ProDosSkeleton::kEntOffHeaderPointer)]  = (Byte) ProDosSkeleton::kDirKeyBlock;
     }
 
     // The volume header counts one more file.
     {
         size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
         Word    count   = (Word)
-            (buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]
-           | (buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] << 8));
+            (buffer[ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]
+           | (buffer[ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] << 8));
 
         count++;
 
-        buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]     = (Byte) (count & 0xFF);
-        buffer[ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] = (Byte) (count >> 8);
+        buffer[ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt)]     = (Byte) (count & 0xFF);
+        buffer[ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1)] = (Byte) (count >> 8);
     }
 
 Error:

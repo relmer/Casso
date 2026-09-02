@@ -525,7 +525,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     // it for whoever reads the log afterwards.
     for (const std::string & note : listing.damage)
     {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "",
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "",
             note + ". THIS LISTING IS INCOMPLETE, entries may be missing") + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
@@ -539,7 +539,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                   "-- THIS LISTING IS INCOMPLETE, entries may be missing",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -706,7 +706,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
                   "unreadable sectors were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.path, note) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, note) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -720,7 +720,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::OnDiskNameFor
+//  DiskCommandRunner::GetOnDiskName
 //
 //  --as when the caller gave one, and otherwise the last component of the
 //  component. Nothing is stripped or shortened on the way: the caller already
@@ -730,7 +730,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options)
+std::string DiskCommandRunner::GetOnDiskName (const CommandLineOptions & options)
 {
     size_t       lastSeparator = options.disk.hostFile.find_last_of ("/\\");
     std::string  name          = options.disk.path;
@@ -1166,7 +1166,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 {
     HRESULT                        hr        = S_OK;
     bool                           named     = !options.disk.hostFile.empty();
-    std::string                    diskName  = OnDiskNameFor (options);
+    std::string                    diskName  = GetOnDiskName (options);
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
@@ -1267,7 +1267,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
     for (const std::string & warning : outcome.warnings)
     {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.path, warning) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, warning) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -1979,7 +1979,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
 
-        master = StockBootDisks::PathFor (which);
+        master = StockBootDisks::GetPath (which);
     }
 
     hr = m_fileIo.ReadAllBytes (master, osBytes);
@@ -2525,7 +2525,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   "were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -2827,7 +2827,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
         for (int half = 0; half < 2; half++)
         {
-            size_t  at = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
 
             if (at + kHalfBytes > opened.sectors.size())
             {
@@ -2876,7 +2876,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
                   "were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -2974,7 +2974,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
         for (int half = 0; half < 2; half++)
         {
             size_t  from  = index * kBlockBytes + (size_t) half * kHalfBytes;
-            size_t  at    = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at    = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
             size_t  count = 0;
 
             if (from >= payload.size())

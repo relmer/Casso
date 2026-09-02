@@ -792,10 +792,10 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     //  no file behind it, and a test that redirects reads into memory has none
     //  either; comparing against a stat that never ran would refuse writes that
     //  nothing has endangered.
-    if (entry.sharedState.Identity().recorded)
+    if (entry.sharedState.GetIdentity().recorded)
     {
         current   = ReadIdentity (entry.path);
-        unchanged = entry.sharedState.Identity().Matches (current);
+        unchanged = entry.sharedState.GetIdentity().Matches (current);
 
         //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
         //  Notification failed, or the change landed while this write was
@@ -911,7 +911,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     //
     //  Only for a bay that had an identity to begin with, so a mount from bytes
     //  does not acquire one by being flushed.
-    if (entry.sharedState.Identity().recorded)
+    if (entry.sharedState.GetIdentity().recorded)
     {
         entry.sharedState.SetIdentity (ReadIdentity (entry.path));
     }
@@ -1857,7 +1857,7 @@ wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::NowMs
+//  DiskImageStore::GetNowMs
 //
 //  Milliseconds now.
 //
@@ -1866,7 +1866,7 @@ wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t DiskImageStore::NowMs() const
+int64_t DiskImageStore::GetNowMs() const
 {
     int64_t  now = 0;
 
@@ -1936,7 +1936,7 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent intent)
 {
     std::lock_guard<std::mutex>  held (m_pendingMutex);
-    int64_t  now   = NowMs();
+    int64_t  now   = GetNowMs();
     int      slot  = 0;
     int      drive = 0;
 
@@ -1948,7 +1948,7 @@ void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent inten
         {
             Entry &  entry = m_entries[slot][drive];
 
-            if (entry.mounted && MountedImageState::SamePath (entry.path, path))
+            if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
             {
                 entry.sharedState.NoteChange (now, intent);
             }
@@ -1982,7 +1982,7 @@ void DiskImageStore::ApplyPendingPickUp()
     int      slot                                 = 0;
     int      drive                                = 0;
     int      i                                    = 0;
-    int64_t  now                                  = NowMs();
+    int64_t  now                                  = GetNowMs();
 
 
 
@@ -2067,8 +2067,8 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
         settled = entry.mounted
                && entry.image != nullptr
-               && entry.sharedState.IsSettled (NowMs());
-        intent  = entry.sharedState.Pending().intent;
+               && entry.sharedState.IsSettled (GetNowMs());
+        intent  = entry.sharedState.GetPending().intent;
     }
 
     if (!settled)
@@ -2086,7 +2086,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     }
 
     current   = ReadIdentity (entry.path);
-    unchanged = entry.sharedState.Identity().Matches (current);
+    unchanged = entry.sharedState.GetIdentity().Matches (current);
 
     if (unchanged)
     {
@@ -2186,7 +2186,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
 
     //  A file that is simply gone gets its own sentence rather than sharing
     //  one with a file that is present and unreadable.
-    if (action == ChangeAction::Unusable && !PathExists (entry.path))
+    if (action == ChangeAction::Unusable && !DoesPathExist (entry.path))
     {
         action = ChangeAction::Deleted;
     }
@@ -2280,7 +2280,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
         //  chose. The disk stays in the drive and the bay moves onto the file
         //  the user picked, which is the same outcome as keeping it -- only the
         //  folder is theirs rather than ours.
-        if (entry.sharedState.AskedAction() == ChangeAction::Conflict)
+        if (entry.sharedState.GetAskedAction() == ChangeAction::Conflict)
         {
             entry.sharedState.SetAskedAction (ChangeAction::Ignore);
 
@@ -2335,7 +2335,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
         //  THE SAVE HAPPENS BEFORE THE EJECT, always. The eject is what
         //  discards the in-memory disk, so a failure between the two must
         //  leave the disk in the drive rather than gone from both places.
-        if (ExternalChangePolicy::IsFileLost (entry.sharedState.AskedAction()))
+        if (ExternalChangePolicy::IsFileLost (entry.sharedState.GetAskedAction()))
         {
             entry.sharedState.SetAskedAction (ChangeAction::Ignore);
 
@@ -2743,7 +2743,7 @@ Error:
 void DiskImageStore::BeginWatching (int slot, int drive)
 {
     Entry &  entry     = GetEntry (slot, drive);
-    string   directory = MountedImageState::DirectoryOf (entry.path);
+    string   directory = MountedImageState::GetDirectory (entry.path);
     bool     watching  = false;
 
 
@@ -2781,7 +2781,7 @@ void DiskImageStore::BeginWatching (int slot, int drive)
 void DiskImageStore::EndWatching (int slot, int drive)
 {
     Entry   & entry      = GetEntry (slot, drive);
-    string    directory  = MountedImageState::DirectoryOf (entry.path);
+    string    directory  = MountedImageState::GetDirectory (entry.path);
     bool      stillUsed  = false;
     int       otherSlot  = 0;
     int       otherDrive = 0;
@@ -2796,9 +2796,9 @@ void DiskImageStore::EndWatching (int slot, int drive)
 
             if (!isSelf && m_entries[otherSlot][otherDrive].mounted)
             {
-                string  other = MountedImageState::DirectoryOf (m_entries[otherSlot][otherDrive].path);
+                string  other = MountedImageState::GetDirectory (m_entries[otherSlot][otherDrive].path);
 
-                stillUsed = stillUsed || MountedImageState::SamePath (other, directory);
+                stillUsed = stillUsed || MountedImageState::IsSamePath (other, directory);
             }
         }
     }
@@ -2819,7 +2819,7 @@ void DiskImageStore::EndWatching (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::PathExists
+//  DiskImageStore::DoesPathExist
 //
 //  Whether something is already sitting at a path.
 //
@@ -2830,7 +2830,7 @@ void DiskImageStore::EndWatching (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskImageStore::PathExists (const string & path) const
+bool DiskImageStore::DoesPathExist (const string & path) const
 {
     std::error_code  ec;
 
@@ -2873,7 +2873,7 @@ HRESULT DiskImageStore::FindFreePreservedPath (const string & imagePath, string 
     {
         string  candidate = PreservedCopy::MakePath (imagePath, stamp, attempt);
 
-        if (!PathExists (candidate))
+        if (!DoesPathExist (candidate))
         {
             outPath = candidate;
             isFree  = true;

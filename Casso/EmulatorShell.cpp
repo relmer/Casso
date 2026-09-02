@@ -13958,7 +13958,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
     UNREFERENCED_PARAMETER (sender);
 
-    if (carried == nullptr || carried->dwData != Win32IntentChannel::MessageId())
+    if (carried == nullptr || carried->dwData != Win32IntentChannel::GetMessageId())
     {
         return DxuiMessageResult::NotHandled;
     }

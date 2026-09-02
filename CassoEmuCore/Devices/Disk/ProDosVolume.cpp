@@ -45,7 +45,7 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
         return 0;
     }
 
-    at = ProDosSkeleton::BlockByteOffset (block, offset);
+    at = ProDosSkeleton::GetBlockByteOffset (block, offset);
 
     if (at >= m_sectors.size())
     {
@@ -549,7 +549,7 @@ void ProDosVolume::WriteByteAt (vector<Byte> & buffer, int block, size_t offset,
         return;
     }
 
-    at = ProDosSkeleton::BlockByteOffset (block, offset);
+    at = ProDosSkeleton::GetBlockByteOffset (block, offset);
 
     if (at < buffer.size())
     {
@@ -595,7 +595,7 @@ bool ProDosVolume::IsFreeInBitmap (const vector<Byte> & buffer, uint32_t block)
         return false;
     }
 
-    at = ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+    at = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
 
     return at < buffer.size() && (buffer[at] & mask) != 0;
 }
@@ -623,7 +623,7 @@ void ProDosVolume::SetFreeInBitmap (vector<Byte> & buffer, uint32_t block, bool 
         return;
     }
 
-    at = ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+    at = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
 
     if (at >= buffer.size())
     {
@@ -1132,8 +1132,8 @@ void ProDosVolume::WriteDirectoryEntry (
 void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int delta)
 {
     size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
-    size_t  at      = ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt);
-    size_t  atHigh  = ProDosSkeleton::BlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1);
+    size_t  at      = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt);
+    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1);
     int     count   = 0;
 
 

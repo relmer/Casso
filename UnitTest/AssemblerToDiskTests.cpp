@@ -741,7 +741,7 @@ namespace AssemblerToDiskTests
         //  placed onto a freshly formatted volume lands.
         static void LockFirstCatalogEntry (vector<Byte> & buffer)
         {
-            size_t  at = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector)
+            size_t  at = Dos33Skeleton::GetSectorOffset (kVtocTrack, kCatalogFirstSector)
                        + kEntryBase + kEntOffType;
 
             buffer[at] = (Byte) (buffer[at] | kLockedBit);

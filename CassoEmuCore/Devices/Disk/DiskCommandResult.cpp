@@ -20,7 +20,7 @@ void DiskCommandResult::Fail (const std::string  & imagePath,
                               const std::string  & name,
                               const std::string  & sentence)
 {
-    diagnostics += Failure (imagePath, name, sentence) + "\n";
+    diagnostics += FormatFailure (imagePath, name, sentence) + "\n";
     exitStatus   = kNoOutput;
 }
 
@@ -30,11 +30,11 @@ void DiskCommandResult::Fail (const std::string  & imagePath,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandResult::Failure
+//  DiskCommandResult::FormatFailure
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandResult::Failure (
+std::string DiskCommandResult::FormatFailure (
     const std::string & imagePath,
     const std::string & fileName,
     const std::string & reason)

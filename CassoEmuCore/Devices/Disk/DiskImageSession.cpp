@@ -425,7 +425,7 @@ void DiskImageSession::RefuseCommit (
     const std::string  & reason,
     DiskCommandResult  & result)
 {
-    result.diagnostics += DiskCommandResult::Failure (imagePath, "", reason) + "\n";
+    result.diagnostics += DiskCommandResult::FormatFailure (imagePath, "", reason) + "\n";
     result.exitStatus   = DiskCommandResult::kNoOutput;
 
     return;

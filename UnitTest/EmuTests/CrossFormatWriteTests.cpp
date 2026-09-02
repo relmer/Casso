@@ -364,7 +364,7 @@ public:
             for (i = 0; i < kProDosBlockBytes; i++)
             {
                 Byte  fromFile = po[(size_t) block * kProDosBlockBytes + i];
-                Byte  fromMap  = sectors[ProDosSkeleton::BlockByteOffset (block, i)];
+                Byte  fromMap  = sectors[ProDosSkeleton::GetBlockByteOffset (block, i)];
 
                 if (fromFile != fromMap)
                 {

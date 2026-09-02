@@ -8,7 +8,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32IntentChannel::MessageId
+//  Win32IntentChannel::GetMessageId
 //
 //  The id every message this channel sends carries in `dwData`.
 //
@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ULONG_PTR Win32IntentChannel::MessageId()
+ULONG_PTR Win32IntentChannel::GetMessageId()
 {
     static const UINT  s_kId = RegisterWindowMessageW (L"CassoDiskImageIntent");
 
@@ -209,7 +209,7 @@ void Win32IntentChannel::StateIntent (const std::string & imagePath, PickUpInten
         return;
     }
 
-    data.dwData = MessageId();
+    data.dwData = GetMessageId();
     data.cbData = (DWORD) bytes.size();
     data.lpData = bytes.data();
 

@@ -125,7 +125,7 @@ void MountedImageState::ClearPending()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountedImageState::SamePath
+//  MountedImageState::IsSamePath
 //
 //  Whether two spellings name one file.
 //
@@ -137,7 +137,7 @@ void MountedImageState::ClearPending()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MountedImageState::SamePath (const std::string & left, const std::string & right)
+bool MountedImageState::IsSamePath (const std::string & left, const std::string & right)
 {
     std::string  a = left;
     std::string  b = right;
@@ -164,7 +164,7 @@ bool MountedImageState::SamePath (const std::string & left, const std::string & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MountedImageState::DirectoryOf
+//  MountedImageState::GetDirectory
 //
 //  The directory holding a path.
 //
@@ -174,7 +174,7 @@ bool MountedImageState::SamePath (const std::string & left, const std::string & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MountedImageState::DirectoryOf (const std::string & path)
+std::string MountedImageState::GetDirectory (const std::string & path)
 {
     size_t       cut       = path.find_last_of ("/\\");
     std::string  directory;

@@ -95,7 +95,7 @@ public:
     static void  BuildTiltMatrix (float angleRad, float pivotY, float pivotZ, float out[16]);
 
     // One drive's door hit box, in that drive's model space, at the openness
-    // it is currently showing. See DeskSceneModel::DoorBoundsAt.
+    // it is currently showing. See DeskSceneModel::GetDoorBoundsAt.
     bool  DoorHitBox (int drive, float outMin[3], float outMax[3]) const
     {
         if (drive < 0 || drive >= (int) std::size (m_doorProgress))
@@ -103,8 +103,8 @@ public:
             return false;
         }
 
-        return m_drive.DoorBoundsAt (std::clamp (m_doorProgress[drive], 0.0f, 1.0f),
-                                     outMin, outMax);
+        return m_drive.GetDoorBoundsAt (std::clamp (m_doorProgress[drive], 0.0f, 1.0f),
+                                        outMin, outMax);
     }
 
     const DeskSceneModel &  DriveModel   () const { return m_drive; }

@@ -50,11 +50,11 @@ size_t MeshNormals::CornerHash::operator() (const CornerKey & key) const noexcep
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeshNormals::KeyOf
+//  MeshNormals::MakeKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MeshNormals::CornerKey MeshNormals::KeyOf (const float * position, int material)
+MeshNormals::CornerKey MeshNormals::MakeKey (const float * position, int material)
 {
     CornerKey   key = {};
 
@@ -159,7 +159,7 @@ void MeshNormals::Compute (const std::vector<ObjTriangle>     & triangles,
 
         for (size_t c = 0; c < 3; c++)
         {
-            buckets[KeyOf (corner[c], tri.material)].push_back ((uint32_t) t);
+            buckets[MakeKey (corner[c], tri.material)].push_back ((uint32_t) t);
         }
     }
 
@@ -170,7 +170,7 @@ void MeshNormals::Compute (const std::vector<ObjTriangle>     & triangles,
 
         for (size_t c = 0; c < 3; c++)
         {
-            const std::vector<uint32_t>  & share  = buckets[KeyOf (corner[c], tri.material)];
+            const std::vector<uint32_t>  & share  = buckets[MakeKey (corner[c], tri.material)];
             std::array<float, 3>           sum    = { 0.0f, 0.0f, 0.0f };
             float                          length = 0.0f;
 

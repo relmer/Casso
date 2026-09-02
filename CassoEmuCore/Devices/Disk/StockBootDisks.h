@@ -46,7 +46,7 @@ public:
     //  line hands it. std::filesystem::path converts both ways with the same
     //  encoding, so this is the exact inverse of the widening the file layer
     //  does on the way back in.
-    static std::string  PathFor (Which disk);
+    static std::string  GetPath (Which disk);
 
     //  Whether it has actually been downloaded. A caller that gets false has
     //  to say so rather than proceeding: there is no operating system to copy.
@@ -58,5 +58,5 @@ public:
 
     //  What the file is called, so a diagnostic can name the one that is
     //  missing rather than describing it.
-    static const wchar_t *  FileNameFor (Which disk);
+    static const wchar_t *  GetFileName (Which disk);
 };

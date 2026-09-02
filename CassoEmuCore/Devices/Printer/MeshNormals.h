@@ -88,5 +88,5 @@ private:
     };
 
 
-    static CornerKey  KeyOf (const float * position, int material);
+    static CornerKey  MakeKey (const float * position, int material);
 };

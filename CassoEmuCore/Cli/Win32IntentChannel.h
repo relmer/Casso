@@ -40,7 +40,7 @@ public:
     //  anything else in the system cannot collide with it by accident. The
     //  filter that lets the message through the integrity boundary takes a
     //  WINDOW MESSAGE and cannot see this, so it is checked in the handler.
-    static ULONG_PTR  MessageId();
+    static ULONG_PTR  GetMessageId();
 
     //  The window class every Casso emulator window is registered under.
     static constexpr const wchar_t *  kWindowClass = L"CassoWindow";

@@ -81,7 +81,7 @@ public:
 
     static void PutByte (vector<Byte> & volume, int block, size_t offset, Byte value)
     {
-        volume[ProDosSkeleton::BlockByteOffset (block, offset)] = value;
+        volume[ProDosSkeleton::GetBlockByteOffset (block, offset)] = value;
     }
 
     static void PutWord (vector<Byte> & volume, int block, size_t offset, Word value)
@@ -93,7 +93,7 @@ public:
     //  Set bit = free, MSB of byte 0 = block 0.
     static void MarkBlockUsed (vector<Byte> & volume, Word block)
     {
-        size_t  at   = ProDosSkeleton::BlockByteOffset (kBitmapBlock, (size_t) (block / 8));
+        size_t  at   = ProDosSkeleton::GetBlockByteOffset (kBitmapBlock, (size_t) (block / 8));
         Byte    mask = (Byte) (0x80 >> (block % 8));
 
         volume[at] = (Byte) (volume[at] & ~mask);
