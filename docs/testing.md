@@ -40,8 +40,8 @@ where copy protection lives.
 ## The scenario suite
 
 `ScenarioTests.dll` holds the cases that are **system tests, not unit tests**:
-they need external inputs -- the stock DOS 3.3 System Master, which is
-fetched by the emulator rather than committed -- and they boot real guests to
+they need external inputs -- the stock DOS 3.3 System Master and ProDOS Users
+Disk, fetched by the emulator rather than committed -- and they boot real guests to
 ask what DOS 3.3, ProDOS, and Applesoft themselves make of the disks and
 programs this tool produced. A tokenizer checked against its own detokenizer,
 or a disk read back through the writer's own understanding, agrees with

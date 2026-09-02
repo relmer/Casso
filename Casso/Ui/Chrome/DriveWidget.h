@@ -170,20 +170,17 @@ private:
     static constexpr int     kCompactCornerPx     = 4;
     static constexpr float   kCompactFontDip      = 12.0f;
 
-    // Write-protect padlock badge. A small brass lock drawn beside the
-    // mounted disk's BASENAME whenever that disk is write-protected by any
-    // source -- in both paint paths, and mirrored by the 3D scene's own name
-    // strip. It sat on the faceplate and beside the compact LED before, which
+    // Write-protect padlock badge. The lock glyph drawn beside the mounted
+    // disk's BASENAME whenever that disk is write-protected by any source --
+    // in both paint paths, and the same glyph the 3D scene's name strip
+    // shows. It sat on the faceplate and beside the compact LED before, which
     // put a fact about the image on the picture of the drive; a Disk II has
-    // no such lamp, and swapping disks does not change the hardware. Kept
-    // deliberately understated -- it reads as "locked" without competing with
-    // the LED for attention.
+    // no such lamp, and swapping disks does not change the hardware. The
+    // glyph is drawn at the basename's size and measured for its box; these
+    // are the box when measuring fails.
     static constexpr int       kWpBadgeWidthPx    = 13;
     static constexpr int       kWpBadgeHeightPx   = 15;
     static constexpr int       kWpBadgeLabelGapPx = 4;   // badge -> basename
-    static constexpr uint32_t  kWpBadgeFillArgb   = 0xFFD8B76A;   // warm brass body
-    static constexpr uint32_t  kWpBadgeShadeArgb  = 0xFF7A6026;   // darker brass edge / shackle
-    static constexpr uint32_t  kWpBadgeHoleArgb   = 0xFF2A2109;   // keyhole
 
     // Damaged-image badge, shown in the padlock's place when the mounted
     // image's stored checksum did not match its contents. A deliberately
@@ -219,16 +216,9 @@ private:
                                 float depthT,
                                 uint32_t argb);
 
-    // Draws a small padlock (shackle arch + body + keyhole) inside the
-    // given box using flat fills, matching the widget's primitive-drawn
-    // house style. Used as the write-protect indicator.
-    static void  DrawPadlock (IDxuiPainter & painter,
-                              float left, float top, float w, float h,
-                              uint32_t fill, uint32_t shade, uint32_t hole);
-
     // Draws a warning triangle with an exclamation mark inside the given
-    // box, in the same flat-fill house style as the padlock. Used for a
-    // damaged image, where "write-protected" would understate the problem.
+    // box from flat fills. Used for a damaged image, where "write-protected"
+    // would understate the problem.
     static void  DrawDamageBadge (IDxuiPainter & painter,
                                   float left, float top, float w, float h,
                                   uint32_t fill, uint32_t edge, uint32_t mark);

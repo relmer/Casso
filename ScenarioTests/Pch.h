@@ -2,7 +2,8 @@
 
 //
 //  SCENARIO TESTS, NOT UNIT TESTS. Everything in this project needs external
-//  inputs -- the stock DOS 3.3 System Master, fetched rather than committed --
+//  inputs -- the stock DOS 3.3 System Master or ProDOS Users Disk, fetched
+//  rather than committed --
 //  and a booted guest executing real 6502 code. CI has no copy of the master
 //  and never will, so these cases live in their own binary: a separate DLL is
 //  what makes running them a deliberate act (RunTests.ps1 -Scenario) rather

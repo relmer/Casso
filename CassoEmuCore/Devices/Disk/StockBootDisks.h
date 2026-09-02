@@ -11,16 +11,18 @@
 //  Where the operating-system masters live once they have been downloaded.
 //
 //  MAKING A DISK BOOTABLE MEANS COPYING AN OPERATING SYSTEM ONTO IT, so
-//  something has to say which file that is. The emulator downloads two on
-//  first run and keeps them in a cache beside its other assets; this is the
-//  half of that knowledge a tool needs in order to FIND one.
+//  something has to specify which file that is. The emulator downloads each of
+//  the two when the user picks it in a disk picker or clicks Download in
+//  Create New Disk, and keeps them in a cache beside its other assets; this
+//  is the half of that knowledge a tool needs in order to FIND one.
 //
 //  IT LIVES HERE BECAUSE BOTH EXECUTABLES NEED IT. All of it sat in
 //  Casso.exe's AssetBootstrap, so the command line could not reach the cache
 //  at all and `disk create --bootable` had to be told the path by hand. The
-//  downloading stays there -- it needs consent, a progress report and a
-//  network stack, none of which belong in a library -- and only the locating
-//  moved, which is the part with no platform in it beyond a directory name.
+//  downloading stays there -- it starts from a click in a dialog, reports
+//  failure through one, and needs a network stack, none of which belong in a
+//  library -- and only the locating moved, which is the part with no platform
+//  in it beyond a directory name.
 //
 //  NOTHING HERE CREATES ANYTHING. Asking where a file would be is not the same
 //  as arranging for it to exist, and a locator that made a directory as a side

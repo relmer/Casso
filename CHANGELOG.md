@@ -64,6 +64,14 @@ Entries before versioning was introduced use dates only.
   a skeuomorphic theme left the arrows painted over the picture.
 - **The 3D CRT monitor checkbox is gone on the flat themes.** They never draw the
   monitor, so the setting had nothing to apply to. The rows below it close the gap.
+- **A failed stock boot-disk download is reported instead of exiting or doing
+  nothing.** The boot and insert disk pickers report the reason and come back,
+  so the user can try again, pick another disk, or back out. A startup failure
+  that used to be queued for a window that never appeared is shown before
+  Casso exits.
+- **The `disk create --bootable` diagnostic for a missing master instructs the
+  user to download it from Casso's disk picker and retry.** It used to
+  instruct a first run of the emulator, which downloads nothing.
 - **Two Casso instances sharing a disk image could corrupt it.** Saving an
   image writes a temporary file beside it and then renames that over the
   original. The temporary's name came from the image path alone, so both
@@ -73,6 +81,10 @@ Entries before versioning was introduced use dates only.
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
 - **Chrome text could be painted over by the controls under it.**
+- **The write-protect padlock beside a disk's name in the 3D scene was
+  distorted.** Changed to use the emoji lock character to avoid conflicts 
+  with the text shadow effect and improve overall icon clarity. The 2D drive
+  widget now uses the same padlock.
 
 ## [1.22.0]: The one with nibble support
 

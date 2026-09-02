@@ -82,94 +82,6 @@ public:
     // "this image will still boot".
     static constexpr const char *  kGreetingName = "HELLO";
 
-    static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
-    {
-        std::error_code    ec;
-        std::vector<Byte>  bytes;
-
-        if (std::filesystem::exists (full, ec))
-        {
-            std::ifstream f (full, std::ios::binary);
-
-            if (f)
-            {
-                bytes.assign ((std::istreambuf_iterator<char> (f)),
-                              std::istreambuf_iterator<char> ());
-            }
-        }
-
-        return bytes;
-    }
-
-
-    static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
-    {
-        // Walk up from the current working directory to find a sibling
-        // of `Machines/` containing the requested file. Mirrors the
-        // resolver in BackwardsCompatTests / Pr3AuxClearTest so the
-        // test stays filesystem-portable. Returns an empty vector if
-        // the file doesn't exist (CI runners don't have the DOS 3.3
-        // master disk in the repo); the caller treats that as "skip".
-        std::error_code        ec;
-        std::filesystem::path  cursor  = std::filesystem::current_path (ec);
-        std::vector<Byte>      bytes;
-        bool                   walking = !ec;
-
-        for (int i = 0; walking && bytes.empty() && i < 10; i++)
-        {
-            bytes = ReadFileOrEmpty (cursor / relPath);
-
-            // Nothing read yet -- including the exists-but-unreadable case,
-            // which keeps climbing rather than giving up at that level.
-            if (bytes.empty())
-            {
-                if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-                {
-                    walking = false;
-                }
-                else
-                {
-                    cursor = cursor.parent_path();
-                }
-            }
-        }
-
-        // The repo copy is optional; a developer machine usually has the
-        // stock master in the GUI's asset-download cache instead, filed
-        // under its catalog display name. Read-only fallback, still
-        // skip-if-missing on machines with neither.
-        if (bytes.empty())
-        {
-            const wchar_t *  cacheName = nullptr;
-
-            if (relPath == "Disks/Apple/dos33-master.dsk")
-            {
-                cacheName = L"DOS 3.3 System Master.dsk";
-            }
-            else if (relPath == "Disks/Apple/prodos-users.dsk")
-            {
-                cacheName = L"ProDOS Users Disk.dsk";
-            }
-
-            if (cacheName != nullptr)
-            {
-                wchar_t * localAppData = nullptr;
-                size_t    len          = 0;
-
-                if (_wdupenv_s (&localAppData, &len, L"LOCALAPPDATA") == 0 &&
-                    localAppData != nullptr)
-                {
-                    bytes = ReadFileOrEmpty (std::filesystem::path (localAppData) /
-                                             L"Casso" / L"Disks" / cacheName);
-                    free (localAppData);
-                }
-            }
-        }
-
-        return bytes;
-    }
-
-
     //
     //  ------------------------------------------------------------------
     //  The cheap questions, asked before any machine starts.
@@ -233,18 +145,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout (typical for CI "
-                                  "runners). Test passes locally where the "
-                                  "disk image is present.\n");
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -336,16 +237,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -441,16 +333,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -584,13 +467,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
-                                  "available in this checkout.\n");
-            return;
-        }
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -685,12 +562,7 @@ public:
 
 
 
-        payload.dosMasterSectors = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (payload.dosMasterSectors.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: DOS 3.3 master not available.\n");
-            return;
-        }
+        payload.dosMasterSectors = GuestSession::RequireDos33Master();
 
         spec.bootable = true;
 
@@ -758,12 +630,7 @@ public:
 
 
 
-        payload.proDosUsersDisk = ReadDskOrEmpty ("Disks/Apple/prodos-users.dsk");
-        if (payload.proDosUsersDisk.empty())
-        {
-            Logger::WriteMessage ("SKIPPED: ProDOS Users Disk not available.\n");
-            return;
-        }
+        payload.proDosUsersDisk = GuestSession::RequireProDosUsersDisk();
 
         spec.contents = BlankDiskContents::ProDos;
         spec.bootable = true;

@@ -230,8 +230,26 @@ if ($Scenario) {
     # boot real guests, which is exactly why they live in their own DLL.
     Write-Host ''
     Write-Host 'SCENARIO SUITE -- system tests, NOT the unit-test suite.' -ForegroundColor Yellow
-    Write-Host '  Needs external inputs (the stock DOS 3.3 System Master) and boots real guests.' -ForegroundColor DarkGray
+    Write-Host '  Needs external inputs (the stock DOS 3.3 System Master and ProDOS Users Disk)' -ForegroundColor DarkGray
+    Write-Host '  and boots real guests.' -ForegroundColor DarkGray
     Write-Host ''
+
+    # Fetch whatever this machine is missing, so invoking the suite is enough
+    # to run it. A developer should not have to discover an undocumented
+    # manual step, and a rule requiring these cases before a merge is only
+    # worth writing if obeying it is cheap.
+    #
+    # FATAL, because the only way this fails is an image that is missing AND
+    # could not be downloaded. A machine that already has one never reaches
+    # the network, so being offline is not a failure here. What is left is a
+    # run that cannot do its job, and reporting that once beats letting it
+    # surface as a dozen identical case failures.
+    $fetchScript = Join-Path $PSScriptRoot 'FetchStockDisks.ps1'
+
+    & $fetchScript
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Cannot run the scenario suite without the stock disks it boots. See above.'
+    }
 }
 
 $vstestArgs = @($testAssembly)

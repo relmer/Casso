@@ -5372,6 +5372,41 @@ void EmulatorShell::FlushPendingNotifications()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ShowPendingNotificationsWithoutWindow
+//
+//  The failure-path counterpart of FlushPendingNotifications. Nothing raised
+//  before the window exists is shown until CreateEmulatorWindow replays it,
+//  and a startup that fails never gets there -- LoadMachineConfig's CHRN /
+//  CBRN sites all end in wWinMain's CHR. A system box is the only surface
+//  left, so whatever is still queued is shown through one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowPendingNotificationsWithoutWindow()
+{
+    std::vector<std::wstring>  pending;
+    size_t                     i = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (s_pendingNotifyMutex);
+
+        pending.swap (s_pendingNotifications);
+    }
+
+    for (i = 0; i < pending.size(); i++)
+    {
+        MessageBoxW (nullptr, pending[i].c_str(), L"Casso", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ShowSalvageDialog
 //
 //  Shows a dialog whose body is a caller-built panel instead of wrapped text

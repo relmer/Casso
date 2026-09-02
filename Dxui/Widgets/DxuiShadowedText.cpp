@@ -127,6 +127,14 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     // Odd rings are rotated half a step so successive rings interleave rather
     // than lining their samples up along the same radii, which is what would
     // otherwise show as faint spokes.
+    //
+    // THE SHADOW IS MONOCHROME. A color-font glyph -- an emoji in the string
+    // -- keeps its own palette under a black brush, so eighty offset copies
+    // of it are eighty colored smears rather than a shadow. With color fonts
+    // off for the rings, the glyph's outline takes the brush like any other
+    // and the ink pass on top still draws it in color.
+    renderer.PushMonochromeGlyphs();
+
     for (int r = reachPx; r > 0; r--)
     {
         float   radius  = (float) r;
@@ -148,6 +156,8 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
+
+    renderer.PopMonochromeGlyphs();
 
     hr = renderer.DrawString (text, x, y, width, height, argb, fontPx, useFace,
                               hAlign, vAlign, DxuiFontWeight::Normal, false);
