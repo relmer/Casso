@@ -26,15 +26,17 @@ On the horizon:
 - Atari 400/800
 - Commodore VIC-20, 64
 
-The [casso-rocks demo disk](Apple2/Demos) asks which monitor you have and shows
-the cassowary drawn for it. Same photo, same Apple //e core, encoded twice —
-because the same DHGR framebuffer means different things to a color monitor and
-a monochrome one, and an image authored for either reads as noise on the other:
+The [casso-rocks demo disk](Apple2/Demos) asks which monitor you have and draws
+the cassowary for it. The same DHGR framebuffer means different things to a color
+screen and a monochrome one, and an image authored for either reads as noise on
+the other, so the demo ships both and your answer picks one:
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/demo-dhgr-color.png" alt="The casso-rocks demo on a color monitor: the cassowary in 16-color DHGR, 140 color cells across" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same disk on a green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-color.png" alt="The casso-rocks demo on an Apple //e with Monitor II set to color: the cassowary in 16-color DHGR, 140 color cells across" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same demo on an Apple //c green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
 </tr></table>
+
+<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome.</sub></p>
 
 `CassoCli` accelerates the retro development loop, with no third-party tool in it:
 
