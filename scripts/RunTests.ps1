@@ -233,6 +233,23 @@ if ($Scenario) {
     Write-Host '  Needs external inputs (the stock DOS 3.3 System Master and ProDOS Users Disk)' -ForegroundColor DarkGray
     Write-Host '  and boots real guests.' -ForegroundColor DarkGray
     Write-Host ''
+
+    # Fetch whatever this machine is missing, so invoking the suite is enough
+    # to run it. A developer should not have to discover an undocumented
+    # manual step, and a rule requiring these cases before a merge is only
+    # worth writing if obeying it is cheap.
+    #
+    # NOT fatal, deliberately. Offline with the images already here is a
+    # working run, and when one really is absent the case that needs it fails
+    # with a message listing both locations and how to fill them -- better
+    # than anything this script could report from out here.
+    $fetchScript = Join-Path $PSScriptRoot 'FetchStockDisks.ps1'
+
+    & $fetchScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Continuing: the cases needing a missing image will report it themselves.' -ForegroundColor DarkGray
+        Write-Host ''
+    }
 }
 
 $vstestArgs = @($testAssembly)
