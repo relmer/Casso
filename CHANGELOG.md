@@ -80,6 +80,13 @@ Entries before versioning was introduced use dates only.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
   user to open Casso and use the disk picker to download it.** It used to
   instruct a first run of the emulator, which downloads nothing.
+- **Switching themes now applies the new theme's CRT defaults.** A theme
+  carries brightness, scanline, bloom and color-bleed defaults, but once any
+  Display control had been touched the whole block was pinned as a user
+  override and every later theme change was ignored. Picking a theme now
+  adopts its defaults, on Apply now and on OK, and the Display page's sliders
+  and its default badges follow. Cancel puts the old theme's defaults back
+  with the old theme.
 - **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
   picture. They now collapse the way the desk scene does: the picture fills

@@ -215,8 +215,17 @@ HRESULT SettingsSheet::OpenModeless (
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     m_hardwarePage, m_themePage);
+    // The chrome-theme hook fires on Apply now, on OK, and on the Cancel
+    // that puts the baseline theme back. The sheet repaints in the new
+    // palette, and the Display page adopts the new theme's CRT defaults --
+    // a theme's crtDefaults are defaults, so they arrive with the theme
+    // rather than waiting for a relaunch.
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
-                  [this] () { SetTheme (&m_emuShell->m_chromeTheme); },
+                  [this] ()
+                  {
+                      SetTheme (&m_emuShell->m_chromeTheme);
+                      m_crt.AdoptThemeDefaults();
+                  },
                   &m_catalog);
     m_hardwarePage->SetState (&m_state);
     m_diskPage->SetState     (&m_state);

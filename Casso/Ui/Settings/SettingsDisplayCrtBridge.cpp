@@ -278,6 +278,54 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AdoptThemeDefaults
+//
+//  A theme's `crtDefaults` are defaults, and picking a theme adopts them.
+//  Every monitor's override flag is cleared, which hands the whole chain
+//  back to MakeCrtParams: monitor preset, the new theme's layer on top.
+//  The Display page is then reseeded so its sliders and its "(theme
+//  default)" badges say what the picture is actually doing.
+//
+//  CLEARING THE FLAG, NOT COPYING VALUES. A block seeded by value would be
+//  a user override wearing the theme's numbers, and the NEXT theme change
+//  would find an override and decline to touch it -- which is the bug this
+//  fixes, one theme later. The stale values left in the block are harmless:
+//  PromoteActiveToOverride re-seeds from the resolved defaults before the
+//  first edit lands, so a slider touched after a theme change starts from
+//  the new theme, not from what the last one left behind.
+//
+//  Cancel gets this too, because reverting to the baseline theme raises the
+//  same hook -- the CRT settings go back with the chrome rather than
+//  stranding the reverted theme's picture under the abandoned one's numbers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsDisplayCrtBridge::AdoptThemeDefaults()
+{
+    size_t  i = 0;
+
+
+
+    if (m_prefs != nullptr)
+    {
+        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        {
+            m_prefs->crtByMode[i].userOverride = false;
+        }
+    }
+
+    // The sliders first, then the badges: both read the resolved chain, and
+    // the page is only correct once they agree with it.
+    ReseedFromActiveMode();
+    PublishDefaultsHint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromoteActiveToOverride
 //
 //  First time the user touches any CRT control on an untouched monitor,

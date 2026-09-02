@@ -46,6 +46,12 @@ public:
     void  PromoteActiveToOverride ();
     void  ResetActiveToDefaults   ();
 
+    // A theme carries CRT defaults, so adopting a theme adopts them --
+    // on Apply now, on OK, and on the Cancel that puts the old theme
+    // back. Called from the sheet's chrome-theme-changed hook, which
+    // every one of those paths already raises.
+    void  AdoptThemeDefaults      ();
+
     // Installs the slider / toggle / monitor / restore-defaults
     // callbacks on the bound DisplayPage. The lambdas funnel through
     // PromoteActiveToOverride + the per-monitor crtByMode block so the
