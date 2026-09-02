@@ -355,7 +355,7 @@ public:
     static std::vector<Byte> ForceGreetingTo (const std::vector<Byte> & image, const char * name)
     {
         std::vector<Byte>  forced = image;
-        size_t             at     = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+        size_t             at     = Dos33Skeleton::GetSectorOffset (kGreetingTrack, kGreetingSector)
                                   + kGreetingOffset;
         std::string        text   = name;
         size_t             i      = 0;
@@ -375,7 +375,7 @@ public:
 
     static std::string GreetingNameIn (const std::vector<Byte> & sectors)
     {
-        size_t       at = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+        size_t       at = Dos33Skeleton::GetSectorOffset (kGreetingTrack, kGreetingSector)
                         + kGreetingOffset;
         std::string  name;
         size_t       i  = 0;

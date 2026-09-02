@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ImageArtifactSink.h"
+#include "IIntentChannel.h"
 
 #include "Devices/Disk/AssembledFilePlacement.h"
 #include "Devices/Disk/Dos33Volume.h"
@@ -108,7 +109,7 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
             hr = volume.Write (path, payload, edited);
         }
 
-        CHRF (hr, m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+        CHRF (hr, m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                                        "could not be written to the volume") + "\n");
 
         outSectors = edited;
@@ -179,12 +180,12 @@ HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions        
         }
     }
 
-    CHRF (hr, m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+    CHRF (hr, m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                                    "cannot be made the startup program") + "\n");
 
     if (!runnable)
     {
-        m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+        m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                              "would not run at boot: a booting DOS 3.3 RUNs its greeting, "
                              "so a binary named as one leaves the disk booting and the program never running") + "\n";
     }
@@ -232,7 +233,7 @@ HRESULT ImageArtifactSink::WriteBinary (const AssemblyResult & result,
 
     if (!hasBytes)
     {
-        m_diagnostics += DiskCommandResult::Failure (options.imagePath, "",
+        m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, "",
                              "has nothing to receive: the assembly produced no bytes") + "\n";
     }
 
@@ -246,6 +247,18 @@ HRESULT ImageArtifactSink::WriteBinary (const AssemblyResult & result,
 
     hr = m_session.SaveAndCommit (opened, sectors, opening);
     CHRF (hr, m_diagnostics += opening.diagnostics);
+
+    //  AFTER THE COMMIT AND ONLY AFTER IT. The intent describes an image that
+    //  has changed, so stating it for a write that failed would send a running
+    //  emulator to re-read bytes nobody replaced.
+    //
+    //  IT CANNOT FAIL THE ASSEMBLY. The channel returns nothing and an
+    //  emulator that misses the hint falls back to asking, so a build broken
+    //  by an undelivered courtesy would be worse than the problem it solves.
+    if (m_intentChannel != nullptr && options.pickUpIntent != PickUpIntent::Unstated)
+    {
+        m_intentChannel->StateIntent (options.imagePath, options.pickUpIntent);
+    }
 
 Error:
     return hr;

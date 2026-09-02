@@ -97,7 +97,7 @@ private:
 
     // The three components as the words that spell them, so the map keys on
     // what was written rather than on what compares equal.
-    static VectorKey  KeyOf       (const float * value);
+    static VectorKey  MakeKey     (const float * value);
 
     static void       AppendBytes (std::vector<uint8_t> & out,
                                    const void           * data,

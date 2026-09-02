@@ -74,7 +74,7 @@ private:
     static bool  IsAbortStageRequested (const wchar_t * stage);
 
     //  Leaves a genuinely short temporary on the filesystem, then stops.
-    static void  AbortWithPartialFileIfRequested (std::ofstream            & file,
+    static void  AbortWithPartialFileIfRequested (HANDLE                     file,
                                                   const std::vector<Byte>  & bytes);
 
     //  Stops with the temporary complete and the target not yet touched.

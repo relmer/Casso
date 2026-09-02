@@ -3,6 +3,7 @@
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
 #include "NibbleImageCodec.h"
+#include "DiskCommandRunner.h"
 
 
 
@@ -39,8 +40,10 @@ string MountDiagnosis::Describe() const
     switch (failure)
     {
         case MountFailure::UnknownExtension:
+            //  The list is read off the container table rather than typed out:
+            //  typed out, it named four kinds for a release that read five.
             text = "is not a kind of file Casso reads as a disk image. Casso reads "
-                   ".dsk, .do and .po sector images, and .woz bit-stream images";
+                 + DiskCommandRunner::FormatContainerWordList (".", "and") + " images";
             break;
 
         case MountFailure::FileUnreadable:

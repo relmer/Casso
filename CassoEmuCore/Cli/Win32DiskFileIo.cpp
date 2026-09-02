@@ -14,24 +14,54 @@
 
 HRESULT Win32DiskFileIo::ReadAllBytes (const std::string & path, std::vector<Byte> & outBytes)
 {
-    HRESULT        hr     = S_OK;
-    std::ifstream  file (path, std::ios::binary | std::ios::ate);
-    bool           isOpen = false;
-    std::streamoff size   = 0;
+    HRESULT        hr       = S_OK;
+    std::wstring   widePath = std::filesystem::path (path).wstring();
+    HANDLE         file     = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER  size     = {};
+    DWORD          read     = 0;
+    BOOL           ok       = FALSE;
 
 
 
-    isOpen = file.is_open();
-    CBR (isOpen);
+    //  THE REAL ERROR TRAVELS. This went through an ifstream and a CBR, which
+    //  turned every failure into E_FAIL: a missing file, a locked one and a
+    //  denied one all reached the user as "Unspecified error". CreateFileW
+    //  and CWR carry the Win32 code out instead.
+    //
+    //  SHARING IS AS PERMISSIVE AS THE STREAM WAS. A stricter open here would
+    //  refuse a mount while the command line or another emulator holds the
+    //  file, which the old path allowed; only IsHeldByAnotherProcess opens
+    //  exclusively, and it does so to ask that exact question.
+    file = CreateFileW (widePath.c_str(), GENERIC_READ,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
 
-    size = file.tellg();
-    CBR (size >= 0);
+    ok = GetFileSizeEx (file, &size);
+    CWR (ok);
 
-    outBytes.resize ((size_t) size);
-    file.seekg (0, std::ios::beg);
-    file.read (reinterpret_cast<char *> (outBytes.data()), size);
+    //  Nothing this reads is anywhere near 4 GB; a file that is cannot be a
+    //  disk image, and says so rather than truncating.
+    CBREx (size.QuadPart >= 0 && size.QuadPart <= MAXDWORD,
+           HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
+
+    outBytes.resize ((size_t) size.QuadPart);
+
+    if (!outBytes.empty())
+    {
+        DWORD  want = (DWORD) outBytes.size();
+
+        ok = ReadFile (file, outBytes.data(), want, &read, nullptr);
+        CWR (ok);
+        CBREx (read == want, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
+    }
 
 Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
     return hr;
 }
 
@@ -47,15 +77,24 @@ Error:
 
 HRESULT Win32DiskFileIo::WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes)
 {
-    HRESULT        hr     = S_OK;
-    std::ofstream  file (path, std::ios::binary | std::ios::trunc);
-    bool           isOpen = false;
-    bool           wrote  = false;
+    HRESULT       hr        = S_OK;
+    std::wstring  widePath  = std::filesystem::path (path).wstring();
+    HANDLE        file      = INVALID_HANDLE_VALUE;
+    DWORD         written   = 0;
+    size_t        byteCount = bytes.size();
+    BOOL          ok        = FALSE;
 
 
 
-    isOpen = file.is_open();
-    CBR (isOpen);
+    //  THE REAL ERROR TRAVELS. Through an ofstream and a CBR, a folder that
+    //  refused the file, a read-only target and a full disk all came out as
+    //  E_FAIL, and the save-failure notice -- built to print the code and the
+    //  system's own words for it -- said "0x80004005 Unspecified error" for a
+    //  permission problem. CreateFileW and CWR hand the Win32 code out whole.
+    file = CreateFileW (widePath.c_str(), GENERIC_WRITE,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
 
 #if defined(_DEBUG) && defined(CASSO_DIAG_DISK_ABORT)
     // One of the two chosen interruption points, and it is absent from every
@@ -64,12 +103,22 @@ HRESULT Win32DiskFileIo::WriteAllBytes (const std::string & path, const std::vec
     AbortWithPartialFileIfRequested (file, bytes);
 #endif
 
-    file.write (reinterpret_cast<const char *> (bytes.data()), (std::streamsize) bytes.size());
+    //  A disk image is a few hundred KB; a payload past 4 GB is a caller bug.
+    CBRAEx (byteCount <= MAXDWORD, E_INVALIDARG);
 
-    wrote = file.good();
-    CBR (wrote);
+    if (!bytes.empty())
+    {
+        ok = WriteFile (file, bytes.data(), (DWORD) byteCount, &written, nullptr);
+        CWR (ok);
+        CBREx (written == (DWORD) byteCount, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+    }
 
 Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
     return hr;
 }
 
@@ -386,20 +435,21 @@ bool Win32DiskFileIo::IsAbortStageRequested (const wchar_t * stage)
 //  Win32DiskFileIo::AbortWithPartialFileIfRequested
 //
 //  The lesser of the two points: stop with a half-written temporary sitting
-//  beside the image. Half the bytes are pushed to the filesystem rather than
-//  left in the stream's buffer, because a buffer that never drains would leave
-//  an EMPTY file behind and that is a different case -- a reader can tell a
+//  beside the image. Half the bytes are flushed to the filesystem rather than
+//  left in a buffer, because a buffer that never drains would leave an EMPTY
+//  file behind and that is a different case -- a reader can tell a
 //  zero-length file is unfinished, and a short one it cannot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32DiskFileIo::AbortWithPartialFileIfRequested (
-    std::ofstream            & file,
+    HANDLE                     file,
     const std::vector<Byte>  & bytes)
 {
     constexpr size_t  kPartDivisor = 2;
     bool              requested    = false;
     size_t            partial      = 0;
+    DWORD             written      = 0;
 
 
 
@@ -412,8 +462,8 @@ void Win32DiskFileIo::AbortWithPartialFileIfRequested (
 
     partial = bytes.size() / kPartDivisor;
 
-    file.write (reinterpret_cast<const char *> (bytes.data()), (std::streamsize) partial);
-    file.flush();
+    WriteFile (file, bytes.data(), (DWORD) partial, &written, nullptr);
+    FlushFileBuffers (file);
 
     AbortProcessNow (kpszStageDuringWrite);
 }

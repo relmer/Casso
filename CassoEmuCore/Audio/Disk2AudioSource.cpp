@@ -693,9 +693,14 @@ void Disk2AudioSource::OnDiskInserted()
 
 
 
-    m_diskPresent = true;
-    m_doorBuf     = &m_doorCloseBuf;
-    m_doorPos     = 0;
+    m_diskPresent   = true;
+    m_doorBuf       = &m_doorCloseBuf;
+    m_doorPos       = 0;
+
+    //  A plain insert is a single one-shot. Clear any queued close left by a
+    //  swap that was interrupted before its open sample finished, or that
+    //  close would replay on top of this one.
+    m_doorThenClose = false;
 
     if (m_audioEventSink != nullptr)
     {
@@ -752,10 +757,15 @@ void Disk2AudioSource::OnDiskEjected()
 
 
 
-    m_diskPresent = false;
-    m_doorBuf     = &m_doorOpenBuf;
-    m_doorPos     = 0;
-    m_motorPos    = 0;
+    m_diskPresent   = false;
+    m_doorBuf       = &m_doorOpenBuf;
+    m_doorPos       = 0;
+    m_motorPos      = 0;
+
+    //  A plain eject is a single one-shot. Clear any queued close left by a
+    //  swap that was interrupted before its open sample finished, or the door
+    //  would audibly close on an empty drive.
+    m_doorThenClose = false;
 
     if (m_audioEventSink != nullptr)
     {
@@ -766,6 +776,45 @@ void Disk2AudioSource::OnDiskEjected()
                                                   SilentReason::NoDiskPresent);
         }
 
+        if (m_doorOpenBuf.empty())
+        {
+            m_audioEventSink->OnAudioSilent (SoundKind::DoorOpen, m_driveIndex,
+                                             SilentReason::BufferMissing);
+        }
+        else
+        {
+            m_audioEventSink->OnAudioStarted (SoundKind::DoorOpen, m_driveIndex);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskSwapped
+//
+//  A disk was replaced under the running machine: the door open sound, then
+//  the close sound, with the disk present throughout.
+//
+//  THE CLOSE IS QUEUED, NOT PLAYED NOW. The door is one one-shot buffer, so the
+//  open sample plays first and MixDoor rolls into the close sample when it
+//  finishes. The disk never leaves, so the motor loop is not touched -- only
+//  eject drops it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AudioSource::OnDiskSwapped()
+{
+    m_diskPresent   = true;
+    m_doorBuf       = &m_doorOpenBuf;
+    m_doorPos       = 0;
+    m_doorThenClose = true;
+
+    if (m_audioEventSink != nullptr)
+    {
         if (m_doorOpenBuf.empty())
         {
             m_audioEventSink->OnAudioSilent (SoundKind::DoorOpen, m_driveIndex,
@@ -898,6 +947,42 @@ void Disk2AudioSource::MixDoor (float * out, uint32_t n)
     {
         out[i] += (*m_doorBuf)[m_doorPos] * m_doorVolume;
         m_doorPos++;
+    }
+
+    //  A swap rolls the open one-shot into the close one the instant it ends,
+    //  so the two play back to back within one door gesture. The event goes
+    //  out here, when the close actually begins, so the debug panel logs it in
+    //  the order it is heard.
+    if (m_doorThenClose && m_doorPos >= len)
+    {
+        m_doorThenClose = false;
+        m_doorBuf       = &m_doorCloseBuf;
+        m_doorPos       = 0;
+
+        if (m_audioEventSink != nullptr)
+        {
+            if (m_doorCloseBuf.empty())
+            {
+                m_audioEventSink->OnAudioSilent (SoundKind::DoorClose, m_driveIndex,
+                                                 SilentReason::BufferMissing);
+            }
+            else
+            {
+                m_audioEventSink->OnAudioStarted (SoundKind::DoorClose, m_driveIndex);
+            }
+        }
+
+        //  Mix the close sample into the rest of this block, so a swap that
+        //  lands mid-block is not silent until the next one.
+        {
+            uint32_t  closeLen = static_cast<uint32_t> (m_doorCloseBuf.size());
+
+            for (; i < n && m_doorPos < closeLen; i++)
+            {
+                out[i] += m_doorCloseBuf[m_doorPos] * m_doorVolume;
+                m_doorPos++;
+            }
+        }
     }
 }
 

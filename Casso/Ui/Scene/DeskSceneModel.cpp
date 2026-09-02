@@ -1776,7 +1776,7 @@ void DeskSceneModel::PoseDoor (float progress, std::vector<Dxui3DRenderer::Verte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneModel::DoorBoundsAt
+//  DeskSceneModel::GetDoorBoundsAt
 //
 //  The shut door's eight corners run through the real motion, and the box
 //  around where they land.
@@ -1794,7 +1794,7 @@ void DeskSceneModel::PoseDoor (float progress, std::vector<Dxui3DRenderer::Verte
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DeskSceneModel::DoorBoundsAt (float progress, float outMin[3], float outMax[3]) const
+bool DeskSceneModel::GetDoorBoundsAt (float progress, float outMin[3], float outMax[3]) const
 {
     std::vector<Dxui3DRenderer::Vertex>  corners;
     std::vector<Dxui3DRenderer::Vertex>  posed;

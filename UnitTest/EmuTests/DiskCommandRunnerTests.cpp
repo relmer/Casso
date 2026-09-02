@@ -1012,8 +1012,8 @@ public:
         DiskCommandRunner  runner (io);
         vector<Byte>  payload  = MakePayload (512);
         vector<Byte>  written;
-        size_t        firstAt  = ProDosSkeleton::BlockByteOffset (3, 0);
-        size_t        secondAt = ProDosSkeleton::BlockByteOffset (3, 256);
+        size_t        firstAt  = ProDosSkeleton::GetBlockByteOffset (3, 0);
+        size_t        secondAt = ProDosSkeleton::GetBlockByteOffset (3, 256);
         size_t        naiveAt  = (size_t) 3 * 512;
         size_t        i        = 0;
 
@@ -3290,7 +3290,7 @@ public:
     //  placed onto a freshly formatted volume lands.
     static void LockFirstCatalogEntry (vector<Byte> & buffer)
     {
-        size_t  at = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector)
+        size_t  at = Dos33Skeleton::GetSectorOffset (kVtocTrack, kCatalogFirstSector)
                    + kEntryBase + kEntOffType;
 
         buffer[at] = (Byte) (buffer[at] | kLockedBit);
@@ -3300,10 +3300,10 @@ public:
     //  volume, so a walk of its chain cannot reach the end.
     static void BreakFirstEntrysChain (vector<Byte> & buffer)
     {
-        size_t  entryAt = Dos33Skeleton::SectorOffset (kVtocTrack, kCatalogFirstSector) + kEntryBase;
+        size_t  entryAt = Dos33Skeleton::GetSectorOffset (kVtocTrack, kCatalogFirstSector) + kEntryBase;
         int     track   = buffer[entryAt + kEntOffTsTrack];
         int     sector  = buffer[entryAt + kEntOffTsSector];
-        size_t  listAt  = Dos33Skeleton::SectorOffset (track, sector);
+        size_t  listAt  = Dos33Skeleton::GetSectorOffset (track, sector);
 
         buffer[listAt + kTsOffNextTrack]  = kTrackOffTheVolume;
         buffer[listAt + kTsOffNextSector] = 0;
@@ -3456,7 +3456,7 @@ public:
 
     static std::string GreetingNameIn (const vector<Byte> & image)
     {
-        size_t       at   = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+        size_t       at   = Dos33Skeleton::GetSectorOffset (kGreetingTrack, kGreetingSector)
                           + kGreetingOffset;
         std::string  name;
         size_t       i    = 0;
@@ -3481,7 +3481,7 @@ public:
     //  encoding names a file DOS then fails to find.
     static void AssertGreetingFieldHolds (const vector<Byte> & image, const char * name)
     {
-        size_t       at   = Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector)
+        size_t       at   = Dos33Skeleton::GetSectorOffset (kGreetingTrack, kGreetingSector)
                           + kGreetingOffset;
         std::string  text = name;
         size_t       i    = 0;

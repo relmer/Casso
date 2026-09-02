@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
+#include "Cli/IIntentChannel.h"
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
 #include "VolumeImage.h"
@@ -524,7 +525,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     // it for whoever reads the log afterwards.
     for (const std::string & note : listing.damage)
     {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "",
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "",
             note + ". THIS LISTING IS INCOMPLETE, entries may be missing") + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
@@ -538,7 +539,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                   "-- THIS LISTING IS INCOMPLETE, entries may be missing",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -705,7 +706,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
                   "unreadable sectors were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.path, note) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, note) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -719,7 +720,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::OnDiskNameFor
+//  DiskCommandRunner::GetOnDiskName
 //
 //  --as when the caller gave one, and otherwise the last component of the
 //  component. Nothing is stripped or shortened on the way: the caller already
@@ -729,7 +730,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::OnDiskNameFor (const CommandLineOptions & options)
+std::string DiskCommandRunner::GetOnDiskName (const CommandLineOptions & options)
 {
     size_t       lastSeparator = options.disk.hostFile.find_last_of ("/\\");
     std::string  name          = options.disk.path;
@@ -1165,7 +1166,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 {
     HRESULT                        hr        = S_OK;
     bool                           named     = !options.disk.hostFile.empty();
-    std::string                    diskName  = OnDiskNameFor (options);
+    std::string                    diskName  = GetOnDiskName (options);
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
@@ -1266,7 +1267,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
     for (const std::string & warning : outcome.warnings)
     {
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, options.disk.path, warning) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, warning) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -1525,6 +1526,18 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             break;
     }
 
+    //  ANNOUNCED AFTER THE COMMIT, NEVER BEFORE, and only when there was one.
+    //
+    //  A receiver reads the image when it acts on the hint, so an intent sent
+    //  first would describe contents that are not on disk yet. Here the command
+    //  has finished and the bytes are in the file.
+    //
+    //  ONLY WHEN THE COMMAND WROTE SOMETHING. Announcing a change after `list`
+    //  or `get` would send an emulator to re-read a file nothing touched, which
+    //  it would then correctly ignore -- a wasted round trip stating something
+    //  untrue.
+    AnnounceIntent (options, result);
+
     //  THE ONE COMMAND'S BLOCK, NOT ALL NINE.
     //
     //  A missing operand already answered this way and a bad option value did
@@ -1650,8 +1663,8 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
     {
         case BlankDiskVerdict::ContentsNotInContainer:
             text = "Error: illegal container and filesystem combination\n"
-                   "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz holds\n"
-                   "       either.\n";
+                   "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz and\n"
+                   "       .nib hold either.\n";
             break;
 
         case BlankDiskVerdict::BootableNeedsFilesystem:
@@ -1966,7 +1979,7 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
                  result.exitStatus      = DiskCommandResult::kNoOutput,
                  result.badCommandLine  = true));
 
-        master = StockBootDisks::PathFor (which);
+        master = StockBootDisks::GetPath (which);
     }
 
     hr = m_fileIo.ReadAllBytes (master, osBytes);
@@ -2512,7 +2525,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   "were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -2814,7 +2827,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
         for (int half = 0; half < 2; half++)
         {
-            size_t  at = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
 
             if (at + kHalfBytes > opened.sectors.size())
             {
@@ -2863,7 +2876,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
                   "were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::Failure (options.disk.imagePath, "", summary) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -2961,7 +2974,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
         for (int half = 0; half < 2; half++)
         {
             size_t  from  = index * kBlockBytes + (size_t) half * kHalfBytes;
-            size_t  at    = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at    = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
             size_t  count = 0;
 
             if (from >= payload.size())
@@ -3000,5 +3013,69 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::WritesTheImage
+//
+//  Whether a command puts bytes into the image it was given.
+//
+//  LISTED RATHER THAN INFERRED. "Did the file change" is not knowable from here
+//  without stat-ing it again, and a command that legitimately wrote the same
+//  bytes back would answer no.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::WritesTheImage (CommandLineOptions::DiskOptions::Command command)
+{
+    using Command = CommandLineOptions::DiskOptions::Command;
+
+    return command == Command::Put
+        || command == Command::Delete
+        || command == Command::Boot
+        || command == Command::Create
+        || command == Command::Init
+        || command == Command::SectorWrite
+        || command == Command::BlockWrite;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::AnnounceIntent
+//
+//  Tells any running emulator what this write was meant to do.
+//
+//  IT CANNOT FAIL THE RUN, and that is the contract rather than an oversight.
+//  The channel returns nothing, an emulator that misses the hint falls back to
+//  asking, and a build that failed over an undelivered courtesy would be worse
+//  than the problem this solves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::AnnounceIntent (const CommandLineOptions & options,
+                                        const DiskCommandResult  & result)
+{
+    bool  wrote  = WritesTheImage (options.disk.command);
+    bool  clean  = (result.exitStatus == DiskCommandResult::kClean);
+    bool  stated = (options.disk.pickUpIntent != PickUpIntent::Unstated);
+
+
+
+    if (m_intentChannel != nullptr && wrote && clean && stated
+        && !options.disk.imagePath.empty())
+    {
+        m_intentChannel->StateIntent (options.disk.imagePath, options.disk.pickUpIntent);
+    }
+
     return;
 }

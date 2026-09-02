@@ -512,7 +512,7 @@ bool VolumeImage::IsPlausibleVolumeName (const vector<Byte> & sectors, size_t na
 
     for (i = 0; valid && i < nameLength; i++)
     {
-        Byte  c = sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 1 + i)];
+        Byte  c = sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 1 + i)];
 
         if (i == 0)
         {
@@ -543,7 +543,7 @@ bool VolumeImage::IsPlausibleVolumeName (const vector<Byte> & sectors, size_t na
 
 bool VolumeImage::LooksLikeDos33 (const vector<Byte> & sectors)
 {
-    size_t  vtoc = Dos33Skeleton::SectorOffset (17, 0);
+    size_t  vtoc = Dos33Skeleton::GetSectorOffset (17, 0);
 
 
 
@@ -577,7 +577,7 @@ bool VolumeImage::LooksLikeDos33 (const vector<Byte> & sectors)
 
 bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
 {
-    size_t  header  = ProDosSkeleton::BlockByteOffset (2, 0x04);
+    size_t  header  = ProDosSkeleton::GetBlockByteOffset (2, 0x04);
     Byte    typeLen = 0;
     size_t  nameLen = 0;
     Word    total   = 0;
@@ -603,13 +603,13 @@ bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
         return false;
     }
 
-    total  = (Word) (sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x25)]
-                  | (sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x26)] << 8));
-    bitmap = (Word) (sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x23)]
-                  | (sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x24)] << 8));
+    total  = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x25)]
+                  | (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x26)] << 8));
+    bitmap = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x23)]
+                  | (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x24)] << 8));
 
-    return sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x1F)] == 0x27   // entry length
-        && sectors[ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x20)] == 0x0D   // entries per block
+    return sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x1F)] == 0x27   // entry length
+        && sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x20)] == 0x0D   // entries per block
         && total  > 0 && total  <= (Word) ProDosSkeleton::kTotalBlocks
         && bitmap > 0 && bitmap <  (Word) ProDosSkeleton::kTotalBlocks;
 }

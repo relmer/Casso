@@ -53,6 +53,8 @@
 #include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
 #include "Window/DxuiHwndSource.h"
+#include "Widgets/DxuiActionBanner.h"
+#include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
 #include "Core/DxuiDockLayout.h"
@@ -187,6 +189,12 @@ public:
     // called both on graceful exit and from the crash handler, and is a
     // no-op (and self-guards against a double dump) when tracing is off.
     void SetTraceCapacity (size_t capacityEntries) { m_traceCapacity = capacityEntries; }
+
+    // Runs with change notification deliberately broken, so the check made
+    // before every write can be measured on its own. Undocumented; set from
+    // --no-image-watch and read by the two places that install notification.
+    void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
+    bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void DumpTrace        (const wstring & reason);
 
@@ -303,6 +311,9 @@ private:
     DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
     DxuiMessageResult  OnNcLButtonUp   (LRESULT hitTest, int xScreen, int yScreen) override;
     LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+    // A writing tool stating what its change to a mounted image meant.
+    DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
     void               OnDestroy       () override;
     void               OnDpiChanged    (UINT newDpi) override;
 
@@ -950,6 +961,74 @@ private:
     // on confirmation, then offer to insert it.
     void    RunSalvageFlow (int drive);
 
+    // What one bay's external change wants said, carried from the thread that
+    // owns disk writes to the one that owns the screen.
+    struct ChangeNotice
+    {
+        int           slot  = 0;
+        int           drive = 0;
+        ChangePrompt  prompt;
+    };
+
+    // Installs the two sinks the image store reports through: the non-blocking
+    // banner, and the question. Both bounce to the UI thread.
+    void    InstallChangeReporting ();
+
+    // Raises the non-modal banner over the running machine for a bay.
+    void    ShowChangeBanner  (const ChangeNotice & notice);
+
+    // Puts the store's question to the user and routes the answer back to the
+    // thread that owns disk writes.
+    void    AskAboutChange    (const ChangeNotice & notice);
+
+    // Lays the notice into the band the dock gave it.
+    void    LayoutChangeBanner ();
+
+    // Offers a mouse event to the message bar, if one is up.
+    //
+    // THE SHELL HIT-TESTS ITS CHROME BY NAME rather than walking the panel
+    // tree -- the toolbar, the joystick selector and the //c switch strip are
+    // each asked in turn -- so a control that is not on that list is painted
+    // and never clicked. Measured: the bar drew correctly and its button could
+    // not be pressed.
+    bool    OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y);
+
+    //  Closes the change band and gives its height back to the picture.
+    void    HideChangeBanner ();
+
+    //  Closes it once its time is up, unless the pointer is resting on it.
+    void    ExpireChangeBannerIfDue ();
+
+    // How tall the notice's band is right now: zero when nothing is being
+    // reported, and the height its wrapped text needs when something is.
+    int     GetChangeBandThicknessPx (int clientWidthPx) const;
+
+    // Re-docks the chrome after the notice's band appears or goes.
+    //
+    // IT DOES NOT RESIZE THE WINDOW, unlike the machine-change reflow beside
+    // it. A notice is transient and the user did not ask for a bigger window
+    // to hold it: the picture gives up the height and takes it back.
+    void    ReflowChromeForChangeBand ();
+
+    // Opens the integrity-level hole a stated intent arrives through.
+    //
+    // SEPARATE FROM InstallDragDropTarget, WHICH ALSO INSTALLS IT. That one is
+    // called only where OLE initialization succeeded, so on a machine where it
+    // did not, every intent from a normal-integrity CassoCli to an elevated
+    // Casso would be dropped by the system without a word. Installing it here
+    // as well costs a call and removes the dependency.
+    void    InstallIntentMessageFilter ();
+
+    // Asks where to save the contents of a disk whose file has gone.
+    //
+    // THE SAVE DIALOG, NOT THE DISK PICKER. The user is saving a disk here,
+    // not choosing one to mount, and the two look similar enough that reaching
+    // for the wrong one would be easy and baffling.
+    //
+    // Returns false where the user cancelled, which is the same outcome as
+    // declining: the drive is emptied either way and nothing is written.
+    bool    AskWhereToSaveLostDisk (const std::string & imagePath, std::wstring & outPath);
+
     // Reports a freshly mounted image that failed its stored checksum, with
     // salvage offered inline. Raised here rather than by the loader because a
     // dialog with an action on it is the shell's business, and EhmNotifyUser
@@ -1072,6 +1151,7 @@ private:
     unique_ptr<EmuCpu>      m_cpu;
     unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
+    bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
@@ -1186,6 +1266,28 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
+    // Non-modal notice over the running machine: a disk changed outside Casso.
+    //
+    // IT DOES NOT CLEAR ITSELF, and that is the design rather than an
+    // oversight: the action it carries is the restart, which is what the user
+    // reaches for once the program starts misbehaving, and a notice that faded
+    // would take that action with it.
+    DxuiActionBanner            m_changeBanner;
+    int                         m_changeBannerDrive = -1;
+
+    //  When the change band closes itself, and the frame that last looked.
+    //  Zero means it stands until dismissed. Hovering does not extend the
+    //  wait, it suspends it: the deadline moves with the clock while the
+    //  pointer is over the band, so what is left when the pointer leaves is
+    //  what was left when it arrived.
+    int64_t                     m_changeBannerHideAtMs = 0;
+    int64_t                     m_changeBannerTickMs   = 0;
+
+    // What each of the banner's buttons means, in the order they were drawn.
+    // The labels and the meanings are both core's; keeping the meanings beside
+    // the buttons is what stops the shell from inventing one.
+    std::vector<ChangeAction>   m_changeBannerActions;
+
     InputDeviceSelector  m_joystickButton;   // Segmented device selector
     DxuiTooltip          m_joystickTooltip;
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
@@ -1292,6 +1394,24 @@ private:
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
     ChromeBand               m_toolbarBand;
+
+    // The client width the bands were last laid out for, so the notice's
+    // height can be measured against the width it is about to be given.
+    int                      m_lastClientWidthPx = 0;
+
+    // The external-change notice's own band, docked under the toolbar.
+    //
+    // A BAND RATHER THAN AN OVERLAY, and the difference is not cosmetic. Drawn
+    // over the viewport it covered the top of the picture, took its width from
+    // a rect that follows the emulator's aspect rather than the window, and ran
+    // its text and its action off the client edge. As a band the dock gives it
+    // the client width, the Fill center shrinks by exactly its height, and the
+    // scene rescales into what is left -- the same way the //c switch strip and
+    // the drive bar already work.
+    //
+    // Zero height when nothing is being reported, so every other machine and
+    // every quiet session is laid out exactly as before.
+    ChromeBand               m_changeBand;
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;

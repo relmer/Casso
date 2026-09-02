@@ -117,6 +117,14 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   code: `rg -in 'colour|behaviour|centre|grey|initialise|optimise|analyse'`
   should return zero hits in lines you authored.
 
+  **British IDIOM is banned too, not only British spelling.** These are spelled
+  the American way letter for letter, so no spelling check will ever catch them;
+  they read like a BBC voice rather than a programmer's. Use the replacement:
+  `straight away` -> right away / immediately, `whilst` -> while,
+  `amongst` -> among, `in future` -> in the future, `different to` ->
+  different from, `have got` -> have, `sort out` -> fix, `at the weekend` ->
+  on the weekend.
+
   `cancelled` is NOT on that list: the doubled L is standard American usage
   too, merely less common than `canceled` in US style guides. Both are
   accepted here, so the checker does not flag either, which also means the
@@ -129,6 +137,57 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   (which can be stuck with a name like `ERROR_CANCELLED`) it can always be
   phrased around them. If the gate rejects your push, rephrase; do not reach
   for `--no-verify`, which switches off every rule rather than one.
+
+### Function Names
+
+A function name begins with a **verb**. `GetPrimaryExtension`, not
+`ExtensionFor`; `HasReachedCap`, not `CapReached`. A noun-first name reads as a
+value rather than an action.
+
+Approved prefixes: `Get` / `Set` for accessors and lookups, `Is` / `Has` /
+`Are` / `Can` / `Should` / `Does` / `Did` for bool queries, `Try` for fallible
+attempts, and any plain imperative verb otherwise.
+
+| Shape | Example | Becomes |
+|---|---|---|
+| lookup or accessor | `ExtensionFor`, `TrackOf`, `CellAt` | `Get...` |
+| noun-first bool query | `CapReached`, `EverTouched` | `HasReachedCap`, `HasBeenTouched` |
+| named constructor | `CassoTheme::Skeuomorphic` | `MakeSkeuomorphic` |
+
+`Make` returns a plain value that cannot fail (`MakeRect`, `MakeCrtParams`).
+`Create` hands back an owned resource, an `HRESULT`, or mutated owned state
+(`CreateCpu`, `CreateShaders`). Pick on that basis, not on taste.
+
+**Any tense of a verb already satisfies the rule.** `SawCycle`, `HitBound`,
+`ExceededLength`, `Matches` and `WritesTheImage` are verb-first and correct as
+they stand. Renaming them to `HasSeenCycle` and the like is churn, and has been
+reverted once already.
+
+**Exempt, decided rather than overlooked:**
+
+| Category | Examples |
+|---|---|
+| `OnXxx` handlers | `OnAddressMark`, `OnActivateApp` |
+| `XToY` / `XFromY` conversions | `ArgbToHsv`, `CrtModeFromJson` |
+| CPU instruction methods | `And`, `Or`, `Xor`, `NoOperation`, `RotateLeft` |
+| printer control operations | `FormFeed`, the operation's own name |
+| theme color members | `themeColor.ButtonPressed`, which reads as its value |
+| platform and library conventions | `ThreadProc`, `CliMain`, `Instance`, `Stat` |
+| matrix helpers mirroring DirectXMath | `Mul44`, `PerspectiveFovRH`, `LookAtRH` |
+| EHM framework hooks | `EhmBreakpoint`, `EhmNotifyUser` |
+
+Anything whose signature is fixed from outside is exempt for the same reason:
+Win32 callbacks, virtual overrides, and `operator` functions.
+
+**This rule is not machine-checked.** The exemptions above are why: a leading
+word is a verb or a noun depending on the name it starts, so a verb allowlist
+large enough to clear `RenderScene` also clears `FreeSpace` and `SweepLtr`,
+which are accessors. Writing new code is therefore the only place the rule gets
+applied, and skipping it here is not caught later. When auditing, run two passes
+and take the union: the leading word against a verb list, and the declaration's
+**shape**, since a `const` member function returning a value is an accessor
+whatever it is called. `docs/coding-standards-backlog.md` item 6 carries the
+method, the measured counts, and the renames still outstanding.
 
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:
@@ -689,6 +748,12 @@ in conversation.
   disks", "`--logical` speaks the numbering catalogs use". Also out:
   "answered" and "is answered with", and "grammar" where a reader wants
   "command-line parsing".
+
+  **This covers HEADINGS and chat, which is where it keeps surviving.** A
+  write, a change, an option or a build has no wants, intentions or knowledge.
+  Not "the change stated what it wanted" (2026-08-31, a section heading in
+  chat), "what the write means", "the flag knows". Describe the mechanism:
+  "the write specified reload or restart", "run with --on-change".
 - **Do not state the obvious as though it were profound.** "There is no
   default to guess with", "blocks have only one numbering, so there is
   nothing to state". Cut the sentence.

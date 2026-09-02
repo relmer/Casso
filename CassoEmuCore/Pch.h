@@ -18,6 +18,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -35,6 +36,7 @@
 #include <sstream>
 #include <span>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>

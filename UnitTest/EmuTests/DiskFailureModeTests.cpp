@@ -339,7 +339,7 @@ public:
 
         while (track != 0)
         {
-            base = Dos33Skeleton::SectorOffset (track, sector);
+            base = Dos33Skeleton::GetSectorOffset (track, sector);
 
             for (slot = 0; slot < kEntriesPerSector; slot++)
             {

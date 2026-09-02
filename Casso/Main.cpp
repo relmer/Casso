@@ -45,7 +45,8 @@ static HRESULT ParseCommandLine (
     wstring & outMachine,
     wstring & outDisk1,
     wstring & outDisk2,
-    size_t  & outTraceCapacity)
+    size_t  & outTraceCapacity,
+    bool    & outNoImageWatch)
 {
     HRESULT                              hr   = S_OK;
     int                                  argc = 0;
@@ -57,6 +58,7 @@ static HRESULT ParseCommandLine (
 
 
     outTraceCapacity = 0;
+    outNoImageWatch  = false;
 
     argv = CommandLineToArgvW (lpCmdLine, &argc);
     CWRA (argv);
@@ -77,6 +79,7 @@ static HRESULT ParseCommandLine (
     outDisk1         = TextEncoding::NarrowToWide (parsed.disk1);
     outDisk2         = TextEncoding::NarrowToWide (parsed.disk2);
     outTraceCapacity = parsed.traceEntries;
+    outNoImageWatch  = parsed.noImageWatch;
 
     LocalFree (argv);
 
@@ -448,6 +451,7 @@ int WINAPI wWinMain (
     wstring                         disk1Path;
     wstring                         disk2Path;
     size_t                          traceCapacity = 0;
+    bool                            noImageWatch  = false;
     int                             exitCode      = 0;
     bool                            userExited    = false;
     MachineConfig                   config;
@@ -520,9 +524,11 @@ int WINAPI wWinMain (
     });
 
     // Parse command line
-
-    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
+    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity,
+                           noImageWatch);
     CHR (hr);
+
+    shell->SetImageWatchDisabled (noImageWatch);
 
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or

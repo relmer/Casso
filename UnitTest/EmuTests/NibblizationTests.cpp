@@ -1100,7 +1100,7 @@ public:
         {
             for (half = 0; half < kHalvesPerBlock; half++)
             {
-                size_t  offset   = ProDosSkeleton::BlockByteOffset (block, (size_t) half * kHalfBytes);
+                size_t  offset   = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
                 int     logical  = (int) (offset / kHalfBytes);
                 int     expected = block * kHalvesPerBlock + half;
 

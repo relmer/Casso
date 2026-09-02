@@ -47,6 +47,8 @@
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
+#include "Cli/Win32IntentChannel.h"
+#include "Devices/Disk/PreservedCopy.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -81,6 +83,8 @@
 #define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
 #define WM_APP_RUN_SALVAGE     (WM_APP + 0x24)
 #define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
+#define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
+#define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
 
 // The shell the EHM notification sink forwards to. One shell per process;
 // cleared in the destructor so a late report cannot touch a dead object.
@@ -128,6 +132,35 @@ static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHe
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
 static constexpr int     s_kDriveWidgetGapDp    = 16;
+
+//  How long the change band stands before closing itself. Long enough to read
+//  twice without hurrying, short enough that a build loop does not leave a
+//  strip on the screen all afternoon.
+static constexpr int64_t s_kChangeBannerHoldMs  = 30000;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangeBannerNowMs
+//
+//  Milliseconds off the monotonic clock.
+//
+//  MONOTONIC, NOT WALL CLOCK. The band's countdown must not lurch when the
+//  system clock is corrected under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int64_t ChangeBannerNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                         std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
 static constexpr int     s_kLabelBottomGapDp    = 2;
 
 // Vertical extent (dp) of the joystick-mode button's band -- the strip
@@ -989,6 +1022,10 @@ void EmulatorShell::RegisterChromeDock()
     m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
     m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
     m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+
+    // Under the toolbar and above the picture, because a notice about the disk
+    // in the drive belongs with the controls rather than over the screen.
+    m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
@@ -1028,6 +1065,11 @@ void EmulatorShell::InitAssetPathsAndStores()
                                                    *m_userConfigStore,
                                                    m_uiFs,
                                                    m_userWriteProtect);
+
+    //  The store owns the watch lifecycle; this only decides which watcher it
+    //  gets. --no-image-watch installs one that refuses every watch, so the
+    //  check made before every write can be measured on its own.
+    m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
 }
 
 
@@ -2956,6 +2998,11 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // correctly-resolved (per-variant) theme.
     m_themeManager->SetActiveMachineName (m_config.name);
 
+    //  The notices about a changed disk mention the machine, and "the Apple"
+    //  is not what is in front of the user. Set beside the theme's copy so the
+    //  two cannot come to disagree about which machine is running.
+    m_diskStore.SetMachineName (m_config.name);
+
     hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
     if (FAILED (hrActivate))
     {
@@ -3193,6 +3240,9 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     {
         InstallDragDropTarget();
     }
+
+    InstallChangeReporting();
+    InstallIntentMessageFilter();
 
 Error:
     return hr;
@@ -3730,6 +3780,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_joystickButton);
     m_host->GetRoot().Adopt (m_switchBar);
+    m_host->GetRoot().Adopt (m_changeBanner);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -4215,6 +4266,11 @@ void EmulatorShell::SyncChromeBands()
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.ToPx (s_kNavStripBandDp) });
     m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.ToPx (m_toolbar.GetBandDp()) });
+
+    // Measured against the CLIENT width, which is what the band will be given.
+    // Measuring against the viewport is what put the text off the edge: the
+    // picture keeps its own aspect and can be wider than the window.
+    m_changeBand.SetBounds  (RECT{ 0, 0, 0, GetChangeBandThicknessPx (m_lastClientWidthPx) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (driveBandDp) });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.ToPx (switchBandDp) });
 }
@@ -4235,7 +4291,8 @@ void EmulatorShell::SyncChromeBands()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand, &m_centerBand };
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
+                               &m_driveBand, &m_switchBand, &m_centerBand };
 
 
 
@@ -4243,6 +4300,11 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     // / ribbon / icon-only), which depends on the width -- plan it BEFORE the
     // bands dock so the strip gets the right height for this window size.
     m_toolbar.PlanForWidth (widthPx, m_scaler);
+
+    //  The notice's height depends on the width it is about to be given, and
+    //  SyncChromeBands is where every band's thickness is decided -- so the
+    //  width has to be known before it runs.
+    m_lastClientWidthPx = widthPx;
 
     SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
@@ -4259,6 +4321,10 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     {
         m_toolbar.Layout (m_toolbarBand.GetBounds(), m_scaler);
     }
+
+    //  The notice rides its band the way the toolbar rides its own, so a
+    //  resize or a DPI change reflows it with everything else.
+    LayoutChangeBanner();
 
     return m_centerBand.GetBounds();
 }
@@ -4527,6 +4593,7 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
     m_viewportBoundsPx = boundsPx;
     m_d3dRenderer.SetTargetBounds (boundsPx);
     m_d3dRenderer.MarkRedrawNeeded();
+
 }
 
 
@@ -5638,7 +5705,8 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int       s_kDialogWidthDip   = 440;
+    constexpr int       s_kBaseWidthDip     = 440;
+    constexpr int       s_kMaxWidthDip      = 760;
     constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
     constexpr int       s_kMinHeightDip     = 120;
     constexpr int       s_kMaxHeightDip     = 620;
@@ -5660,6 +5728,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     std::vector<MessageDialog::Button>  buttons;
     HRESULT                             hr        = S_OK;
     int                                 heightDip = 0;
+    int                                 widthDip  = 0;
     int                                 result    = -1;
 
 
@@ -5704,12 +5773,27 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
     }
 
+    //  WIDE ENOUGH FOR ITS OWN BUTTONS. The width was a hard 440 while the
+    //  height already grew with the text, so a dialog whose buttons carry a
+    //  filename -- "Insert the modified work.dsk" -- pushed the row past the
+    //  left margin and hard against the frame with no gap at all. Measured
+    //  with the same estimate the row lays itself out with, so the two cannot
+    //  come to disagree.
+    widthDip = DxuiButtonRow::kEdgePadDip * 2;
+
+    for (const DialogButton & button : def.buttons)
+    {
+        widthDip += DxuiButtonRow::GetWidthForLabel (button.label) + DxuiButtonRow::kGapDip;
+    }
+
+    widthDip = std::clamp (widthDip - DxuiButtonRow::kGapDip, s_kBaseWidthDip, s_kMaxWidthDip);
+
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
     params.title                    = def.title;
     params.hInstance                = m_hInstance;
     params.ownerHwnd                = m_hwnd;
-    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.initialSizeDip           = { widthDip, heightDip };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -7070,6 +7154,35 @@ int EmulatorShell::RunMessageLoop()
                 continue;
             }
 
+            // A disk changed outside Casso. The store decided on the thread
+            // that owns disk writes; both of these build UI, so they land
+            // here. lParam owns a heap-allocated notice in each case.
+            if (msg.message == WM_APP_CHANGE_REPORT)
+            {
+                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    ShowChangeBanner (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
+            if (msg.message == WM_APP_CHANGE_ASK)
+            {
+                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
+
+                if (carried != nullptr)
+                {
+                    AskAboutChange (*carried);
+                    delete carried;
+                }
+
+                continue;
+            }
+
             if (msg.message == WM_APP_NOTIFY_USER)
             {
                 wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
@@ -7194,6 +7307,8 @@ bool EmulatorShell::TryPresentUiFrame()
     uint32_t driveSig                  = 0;
 
 
+
+    ExpireChangeBannerIfDue();
 
     // Copy latest framebuffer under lock, then present with vsync
     {
@@ -7802,6 +7917,36 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         case IDM_DISK_SALVAGE2:
         {
             RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            break;
+        }
+
+        case IDM_DISK_RESOLVE_CHANGE:
+        {
+            // "<slot> <drive> <action> <path>", chosen on the UI thread and
+            // carried out here, where swapping an image is safe. The path is
+            // last and takes the rest of the line, since it may contain
+            // spaces.
+            std::istringstream  reader (cmd.payload);
+            int                 slot   = 0;
+            int                 drive  = 0;
+            int                 chosen = 0;
+            std::string         savePath;
+
+            reader >> slot >> drive >> chosen;
+
+            if (!reader.fail())
+            {
+                std::getline (reader, savePath);
+
+                while (!savePath.empty() && savePath.front() == ' ')
+                {
+                    savePath.erase (savePath.begin());
+                }
+
+                m_diskStore.ResolvePendingChange (slot, drive, (ChangeAction) chosen,
+                                                  savePath);
+            }
+
             break;
         }
 
@@ -9972,6 +10117,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    //  Before the rest of the chrome: the bar sits in its own band and
+    //  overlaps nothing, so an event inside it belongs to it and to nothing
+    //  else.
+    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Down, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     chromeTook = m_joystickButton.HitTest (x, y);
 
     m_joystickButton.SetPressed (chromeTook);
@@ -10190,6 +10343,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    //  The release is what makes a button fire, so the bar has to see both
+    //  halves of the click.
+    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // Ending a pan consumes the release. The press it began with never
     // reached a widget, so letting the release run the click chain would fire
@@ -13287,3 +13447,667 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallChangeReporting
+//
+//  Gives the image store the two ways it has of reaching the user.
+//
+//  BOTH BOUNCE TO THE UI THREAD, because both are called from the thread that
+//  owns disk writes -- the store decides there, at a moment with nothing in
+//  flight -- and neither a panel-tree edit nor a modal may be built from it.
+//
+//  NEITHER SINK DECIDES ANYTHING. What to say, which answers exist and what
+//  each one means all arrive composed; the shell shows them and reports which
+//  was chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallChangeReporting()
+{
+    m_diskStore.SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    {
+        ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
+
+        if (m_hwnd == nullptr ||
+            !PostMessageW (m_hwnd, WM_APP_CHANGE_REPORT, 0, (LPARAM) carried))
+        {
+            delete carried;
+        }
+    });
+
+    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    {
+        ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
+
+        if (m_hwnd == nullptr ||
+            !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
+        {
+            delete carried;
+        }
+    });
+
+    m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_changeBanner.SetVisible  (false);
+
+    m_changeBanner.SetOnAction ([this] (size_t index)
+    {
+        //  What the button means came from core with its label. The shell
+        //  reads it back rather than assuming, so a banner that grows a second
+        //  action does not need this rewritten.
+        ChangeAction  action = (index < m_changeBannerActions.size())
+                                   ? m_changeBannerActions[index]
+                                   : ChangeAction::Ignore;
+
+        //  Dismissing it and its countdown running out are the same thing.
+        HideChangeBanner();
+
+        if (action == ChangeAction::Restart)
+        {
+            PostCommand (IDM_MACHINE_RESET);
+        }
+    });
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowChangeBanner
+//
+//  Raises the non-modal notice over the running machine.
+//
+//  NOTHING IN THE TREE HOSTED ONE BEFORE. The banner appears inside dialogs and
+//  on a settings page; over a running machine it has to be positioned against
+//  the emulator viewport and left there, which is what this does.
+//
+//  A NOTICE WITH NOTHING TO OFFER IS NOT SHOWN. The restart-already-happened
+//  report carries no action, and a strip that only says what already occurred
+//  would sit over the picture until dismissed for no gain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
+{
+    std::vector<std::wstring>  labels;
+    size_t                     i = 0;
+
+
+
+    m_changeBannerActions.clear();
+
+    for (i = 0; i < notice.prompt.answers.size(); i++)
+    {
+        labels.push_back (notice.prompt.answers[i].label);
+        m_changeBannerActions.push_back (notice.prompt.answers[i].action);
+    }
+
+    m_changeBanner.SetText    (notice.prompt.message);
+    m_changeBanner.SetActions (labels);
+
+    m_changeBannerDrive = notice.drive;
+
+    //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
+    //  the strip already on screen, and a countdown left running from the
+    //  previous one would take the new wording away early.
+    m_changeBannerHideAtMs = notice.prompt.selfDismisses
+                                 ? (ChangeBannerNowMs() + s_kChangeBannerHoldMs)
+                                 : 0;
+    m_changeBannerTickMs   = ChangeBannerNowMs();
+
+    //  Replaced rather than stacked: a standing report absorbs later changes,
+    //  so a second one re-words the strip already on screen.
+    m_changeBanner.SetVisible (!labels.empty());
+
+    if (labels.empty())
+    {
+        m_diskStore.ClearChangeReport (notice.slot, notice.drive);
+        m_changeBannerDrive = -1;
+    }
+
+    //  The band just changed height, so everything below it moves and the
+    //  picture is rescaled into what is left. Nothing here positions the
+    //  notice: the dock does, and this is the pass that runs it.
+    ReflowChromeForChangeBand();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReflowChromeForChangeBand
+//
+//  Re-docks everything after the notice appears or goes.
+//
+//  THE WINDOW KEEPS ITS SIZE. The machine-change reflow beside this one grows
+//  and shrinks the window, because a machine with no disk drives genuinely
+//  needs less of it and the user keeps that size for the session. A notice is
+//  transient: the picture gives up the height while it is up and takes it back
+//  when it goes, which is what makes the strip read as sliding in over the
+//  scene rather than shoving the window about.
+//
+//  RUN THROUGH OnSize, which is the one authoritative layout pass. A second
+//  path that re-docked some of the chrome would be a second answer to where
+//  everything goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflowChromeForChangeBand()
+{
+    RECT  client = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        return;
+    }
+
+    {
+        DxuiMessageResult  sized = OnSize (client.right - client.left,
+                                           client.bottom - client.top);
+
+        IGNORE_RETURN_VALUE (sized, DxuiMessageResult::Handled);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetChangeBandThicknessPx
+//
+//  How tall the notice's band is.
+//
+//  ZERO WHEN NOTHING IS BEING REPORTED, which is what makes this cost the
+//  ordinary session nothing: the dock hands the Fill center the whole space and
+//  every other band lands where it always did.
+//
+//  MEASURED AGAINST THE CLIENT WIDTH, because that is the width the band gets.
+//  Measuring against the emulator viewport is what put the text off the screen:
+//  the picture keeps its own aspect and can be wider than the window it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
+{
+    float  height = 0.0f;
+
+
+
+    if (!m_changeBanner.IsVisible() || clientWidthPx <= 0)
+    {
+        return 0;
+    }
+
+    height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+
+    return (int) height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutChangeBanner
+//
+//  Lays the notice into the band the dock gave it.
+//
+//  IT TAKES THE BAND'S BOUNDS RATHER THAN COMPUTING ITS OWN. The band already
+//  spans the client and already has the height this asked for, so anything
+//  computed here a second time would be a second answer to a settled question.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutChangeBanner()
+{
+    RECT  bounds = m_changeBand.GetBounds();
+
+
+
+    if (!m_changeBanner.IsVisible() || bounds.right <= bounds.left)
+    {
+        return;
+    }
+
+    m_changeBanner.Layout (bounds, m_scaler);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AskAboutChange
+//
+//  Puts the store's question to the user.
+//
+//  THE TEXT AND THE ANSWERS COME FROM CORE. This builds a dialog out of them
+//  and nothing else -- it does not decide which answers exist, what they say,
+//  or what any of them means.
+//
+//  THE ANSWER GOES BACK BY COMMAND. Acting on it swaps an image, which belongs
+//  to the thread that owns disk writes, so it travels the same route every
+//  other mount-path action does rather than being carried out here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
+{
+    DialogDefinition  def;
+    size_t            i          = 0;
+    int               choice     = 0;
+    ChangeAction      chosen     = ChangeAction::Ignore;
+    std::string       saveTarget;
+
+
+
+    if (notice.prompt.answers.empty())
+    {
+        return;
+    }
+
+    def.title = notice.prompt.title;
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { notice.prompt.message, false, std::wstring() });
+
+    for (i = 0; i < notice.prompt.answers.size(); i++)
+    {
+        bool  isLast = (i + 1 == notice.prompt.answers.size());
+
+        //  The last answer is the one that changes nothing, so it is the
+        //  default and the close-box result: dismissing a question about a
+        //  disk must not act on it.
+        def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
+                                              (int) i, isLast, isLast, false });
+    }
+
+    def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
+
+    //  THE QUESTION STANDS UNTIL IT IS ANSWERED. Saving needs a destination,
+    //  and only this thread can ask for one; but a picker the user backs out of
+    //  is not an answer to the question. It used to be taken as declining --
+    //  which on the lost-file notice is Discard, so cancelling a file dialog
+    //  threw the disk away. Now it returns to the question, and only a
+    //  completed save or an explicit other answer closes it.
+    for (;;)
+    {
+        std::wstring  savePath;
+
+        choice = ShowModalDialog (def);
+
+        if (choice < 0 || choice >= (int) notice.prompt.answers.size())
+        {
+            choice = (int) (notice.prompt.answers.size() - 1);
+        }
+
+        chosen = notice.prompt.answers[choice].action;
+
+        if (chosen != ChangeAction::PreserveCopy)
+        {
+            break;
+        }
+
+        if (AskWhereToSaveLostDisk (m_diskStore.GetSourcePath (notice.slot, notice.drive),
+                                    savePath))
+        {
+            saveTarget = fs::path (savePath).string();
+            break;
+        }
+    }
+
+    //  A path can contain spaces, so it goes last and the reader takes the
+    //  rest of the line.
+    PostCommand (IDM_DISK_RESOLVE_CHANGE,
+                 std::format ("{} {} {} {}", notice.slot, notice.drive,
+                              (int) chosen, saveTarget));
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AskWhereToSaveLostDisk
+//
+//  Where to put the contents of a disk whose file has gone.
+//
+//  SEEDED WITH THE TIMESTAMPED PRESERVED NAME, in the folder the disk came
+//  from -- `work.20260831-004512-01.dsk`, the same shape every other preserved
+//  version gets. It used to offer the ORIGINAL name, which is wrong twice: it
+//  invites the user to recreate the very file they deleted, and it makes this
+//  the one rescue in the feature whose result cannot be told from an ordinary
+//  disk by looking at the folder.
+//
+//  THEY CAN STILL TYPE ANYTHING. This is the default, not the rule.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
+                                            std::wstring & outPath)
+{
+    HRESULT                  hr        = S_OK;
+    ComPtr<IFileSaveDialog>  dialog;
+    ComPtr<IShellItem>       folderItem;
+    ComPtr<IShellItem>       item;
+    PWSTR                    pszPath   = nullptr;
+    fs::path                 original (imagePath);
+    fs::path                 folder    = original.parent_path();
+    HRESULT                  hrItem    = S_OK;
+    HRESULT                  hrFolder  = S_OK;
+    bool                     chose     = false;
+
+
+
+    static const COMDLG_FILTERSPEC   s_kFilters[] =
+    {
+        { L"Disk image", L"*.dsk;*.do;*.po;*.woz" },
+    };
+
+    hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->SetFileTypes (std::size (s_kFilters), s_kFilters);
+    CHR (hr);
+
+    if (!folder.empty())
+    {
+        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
+                                              IID_PPV_ARGS (&folderItem));
+
+        if (SUCCEEDED (hrItem))
+        {
+            //  Best-effort: an unsettable start folder just means the dialog
+            //  opens wherever the shell last left it.
+            hrFolder = dialog->SetFolder (folderItem.Get());
+            IGNORE_RETURN_VALUE (hrFolder, S_OK);
+        }
+    }
+
+    if (!original.filename().empty())
+    {
+        std::string  suggested = PreservedCopy::MakePath (
+                                     imagePath,
+                                     PreservedCopy::MakeStamp (time (nullptr)),
+                                     0);
+
+        hr = dialog->SetFileName (fs::path (suggested).filename().c_str());
+        CHR (hr);
+    }
+
+    //  A cancelled dialog returns a failure that is not a problem, so it
+    //  leaves through the same exit as everything else with `chose` false.
+    hr = dialog->Show (m_hwnd);
+    CHR (hr);
+
+    hr = dialog->GetResult (&item);
+    CHR (hr);
+
+    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
+    CHR (hr);
+
+    outPath = pszPath;
+    chose   = true;
+
+Error:
+    if (pszPath != nullptr)
+    {
+        CoTaskMemFree (pszPath);
+    }
+
+    return chose;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallIntentMessageFilter
+//
+//  Lets a stated intent cross an integrity boundary.
+//
+//  THE RECEIVER'S JOB, NOT THE SENDER'S. The filter takes the receiving window,
+//  and the sender runs inside CassoCli.exe with no window at all -- so there is
+//  nowhere else this could live.
+//
+//  THE FILTER TAKES A WINDOW MESSAGE, so it is installed for WM_COPYDATA as a
+//  whole. The registered id that distinguishes this project's messages lives in
+//  `dwData`, which the filter cannot see; it is checked in the handler instead.
+//
+//  BEST EFFORT. Where the call fails there is nothing useful to do: an intent
+//  that does not arrive falls back to asking, which is correct behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallIntentMessageFilter()
+{
+    BOOL  allowed = FALSE;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    allowed = ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
+
+    IGNORE_RETURN_VALUE (allowed, TRUE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnCopyData
+//
+//  A writing tool saying what its change to a mounted image meant.
+//
+//  THE SHELL DOES NO MATCHING. Which bay the path belongs to, whether the file
+//  actually changed, and what to do about it are all decided in core; this
+//  reads the bytes, hands them over, and returns.
+//
+//  IT RETURNS IMMEDIATELY, and it must: this runs inside the SENDER's blocking
+//  SendMessage, so anything done here is time a build spends waiting. Recording
+//  a pending change is all that happens; acting on it belongs to the thread that
+//  owns disk writes, at a moment with nothing in flight.
+//
+//  A MESSAGE FROM ANYTHING ELSE IS NOT OURS. Any process on the desktop can
+//  address a WM_COPYDATA at this window, so the registered id is checked before
+//  a single byte is read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
+{
+    const COPYDATASTRUCT *       carried    = reinterpret_cast<const COPYDATASTRUCT *> (data);
+    bool                         wellFormed = false;
+    Win32IntentChannel::Payload  payload;
+
+
+
+    UNREFERENCED_PARAMETER (sender);
+
+    if (carried == nullptr || carried->dwData != Win32IntentChannel::GetMessageId())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    wellFormed = Win32IntentChannel::Decode (reinterpret_cast<const Byte *> (carried->lpData),
+                                             (size_t) carried->cbData, payload);
+
+    //  A malformed payload is claimed rather than passed on: it carried our own
+    //  id, so it was meant for us and simply was not readable.
+    if (wellFormed)
+    {
+        m_diskStore.NoteExternalChange (payload.imagePath, payload.intent);
+    }
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HideChangeBanner
+//
+//  Closes the change band and gives its height back to the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HideChangeBanner()
+{
+    m_changeBanner.SetVisible (false);
+    m_changeBannerHideAtMs = 0;
+
+    if (m_changeBannerDrive >= 0)
+    {
+        m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
+        m_changeBannerDrive = -1;
+    }
+
+    ReflowChromeForChangeBand();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ExpireChangeBannerIfDue
+//
+//  Closes the band once its time is up.
+//
+//  HOVERING SUSPENDS THE COUNTDOWN RATHER THAN RESTARTING IT. Brushing across
+//  the strip on the way to something else should not buy it another thirty
+//  seconds, and reading it should not be interrupted. Moving the deadline
+//  along with the clock while the pointer is on it does both.
+//
+//  DRIVEN OFF THE UI FRAME rather than a timer, because the band is only worth
+//  taking away while there are frames to draw it in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ExpireChangeBannerIfDue()
+{
+    int64_t  now     = ChangeBannerNowMs();
+    int64_t  elapsed = now - m_changeBannerTickMs;
+    POINT    cursor  = {};
+    RECT     bounds  = {};
+    bool     hovered = false;
+
+
+
+    m_changeBannerTickMs = now;
+
+    if (m_changeBannerHideAtMs == 0 || !m_changeBanner.IsVisible())
+    {
+        return;
+    }
+
+    bounds = m_changeBanner.GetBounds();
+
+    if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor))
+    {
+        hovered = (cursor.x >= bounds.left && cursor.x < bounds.right
+                && cursor.y >= bounds.top  && cursor.y < bounds.bottom);
+    }
+
+    if (hovered)
+    {
+        m_changeBannerHideAtMs += elapsed;
+        return;
+    }
+
+    if (now >= m_changeBannerHideAtMs)
+    {
+        HideChangeBanner();
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OfferMouseToChangeBanner
+//
+//  Hands the message bar a mouse event.
+//
+//  IT HAS TO BE OFFERED EXPLICITLY. This shell hit-tests its chrome by name --
+//  the toolbar, the joystick selector, the //c switch strip -- rather than
+//  walking the host's panel tree, so a control that nobody asks is a control
+//  that is painted and never pressed. Measured exactly that way: the bar drew
+//  correctly, and its Dismiss did nothing.
+//
+//  ONLY WHILE IT IS UP, and only inside it. The band collapses to nothing when
+//  no notice is showing, so there is nothing to hit the rest of the time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y)
+{
+    RECT             bounds = m_changeBanner.GetBounds();
+    DxuiMouseEvent   ev     = {};
+    bool             inside = false;
+
+
+
+    if (!m_changeBanner.IsVisible())
+    {
+        return false;
+    }
+
+    inside = (x >= bounds.left && x < bounds.right
+           && y >= bounds.top  && y < bounds.bottom);
+
+    if (!inside)
+    {
+        return false;
+    }
+
+    ev.kind        = kind;
+    ev.button      = DxuiMouseButton::Left;
+    ev.positionDip = POINT { x, y };
+
+    return m_changeBanner.OnMouse (ev);
+}

@@ -5,6 +5,8 @@
 #include "NibbleImageCodec.h"
 #include "WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "ChangePrompt.h"
+#include "CommitPlan.h"
 
 
 
@@ -18,6 +20,21 @@
 
 DiskImageStore::DiskImageStore()
 {
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
+    //  Each entry learns where it lives, once, so anything holding one can
+    //  name the drive without being told.
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            m_entries[slot][drive].slot  = slot;
+            m_entries[slot][drive].drive = drive;
+        }
+    }
 }
 
 
@@ -341,6 +358,22 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
     hr = MountFromBytes (slot, drive, path, fmt, bytes, outDiagnosis);
+    CHR (hr);
+
+    //  Recorded AFTER the read and only on success, matching the command
+    //  line's read-then-stamp order. A stamp taken before the read could
+    //  describe a file the loaded bytes did not come from, and a stamp
+    //  recorded for a mount that failed would sit on an empty bay.
+    GetEntry (slot, drive).sharedState.Mount (ReadIdentity (path));
+
+    //  Mount registers the watch. It is orchestration rather than platform
+    //  work, so it lives here and not in whatever built the watcher.
+    BeginWatching (slot, drive);
+
+    //  A disk went in. The shell wires the controller and lights the door from
+    //  here rather than from the path that called Mount, so a command-line
+    //  mount and a picker mount and a machine-switch remount all react alike.
+    EmitBayChange (slot, drive, BayChange::Inserted);
 
 Error:
     return hr;
@@ -514,6 +547,7 @@ wstring DiskImageStore::FormatDamagedImageMessage (const string & path)
 ////////////////////////////////////////////////////////////////////////////////
 
 wstring DiskImageStore::FormatFlushLossMessage (const string & path,
+                                                HRESULT        reason,
                                                 const string & recoveryPath)
 {
     wstring  widePath     = fs::path (path).wstring();
@@ -527,8 +561,12 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
         widePath = L"(unknown path)";
     }
 
-    message = L"Casso could not save changes to the disk image:\n\n" + widePath +
-              L"\n\nThe file on disk is unchanged.";
+    //  The code and the system's own words for it, the same way every other
+    //  disk notice reports a failure. A notice that names no cause sends the
+    //  reader guessing, and this one used to guess for them -- wrongly.
+    message = L"Casso could not save changes to the disk image:\n\n" + widePath
+            + L"\n\nError: " + ChangePrompt::DescribeError (reason)
+            + L"\n\nThe file on disk is unchanged.";
 
     // A refusal that leaves the user with no way back to their work is only
     // half a fix, so say where the work went rather than only what failed.
@@ -540,8 +578,10 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
     }
     else
     {
-        message += L" Your recent writes were NOT persisted. If this is a .dsk, "
-                   L"try a .woz image. WOZ round-trips writes reliably.";
+        //  True and actionable, where the old text advised a format change
+        //  that cannot help a permission or disk-space failure.
+        message += L" Your recent writes have not been saved. The disk in the drive "
+                   L"still has them.";
     }
 
     return message;
@@ -612,7 +652,6 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
     bool          haveImage = entry.image != nullptr;
     bool          havePath  = !entry.path.empty();
     bool          haveName  = false;
-    bool          fileOk    = false;
     vector<Byte>  wozBytes;
 
 
@@ -643,7 +682,7 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
         }
     }
 
-    CBR (haveName);
+    CBREx (haveName, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
     if (m_flushSink)
     {
@@ -652,13 +691,29 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
     }
     else
     {
-        ofstream  file (candidate, ios::binary);
+        //  Same rule as WriteFileAtomically: the filesystem's own code for a
+        //  refusal travels out, not E_FAIL. The name was just verified free,
+        //  so CREATE_NEW is faithful and refuses a race for it rather than
+        //  overwriting whoever won.
+        std::wstring  wide     = fs::path (candidate).wstring();
+        HANDLE        file     = INVALID_HANDLE_VALUE;
+        DWORD         written  = 0;
+        DWORD         lastErr  = ERROR_SUCCESS;
+        DWORD         expected = static_cast<DWORD> (wozBytes.size());
+        BOOL          ok       = FALSE;
 
-        fileOk = file.good();
-        CBR (fileOk);
+        file = CreateFileW (wide.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CWR (file != INVALID_HANDLE_VALUE);
 
-        file.write (reinterpret_cast<const char *> (wozBytes.data()),
-                    static_cast<streamsize> (wozBytes.size()));
+        ok      = WriteFile (file, wozBytes.data(), static_cast<DWORD> (wozBytes.size()),
+                             &written, nullptr);
+        lastErr = ok ? ERROR_SUCCESS : GetLastError();
+
+        CloseHandle (file);
+
+        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
+        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
     outPath = candidate;
@@ -685,10 +740,15 @@ Error:
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry)
 {
-    HRESULT       hr         = S_OK;
-    HRESULT       hrRecovery = S_OK;
-    string        recoveryPath;
-    vector<Byte>  bytes;
+    HRESULT        hr           = S_OK;
+    HRESULT        hrRecovery   = S_OK;
+    bool           unchanged    = true;
+    bool           keptExternal = false;
+    string         recoveryPath;
+    string         preservedPath;
+    vector<Byte>   bytes;
+    vector<Byte>   external;
+    ImageIdentity  current;
 
 
 
@@ -723,6 +783,91 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // so the gate above returns before this point and the file is never
     // rewritten. The user is told at mount instead, which is earlier and is
     // where the decision actually gets made.
+    //  Immediately before committing, and whatever any watcher has or has not
+    //  reported. THIS IS THE GUARANTEE AND NOTIFICATION IS ONLY PROMPTNESS: a
+    //  missed notification, an unwatchable share, a change that arrived while
+    //  the machine was busy -- all of them end here, one stat before the write.
+    //
+    //  A BAY THAT NEVER RECORDED AN IDENTITY IS NOT CHECKED. MountFromBytes has
+    //  no file behind it, and a test that redirects reads into memory has none
+    //  either; comparing against a stat that never ran would refuse writes that
+    //  nothing has endangered.
+    if (entry.sharedState.GetIdentity().recorded)
+    {
+        current   = ReadIdentity (entry.path);
+        unchanged = entry.sharedState.GetIdentity().Matches (current);
+
+        //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
+        //  Notification failed, or the change landed while this write was
+        //  already under way, and the guest's version is about to go over a
+        //  version this store never took up.
+        //
+        //  THE FILE STAYS WITH WHOEVER CHANGED IT. The guest's version moves to
+        //  a file of its own and the bay follows it; the original keeps what
+        //  the other program wrote and is not touched here at all. The watcher
+        //  path applies exactly this rule, so one collision produces the same
+        //  two files whichever end found it. It did not use to: which version
+        //  kept the original name came down to which side was quicker.
+        if (!unchanged)
+        {
+            string   original = entry.path;
+            bool     asked    = entry.sharedState.IsAskOutstanding();
+            HRESULT  hrKeep   = S_OK;
+
+            //  Under the name the question already showed, when there is a
+            //  question. Reserving happens once, wherever it happens first.
+            preservedPath = entry.preservedPath;
+
+            hrKeep = PreserveHeldVersion (entry, preservedPath);
+
+            //  A preserve that did not happen stops the write. The image KEEPS
+            //  ITS DIRTY BIT, which is the difference between refusing and
+            //  losing: the guest's writes are still in memory and still
+            //  flushable once there is somewhere to put them.
+            //  STG_E_NOTCURRENT says precisely this -- the object changed since
+            //  it was last read.
+            keptExternal = SUCCEEDED (hrKeep);
+
+            CBRFEx (keptExternal, STG_E_NOTCURRENT,
+                    EhmNotifyUser (FormatExternalChangeMessage (original).c_str()));
+
+            //  On disk under its own name, so the bay carries nothing unsaved.
+            entry.preservedPath    = preservedPath;
+            entry.preservedWritten = true;
+
+            entry.image->SetSourceCrcMismatch (false);
+            entry.image->ClearDirty();
+
+            //  A QUESTION ALREADY ON SCREEN OWNS WHAT HAPPENS NEXT. Writing the
+            //  copy is not optional -- the guest's work would be gone otherwise
+            //  -- but moving the bay and reporting are the ANSWER's job. Doing
+            //  them here settled the matter underneath an open dialog, which
+            //  left the user being asked about a file the bay no longer had.
+            //  The copy is on disk under the name that dialog is showing, so
+            //  either answer still does what it says.
+            if (asked)
+            {
+                BAIL_OUT_IF (true, S_OK);
+            }
+
+            hrKeep = RepointBayToFile (entry.slot, entry.drive, preservedPath);
+            IGNORE_RETURN_VALUE (hrKeep, S_OK);
+
+            //  Composed from the path the bay HAD, since that is the file the
+            //  message is about and the repoint above has already moved it.
+            if (m_reportSink)
+            {
+                m_reportSink (entry.slot, entry.drive,
+                              ChangePrompt::ComposeConflictReport (original, entry.drive,
+                                                                  preservedPath));
+            }
+
+            //  Nothing is written over the original. It is not this bay's file
+            //  any more.
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
     hr = entry.image->Serialize (bytes);
 
     if (FAILED (hr))
@@ -731,12 +876,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         IGNORE_RETURN_VALUE (hrRecovery, S_OK);
     }
 
-    CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+    CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
     else if (!entry.path.empty())
     {
@@ -749,7 +894,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
         // a flush that cannot land is exactly when the session's only
         // lossless copy of the disk is the one sitting beside the original.
         hr = WriteFileAtomically (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, recoveryPath).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
 
     // The file now carries a freshly computed CRC that matches it, so the
@@ -757,6 +902,19 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // must not repeat on every later eject or power cycle.
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+
+    //  The file this store just wrote is a change to it, and without this the
+    //  next flush would find its own commit sitting where the mount-time
+    //  identity used to be and refuse itself. NOT SEPARABLE FROM THE CHECK
+    //  ABOVE: the two are one mechanism, and the first one alone breaks the
+    //  second flush of every ordinary session.
+    //
+    //  Only for a bay that had an identity to begin with, so a mount from bytes
+    //  does not acquire one by being flushed.
+    if (entry.sharedState.GetIdentity().recorded)
+    {
+        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    }
 
 Error:
     return hr;
@@ -781,39 +939,84 @@ Error:
 
 HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<Byte> & bytes)
 {
-    constexpr const char *  kTempSuffix = ".casso-tmp";
-    HRESULT                 hr          = S_OK;
-    string                  tempPath    = path + kTempSuffix;
-    bool                    hasPath     = !path.empty();
-    bool                    wroteOk     = false;
-    std::error_code         ec;
+    HRESULT           hr        = S_OK;
+    bool              hasPath   = !path.empty();
+    bool              foundFree = false;
+    unsigned          attempt   = 0;
+    string            tempPath;
+    std::error_code   ec;
+    size_t            byteCount = bytes.size();
 
 
 
     CBRAEx (hasPath, E_INVALIDARG);
 
+    //  THE NAME USED TO BE A FIXED SUFFIX AND THAT WAS A DEFECT. Two emulators
+    //  holding one image derived the same temporary from it, so each wrote into
+    //  the other's file and one of them renamed the other's bytes over the
+    //  target as its own.
+    //
+    //  CommitPlan ALREADY SOLVED THIS FOR THE COMMAND LINE, with a per-process
+    //  tag and a step past anything already sitting at the name, and its own
+    //  comment names the emulator as the side that still had the bug. A second
+    //  scheme here would be a second thing to keep right; this is the same one.
+    //
+    //  STEPPING PAST AN EXISTING NAME IS WHAT HANDLES AN ABANDONED TEMPORARY.
+    //  A writer that was killed mid-commit leaves one behind, and adopting it
+    //  would mean appending this image to the remains of somebody else's.
+    for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
     {
-        ofstream  file (tempPath, ios::binary | ios::trunc);
+        tempPath  = GetCommitTemporaryPath (path, attempt);
+        foundFree = !fs::exists (fs::path (tempPath), ec);
 
-        wroteOk = file.good();
-
-        if (wroteOk && !bytes.empty())
+        if (foundFree)
         {
-            file.write (reinterpret_cast<const char *> (bytes.data()),
-                        static_cast<streamsize> (bytes.size()));
+            break;
         }
-
-        file.close();
-
-        wroteOk = wroteOk && file.good();
     }
 
-    CBR (wroteOk);
+    CBREx (foundFree, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    //  A disk image is a few hundred KB; a payload past 4 GB is a caller bug.
+    CBRAEx (byteCount <= MAXDWORD, E_INVALIDARG);
+
+    //  THE REAL ERROR TRAVELS. This went through an ofstream and a CBR, which
+    //  turned a folder that refused the temporary, a read-only target and a
+    //  full disk all into E_FAIL -- and the save-failure notice, built to
+    //  print the code and the system's own words for it, said "0x80004005
+    //  Unspecified error" for a permission problem. CreateFileW and CWR carry
+    //  the Win32 code out whole. The write's error is captured BEFORE the
+    //  handle closes, because CloseHandle would overwrite it.
+    {
+        std::wstring  wideTemp = fs::path (tempPath).wstring();
+        HANDLE        file     = INVALID_HANDLE_VALUE;
+        DWORD         written  = 0;
+        DWORD         lastErr  = ERROR_SUCCESS;
+        DWORD         expected = static_cast<DWORD> (byteCount);
+        BOOL          ok       = TRUE;
+
+        file = CreateFileW (wideTemp.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CWR (file != INVALID_HANDLE_VALUE);
+
+        if (!bytes.empty())
+        {
+            ok      = WriteFile (file, bytes.data(), static_cast<DWORD> (bytes.size()),
+                                 &written, nullptr);
+            lastErr = ok ? ERROR_SUCCESS : GetLastError();
+        }
+
+        CloseHandle (file);
+
+        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
+        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+    }
 
     // Rename replaces an existing target, so the swap is one filesystem
-    // operation: readers see either the old file or the new one.
+    // operation: readers see either the old file or the new one. The code the
+    // filesystem gave for a refusal travels with it rather than becoming E_FAIL.
     fs::rename (tempPath, path, ec);
-    CBR (!ec);
+    CBREx (!ec, HRESULT_FROM_WIN32 (ec.value()));
 
 Error:
     if (FAILED (hr))
@@ -918,10 +1121,10 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         CHR (hr);
 
         hr = ReadImageFile (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         if (m_flushSink)
         {
@@ -932,7 +1135,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
             hr = WriteFileAtomically (entry.path, bytes);
         }
 
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
+        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         // The live image follows the file, and only once the file has
         // actually changed -- so a failed write leaves the two agreeing.
@@ -1355,9 +1558,18 @@ void DiskImageStore::Eject (int slot, int drive)
         hr = FlushEntry (entry);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        //  Before the path goes: the watch is keyed by the directory the
+        //  image sits in, and there is no finding that from a cleared path.
+        EndWatching (slot, drive);
+
         entry.image.reset();
         entry.path.clear();
         entry.mounted = false;
+        entry.sharedState.Eject();
+
+        //  The disk left. Emitted after the bay is empty, so the handler that
+        //  detaches the controller sees the post-eject state.
+        EmitBayChange (slot, drive, BayChange::Ejected);
     }
 }
 
@@ -1514,4 +1726,1355 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReadIdentity
+//
+//  What the file at `path` looks like right now.
+//
+//  THROUGH THE SEAM WHEN ONE IS INSTALLED. A test that has redirected reads and
+//  writes into memory has no file to stat, and reaching past the seam to the
+//  filesystem here would have the store checking one world and writing another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
+{
+    ImageIdentity  identity;
+
+
+
+    if (m_identityReader)
+    {
+        identity = m_identityReader (path);
+    }
+    else
+    {
+        identity = ImageIdentity::ReadFromFileSystem (path);
+    }
+
+    return identity;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetSharedState
+//
+//  What a bay knows about its image beyond the bytes.
+//
+//  NULL FOR AN OUT-OF-RANGE BAY rather than a reference to a shared empty, so a
+//  caller cannot write into a placeholder and believe it recorded something.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MountedImageState * DiskImageStore::GetSharedState (int slot, int drive)
+{
+    MountedImageState *  state = nullptr;
+
+
+
+    if (IsValidBay (slot, drive))
+    {
+        state = &GetEntry (slot, drive).sharedState;
+    }
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetSharedState  (const)
+//
+//  The same answer for a caller that only reads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const MountedImageState * DiskImageStore::GetSharedState (int slot, int drive) const
+{
+    const MountedImageState *  state = nullptr;
+
+
+
+    if (IsValidBay (slot, drive))
+    {
+        state = &GetEntry (slot, drive).sharedState;
+    }
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FormatExternalChangeMessage
+//
+//  Why a commit was refused because the file moved under it.
+//
+//  IT SAYS THE WRITES ARE STILL HELD, which is the difference between this and
+//  every other flush failure and the only thing the user actually wants to
+//  know. The image keeps its dirty bit, so the writes are in memory and a later
+//  flush still carries them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso did not save changes to the disk image:\n\n" + widePath +
+           L"\n\nThe file was changed by something else since it was mounted, and "
+           L"writing now would discard that change. Your writes are still held in "
+           L"memory and were not lost.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetNowMs
+//
+//  Milliseconds now.
+//
+//  INJECTED SO A TEST NEED NOT WAIT. The quiet period is a second, and a suite
+//  that spent one proving every coalescing rule would be a suite nobody runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DiskImageStore::GetNowMs() const
+{
+    int64_t  now = 0;
+
+
+
+    if (m_clock)
+    {
+        now = m_clock();
+    }
+    else
+    {
+        now = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                  std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    return now;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EmitBayChange
+//
+//  Tells the shell a bay's disk changed.
+//
+//  EVERY MUTATION PATH ENDS HERE. Mount, user eject, pick-up, lost file -- the
+//  door and its sounds are lit from this one call, so a new path that moves a
+//  disk cannot forget to. A null sink is a headless or test session with no
+//  drive on screen, and does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
+{
+    if (m_bayChangeSink)
+    {
+        m_bayChangeSink (slot, drive, change);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::NoteExternalChange
+//
+//  Somebody says this image changed.
+//
+//  IT RECORDS AND RETURNS. The watcher calls this from its own thread and the
+//  message channel from the UI thread, while reading an image and swapping it
+//  under a running guest belongs to the thread that owns disk writes. Doing the
+//  work here would race the emulator mid-sector.
+//
+//  A PATH NO BAY HOLDS IS NOT AN ERROR. A directory watch reports every file
+//  under it, and an intent may be stated for an image nothing has mounted; both
+//  are ordinary and both end here, silently.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent intent)
+{
+    std::lock_guard<std::mutex>  held (m_pendingMutex);
+    int64_t  now   = GetNowMs();
+    int      slot  = 0;
+    int      drive = 0;
+
+
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            Entry &  entry = m_entries[slot][drive];
+
+            if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
+            {
+                entry.sharedState.NoteChange (now, intent);
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ApplyPendingPickUp
+//
+//  Act on whatever has settled, on the thread that owns disk writes.
+//
+//  CALLED OFTEN AND DOES NOTHING ALMOST EVERY TIME. It is pumped from the
+//  controller's idle callback and from motor spindown, so the common path is a
+//  loop over sixteen bays that finds nothing pending and returns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ApplyPendingPickUp()
+{
+    int      readySlot[kSlotCount * kDriveCount]  = {};
+    int      readyDrive[kSlotCount * kDriveCount] = {};
+    int      readyCount                           = 0;
+    int      slot                                 = 0;
+    int      drive                                = 0;
+    int      i                                    = 0;
+    int64_t  now                                  = GetNowMs();
+
+
+
+    //  ONE CLOCK READING AND ONE LOCK FOR THE WHOLE WALK, not one of each per
+    //  bay. This runs sixty times a second forever, and asking the clock
+    //  sixteen times and taking the lock sixteen times cost 695 ns a call --
+    //  measured, and about a hundred times what the work itself is worth. The
+    //  snapshot below brings it back to the handful of comparisons it should be.
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        for (slot = 0; slot < kSlotCount; slot++)
+        {
+            for (drive = 0; drive < kDriveCount; drive++)
+            {
+                const Entry &  entry = m_entries[slot][drive];
+
+                if (entry.mounted
+                 && entry.image != nullptr
+                 && entry.sharedState.IsSettled (now))
+                {
+                    readySlot[readyCount]  = slot;
+                    readyDrive[readyCount] = drive;
+                    readyCount++;
+                }
+            }
+        }
+    }
+
+    //  ACTED ON OUTSIDE THE LOCK. Taking up an image reads a file and swaps a
+    //  disk; holding the pending mutex across that would block the watcher
+    //  thread for the length of a read.
+    for (i = 0; i < readyCount; i++)
+    {
+        ApplyPendingPickUpToBay (readySlot[i], readyDrive[i]);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ApplyPendingPickUpToBay
+//
+//  One bay's settled change, from noticing it to acting on it.
+//
+//  THE READ HAPPENS BEFORE THE DECISION, and that ordering is what lets the
+//  policy rank "cannot be used" above everything else: whether the new bytes
+//  can be this disk is not knowable without reading them.
+//
+//  A CHANGE THAT TURNS OUT NOT TO BE ONE IS DROPPED. A directory watch reports
+//  a write to any file in the folder and a stated intent is only a hint, so the
+//  recorded identity is what settles whether anything actually happened. This is
+//  also what stops the store's own commit from coming back as somebody else's
+//  change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
+{
+    HRESULT                            hr        = S_OK;
+    Entry                            & entry     = GetEntry (slot, drive);
+    bool                               settled   = false;
+    bool                               held      = false;
+    bool                               usable    = false;
+    bool                               unchanged = false;
+    PickUpIntent                       intent    = PickUpIntent::Unstated;
+    ChangeAction                       action    = ChangeAction::Ignore;
+    ImageIdentity                      current;
+    vector<Byte>                       bytes;
+    DiskFormat                         fmt       = DiskFormat::Dsk;
+    ExternalChangePolicy::Situation    situation;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        settled = entry.mounted
+               && entry.image != nullptr
+               && entry.sharedState.IsSettled (GetNowMs());
+        intent  = entry.sharedState.GetPending().intent;
+    }
+
+    if (!settled)
+    {
+        return;
+    }
+
+    //  Deferred rather than refused, indefinitely and silently: the pick-up
+    //  simply happens once the hold is released. Both writers in this system
+    //  commit atomically, but a text editor or a copy tool need not, and the
+    //  quiet period alone does not cover one that takes its time.
+    if (m_fileIo != nullptr && m_fileIo->IsHeldByAnotherProcess (entry.path))
+    {
+        return;
+    }
+
+    current   = ReadIdentity (entry.path);
+    unchanged = entry.sharedState.GetIdentity().Matches (current);
+
+    if (unchanged)
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+
+        return;
+    }
+
+    //  Read, and decide whether these bytes can be this disk. A trial load into
+    //  a throwaway image is the only honest answer -- the extension and the
+    //  length agree with plenty of files that will not load.
+    hr = ReadImageFile (entry.path, bytes);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = GetSourceFormatByExtension (entry.path, fmt);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        DiskImage  trial;
+
+        trial.LoadFromBytes (fmt, bytes, entry.path);
+        usable = trial.IsLoaded();
+    }
+
+    situation.changeSeen  = true;
+    situation.usable      = usable;
+    situation.heldByOther = false;
+    situation.intent      = intent;
+
+    //  The guest's unsaved writes are what turns a pick-up into a conflict.
+    //  They were deferred outright while there was nowhere to preserve them;
+    //  now there is, so the flag goes to the policy and the conflict is
+    //  resolved rather than postponed.
+    situation.guestDirty  = entry.image->IsDirty();
+
+    action = ExternalChangePolicy::Decide (situation);
+
+    //  A CONFLICT IS RESOLVED INTO AN ORDINARY CHANGE, HERE, BEFORE ANYTHING
+    //  ELSE IS DECIDED. The guest's version goes to a file of its own straight
+    //  away, which is the whole guarantee: once it is on disk nothing that
+    //  follows can lose it, and what follows is then the same decision any
+    //  external change gets.
+    //
+    //  THE FILE ALWAYS STAYS WITH WHOEVER CHANGED IT, and the guest's version
+    //  is always the one that moves. The flush path applies the same rule from
+    //  the other end, so the outcome no longer depends on which of the two
+    //  found the collision first -- it used to, and the winner was whichever
+    //  side happened to be quicker.
+    if (action == ChangeAction::Conflict)
+    {
+        hr = PreserveHeldVersion (entry, entry.preservedPath);
+
+        if (FAILED (hr))
+        {
+            //  Nothing is mounted and nothing is overwritten. The pending
+            //  change is DROPPED RATHER THAN RETRIED: retrying costs a full
+            //  image read and a failed write on every idle tick, sixty times a
+            //  second for as long as the folder stays full. The next change to
+            //  the file, or the next flush, tries again.
+            {
+                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+                entry.sharedState.ClearPending();
+            }
+
+            //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
+            //  and a notice has nowhere to put one. The bay is left with the
+            //  question outstanding so a second failure does not stack a
+            //  second dialog on the first.
+            if (m_askSink && !entry.sharedState.IsAskOutstanding())
+            {
+                entry.sharedState.SetAskOutstanding (true);
+                entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+                m_askSink (slot, drive,
+                           ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                             entry.preservedPath, hr,
+                                                             SaveFailureCause::ExternalChange));
+            }
+
+            return;
+        }
+
+        //  It is on disk under its own name now, so the bay carries nothing
+        //  unsaved and the change that follows is no longer a conflict.
+        entry.preservedWritten = true;
+
+        entry.image->ClearDirty();
+
+        situation.guestDirty = false;
+        action               = ExternalChangePolicy::Decide (situation);
+    }
+
+    //  A file that is simply gone gets its own sentence rather than sharing
+    //  one with a file that is present and unreadable.
+    if (action == ChangeAction::Unusable && !DoesPathExist (entry.path))
+    {
+        action = ChangeAction::Deleted;
+    }
+
+    //  A question nothing can answer stays pending rather than resolving itself
+    //  by default. A headless host has no way to ask, and picking one of the
+    //  answers on the user's behalf is what the fallback exists for.
+    //
+    //  ONE QUESTION AT A TIME PER BAY. Asking cannot block -- the answer comes
+    //  from another thread -- so the change is still pending on the next idle
+    //  tick, and without this the user would be asked again sixty times a
+    //  second while reading the first one.
+    if (ExternalChangePolicy::NeedsAnAnswer (action))
+    {
+        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        {
+            entry.sharedState.SetAskOutstanding (true);
+            entry.sharedState.SetAskedAction (action);
+
+            {
+                HRESULT  hrName = S_OK;
+
+                //  RESERVED, NOT JUST CALCULATED. The name shown here is the
+                //  one the copy will take whoever writes it -- this bay's own
+                //  flush may get there first, while this question is still on
+                //  screen. Working it out again at that point produced a
+                //  different name and left the dialog offering a file nobody
+                //  ever created.
+                if (entry.preservedPath.empty())
+                {
+                    hrName = FindFreePreservedPath (entry.path, entry.preservedPath);
+                    IGNORE_RETURN_VALUE (hrName, S_OK);
+                }
+
+                m_askSink (slot, drive,
+                           ChangePrompt::Compose (entry.path, drive, action,
+                                                  entry.preservedPath,
+                                                  entry.preservedWritten));
+            }
+        }
+
+        return;
+    }
+
+    CarryOutChangeAction (slot, drive, action, bytes);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ResolvePendingChange
+//
+//  The answer to a question this store asked.
+//
+//  THE BYTES ARE READ AGAIN HERE RATHER THAN KEPT FROM THE QUESTION. The user
+//  may have run two more builds while the prompt sat on the screen, and the
+//  version they mean is the one they just built -- not the one that was on disk
+//  when the question was composed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen,
+                                          const string & savePath)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+
+
+
+    if (!IsValidBay (slot, drive))
+    {
+        return;
+    }
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        entry.sharedState.SetAskOutstanding (false);
+
+        if (!entry.mounted || entry.image == nullptr)
+        {
+            return;
+        }
+
+        //  "Save as..." after a copy could not be written where this store
+        //  chose. The disk stays in the drive and the bay moves onto the file
+        //  the user picked, which is the same outcome as keeping it -- only the
+        //  folder is theirs rather than ours.
+        if (entry.sharedState.GetAskedAction() == ChangeAction::Conflict)
+        {
+            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+            {
+                vector<Byte>  held;
+
+                hr = entry.image->Serialize (held);
+
+                if (SUCCEEDED (hr))
+                {
+                    hr = WritePreserved (savePath, held);
+                }
+
+                if (FAILED (hr))
+                {
+                    //  Still nowhere to put it. The disk is untouched and the
+                    //  question stands rather than being quietly dropped.
+                    entry.sharedState.SetAskOutstanding (true);
+
+                    if (m_askSink)
+                    {
+                        m_askSink (slot, drive,
+                                   ChangePrompt::ComposeSaveFailure (
+                                       entry.path, drive, savePath, hr,
+                                       SaveFailureCause::ExternalChange));
+                    }
+
+                    return;
+                }
+
+                entry.image->ClearDirty();
+                entry.preservedPath.clear();
+
+                hr = RepointBayToFile (slot, drive, savePath);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            {
+                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+                entry.sharedState.ClearPending();
+            }
+
+            return;
+        }
+
+        //  An answer about a file that has gone is being given to a question
+        //  that no longer applies. Saving what is held and emptying the drive
+        //  is the only thing still on offer.
+        //
+        //  THE SAVE HAPPENS BEFORE THE EJECT, always. The eject is what
+        //  discards the in-memory disk, so a failure between the two must
+        //  leave the disk in the drive rather than gone from both places.
+        if (ExternalChangePolicy::IsFileLost (entry.sharedState.GetAskedAction()))
+        {
+            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+            {
+                vector<Byte>  held;
+
+                hr = entry.image->Serialize (held);
+
+                if (SUCCEEDED (hr))
+                {
+                    hr = WritePreserved (savePath, held);
+                }
+
+                //  A save the user asked for and did not get must not be
+                //  followed by throwing the only copy away.
+                if (FAILED (hr))
+                {
+                    entry.sharedState.SetAskOutstanding (true);
+
+                    if (m_askSink)
+                    {
+                        m_askSink (slot, drive,
+                                   ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                                     savePath, hr,
+                                                                     SaveFailureCause::FileLost));
+                    }
+
+                    return;
+                }
+
+                //  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED.
+                //  Serialize writes a whole image, not a fragment, so the drive
+                //  now has somewhere to live -- and emptying it would mean
+                //  handing back a complete disk and then making them go and
+                //  find it. Keeping a version during a conflict already works
+                //  this way, and one act should not have two outcomes.
+                entry.image->ClearDirty();
+
+                hr = RepointBayToFile (slot, drive, savePath);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                return;
+            }
+
+            //  Nothing was saved, so there is nothing to point at.
+            EjectLostImage (slot, drive);
+
+            return;
+        }
+
+        hr = ReadImageFile (entry.path, bytes);
+
+        //  Answering "take it up" about a file that has since gone is not the
+        //  same question any more.
+        if (FAILED (hr) && chosen != ChangeAction::Ignore)
+        {
+            chosen = ChangeAction::Deleted;
+        }
+    }
+
+    CarryOutChangeAction (slot, drive, chosen, bytes);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::CarryOutChangeAction
+//
+//  Doing what was decided.
+//
+//  ONE SHAPE WHETHER THE POLICY DECIDED IT OR THE USER DID. An answer chosen in
+//  a dialog arrives here as the same value the policy would have produced, so
+//  there is no second implementation of "take it up" that can drift from the
+//  first.
+//
+//  A REPORT IS RAISED ONCE AND ABSORBS WHAT FOLLOWS. Three builds before the
+//  developer turns back to the emulator are three pick-ups and one report: the
+//  contents taken up are always the most recent, and three reports about one
+//  disk say nothing three times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
+                                           const vector<Byte> & bytes)
+{
+    HRESULT  hr           = S_OK;
+    Entry &  entry        = GetEntry (slot, drive);
+    bool     restarted    = false;
+    bool     tookUp       = false;
+    bool     preserved    = false;
+    bool     preserveFail = false;
+    string   preservedPath;
+    //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
+    //  any of these messages are about by the time they are composed. Captured
+    //  before anything can move it.
+    string   original     = entry.path;
+
+
+
+    switch (action)
+    {
+    case ChangeAction::TakeUpInPlace:
+    case ChangeAction::Restart:
+        hr = TakeUpContents (slot, drive, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            tookUp    = true;
+            restarted = (action == ChangeAction::Restart);
+        }
+        else
+        {
+            //  The bytes passed a trial load and then failed the real one.
+            //  Nothing was swapped, so the mounted disk is untouched and the
+            //  user is told what they are still holding.
+            action = ChangeAction::Unusable;
+        }
+
+        break;
+
+    case ChangeAction::KeepHeld:
+        //  The user kept the disk that is in the drive, so it gets a file of
+        //  its own and the bay moves onto it. The original keeps whatever the
+        //  other program wrote.
+        //
+        //  WRITTEN NOW RATHER THAN AT SOME LATER FLUSH. Deferring it meant the
+        //  kept version lived only in memory: a disk the guest had not written
+        //  to was not dirty, so quitting or ejecting discarded the very thing
+        //  the user had just chosen to keep, without a word. A file on disk is
+        //  the only form of "kept" that survives.
+        //  The flush may have written it already, under the very name the
+        //  question showed. Writing again would make a second copy of the same
+        //  disk and leave the first orphaned.
+        if (!entry.preservedWritten)
+        {
+            hr = PreserveHeldVersion (entry, entry.preservedPath);
+
+            if (FAILED (hr))
+            {
+                preserveFail  = true;
+                preservedPath = entry.preservedPath;
+                break;
+            }
+
+            entry.preservedWritten = true;
+        }
+
+        preservedPath = entry.preservedPath;
+        preserved     = true;
+
+        entry.image->ClearDirty();
+
+        //  The disk in the drive is untouched by this; only the file behind it
+        //  changes. Repointing also drops the pending change, which is right:
+        //  the file it referred to is not this bay's any more.
+        hr = RepointBayToFile (slot, drive, preservedPath);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        entry.preservedPath.clear();
+        entry.preservedWritten = false;
+
+        break;
+
+    case ChangeAction::Defer:
+        //  Leave it pending. Nothing to say and nothing to clear.
+        return;
+
+    default:
+        break;
+    }
+
+    if (!preserveFail)
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+    }
+
+    //  Whatever was decided, the conflict is over: either the copy was taken
+    //  up as the bay's file or the external version went in beside it.
+    if (tookUp)
+    {
+        preservedPath = entry.preservedPath;
+        preserved     = preserved || entry.preservedWritten;
+
+        entry.preservedPath.clear();
+        entry.preservedWritten = false;
+    }
+
+    if (restarted && m_restartCallback)
+    {
+        m_restartCallback();
+    }
+
+    //  A COPY THAT COULD NOT BE WRITTEN IS A QUESTION, not a notice: it offers
+    //  somewhere else to put the file, and a notice has nowhere to put an
+    //  answer. It leaves the drive exactly as it was either way.
+    if (preserveFail)
+    {
+        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        {
+            entry.sharedState.SetAskOutstanding (true);
+            entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+            m_askSink (slot, drive,
+                       ChangePrompt::ComposeSaveFailure (original, drive, preservedPath, hr,
+                                                         SaveFailureCause::ExternalChange));
+        }
+
+        return;
+    }
+
+    //  EVERY TIME, NOT ONLY THE FIRST. The sink re-words a notice already up
+    //  for this bay rather than raising a second, so absorbing further changes
+    //  costs nothing -- and reporting only the first left the bar saying
+    //  something that had stopped being true.
+    if (m_reportSink)
+    {
+        ChangePrompt  report;
+
+        //  TAKING UP IS REPORTED AHEAD OF PRESERVING, because a conflict that
+        //  was taken up did both and the pick-up is the headline; the copy is a
+        //  clause on the end of it.
+        if (tookUp)
+        {
+            report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
+                                                        m_machineName, preservedPath);
+        }
+        else if (preserved)
+        {
+            report = ChangePrompt::ComposeConflictReport (original, drive, preservedPath);
+        }
+        else
+        {
+            report = ChangePrompt::Compose (original, drive, action);
+        }
+
+        if (!report.title.empty())
+        {
+            entry.sharedState.SetReportStanding (true);
+            m_reportSink (slot, drive, report);
+        }
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::TakeUpContents
+//
+//  Swaps a mounted image's contents for the ones on disk.
+//
+//  IT DOES NOT FLUSH, AND THAT IS THE WHOLE POINT. The ordinary remount path
+//  flushes what the bay held before loading, which here would write the old
+//  disk straight over the change that prompted the swap.
+//
+//  THE NEW BYTES LOAD INTO A FRESH IMAGE FIRST, so a load that fails leaves the
+//  mounted disk exactly as it was. The machine is running and what it holds is
+//  known-good; there is no version of this worth half-doing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> & bytes)
+{
+    HRESULT                  hr         = S_OK;
+    Entry                  & entry      = GetEntry (slot, drive);
+    SalvageAssessment        assessment;
+    HRESULT                  hrAssess   = S_OK;
+    bool                     usable     = false;
+    unique_ptr<DiskImage>    loaded     = make_unique<DiskImage> ();
+
+
+
+    loaded->LoadFromBytes (entry.format, bytes, entry.path);
+
+    usable = loaded->IsLoaded();
+    CBR (usable);
+
+    //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
+    //  to this DiskImage -- SetExternalDisk hands one over at mount -- so
+    //  replacing the unique_ptr would leave the drive reading freed memory the
+    //  instant a disk was picked up. Assigning through keeps the address the
+    //  drive was given.
+    *entry.image = std::move (*loaded);
+
+    //  The identity is refreshed from the file the bytes came from, so the
+    //  swap does not immediately look like another external change.
+    entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+
+    hrAssess             = AssessSalvage (slot, drive, assessment);
+    entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
+
+    //  The disk in the drive was replaced under the running machine. Swapped,
+    //  not Inserted: the door opens and closes rather than only closing,
+    //  because from the user's seat a disk came out and another went in.
+    EmitBayChange (slot, drive, BayChange::Swapped);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ClearChangeReport
+//
+//  The user dismissed the report for a bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ClearChangeReport (int slot, int drive)
+{
+    if (IsValidBay (slot, drive))
+    {
+        GetEntry (slot, drive).sharedState.SetReportStanding (false);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::RepointBayToFile
+//
+//  Moves a bay onto a different file. The disk in the drive does not change.
+//
+//  A SAVE-AS RATHER THAN A MOUNT. Nothing is loaded and nothing is swapped, so
+//  a guest reading the drive sees no interruption; only the file this bay will
+//  read and write from here on is different.
+//
+//  THE WATCH MOVES WITH IT, and the old file stops being this bay's business.
+//  Two disks out of one folder share a watch, so the common case of a
+//  timestamped copy beside its original costs nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & newPath)
+{
+    HRESULT  hr     = S_OK;
+    bool     usable = IsValidBay (slot, drive) && !newPath.empty();
+
+
+
+    CBR (usable);
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        CBR (entry.mounted && entry.image != nullptr);
+
+        //  Before the path moves, while EndWatching can still tell which
+        //  directory this bay was using.
+        EndWatching (slot, drive);
+
+        entry.path             = newPath;
+        entry.preservedPath.clear();
+        entry.preservedWritten = false;
+
+        //  A fresh identity for the new file, and nothing pending against the
+        //  old one. Mount is what records both.
+        entry.sharedState.Mount (ReadIdentity (newPath));
+
+        BeginWatching (slot, drive);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::BeginWatching
+//
+//  Takes up a watch on the directory holding a bay's image.
+//
+//  A DIRECTORY THAT CANNOT BE WATCHED IS RECORDED, NOT REPORTED. A network
+//  share or a synchronizing folder is exactly the case that produces one, and
+//  the guarantee does not live here: the check made before every write is what
+//  carries it, and notification only makes it prompt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::BeginWatching (int slot, int drive)
+{
+    Entry &  entry     = GetEntry (slot, drive);
+    string   directory = MountedImageState::GetDirectory (entry.path);
+    bool     watching  = false;
+
+
+
+    if (m_watcher != nullptr && !directory.empty())
+    {
+        watching = m_watcher->Watch (directory,
+                                     [this] (const string & path)
+                                     {
+                                         NoteExternalChange (path, PickUpIntent::Unstated);
+                                     });
+    }
+
+    entry.sharedState.SetWatching (watching);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EndWatching
+//
+//  Drops a bay's watch, unless another bay still needs the same directory.
+//
+//  TWO DISKS OUT OF ONE FOLDER IS THE ORDINARY CASE -- a boot disk and a work
+//  disk built by the same script -- and ejecting the first must not blind the
+//  second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EndWatching (int slot, int drive)
+{
+    Entry   & entry      = GetEntry (slot, drive);
+    string    directory  = MountedImageState::GetDirectory (entry.path);
+    bool      stillUsed  = false;
+    int       otherSlot  = 0;
+    int       otherDrive = 0;
+
+
+
+    for (otherSlot = 0; otherSlot < kSlotCount; otherSlot++)
+    {
+        for (otherDrive = 0; otherDrive < kDriveCount; otherDrive++)
+        {
+            bool  isSelf = (otherSlot == slot && otherDrive == drive);
+
+            if (!isSelf && m_entries[otherSlot][otherDrive].mounted)
+            {
+                string  other = MountedImageState::GetDirectory (m_entries[otherSlot][otherDrive].path);
+
+                stillUsed = stillUsed || MountedImageState::IsSamePath (other, directory);
+            }
+        }
+    }
+
+    if (m_watcher != nullptr && !directory.empty() && !stillUsed)
+    {
+        m_watcher->Unwatch (directory);
+    }
+
+    entry.sharedState.SetWatching (false);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::DoesPathExist
+//
+//  Whether something is already sitting at a path.
+//
+//  THROUGH THE FILE SEAM WHEN ONE IS INSTALLED, so a test that keeps its files
+//  in memory is asked about the world it actually has. Reaching past it to the
+//  filesystem would let the collision loop below hand out a name a test already
+//  used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::DoesPathExist (const string & path) const
+{
+    std::error_code  ec;
+
+
+
+    if (m_fileIo != nullptr)
+    {
+        return m_fileIo->Exists (path);
+    }
+
+    return fs::exists (fs::path (path), ec);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FindFreePreservedPath
+//
+//  A preserved-copy name nothing is sitting at yet.
+//
+//  THE LOOP IS THE POINT. A one-second timestamp cannot keep the promise that
+//  repeated conflicts accumulate rather than overwrite each other, and two
+//  conflicts on one image inside a second is exactly what a build loop makes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FindFreePreservedPath (const string & imagePath, string & outPath) const
+{
+    HRESULT  hr      = S_OK;
+    string   stamp   = PreservedCopy::MakeStamp (m_timestamp ? m_timestamp() : time (nullptr));
+    bool     isFree  = false;
+    int      attempt = 0;
+
+
+
+    for (attempt = 0; attempt < PreservedCopy::kMaxAttempts; attempt++)
+    {
+        string  candidate = PreservedCopy::MakePath (imagePath, stamp, attempt);
+
+        if (!DoesPathExist (candidate))
+        {
+            outPath = candidate;
+            isFree  = true;
+            break;
+        }
+    }
+
+    //  Ninety-nine names taken in one second is not a collision any more, it is
+    //  something else going wrong, and inventing a hundredth would not help.
+    CBR (isFree);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::WritePreserved
+//
+//  Writes a preserved copy.
+//
+//  THROUGH THE SAME SINK AS A FLUSH, so a test captures preserved copies the
+//  way it captures everything else this class writes, and so the atomic
+//  temp-then-rename applies to them too. A preserved copy that could be found
+//  half-written would be worth nothing at the moment it is needed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> & bytes)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_flushSink)
+    {
+        hr = m_flushSink (path, bytes);
+    }
+    else
+    {
+        hr = WriteFileAtomically (path, bytes);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PreserveHeldVersion
+//
+//  Writes what the bay is holding to a file of its own.
+//
+//  SERIALIZED FROM THE MOUNTED IMAGE, NOT COPIED FROM THE FILE. The entire
+//  reason this version needs preserving is that the file no longer holds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+
+
+
+    CBR (entry.image != nullptr);
+
+    hr = entry.image->Serialize (bytes);
+    CHR (hr);
+
+    //  A name already reserved is used as it is. Choosing a fresh one here is
+    //  what let a question and a flush disagree about where the copy went.
+    if (outPath.empty())
+    {
+        hr = FindFreePreservedPath (entry.path, outPath);
+        CHR (hr);
+    }
+
+    hr = WritePreserved (outPath, bytes);
+    CHR (hr);
+
+Error:
+    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
+    //  raised for a failed copy prints where it tried to write, and clearing it
+    //  here left that notice with nothing to show but an error code.
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PreserveGivenBytes
+//
+//  Writes bytes that came off the file to a file of their own.
+//
+//  THE OTHER DIRECTION. Here the emulator is about to write its own version
+//  over an external change it never picked up, so the version being displaced
+//  is the one on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
+                                            string & outPath)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = FindFreePreservedPath (entry.path, outPath);
+    CHR (hr);
+
+    hr = WritePreserved (outPath, bytes);
+    CHR (hr);
+
+Error:
+    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
+    //  raised for a failed copy prints where it tried to write, and clearing it
+    //  here left that notice with nothing to show but an error code.
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::EjectLostImage
+//
+//  Empties a bay whose file has gone.
+//
+//  IT DOES NOT FLUSH, AND THAT IS THE WHOLE DIFFERENCE FROM Eject. The ordinary
+//  eject persists a dirty image first, which here would mean writing the disk
+//  back to a path the user has just been told no longer exists -- recreating
+//  the file they deleted, or failing and reporting a second problem about the
+//  first one.
+//
+//  WHATEVER THE USER WANTED SAVED IS ALREADY SAVED by the time this runs. The
+//  offer comes first and this is what follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::EjectLostImage (int slot, int drive)
+{
+    if (!IsValidBay (slot, drive))
+    {
+        return;
+    }
+
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        EndWatching (slot, drive);
+
+        entry.image.reset();
+        entry.path.clear();
+        entry.mounted        = false;
+        entry.salvageOffered = false;
+        entry.sharedState.Eject();
+    }
+
+    //  A file that vanished empties the drive the same as a user eject, and
+    //  the door and its sound follow the same way.
+    EmitBayChange (slot, drive, BayChange::Ejected);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetCommitTemporaryPath
+//
+//  Where a commit of `path` writes before it renames.
+//
+//  ONE INVOCATION TAG FOR THE WHOLE PROCESS, taken once. Two emulators get
+//  different tags and therefore different names; two flushes inside one
+//  emulator get the same tag and are separated by the attempt counter and the
+//  existence check, which is enough because they cannot overlap -- every flush
+//  runs on the one thread that owns disk writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+string DiskImageStore::GetCommitTemporaryPath (const string & path, unsigned attempt)
+{
+    static const uint64_t  s_kInvocationTag = CommitPlan::NextInvocationTag();
+
+
+
+    return CommitPlan::GetTemporaryPath (path, s_kInvocationTag, attempt);
 }

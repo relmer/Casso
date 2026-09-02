@@ -8,13 +8,13 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Skeleton::SectorOffset
+//  Dos33Skeleton::GetSectorOffset
 //
 //  Byte offset of (track, logical sector) in the DOS 3.3-ordered buffer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t Dos33Skeleton::SectorOffset (int track, int sector)
+size_t Dos33Skeleton::GetSectorOffset (int track, int sector)
 {
     return ((size_t) track  * NibblizationLayer::kSectorsPerTrack + (size_t) sector)
          * (size_t) NibblizationLayer::kSectorByteSize;
@@ -56,7 +56,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
     std::fill (buffer.begin(), buffer.end(), (Byte) 0);
 
     // VTOC (T17 S0)
-    vtoc = SectorOffset (kVtocTrack, 0);
+    vtoc = GetSectorOffset (kVtocTrack, 0);
 
     buffer[vtoc + kVtocOffCatalogTrack]   = (Byte) kVtocTrack;
     buffer[vtoc + kVtocOffCatalogSector]  = (Byte) kCatalogFirstSector;
@@ -82,7 +82,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
     // Catalog chain (T17 S15 -> S1)
     for (sector = kCatalogFirstSector; sector >= 1; sector--)
     {
-        size_t  cat = SectorOffset (kVtocTrack, sector);
+        size_t  cat = GetSectorOffset (kVtocTrack, sector);
 
         if (sector > 1)
         {
@@ -114,7 +114,7 @@ HRESULT Dos33Skeleton::InstallDos (vector<Byte> & buffer, const vector<Byte> & m
     HRESULT  hr          = S_OK;
     size_t   bufferBytes = buffer.size();
     size_t   masterBytes = masterSectors.size();
-    size_t   dosBytes    = SectorOffset (kDosImageTracks, 0);
+    size_t   dosBytes    = GetSectorOffset (kDosImageTracks, 0);
 
 
 
@@ -176,11 +176,11 @@ HRESULT Dos33FileWriter::WriteHello (vector<Byte> & buffer)
 
     CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
 
-    catalog = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack,
-                                           Dos33Skeleton::kCatalogFirstSector);
-    tsList  = Dos33Skeleton::SectorOffset (kFileTrack, kTsListSector);
-    data    = Dos33Skeleton::SectorOffset (kFileTrack, kDataSector);
-    bitmap  = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+    catalog = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack,
+                                              Dos33Skeleton::kCatalogFirstSector);
+    tsList  = Dos33Skeleton::GetSectorOffset (kFileTrack, kTsListSector);
+    data    = Dos33Skeleton::GetSectorOffset (kFileTrack, kDataSector);
+    bitmap  = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack, 0)
             + (size_t) Dos33Skeleton::kVtocOffFreeBitmap + (size_t) kFileTrack * 4;
 
     // Catalog entry: TS-list location, type, padded name, sector count 2.

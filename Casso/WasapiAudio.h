@@ -75,7 +75,7 @@ private:
     // down and arms the throttled re-open in SubmitFrame. An expected
     // runtime condition, never an assert.
     void     NoteEndpointLoss (HRESULT hrLoss);
-    int64_t  NowMs            () const;
+    int64_t  GetNowMs         () const;
 
     // PUMP THREAD's half of that: record the FIRST failing hr and let the
     // pump stop. A later failure must not overwrite it, or the reason the

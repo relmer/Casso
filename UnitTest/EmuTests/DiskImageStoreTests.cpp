@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Devices/Disk/NibbleImageCodec.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -388,7 +389,12 @@ public:
         vector<Byte>              raw     = MakeDsk (0);
         HRESULT                   hr      = S_OK;
 
-        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+        //  The sink fails the way a folder that refuses the file does, so the
+        //  notice has a real code to carry.
+        store.SetFlushSink ([] (const string &, const vector<Byte> &)
+        {
+            return HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+        });
 
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
@@ -399,6 +405,16 @@ public:
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
         Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
             L"the notification must identify the image that failed to save");
+
+        //  AND SAY WHY. It named no cause and then advised switching to .woz,
+        //  which cannot help a permission failure. The code and the system's
+        //  words for it are what the reader can act on.
+        Assert::IsTrue   (s_flushNotifyLast.find (L"0x80070005") != wstring::npos,
+            L"the notice prints the failure code");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"Access is denied") != wstring::npos,
+            L"and the system's own words for it");
+        Assert::IsTrue   (s_flushNotifyLast.find (L".woz") == wstring::npos,
+            L"and no longer prescribes a format change for a permission problem");
     }
 
     TEST_METHOD (FlushError_nibbleImage_reportsWritesItCouldNotPersist)
@@ -778,7 +794,7 @@ public:
 
         Assert::AreEqual (size_t (2048), ReadBackAll (target).size(),
             L"the target must hold the new bytes, not the stale ones");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"a successful write must not leave its temp file behind");
 
         fs::remove (target, ec);
@@ -801,8 +817,16 @@ public:
 
         Assert::IsTrue (FAILED (hr),
             L"an impossible write must report failure, not succeed silently");
+
+        //  AND IT REPORTS WHICH FAILURE. This came back as E_FAIL, so the
+        //  save-failure notice -- built to print the code and the system's own
+        //  words for it -- said "Unspecified error" for a folder that refused
+        //  the file. The second assertion is the one that would have caught it.
+        Assert::AreEqual ((int) HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND), (int) hr,
+            L"the system's own code for a folder that is not there");
+        Assert::IsTrue (hr != E_FAIL, L"never the code that says nothing");
         Assert::IsFalse (fs::exists (target), L"no partial target may be left behind");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"no temp file may be left behind on failure");
     }
 
@@ -826,7 +850,7 @@ public:
 
         Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize), ReadBackAll (target).size(),
             L"a real-file flush must write a full-size image");
-        Assert::IsFalse (fs::exists (target.string() + ".casso-tmp"),
+        Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"the flush must not leave its temp file beside the image");
 
         fs::remove (target, ec);
@@ -1660,8 +1684,25 @@ public:
 
         Assert::IsTrue (message.find (L"C:\\disks\\Notes.txt") != wstring::npos,
             L"the message must identify the file the user picked");
-        Assert::IsTrue (message.find (L".woz") != wstring::npos,
-            L"a name no loader claims earns the list of names they do");
+
+        //  Every container the tool advertises, read off the same table the
+        //  tool reads -- a name added there and left out here is exactly the
+        //  drift this used to have, when the sentence named four of five.
+        {
+            size_t  count = 0;
+            const DiskCommandRunner::ContainerName *  names =
+                DiskCommandRunner::GetAdvertisedContainers (count);
+
+            Assert::IsTrue (count >= 5, L"the table is not shorter than what shipped");
+
+            for (size_t i = 0; i < count; i++)
+            {
+                wstring  dotted = L"." + wstring (names[i].name, names[i].name + strlen (names[i].name));
+
+                Assert::IsTrue (message.find (dotted) != wstring::npos,
+                    (L"the refusal must name " + dotted).c_str());
+            }
+        }
     }
 
 

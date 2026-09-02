@@ -3,8 +3,14 @@
 #include "Pch.h"
 
 #include "DiskImage.h"
+#include "MountedImageState.h"
+#include "ChangePrompt.h"
+#include "PreservedCopy.h"
+#include "IImageWatcher.h"
+#include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
 #include "NibblizationLayer.h"
+#include "BayChange.h"
 
 
 
@@ -80,8 +86,16 @@ struct SalvageAssessment
 class DiskImageStore
 {
 public:
-    using FlushSink   = std::function<HRESULT (const string &, const vector<Byte> &)>;
-    using ImageReader = std::function<HRESULT (const string &, vector<Byte> &)>;
+    using FlushSink      = std::function<HRESULT (const string &, const vector<Byte> &)>;
+    using ImageReader    = std::function<HRESULT (const string &, vector<Byte> &)>;
+
+    //  How the store learns what a file looks like right now.
+    //
+    //  A THIRD SEAM BESIDE THE OTHER TWO, and for their reason: a test that has
+    //  redirected reads and writes into memory has no file to stat, so without
+    //  it the staleness gate below would compare a recorded identity against a
+    //  missing one and refuse every flush.
+    using IdentityReader = std::function<ImageIdentity (const string &)>;
 
     static constexpr int   kSlotCount  = 8;
     static constexpr int   kDriveCount = 2;
@@ -169,6 +183,127 @@ public:
     //  read-modify-write cycle without a real file.
     void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
 
+    //  Replaces the filesystem stat behind the mount-time record and the
+    //  pre-commit re-check.
+    void          SetIdentityReader (IdentityReader reader) { m_identityReader = std::move (reader); }
+
+    //  Where notification comes from. The shell builds the platform watcher and
+    //  hands it over; REGISTERING AND DROPPING WATCHES IS THIS CLASS'S JOB,
+    //  because mount-registers-a-watch is orchestration and orchestration is
+    //  testable. Caller-owned and may be null, which is a session with no
+    //  notification -- the check before every write still holds.
+    void          SetImageWatcher (IImageWatcher * watcher) { m_watcher = watcher; }
+
+    //  Where "is somebody else writing this right now" is answered. Optional:
+    //  without it a pick-up cannot be deferred for a third-party writer, and
+    //  the quiet period is the only debounce.
+    void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
+
+    //  The machine as the user knows it, for the notices that mention it.
+    //  "Apple //e" rather than "the Apple", which is not what is in front of
+    //  them. Empty is allowed and the notices fall back to "the machine".
+    void          SetMachineName (const string & name) { m_machineName = name; }
+
+    //  Restarting the machine.
+    //
+    //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
+    //  machine lifecycle directly is a layering inversion; the decision stays
+    //  here and the action belongs to the shell.
+    void          SetMachineRestartCallback (std::function<void ()> cb) { m_restartCallback = std::move (cb); }
+
+    //  Showing a report that does not block the machine. Given the bay it is
+    //  about and everything to draw.
+    //
+    //  THE SINK REPLACES, IT DOES NOT APPEND. A report is emitted for every
+    //  change acted on, and a notice already up for that bay is re-worded
+    //  rather than joined by a second one. Emitting only the first would keep
+    //  one notice at the cost of it going stale: measured, a `reload` followed
+    //  by a `reboot` left the bar still advising a reboot that had already
+    //  happened.
+    using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+
+    void          SetChangeReportSink (ReportSink sink) { m_reportSink = std::move (sink); }
+
+    //  Putting a question to the user.
+    //
+    //  IT ASKS AND RETURNS NOTHING. Asking happens on the thread that owns disk
+    //  writes and answering on the one that owns the screen, so a sink that
+    //  returned the answer would have to block the machine while the user read
+    //  it. The answer comes back through ResolvePendingChange instead.
+    //
+    //  Null means nothing can answer, and a change that needs an answer stays
+    //  pending rather than resolving itself by default.
+    using AskSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+
+    void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
+
+    //  A bay's disk changed, and the shell should react: re-point the
+    //  controller, re-apply write protection, log the debug event, and drive
+    //  the door and its sounds.
+    //
+    //  ONE SIGNAL FOR EVERY PATH. A mount, a user eject, a pick-up, a file that
+    //  vanished -- each ends here, so the door and the speaker are lit from one
+    //  place rather than from every path that can move a disk. The store knows
+    //  when a bay changed; what to do about it on screen is the shell's, and a
+    //  fake sink lets a test assert the store fired without a drive on screen.
+    //
+    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where every path that can
+    //  change a bay already runs. The handler does its controller and audio
+    //  work there, exactly as the mount path did before this was central.
+    using BayChangeSink = std::function<void (int slot, int drive, BayChange change)>;
+
+    void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
+
+    //  The user answered a question this store asked.
+    //
+    //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
+    //  can swap an image. The shell routes it there rather than acting on the
+    //  UI thread where the answer arrived.
+    //
+    //  `savePath` IS WHERE THE USER CHOSE TO PUT THE IN-MEMORY COPY, and is
+    //  meaningful only for an answer of PreserveCopy. Choosing it is a file
+    //  dialog, which only the shell can raise, so the path arrives with the
+    //  answer rather than being asked for from here.
+    void          ResolvePendingChange (int slot, int drive, ChangeAction chosen,
+                                        const string & savePath = string());
+
+    //  Where "now" comes from, in milliseconds, so the quiet period can be
+    //  swept in a test without waiting for one.
+    void          SetClock (std::function<int64_t ()> clock) { m_clock = std::move (clock); }
+
+    //  Where the wall-clock time in a preserved copy's NAME comes from.
+    //
+    //  A SECOND SEAM RATHER THAN A CONVERSION OF THE FIRST. The quiet period
+    //  needs a monotonic count of milliseconds and a filename needs a calendar
+    //  date; deriving one from the other would tie a timer to the user's clock
+    //  changing under it.
+    void          SetTimestampSource (std::function<time_t ()> source) { m_timestamp = std::move (source); }
+
+    //  A change was noticed, from a watcher or stated by a writer.
+    //
+    //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
+    //  runs on its own thread and the message channel on the UI thread, while
+    //  acting on a change belongs to the thread that owns disk writes.
+    void          NoteExternalChange (const string & path, PickUpIntent intent);
+
+    //  Act on whatever has settled. Called on the CPU thread at a moment with
+    //  no disk operation in flight.
+    void          ApplyPendingPickUp ();
+
+    //  The user dismissed the standing report for a bay.
+    void          ClearChangeReport (int slot, int drive);
+
+    //  What a bay knows about its image beyond the bytes: the identity read at
+    //  mount, any change noticed since, and whether a report stands. Null for
+    //  an out-of-range bay.
+    //
+    //  Exposed rather than wrapped, because everything built above the store --
+    //  the watch wiring, the banner, the prompt -- asks these questions of a
+    //  bay, and a dozen forwarding accessors would put one piece of state
+    //  behind two names.
+    MountedImageState *        GetSharedState (int slot, int drive);
+    const MountedImageState *  GetSharedState (int slot, int drive) const;
+
     static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
     //  Whether `path`'s extension names a container this build can actually
@@ -202,6 +337,15 @@ public:
     //  the failure paths are filesystem states, not emulator states.
     static HRESULT  WriteFileAtomically (const string & path, const vector<Byte> & bytes);
 
+    //  The temporary a commit of `path` would write through, for a test that
+    //  needs to know a commit left nothing behind -- or that two of them chose
+    //  different names.
+    //
+    //  PUBLIC BECAUSE THE NAME IS PART OF THE CONTRACT NOW. It used to be a
+    //  fixed suffix three tests could spell for themselves; it cannot be, so
+    //  asking is the only way to stay right about it.
+    static string   GetCommitTemporaryPath (const string & path, unsigned attempt);
+
     //  Reads a whole file into `bytes`. The read counterpart of the write
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
@@ -233,11 +377,45 @@ private:
         //  Answering it needs a full decode for a damaged disk, which is far
         //  too much work to repeat every time a menu is drawn.
         bool                   salvageOffered = false;
+
+        //  What this bay knows about the file behind it. Set at mount, cleared
+        //  at eject, refreshed after every commit this store makes.
+        MountedImageState      sharedState;
+
+        //  The name the guest's version goes under, and whether it is there
+        //  yet.
+        //
+        //  RESERVED BEFORE IT IS WRITTEN, and that separation is the point. A
+        //  question tells the user the name it WOULD take, and the flush path
+        //  may then write the copy while that question is still on screen. If
+        //  the two worked it out independently they produced different names,
+        //  and the dialog ended up offering a file that was never created --
+        //  measured, five seconds apart. Reserving it once means whoever writes
+        //  it writes the name the user was already shown.
+        string                 preservedPath;
+        bool                   preservedWritten = false;
+
+        //  Which bay this is.
+        //
+        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  Every message about a disk names the drive it is in, and threading
+        //  a pair of ints through five call sites to reach one function is a
+        //  worse answer than the entry knowing where it lives.
+        int                    slot    = 0;
+        int                    drive   = 0;
     };
 
     // Every public accessor takes a caller-supplied slot/drive pair, so each
     // one range-checks before GetEntry() indexes the fixed array.
     static bool   IsValidBay        (int slot, int drive);
+
+    //  Moves a mounted bay onto a different file without disturbing the disk
+    //  in it. The image, and everything the guest can observe, is untouched;
+    //  what changes is which file the bay reads and writes from here on.
+    //
+    //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
+    //  sees nothing at all.
+    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
 
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
@@ -261,9 +439,16 @@ private:
     // handed to CHRN/CBRN in FlushEntry on a genuine persist failure. When a
     // recovery image was written, its path is named so the user can retrieve
     // the session rather than only being told what was lost.
+    //
+    //  `reason` IS PRINTED, code and system text both. The notice used to name
+    //  no cause at all and then advise switching to .woz, which is wrong
+    //  advice for a folder that refused the write; the system's own words for
+    //  the failure are the useful part.
+    //
     //  recoveryPath is optional: the write-protect path has no recovery copy
     //  to name, and the message says something useful either way.
     static wstring FormatFlushLossMessage (const string & path,
+                                           HRESULT        reason,
                                            const string & recoveryPath = string());
 
     // Preserves an image that could not be serialized to its own format,
@@ -282,8 +467,100 @@ private:
     // original is untouched -- which is the thing the user will worry about.
     static wstring FormatSalvageFailedMessage (const string & path);
 
-    Entry        m_entries[kSlotCount][kDriveCount];
-    FlushSink    m_flushSink;
-    ImageReader  m_imageReader;
-    string       m_emptyPath;
+    //  The identity `path` has right now: through the seam when one is
+    //  installed, and from the filesystem when none is.
+    ImageIdentity  ReadIdentity (const string & path) const;
+
+    //  Why a commit was refused because the file changed underneath it. Names
+    //  the image, and says the writes are still held rather than lost, which is
+    //  the part the user will worry about.
+    static wstring FormatExternalChangeMessage (const string & path);
+
+    //  Everything one bay's settled change leads to.
+    void           ApplyPendingPickUpToBay (int slot, int drive);
+
+    //  Carries out what was decided. Split from deciding so the decision has
+    //  one shape whether it came from the policy or from the user.
+    void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
+                                         const vector<Byte> & bytes);
+
+    //  Writes what the bay currently holds to a preserved copy beside the
+    //  original, and reports where it went.
+    //
+    //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
+    //  point of preserving it is that the file no longer holds this version.
+    HRESULT        PreserveHeldVersion (Entry & entry, string & outPath);
+
+    //  Writes bytes that came off the file to a preserved copy, for the other
+    //  direction: the emulator is about to write over an external change it
+    //  never saw.
+    HRESULT        PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
+                                       string & outPath);
+
+    //  A preserved-copy path nothing is sitting at yet.
+    //
+    //  THE COLLISION LOOP IS NOT OPTIONAL. Two conflicts on one image inside a
+    //  second is exactly what a build loop produces, and a one-second stamp
+    //  cannot keep the accumulate-rather-than-overwrite promise on its own.
+    HRESULT        FindFreePreservedPath (const string & imagePath, string & outPath) const;
+
+    //  Whether something is already at `path`, through the file seam when one
+    //  is installed and through the filesystem when none is.
+    bool           DoesPathExist (const string & path) const;
+
+    //  Writes bytes to a path, through the flush sink when one is installed so
+    //  a test captures preserved copies the same way it captures flushes.
+    HRESULT        WritePreserved (const string & path, const vector<Byte> & bytes);
+
+    //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
+    //  ordinary eject flushes first, which here would either fail or write the
+    //  disk back to a path the user has just been told no longer exists.
+    void           EjectLostImage (int slot, int drive);
+
+    //  Replaces a mounted image's contents WITHOUT flushing what it held.
+    //
+    //  A FLUSH HERE WOULD WRITE THE OLD DISK OVER THE NEW FILE, which is the
+    //  precise loss this feature exists to prevent. The new bytes are loaded
+    //  into a fresh image first, so a load that fails leaves the mounted disk
+    //  exactly as it was.
+    HRESULT        TakeUpContents (int slot, int drive, const vector<Byte> & bytes);
+
+    //  Registers and drops the watch on a bay's directory.
+    //
+    //  A DIRECTORY IS DROPPED ONLY WHEN NO OTHER BAY STILL NEEDS IT. Two disks
+    //  out of one folder are ordinary, and ejecting the first must not blind
+    //  the second.
+    void           BeginWatching (int slot, int drive);
+    void           EndWatching   (int slot, int drive);
+
+    //  Milliseconds now, through the injected clock when one is installed.
+    int64_t        GetNowMs () const;
+
+    //  Tells the shell a bay's disk changed, when a sink is installed. The one
+    //  chokepoint every mutation path calls, so the door and its sounds cannot
+    //  be lit from a path that forgot to.
+    void           EmitBayChange (int slot, int drive, BayChange change);
+
+    Entry                    m_entries[kSlotCount][kDriveCount];
+    FlushSink                m_flushSink;
+    ImageReader              m_imageReader;
+    IdentityReader           m_identityReader;
+    string                   m_emptyPath;
+
+    IImageWatcher *          m_watcher  = nullptr;
+    IDiskFileIo *            m_fileIo   = nullptr;
+
+    std::function<void ()>   m_restartCallback;
+    string                   m_machineName;
+    ReportSink               m_reportSink;
+    AskSink                  m_askSink;
+    BayChangeSink            m_bayChangeSink;
+    std::function<int64_t ()>  m_clock;
+    std::function<time_t ()>   m_timestamp;
+
+    //  Guards the pending records alone. A watcher thread records a change
+    //  while the CPU thread reads it, and those two fields are the whole of
+    //  what crosses between them -- the image, the path and the identity are
+    //  touched only by the thread that owns disk writes.
+    mutable std::mutex       m_pendingMutex;
 };

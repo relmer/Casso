@@ -55,24 +55,17 @@ touched a disk image. 026 closed that gap (merge `0afa7359`).
 
 ## Who is where
 
-**Nothing is held right now.** 027 shipped in 1.22.0 (merge `322de943`), which
-released the seven disk files it had been holding.
+**Concurrency only: which files another session is holding right now.** Not what
+a spec contains, not how far along it is, and not whether it merged --
+`specs/<name>/tasks.md` carries the first two and `git log` carries the third.
+An index of specs lived here and went stale three times in one session: it still
+called 027 unmerged after 1.22.0 had shipped it, which sent a session off to
+merge work already on master. A list kept true by hand is a list that will lie.
 
 **"Did it ship" is not "is the branch an ancestor of master".** A feature branch
 usually gains commits AFTER its merge, so `git merge-base --is-ancestor
 origin/<branch> origin/master` answers no for work that shipped. Ask whether the
 merge commit or the code is on master instead.
-
-**Open specs**, each to be picked up in its own session. Read the spec itself
-for detail; this is an index, not a status report.
-
-| Spec | Blocked by |
-|---|---|
-| 021 disk manager | nothing; 020 shipped |
-| 022 disk image formats | 021; large media on GH #101 / #93 |
-| 023 ca65 dialect | nothing; full compatibility needs a linker (GH #58) |
-| 025 game compat patcher | nothing; builds on unmerged `game-patch-table` |
-| per-slot card config (GH #124) | not yet written |
 
 <!-- SPECKIT START -->
 <!-- SPECKIT END -->

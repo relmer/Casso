@@ -35,8 +35,8 @@ public:
 
     //  Byte offset of (track, logical sector) in the DOS 3.3-ordered buffer.
     //  Public so the volume reader, the file writer, and the tests all address
-    //  sectors the same single way -- matching ProDosSkeleton::BlockByteOffset.
-    static size_t   SectorOffset (int track, int sector);
+    //  sectors the same single way -- matching ProDosSkeleton::GetBlockByteOffset.
+    static size_t   GetSectorOffset (int track, int sector);
 
 private:
     //  DOS 3.3 on-disk geometry (Beneath Apple DOS ch. 4). The VTOC lives at

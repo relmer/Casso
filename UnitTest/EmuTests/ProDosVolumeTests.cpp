@@ -75,7 +75,7 @@ public:
 
     static Byte At (const vector<Byte> & buffer, int block, size_t offset)
     {
-        return buffer[ProDosSkeleton::BlockByteOffset (block, offset)];
+        return buffer[ProDosSkeleton::GetBlockByteOffset (block, offset)];
     }
 
     static Word WordAt (const vector<Byte> & buffer, int block, size_t offset)
@@ -104,7 +104,7 @@ public:
         {
             for (offset = 0; offset < 512; offset++)
             {
-                size_t  at = ProDosSkeleton::BlockByteOffset (block, offset);
+                size_t  at = ProDosSkeleton::GetBlockByteOffset (block, offset);
 
                 Assert::IsTrue (at < (size_t) NibblizationLayer::kImageByteSize);
                 Assert::AreEqual ((char) 0, seen[at]);
@@ -363,8 +363,8 @@ public:
 
         Assert::IsTrue (outSharedBlock != 0, L"the fixture must have a second data block to share");
 
-        vol[ProDosSkeleton::BlockByteOffset (keyA, 1)] = (Byte) (outSharedBlock & 0xFF);
-        vol[ProDosSkeleton::BlockByteOffset (keyA, 1 + kPointersPerIndex)] =
+        vol[ProDosSkeleton::GetBlockByteOffset (keyA, 1)] = (Byte) (outSharedBlock & 0xFF);
+        vol[ProDosSkeleton::GetBlockByteOffset (keyA, 1 + kPointersPerIndex)] =
             (Byte) (outSharedBlock >> 8);
 
         outSurvivorBytes = b;
@@ -384,8 +384,8 @@ public:
 
         key = KeyPointerOf (vol, 2, 1);
 
-        vol[ProDosSkeleton::BlockByteOffset (key, 1)]                     = 0xF4;   // 500
-        vol[ProDosSkeleton::BlockByteOffset (key, 1 + kPointersPerIndex)] = 0x01;
+        vol[ProDosSkeleton::GetBlockByteOffset (key, 1)]                     = 0xF4;   // 500
+        vol[ProDosSkeleton::GetBlockByteOffset (key, 1 + kPointersPerIndex)] = 0x01;
 
         return vol;
     }
@@ -499,7 +499,7 @@ public:
     TEST_METHOD (Reader_KeyPointerOutsideTheVolume_IsRefusedNotFollowed)
     {
         // Block numbers index straight into the sector buffer through
-        // BlockByteOffset, which multiplies out without checking anything, so a
+        // GetBlockByteOffset, which multiplies out without checking anything, so a
         // block past the volume does not read wrong data -- it reads past the
         // end of the buffer entirely. Block 60000 lands roughly 30 MB beyond a
         // 140 KB image.
@@ -517,7 +517,7 @@ public:
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "VICTIM", 0x06, 0x2000, payload));
 
         // Point the entry's key block far outside the volume.
-        entryAt = ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x27 + 0x11);
+        entryAt = ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x27 + 0x11);
 
         vol[entryAt]     = 0x60;
         vol[entryAt + 1] = 0xEA;   // 60000
@@ -542,12 +542,12 @@ public:
 
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "VICTIM", 0x06, 0x2000, payload));
 
-        entryAt  = ProDosSkeleton::BlockByteOffset (2, 0x04 + 0x27 + 0x11);
+        entryAt  = ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x27 + 0x11);
         keyBlock = (Word) (vol[entryAt] | (vol[entryAt + 1] << 8));
 
         // First data pointer in the index block -> outside the volume.
-        vol[ProDosSkeleton::BlockByteOffset (keyBlock, 0)]       = 0x60;
-        vol[ProDosSkeleton::BlockByteOffset (keyBlock, 0 + 256)] = 0xEA;
+        vol[ProDosSkeleton::GetBlockByteOffset (keyBlock, 0)]       = 0x60;
+        vol[ProDosSkeleton::GetBlockByteOffset (keyBlock, 0 + 256)] = 0xEA;
 
         AssertFailed (ProDosReader::ExtractFile (vol, "VICTIM", readBack, fileType, auxType));
     }
@@ -685,8 +685,8 @@ public:
         Word          auxType  = 0;
 
         // Key block 2's next pointer -> itself.
-        vol[ProDosSkeleton::BlockByteOffset (2, 0x02)]     = 0x02;
-        vol[ProDosSkeleton::BlockByteOffset (2, 0x02 + 1)] = 0x00;
+        vol[ProDosSkeleton::GetBlockByteOffset (2, 0x02)]     = 0x02;
+        vol[ProDosSkeleton::GetBlockByteOffset (2, 0x02 + 1)] = 0x00;
 
         AssertFailed (ProDosReader::ExtractFile (vol, "NOSUCH", readBack, fileType, auxType));
     }
@@ -701,7 +701,7 @@ public:
 
         for (i = 0; i < 1024; i++)
         {
-            users[ProDosSkeleton::BlockByteOffset ((int) (i / 512), i % 512)] =
+            users[ProDosSkeleton::GetBlockByteOffset ((int) (i / 512), i % 512)] =
                 (Byte) ((i * 13 + 1) & 0xFF);
         }
 
@@ -738,7 +738,7 @@ public:
         // Boot blocks 0-1 copied verbatim.
         for (i = 0; i < 1024; i++)
         {
-            size_t  at = ProDosSkeleton::BlockByteOffset ((int) (i / 512), i % 512);
+            size_t  at = ProDosSkeleton::GetBlockByteOffset ((int) (i / 512), i % 512);
 
             if (vol[at] != users[at])
             {
@@ -791,7 +791,7 @@ public:
     //  Volume bitmap: MSB of byte 0 is block 0, a SET bit means free.
     static void MarkFree (vector<Byte> & vol, uint32_t block, bool isFree)
     {
-        size_t  at   = ProDosSkeleton::BlockByteOffset (6, (size_t) (block / 8));
+        size_t  at   = ProDosSkeleton::GetBlockByteOffset (6, (size_t) (block / 8));
         Byte    mask = (Byte) (0x80 >> (block % 8));
 
         vol[at] = isFree ? (Byte) (vol[at] | mask) : (Byte) (vol[at] & ~mask);
@@ -1013,7 +1013,7 @@ public:
 
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, MakePattern (600)));
 
-        accessAt = ProDosSkeleton::BlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
+        accessAt = ProDosSkeleton::GetBlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
 
         // Write-enable set, destroy-enable clear.
         vol[accessAt] = 0x43;
@@ -1042,7 +1042,7 @@ public:
 
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, payload.bytes));
 
-        accessAt = ProDosSkeleton::BlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
+        accessAt = ProDosSkeleton::GetBlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
 
         // Destroy-enable set, write-enable clear: removable but not rewritable.
         vol[accessAt] = 0x81;
@@ -1570,7 +1570,7 @@ public:
 
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, MakePattern (600)));
 
-        accessAt = ProDosSkeleton::BlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
+        accessAt = ProDosSkeleton::GetBlockByteOffset (2, EntryOffset (1) + kEntOffAccess);
 
         // Write-enable set, destroy-enable clear: rewritable but not removable.
         vol[accessAt] = 0x43;
@@ -1618,8 +1618,8 @@ public:
         AssertSucceeded (ProDosFileWriter::WriteFile (vol, "PROG", 0x06, 0x2000, MakePattern (600)));
 
         // The key block's next pointer aimed back at itself.
-        vol[ProDosSkeleton::BlockByteOffset (2, 0x02)]     = 0x02;
-        vol[ProDosSkeleton::BlockByteOffset (2, 0x02 + 1)] = 0x00;
+        vol[ProDosSkeleton::GetBlockByteOffset (2, 0x02)]     = 0x02;
+        vol[ProDosSkeleton::GetBlockByteOffset (2, 0x02 + 1)] = 0x00;
 
         {
             ProDosVolume  volume (vol);
@@ -2017,7 +2017,7 @@ public:
 
         for (i = 0; i < kEntryLength; i++)
         {
-            inOutAllowed[ProDosSkeleton::BlockByteOffset (dirBlock, EntryOffset (slot) + i)] = 1;
+            inOutAllowed[ProDosSkeleton::GetBlockByteOffset (dirBlock, EntryOffset (slot) + i)] = 1;
         }
     }
 

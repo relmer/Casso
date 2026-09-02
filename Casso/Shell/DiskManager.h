@@ -3,6 +3,9 @@
 #include "Pch.h"
 
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/IImageWatcher.h"
+#include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/BayChange.h"
 
 
 class CpuManager;
@@ -86,7 +89,37 @@ public:
         m_onMountCompleted = std::move (cb);
     }
 
+    //  Builds the platform pieces a shared image needs and hands them to the
+    //  image store: the directory watcher, and the file probe that answers
+    //  whether something else is writing the image right now.
+    //
+    //  HANDING IT OVER IS ALL THIS DOES. Which directory to watch, when to
+    //  take a watch up and when to drop it are orchestration, and orchestration
+    //  is the store's, where a fake watcher can assert it. Everything here is
+    //  the choice of implementation.
+    //
+    //  `disabled` INSTALLS A WATCHER THAT REFUSES EVERY WATCH rather than
+    //  installing none. That is the measurement seam: the emulator runs with
+    //  notification broken exactly as an unwatchable share leaves it, and the
+    //  check made before every write is what has to carry the guarantee.
+    void     InstallSharedImageSupport (bool watchDisabled);
+
     void     EjectDiskInSlot6       (int drive);
+
+    //  The one reaction to a disk changing in a bay, whoever caused it: a user
+    //  mount or eject, a pick-up of an external change, a file that vanished.
+    //  Re-points the controller, re-applies write protection, logs the debug
+    //  event, and drives the drive door and its sounds. The store calls this
+    //  through its bay-change sink, so no path lights the door itself.
+    //
+    //  WHY THE DOOR IS SPLIT. A plain insert or eject changes the file in the
+    //  bay, and the source-path poll in UpdateDriveWidgets animates the door
+    //  from that. A swap leaves the same file with new contents, so the poll
+    //  cannot see it -- the open-then-close door for a swap is published from
+    //  here as the one event the poll misses. Sound is driven here in all
+    //  three cases.
+    void     OnBayChange            (int slot, int drive, BayChange change);
+
     void     RemountSlot6Disks      ();
     void     MountCommandLineDisks  (const std::string & disk1Path,
                                      const std::string & disk2Path);
@@ -146,8 +179,21 @@ private:
     IFileSystem                                     & m_fileSystem;
     std::array<bool, 2>                             & m_userWriteProtect;
 
+    //  Both outlive every mount, because the store holds bare pointers to them
+    //  and a watch may be taken up at any mount.
+    std::unique_ptr<IImageWatcher>  m_imageWatcher;
+    std::unique_ptr<IDiskFileIo>    m_imageFileIo;
+
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};
+
+    //  The narrow source path each drive showed last frame, so UpdateDriveWidgets
+    //  can tell whether the file in the bay changed with a cheap std::string
+    //  compare and skip the wide-path conversion when it did not. Without this
+    //  every frame built a fresh fs::path(src).wstring() for a value that
+    //  changes only on a mount or eject.
+    std::array<std::string, 2>  m_lastDriveSourcePath  {};
+
     bool                     m_coldBootMountWindow  = true;
     bool                     m_programmaticRemount  = false;
 };

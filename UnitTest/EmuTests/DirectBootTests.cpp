@@ -116,7 +116,7 @@ public:
         int  track    = DirectBootBuilder::kFirstPayloadTrack + (int) (page / kSectorsTrack);
         int  physical = (int) (page % kSectorsTrack);
 
-        return Dos33Skeleton::SectorOffset (track, physicalToLogical[(size_t) physical]);
+        return Dos33Skeleton::GetSectorOffset (track, physicalToLogical[(size_t) physical]);
     }
 
     //  A vector nothing could produce, so "untouched" is a real assertion
@@ -428,7 +428,7 @@ public:
         for (page = 0; page < 20; page++)
         {
             size_t  at       = PayloadSectorOffset (physicalToLogical, page);
-            size_t  straight = Dos33Skeleton::SectorOffset (
+            size_t  straight = Dos33Skeleton::GetSectorOffset (
                                    DirectBootBuilder::kFirstPayloadTrack
                                    + (int) (page / kSectorsTrack),
                                    (int) (page % kSectorsTrack));
@@ -509,7 +509,7 @@ public:
 
         //  Track 17 is where DOS 3.3 keeps its volume table of contents and
         //  its catalog. On this disk it is empty space.
-        vtocAt = Dos33Skeleton::SectorOffset (17, 0);
+        vtocAt = Dos33Skeleton::GetSectorOffset (17, 0);
 
         for (i = 0; i < kSectorBytes * kSectorsTrack; i++)
         {
