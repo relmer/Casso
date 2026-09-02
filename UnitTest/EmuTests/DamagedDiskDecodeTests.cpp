@@ -108,14 +108,13 @@ public:
     //  of this comment claimed it did. Redirecting sector 5 into slot 4 leaves
     //  slot 5 empty, so the unrecovered count rises and a count-based check
     //  catches it too -- verified by mutating the production check to
-    //  GetUnrecoveredCount() > 0, under which all five tests here still pass.
+    //  GetUnrecoveredCount() > 0, under which every test in this file but the
+    //  two after this one still passes.
     //
     //  The case that genuinely separates them is the one the production comment
     //  describes: sixteen slots ALL filled because one sector arrived twice.
     //  Sixteen sectors cannot do that -- it needs a track carrying a
-    //  seventeenth address field -- so it is still uncovered. Producing one
-    //  means splicing a field into the bit stream, and a sector is 3,164 bits,
-    //  so that splice cannot be a byte-range copy.
+    //  seventeenth address field -- and the two tests that follow build one.
     TEST_METHOD (ASectorDecodedIntoTheWrongSlot_Fails)
     {
         DiskImage     image;
@@ -127,6 +126,71 @@ public:
         HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
 
         Assert::IsTrue (FAILED (hr), L"a sector landing in another's slot leaves its own empty");
+    }
+
+    //  THE CASE THAT SEPARATES COVERAGE FROM COUNTING, and the one the
+    //  production comment on the strict overload describes: sector 5 arrives
+    //  twice and nothing is missing. All sixteen slots are filled, the
+    //  unrecovered count is zero, and every sector count reads the track as
+    //  complete. The only thing wrong is that one slot was claimed by two
+    //  headers, and the buffer holds whichever copy landed last -- which the
+    //  strict overload has to refuse, because Serialize would write it over the
+    //  user's file as a clean save.
+    //
+    //  Sixteen sectors cannot fill sixteen slots and duplicate one, so the
+    //  track is given a SEVENTEENTH address field: a second copy of sector 5,
+    //  spliced bit-wise directly after the first. THE TRACK GROWS BY THE COPY
+    //  rather than giving up sync gap for it. A sector is 3,164 bits and the
+    //  whole track carries 4,160 bits of sync, so paying for the copy out of
+    //  gap would strip nearly every self-sync nibble from every sector and make
+    //  this a test of gapless decoding, not of duplication. Growing leaves
+    //  every original bit and gap exactly where the builder put it, and the
+    //  decoder walks whatever bit count it is handed -- WOZ track lengths vary
+    //  anyway -- so the ONLY thing different about the track is the extra
+    //  sector.
+    TEST_METHOD (ASectorArrivingTwice_FailsAlthoughEverySlotIsFilled)
+    {
+        DiskImage     image;
+        vector<Byte>  decoded;
+
+        DamagedDisk::BuildGoodDos33 (image);
+        DamagedDisk::DuplicateSector (image, 20, 5);
+
+        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack + 1,
+                          DamagedDisk::CountAddressFields (image, 20),
+                          L"the splice must leave the track carrying a seventeenth address field");
+
+        HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
+
+        Assert::IsTrue (FAILED (hr), L"a slot filled twice is damage, however full the track reads");
+    }
+
+    //  The same track through the sibling that reports, holding the two
+    //  answers apart: coverage says the track is damaged, the count says
+    //  nothing was lost. This is what keeps the refusal above from collapsing
+    //  into the partial-decode case. If the unrecovered count ever rises here,
+    //  the seventeenth field has stopped landing where the decoder reads it,
+    //  and the refusal above is passing for the reason RedirectSectorToSlot's
+    //  does rather than the one it claims.
+    TEST_METHOD (ASectorArrivingTwice_IsDataLossWithNothingUnrecovered)
+    {
+        DiskImage           image;
+        vector<Byte>        decoded;
+        SectorDecodeReport  report;
+
+        DamagedDisk::BuildGoodDos33 (image);
+        DamagedDisk::DuplicateSector (image, 20, 5);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (20),
+                        L"a slot claimed twice leaves the track damaged");
+        Assert::IsTrue (report.IsDuplicated (20), L"and the report says which way");
+        Assert::IsTrue (report.HasDataLoss(), L"coverage reads it as loss");
+        Assert::AreEqual (0, report.GetUnrecoveredCount(),
+                          L"while the count reads it as complete, because every slot is filled");
+        Assert::IsTrue (SectorDecodeReport::kFullCoverage == report.GetCoverage (20),
+                        L"all sixteen slots, none of them empty");
     }
 
 
