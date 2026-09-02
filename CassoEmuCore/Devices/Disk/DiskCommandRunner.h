@@ -316,7 +316,7 @@ private:
 
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
-    static std::string  OnDiskNameFor (const CommandLineOptions & options);
+    static std::string  GetOnDiskName (const CommandLineOptions & options);
 
 
 

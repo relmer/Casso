@@ -39,7 +39,7 @@ public:
     //  Byte offset of a position inside a ProDOS block within the DOS 3.3
     //  logical-sector buffer. Public so the file writer / reader, the block
     //  commands and the builder's tests address blocks the same single way.
-    static size_t   BlockByteOffset (int block, size_t offsetInBlock);
+    static size_t   GetBlockByteOffset (int block, size_t offsetInBlock);
 
     static constexpr int     kBlockByteSize   = 512;
 

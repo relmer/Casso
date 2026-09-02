@@ -45,7 +45,7 @@ struct DiskCommandResult
 
     //  Image, file, reason, in that order: a script's user needs to know
     //  which disk before anything else.
-    static std::string  Failure (const std::string & imagePath,
-                                 const std::string & fileName,
-                                 const std::string & reason);
+    static std::string  FormatFailure (const std::string & imagePath,
+                                       const std::string & fileName,
+                                       const std::string & reason);
 };

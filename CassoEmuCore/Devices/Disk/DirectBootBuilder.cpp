@@ -395,7 +395,7 @@ void DirectBootBuilder::WriteLoader (
     size_t                  sectorCount,
     vector<Byte>          & inOutSectors)
 {
-    size_t  at = Dos33Skeleton::SectorOffset (
+    size_t  at = Dos33Skeleton::GetSectorOffset (
                      kLoaderTrack,
                      NibblizationLayer::GetDosFileIndexForPhysicalSector (kLoaderSector));
 
@@ -446,7 +446,7 @@ void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> 
         int     track    = kFirstPayloadTrack
                          + (int) (index / (size_t) NibblizationLayer::kSectorsPerTrack);
         int     physical = (int) (index % (size_t) NibblizationLayer::kSectorsPerTrack);
-        size_t  at       = Dos33Skeleton::SectorOffset (
+        size_t  at       = Dos33Skeleton::GetSectorOffset (
                                track,
                                NibblizationLayer::GetDosFileIndexForPhysicalSector (physical));
         size_t  from     = index * kSectorBytes;

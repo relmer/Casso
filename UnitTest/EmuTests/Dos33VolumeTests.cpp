@@ -99,7 +99,7 @@ public:
     //  sectors 7..0. A SET bit means free.
     static void MarkAllocated (vector<Byte> & buffer, int track, int sector)
     {
-        size_t  at     = Dos33Skeleton::SectorOffset (17, 0) + 0x38 + (size_t) track * 4;
+        size_t  at     = Dos33Skeleton::GetSectorOffset (17, 0) + 0x38 + (size_t) track * 4;
         size_t  byteAt = (sector >= 8) ? at : at + 1;
         int     bit    = (sector >= 8) ? (sector - 8) : sector;
 
@@ -111,7 +111,7 @@ public:
     //  back a sector a catalog entry still points at.
     static void MarkFree (vector<Byte> & buffer, int track, int sector)
     {
-        size_t  at     = Dos33Skeleton::SectorOffset (17, 0) + 0x38 + (size_t) track * 4;
+        size_t  at     = Dos33Skeleton::GetSectorOffset (17, 0) + 0x38 + (size_t) track * 4;
         size_t  byteAt = (sector >= 8) ? at : at + 1;
         int     bit    = (sector >= 8) ? (sector - 8) : sector;
 
@@ -132,7 +132,7 @@ public:
 
     static size_t EntryOffset (int catalogSector, int slot)
     {
-        return Dos33Skeleton::SectorOffset (17, catalogSector) + kEntryBase + (size_t) slot * kEntrySize;
+        return Dos33Skeleton::GetSectorOffset (17, catalogSector) + kEntryBase + (size_t) slot * kEntrySize;
     }
 
     static uint32_t FreeSectors (const vector<Byte> & buffer)
@@ -203,10 +203,10 @@ public:
         vector<Byte>  buffer = MakeFormattedVolume();
         size_t        entryA = EntryOffset (kCatalogFirstSector, 0);
         size_t        entryB = EntryOffset (kCatalogFirstSector, 1);
-        size_t        listA  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
-        size_t        listB  = Dos33Skeleton::SectorOffset (kSharedTrack, 12);
-        size_t        dataB  = Dos33Skeleton::SectorOffset (kSharedTrack, 11);
-        size_t        shared = Dos33Skeleton::SectorOffset (kSharedTrack, kSharedSector);
+        size_t        listA  = Dos33Skeleton::GetSectorOffset (kSharedTrack, 15);
+        size_t        listB  = Dos33Skeleton::GetSectorOffset (kSharedTrack, 12);
+        size_t        dataB  = Dos33Skeleton::GetSectorOffset (kSharedTrack, 11);
+        size_t        shared = Dos33Skeleton::GetSectorOffset (kSharedTrack, kSharedSector);
 
         // FILEA: list at S15, data at S14 and the shared S13.
         buffer[entryA + 0x00] = (Byte) kSharedTrack;
@@ -261,7 +261,7 @@ public:
     {
         vector<Byte>  buffer  = MakeFormattedVolume();
         size_t        entryAt = EntryOffset (kCatalogFirstSector, 0);
-        size_t        listAt  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
+        size_t        listAt  = Dos33Skeleton::GetSectorOffset (kSharedTrack, 15);
 
         buffer[entryAt + 0x00] = (Byte) kSharedTrack;
         buffer[entryAt + 0x01] = 15;
@@ -322,10 +322,10 @@ public:
     vector<Byte> MakeVolumeWithMultiListFile()
     {
         vector<Byte>  buffer   = MakeFormattedVolume();
-        size_t        entryAt  = Dos33Skeleton::SectorOffset (17, 15) + 0x0B;
-        size_t        list1At  = Dos33Skeleton::SectorOffset (kList1Track, kList1Sector);
-        size_t        list2At  = Dos33Skeleton::SectorOffset (kList2Track, kList2Sector);
-        size_t        list3At  = Dos33Skeleton::SectorOffset (kList3Track, kList3Sector);
+        size_t        entryAt  = Dos33Skeleton::GetSectorOffset (17, 15) + 0x0B;
+        size_t        list1At  = Dos33Skeleton::GetSectorOffset (kList1Track, kList1Sector);
+        size_t        list2At  = Dos33Skeleton::GetSectorOffset (kList2Track, kList2Sector);
+        size_t        list3At  = Dos33Skeleton::GetSectorOffset (kList3Track, kList3Sector);
         int           i        = 0;
         uint16_t      sectors  = (uint16_t) (kDataSectorCount + 3);
 
@@ -355,7 +355,7 @@ public:
                            : (i < kPairsPerList * 2) ? list2At
                                                      : list3At;
             size_t  pairAt = listAt + 0x0C + (size_t) ((i % kPairsPerList) * 2);
-            size_t  dataAt = Dos33Skeleton::SectorOffset (track, sector);
+            size_t  dataAt = Dos33Skeleton::GetSectorOffset (track, sector);
 
             buffer[pairAt]     = (Byte) track;
             buffer[pairAt + 1] = (Byte) sector;
@@ -371,7 +371,7 @@ public:
 
         // A binary file's first four bytes are its load address and length.
         {
-            size_t    firstAt = Dos33Skeleton::SectorOffset (kDataStartTrack, 0);
+            size_t    firstAt = Dos33Skeleton::GetSectorOffset (kDataStartTrack, 0);
             uint32_t  length  = (uint32_t) (kDataSectorCount * 256 - 4);
 
             buffer[firstAt + 0] = 0x00;
@@ -627,7 +627,7 @@ public:
         vector<Byte>    buffer = MakeVolumeWithHello();
         Dos33Volume     volume (buffer);
         VolumeListing   listing;
-        size_t          catalogAt = Dos33Skeleton::SectorOffset (17, 15);
+        size_t          catalogAt = Dos33Skeleton::GetSectorOffset (17, 15);
 
         // Point the first catalog sector back at itself.
         buffer[catalogAt + 0x01] = 17;
@@ -645,7 +645,7 @@ public:
         vector<Byte>    buffer    = MakeFormattedVolume();
         Dos33Volume     volume (buffer);
         VolumeListing   listing;
-        size_t          vtocAt    = Dos33Skeleton::SectorOffset (17, 0);
+        size_t          vtocAt    = Dos33Skeleton::GetSectorOffset (17, 0);
 
         buffer[vtocAt + 0x01] = 99;   // no such track
 
@@ -1091,7 +1091,7 @@ public:
         vector<Byte>   result;
         Dos33Volume    volume (buffer);
         DeleteOutcome  outcome;
-        size_t         catalogAt = Dos33Skeleton::SectorOffset (17, kCatalogFirstSector);
+        size_t         catalogAt = Dos33Skeleton::GetSectorOffset (17, kCatalogFirstSector);
         size_t         i         = 0;
         bool           saidSo    = false;
 
@@ -1340,7 +1340,7 @@ public:
         vector<Byte>           handedBack;
         Dos33Volume            volume (input);
         VolumeIntegrityReport  before;
-        size_t                 listAt = Dos33Skeleton::SectorOffset (18, 15);
+        size_t                 listAt = Dos33Skeleton::GetSectorOffset (18, 15);
         HRESULT                hr     = S_OK;
 
         AssertSucceeded (volume.BuildIntegrityReport (before));
@@ -1369,7 +1369,7 @@ public:
         Dos33Volume            volume (input);
         VolumeIntegrityReport  before;
         VolumeIntegrityReport  after;
-        size_t                 listA  = Dos33Skeleton::SectorOffset (kSharedTrack, 15);
+        size_t                 listA  = Dos33Skeleton::GetSectorOffset (kSharedTrack, 15);
         HRESULT                hr     = S_OK;
 
         AssertSucceeded (volume.BuildIntegrityReport (before));
@@ -1482,7 +1482,7 @@ public:
         vector<Byte>           handedBack;
         Dos33Volume            volume (input);
         VolumeIntegrityReport  before;
-        size_t                 catalogAt = Dos33Skeleton::SectorOffset (17, kCatalogFirstSector);
+        size_t                 catalogAt = Dos33Skeleton::GetSectorOffset (17, kCatalogFirstSector);
         HRESULT                hr        = S_OK;
 
         AssertSucceeded (volume.BuildIntegrityReport (before));
@@ -1639,7 +1639,7 @@ public:
         {
             for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
             {
-                size_t  at = Dos33Skeleton::SectorOffset (track, sector);
+                size_t  at = Dos33Skeleton::GetSectorOffset (track, sector);
 
                 for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
                 {
@@ -1653,7 +1653,7 @@ public:
 
     static size_t GreetingFieldOffset()
     {
-        return Dos33Skeleton::SectorOffset (kGreetingTrack, kGreetingSector) + kGreetingOffset;
+        return Dos33Skeleton::GetSectorOffset (kGreetingTrack, kGreetingSector) + kGreetingOffset;
     }
 
     //  Thirty bytes of high ASCII padded with high-ASCII spaces -- the same

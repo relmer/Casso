@@ -120,7 +120,7 @@ public:
 
             for (const std::string & path : seen)
             {
-                named = named || MountedImageState::SamePath (path, target.string());
+                named = named || MountedImageState::IsSamePath (path, target.string());
             }
 
             Assert::IsTrue (named, L"and the report must name the file that changed");

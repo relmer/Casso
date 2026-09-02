@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ChangePrompt::FileName (const std::string & imagePath)
+std::wstring ChangePrompt::GetFileName (const std::string & imagePath)
 {
     return fs::path (imagePath).filename().wstring();
 }
@@ -134,9 +134,9 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
                                     bool copyAlreadyWritten)
 {
     ChangePrompt  prompt;
-    std::wstring  file  = FileName (imagePath);
+    std::wstring  file  = GetFileName (imagePath);
     std::wstring  where = DriveLabel (drive);
-    std::wstring  copy  = FileName (copyPath);
+    std::wstring  copy  = GetFileName (copyPath);
 
 
 
@@ -214,9 +214,9 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
                                                 const std::string & copyPath)
 {
     ChangePrompt  prompt;
-    std::wstring  file    = FileName (imagePath);
+    std::wstring  file    = GetFileName (imagePath);
     std::wstring  where   = DriveLabel (drive);
-    std::wstring  copy    = FileName (copyPath);
+    std::wstring  copy    = GetFileName (copyPath);
     std::wstring  machine = fs::path (machineName).wstring();
 
 
@@ -269,9 +269,9 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
                                                   const std::string & copyPath)
 {
     ChangePrompt  prompt;
-    std::wstring  file  = FileName (imagePath);
+    std::wstring  file  = GetFileName (imagePath);
     std::wstring  where = DriveLabel (drive);
-    std::wstring  copy  = FileName (copyPath);
+    std::wstring  copy  = GetFileName (copyPath);
 
 
 
@@ -307,7 +307,7 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
                                                SaveFailureCause    cause)
 {
     ChangePrompt  prompt;
-    std::wstring  file  = FileName (imagePath);
+    std::wstring  file  = GetFileName (imagePath);
     std::wstring  where = DriveLabel (drive);
     std::wstring  full  = fs::path (attemptedPath).wstring();
 

@@ -273,7 +273,7 @@ void WasapiAudio::NoteEndpointLoss (HRESULT hrLoss)
     Shutdown();
 
     m_deviceLost = true;
-    m_reinitAtMs = NowMs() + kReinitRetryMs;
+    m_reinitAtMs = GetNowMs() + kReinitRetryMs;
 }
 
 
@@ -312,7 +312,7 @@ void WasapiAudio::ReportEndpointLoss (HRESULT hrLoss)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t WasapiAudio::NowMs() const
+int64_t WasapiAudio::GetNowMs() const
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -379,11 +379,11 @@ HRESULT WasapiAudio::SubmitFrame (
         NoteEndpointLoss (hrLost);
     }
 
-    if (m_deviceLost && NowMs() >= m_reinitAtMs)
+    if (m_deviceLost && GetNowMs() >= m_reinitAtMs)
     {
         HRESULT  hrReopen = S_OK;
 
-        m_reinitAtMs = NowMs() + kReinitRetryMs;
+        m_reinitAtMs = GetNowMs() + kReinitRetryMs;
 
         hrReopen = Initialize();
         IGNORE_RETURN_VALUE (hrReopen, S_OK);

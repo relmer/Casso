@@ -109,7 +109,7 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
             hr = volume.Write (path, payload, edited);
         }
 
-        CHRF (hr, m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+        CHRF (hr, m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                                        "could not be written to the volume") + "\n");
 
         outSectors = edited;
@@ -180,12 +180,12 @@ HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions        
         }
     }
 
-    CHRF (hr, m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+    CHRF (hr, m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                                    "cannot be made the startup program") + "\n");
 
     if (!runnable)
     {
-        m_diagnostics += DiskCommandResult::Failure (options.imagePath, onDisk,
+        m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
                              "would not run at boot: a booting DOS 3.3 RUNs its greeting, "
                              "so a binary named as one leaves the disk booting and the program never running") + "\n";
     }
@@ -233,7 +233,7 @@ HRESULT ImageArtifactSink::WriteBinary (const AssemblyResult & result,
 
     if (!hasBytes)
     {
-        m_diagnostics += DiskCommandResult::Failure (options.imagePath, "",
+        m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, "",
                              "has nothing to receive: the assembly produced no bytes") + "\n";
     }
 

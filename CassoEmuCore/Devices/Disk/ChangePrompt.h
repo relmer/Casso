@@ -162,7 +162,7 @@ struct ChangePrompt
     //  the one word the reader is looking for. Two notices print the whole
     //  path deliberately -- the save failure and the lost file -- and both put
     //  it on a line of its own, where it is the thing to act on.
-    static std::wstring  FileName (const std::string & imagePath);
+    static std::wstring  GetFileName (const std::string & imagePath);
 
     //  "Drive 1", from the store's zero-based index.
     static std::wstring  DriveLabel (int drive);

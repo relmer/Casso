@@ -35,11 +35,11 @@ size_t MeshBlob::VectorHash::operator() (const VectorKey & key) const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MeshBlob::KeyOf
+//  MeshBlob::MakeKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MeshBlob::VectorKey MeshBlob::KeyOf (const float * value)
+MeshBlob::VectorKey MeshBlob::MakeKey (const float * value)
 {
     VectorKey   key = {};
 
@@ -141,7 +141,7 @@ HRESULT MeshBlob::Write (const std::vector<ObjTriangle>          & triangles,
 
         for (size_t c = 0; c < 3; c++)
         {
-            VectorKey   key   = KeyOf (corner[c]);
+            VectorKey   key   = MakeKey (corner[c]);
             auto        found = sharedPos.find (key);
 
             if (found == sharedPos.end())
@@ -165,7 +165,7 @@ HRESULT MeshBlob::Write (const std::vector<ObjTriangle>          & triangles,
             if (haveNormals)
             {
                 const float *   n     = normals[t * 3 + c].data();
-                VectorKey       key   = KeyOf (n);
+                VectorKey       key   = MakeKey (n);
                 auto            found = sharedNrm.find (key);
 
                 if (found == sharedNrm.end())

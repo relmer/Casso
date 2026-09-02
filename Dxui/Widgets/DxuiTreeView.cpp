@@ -125,7 +125,7 @@ const DxuiTreeNode * DxuiTreeView::GetNodeAt (int flatIndex) const
 //
 //  The tree is stored as nested vectors while the view addresses rows by a
 //  single flat index, so every lookup has to walk a child PATH down from the
-//  roots. That path is what PathFor computes; this function is the descent.
+//  roots. That path is what GetPath computes; this function is the descent.
 //
 //  It cannot be written in terms of the const NodeAt without casting away
 //  constness, and duplicating the descent is the lesser evil -- the walk is

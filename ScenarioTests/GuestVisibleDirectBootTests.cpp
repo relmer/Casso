@@ -329,7 +329,7 @@ public:
             L"the boot ROM must find the loader in track 0's first sector, and be told to "
             L"stop after it rather than reading payload over the top of it");
 
-        at   = Dos33Skeleton::SectorOffset (
+        at   = Dos33Skeleton::GetSectorOffset (
                    DirectBootBuilder::kFirstPayloadTrack,
                    NibblizationLayer::GetDosFileIndexForPhysicalSector (0));
 

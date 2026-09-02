@@ -71,7 +71,7 @@ public:
     //  What was recorded when this image was read, and replacing it after a
     //  write this emulator made -- which is what keeps its own commit from
     //  being reported back to it as somebody else's change.
-    const ImageIdentity &  Identity   () const { return m_identity; }
+    const ImageIdentity &  GetIdentity () const { return m_identity; }
     void                   SetIdentity (const ImageIdentity & identity) { m_identity = identity; }
 
     //  Whether the location could be watched at all. False is a state to
@@ -90,7 +90,7 @@ public:
     //  Whether a noticed change has settled and may be acted on.
     bool  IsSettled  (int64_t nowMs) const;
 
-    const PendingChange &  Pending () const { return m_pending; }
+    const PendingChange &  GetPending () const { return m_pending; }
 
     //  The change has been dealt with.
     void  ClearPending ();
@@ -121,7 +121,7 @@ public:
     //  it about a file that has gone saves the disk and empties the drive;
     //  there is no other question where it would do that, and an answer read
     //  without knowing what was asked is how the wrong one gets carried out.
-    ChangeAction  AskedAction    () const           { return m_askedAction; }
+    ChangeAction  GetAskedAction () const           { return m_askedAction; }
     void          SetAskedAction (ChangeAction action) { m_askedAction = action; }
 
     //  Whether two spellings of a path name the same file.
@@ -129,10 +129,10 @@ public:
     //  HERE RATHER THAN IN THE SHELL because comparing them is a rule, not a
     //  presentation detail: case, separators and trailing slashes all differ
     //  between what a watcher reports and what a mount recorded.
-    static bool  SamePath (const std::string & left, const std::string & right);
+    static bool  IsSamePath (const std::string & left, const std::string & right);
 
     //  The directory a path sits in, which is what gets watched.
-    static std::string  DirectoryOf (const std::string & path);
+    static std::string  GetDirectory (const std::string & path);
 
 private:
     ImageIdentity  m_identity;

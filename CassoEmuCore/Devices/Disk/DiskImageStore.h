@@ -506,7 +506,7 @@ private:
 
     //  Whether something is already at `path`, through the file seam when one
     //  is installed and through the filesystem when none is.
-    bool           PathExists (const string & path) const;
+    bool           DoesPathExist (const string & path) const;
 
     //  Writes bytes to a path, through the flush sink when one is installed so
     //  a test captures preserved copies the same way it captures flushes.
@@ -534,7 +534,7 @@ private:
     void           EndWatching   (int slot, int drive);
 
     //  Milliseconds now, through the injected clock when one is installed.
-    int64_t        NowMs () const;
+    int64_t        GetNowMs () const;
 
     //  Tells the shell a bay's disk changed, when a sink is installed. The one
     //  chokepoint every mutation path calls, so the door and its sounds cannot

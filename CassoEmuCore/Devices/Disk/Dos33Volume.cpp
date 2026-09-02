@@ -123,7 +123,7 @@ bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int se
         return false;
     }
 
-    at     = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+    at     = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack, 0)
            + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
            + (size_t) track * kBitmapBytesPerTrack;
     byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
@@ -161,7 +161,7 @@ void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector,
         return;
     }
 
-    at     = Dos33Skeleton::SectorOffset (Dos33Skeleton::kVtocTrack, 0)
+    at     = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack, 0)
            + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
            + (size_t) track * kBitmapBytesPerTrack;
     byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
@@ -208,7 +208,7 @@ void Dos33Volume::WriteByteAt (vector<Byte> & buffer, int track, int sector, siz
         return;
     }
 
-    at = Dos33Skeleton::SectorOffset (track, sector) + offset;
+    at = Dos33Skeleton::GetSectorOffset (track, sector) + offset;
 
     if (at >= buffer.size())
     {
@@ -244,7 +244,7 @@ Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
         return 0;
     }
 
-    at = Dos33Skeleton::SectorOffset (track, sector) + offset;
+    at = Dos33Skeleton::GetSectorOffset (track, sector) + offset;
 
     if (at >= m_sectors.size())
     {
@@ -1109,7 +1109,7 @@ void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & uni
 {
     for (uint32_t unit : units)
     {
-        size_t  at = Dos33Skeleton::SectorOffset (GetTrack (unit), GetSector (unit));
+        size_t  at = Dos33Skeleton::GetSectorOffset (GetTrack (unit), GetSector (unit));
 
         if (at + (size_t) NibblizationLayer::kSectorByteSize <= buffer.size())
         {
@@ -1170,7 +1170,7 @@ void Dos33Volume::PlaceFile (
             uint32_t  dataUnit = units[cursor + k];
             size_t    pairAt   = kTsOffFirstPair + k * 2;
             size_t    from     = (placed + k) * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t    to       = Dos33Skeleton::SectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
+            size_t    to       = Dos33Skeleton::GetSectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
             size_t    left     = (from < storedSize) ? storedSize - from : 0;
             size_t    copyable = std::min ((size_t) NibblizationLayer::kSectorByteSize, left);
 

@@ -254,7 +254,7 @@ public:
 
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity().recorded,
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity().recorded,
                         L"nothing can answer 'has this changed' without one");
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsWatching());
         Assert::AreEqual ((size_t) 1, rig.watcher.watched.size());
@@ -278,7 +278,7 @@ public:
 
         Assert::AreEqual ((size_t) 0, rig.watcher.watched.size());
         Assert::AreEqual ((size_t) 1, rig.watcher.unwatched.size());
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Identity().recorded);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity().recorded);
     }
 
 
@@ -317,9 +317,9 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"the change was dealt with");
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]),
                         L"the identity moved on with the file, so the swap does not "
                         L"immediately look like another external change");
@@ -494,14 +494,14 @@ public:
         //  What a watcher reports and what a mount recorded rarely match as
         //  strings.
         rig.store.NoteExternalChange ("c:/WORK/loader.dsk", PickUpIntent::Unstated);
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
 
         rig.store.GetSharedState (kSlot, kDrive);
         rig.store.Eject (kSlot, kDrive);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", PickUpIntent::Unstated);
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"a directory watch reports every file under it");
     }
 
@@ -596,8 +596,8 @@ public:
 
         rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::TakeUpInPlace);
 
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]));
     }
 
@@ -652,7 +652,7 @@ public:
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"the guest's version is written -- that part is not optional");
 
-        Assert::IsTrue (offered.find (ChangePrompt::FileName (rig.PreservedPaths()[0]))
+        Assert::IsTrue (offered.find (ChangePrompt::GetFileName (rig.PreservedPaths()[0]))
                             != std::wstring::npos,
                         L"and under the name the open question is already showing");
 
@@ -670,7 +670,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"still one copy, not two");
-        Assert::IsTrue (offered.find (ChangePrompt::FileName (
+        Assert::IsTrue (offered.find (ChangePrompt::GetFileName (
                             rig.store.GetSourcePath (kSlot, kDrive))) != std::wstring::npos,
                         L"and the bay is on the file the user was promised");
     }
@@ -852,7 +852,7 @@ public:
 
         //  The external version is mounted, because it is the newest thing and
         //  the developer just made it.
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
         Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
                          L"the guest's writes are on disk under their own name now");
 
@@ -912,7 +912,7 @@ public:
         //  write on every idle tick, sixty times a second for as long as the
         //  folder stayed full. The next change to the file, or the next flush,
         //  is what tries again.
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"the change is not left pending");
 
         {
@@ -1194,13 +1194,13 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
 
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen,
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                         L"the change that arrived mid-apply is still there");
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
         rig.store.ApplyPendingPickUp();
 
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->Pending().seen);
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
     }
 
 
@@ -1236,7 +1236,7 @@ public:
 
         //  And the contents taken up are the most recent, not those current
         //  when the report first appeared.
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->Identity()
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]));
 
         rig.store.ClearChangeReport (kSlot, kDrive);
