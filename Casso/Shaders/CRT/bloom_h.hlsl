@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: CC0-1.0
 // Casso modifications: simplified separable horizontal Gaussian.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };

@@ -395,6 +395,121 @@ public:
     }
 
 
+    TEST_METHOD (MakeCrtParams_LeavesPictureUvSpanningTheWholeTarget)
+    {
+        GlobalUserPrefs  prefs;
+
+        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
+
+        // Same reasoning as the pixel scale: geometry is settled by
+        // CrtPostProcess::Process, not by the resolution rules. The full
+        // span is what every pass assumed before the rect existed.
+        Assert::AreEqual (0.0f, params.pictureV0);
+        Assert::AreEqual (1.0f, params.pictureV1);
+    }
+
+
+    TEST_METHOD (ComputeCrtPictureUvRect_LocatesALetterboxedPicture)
+    {
+        RECT       fitted = { 241, 249, 1258, 947 };
+        CrtUvRect  uv     = ComputeCrtPictureUvRect (fitted, 1500, 1195);
+        float      span   = uv.v1 - uv.v0;
+
+
+
+        // The flat path hands the chain the whole back buffer with the
+        // picture letterboxed inside it. The rect is an INPUT rather than
+        // something this derives, because D3DRenderer fits the picture
+        // into the viewport bounds the chrome leaves free, not into the
+        // back buffer. These numbers came off a 1500 px window at 144 dpi.
+        Assert::AreEqual (1017L, (long) (fitted.right - fitted.left));
+        Assert::AreEqual (698L,  (long) (fitted.bottom - fitted.top));
+        Assert::AreEqual (249.0f / 1195.0f, uv.v0, 0.00001f);
+        Assert::AreEqual (947.0f / 1195.0f, uv.v1, 0.00001f);
+        Assert::AreEqual (698.0f / 1195.0f, span,  0.00001f);
+    }
+
+
+    TEST_METHOD (ComputeCrtPictureUvRect_SpansEverythingWhenTargetIsThePicture)
+    {
+        RECT       fitted = { 0, 0, 705, 484 };
+        CrtUvRect  uv     = ComputeCrtPictureUvRect (fitted, 706, 484);
+
+
+
+        // The desk scene renders at picture size, so the picture is very
+        // nearly the whole target and the scanline pass keeps the behavior
+        // it had before this rect existed. That is why the desk scene was
+        // the one path already drawing 192 lines.
+        Assert::AreEqual (0.0f, uv.v0);
+        Assert::AreEqual (1.0f, uv.v1);
+    }
+
+
+    TEST_METHOD (ComputeCrtPictureUvRect_DegenerateInputsYieldTheWholeTarget)
+    {
+        RECT       empty   = {};
+        RECT       flat    = { 0, 100, 800, 100 };
+        RECT       fitted  = { 0, 0, 705, 484 };
+        CrtUvRect  uv      = {};
+
+
+
+        // A frame with no picture must not hand the scanline pass a
+        // zero-height span to divide by. The whole target is the safe
+        // answer, and it is what the shader used before.
+        uv = ComputeCrtPictureUvRect (empty, 800, 600);
+        Assert::AreEqual (0.0f, uv.v0);
+        Assert::AreEqual (1.0f, uv.v1);
+
+        uv = ComputeCrtPictureUvRect (flat, 800, 600);
+        Assert::AreEqual (0.0f, uv.v0);
+        Assert::AreEqual (1.0f, uv.v1);
+
+        uv = ComputeCrtPictureUvRect (fitted, 0, 0);
+        Assert::AreEqual (0.0f, uv.v0);
+        Assert::AreEqual (1.0f, uv.v1);
+    }
+
+
+    TEST_METHOD (ComputeCrtPictureUvRect_SpansTheDefectTheScanlinePassHad)
+    {
+        constexpr float  kNativeScanlines = 192.0f;
+
+        RECT       tightFit  = { 284, 150, 615,  377 };
+        RECT       wideFit   = { 241, 249, 1258, 947 };
+        CrtUvRect  tightUv   = ComputeCrtPictureUvRect (tightFit, 900, 745);
+        CrtUvRect  wideUv    = ComputeCrtPictureUvRect (wideFit, 1500, 1195);
+        float      tightSpan = tightUv.v1 - tightUv.v0;
+        float      wideSpan  = wideUv.v1 - wideUv.v0;
+
+
+
+        // Two window sizes measured off the running app, 331x227 of a
+        // 900x745 target and 1017x698 of a 1500x1195 one. The picture
+        // occupies a very different share of the target in each, which is
+        // the whole reason the scanline pass could not be handed the
+        // target and left to divide it into 192.
+        Assert::AreEqual (0.3047f, tightSpan, 0.001f);
+        Assert::AreEqual (0.5841f, wideSpan,  0.001f);
+
+        // The old kernel used the target's own uv, so the count of cycles
+        // that actually landed on the picture was 192 scaled by that
+        // share. Those two numbers are what a frame capture showed: 59
+        // scanlines in the small window and 112 in the large one.
+        Assert::AreEqual (58.5f,  kNativeScanlines * tightSpan, 0.5f);
+        Assert::AreEqual (112.0f, kNativeScanlines * wideSpan,  0.5f);
+
+        // Dividing by the span is what removes the window from the
+        // answer. The shader's linePos runs 0..192 across the picture at
+        // both sizes because the span cancels, which is exactly the term
+        // this function exists to supply.
+        Assert::AreNotEqual (tightSpan, wideSpan);
+        Assert::IsTrue (tightSpan > 0.0f);
+        Assert::IsTrue (wideSpan  > 0.0f);
+    }
+
+
     TEST_METHOD (ComputeLetterboxRect_HandlesPillarboxAndLetterbox)
     {
         RECT  lb = {};

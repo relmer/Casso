@@ -102,6 +102,11 @@ Entries before versioning was introduced use dates only.
   emulated screen and cover the same share of the picture everywhere. A radius
   keeps the size it had at 100% zoom, so larger windows get more spread than
   before and smaller ones less.
+- **The wrong number of scanlines was drawn outside the 3D desk scene.** The
+  192 lines an Apple II draws were spread over the whole window rather than
+  over the picture, so the letterbox bars took a share of them and the count
+  followed the window size. A 900 pixel window drew 104 and a 1500 pixel window
+  drew 141. Every presentation now draws 192.
 
 ## [1.22.0]: The one with nibble support
 

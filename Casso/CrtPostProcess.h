@@ -42,11 +42,22 @@ struct CrtParams
     // pixels covers the same share of the picture at every window
     // size. `CrtPostProcess::Process` fills them in; 1.0 means the
     // picture is drawn at 1:1 and a radius is a target texel again.
-    //
-    // The 12 fields also pack to exactly 48 bytes, which is the
-    // multiple of 16 D3D11 requires of a constant buffer.
     float    pixelScaleX        = 1.0f;
     float    pixelScaleY        = 1.0f;
+
+    // Where the picture's top and bottom edges land in the target's
+    // vertical UV, which is what lets the scanline pass lay its 192
+    // cycles across the PICTURE. The full 0..1 default treats the
+    // whole target as the picture, which is true of the desk scene
+    // and was assumed of everything else.
+    float    pictureV0          = 0.0f;
+    float    pictureV1          = 1.0f;
+
+    // D3D11 requires a constant buffer size that is a multiple of 16
+    // bytes; the 14 fields above pack to 56, so pad to 64. No shader
+    // declares these two.
+    float    _pad0              = 0.0f;
+    float    _pad1              = 0.0f;
 };
 
 
@@ -169,6 +180,23 @@ struct CrtPixelScale
 CrtPixelScale  ComputeCrtPixelScale (const RECT & fittedRect,
                                      int          sourceW,
                                      int          sourceH);
+
+
+//
+//  Where the picture sits in the target's UV space, for the passes whose
+//  geometry is defined on the PICTURE rather than on the target. The scanline
+//  pass is the one that needs it: it lays 192 cycles across whatever it is
+//  handed, and the picture is a letterboxed subrect of the target everywhere
+//  except the desk scene.
+//
+//  Differs from ComputeUvRectForFit in what it does with a degenerate fit: it
+//  answers with the whole target rather than an empty rect, so a frame with no
+//  picture leaves every pass exactly where it was instead of dividing by a
+//  zero-height span.
+//
+CrtUvRect  ComputeCrtPictureUvRect (const RECT & fittedRect,
+                                    int          targetW,
+                                    int          targetH);
 
 
 
