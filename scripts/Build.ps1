@@ -19,10 +19,20 @@
       - BuildAllRelease  Build Release for all platforms (x64 and ARM64)
       - CleanAll         Clean all configurations and platforms
       - RebuildAllRelease  Rebuild Release for all platforms
+      - BuildAll         Build both configurations for both platforms
+      - RebuildAll       Rebuild both configurations for both platforms
     Default: Build
 
 .PARAMETER RunCodeAnalysis
-    If set, enables C++ Core Check code analysis during build.
+    If set, enables C++ Core Check code analysis during build, with analysis
+    warnings treated as errors. These are the same three MSBuild properties CI
+    sets, so a clean run here is the same verdict CI reaches FOR THE
+    CONFIGURATION AND PLATFORM BUILT.
+
+    CI analyses four of them: Debug and Release, each on x64 and ARM64. Pair
+    this with -Target RebuildAll to cover the same ground before merging; a
+    single-configuration run can pass while CI fails on one it did not
+    compile, and ARM64 is build-only here, so nothing else exercises it.
 
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
@@ -48,7 +58,8 @@ param(
     [ValidateSet('x64', 'ARM64', 'Auto')]
     [string]$Platform = 'Auto',
 
-    [ValidateSet('Build', 'Clean', 'Rebuild', 'BuildAllRelease', 'CleanAll', 'RebuildAllRelease')]
+    [ValidateSet('Build', 'Clean', 'Rebuild', 'BuildAllRelease', 'CleanAll', 'RebuildAllRelease',
+                 'BuildAll', 'RebuildAll')]
     [string]$Target = 'Build',
 
     [switch]$RunCodeAnalysis,
@@ -195,7 +206,6 @@ if (-not $msbuildPath) {
 }
 
 Write-Host "Using MSBuild: $msbuildPath"
-Write-Host "Building: $solutionPath ($Configuration|$Platform) Target=$Target"
 
 $preferredArch = 'x64'
 if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
@@ -204,7 +214,8 @@ if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Sys
 
 $scriptExitCode = 0
 
-if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'RebuildAllRelease') {
+if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'RebuildAllRelease' -or
+    $Target -eq 'BuildAll' -or $Target -eq 'RebuildAll') {
     $platformsToBuild = @('x64', 'ARM64')
 
     if ($Target -eq 'CleanAll') {
@@ -214,6 +225,14 @@ if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'Re
     elseif ($Target -eq 'RebuildAllRelease') {
         $configsToBuild = @('Release')
         $msbuildTarget = 'Rebuild'
+    }
+    elseif ($Target -eq 'RebuildAll') {
+        $configsToBuild = @('Debug', 'Release')
+        $msbuildTarget = 'Rebuild'
+    }
+    elseif ($Target -eq 'BuildAll') {
+        $configsToBuild = @('Debug', 'Release')
+        $msbuildTarget = 'Build'
     }
     else {
         $configsToBuild = @('Release')
@@ -273,6 +292,8 @@ else {
     if ($Target -ne 'Build') {
         $msbuildArgs += "-t:$Target"
     }
+
+    Write-Host "Building: $solutionPath ($Configuration|$Platform) Target=$Target"
 
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     & $msbuildPath @msbuildArgs
