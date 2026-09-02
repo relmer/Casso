@@ -4159,6 +4159,15 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         SyncSceneDriveChrome();
     }
+    else if (m_d3dRenderer.IsFullscreen())
+    {
+        // No scene, fullscreen: the same bargain the desk scene makes. Every
+        // chrome band is hidden, the picture fills the client (the renderer
+        // letterboxes inside the target bounds), and the drives come back as
+        // the flat widgets riding the overlay strip.
+        m_chromeSceneScale = 1.0f;
+        viewportRect       = { 0, 0, widthPx, heightPx };
+    }
     else
     {
         // No scene at all (compact theme, or the models never loaded): the
@@ -7367,8 +7376,14 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // Fullscreen drive overlay strip (FR-015): tick the FSM from this
     // frame's observations, apply its capture effects, and compose the slid
-    // band the hook will render.
-    if (DeskSceneActive() && m_d3dRenderer.IsFullscreen() && DeskSceneDriveCount() > 0)
+    // band the hook will render. The flat themes ride the same FSM with the
+    // 2D widgets laid into the band, so fullscreen hides the drives the same
+    // way everywhere and brings them back the same way too.
+    bool  stripHasDrives = DeskSceneActive()
+                         ? DeskSceneDriveCount() > 0
+                         : (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+    if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
@@ -7427,47 +7442,81 @@ bool EmulatorShell::TryPresentUiFrame()
         }
 
         // The band slides up from the bottom edge: only the top
-        // `progress * height` sliver is on-screen mid-animation.
+        // `progress * height` sliver is on-screen mid-animation. The flat
+        // widgets' band is the windowed drive bar's height; the scene's is
+        // the row its drives compose into.
         {
             float  progress = m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = m_scaler.ToPx (s_kStripBandDp);
+            int    bandH    = DeskSceneActive() ? m_scaler.ToPx (s_kStripBandDp)
+                                                : m_scaler.ToPx (m_driveBarThicknessDp);
 
             if (progress > 0.0f)
             {
-                HRESULT  hrStrip = S_OK;
-
-                RECT  driveRow = {};
-
                 m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
 
-                // The drives get the band LESS the name strip, the way the
-                // windowed drive band reserves it: the disk's name and its
-                // padlock belong under the drive here too, and a row composed
-                // into the whole band would put them off the screen's edge.
-                driveRow         = m_stripRectPx;
-                driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+                if (DeskSceneActive())
+                {
+                    HRESULT  hrStrip  = S_OK;
+                    RECT     driveRow = {};
 
-                // The drive band's calibrated look-down, not the desk's
-                // near-level default: the band angle is what shows the
-                // drives' tops, and the fullscreen strip is the same
-                // drives-only row the windowed band composes.
-                hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
-                                                         DeskSceneDriveCount(),
-                                                         m_deskScene.Metrics(), m_stripComp,
-                                                         DeskSceneLayout::kDriveBandGazeDownRad);
-                IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                    // The drives get the band LESS the name strip, the way the
+                    // windowed drive band reserves it: the disk's name and its
+                    // padlock belong under the drive here too, and a row composed
+                    // into the whole band would put them off the screen's edge.
+                    driveRow         = m_stripRectPx;
+                    driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+                    // The drive band's calibrated look-down, not the desk's
+                    // near-level default: the band angle is what shows the
+                    // drives' tops, and the fullscreen strip is the same
+                    // drives-only row the windowed band composes.
+                    hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
+                                                             DeskSceneDriveCount(),
+                                                             m_deskScene.Metrics(), m_stripComp,
+                                                             DeskSceneLayout::kDriveBandGazeDownRad);
+                    IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                }
+                else
+                {
+                    // The flat widgets sit in the band wherever the slide has
+                    // put it this frame, bottom-anchored the way the windowed
+                    // bar anchors them, over the band's own surface. They paint
+                    // after the picture, so they ride over it.
+                    m_driveBandSurface.SetBounds (m_stripRectPx);
+                    m_driveBandSurface.SetVisible (true);
+                    LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
+                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f);
+
+                    if (!ShouldShowExternalDrive())
+                    {
+                        m_driveChrome[1].Hide();
+                    }
+                }
             }
             else
             {
                 m_stripRectPx = {};
                 m_stripComp   = {};
+
+                if (!DeskSceneActive())
+                {
+                    m_driveBandSurface.SetVisible (false);
+                    m_driveChrome[0].SetVisible (false);
+                    m_driveChrome[1].SetVisible (false);
+                    m_driveChrome[0].Hide();
+                    m_driveChrome[1].Hide();
+                }
             }
         }
 
         // The strip's names ride its slide: re-hung every pass so they track
-        // the band on its way in and out, and retire with it.
-        SyncSceneDriveLabels();
+        // the band on its way in and out, and retire with it. The flat
+        // widgets carry their own names.
+        if (DeskSceneActive())
+        {
+            SyncSceneDriveLabels();
+        }
 
         if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
         {
@@ -10382,17 +10431,20 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             region = drive.HitTest (x, y);
 
-            if (region == DriveWidgetRegion::Body)
+            if (region == DriveWidgetRegion::Body || region == DriveWidgetRegion::Eject)
             {
-                BrowseForDisk (drive.GetDrive());
-                driveTook = true;
-                break;
-            }
+                if (region == DriveWidgetRegion::Eject)
+                {
+                    Eject (6, drive.GetDrive());
+                }
 
-            if (region == DriveWidgetRegion::Eject)
-            {
-                Eject (6, drive.GetDrive());
+                // In fullscreen the widget is riding the overlay strip, and a
+                // browse opened from the strip pins it (the FSM must not
+                // auto-hide under the dialog).
+                m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
                 BrowseForDisk (drive.GetDrive());
+                m_stripBrowseOpen = false;
+
                 driveTook = true;
                 break;
             }
@@ -12235,11 +12287,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
 
-        // Fullscreen presentation (FR-014): the scene owns the whole client
-        // and every chrome element collapses. The windowed path below is the
-        // one that restores everything -- including the host caption -- when
-        // fullscreen exits, because this OnSize runs on both transitions.
-        if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
+        // Fullscreen presentation (FR-014): the picture owns the whole client
+        // and every chrome element collapses, whichever theme is on. The
+        // windowed path below is the one that restores everything --
+        // including the host caption -- when fullscreen exits, because this
+        // OnSize runs on both transitions.
+        if (m_d3dRenderer.IsFullscreen())
         {
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);

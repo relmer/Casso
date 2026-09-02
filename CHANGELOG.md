@@ -72,6 +72,11 @@ Entries before versioning was introduced use dates only.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
   user to download it from Casso's disk picker and retry.** It used to
   instruct a first run of the emulator, which downloads nothing.
+- **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
+  Terminal kept the caption, menu bar and drive bar around a stretched
+  picture. They now collapse the way the desk scene does: the picture fills
+  the screen, the toolbar slides in from the top edge, and the drives slide
+  up from the bottom edge or on the View menu's strip command.
 - **The Dark Modern and Retro Terminal themes drew a stale input-mode bar.**
   The joystick, paddle and mouse selector moved to the command toolbar, but
   the flat themes kept a second copy in a band above the drive widgets. That

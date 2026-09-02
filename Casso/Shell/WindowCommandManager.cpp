@@ -945,10 +945,10 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_DRIVE_STRIP:
         {
-            // Only meaningful in the fullscreen desk scene; the FSM consumes
-            // the edge on its next tick (releasing a guest capture if one is
-            // held). Elsewhere the drives are already on screen.
-            if (m_shell.DeskSceneActive() && m_shell.m_d3dRenderer.IsFullscreen())
+            // Only meaningful in fullscreen; the FSM consumes the edge on its
+            // next tick (releasing a guest capture if one is held). Windowed,
+            // the drives are already on screen.
+            if (m_shell.m_d3dRenderer.IsFullscreen())
             {
                 m_shell.m_stripHotkeyPending = true;
                 m_shell.m_d3dRenderer.MarkRedrawNeeded();
