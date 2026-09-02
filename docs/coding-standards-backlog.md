@@ -930,55 +930,26 @@ link failure. It is `GetFreeBytes`. And `DxuiViewport::InputSink` is Dxui's, so
 `AppleKeyboard::InputSink` had to be renamed with the call site in
 `UnitTest/Dxui/` excluded by name.
 
-**Still outstanding, 19 declarations.** 027 renamed most of what it was holding
-itself, so the old list of held names is gone; what follows is a re-derivation
-against master at `76d3c778`.
+**Nothing outstanding. The sweep is closed.** The last 19 declarations landed
+in merge `a913403b`: nine that branch 028 added after the sweep ran, five the
+sweep itself missed, and five it had deferred while 027 held the files. 027
+renamed most of what it was holding itself, so the old list of held names was
+already gone by then.
 
-*Deferred by the original sweep, and now unblocked.* Both `*Offset` functions
-carry comment blocks recording which direction each maps and why a hand-written
-inverse table was dangerous. That prose is the reason those functions exist.
-Move it intact; do not summarize it.
+The five the sweep missed are the interesting ones, because they say what the
+first derivation could not see. `WasapiAudio::NowMs` predated the sweep
+entirely. `DeskSceneModel::DoorBoundsAt`, `DiskCommandRunner::OnDiskNameFor` and
+two `KeyOf` helpers all carry a leading word that reads as a verb in some other
+name, which is exactly the failure the word pass is prone to.
 
-| Current | File |
-|---|---|
-| `ProDosSkeleton::BlockByteOffset` | `ProDosSkeleton.h:42` |
-| `Dos33Skeleton::SectorOffset` | `Dos33Skeleton.h:39` |
-| `StockBootDisks::PathFor` / `FileNameFor` | `StockBootDisks.h:49`, `:61` |
-| `DiskCommandResult::Failure` | `DiskCommandResult.h:48` |
-
-*Added by branch 028 after the sweep,* which is what prompted moving the rule
-into the standards file. Five of the nine sit in one accessor block.
-
-| Current | File | Becomes |
-|---|---|---|
-| `AskedAction` | `MountedImageState.h:124` | `GetAskedAction` |
-| `Identity` | `MountedImageState.h:74` | `GetIdentity` |
-| `Pending` | `MountedImageState.h:93` | `GetPending` |
-| `SamePath` | `MountedImageState.h:132` | `IsSamePath` |
-| `DirectoryOf` | `MountedImageState.h:135` | `GetDirectory` |
-| `ChangePrompt::FileName` | `ChangePrompt.h:165` | `GetFileName` |
-| `Win32IntentChannel::MessageId` | `Win32IntentChannel.h:43` | `GetMessageId` |
-| `DiskImageStore::NowMs` | `DiskImageStore.h:537` | `GetNowMs` |
-| `DiskImageStore::PathExists` | `DiskImageStore.h:509` | `DoesPathExist` |
-
-*Missed by the sweep itself,* found by re-running the shape pass. `NowMs` in
-`WasapiAudio` predates the sweep entirely, which is what exposed the gap.
-
-| Current | File | Becomes |
-|---|---|---|
-| `WasapiAudio::NowMs` | `WasapiAudio.h:78` | `GetNowMs` |
-| `DeskSceneModel::DoorBoundsAt` | `DeskSceneModel.h:285` | `GetDoorBoundsAt` |
-| `DiskCommandRunner::OnDiskNameFor` | `DiskCommandRunner.h:319` | `GetOnDiskName` |
-| `MeshBlob::KeyOf` | `MeshBlob.h:100` | `MakeKey` |
-| `MeshNormals::KeyOf` | `MeshNormals.h:91` | `MakeKey` |
-
-**The cheap re-derivation is the `NounOf` / `NounFor` / `NounAt` / `NounFrom`
-declaration shapes.** Tree-wide that returns 29 hits, of which most are
-verb-first names carrying a trailing preposition (`GetPartAt`, `WriteByteAt`,
-`ReadNibbleAt`) and are correct. The broad two-pass scan returns 369 candidates
-that are overwhelmingly a short verb list rejecting `ToJson`, `Shutdown` and
-`Widen`, so it needs reading rather than trusting. Neither figure is the answer
-on its own.
+**Re-derive with the `NounOf` / `NounFor` / `NounAt` / `NounFrom` declaration
+shapes, which is the cheap check.** Tree-wide it returns 29 hits, of which most
+are verb-first names carrying a trailing preposition (`GetPartAt`,
+`WriteByteAt`, `ReadNibbleAt`) and are correct as they stand. The broad two-pass
+scan returns 369 candidates that are overwhelmingly a short verb list rejecting
+`ToJson`, `Shutdown` and `Widen`. Neither figure is the answer on its own, which
+is why `.github/copilot-instructions.md` states plainly that the rule is not
+machine-checked.
 
 **Proof that a rename sweep changed nothing else.** Line counts are identical in
 all 261 files, and every changed line was checked token by token: 2,059 tokens
