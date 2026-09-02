@@ -814,8 +814,9 @@ in conversation.
 - **Do NOT add stray-file patterns to `.gitignore`.** The user
   prefers stray files to surface in `git status` as a visible
   reminder. Silencing them with `.gitignore` defeats that signal.
-- The only `.gitignore`d disk image is the Apple-owned
-  `Disks/Apple/dos33-master.dsk`. Disks we author belong in the repo.
+- The only `.gitignore`d disk images are the two Apple-owned masters the
+  scenario suite reads, `Disks/Apple/dos33-master.dsk` and
+  `Disks/Apple/prodos-users.dsk`. Disks we author belong in the repo.
 
 ## Shell and Terminal Rules
 

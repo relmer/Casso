@@ -47,11 +47,18 @@ std::vector<Byte> GuestSession::ReadFileOrEmpty (const std::filesystem::path & f
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestSession::RequireDos33Master
+//  GuestSession::FindStockImage
+//
+//  The two places a stock image can be, tried in order: `repoPath` under the
+//  working directory and each of its parents, then the emulator's download
+//  cache under `cacheName`. READ-ONLY: nothing here downloads, copies, or
+//  creates anything, so a run leaves no trace of having looked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Byte> GuestSession::RequireDos33Master()
+std::vector<Byte> GuestSession::FindStockImage (
+    const char     * repoPath,
+    const wchar_t  * cacheName)
 {
     std::error_code        ec;
     std::filesystem::path  cursor    = std::filesystem::current_path (ec);
@@ -64,9 +71,9 @@ std::vector<Byte> GuestSession::RequireDos33Master()
 
 
 
-    for (level = 0; walking && bytes.empty() && level < 10; level++)
+    for (level = 0; walking && bytes.empty() && level < kMaxAncestorWalk; level++)
     {
-        bytes = ReadFileOrEmpty (cursor / kpszMasterRepoPath);
+        bytes = ReadFileOrEmpty (cursor / repoPath);
 
         if (bytes.empty())
         {
@@ -91,9 +98,28 @@ std::vector<Byte> GuestSession::RequireDos33Master()
     if (hasCache)
     {
         bytes = ReadFileOrEmpty (std::filesystem::path (cacheRoot) /
-                                 L"Casso" / L"Disks" / kpszMasterCacheName);
+                                 L"Casso" / L"Disks" / cacheName);
         free (cacheRoot);
     }
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireDos33Master
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireDos33Master()
+{
+    std::vector<Byte>  bytes = FindStockImage (kpszMasterRepoPath, kpszMasterCacheName);
+
+
 
     Assert::IsFalse (bytes.empty(),
         L"the stock DOS 3.3 master is REQUIRED by this gate and was not found, either as "
@@ -104,6 +130,38 @@ std::vector<Byte> GuestSession::RequireDos33Master()
         L"case fails rather than skipping: a guest-visible gate that never started a "
         L"guest has checked nothing, and a skip is indistinguishable in the output from "
         L"a case that ran");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireProDosUsersDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireProDosUsersDisk()
+{
+    std::vector<Byte>  bytes = FindStockImage (kpszProDosRepoPath, kpszProDosCacheName);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the stock ProDOS Users Disk is REQUIRED by this gate and was not found, either "
+        L"as Disks/Apple/prodos-users.dsk in a parent of the working directory or as "
+        L"%LOCALAPPDATA%\\Casso\\Disks\\ProDOS Users Disk.dsk. To get it, pick the ProDOS "
+        L"row in Casso's Boot Disk or Insert Disk picker once, which downloads it into "
+        L"that cache, or place a copy at the repo path, which is gitignored. This case "
+        L"fails rather than skipping: a guest-visible gate that never started a guest has "
+        L"checked nothing, and a skip is indistinguishable in the output from a case that "
+        L"ran");
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");

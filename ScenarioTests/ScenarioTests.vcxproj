@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   SCENARIO TESTS, NOT UNIT TESTS. Every case here needs external inputs (the
-  stock DOS 3.3 System Master, which is fetched rather than committed) and a
+  stock DOS 3.3 System Master or ProDOS Users Disk, fetched rather than
+  committed) and a
   booted guest executing real 6502 code. They live in their own DLL so they
   cannot run in the unit-test suite by accident: CI names UnitTest.dll only,
   and the one deliberate way to run these is `scripts/RunTests.ps1 -Scenario`.
@@ -163,6 +164,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
+    <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />

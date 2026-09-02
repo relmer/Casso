@@ -82,119 +82,6 @@ public:
     // "this image will still boot".
     static constexpr const char *  kGreetingName = "HELLO";
 
-    // What a case logs when it cannot find its image, before returning
-    // without checking anything. Both places the resolver tries are listed,
-    // with the two ways to fill one, so the line in the output is enough to
-    // act on.
-    static constexpr const char *  kDos33Missing  =
-        "SKIPPED: DOS 3.3 System Master not found\n"
-        "         Tried Disks/Apple/dos33-master.dsk under the working directory and its\n"
-        "         parents, then %LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk.\n"
-        "         To get it, pick the DOS 3.3 row in Casso's Boot Disk or Insert Disk\n"
-        "         picker once, which downloads it into that cache, or place a copy at\n"
-        "         the repo path, which is gitignored. This case checked nothing.\n";
-
-    static constexpr const char *  kProDosMissing =
-        "SKIPPED: ProDOS Users Disk not found\n"
-        "         Tried Disks/Apple/prodos-users.dsk under the working directory and its\n"
-        "         parents, then %LOCALAPPDATA%\\Casso\\Disks\\ProDOS Users Disk.dsk.\n"
-        "         To get it, pick the ProDOS row in Casso's Boot Disk or Insert Disk\n"
-        "         picker once, which downloads it into that cache, or place a copy at\n"
-        "         the repo path, which is not gitignored. This case checked nothing.\n";
-
-    static std::vector<Byte> ReadFileOrEmpty (const std::filesystem::path & full)
-    {
-        std::error_code    ec;
-        std::vector<Byte>  bytes;
-
-        if (std::filesystem::exists (full, ec))
-        {
-            std::ifstream f (full, std::ios::binary);
-
-            if (f)
-            {
-                bytes.assign ((std::istreambuf_iterator<char> (f)),
-                              std::istreambuf_iterator<char> ());
-            }
-        }
-
-        return bytes;
-    }
-
-
-    static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
-    {
-        // Two places are tried, in order: `relPath` under the working
-        // directory and each of its parents, up to ten levels (the same
-        // walk BackwardsCompatTests and Pr3AuxClearTest use), then the
-        // emulator's download cache, %LOCALAPPDATA%\Casso\Disks, under the
-        // file name the emulator saves the image as. Returns an empty
-        // vector when neither has it; the caller logs SKIPPED and returns
-        // without checking anything, on a developer machine and on CI alike.
-        //
-        // The images are Apple-owned and not committed. To get one, pick the
-        // DOS 3.3 or ProDOS row in the Boot Disk or Insert Disk picker once,
-        // which downloads it into the cache, or place a copy at the repo
-        // path. Only dos33-master.dsk is gitignored there.
-        std::error_code        ec;
-        std::filesystem::path  cursor  = std::filesystem::current_path (ec);
-        std::vector<Byte>      bytes;
-        bool                   walking = !ec;
-
-        for (int i = 0; walking && bytes.empty() && i < 10; i++)
-        {
-            bytes = ReadFileOrEmpty (cursor / relPath);
-
-            // Nothing read yet -- including the exists-but-unreadable case,
-            // which keeps climbing rather than giving up at that level.
-            if (bytes.empty())
-            {
-                if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-                {
-                    walking = false;
-                }
-                else
-                {
-                    cursor = cursor.parent_path();
-                }
-            }
-        }
-
-        // The cache the emulator downloads into, and the same one
-        // GuestSession::RequireDos33Master reads. Read-only: nothing here
-        // downloads.
-        if (bytes.empty())
-        {
-            const wchar_t *  cacheName = nullptr;
-
-            if (relPath == "Disks/Apple/dos33-master.dsk")
-            {
-                cacheName = L"DOS 3.3 System Master.dsk";
-            }
-            else if (relPath == "Disks/Apple/prodos-users.dsk")
-            {
-                cacheName = L"ProDOS Users Disk.dsk";
-            }
-
-            if (cacheName != nullptr)
-            {
-                wchar_t * localAppData = nullptr;
-                size_t    len          = 0;
-
-                if (_wdupenv_s (&localAppData, &len, L"LOCALAPPDATA") == 0 &&
-                    localAppData != nullptr)
-                {
-                    bytes = ReadFileOrEmpty (std::filesystem::path (localAppData) /
-                                             L"Casso" / L"Disks" / cacheName);
-                    free (localAppData);
-                }
-            }
-        }
-
-        return bytes;
-    }
-
-
     //
     //  ------------------------------------------------------------------
     //  The cheap questions, asked before any machine starts.
@@ -258,15 +145,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage (kDos33Missing);
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -358,15 +237,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage (kDos33Missing);
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -462,15 +333,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage (kDos33Missing);
-            return;
-        }
-
-        Assert::AreEqual (size_t (143360), raw.size(),
-            L"DOS 3.3 master disk must be 143360 bytes");
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -604,12 +467,7 @@ public:
 
 
 
-        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty())
-        {
-            Logger::WriteMessage (kDos33Missing);
-            return;
-        }
+        std::vector<Byte>  raw = GuestSession::RequireDos33Master();
 
         AssertTheMasterIsStillADos33Disk (raw);
 
@@ -704,12 +562,7 @@ public:
 
 
 
-        payload.dosMasterSectors = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (payload.dosMasterSectors.empty())
-        {
-            Logger::WriteMessage (kDos33Missing);
-            return;
-        }
+        payload.dosMasterSectors = GuestSession::RequireDos33Master();
 
         spec.bootable = true;
 
@@ -777,12 +630,7 @@ public:
 
 
 
-        payload.proDosUsersDisk = ReadDskOrEmpty ("Disks/Apple/prodos-users.dsk");
-        if (payload.proDosUsersDisk.empty())
-        {
-            Logger::WriteMessage (kProDosMissing);
-            return;
-        }
+        payload.proDosUsersDisk = GuestSession::RequireProDosUsersDisk();
 
         spec.contents = BlankDiskContents::ProDos;
         spec.bootable = true;

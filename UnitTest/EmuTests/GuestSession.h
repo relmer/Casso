@@ -52,6 +52,9 @@ public:
     //  while a skip is indistinguishable in the output from a case that ran.
     static std::vector<Byte>  RequireDos33Master();
 
+    //  The stock ProDOS Users Disk, or a FAILED test, on the same grounds.
+    static std::vector<Byte>  RequireProDosUsersDisk();
+
     //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
     //  ROM's entry, having executed nothing.
     //
@@ -196,10 +199,18 @@ public:
     static constexpr uint64_t  kLineCycles = 20'000'000ULL;
 
 private:
-    //  Where the stock master lives on a developer machine. It is fetched by
-    //  the GUI rather than committed, so this is a cache path, not a fixture.
+    //  Where the stock masters live on a developer machine. They are fetched by
+    //  the GUI rather than committed, so these are cache paths, not fixtures.
+    //  The cache names are the ones the emulator saves each image under.
     static constexpr const wchar_t *  kpszMasterCacheName = L"DOS 3.3 System Master.dsk";
     static constexpr const char *     kpszMasterRepoPath  = "Disks/Apple/dos33-master.dsk";
+    static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
+    static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
+
+    //  How far up from the working directory the repo-path search climbs. The
+    //  test host's directory is not fixed, so the walk covers a binary run from
+    //  the tree, from an output directory under it, or from a worktree.
+    static constexpr int  kMaxAncestorWalk = 10;
 
     //  How many screenfuls a command is allowed to print before this gives up.
     //  DOS 3.3's catalog pager needs one press on the master; the ProDOS
@@ -222,4 +233,9 @@ private:
     static constexpr int  kDrive1 = 0;
 
     static std::vector<Byte>  ReadFileOrEmpty (const std::filesystem::path & full);
+
+    //  The two places a stock image can be, tried in order. Empty when neither
+    //  has it; the Require* callers turn that into a FAILED test.
+    static std::vector<Byte>  FindStockImage  (const char    * repoPath,
+                                               const wchar_t * cacheName);
 };

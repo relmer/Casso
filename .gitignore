@@ -388,8 +388,11 @@ UnitTest/6502/
 UnitTest/synertek65c02/
 UnitTest/rockwell65c02/
 
-# Disk images we cannot redistribute (Apple-owned)
+# Disk images we cannot redistribute (Apple-owned). The scenario suite reads
+# either of these from here, and its failure message points a developer at
+# this path, so both must be ignored or a run leaves an untracked file behind.
 /Disks/Apple/dos33-master.dsk
+/Disks/Apple/prodos-users.dsk
 
 # Cross-platform/editor artifacts
 .vscode/
