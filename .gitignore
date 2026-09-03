@@ -415,8 +415,20 @@ build/
 # Git worktrees created under the repo (linked working trees; never committed)
 .claude/worktrees/
 
-# Copyrighted machine ROMs provisioned on demand; tests skip when absent
+# Copyrighted machine ROMs. Any not listed below are provisioned on demand by
+# scripts/FetchRoms.ps1 and stay out of the repo.
+#
+# The four exceptions are COMMITTED on purpose: the unit suite cannot build a
+# machine without them and CI provisions nothing, so ignoring them would take
+# HeadlessHost's 65 machine builds and the video and drive tests out of every
+# CI run. AppleWin ships the identical files in the resource directory
+# FetchRoms already downloads from.
 UnitTest/Fixtures/*.rom
+!UnitTest/Fixtures/Apple2c.rom
+!UnitTest/Fixtures/Apple2e.rom
+!UnitTest/Fixtures/Apple2eEnhanced.rom
+!UnitTest/Fixtures/Apple2e_Video.rom
+!UnitTest/Fixtures/Disk2.rom
 
 # Working area for third-party disks and manuals fetched by scripts/FetchMerlin.ps1.
 # The disks the tests need are committed under UnitTest/Fixtures/Disks/; what lands

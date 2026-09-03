@@ -235,16 +235,6 @@ public:
     }
 
 
-    bool Apple2cRomAvailable()
-    {
-        FixtureProvider        fp;
-        std::vector<uint8_t>   bytes;
-        HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
-
-        return SUCCEEDED (hrOpen) && bytes.size() == kApple2cRomSize;
-    }
-
-
     ////////////////////////////////////////////////////////////////////////
     //
     //  Same real disk game, but booted end-to-end on the Apple //c through
@@ -262,30 +252,16 @@ public:
         const wchar_t      *  label,
         int                   minTracks)
     {
-        fs::path   wozPath;
-        bool       runnable = Apple2cRomAvailable();
+        // The //c ROM is a committed fixture now, so only the game image can
+        // be absent: those are large and deliberately not in the repo.
+        fs::path   wozPath  = FindRepoFile (relPath);
+        bool       runnable = !wozPath.empty();
 
-        // Two independent absences, each reported in its own words: the ROM
-        // (copyrighted, never on CI) and the game image (large, not in the
-        // repo). The ROM is checked first because without it the //c cannot be
-        // built at all, so the WOZ path would not matter.
         if (!runnable)
         {
-            Logger::WriteMessage (
-                "SKIPPED: UnitTest/Fixtures/Apple2c.rom absent "
-                "(copyrighted //c ROM 4, provisioned on demand).\n");
-        }
-        else
-        {
-            wozPath  = FindRepoFile (relPath);
-            runnable = !wozPath.empty();
-
-            if (!runnable)
-            {
-                Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
-                Logger::WriteMessage (relPath.c_str());
-                Logger::WriteMessage ("\n");
-            }
+            Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
+            Logger::WriteMessage (relPath.c_str());
+            Logger::WriteMessage ("\n");
         }
 
         if (runnable)

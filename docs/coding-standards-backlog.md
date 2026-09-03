@@ -1058,4 +1058,6 @@ rewrote three comments it had no business touching: an enum value
 (`SymbolKind::Label`), a prose mention of the Shift key, and -- worst -- the
 function banner over `StockBootDisks::PathFor`, whose code the `PathFor`
 scoping had correctly left alone for branch `027-nibble-images`. A comment pass
-that ignores the scoping quietly undoes it.
+that ignores the scoping quietly undoes it. (That function is `GetPath` today;
+the old name is kept here because the account is about the moment it still had
+it, and renaming it in the story would make the story false.)

@@ -137,7 +137,7 @@ static constexpr CrtFieldDesc  s_kCrtFields[] = {
     { CrtGroup::Scanlines,  "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::scanlinesEnabled,  nullptr,                                   0.0f, 0.0f  },
     { CrtGroup::Scanlines,  "intensity",    CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::scanlinesIntensity, 0.0f, 1.0f  },
     { CrtGroup::Bloom,      "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::bloomEnabled,      nullptr,                                   0.0f, 0.0f  },
-    { CrtGroup::Bloom,      "radius",       CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomRadius,        0.0f, 10.0f },
+    { CrtGroup::Bloom,      "radius",       CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomRadius,        0.0f, 4.0f  },
     { CrtGroup::Bloom,      "strength",     CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomStrength,      0.0f, 1.0f  },
     { CrtGroup::ColorBleed, "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::colorBleedEnabled, nullptr,                                   0.0f, 0.0f  },
     { CrtGroup::ColorBleed, "width",        CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::colorBleedWidth,    0.0f, 8.0f  },

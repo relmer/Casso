@@ -1420,7 +1420,7 @@ private:
     // and where they have dragged it to. Deliberately NOT persisted -- it is
     // a way of looking at the scene for a moment, like leaning toward a
     // screen, and a saved zoom would have people opening Casso to a view they
-    // set once and forgot. IDM_VIEW_RESET_SCENE puts it back.
+    // set once and forgot. Ctrl+0 puts it back.
     DeskSceneView            m_sceneView;
 
     // Set while a pan drag is in flight, with the anchor the drag started

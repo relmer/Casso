@@ -85,6 +85,31 @@ public:
         fs::path                  target = scratch.path / L"work.dsk";
         bool                      began  = false;
 
+        //  WAIT FOR THE TARGET, NOT FOR ANY EVENT. The commit renames a sibling
+        //  temporary over the image, and creating that temporary is itself a
+        //  change in the watched directory, so it can report first. A wait on
+        //  "any event has arrived" therefore woke on the temporary while the
+        //  target's own record was still in flight, and the check below failed
+        //  on a list holding only the temporary.
+        //
+        //  Seen once, in a full Debug run on 2026-09-02: 203 ms against the 5 ms
+        //  an ordinary run takes, well short of the 5 s bound, so it woke on a
+        //  record rather than timing out. The two records land microseconds
+        //  apart unless the disk is busy, which is why it survived every attempt
+        //  to reproduce it on its own and why this is fixed by construction
+        //  rather than by a test that fails first.
+        auto  sawTarget = [&]
+        {
+            bool  found = false;
+
+            for (const std::string & path : seen)
+            {
+                found = found || MountedImageState::IsSamePath (path, target.string());
+            }
+
+            return found;
+        };
+
 
 
         CommitAtomically (target, 0x11);
@@ -108,22 +133,17 @@ public:
         {
             std::unique_lock<std::mutex>  guard (mutex);
 
-            signal.wait_for (guard, std::chrono::milliseconds (kWaitMs),
-                             [&] { return !seen.empty(); });
+            signal.wait_for (guard, std::chrono::milliseconds (kWaitMs), sawTarget);
         }
-
-        Assert::IsTrue (!seen.empty(), L"the commit must be reported");
 
         {
             std::lock_guard<std::mutex>  guard (mutex);
-            bool                         named = false;
 
-            for (const std::string & path : seen)
-            {
-                named = named || MountedImageState::IsSamePath (path, target.string());
-            }
-
-            Assert::IsTrue (named, L"and the report must name the file that changed");
+            //  Both, in this order: an empty list means the watcher reported
+            //  nothing at all, while a full one without the target means it
+            //  reported something else. Those are different faults.
+            Assert::IsTrue (!seen.empty(), L"the commit must be reported");
+            Assert::IsTrue (sawTarget(),   L"and the report must cover the file that changed");
         }
 
         watcher.Unwatch (scratch.path.string());

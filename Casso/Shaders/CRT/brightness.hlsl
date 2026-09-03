@@ -18,7 +18,7 @@
 //
 // Identity at brightness=1.0, contrast=1.0: (c - 0.5)*1 + 0.5 + 0 = c.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; float g_bloomThreshold; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };

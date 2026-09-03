@@ -93,10 +93,6 @@
 #define IDM_PRINTER_MODERN_FAILED   40067
 #define IDM_VIEW_DRIVE_STRIP        40068  // Fullscreen drive overlay strip toggle
 
-// Puts the desk scene's zoom and pan back to the fitted composition. Distinct
-// from IDM_VIEW_RESET_SIZE, which resizes the WINDOW -- one restores how the
-// scene is framed inside the viewport, the other how big the viewport is.
-#define IDM_VIEW_RESET_SCENE        40069
 
 // Frames per second over the picture. On by default in a debug build and
 // off in a release one, and remembered either way once toggled.

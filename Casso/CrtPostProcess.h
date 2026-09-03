@@ -37,11 +37,37 @@ struct CrtParams
     float    contrast           = 1.0f;
     float    gamma              = 1.0f;
     float    persistence        = 0.0f;
-    // D3D11 requires constant buffer sizes to be a multiple of 16
-    // bytes; the 10 fields above pack to 40 bytes, so pad to 48.
-    // These slots are intentionally unused by every shader.
+    // Target texels per emulated pixel, one axis each. The blur and
+    // bleed kernels step by these, so a radius given in emulated
+    // pixels covers the same share of the picture at every window
+    // size. `CrtPostProcess::Process` fills them in; 1.0 means the
+    // picture is drawn at 1:1 and a radius is a target texel again.
+    float    pixelScaleX        = 1.0f;
+    float    pixelScaleY        = 1.0f;
+
+    // Where the picture's top and bottom edges land in the target's
+    // vertical UV, which is what lets the scanline pass lay its 192
+    // cycles across the PICTURE. The full 0..1 default treats the
+    // whole target as the picture, which is true of the desk scene
+    // and was assumed of everything else.
+    float    pictureV0          = 0.0f;
+    float    pictureV1          = 1.0f;
+
+    // Luminance a pixel must reach before it contributes to the bloom.
+    // Halation is light that had to be emitted before it could scatter
+    // inside the faceplate, so only bright areas produce it. Without
+    // this the blur lifts every dark pixel sitting next to a lit one,
+    // which on dithered artwork fills the gaps and flattens the tone.
+    //
+    // Not a per-monitor value and not on the Display page yet. One
+    // number, deliberately, until the CRT tuning work decides whether
+    // a color tube and a phosphor tube want different ones.
+    float    bloomThreshold     = 0.0f;
+
+    // D3D11 requires a constant buffer size that is a multiple of 16
+    // bytes; the 15 fields above pack to 60, so pad to 64. No shader
+    // declares this one.
     float    _pad0              = 0.0f;
-    float    _pad1              = 0.0f;
 };
 
 
@@ -64,9 +90,9 @@ struct CrtParams
 //  Parameters are resolved PER MODE, since color and the three monochrome
 //  phosphors want different scanline and bloom strengths.
 //
-//  Output dimensions are taken because several parameters are expressed
-//  relative to the rendered size, so the same settings look the same at any
-//  window size.
+//  Output dimensions are taken because the blur kernels step in units of the
+//  render target's texels, so they have to know how big one is. What a radius
+//  MEANS is settled separately, by the pixel scale below.
 //
 //  Declared as a free function so the resolution rules can be unit-tested
 //  without a device, a window, or a theme manager.
@@ -136,6 +162,58 @@ CrtUvRect  ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CrtPixelScale
+//
+//  How many render-target texels one emulated pixel covers, per axis.
+//
+//  The blur and bleed kernels can only step in texels of the target they draw
+//  into, and that target grows with the window and differs between the desk
+//  scene and the flat themes. A radius counted in those texels therefore
+//  covers a different share of the picture in every one of those cases. This
+//  factor converts a radius given in emulated pixels into the texels the
+//  kernels need, which is what makes one setting look the same everywhere.
+//
+//  Both axes are carried because the aspect fit rounds to whole pixels, so
+//  the two scales differ slightly even though the fit preserves the aspect.
+//
+//  Free function for the same reason as the fits above: unit-testable with no
+//  GPU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CrtPixelScale
+{
+    float  x = 1.0f;
+    float  y = 1.0f;
+};
+
+CrtPixelScale  ComputeCrtPixelScale (const RECT & fittedRect,
+                                     int          sourceW,
+                                     int          sourceH);
+
+
+//
+//  Where the picture sits in the target's UV space, for the passes whose
+//  geometry is defined on the PICTURE rather than on the target. The scanline
+//  pass is the one that needs it: it lays 192 cycles across whatever it is
+//  handed, and the picture is a letterboxed subrect of the target everywhere
+//  except the desk scene.
+//
+//  Differs from ComputeUvRectForFit in what it does with a degenerate fit: it
+//  answers with the whole target rather than an empty rect, so a frame with no
+//  picture leaves every pass exactly where it was instead of dividing by a
+//  zero-height span.
+//
+CrtUvRect  ComputeCrtPictureUvRect (const RECT & fittedRect,
+                                    int          targetW,
+                                    int          targetH);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CrtPostProcess
 //
 //  Owns the GPU resources for the CRT shader chain:
@@ -171,7 +249,9 @@ public:
                          const CrtParams          & params,
                          const RECT               & viewportRect,
                          int                        backBufferW,
-                         int                        backBufferH);
+                         int                        backBufferH,
+                         int                        sourceW,
+                         int                        sourceH);
     void     Shutdown   ();
 
 private:

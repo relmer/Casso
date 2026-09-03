@@ -55,6 +55,14 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Bloom washed out dithered pictures.** It was applied to every pixel rather than
+  to bright ones, so a dark pixel next to a lit one was lifted along with it. On
+  dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
+  dither stopped reading as tone. Only pixels above a brightness threshold feed the
+  bloom now, which is what a phosphor does.
+- **The bloom radius slider offered a range nobody could use.** It ran to 10 in whole
+  steps, where the useful span ends around 4 and the setting wants half-pixel
+  resolution. It now runs 0.5 to 4.0 and drags in tenths.
 - **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
   built as a plain member and given its words afterward painted with a hard-coded
   white rather than the theme's own text color. Whole settings pages are built that
@@ -72,6 +80,13 @@ Entries before versioning was introduced use dates only.
 - **The `disk create --bootable` diagnostic for a missing master instructs the
   user to open Casso and use the disk picker to download it.** It used to
   instruct a first run of the emulator, which downloads nothing.
+- **Switching themes now applies the new theme's CRT defaults.** A theme
+  carries brightness, scanline, bloom and color-bleed defaults, but once any
+  Display control had been touched the whole block was pinned as a user
+  override and every later theme change was ignored. Picking a theme now
+  adopts its defaults, on Apply now and on OK, and the Display page's sliders
+  and its default badges follow. Cancel puts the old theme's defaults back
+  with the old theme.
 - **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
   picture. They now collapse the way the desk scene does: the picture fills
@@ -96,6 +111,22 @@ Entries before versioning was introduced use dates only.
   distorted.** Changed to use the emoji lock character to avoid conflicts 
   with the text shadow effect and improve overall icon clarity. The 2D drive
   widget now uses the same padlock.
+- **Bloom and color bleed changed with the window size.** Both were measured in
+  output pixels, so the same settings tightened as the window grew and looked
+  different again on the 3D desk scene. They are now measured in pixels of the
+  emulated screen and cover the same share of the picture everywhere. A radius
+  keeps the size it had at 100% zoom, so larger windows get more spread than
+  before and smaller ones less.
+- **Ctrl+0 puts the whole view back**: the window to 100%, the machine facing
+  front, and the scene at its default zoom. Resetting the window and resetting
+  the scene used to be two commands on two chords, one of which did nothing at
+  all under the flat themes. There is one command now, and it works in every
+  theme.
+- **The wrong number of scanlines was drawn outside the 3D desk scene.** The
+  192 lines an Apple II draws were spread over the whole window rather than
+  over the picture, so the letterbox bars took a share of them and the count
+  followed the window size. A 900 pixel window drew 104 and a 1500 pixel window
+  drew 141. Every presentation now draws 192.
 
 ## [1.22.0]: The one with nibble support
 
