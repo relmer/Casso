@@ -92,6 +92,7 @@ HRESULT WasapiAudio::Initialize()
     WAVEFORMATEX     desiredFormat  = {};
     REFERENCE_TIME   bufferDuration = 1000000;  // 100ms
     BYTE           * buffer         = nullptr;
+    uint64_t         frameSamples   = 0;
 
 
 
@@ -172,9 +173,18 @@ HRESULT WasapiAudio::Initialize()
     hr = m_audioClient->GetService (IID_PPV_ARGS (&m_renderClient));
     CHRA (hr);
 
-    // Calculate samples per emulation frame:
-    // sampleRate * cyclesPerFrame / clockSpeed = exact samples per frame
-    m_samplesPerFrame = m_sampleRate * kAppleCyclesPerFrame / kAppleCpuClock;
+    // Samples per emulation frame, TRUNCATED rather than exact: the Apple's
+    // frame rate is kAppleCpuClock / kAppleCyclesPerFrame = 60.05 Hz, not 60,
+    // so 44100 Hz gives 734.3 and this keeps 734. The fraction does not matter
+    // because the only reader is the pending-buffer cap in SubmitFrame.
+    //
+    // The product is taken in 64 bits because a 32-bit multiply wraps once the
+    // endpoint rate passes 252,200 Hz, and pro interfaces do report 352800 and
+    // 384000 shared-mode mix formats. A wrapped product stays positive and
+    // merely looks small, so the cap would have sat at about a third of its
+    // intended depth and starved the mixer.
+    frameSamples      = static_cast<uint64_t> (m_sampleRate) * kAppleCyclesPerFrame / kAppleCpuClock;
+    m_samplesPerFrame = static_cast<UINT32> (frameSamples);
 
     // Pre-fill buffer with silence to avoid initial noise
     hr = m_renderClient->GetBuffer (m_bufferFrames, &buffer);
