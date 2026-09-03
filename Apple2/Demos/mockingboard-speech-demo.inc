@@ -15,13 +15,24 @@ introData
     .byte $01,$E8,$B2,$FB,$05,$C3,$C8,$C9
     .byte $D0,$AE,$E8,$B2,$47,$E7,$00,$FF
 
+; the recurring interjection between sections
+sarahData
+    .byte $FB,$00,$FD,$D6,$54,$FB,$06,$D3
+    .byte $C1,$D2,$C1,$C8,$AC,$B0,$0A,$9E
+    .byte $9B,$C0,$FB,$03,$C9,$A7,$CD,$0F
+    .byte $87,$B7,$FB,$08,$D7,$C1,$D4,$C3
+    .byte $C8,$C9,$CE,$C7,$A3,$0E,$C0,$E8
+    .byte $B2,$87,$B9,$FB,$06,$D9,$CF,$D5
+    .byte $AE,$AE,$AE,$83,$14,$57,$00,$FF
+
 ; "This is my voice." -- spoken at three filter settings
 voiceData
-    .byte $FB,$00,$FB,$04,$D4,$C8,$C9,$D3
-    .byte $F5,$47,$B0,$FB,$02,$C9,$D3,$47
-    .byte $AF,$FB,$02,$CD,$D9,$B7,$0F,$87
-    .byte $FB,$06,$D6,$CF,$C9,$C3,$C5,$AE
-    .byte $B3,$11,$87,$B0,$40,$FF
+    .byte $FB,$00,$FD,$06,$8A,$FB,$04,$D4
+    .byte $C8,$C9,$D3,$F5,$47,$B0,$FB,$02
+    .byte $C9,$D3,$47,$AF,$FB,$02,$CD,$D9
+    .byte $B7,$0F,$87,$FB,$06,$D6,$CF,$C9
+    .byte $C3,$C5,$AE,$B3,$11,$87,$B0,$40
+    .byte $FF
 
 ; "Shall we play a game?" -- declination, dip, then a drawn rise
 wargData

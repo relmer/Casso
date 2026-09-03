@@ -158,6 +158,8 @@ start
     ldx #>introData
     jsr Speak
 
+    jsr Sarah
+
     ; ---- 2. The same sentence through three vocal tracts. Only the filter
     ;         register changes between them; the phonemes are identical.
     lda #FILTLO
@@ -181,17 +183,23 @@ start
     lda #FILTNOM
     sta SFILT
 
-    ; ---- 3. A question. The stream raises the pitch under the final word and
-    ;         puts it back afterwards.
+    jsr Sarah
+
+    ; ---- 3. A question. The stream falls to a low turning point and then
+    ;         rises continuously under the final word.
     lda #<wargData
     ldx #>wargData
     jsr Speak
+
+    jsr Sarah
 
     ; ---- 4. A flat, deliberate line. The stream carries its own slower rate
     ;         in the high nibble of its opening pitch escape.
     lda #<halData
     ldx #>halData
     jsr Speak
+
+    jsr Sarah
 
     ; ---- 5. And then it sings.
     jsr Sing
@@ -201,6 +209,19 @@ start
     sta SCTL
 halt
     jmp halt
+
+
+; ============================================================================
+;  Sarah -- the recurring interjection, spoken between every section
+;
+;  Its stream carries its own pitch and rate, lower and slower than the lines
+;  around it, and every other section sets its own on entry, so the two do not
+;  have to be untangled afterwards.
+; ============================================================================
+Sarah
+    lda #<sarahData
+    ldx #>sarahData
+    jmp Speak
 
 
 ; ============================================================================
