@@ -376,6 +376,25 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
     totalW  = widgetW * visibleCount + gap * (visibleCount - 1);
     x       = std::max (0, (clientW - totalW) / 2);
+
+    // A LONE drive centers on the part that carries the weight -- the disk
+    // name and its head bar -- not on the whole widget. The 2D widget hangs
+    // its "DRIVE 1" caption off to the left, so centering the outer box put
+    // the name and bar half a caption column right of center and the row
+    // looked hung off to one side.
+    //
+    // The offset is measured off the widget rather than assumed, so the full
+    // skeuomorphic drive, whose body starts at its own left edge, subtracts
+    // nothing and is unaffected. Two drives keep centering on the pair: the
+    // caption then reads as part of a repeating unit rather than as a tail on
+    // a single object.
+    if (visibleCount == 1)
+    {
+        int  captionLead = driveChrome[0].GetBodyRect().left - probe.left;
+
+        x = std::max (0, x - captionLead / 2);
+    }
+
     // Anchor the widget to the bottom so the margin between the
     // basename label and the window edge mirrors the gap between
     // the drive body and the label (s_kLabelStripGapPx, scaled).
