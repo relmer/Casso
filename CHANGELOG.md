@@ -55,6 +55,13 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
+  documented length, because the voice chip's duration countdown was measured
+  in the chip's own clock while being drained in CPU cycles. Speech now runs at
+  the rate the datasheet specifies, so any speech a title produces is faster
+  and higher in tempo than in earlier releases. The speech smoke-test disk moves
+  to the chip's slowest rate, which is as near its original pacing as the
+  hardware reaches.
 - **The mounted disk's name drew through the monitor's case.** The name under each
   3D drive was chrome painted after the scene, so it had no depth and nothing could
   stand in front of it. Orbiting until the monitor came between the camera and a

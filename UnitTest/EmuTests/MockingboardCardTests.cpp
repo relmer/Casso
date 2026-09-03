@@ -544,7 +544,7 @@ namespace MockingboardCardTestNs
             Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
                                     L"No request while the phoneme is sounding");
 
-            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * kAppleCpuClock) + 1);
 
             Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
                                     L"The request must surface as D7 anywhere in the chip's range");
@@ -578,7 +578,7 @@ namespace MockingboardCardTestNs
 
             Assert::IsFalse (cpu.IrqAsserted(), L"No interrupt while sounding");
 
-            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * kAppleCpuClock) + 1);
 
             Assert::IsTrue (cpu.IrqAsserted(),
                             L"Phoneme completion must reach the CPU through CA1");
@@ -590,6 +590,58 @@ namespace MockingboardCardTestNs
 
             Assert::IsFalse (cpu.IrqAsserted(),
                              L"Acknowledge must release the interrupt");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  SpeechPhonemeLastsThePhi2CycleCountNotTheXckCount
+        //
+        //  The card is where the two speech clock domains meet: it feeds the
+        //  voice chip the CPU's cycle counts, while the chip's own timing
+        //  formulas are all relative to its XCK pin. This asserts the count a
+        //  phoneme takes through the card's Tick, which is the only place that
+        //  wiring is observable -- the chip's own tests can be satisfied by a
+        //  chip nobody ever told the machine's rate.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SpeechPhonemeLastsThePhi2CycleCountNotTheXckCount)
+        {
+            static constexpr uint32_t   kMarginCycles = 8;
+
+            Ssi263 *   chip     = nullptr;
+            uint32_t   expected = 0;
+            uint32_t   xckCount = 0;
+
+
+
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            chip = card.GetSpeech();
+
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x0C);
+            card.Write (0xC442, static_cast<Byte> (0x0A << Ssi263::kRateShift));
+            card.Write (0xC440, 0x08);
+
+            expected = static_cast<uint32_t> (chip->GetPhonemeDurationSec() * kAppleCpuClock);
+            xckCount = static_cast<uint32_t> (chip->GetPhonemeDurationSec() * Ssi263::kDefaultXckHz);
+
+            Assert::IsTrue (xckCount > expected + expected / 2,
+                            L"Precondition: the XCK count must be far enough off to discriminate");
+
+            card.Tick (expected - kMarginCycles);
+
+            Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
+                                    L"The phoneme must still be sounding just short of its phi2 count");
+
+            card.Tick (kMarginCycles * 2);
+
+            Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
+                                    L"and must complete on the phi2 count, not the XCK count");
         }
 
 

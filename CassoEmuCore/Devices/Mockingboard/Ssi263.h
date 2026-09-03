@@ -64,6 +64,28 @@ struct Ssi263PhonemeSpec
 //    Inflection Frequency = XCK / (8 * (4096 - I))
 //    Filter Frequency     = XCK / (2 * (256 - F))
 //
+//  TWO CLOCK DOMAINS meet in this class and must not be interchanged:
+//
+//    * XCK is the chip's own external time base, generated on the card and
+//      independent of the host processor. Every formula above divides by it,
+//      and each one yields SECONDS or Hz.
+//
+//    * The TICK clock is the rate of the cycles Tick receives, which is
+//      whatever the owning machine counts -- phi2 on an Apple II, roughly
+//      1.75x slower than XCK.
+//
+//  A duration in seconds therefore has to be multiplied by the TICK clock to
+//  become a countdown Tick can drain. Multiplying by XCK instead is what once
+//  made every phoneme sound 1.75x too long. SetXckClock and SetTickClock keep
+//  the two rates separate.
+//
+//  Until SetTickClock states a rate, the tick clock FOLLOWS XCK, whichever way
+//  XCK was set -- through the constructor or through SetXckClock. The two must
+//  agree: a fallback that tracked the constructor but froze at the default
+//  afterward would make Ssi263 (rate) and SetXckClock (rate) time phonemes
+//  differently, which is a trap of exactly the kind this class already sprung
+//  once.
+//
 //  A/R (Acknowledge/Request Not) goes from high to low once a phoneme has
 //  been generated, and the owning card wires it to a VIA control line as an
 //  interrupt. Reading the chip returns the INVERTED A/R state in D7 and
@@ -112,22 +134,25 @@ public:
     static constexpr Byte    kModeFrameImmediate      = 1;
     static constexpr Byte    kModeArDisabled          = 0;
 
-    // The datasheet's nominal time base: a colorburst crystal divided by two.
-    static constexpr double  kDefaultClockHz = 1789772.5;
+    // The datasheet's nominal XCK time base: a colorburst crystal divided by
+    // two. This is the chip's own clock, NOT the rate Tick counts in.
+    static constexpr double  kDefaultXckHz = 1789772.5;
 
-    explicit Ssi263 (double clockHz = kDefaultClockHz);
+    explicit Ssi263 (double xckHz = kDefaultXckHz);
 
     void    SetSampleRate (uint32_t sampleRate);
-    void    SetClock      (double clockHz);
+    void    SetXckClock   (double xckHz);
+    void    SetTickClock  (double tickClockHz);
 
     void    WriteRegister (Byte reg, Byte value);
     Byte    ReadRegister  (Byte reg) const;
 
     void    Reset ();
 
-    // Advance the chip by `cycles` of emulated machine time. Phoneme duration
-    // and the A/R request are driven from here, never from the audio path, so
-    // an utterance occupies the same emulated span at any host sample rate.
+    // Advance the chip by `cycles` of the TICK clock -- emulated machine time,
+    // not XCK. Phoneme duration and the A/R request are driven from here, never
+    // from the audio path, so an utterance occupies the same emulated span at
+    // any host sample rate.
     void    Tick (uint32_t cycles);
 
     // Render one mono sample at the host rate. Zero whenever IsSilent().
@@ -167,6 +192,8 @@ public:
     static constexpr double  kNominalFilterHz = 20000.0;
 
 private:
+    double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
+
     void    LatchMode           ();
     void    BeginPhoneme        (Byte outgoing);
     void    GlideFormants       ();
@@ -176,8 +203,13 @@ private:
 
     const Ssi263PhonemeSpec &  GetActiveSpec () const;
 
-    double     m_clockHz    = kDefaultClockHz;
-    uint32_t   m_sampleRate = 0;
+    // The chip's own time base, and the rate of the cycles Tick is fed. They
+    // are different clocks; see the two-domain note above. Zero means no owner
+    // has stated a tick rate, in which case it follows XCK -- resolved at each
+    // use through GetTickClockHz rather than copied, so the two cannot drift.
+    double     m_xckHz       = kDefaultXckHz;
+    double     m_tickClockHz = 0.0;
+    uint32_t   m_sampleRate  = 0;
 
     Byte       m_reg[kRegCount] = {};
 
@@ -188,7 +220,7 @@ private:
     // A/R is active-low on the pin; this tracks the logical "wants data" state.
     bool       m_request = false;
 
-    // Remaining emulated cycles in the current phoneme, and whether one is
+    // Remaining TICK-clock cycles in the current phoneme, and whether one is
     // sounding at all.
     double     m_phonemeCycles = 0.0;
     bool       m_sounding      = false;
