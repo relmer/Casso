@@ -26,6 +26,12 @@ MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
     m_audioSource[0].SetPan (1.0f, 0.0f);
     m_audioSource[1].SetPan (0.0f, 1.0f);
 
+    // The card wires both PSGs to the Apple II system clock. Stating it here
+    // keeps the machine's rate in one place instead of leaving each chip
+    // holding its own copy of the number.
+    m_psg[0].SetClock (static_cast<double> (kAppleCpuClock));
+    m_psg[1].SetClock (static_cast<double> (kAppleCpuClock));
+
     // The sound+speech variant installs the voice chip in socket 1. The
     // sound-only variant allocates nothing, so it cannot even accidentally
     // acquire speech behavior.
