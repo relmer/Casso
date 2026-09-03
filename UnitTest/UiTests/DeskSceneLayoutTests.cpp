@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 
 #include "CrtPostProcess.h"
+#include "Render/CurvedDisplayMath.h"
 #include "Render/SceneCamera.h"
 #include "Ui/Scene/DeskSceneLayout.h"
 
@@ -28,6 +29,14 @@ TEST_CLASS (DeskSceneLayoutTests)
 {
 public:
 
+    // The emulated grid, which is what fixes the picture's band on the glass.
+    static constexpr int    kDisplayW         = 560;
+    static constexpr int    kDisplayH         = 384;
+
+    // A boundary point solved to land exactly on a screen edge may round to
+    // either side of it.
+    static constexpr float  kEdgeTolerancePx  = 0.5f;
+
     // Metrics mirroring the real models: Monitor //c 248x280x226 with the
     // generated glass rect, Disk II 155x222x86 (model space X/Y-back/Z-up).
     static DeskSceneMetrics MakeMetrics()
@@ -48,6 +57,58 @@ public:
         metrics.glass.radius  = 2.2f * std::sqrt (95.0f * 95.0f + 60.0f * 60.0f);
 
         return metrics;
+    }
+
+    // The picture's screen bounds: the band sampled densely over the whole
+    // sheet and projected through the composition, so the result is where the
+    // raster's curved corners and bulging edges actually land, not where a
+    // flat rect through the same camera would put them. Deliberately denser
+    // than the solve's own sampling, which is what makes this a check rather
+    // than a restatement of it.
+    static void MeasureBandBoundsPx (const DeskSceneComposition & comp,
+                                     const CurvedDisplaySurface & glass,
+                                     float                        outMinPx[2],
+                                     float                        outMaxPx[2])
+    {
+        constexpr int  kSamples = 17;
+
+        float   bandU0 = 0.0f;
+        float   bandV0 = 0.0f;
+        float   bandU1 = 1.0f;
+        float   bandV1 = 1.0f;
+
+
+
+        CurvedDisplayMath::ComputePictureBand (glass, kDisplayW, kDisplayH,
+                                               bandU0, bandV0, bandU1, bandV1);
+
+        outMinPx[0] = outMinPx[1] =  FLT_MAX;
+        outMaxPx[0] = outMaxPx[1] = -FLT_MAX;
+
+        for (int iu = 0; iu < kSamples; iu++)
+        {
+            for (int iv = 0; iv < kSamples; iv++)
+            {
+                float   fu         = (float) iu / (float) (kSamples - 1);
+                float   fv         = (float) iv / (float) (kSamples - 1);
+                float   modelPt[3] = {};
+                float   worldPt[3] = {};
+                float   px[2]      = {};
+
+                CurvedDisplayMath::ModelPointFromUv (glass,
+                                                     bandU0 + fu * (bandU1 - bandU0),
+                                                     bandV0 + fv * (bandV1 - bandV0),
+                                                     modelPt);
+
+                Assert::IsTrue (SceneCamera::TransformPoint (comp.monitorWorld, modelPt, worldPt));
+                Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, px));
+
+                outMinPx[0] = std::min (outMinPx[0], px[0]);
+                outMaxPx[0] = std::max (outMaxPx[0], px[0]);
+                outMinPx[1] = std::min (outMinPx[1], px[1]);
+                outMaxPx[1] = std::max (outMaxPx[1], px[1]);
+            }
+        }
     }
 
     // Projects every world-space corner of a device's remapped model box and
@@ -898,6 +959,132 @@ public:
         Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, -1, labelPx, 4, corners));
         Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, emptyPx, 4, corners),
             L"an empty measurement is not a quad");
+    }
+
+
+    TEST_METHOD (Fullscreen_Shows_The_Whole_Picture_At_Every_Screen_Shape)
+    {
+        // The defect this pins: the glass is only about 1.4:1 and the raster
+        // nearly fills it, so a camera positioned to COVER a 16:9 screen with
+        // the glass crops the glass vertically and removes a dozen scanlines
+        // from each end of the picture, in text mode as well as graphics.
+        // Every screen shape must show the whole raster.
+        const RECT  screens[] = { {   0,   0, 1024,  768 },     // 4:3
+                                  {   0,   0, 1440,  960 },     // 3:2
+                                  {   0,   0, 1920, 1200 },     // 16:10
+                                  {   0,   0, 1920, 1080 },     // 16:9
+                                  {   0,   0, 3440, 1440 },     // 21:9
+                                  { 100, 100, 1180, 2020 } };   // portrait, offset origin
+
+
+
+        for (const RECT & screen : screens)
+        {
+            DeskSceneMetrics      metrics    = MakeMetrics();
+            DeskSceneComposition  comp;
+            float                 bandMin[2] = {};
+            float                 bandMax[2] = {};
+
+            Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                       metrics, comp));
+
+            MeasureBandBoundsPx (comp, metrics.glass, bandMin, bandMax);
+
+            Assert::IsTrue (bandMin[0] >= (float) screen.left   - kEdgeTolerancePx,
+                L"the picture's left edge is off screen");
+            Assert::IsTrue (bandMax[0] <= (float) screen.right  + kEdgeTolerancePx,
+                L"the picture's right edge is off screen");
+            Assert::IsTrue (bandMin[1] >= (float) screen.top    - kEdgeTolerancePx,
+                L"the picture's top edge is off screen");
+            Assert::IsTrue (bandMax[1] <= (float) screen.bottom + kEdgeTolerancePx,
+                L"the picture's bottom edge is off screen");
+        }
+    }
+
+
+    TEST_METHOD (Fullscreen_Fills_A_Wide_Screen_Top_To_Bottom)
+    {
+        // Contained, not merely uncropped: on a screen wider than the glass
+        // the picture's own height is the binding constraint, so it reaches
+        // both edges and all the slack falls on the sides.
+        DeskSceneMetrics      metrics    = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  screen     = { 0, 0, 1920, 1080 };
+        float                 bandMin[2] = {};
+        float                 bandMax[2] = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, comp));
+
+        MeasureBandBoundsPx (comp, metrics.glass, bandMin, bandMax);
+
+        Assert::AreEqual (0.0f,    bandMin[1], kEdgeTolerancePx);
+        Assert::AreEqual (1080.0f, bandMax[1], kEdgeTolerancePx);
+        Assert::IsTrue   (bandMin[0] > 0.0f, L"a 16:9 screen is wider than the picture");
+    }
+
+
+    TEST_METHOD (Fullscreen_Glass_Still_Covers_A_Screen_Shaped_Like_The_Glass)
+    {
+        // And where covering costs no picture, nothing changed: the glass
+        // covers the whole screen and the monitor's case stays off it.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  comp;
+        float                 glassW  = metrics.glass.x1 - metrics.glass.x0;
+        float                 glassH  = metrics.glass.z1 - metrics.glass.z0;
+        RECT                  screen  = { 0, 0, (LONG) lroundf (1200.0f * glassW / glassH), 1200 };
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, comp));
+
+        Assert::AreEqual (screen.left,   comp.glassRectPx.left);
+        Assert::AreEqual (screen.top,    comp.glassRectPx.top);
+        Assert::AreEqual (screen.right,  comp.glassRectPx.right);
+        Assert::AreEqual (screen.bottom, comp.glassRectPx.bottom);
+    }
+
+
+    TEST_METHOD (Fullscreen_Asks_For_The_Glass_Alone_And_The_Desk_Does_Not)
+    {
+        // The flag the renderer reads to skip the case, the bezel and the
+        // lamp and put black beside the tube instead.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  full;
+        DeskSceneComposition  desk;
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, full));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (screen, 96, 2, metrics, desk));
+
+        Assert::AreEqual (1, full.glassOnly);
+        Assert::AreEqual (0, desk.glassOnly, L"the windowed desk shows the whole monitor");
+    }
+
+
+    TEST_METHOD (Fullscreen_Refuses_An_Empty_Screen_Or_Display)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+
+
+
+        Assert::AreEqual (S_FALSE, DeskSceneLayout::ComputeGlassFill (RECT{ 0, 0, 0, 1080 }, 96,
+                                                                      kDisplayW, kDisplayH, metrics, comp));
+
+        {
+            UnitTestHelpers::ExpectedEhmAssert  expect;
+
+            Assert::AreEqual (E_INVALIDARG, DeskSceneLayout::ComputeGlassFill (screen, 96, 0, kDisplayH,
+                                                                               metrics, comp));
+        }
     }
 
 };

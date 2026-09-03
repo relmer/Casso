@@ -55,6 +55,14 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Full-screen mode hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
+  cropped and the picture with them -- about a dozen scanlines at each end, in
+  text mode as well as graphics. The camera now moves back far enough to fit
+  the whole picture. Up to about 3:2 the glass still covers the screen as
+  before; beyond that only the tube is drawn, against black, without the case,
+  bezel or power lamp.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
