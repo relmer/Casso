@@ -1,0 +1,62 @@
+; Diagnostic: speak Z, L, S, SCH in isolation with silence between, so each
+; one's spectrum can be measured on its own. Not a shipped demo.
+    .org $6000
+
+SPHON   = $C440
+SINF    = $C441
+SRATE   = $C442
+SCTL    = $C443
+SFILT   = $C444
+
+PTR     = $06
+
+start
+    lda #$C0
+    sta SPHON
+    lda #$80
+    sta SCTL
+    lda #$5C
+    sta SCTL
+    lda #$06                    ; I10-I3 for ~112 Hz
+    sta SINF
+    lda #$8A                    ; rate 8 + I11 + I2-I0
+    sta SRATE
+    lda #$D3
+    sta SFILT
+
+    lda #<probeData
+    sta PTR
+    lda #>probeData
+    sta PTR+1
+
+next
+    ldy #$00
+    lda (PTR),y
+    cmp #$FF
+    beq done
+    sta SPHON
+    inc PTR
+    bne poll
+    inc PTR+1
+poll
+    lda SPHON
+    bpl poll
+    jmp next
+
+done
+    lda #$80
+    sta SCTL
+halt
+    jmp halt
+
+; Each sound held by repeating it at the longest duration, then a long silence.
+probeData
+    .byte $2F,$2F,$2F,$2F,$2F,$2F      ; Z  x6
+    .byte $00,$00,$00,$00,$00,$00      ; PA
+    .byte $20,$20,$20,$20,$20,$20      ; L  x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $30,$30,$30,$30,$30,$30      ; S  x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $32,$32,$32,$32,$32,$32      ; SCH x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $FF

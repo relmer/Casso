@@ -26,7 +26,15 @@ struct Ssi263PhonemeSpec
     uint16_t   f3;
     bool       voiced;      // glottal excitation
     bool       fricative;   // noise excitation (both set = voiced fricative)
-    float      level;       // intrinsic amplitude, 0..1
+
+    //  The chip stores the two source amplitudes SEPARATELY -- vocal amplitude
+    //  and fricative amplitude -- and the ratio between them is what tells one
+    //  sound from another. Z is frication 10, voicing 1; L is frication 0,
+    //  voicing 7. Collapsing them to one number made Z and L the same sound,
+    //  since their formants are nearly identical (365/1106/2677 against
+    //  365/1261/2756) and only the source balance separates them.
+    float      voicedLevel; // VA / 15
+    float      fricLevel;   // FA / 15
 };
 
 
@@ -173,6 +181,9 @@ private:
     float   GenerateExcitation  ();
     float   GenerateNoiseSample ();
     float   Resonate            (int stage, float input, double centerHz);
+    float   ResonateFricative   (int stage, float input, double centerHz);
+
+    static bool  HasAnySource   (const Ssi263PhonemeSpec & spec);
 
     const Ssi263PhonemeSpec &  GetActiveSpec () const;
 
@@ -217,6 +228,15 @@ private:
     float      m_excLp2       = 0.0f;
     uint32_t   m_lfsr         = 0xACE1u;
     float      m_noiseLp      = 0.0f;
+
+    // Noise-shaping high-pass state: the filter the die carries between the
+    // noise generator and the tract (see s_kfNoiseHpCoef).
+    float      m_noiseHp      = 0.0f;
+    float      m_noisePrev    = 0.0f;
+
+    // Parallel fricative branch state, one pair per resonator (F2, F3).
+    float      m_fricY1[2]    = { 0.0f, 0.0f };
+    float      m_fricY2[2]    = { 0.0f, 0.0f };
 
     // Radiation-characteristic differentiator history (previous cascade
     // output sample) and the output low-pass state that rounds the top

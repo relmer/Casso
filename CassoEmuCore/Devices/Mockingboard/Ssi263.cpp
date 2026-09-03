@@ -6,82 +6,85 @@
 //
 // Derived from the chip's own parameter ROM, read off the visual6502 die
 // photographs of the SSI 263P. Each phoneme stores six 4-bit fields (F1, F2,
-// F3 filter codes, vocal and fricative amplitudes, nasal coupling) plus
-// voiced/fricative/closure flags; the raw extraction lives in the repo under
+// F3 filter codes, vocal and fricative amplitudes kept separate, nasal
+// coupling) plus voiced/fricative/closure flags; the extraction lives under
 // specs. Filter codes become Hz through the SC-01A's measured capacitor
 // network (the 2007 decap, as modeled by MAME): the two chips demonstrably
 // share one code scale -- 22 of 46 name-matched phonemes carry identical
 // formant codes -- so the predecessor's silicon-true DAC curves replace the
-// earlier literature-fitted lines. Levels are max(VA, FA)/15; the two
-// closure-hold phonemes keep level 0 because the closure ramp the hardware
-// applies is not modeled here. Still replaceable wholesale via
+// earlier literature-fitted lines. The chip's two source amplitudes stay
+// SEPARATE -- vocal and fricative -- because their ratio is what tells one
+// sound from another: Z is frication 10 against voicing 1, while L is
+// frication 0 against voicing 7, and their formants are nearly identical.
+// The two closure-hold phonemes keep both levels 0 because the closure ramp
+// hardware applies is not modeled here. Still replaceable wholesale via
 // SetFormantTable when better-calibrated data arrives.
 static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 {
-    {    0,    0,    0, false, false, 0.00f },   // 00 PA   (pause)
-    {  314, 2330, 2756, true,  false, 0.80f },   // 01 E    meet
-    {  446, 2330, 2677, true,  false, 0.67f },   // 02 E1   bent
-    {  256, 2257, 2756, true,  false, 0.73f },   // 03 Y    before
-    {  314, 2174, 2511, true,  false, 0.40f },   // 04 YI   year
-    {  365, 2330, 2756, true,  false, 0.80f },   // 05 AY   please
-    {  256, 2408, 2832, true,  false, 0.60f },   // 06 IE   any
-    {  446, 2007, 2598, true,  false, 0.53f },   // 07 I    six
-    {  482, 2096, 2511, true,  false, 0.53f },   // 08 A    made
-    {  482, 1922, 2425, true,  false, 0.53f },   // 09 AI   care
-    {  577, 1823, 2511, true,  false, 0.53f },   // 0A EH   nest
-    {  605, 1922, 2511, true,  false, 0.53f },   // 0B EH1  belt
-    {  683, 1922, 2511, true,  false, 0.40f },   // 0C AE   dad
-    {  731, 1730, 2511, true,  false, 0.40f },   // 0D AE1  after
-    {  731, 1261, 2511, true,  false, 0.40f },   // 0E AH   got
-    {  731, 1387, 2511, true,  false, 0.47f },   // 0F AH1  father
-    {  683, 1106, 2425, true,  false, 0.40f },   // 10 AW   office
-    {  516,  943, 2511, true,  false, 0.53f },   // 11 O    store
-    {  446,  943, 2511, true,  false, 0.60f },   // 12 OU   boat
-    {  546, 1106, 2425, true,  false, 0.53f },   // 13 OO   look
-    {  365, 1620, 2425, true,  false, 0.67f },   // 14 IU   you
-    {  406, 1387, 2425, true,  false, 0.60f },   // 15 IU1  could
-    {  365,  943, 2244, true,  false, 0.67f },   // 16 U    tune
-    {  256,  722, 2142, true,  false, 0.67f },   // 17 U1   cartoon
-    {  546, 1387, 2511, true,  false, 0.67f },   // 18 UH   wonder
-    {  605, 1261, 2511, true,  false, 0.53f },   // 19 UH1  love
-    {  657, 1261, 2511, true,  false, 0.40f },   // 1A UH2  what
-    {  657, 1514, 2511, true,  false, 0.47f },   // 1B UH3  nut
-    {  482, 1387, 1696, true,  false, 0.53f },   // 1C ER   bird
-    {  365,  943, 1424, true,  false, 0.53f },   // 1D R    roof
-    {  314, 1261, 1822, true,  false, 0.53f },   // 1E R1   rug
-    {  516, 1620, 2336, true,  false, 0.40f },   // 1F R2   mutter
-    {  365, 1261, 2756, true,  false, 0.47f },   // 20 L    lift
-    {  256, 1514, 2832, true,  false, 0.53f },   // 21 L1   play
-    {  446,  943, 2756, true,  false, 0.60f },   // 22 LF   fall
-    {  365,  722, 2336, true,  false, 0.53f },   // 23 W    water
-    {  256, 1261, 2598, true,  false, 0.53f },   // 24 B    bag
-    {  256, 1922, 2756, true,  false, 0.53f },   // 25 D    paid
-    {  365, 2007, 2244, true,  false, 0.67f },   // 26 KV   tag
-    {  406, 1106, 2244, false, true,  1.00f },   // 27 P    pen
-    {  406, 1922, 2756, false, true,  1.00f },   // 28 T    tart
-    {  365, 2007, 2244, false, true,  0.27f },   // 29 K    kit
-    {  516, 1922, 2598, true,  false, 0.40f },   // 2A HV   (hold vocal)
-    {  516, 1922, 2598, true,  false, 0.00f },   // 2B HVC  (hold vocal closure)
-    {  516, 1922, 2598, false, true,  0.53f },   // 2C HF   heart
-    {  516, 1922, 2598, false, true,  0.00f },   // 2D HFC  (hold fric closure)
-    {  516, 1922, 2598, true,  false, 0.27f },   // 2E HN   (hold nasal)
-    {  365, 1106, 2677, true,  true,  0.67f },   // 2F Z    zero
-    {  176, 1730, 2598, false, true,  1.00f },   // 30 S    same
-    {  314, 2096, 2756, true,  true,  0.67f },   // 31 J    measure
-    {  314, 2096, 2756, false, true,  0.40f },   // 32 SCH  ship
-    {  314, 1261, 2336, true,  true,  0.27f },   // 33 V    very
-    {  314, 1261, 2336, false, true,  0.27f },   // 34 F    four
-    {  365, 1730, 2756, true,  true,  0.13f },   // 35 THV  there
-    {  446, 1823, 2425, false, true,  0.13f },   // 36 TH   with
-    {  176, 1261, 2336, true,  false, 0.67f },   // 37 M    more
-    {  176, 1823, 2677, true,  false, 0.53f },   // 38 N    nine
-    {  314, 2174, 2756, true,  false, 0.27f },   // 39 NG   rang
-    {  516, 1922, 2425, true,  false, 0.53f },   // 3A :A   maerchen
-    {  314, 1823, 2336, true,  false, 0.40f },   // 3B :OH  loewe
-    {  256, 1730, 2336, true,  false, 0.67f },   // 3C :U   fuenf
-    {  176, 1922, 2425, true,  false, 0.67f },   // 3D :UH  menu
-    {  482, 1730, 2425, true,  false, 0.47f },   // 3E E2   bitte
-    {  256,  943, 2756, true,  false, 0.53f },   // 3F LB   lube
+    {    0,    0,    0, false, false, 0.00f, 0.00f },   // 00 PA   (pause)
+    {  314, 2330, 2756, true,  false, 0.80f, 0.00f },   // 01 E    meet
+    {  446, 2330, 2677, true,  false, 0.67f, 0.00f },   // 02 E1   bent
+    {  256, 2257, 2756, true,  false, 0.73f, 0.00f },   // 03 Y    before
+    {  314, 2174, 2511, true,  false, 0.40f, 0.00f },   // 04 YI   year
+    {  365, 2330, 2756, true,  false, 0.80f, 0.00f },   // 05 AY   please
+    {  256, 2408, 2832, true,  false, 0.60f, 0.00f },   // 06 IE   any
+    {  446, 2007, 2598, true,  false, 0.53f, 0.00f },   // 07 I    six
+    {  482, 2096, 2511, true,  false, 0.53f, 0.00f },   // 08 A    made
+    {  482, 1922, 2425, true,  false, 0.53f, 0.00f },   // 09 AI   care
+    {  577, 1823, 2511, true,  false, 0.53f, 0.00f },   // 0A EH   nest
+    {  605, 1922, 2511, true,  false, 0.53f, 0.00f },   // 0B EH1  belt
+    {  683, 1922, 2511, true,  false, 0.40f, 0.00f },   // 0C AE   dad
+    {  731, 1730, 2511, true,  false, 0.40f, 0.00f },   // 0D AE1  after
+    {  731, 1261, 2511, true,  false, 0.40f, 0.00f },   // 0E AH   got
+    {  731, 1387, 2511, true,  false, 0.47f, 0.00f },   // 0F AH1  father
+    {  683, 1106, 2425, true,  false, 0.40f, 0.00f },   // 10 AW   office
+    {  516,  943, 2511, true,  false, 0.53f, 0.00f },   // 11 O    store
+    {  446,  943, 2511, true,  false, 0.60f, 0.00f },   // 12 OU   boat
+    {  546, 1106, 2425, true,  false, 0.53f, 0.00f },   // 13 OO   look
+    {  365, 1620, 2425, true,  false, 0.67f, 0.00f },   // 14 IU   you
+    {  406, 1387, 2425, true,  false, 0.60f, 0.00f },   // 15 IU1  could
+    {  365,  943, 2244, true,  false, 0.67f, 0.00f },   // 16 U    tune
+    {  256,  722, 2142, true,  false, 0.67f, 0.00f },   // 17 U1   cartoon
+    {  546, 1387, 2511, true,  false, 0.67f, 0.00f },   // 18 UH   wonder
+    {  605, 1261, 2511, true,  false, 0.53f, 0.00f },   // 19 UH1  love
+    {  657, 1261, 2511, true,  false, 0.40f, 0.00f },   // 1A UH2  what
+    {  657, 1514, 2511, true,  false, 0.47f, 0.00f },   // 1B UH3  nut
+    {  482, 1387, 1696, true,  false, 0.53f, 0.00f },   // 1C ER   bird
+    {  365,  943, 1424, true,  false, 0.53f, 0.00f },   // 1D R    roof
+    {  314, 1261, 1822, true,  false, 0.53f, 0.00f },   // 1E R1   rug
+    {  516, 1620, 2336, true,  false, 0.40f, 0.00f },   // 1F R2   mutter
+    {  365, 1261, 2756, true,  false, 0.47f, 0.00f },   // 20 L    lift
+    {  256, 1514, 2832, true,  false, 0.53f, 0.00f },   // 21 L1   play
+    {  446,  943, 2756, true,  false, 0.60f, 0.00f },   // 22 LF   fall
+    {  365,  722, 2336, true,  false, 0.53f, 0.00f },   // 23 W    water
+    {  256, 1261, 2598, true,  false, 0.53f, 0.00f },   // 24 B    bag
+    {  256, 1922, 2756, true,  false, 0.53f, 0.00f },   // 25 D    paid
+    {  365, 2007, 2244, true,  false, 0.67f, 0.00f },   // 26 KV   tag
+    {  406, 1106, 2244, false, true,  0.00f, 1.00f },   // 27 P    pen
+    {  406, 1922, 2756, false, true,  0.00f, 1.00f },   // 28 T    tart
+    {  365, 2007, 2244, false, true,  0.00f, 0.27f },   // 29 K    kit
+    {  516, 1922, 2598, true,  false, 0.40f, 0.00f },   // 2A HV   (hold vocal)
+    {  516, 1922, 2598, false, false, 0.00f, 0.00f },   // 2B HVC  (hold vocal closure)
+    {  516, 1922, 2598, false, true,  0.00f, 0.53f },   // 2C HF   heart
+    {  516, 1922, 2598, false, false, 0.00f, 0.00f },   // 2D HFC  (hold fric closure)
+    {  516, 1922, 2598, true,  false, 0.27f, 0.00f },   // 2E HN   (hold nasal)
+    {  365, 1106, 2677, true,  true,  0.07f, 0.67f },   // 2F Z    zero
+    {  176, 1730, 2598, false, true,  0.00f, 1.00f },   // 30 S    same
+    {  314, 2096, 2756, true,  true,  0.07f, 0.67f },   // 31 J    measure
+    {  314, 2096, 2756, false, true,  0.00f, 0.40f },   // 32 SCH  ship
+    {  314, 1261, 2336, true,  true,  0.20f, 0.27f },   // 33 V    very
+    {  314, 1261, 2336, false, true,  0.00f, 0.27f },   // 34 F    four
+    {  365, 1730, 2756, true,  true,  0.07f, 0.13f },   // 35 THV  there
+    {  446, 1823, 2425, false, true,  0.00f, 0.13f },   // 36 TH   with
+    {  176, 1261, 2336, true,  false, 0.67f, 0.00f },   // 37 M    more
+    {  176, 1823, 2677, true,  false, 0.53f, 0.00f },   // 38 N    nine
+    {  314, 2174, 2756, true,  false, 0.27f, 0.00f },   // 39 NG   rang
+    {  516, 1922, 2425, true,  false, 0.53f, 0.00f },   // 3A :A   maerchen
+    {  314, 1823, 2336, true,  false, 0.40f, 0.00f },   // 3B :OH  loewe
+    {  256, 1730, 2336, true,  false, 0.67f, 0.00f },   // 3C :U   fuenf
+    {  176, 1922, 2425, true,  false, 0.67f, 0.00f },   // 3D :UH  menu
+    {  482, 1730, 2425, true,  false, 0.47f, 0.00f },   // 3E E2   bitte
+    {  256,  943, 2756, true,  false, 0.53f, 0.00f },   // 3F LB   lube
 };
 
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
@@ -92,7 +95,18 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
 static constexpr float   s_kfVoicedGain   = 60.00f;
-static constexpr float   s_kfNoiseGain    = 0.085f;
+static constexpr float   s_kfNoiseGain    = 0.30f;
+
+// Noise-shaping high-pass on the fricative source (one-pole, ~2.5 kHz).
+// The die carries a dedicated noise shaping filter between the noise
+// generator and the tract, which this model omitted: frication went into
+// the formant cascade raw and came out bandlimited by F2 and F3. That is
+// audible on the sibilants, whose stored formants sit low -- Z is
+// 365/1106/2677 against L's 365/1261/2756, so with the noise dark the two
+// are nearly the same sound and "Daisy" comes out closer to "Dailey".
+// Tilting the noise up before it enters the tract restores the sibilance
+// the formants cannot carry, and leaves the resonators to color it.
+static constexpr float   s_kfNoiseHpCoef  = 0.74f;
 
 // Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
 // octave the radiation tilt would otherwise push to Nyquist -- the digital
@@ -110,6 +124,14 @@ static constexpr float   s_kfOutputLpCoef = 0.54f;
 static constexpr float   s_kfSourcePole   = 0.10f;
 static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
+
+// Frication resonances are much broader than voiced ones -- a hiss is not a
+// pitched peak -- and the fricative branch is PARALLEL, not cascaded. Running
+// frication through the vowel formants was wrong: Z's F2 sits at 1106 Hz, so
+// cascading put a low-pass in front of its own hiss and buried it 17 dB below
+// S's, when the chip's stored amplitudes differ by only 3.5 dB. Summed
+// resonators contribute without attenuating each other.
+static constexpr double  s_kFricBandwidthHz = 140.0;
 
 // Amplitude envelope rates: a fast attack and a slightly longer release,
 // expressed as time constants the per-sample coefficient is derived from.
@@ -322,6 +344,12 @@ void Ssi263::Reset()
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
     m_noiseLp      = 0.0f;
+    m_noiseHp      = 0.0f;
+    m_noisePrev    = 0.0f;
+    m_fricY1[0]    = 0.0f;
+    m_fricY1[1]    = 0.0f;
+    m_fricY2[0]    = 0.0f;
+    m_fricY2[1]    = 0.0f;
     m_lfsr         = 0xACE1u;
 }
 
@@ -548,14 +576,20 @@ float Ssi263::GenerateSample()
     // which crushed sibilants into a quiet sub-1 kHz rumble.
     sample = Resonate (0, GenerateExcitation(), m_fCur[0] * scale);
 
-    if (GetActiveSpec().fricative)
-    {
-        sample += GenerateNoiseSample() * s_kfNoiseGain;
-    }
-
     for (stage = 1; stage < 3; stage++)
     {
         sample = Resonate (stage, sample, m_fCur[stage] * scale);
+    }
+
+    // Frication runs beside the tract, not through it: the noise is shaped by
+    // its own broad resonators at F2 and F3 and summed in.
+    if (GetActiveSpec().fricative)
+    {
+        float   noise = GenerateNoiseSample();
+
+        sample += (ResonateFricative (0, noise, m_fCur[1] * scale) +
+                   ResonateFricative (1, noise, m_fCur[2] * scale)) *
+                  s_kfNoiseGain * GetActiveSpec().fricLevel;
     }
 
     // Radiation characteristic: the lips differentiate the volume flow,
@@ -577,7 +611,8 @@ float Ssi263::GenerateSample()
     // the linear amplitude transitioning the datasheet describes. Truncating
     // it instead put an audible click at every phoneme edge.
     target = m_sounding
-                 ? GetActiveSpec().level * (static_cast<float> (GetAmplitude()) / 15.0f)
+                 ? (HasAnySource (GetActiveSpec()) ? 1.0f : 0.0f) *
+                       (static_cast<float> (GetAmplitude()) / 15.0f)
                  : 0.0f;
     tau    = (target > m_envLevel) ? s_kAttackTauSec : s_kReleaseTauSec;
     coef   = 1.0 - std::exp (-1.0 / (tau * static_cast<double> (m_sampleRate)));
@@ -704,13 +739,14 @@ void Ssi263::GlideFormants()
 
 float Ssi263::GenerateExcitation()
 {
-    float    src     = 0.0f;
-    float    impulse = 0.0f;
-    double   pitch   = 0.0;
+    const Ssi263PhonemeSpec  & spec    = GetActiveSpec();
+    float                      src     = 0.0f;
+    float                      impulse = 0.0f;
+    double                     pitch   = 0.0;
 
 
 
-    if (GetActiveSpec().voiced)
+    if (spec.voiced)
     {
         pitch = std::clamp (GetInflectionFrequencyHz(), 30.0, 400.0);
 
@@ -728,7 +764,7 @@ float Ssi263::GenerateExcitation()
         m_excLp1 += s_kfSourcePole * (impulse - m_excLp1);
         m_excLp2 += s_kfSourcePole * (m_excLp1 - m_excLp2);
 
-        src = m_excLp2 * s_kfVoicedGain;
+        src = m_excLp2 * s_kfVoicedGain * spec.voicedLevel;
 
         // The radiation tilt at the output taxes low-F1 vowels roughly with
         // the square of F1; compensating one power of it here keeps close
@@ -770,7 +806,13 @@ float Ssi263::GenerateNoiseSample()
 
     m_noiseLp += 0.65f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
 
-    return m_noiseLp;
+    // The smoothing above removes the rail-to-rail step that would read as
+    // clicks; this puts the spectral tilt back, so the result is a hiss
+    // rather than a rumble.
+    m_noiseHp   = s_kfNoiseHpCoef * (m_noiseHp + m_noiseLp - m_noisePrev);
+    m_noisePrev = m_noiseLp;
+
+    return m_noiseHp;
 }
 
 
@@ -807,6 +849,41 @@ float Ssi263::Resonate (int stage, float input, double centerHz)
 
     m_resY2[stage] = m_resY1[stage];
     m_resY1[stage] = y;
+
+    return y;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResonateFricative
+//
+//  One resonator of the PARALLEL fricative branch. Same two-pole form as the
+//  tract sections but much broader, and summed with its sibling rather than
+//  cascaded, so a low resonance colors the hiss instead of removing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ssi263::ResonateFricative (int stage, float input, double centerHz)
+{
+    double   fs = static_cast<double> (m_sampleRate);
+    double   fc = std::clamp (centerHz, 50.0, fs * 0.45);
+    double   r  = std::exp (-std::numbers::pi * s_kFricBandwidthHz / fs);
+    double   b  = 2.0 * r * std::cos (2.0 * std::numbers::pi * fc / fs);
+    double   c  = -(r * r);
+    float    y  = 0.0f;
+
+
+
+    y = static_cast<float> ((1.0 - b - c) * input +
+                            b * m_fricY1[stage] +
+                            c * m_fricY2[stage]);
+
+    m_fricY2[stage] = m_fricY1[stage];
+    m_fricY1[stage] = y;
 
     return y;
 }
@@ -861,7 +938,7 @@ void Ssi263::BeginPhoneme (Byte outgoing)
 
 
 
-    if (table[outgoing & kPhonemeMask].level <= 0.0f)
+    if (!HasAnySource (table[outgoing & kPhonemeMask]))
     {
         for (i = 0; i < 3; i++)
         {
@@ -872,4 +949,22 @@ void Ssi263::BeginPhoneme (Byte outgoing)
     m_phonemeCycles = seconds * m_clockHz;
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasAnySource
+//
+//  True when a phoneme drives either source. The pause and the two closure
+//  holds drive neither, which is how silence is spelled on this chip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Ssi263::HasAnySource (const Ssi263PhonemeSpec & spec)
+{
+    return (spec.voicedLevel > 0.0f) || (spec.fricLevel > 0.0f);
 }
