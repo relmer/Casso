@@ -55,6 +55,10 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Restore defaults ignored a theme's per-machine values.** It read the theme's base
+  CRT defaults and skipped the machine overrides merged on top. On an Apple //e running
+  Retro Terminal it seeded the base numbers instead of the //e variant's. Those wrong
+  values then stuck, because Restore defaults also marks the monitor as user-set.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

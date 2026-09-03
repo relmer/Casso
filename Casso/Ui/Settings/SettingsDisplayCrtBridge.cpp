@@ -401,10 +401,9 @@ void SettingsDisplayCrtBridge::ApplyActiveDefaults (GlobalUserPrefs & prefs)
 
     if (m_themes != nullptr)
     {
-        const LoadedTheme *  active = m_themes->GetActiveTheme();
-        if (active != nullptr)
+        if (m_themes->GetActiveTheme() != nullptr)
         {
-            themeDefaults = &active->crtDefaults;
+            themeDefaults = &m_themes->ActiveCrtDefaults();
         }
     }
 
