@@ -418,7 +418,11 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
     // lit spot. The inner layers now stay near full and only the outermost
     // ones fade.
     {
-        float  base = active ? 1.0f : 0.75f;
+        // Idle sits well down. A drive with a disk in it and the motor off is
+        // not doing anything, and at 0.75 it drew the eye as hard as a drive
+        // that was. The gap between the two is what makes activity readable
+        // across the room without looking at it directly.
+        float  base = active ? 1.0f : 0.35f;
         float  span = (float) (kCompactBarLayers - 1);
 
         for (layer = kCompactBarLayers; layer >= 1; layer--)
