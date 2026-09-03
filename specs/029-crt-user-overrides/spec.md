@@ -233,13 +233,19 @@ against what the old build produced.
 ### Measurable Outcomes
 
 - **SC-001**: After adjusting one picture setting and switching themes, the
-  adjusted setting is retained and all ten other settings follow the new theme.
-  Verified for all eleven settings.
+  adjusted setting is retained. Every other setting the new theme declares takes
+  the new theme's value, and every setting the new theme does not declare falls
+  back to the monitor's own value. Verified for each of the eleven settings in
+  turn. Gamma and persistence are always in the second group, because no theme
+  can declare them.
 - **SC-002**: Adjusting a setting on one monitor produces no change to any
-  stored or displayed value for any other monitor or color mode.
-- **SC-003**: For every settings file written by the current release, the eleven
-  resolved picture values after upgrade are identical to the eleven values the
-  current release produced from the same file.
+  stored or displayed value for any other monitor or color mode. Verified
+  automatically, by testing that the identifier a set of adjustments is filed
+  under is distinct for every combination of monitor and color mode.
+- **SC-003**: For each settings file in the enumerated conversion fixture set,
+  which covers both states of the current release's override flag across all
+  four color modes, the eleven resolved picture values after upgrade are
+  identical to the eleven values the current release produced from the same file.
 - **SC-004**: Loading and saving an upgraded settings file any number of times
   produces an unchanged file after the first save.
 - **SC-005**: A settings file that has been round-tripped through an earlier
@@ -252,7 +258,9 @@ against what the old build produced.
 - **SC-008**: The resolution rules are covered by automated tests that run
   without launching the application.
 - **SC-009**: Drawing a frame performs no file reads or configuration parsing to
-  determine which adjustments apply.
+  determine which adjustments apply. Verified structurally: the drawing path
+  receives an already-built identifier and has no file-system seam available to
+  it, so the property is readable from the signature rather than measured.
 - **SC-010**: Renaming a shipped monitor identifier causes an automated test to
   fail.
 

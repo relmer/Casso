@@ -21,6 +21,26 @@ The resolver takes **no geometry**. Output width and height, pixel scale and the
 picture rectangle are frame properties, not preferences. `MakeCrtParams` adds
 them when it projects a `CrtResolved` into the shader constant buffer.
 
+## Key construction
+
+```cpp
+std::string  MakeCrtOverrideKey (std::string_view monitorConfigName,
+                                 SettingsColorMode mode);
+```
+
+**This lives beside `ResolveCrt`, in the tested layer, not in the shell or the
+settings bridge.** The key format is a contract, not a formatting detail: it
+carries the freeze rule on monitor identifiers, the sort order the file depends
+on, and the guarantee that every monitor and mode combination is distinct. A
+decision worth asserting cannot live where the test project cannot reach it.
+
+The mode-token table (`color`, `green`, `amber`, `white`) belongs here too,
+rather than being read from `s_kpszCrtModeKeys` in the serializer, so the key
+builder and the tests over it share one source.
+
+Callers pass an already-resolved `MonitorSpec::configName`, never a raw string
+from a machine's JSON.
+
 ## Resolution table
 
 Per field, independently. `has*` refers to the theme group the field belongs to.
@@ -111,3 +131,14 @@ covered directly with no mock and no fixture.
 - An override equal to the resolved default still reports `User`.
 - A theme declaring a group supplies every field in that group, and a user
   override of one member does not disturb the others.
+
+For `MakeCrtOverrideKey`:
+
+- Every combination of the shipped monitors and the four modes produces a
+  distinct key. This is what makes SC-002 automatable, since per-monitor
+  isolation is entirely a property of key distinctness.
+- The two shipped monitor identifiers appear in keys exactly as spelled in the
+  catalog, which together with the catalog pinning test enforces the freeze.
+- Sorted key order is amber, color, green, white within a monitor, and every
+  `AppleMonitorII/` key precedes every `AppleMonitorIIc/` key. Assert this
+  rather than assuming enum order, which is a different order.

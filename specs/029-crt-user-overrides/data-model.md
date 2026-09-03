@@ -86,6 +86,12 @@ on disk in v1 files, reused rather than re-invented.
 
 Both segments are always present. There is no bare form and no wildcard.
 
+**The key is built in one place**, `MakeCrtOverrideKey` beside `ResolveCrt`, and
+that place is compiled by the test project. The format is a contract carrying
+the identifier freeze, the sort order and the distinctness guarantee, so it
+cannot be assembled ad hoc in the shell or the settings bridge, neither of which
+a test can reach. See [contracts/resolver.md](contracts/resolver.md).
+
 **Sort order is not enum order.** The tokens are declared in `SettingsColorMode`
 order, but the map emits `amber`, `color`, `green`, `white`. The monitor halves
 sort cleanly for an incidental reason worth knowing: `/` is 0x2F, below every

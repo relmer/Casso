@@ -129,6 +129,14 @@ branch in `98d37eb2`.
 The plan moves the rules into one core file the tests link, and reduces the
 settings bridge to calling it. That is the Testability Litmus applied directly.
 
+The same litmus applies to the override key, and applying it caught a violation
+this plan originally contained. The key format `<configName>/<mode>` carries the
+identifier freeze, the file's sort order and the per-monitor distinctness that
+SC-002 asserts. Building it inline in `EmulatorShell.cpp` and
+`SettingsDisplayCrtBridge.cpp`, neither of which the test project compiles,
+would put a contract where no test can reach it. `MakeCrtOverrideKey` therefore
+lives beside `ResolveCrt`, and the mode-token table moves with it.
+
 One residual: `DisplayPage.cpp` is not in the `UnitTest` project today. The
 inventory established that `HardwarePage.cpp` already is, under a four-line
 project entry, and that adding `DisplayPage.cpp` pulls in no new dependency.
@@ -207,6 +215,8 @@ without either dragging in the other.
 |-----------|------------|--------------------------------------|
 | Fixing `monitorTilt`'s absence from `s_kKnownTopLevel` in `GlobalUserPrefs.cpp` | It is the exact defect this feature must avoid for its own new key, one level away in the same function. The key is parsed live and also captured as unknown, so every save emits one more stale copy. The user's live file currently holds twelve `monitorTilt` members. Leaving it means shipping a feature whose correctness argument is contradicted by the line above it. | Filing it separately was considered. Rejected because the new key's test ("every top-level key appears exactly once") covers both, and writing that test while a known violation sits beside it means either a failing test or a test written to avoid the truth. |
 | Fixing the legacy-file upgrade in `UserConfigStore.cpp` to write the converted document | `MigrateLegacyFiles` keeps the raw parsed document and writes that, discarding what `FromJson` produced, while the sibling branch eight lines away writes `prefs.ToJson()`. Under a shape-triggered conversion this means a legacy upgrade writes a file that still needs converting. | Deferring it was considered. Rejected because it maximizes the window in which a file on disk carries the old key and not the new one, which is exactly the state the conversion is designed to be the last reader of. The change is correct under the current schema too, so it does not depend on this feature. |
+| Adding a missing `#include "Core/JsonValue.h"` to `Casso/Config/MonitorCatalog.h` | The header names `JsonValue` at `:105` and `JsonType` at `:109` while including neither, and compiles today only because both current includers reach the definition first. This feature adds a new translation unit that includes it, so the latent break becomes a real one. | Leaving it and having the new test file include `Core/JsonValue.h` first was considered. Rejected because it propagates the fragility rather than fixing it, and the next includer hits the same wall with no clue why. |
+| Renaming the `L"Monitor:"` label at `Casso/Ui/Settings/DisplayPage.cpp:240` | That row lists phosphors, not monitors. The mislabel is pre-existing and harmless while there is one monitor axis; this feature introduces a real one, so the row would name the wrong axis of a distinction the same page now depends on. | Leaving it was considered. Rejected because the feature makes an existing mislabel actively misleading, and the fix is one string. |
 
 > A third, larger dependency is **not** this feature's to fix and is tracked as a
 > sequencing constraint instead. `UserConfigStore::BuildCombinedJson` emits the
