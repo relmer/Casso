@@ -52,16 +52,17 @@ public:
     // crop. A viewport at least as wide as the content keeps the fov as-is.
     static float FitContainFovY   (float fovY, float contentAspect, float viewportAspect);
 
-    // How far a straight-on eye must stand off for a centered `width` x
-    // `height` rect on the aim plane to COVER the frustum: the axis demanding
-    // the nearer eye wins and the other crops offscreen.
+    // The straight-on camera distance at which a centered `width` x `height`
+    // rect on the aim plane COVERS the frustum: the shorter of the two
+    // per-axis distances, which leaves the other axis cropped offscreen.
     static float SolveCoverStandoff (float width, float height, float fovY, float aspect);
 
-    // And how far back it must stand for ONE point to stay INSIDE the
-    // frustum: `dx`/`dy` off the aim axis, `towardEye` in front of the aim
-    // plane (which magnifies it). The farther of the two axis demands wins.
-    // Taking the max over a shape's boundary contains the shape, curvature
-    // and all, where a rect solve on its flat bounds would clip the bulge.
+    // And the distance at which ONE point stays INSIDE the frustum: `dx`/`dy`
+    // off the aim axis, `towardEye` in front of the aim plane (which
+    // magnifies its offset). The longer of the two per-axis distances applies.
+    // Taking the maximum over a shape's boundary contains the shape including
+    // its curvature, where a rect solve on its flat bounds would clip the
+    // bulge.
     static float SolveContainStandoff (float dx, float dy, float towardEye, float fovY, float aspect);
 
     // The straight-on camera itself: eye `standoff` in front of the aim point

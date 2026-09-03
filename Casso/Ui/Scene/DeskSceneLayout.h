@@ -136,9 +136,9 @@ struct DeskSceneComposition
     int    driveCount       = 0;
 
     // The fullscreen presentation: draw the tube and nothing else, on black.
-    // An int rather than a bool because compositions are compared whole, by
-    // memcmp -- the plate cache keys off one -- and a bool would leave three
-    // bytes of padding in the comparison that nothing ever writes.
+    // An int rather than a bool because compositions are compared whole with
+    // memcmp -- the plate cache keys off one -- and a bool would add three
+    // bytes of padding to that comparison that nothing writes.
     int    glassOnly        = 0;
 
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
@@ -189,15 +189,15 @@ public:
     // show you a differently-shaped part than the composition does.
     static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
-    // The fullscreen presentation: a straight-on camera standing as close as
-    // it can WITHOUT cutting the picture, and the tube alone on black (the
-    // composition carries `glassOnly`, and the drives come from the overlay
-    // strip). Close means the glass covers the viewport; a viewport wide
-    // enough that covering would crop the raster backs the eye off to the
-    // picture's own containment instead, and the black is what fills the room
-    // that leaves beside the tube. `displayW` x `displayH` is the emulated
-    // grid, which is what fixes the picture's band on the glass. Same S_FALSE
-    // contract for an empty viewport.
+    // The fullscreen presentation: a straight-on camera at the closest
+    // distance that does not crop the picture, showing the tube alone on
+    // black (the composition sets `glassOnly`, and the drives come from the
+    // overlay strip). Closest means the glass covers the viewport; on a
+    // viewport wide enough that covering would crop the raster, the picture's
+    // own containment distance applies instead and black fills what that
+    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
+    // which determines the picture's band on the glass. Same S_FALSE contract
+    // for an empty viewport.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      displayW,
@@ -358,11 +358,11 @@ private:
                                          float                   tanHalfX,
                                          float                 & outDist);
 
-    // How far back the fullscreen camera must stand for the WHOLE picture to
-    // be on screen. Sampled over the picture band's boundary rather than
-    // solved from its flat rect, because the band lies on a curved sheet:
-    // the sag bulges each edge's middle toward the eye, and a nearer point
-    // projects further off-axis than the corners it sits between.
+    // The distance at which the WHOLE picture is on screen. Sampled over the
+    // picture band's boundary rather than solved from its flat rect, because
+    // the band lies on a curved sheet: the sag places each edge's midpoint
+    // nearer the camera, and a nearer point projects further off-axis than
+    // the corners on either side of it.
     static float    SolvePictureStandoff (const DeskSceneMetrics & metrics,
                                           const float              monitorWorld[16],
                                           int                      displayW,

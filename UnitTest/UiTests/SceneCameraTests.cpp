@@ -319,8 +319,8 @@ public:
 
     TEST_METHOD (Contain_Standoff_Lands_A_Point_Exactly_On_The_Edge)
     {
-        // The standoff one point demands puts that point ON the frustum's
-        // edge -- the demanding axis's edge, and inside on the other.
+        // The standoff solved for one point places that point ON the
+        // frustum's edge -- the binding axis's edge, and inside on the other.
         float  view[16]     = {};
         float  proj[16]     = {};
         float  viewProj[16] = {};
@@ -342,10 +342,10 @@ public:
 
     TEST_METHOD (Contain_Standoff_Backs_Off_For_A_Nearer_Point)
     {
-        // A point standing proud of the aim plane is seen from closer, so it
-        // projects further off-axis: the standoff grows by exactly its lift,
-        // which is what makes a curved sheet's bulging edges solvable point
-        // by point.
+        // A point standing proud of the aim plane sits closer to the camera,
+        // so it projects further off-axis: the standoff grows by exactly its
+        // lift, which is what makes a curved sheet's bulging edges solvable
+        // point by point.
         float  flat  = SceneCamera::SolveContainStandoff (0.0f, 40.0f, 0.0f, 0.6f, 1.5f);
         float  proud = SceneCamera::SolveContainStandoff (0.0f, 40.0f, 7.5f, 0.6f, 1.5f);
 

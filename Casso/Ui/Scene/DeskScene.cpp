@@ -1798,10 +1798,11 @@ void DeskScene::RebuildLampVerts()
 //
 //  DeskScene::FillViewportBlack
 //
-//  One opaque black quad over the whole viewport, at the far depth so nothing
-//  in the scene is depth-tested away by it. The glass-only presentation's
-//  ground: the plate is a LAYER and clears transparent, so without this the
-//  theme's backdrop shows wherever the tube does not reach.
+//  One opaque black quad over the whole viewport, at the far depth so it
+//  depth-tests away nothing else in the scene. This is the glass-only
+//  presentation's background: the plate is a LAYER and clears transparent, so
+//  without it the theme's backdrop is visible wherever the tube does not
+//  cover.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1907,16 +1908,16 @@ void DeskScene::DrawDebugRect (const RECT & rectPx, int backBufferW, int backBuf
 //  used to be paid sixty times a second to antialias edges that had not moved
 //  since the last time. Measured at ~20 points of GPU on this machine.
 //
-//  THE GLASS-ONLY PRESENTATION drops most of that. Fullscreen shows the tube
-//  and nothing else on black, so the case, the bezel, the power lamp and the
-//  ground shadows are all skipped: the camera stands where it must to hold
-//  the whole picture, and on a screen wider than the glass that leaves room
-//  beside the tube which the monitor's own frame has no business filling.
-//  What stays is the tube, the faceplate mask and the sheen -- the layers the
-//  raster itself sits in.
+//  THE GLASS-ONLY PRESENTATION skips most of that. Fullscreen draws the tube
+//  and nothing else, on black, so the case, the bezel, the power lamp and the
+//  ground shadows are all left out. The camera sits at whatever distance
+//  shows the whole picture, and on a screen wider than the glass that leaves
+//  space beside the tube; filling it with a case cropped top and bottom looks
+//  worse than filling it with black. What remains is the tube, the faceplate
+//  mask and the sheen -- the layers the raster itself sits in.
 //
-//  The case is also what the front plate's occluder pass exists to put back
-//  in front of the raster, so with no case that whole pass goes with it.
+//  The front plate's occluder pass exists only to put the case back in front
+//  of the raster, so with no case drawn that whole pass is skipped too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1984,7 +1985,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // transform too: the shader takes its lights in model space, so handing
     // it the untilted placement would leave the bezel lit as though it had
     // never moved. The matrix is built whether or not the bezel draws,
-    // because the tube below rides it.
+    // because the tube below is drawn with it.
     {
         float  tiltWorld[16] = {};
 
@@ -2068,8 +2069,8 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, caseMvp);
         SceneCamera::Mul44 (tiltWorld,           m_comp.viewProj, tubeMvp);
 
-        // Nothing to put back in front of the raster when the case is not
-        // drawn at all, and the stamp only exists to cut a mouth in it.
+        // With no case drawn there is nothing to place in front of the
+        // raster, and the stamp exists only to cut a mouth in that case.
         if (!glassOnly && !m_pictureDepthVerts.empty())
         {
             // The stamp is the picture's own footprint, so it travels with
@@ -2144,8 +2145,8 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // they test depth without writing it, which is what keeps a name from
     // leaving its transparent rectangle in the buffer.
     //
-    // Both belong to bodies the glass-only presentation does not draw: the
-    // names hang off the drives, and the only glow is the power lamp's.
+    // Both belong to bodies the glass-only presentation leaves out: the names
+    // are anchored to the drives, and the only glow is the power lamp's.
     if (!glassOnly)
     {
         hr = DrawDiskLabels (m_comp, viewport);

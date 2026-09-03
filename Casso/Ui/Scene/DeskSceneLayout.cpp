@@ -714,13 +714,13 @@ Error:
 //
 //  DeskSceneLayout::SolvePictureStandoff
 //
-//  The band's boundary sampled at its corners AND its edge midpoints: the
-//  midpoints are where the sag stands proudest, and the standoff a point
-//  demands grows with how far forward it sits, so an edge's middle asks for
-//  more room than the corners it runs between. Three samples an edge is
-//  therefore exact for a spherical sag rather than an approximation -- along
-//  any one edge the off-axis distance is constant and the forward bulge peaks
-//  at the middle.
+//  The band's boundary sampled at its corners AND its edge midpoints. The
+//  midpoints are where the sag reaches furthest forward, and the required
+//  distance grows with how far forward a point sits, so an edge's midpoint
+//  needs a longer standoff than the corners on either side of it. Three
+//  samples per edge is exact for a spherical sag rather than an
+//  approximation: along any one edge the off-axis distance is constant and
+//  the forward bulge peaks at the midpoint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -784,26 +784,25 @@ float DeskSceneLayout::SolvePictureStandoff (const DeskSceneMetrics & metrics,
 //
 //  DeskSceneLayout::ComputeGlassFill
 //
-//  The fullscreen camera: the monitor mounts exactly as in the windowed
-//  composition (so the glass surface, hit tester, and picture band all keep
-//  working unchanged), and the camera stands as CLOSE to it as it can get
-//  without cutting anything off the picture.
+//  The fullscreen camera. The monitor mounts exactly as in the windowed
+//  composition, so the glass surface, the hit tester and the picture band all
+//  keep working unchanged; only the camera distance differs, and it is the
+//  CLOSEST distance that still shows the whole picture.
 //
-//  Close means covering the viewport with the glass, which is what keeps the
-//  monitor's case off screen. But the glass is only about 1.42 to 1 and the
-//  raster all but fills it, so covering a WIDER viewport than that crops the
-//  glass vertically and takes the picture with it: on 16:9 that was 14% of
-//  the picture's height, a dozen scanlines off each end, in text as much as in
-//  graphics. So the cover standoff is a floor the picture is allowed to
-//  raise, not the answer: up to about 3:2 the glass covers exactly as it
-//  always did, and past that the eye backs off just far enough to hold the
-//  whole raster.
+//  Closest means covering the viewport with the glass, which keeps the
+//  monitor's case off screen. But the glass is only about 1.42:1 and the
+//  raster nearly fills it, so covering a WIDER viewport crops the glass
+//  vertically and the picture with it: on 16:9 that removed 14% of the
+//  picture height, a dozen scanlines at each end, in text mode as well as
+//  graphics. The cover distance is therefore a minimum rather than the
+//  result. Up to about 3:2 the glass still covers the viewport as before;
+//  beyond that the containment distance is longer and the camera sits back
+//  far enough for the whole raster to fit.
 //
-//  What that leaves beside the tube is BLACK, not the monitor. The
-//  composition carries `glassOnly` and DeskScene::RenderPlate drops the case,
-//  the bezel and the lamp for it -- otherwise backing the camera off shows a
-//  case cropped at the top and bottom but not the sides, which reads as a
-//  monitor with its middle sliced out rather than as a monitor.
+//  What remains beside the tube is BLACK, not the monitor. The composition
+//  sets `glassOnly` and DeskScene::RenderPlate skips the case, the bezel and
+//  the lamp when it is set. Without that, the longer distance exposes a case
+//  cropped at the top and bottom but not at the sides.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -852,11 +851,11 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
                                         kFovY, aspect, kNearMm, kFarMm,
                                         out.view, out.proj, out.viewProj);
 
-    // Straight on at the glass rect's own center, so the rect projects
-    // centered and square and needs no corner pass -- its half-extents are
-    // just the off-axis distances over the frustum's span at the standoff.
-    // Clamped to the viewport, because a covering glass runs off it and what
-    // this rect reports is the CRT's room ON SCREEN.
+    // Aimed at the glass rect's own center, so the rect projects centered and
+    // square and needs no corner pass: its half-extents are the off-axis
+    // distances over the frustum's span at the standoff. Clamped to the
+    // viewport, because a covering glass extends past it and this rect
+    // measures the CRT's room ON SCREEN.
     halfWpx = std::min ((float) viewportW * 0.5f,
                         (glassW * 0.5f) / (standoff * tanY * aspect) * ((float) viewportW * 0.5f));
     halfHpx = std::min ((float) viewportH * 0.5f,

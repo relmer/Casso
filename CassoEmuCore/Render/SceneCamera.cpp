@@ -283,10 +283,10 @@ float SceneCamera::FitContainFovY (float fovY, float contentAspect, float viewpo
 //
 //  SceneCamera::SolveCoverStandoff
 //
-//  Per-axis standoff demands: at distance d the frustum spans 2*d*tan(fovY/2)
-//  vertically and that times the aspect horizontally. Covering means the rect
-//  meets or exceeds both spans, so the eye takes the NEARER of the two
-//  distances -- the other axis then overfills and crops.
+//  At distance d the frustum spans 2*d*tan(fovY/2) vertically and that times
+//  the aspect horizontally. Covering requires the rect to meet or exceed both
+//  spans, which holds at the NEARER of the two per-axis distances; the other
+//  axis then overfills and crops.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -309,12 +309,12 @@ float SceneCamera::SolveCoverStandoff (float width, float height, float fovY, fl
 //
 //  SceneCamera::SolveContainStandoff
 //
-//  The same demand read the other way round, and for ONE point rather than a
-//  rect -- a point that need not lie on the aim plane. Something `towardEye`
-//  in front of the plane is seen from that much closer, so its off-axis
-//  distance is magnified by exactly that much, which is why the term adds
-//  rather than scales. Both axes must hold, so the FARTHER of the two
-//  distances wins: contain, not cover.
+//  The same relation inverted, and for ONE point rather than a rect -- a point
+//  that need not lie on the aim plane. A point `towardEye` in front of the
+//  plane sits that much closer to the camera, which shifts the distance by
+//  exactly that amount: hence the added term rather than a scale factor. Both
+//  axes must be satisfied, so the FARTHER of the two distances applies:
+//  contain, not cover.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,9 +337,10 @@ float SceneCamera::SolveContainStandoff (float dx, float dy, float towardEye, fl
 //
 //  SceneCamera::SolveStraightOnCamera
 //
-//  Straight-on at the solved standoff: the fullscreen glass reads face-on, no
-//  desk gaze. What the standoff was solved FOR -- covering the glass,
-//  containing the picture -- is the caller's business.
+//  Straight-on at the solved standoff, with no downward gaze: the fullscreen
+//  glass is viewed face-on. What the standoff was solved for -- covering the
+//  glass, containing the picture -- is the caller's decision, not this
+//  function's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

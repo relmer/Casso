@@ -60,11 +60,11 @@ public:
     }
 
     // The picture's screen bounds: the band sampled densely over the whole
-    // sheet and projected through the composition, so what comes back is
-    // where the raster's own curved corners and bulging edges land -- not
-    // where a flat rect through the same camera would put them. Deliberately
-    // denser than the solve's own sampling, which is what makes it a check
-    // rather than a restatement.
+    // sheet and projected through the composition, so the result is where the
+    // raster's curved corners and bulging edges actually land, not where a
+    // flat rect through the same camera would put them. Deliberately denser
+    // than the solve's own sampling, which is what makes this a check rather
+    // than a restatement of it.
     static void MeasureBandBoundsPx (const DeskSceneComposition & comp,
                                      const CurvedDisplaySurface & glass,
                                      float                        outMinPx[2],
@@ -964,11 +964,11 @@ public:
 
     TEST_METHOD (Fullscreen_Shows_The_Whole_Picture_At_Every_Screen_Shape)
     {
-        // The defect this pins: the glass is only about 1.4 to 1 and the
-        // raster all but fills it, so a camera that COVERS a 16:9 screen with
-        // the glass crops the glass vertically and takes a dozen scanlines
-        // off each end of the picture with it -- in text as much as in
-        // graphics. Every screen shape must show the whole raster.
+        // The defect this pins: the glass is only about 1.4:1 and the raster
+        // nearly fills it, so a camera positioned to COVER a 16:9 screen with
+        // the glass crops the glass vertically and removes a dozen scanlines
+        // from each end of the picture, in text mode as well as graphics.
+        // Every screen shape must show the whole raster.
         const RECT  screens[] = { {   0,   0, 1024,  768 },     // 4:3
                                   {   0,   0, 1440,  960 },     // 3:2
                                   {   0,   0, 1920, 1200 },     // 16:10
@@ -1005,8 +1005,8 @@ public:
     TEST_METHOD (Fullscreen_Fills_A_Wide_Screen_Top_To_Bottom)
     {
         // Contained, not merely uncropped: on a screen wider than the glass
-        // the picture's own height is what binds, so it reaches both edges
-        // and the slack all goes to the sides.
+        // the picture's own height is the binding constraint, so it reaches
+        // both edges and all the slack falls on the sides.
         DeskSceneMetrics      metrics    = MakeMetrics();
         DeskSceneComposition  comp;
         RECT                  screen     = { 0, 0, 1920, 1080 };
@@ -1029,7 +1029,7 @@ public:
     TEST_METHOD (Fullscreen_Glass_Still_Covers_A_Screen_Shaped_Like_The_Glass)
     {
         // And where covering costs no picture, nothing changed: the glass
-        // claims the whole screen and the monitor's case stays off it.
+        // covers the whole screen and the monitor's case stays off it.
         DeskSceneMetrics      metrics = MakeMetrics();
         DeskSceneComposition  comp;
         float                 glassW  = metrics.glass.x1 - metrics.glass.x0;
@@ -1050,8 +1050,8 @@ public:
 
     TEST_METHOD (Fullscreen_Asks_For_The_Glass_Alone_And_The_Desk_Does_Not)
     {
-        // What tells the renderer to drop the case, the bezel and the lamp
-        // and put black beside the tube instead.
+        // The flag the renderer reads to skip the case, the bezel and the
+        // lamp and put black beside the tube instead.
         DeskSceneMetrics      metrics = MakeMetrics();
         DeskSceneComposition  full;
         DeskSceneComposition  desk;

@@ -700,8 +700,8 @@ private:
     HRESULT  EnsurePlateTarget (int width, int height);
     HRESULT  RenderPlate       (const D3D11_VIEWPORT & viewport, int width, int height);
 
-    // The glass-only presentation's ground: one opaque black quad at the far
-    // depth, standing in for the case and desk it draws without.
+    // The glass-only presentation's background: one opaque black quad at the
+    // far depth, in place of the case and desk that presentation leaves out.
     void     FillViewportBlack (const D3D11_VIEWPORT & viewport);
     float                                 m_doorProgress[2] = { -1.0f, -1.0f };
     bool                                  m_driveWp[2]      = {};
