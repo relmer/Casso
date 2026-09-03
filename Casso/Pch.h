@@ -68,6 +68,7 @@
 #include <memory>
 #include <mutex>
 #include <numbers>
+#include <optional>
 #include <set>
 #include <span>
 #include <sstream>

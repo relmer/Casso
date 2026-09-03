@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MonitorCatalogTests
@@ -114,7 +115,7 @@ public:
     }
 
 
-    // Both catalogued tubes are green today. This pins the mapping rather
+    // Both cataloged tubes are green today. This pins the mapping rather
     // than the fact, so it keeps holding when a color tube is added.
     TEST_METHOD (PhosphorSettingsIndexMatchesTheColorModeOrder)
     {

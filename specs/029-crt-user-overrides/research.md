@@ -233,7 +233,7 @@ code, except the user's prefs file.
 
 That scoped the risk exactly: a rename is free now and expensive once
 `crtOverrides` holds entries. The rename was also likely to be wanted, because
-`MonitorII` reads generic the moment several Apple monitors are catalogued, and
+`MonitorII` reads generic the moment several Apple monitors are cataloged, and
 vendor qualification is what the growth to Commodore and Atari tubes requires.
 The cost at the time of the rename was one empty `monitorTilt` map.
 

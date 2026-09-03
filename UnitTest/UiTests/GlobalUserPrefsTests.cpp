@@ -419,11 +419,11 @@ public:
     // text, because a substring hit cannot tell one member from six.
     static size_t  CountGlobalMembers (const std::string & savedText, const std::string & key)
     {
-        JsonValue         doc;
-        JsonParseError    err;
-        HRESULT           hr    = S_OK;
-        const JsonValue * globalObj = nullptr;
-        size_t            count = 0;
+        JsonValue          doc;
+        JsonParseError     err;
+        HRESULT            hr        = S_OK;
+        const JsonValue *  globalObj = nullptr;
+        size_t             count     = 0;
 
         hr = JsonParser::Parse (savedText, doc, err);
         AssertSucceeded (hr);
