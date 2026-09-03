@@ -42,6 +42,23 @@ TEST_CLASS (UserConfigStoreTests)
 {
 public:
 
+    // A prefs file carrying a global section worth losing: two non-default
+    // values plus a key no build knows about. The machine entry is stamped
+    // version 1 so a version-2 default triggers migration.
+    static constexpr const char *  kpszSeededPrefs =
+        "{"
+            "\"global\":{"
+                "\"$cassoGlobalPrefsVersion\":1,"
+                "\"activeTheme\":\"Retro Terminal\","
+                "\"showFrameRate\":true,"
+                "\"futureKey\":\"keep\""
+            "},"
+            "\"machines\":{"
+                "\"Apple2e\":{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}"
+            "}"
+        "}";
+
+
     // Helper: parse a JSON literal into a JsonValue, asserting success.
     static JsonValue ParseOrFail (const char * text)
     {
@@ -114,6 +131,44 @@ public:
         hr = JsonWriter::Write (machine, opts, text);
         AssertSucceeded (hr);
         return text;
+    }
+
+
+    // The prefs file's "global" object, pretty-printed, so a test can compare
+    // the section before and after a save.
+    static std::string GlobalTextOrFail (
+        InMemoryFileSystem  & fs,
+        UserConfigStore     & store)
+    {
+        std::string          text;
+        JsonValue            root;
+        JsonParseError       err;
+        JsonWriter::Options  opts;
+        std::string          out;
+        const JsonValue    * global = nullptr;
+        HRESULT              hr     = S_OK;
+
+
+        hr = fs.ReadAllText (store.GetUserPrefsFilePath(), text);
+        AssertSucceeded (hr);
+
+        hr = JsonParser::Parse (text, root, err);
+        AssertSucceeded (hr);
+
+        global = FindObjectValueForTest (root, "global");
+
+        if (global == nullptr)
+        {
+            Assert::Fail (L"missing global section");
+        }
+        else
+        {
+            opts.fPretty = true;
+            hr = JsonWriter::Write (*global, opts, out);
+            AssertSucceeded (hr);
+        }
+
+        return out;
     }
 
 
@@ -812,5 +867,119 @@ public:
 
         Assert::AreEqual (firstText, secondText);
         Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Foo")));
+    }
+
+
+    // A store that never ran LoadAll holds no global prefs, so every save path
+    // through one must leave the on-disk global section exactly as it found
+    // it. Casso builds such stores during startup -- to read a remembered disk
+    // path, to fold a machine delta over the shipped config -- and each of the
+    // three saves below fires from one. Writing constructed defaults there
+    // resets every global preference the user ever set, and the only visible
+    // symptom is settings that quietly revert on the next launch.
+
+    TEST_METHOD (SaveDelta_WithoutLoadAll_PreservesGlobalSection)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr          = S_OK;
+        std::string         before;
+        std::string         after;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+        before = GlobalTextOrFail (fs, store);
+
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertSucceeded (hr);
+
+        after = GlobalTextOrFail (fs, store);
+        Assert::AreEqual (before, after);
+    }
+
+
+    TEST_METHOD (Reset_WithoutLoadAll_PreservesGlobalSection)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr = S_OK;
+        std::string         before;
+        std::string         after;
+        UserConfigStore     store (L"C:\\Casso");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+        before = GlobalTextOrFail (fs, store);
+
+        hr = store.Reset ("Apple2e", fs);
+        AssertSucceeded (hr);
+
+        after = GlobalTextOrFail (fs, store);
+        Assert::AreEqual (before, after);
+    }
+
+
+    TEST_METHOD (Load_MigratingWithoutLoadAll_PreservesGlobalSection)
+    {
+        InMemoryFileSystem  fs;
+        JsonValue           merged;
+        JsonValue           savedMachine;
+        HRESULT             hr          = S_OK;
+        std::string         before;
+        std::string         after;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"speedMode\":\"Authentic\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+        before = GlobalTextOrFail (fs, store);
+
+        // The seeded entry is stamped version 1 against a version-2 default,
+        // so Load migrates it and writes the whole document back.
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+
+        savedMachine = ReadMachineOrFail (fs, store, "Apple2e");
+        Assert::AreEqual (2, (int) FindObjectValueForTest (savedMachine, "$cassoMachineVersion")->GetNumber());
+
+        after = GlobalTextOrFail (fs, store);
+        Assert::AreEqual (before, after);
+    }
+
+
+    // The counterpart on a store that DID load: preserving the on-disk section
+    // must not cost a loaded store its writes, so the live prefs object is
+    // still what reaches disk.
+
+    TEST_METHOD (SaveDelta_AfterLoadAll_WritesLivePrefs)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           savedGlobal;
+        HRESULT             hr          = S_OK;
+        std::wstring        parseDetail;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, parseDetail);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Retro Terminal"), prefs.activeTheme);
+
+        prefs.activeTheme = "DarkModern";
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertSucceeded (hr);
+
+        savedGlobal = ParseOrFail (GlobalTextOrFail (fs, store).c_str());
+        Assert::AreEqual (std::string ("DarkModern"),
+                          FindObjectValueForTest (savedGlobal, "activeTheme")->GetString());
     }
 };

@@ -177,9 +177,10 @@ private:
     HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
                                       IFileSystem     & fs,
                                       bool            & outFoundLegacy) const;
-    HRESULT      SaveCombinedJson    (const GlobalUserPrefs & prefs,
+    // A null `prefs` preserves the on-disk global section instead of writing one.
+    HRESULT      SaveCombinedJson    (const GlobalUserPrefs * prefs,
                                       IFileSystem           & fs) const;
-    JsonValue    BuildCombinedJson   (const GlobalUserPrefs & prefs,
+    JsonValue    BuildCombinedJson   (const GlobalUserPrefs * prefs,
                                       IFileSystem           & fs) const;
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;

@@ -55,6 +55,11 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Global settings could be reset to defaults on launch.** A remembered disk whose
+  file was gone made startup rewrite the preferences file to clear the stale path,
+  and that write replaced the whole global section with built-in defaults. The
+  theme, the CRT settings, the recent-disk list and everything else global went
+  back to factory state, once per launch, until the disk came back.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

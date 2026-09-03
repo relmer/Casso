@@ -1010,7 +1010,7 @@ HRESULT UserConfigStore::SaveAll (
     const GlobalUserPrefs & prefs,
     IFileSystem           & fs) const
 {
-    return SaveCombinedJson (prefs, fs);
+    return SaveCombinedJson (&prefs, fs);
 }
 
 
@@ -1155,19 +1155,8 @@ HRESULT UserConfigStore::Load (
         m_machinePrefs[machineName] = canonicalJson;
         userJson = canonicalJson;
 
-        if (m_prefs != nullptr)
-        {
-            hr = SaveCombinedJson (*m_prefs, fs);
-            CHR (hr);
-        }
-        else
-        {
-            GlobalUserPrefs  fallbackPrefs;
-
-
-            hr = SaveCombinedJson (fallbackPrefs, fs);
-            CHR (hr);
-        }
+        hr = SaveCombinedJson (m_prefs, fs);
+        CHR (hr);
     }
 
     outMerged = MergeJson (defaultJson, userJson);
@@ -1192,25 +1181,16 @@ HRESULT UserConfigStore::SaveDelta (
     const JsonValue    & defaultJson,
     IFileSystem        & fs) const
 {
-    HRESULT              hr      = S_OK;
-    JsonValue            delta;
-    GlobalUserPrefs      fallbackPrefs;
+    HRESULT      hr = S_OK;
+    JsonValue    delta;
 
 
 
     delta = DiffJson (currentJson, defaultJson);
     m_machinePrefs[machineName] = delta;
 
-    if (m_prefs != nullptr)
-    {
-        hr = SaveCombinedJson (*m_prefs, fs);
-        CHR (hr);
-    }
-    else
-    {
-        hr = SaveCombinedJson (fallbackPrefs, fs);
-        CHR (hr);
-    }
+    hr = SaveCombinedJson (m_prefs, fs);
+    CHR (hr);
 
 Error:
     return hr;
@@ -1230,23 +1210,14 @@ HRESULT UserConfigStore::Reset (
     const std::string  & machineName,
     IFileSystem        & fs) const
 {
-    HRESULT          hr = S_OK;
-    GlobalUserPrefs  fallbackPrefs;
+    HRESULT  hr = S_OK;
 
 
 
     m_machinePrefs.erase (machineName);
 
-    if (m_prefs != nullptr)
-    {
-        hr = SaveCombinedJson (*m_prefs, fs);
-        CHR (hr);
-    }
-    else
-    {
-        hr = SaveCombinedJson (fallbackPrefs, fs);
-        CHR (hr);
-    }
+    hr = SaveCombinedJson (m_prefs, fs);
+    CHR (hr);
 
 Error:
     return hr;
@@ -1273,6 +1244,15 @@ Error:
 //  In-memory entries win over on-disk ones, since they are the newer state by
 //  definition.
 //
+//  The global section is preserved the same way, and for the same reason. A
+//  null `prefs` means this store never ran LoadAll, so it holds no global
+//  state at all: most stores the app builds are short-lived helpers that only
+//  read or rewrite one machine delta. Emitting struct defaults for those would
+//  overwrite every global preference on disk with a value nobody chose, so the
+//  on-disk object is carried through verbatim instead. With no prefs and
+//  nothing on disk the key is omitted, which LoadCombinedJson already reads as
+//  constructed defaults.
+//
 //  A read or parse failure is ignored rather than propagated: an unreadable or
 //  corrupt existing file means there is nothing to preserve, and refusing to
 //  save would leave the user unable to fix it by changing a setting.
@@ -1283,7 +1263,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue UserConfigStore::BuildCombinedJson (
-    const GlobalUserPrefs & prefs,
+    const GlobalUserPrefs * prefs,
     IFileSystem           & fs) const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
@@ -1293,6 +1273,7 @@ JsonValue UserConfigStore::BuildCombinedJson (
     JsonValue                                       existing;
     JsonParseError                                  err;
     const JsonValue                               * existingMachines = nullptr;
+    const JsonValue                               * existingGlobal   = nullptr;
     HRESULT                                         hr               = S_OK;
 
 
@@ -1309,6 +1290,8 @@ JsonValue UserConfigStore::BuildCombinedJson (
             hr = JsonParser::Parse (existingText, existing, err);
             if (SUCCEEDED (hr))
             {
+                existingGlobal = FindObjectValue (existing, kpszGlobalKey);
+
                 existingMachines = FindObjectValue (existing, kpszMachinesKey);
                 if (existingMachines != nullptr && existingMachines->GetType() == JsonType::Object)
                 {
@@ -1336,7 +1319,15 @@ JsonValue UserConfigStore::BuildCombinedJson (
         machines.emplace_back (kv.first, kv.second);
     }
 
-    root.emplace_back (kpszGlobalKey,   prefs.ToJson());
+    if (prefs != nullptr)
+    {
+        root.emplace_back (kpszGlobalKey, prefs->ToJson());
+    }
+    else if (existingGlobal != nullptr)
+    {
+        root.emplace_back (kpszGlobalKey, *existingGlobal);
+    }
+
     root.emplace_back (kpszMachinesKey, JsonValue (std::move (machines)));
 
     return JsonValue (std::move (root));
@@ -1420,7 +1411,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::SaveCombinedJson (
-    const GlobalUserPrefs & prefs,
+    const GlobalUserPrefs * prefs,
     IFileSystem           & fs) const
 {
     HRESULT              hr   = S_OK;
