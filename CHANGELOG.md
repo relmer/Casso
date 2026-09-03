@@ -53,12 +53,23 @@ Entries before versioning was introduced use dates only.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
+- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
+  RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **Full-screen mode hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
+  cropped and the picture with them -- about a dozen scanlines at each end, in
+  text mode as well as graphics. The camera now moves back far enough to fit
+  the whole picture. Up to about 3:2 the glass still covers the screen as
+  before; beyond that only the tube is drawn, against black, without the case,
+  bezel or power lamp.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
   re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
