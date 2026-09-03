@@ -65,8 +65,14 @@ CrtParams MakeCrtParams (
     float                         outputW,
     float                         outputH)
 {
+    // Luminance a pixel must reach before it feeds the bloom. Half scale
+    // sits above the dark half of a dithered image and below anything the
+    // guest lit, which is the split the effect is meant to model. One value
+    // for every monitor for now; whether a color tube wants a different one
+    // from a phosphor tube is left to the CRT tuning work.
+    constexpr float              kBloomThreshold = 0.5f;
     CrtParams                    params;
-    const GlobalUserPrefs::Crt & preset = CrtPresets::GetPreset (modeIndex);
+    const GlobalUserPrefs::Crt & preset          = CrtPresets::GetPreset (modeIndex);
 
 
 
@@ -142,6 +148,7 @@ CrtParams MakeCrtParams (
     params.scanlineIntensity = scanEn  ? scanInt : 0.0f;
     params.bloomRadius       = bloomEn ? bloomR  : 0.0f;
     params.bloomStrength     = bloomEn ? bloomS  : 0.0f;
+    params.bloomThreshold    = kBloomThreshold;
     params.colorBleedWidth   = bleedEn ? bleedW  : 0.0f;
     params.outputW           = (outputW > 0.0f) ? outputW : 1.0f;
     params.outputH           = (outputH > 0.0f) ? outputH : 1.0f;

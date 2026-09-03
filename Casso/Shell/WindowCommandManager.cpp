@@ -424,7 +424,6 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     // is dropped in SILENCE -- the menu item paints, the accelerator fires,
     // and nothing happens -- so these one-offs are load-bearing, not clutter.
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
-    else if (id == IDM_VIEW_RESET_SCENE)                                   { OnViewCommand (id); }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { OnViewCommand (id); }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { OnViewCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
@@ -819,12 +818,6 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
-        case IDM_VIEW_RESET_SCENE:
-        {
-            m_shell.ResetSceneView();
-            break;
-        }
-
         case IDM_VIEW_FRAME_RATE:
         {
             // Persisted, so the choice outlives the session in either build.
@@ -842,6 +835,17 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_RESET_SIZE:
         {
+            // One key puts everything back: the machine faces front at its
+            // default zoom, and the window goes to 100%. Splitting these
+            // across two chords asked the user to know which of the two
+            // ways a view can be off was the one they were looking at.
+            //
+            // Outside the fullscreen guard because a fullscreen window has
+            // no size to reset but the scene can still be turned around.
+            // Harmless where no scene exists: ResetSceneView returns early
+            // at identity, which a themeless scene never leaves.
+            m_shell.ResetSceneView();
+
             if (!m_shell.m_d3dRenderer.IsFullscreen())
             {
                 RECT  rcCurrentClient = {};
@@ -2255,8 +2259,7 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset window size\n"
-                L"Ctrl+Shift+0 -> Reset view (3D scene)",
+                L"Ctrl+0 -> Reset view (window size, scene pose and zoom)",
                 false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);

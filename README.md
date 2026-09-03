@@ -101,7 +101,7 @@ exact emulated pixel underneath it.
 would expect: drag to rotate, two fingers to pan, pinch to zoom. A compass
 in the corner does the same for anyone who would rather click than drag--its
 arrows rotate, hold one to keep going, and the orb squares everything back up.
-Ctrl+Shift+0 resets.
+Ctrl+0 resets.
 
 That's why the backs are fully modeled too. The Monitor II's rear is one
 piece of dark plastic running from the vent recess down over the control

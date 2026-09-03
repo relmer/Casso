@@ -55,6 +55,14 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Bloom washed out dithered pictures.** It was applied to every pixel rather than
+  to bright ones, so a dark pixel next to a lit one was lifted along with it. On
+  dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
+  dither stopped reading as tone. Only pixels above a brightness threshold feed the
+  bloom now, which is what a phosphor does.
+- **The bloom radius slider offered a range nobody could use.** It ran to 10 in whole
+  steps, where the useful span ends around 4 and the setting wants half-pixel
+  resolution. It now runs 0.5 to 4.0 and drags in tenths.
 - **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
   built as a plain member and given its words afterward painted with a hard-coded
   white rather than the theme's own text color. Whole settings pages are built that
@@ -102,11 +110,11 @@ Entries before versioning was introduced use dates only.
   emulated screen and cover the same share of the picture everywhere. A radius
   keeps the size it had at 100% zoom, so larger windows get more spread than
   before and smaller ones less.
-- **Ctrl+0 resets the window size again**, as it does in most applications, and
-  the 3D scene's view reset moves to Ctrl+Shift+0. Ctrl+0 had been reassigned to
-  the scene, which left it doing nothing at all under the flat themes, where
-  there is no scene to reset. The keymap help and the menu now agree with the
-  keys.
+- **Ctrl+0 puts the whole view back**: the window to 100%, the machine facing
+  front, and the scene at its default zoom. Resetting the window and resetting
+  the scene used to be two commands on two chords, one of which did nothing at
+  all under the flat themes. There is one command now, and it works in every
+  theme.
 - **The wrong number of scanlines was drawn outside the 3D desk scene.** The
   192 lines an Apple II draws were spread over the whole window rather than
   over the picture, so the letterbox bars took a share of them and the count

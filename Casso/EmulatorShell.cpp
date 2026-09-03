@@ -2610,6 +2610,12 @@ void EmulatorShell::SyncSceneDriveChrome()
 //  Fullscreen shows no labels: the picture owns the client and the drives are
 //  only briefly on screen in the overlay strip, which has its own tooltip.
 //
+//  A theme with no 3D drives shows none either, and that has to be asked
+//  rather than inferred from the composition. The composition is not cleared
+//  when the theme changes, so its drive rects stay valid and the labels went
+//  on hanging under drives that were no longer drawn, beside the flat
+//  widgets' own labels.
+//
 //  Windowed, the labels ride the ORBIT: they re-hang under each drive's
 //  projected bounds on every composition pass, so they stay legible from
 //  whatever angle the inspection orbit is showing rather than vanishing the
@@ -2628,7 +2634,7 @@ void EmulatorShell::SyncSceneDriveLabels()
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    bool                          visible = !fs || onStrip;
+    bool                          visible = DeskSceneActive() && (!fs || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
 
 
@@ -3900,11 +3906,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
-            // Nothing to put back without a scene. The flat themes draw the
-            // drives as a compact band and never build the camera, so the
-            // pose this resets does not exist and the command would be a
-            // key that visibly does nothing.
-            case IDM_VIEW_RESET_SCENE: return DeskSceneActive();
             default:           return true;
         }
     });
