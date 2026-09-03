@@ -71,8 +71,14 @@ public:
     // one-shot basename scroll so the full filename can be re-read on
     // demand. Owns the enter-edge detection so a stationary hover doesn't
     // continuously re-trigger.
-    void               UpdateMarqueeHover (bool inside, int64_t nowMs)
+    // Returns whether the BAND-hover state changed. The compact widget draws
+    // a button treatment for it, and a state nothing repaints is a state
+    // nobody sees. The marquee never needed this: it is already animating, so
+    // frames were arriving anyway.
+    bool               UpdateMarqueeHover (bool inside, int64_t nowMs)
     {
+        bool  wasHovered = m_bandHovered;
+
         if (inside && !m_marqueeHovered)
         {
             m_marqueeStartMs = nowMs;
@@ -84,6 +90,8 @@ public:
         m_bandHovered = inside;
 
         m_marqueeHovered = inside;
+
+        return m_bandHovered != wasHovered;
     }
 
     void               Paint           (IDxuiPainter        & painter,
@@ -128,6 +136,20 @@ public:
         }
 
         return r;
+    }
+
+    // Compact only. Whether the name roll is mid-flight, so the shell can ask
+    // for the frames it needs. The door FSM covers this in the ordinary cases
+    // because the two start together, but an insert into an ALREADY CLOSED
+    // door animates no door at all, and the label still has to move.
+    bool               IsNameRolling (int64_t nowMs) const
+    {
+        int64_t  since = nowMs - m_rollStartMs;
+
+        return m_compact
+               && m_rollStartMs != 0
+               && since >= 0
+               && since < DriveWidgetState::kDoorAnimationMs;
     }
 
     RECT               GetEjectRect () const { return m_ejectRect; }
@@ -210,6 +232,10 @@ private:
     // it and the word read as floating in the middle of the rail. Dropping
     // the box by roughly the descent lands the baseline on the rail instead.
     static constexpr int     kCompactCaptionDescentPx = 2;
+
+    // The empty drive's label. A state, not a title, so it takes the muted
+    // role wherever it is drawn.
+    static constexpr const wchar_t *  kCompactEmptyLabel = L"(empty)";
 
     // Dead space below the rail, inside the click band. The widget is bottom
     // anchored in the drive bar with a 2 dp gap under it, so without this the
@@ -311,6 +337,38 @@ private:
     // gives the name its button treatment. The shell already tells the widget
     // about hover for the marquee, so this rides that same signal.
     bool                 m_bandHovered       = false;
+
+    // Compact only. The name ROLL, which is how a mount and an eject read
+    // when there is no door to swing. The outgoing name slides out of the
+    // name row and the incoming one slides in behind it: up on an eject, down
+    // on a mount, so the direction says which way the disk went.
+    //
+    // The outgoing text has to be remembered here because BeginEject clears
+    // mountedImagePath the moment it starts, so by the time the animation
+    // runs the name it is rolling away is already gone from the state.
+    //
+    // Timed off the door FSM's own clock rather than a second one. A 2D theme
+    // has no door on screen, but the machine still runs it and the drive
+    // sounds are cut from it, so borrowing it keeps the three in step.
+    std::wstring         m_rollFromText;
+    std::wstring         m_rollToText;
+    int64_t              m_rollStartMs       = 0;
+    bool                 m_rollUp            = false;
+
+    // What the name row is showing, so a change can be noticed. Empty before
+    // the first sync, which is why the first label does not roll in.
+    std::wstring         m_shownText;
+    bool                 m_shownValid        = false;
+
+    // Compact only. The name row's current label, basename or the empty
+    // placeholder, without any of the marquee or badge machinery.
+    std::wstring  CompactDisplayName () const;
+
+    // Compact only. Cross-fade-free vertical roll between two labels.
+    void  PaintCompactNameRoll (IDxuiTextRenderer & text,
+                                const CassoTheme  & theme,
+                                UINT                dpi,
+                                float               t);
     LedIndicator         m_led;
     DriveWidgetState     m_state;
     UINT                 m_dpi               = 96;

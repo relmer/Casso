@@ -333,6 +333,112 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CompactDisplayName
+//
+//  What the name row says: the mounted image's basename, or the placeholder
+//  for an empty drive. An empty drive still needs a label, because the label
+//  IS the control and clicking it is how a disk gets in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DriveWidget::CompactDisplayName() const
+{
+    std::filesystem::path  imagePath;
+
+
+
+    if (m_state.mountedImagePath.empty())
+    {
+        return std::wstring (kCompactEmptyLabel);
+    }
+
+    imagePath = m_state.mountedImagePath;
+
+    return imagePath.filename().wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCompactNameRoll
+//
+//  A mount and an eject with no door to swing.
+//
+//  The outgoing name slides out of the name row while the incoming one slides
+//  in behind it, both clipped to the row so neither is seen outside it. Up on
+//  an eject, down on a mount, so the direction carries which way the disk
+//  went rather than the motion being decoration.
+//
+//  A SLIDE rather than a rotation on purpose. DrawString takes a rectangle
+//  and nothing else, so a label cannot be foreshortened, and faking a
+//  rotation by fading one string into another reads as a cross-dissolve
+//  rather than as one thing replacing another. A clipped translate is the
+//  motion text can actually perform, so nothing about it looks approximated.
+//
+//  The marquee stands down for the duration. Both own this row and both would
+//  move the same string, so a long name arriving would try to travel sideways
+//  and vertically at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::PaintCompactNameRoll (IDxuiTextRenderer & text,
+                                        const CassoTheme  & theme,
+                                        UINT                dpi,
+                                        float               t)
+{
+    HRESULT  hr      = S_OK;
+    float    rowH    = (float) (m_labelRect.bottom - m_labelRect.top);
+    float    nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+    float    dir     = m_rollUp ? -1.0f : 1.0f;
+    float    outY    = (float) m_labelRect.top + dir * rowH * t;
+    float    inY     = outY - dir * rowH;
+
+
+
+    auto  Draw = [&] (const std::wstring & s, float y, bool muted)
+    {
+        if (s.empty())
+        {
+            return;
+        }
+
+        hr = text.DrawString (s.c_str(),
+                              (float) m_labelRect.left,
+                              y,
+                              (float) (m_labelRect.right - m_labelRect.left),
+                              rowH,
+                              muted ? theme.dropdownAccel : theme.driveLabel,
+                              nameDip,
+                              kFontFamily,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    };
+
+
+
+    hr = text.PushClipRect ((float) m_labelRect.left,
+                            (float) m_labelRect.top,
+                            (float) (m_labelRect.right - m_labelRect.left),
+                            rowH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    Draw (m_rollFromText, outY, m_rollFromText == kCompactEmptyLabel);
+    Draw (m_rollToText,   inY,  m_rollToText   == kCompactEmptyLabel);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintCompactHeadBar
 //
 //  The 2D themes' activity indicator, drawn under the disk name.
@@ -484,6 +590,32 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
                              std::memory_order_relaxed);
     m_state.lastActiveMs = state.lastActiveMs;
 
+    // Notice a label change and start the roll. Done on SYNC rather than in
+    // paint because BeginEject has already cleared the path by the time the
+    // animation runs, so this is the last moment the outgoing name exists.
+    if (m_compact)
+    {
+        std::wstring  now = CompactDisplayName();
+
+        if (!m_shownValid)
+        {
+            m_shownText  = now;
+            m_shownValid = true;
+        }
+        else if (now != m_shownText)
+        {
+            m_rollFromText = m_shownText;
+            m_rollToText   = now;
+            m_shownText    = now;
+
+            // Up on an eject, down on a mount, so the direction says which
+            // way the disk went. An eject is the case that ends empty.
+            m_rollUp      = m_state.mountedImagePath.empty();
+            m_rollStartMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+    }
+
     m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
 
@@ -627,24 +759,45 @@ void DriveWidget::Paint (
                                   DxuiTextRenderer::VAlign::Bottom);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            // An empty drive still needs a name to click. PaintBasenameLabel
-            // draws nothing without a mount, so the placeholder is drawn here
-            // and in the muted role, since it is a state rather than a title.
-            if (m_state.mountedImagePath.empty())
+            // The name row. While a roll is running it owns the row outright:
+            // the marquee and the badges stand down, because both would move
+            // or pin the same string the roll is sliding.
             {
-                float  nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+                int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                     std::chrono::steady_clock::now().time_since_epoch()).count();
+                int64_t  since = nowMs - m_rollStartMs;
 
-                hr = text.DrawString (L"(empty)",
-                                      (float) m_labelRect.left,
-                                      (float) m_labelRect.top,
-                                      (float) (m_labelRect.right  - m_labelRect.left),
-                                      (float) (m_labelRect.bottom - m_labelRect.top),
-                                      theme.dropdownAccel,
-                                      nameDip,
-                                      kFontFamily,
-                                      DxuiTextRenderer::HAlign::Center,
-                                      DxuiTextRenderer::VAlign::Center);
-                IGNORE_RETURN_VALUE (hr, S_OK);
+                if (m_rollStartMs != 0 && since >= 0 && since < DriveWidgetState::kDoorAnimationMs)
+                {
+                    float  t = (float) since / (float) DriveWidgetState::kDoorAnimationMs;
+
+                    // Ease out, so the label arrives rather than stopping.
+                    t = 1.0f - (1.0f - t) * (1.0f - t);
+
+                    PaintCompactNameRoll (text, theme, dpi, t);
+                }
+                else if (m_state.mountedImagePath.empty())
+                {
+                    // An empty drive still needs a name to click.
+                    // PaintBasenameLabel draws nothing without a mount.
+                    float  nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+
+                    hr = text.DrawString (kCompactEmptyLabel,
+                                          (float) m_labelRect.left,
+                                          (float) m_labelRect.top,
+                                          (float) (m_labelRect.right  - m_labelRect.left),
+                                          (float) (m_labelRect.bottom - m_labelRect.top),
+                                          theme.dropdownAccel,
+                                          nameDip,
+                                          kFontFamily,
+                                          DxuiTextRenderer::HAlign::Center,
+                                          DxuiTextRenderer::VAlign::Center);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+                }
+                else
+                {
+                    PaintBasenameLabel (painter, text, theme, dpi);
+                }
             }
 
 
@@ -663,7 +816,6 @@ void DriveWidget::Paint (
             UNREFERENCED_PARAMETER (inUseFontDip);
             UNREFERENCED_PARAMETER (doorOffset);
 
-            PaintBasenameLabel (painter, text, theme, dpi);
             return;
         }
 

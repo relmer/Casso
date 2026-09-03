@@ -7366,6 +7366,22 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
+    // A 2D drive's name roll wants frames for the same reason. Asked of the
+    // WIDGETS rather than the states, since the roll's clock lives with the
+    // label it is moving.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        for (const DriveWidget & drive : m_driveChrome)
+        {
+            if (drive.IsNameRolling (nowMs))
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+    }
+
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
@@ -9170,7 +9186,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         bool  inside = x >= outer.left && x < outer.right &&
                        y >= outer.top  && y < outer.bottom;
 
-        drive.UpdateMarqueeHover (inside, nowMs);
+        if (drive.UpdateMarqueeHover (inside, nowMs))
+        {
+            // The band's button treatment appeared or went away. A static
+            // emulator picture presents no frames on its own, so without this
+            // the highlight would land on whatever frame happened next.
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         if (inside && drive.IsWriteProtected())
         {
