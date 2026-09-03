@@ -1796,6 +1796,42 @@ void DeskScene::RebuildLampVerts()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::FillViewportBlack
+//
+//  One opaque black quad over the whole viewport, at the far depth so nothing
+//  in the scene is depth-tested away by it. The glass-only presentation's
+//  ground: the plate is a LAYER and clears transparent, so without this the
+//  theme's backdrop shows wherever the tube does not reach.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::FillViewportBlack (const D3D11_VIEWPORT & viewport)
+{
+    HRESULT                 hr           = S_OK;
+    float                   identity[16] = {};
+    Dxui3DRenderer::Vertex  quad[6]      = {};
+
+
+
+    SceneCamera::Identity44 (identity);
+
+    quad[0] = { -1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[1] = {  1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[2] = {  1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[3] = { -1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[4] = {  1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[5] = { -1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+
+    hr = m_renderer.DrawTriangles (quad, 6, identity, false, viewport, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawDebugRect
 //
 //  Four thin bars in clip space (identity MVP) over a full-backbuffer
@@ -1871,6 +1907,17 @@ void DeskScene::DrawDebugRect (const RECT & rectPx, int backBufferW, int backBuf
 //  used to be paid sixty times a second to antialias edges that had not moved
 //  since the last time. Measured at ~20 points of GPU on this machine.
 //
+//  THE GLASS-ONLY PRESENTATION drops most of that. Fullscreen shows the tube
+//  and nothing else on black, so the case, the bezel, the power lamp and the
+//  ground shadows are all skipped: the camera stands where it must to hold
+//  the whole picture, and on a screen wider than the glass that leaves room
+//  beside the tube which the monitor's own frame has no business filling.
+//  What stays is the tube, the faceplate mask and the sheen -- the layers the
+//  raster itself sits in.
+//
+//  The case is also what the front plate's occluder pass exists to put back
+//  in front of the raster, so with no case that whole pass goes with it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int height)
@@ -1879,6 +1926,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     HRESULT                  hrEnd        = S_OK;
     float                    mvp[16]      = {};
     float                    clear[4]     = { 0.0f, 0.0f, 0.0f, 0.0f };
+    bool                     glassOnly    = m_comp.glassOnly != 0;
     ID3D11RenderTargetView * rawPlate     = nullptr;
 
 
@@ -1908,27 +1956,35 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = m_renderer.BeginDepthPass();
     CHRA (hr);
 
-    hr = DrawShadows (m_comp, viewport, true);
-    CHRA (hr);
+    if (glassOnly)
+    {
+        FillViewportBlack (viewport);
+    }
+    else
+    {
+        hr = DrawShadows (m_comp, viewport, true);
+        CHRA (hr);
 
-    // Opaque bodies: monitor, then each placed drive.
-    SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+        // Opaque bodies: monitor, then each placed drive.
+        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+        SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
-    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
-                                m_monitor.OpaqueVerts().data(),
-                                m_monitor.OpaqueVerts().size(),
-                                m_geometryRev, mvp, false, viewport, true);
-    CHRA (hr);
+        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
+                                    m_monitor.OpaqueVerts().data(),
+                                    m_monitor.OpaqueVerts().size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
 
-    hr = DrawDrives (m_comp, viewport);
-    CHRA (hr);
+        hr = DrawDrives (m_comp, viewport);
+        CHRA (hr);
+    }
 
     // THE TILTING ASSEMBLY, on its own transform. Lit through that same
     // transform too: the shader takes its lights in model space, so handing
     // it the untilted placement would leave the bezel lit as though it had
-    // never moved.
+    // never moved. The matrix is built whether or not the bezel draws,
+    // because the tube below rides it.
     {
         float  tiltWorld[16] = {};
 
@@ -1937,7 +1993,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
         SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
 
-        if (!m_monitor.TiltableVerts().empty())
+        if (!glassOnly && !m_monitor.TiltableVerts().empty())
         {
             hr = m_renderer.DrawStatic (m_monitorTiltMesh,
                                         m_monitor.TiltableVerts().data(),
@@ -2012,7 +2068,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, caseMvp);
         SceneCamera::Mul44 (tiltWorld,           m_comp.viewProj, tubeMvp);
 
-        if (!m_pictureDepthVerts.empty())
+        // Nothing to put back in front of the raster when the case is not
+        // drawn at all, and the stamp only exists to cut a mouth in it.
+        if (!glassOnly && !m_pictureDepthVerts.empty())
         {
             // The stamp is the picture's own footprint, so it travels with
             // the tube -- left on the case's placement it opens the mouth
@@ -2073,7 +2131,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         }
 
         // The power lamp sits in the case's notch, not on the tube.
-        if (!m_monitorLampVerts.empty())
+        if (!glassOnly && !m_monitorLampVerts.empty())
         {
             hr = m_renderer.DrawStatic (m_monitorLampMesh, m_monitorLampVerts.data(), m_monitorLampVerts.size(), m_geometryRev,
                                            caseMvp, false, viewport, true);
@@ -2085,11 +2143,17 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // Anything drawn later that writes depth would simply paint over them:
     // they test depth without writing it, which is what keeps a name from
     // leaving its transparent rectangle in the buffer.
-    hr = DrawDiskLabels (m_comp, viewport);
-    CHRA (hr);
+    //
+    // Both belong to bodies the glass-only presentation does not draw: the
+    // names hang off the drives, and the only glow is the power lamp's.
+    if (!glassOnly)
+    {
+        hr = DrawDiskLabels (m_comp, viewport);
+        CHRA (hr);
 
-    hr = DrawLampGlows (m_comp, viewport, true);
-    CHRA (hr);
+        hr = DrawLampGlows (m_comp, viewport, true);
+        CHRA (hr);
+    }
 
 Error:
     // Resolve and composite on EVERY exit, not just the clean one: a failure

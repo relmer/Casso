@@ -134,6 +134,13 @@ struct DeskSceneComposition
     float  monitorWorld[16] = {};
     float  driveWorld[2][16] = {};
     int    driveCount       = 0;
+
+    // The fullscreen presentation: draw the tube and nothing else, on black.
+    // An int rather than a bool because compositions are compared whole, by
+    // memcmp -- the plate cache keys off one -- and a bool would leave three
+    // bytes of padding in the comparison that nothing ever writes.
+    int    glassOnly        = 0;
+
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
@@ -183,11 +190,12 @@ public:
     static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
     // The fullscreen presentation: a straight-on camera standing as close as
-    // it can WITHOUT cutting the picture, no drives in the composition (the
-    // overlay strip presents those separately). Close means the glass covers
-    // the viewport and the monitor body crops offscreen; a viewport wide
-    // enough that covering would crop the raster instead backs the eye off to
-    // the picture's own containment. `displayW` x `displayH` is the emulated
+    // it can WITHOUT cutting the picture, and the tube alone on black (the
+    // composition carries `glassOnly`, and the drives come from the overlay
+    // strip). Close means the glass covers the viewport; a viewport wide
+    // enough that covering would crop the raster backs the eye off to the
+    // picture's own containment instead, and the black is what fills the room
+    // that leaves beside the tube. `displayW` x `displayH` is the emulated
     // grid, which is what fixes the picture's band on the glass. Same S_FALSE
     // contract for an empty viewport.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,

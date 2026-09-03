@@ -1048,6 +1048,26 @@ public:
     }
 
 
+    TEST_METHOD (Fullscreen_Asks_For_The_Glass_Alone_And_The_Desk_Does_Not)
+    {
+        // What tells the renderer to drop the case, the bezel and the lamp
+        // and put black beside the tube instead.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  full;
+        DeskSceneComposition  desk;
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, full));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (screen, 96, 2, metrics, desk));
+
+        Assert::AreEqual (1, full.glassOnly);
+        Assert::AreEqual (0, desk.glassOnly, L"the windowed desk shows the whole monitor");
+    }
+
+
     TEST_METHOD (Fullscreen_Refuses_An_Empty_Screen_Or_Display)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

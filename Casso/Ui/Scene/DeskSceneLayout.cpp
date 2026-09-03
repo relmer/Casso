@@ -797,8 +797,13 @@ float DeskSceneLayout::SolvePictureStandoff (const DeskSceneMetrics & metrics,
 //  graphics. So the cover standoff is a floor the picture is allowed to
 //  raise, not the answer: up to about 3:2 the glass covers exactly as it
 //  always did, and past that the eye backs off just far enough to hold the
-//  whole raster -- the tube's own margins, and some bezel, filling the sides
-//  the picture cannot reach.
+//  whole raster.
+//
+//  What that leaves beside the tube is BLACK, not the monitor. The
+//  composition carries `glassOnly` and DeskScene::RenderPlate drops the case,
+//  the bezel and the lamp for it -- otherwise backing the camera off shows a
+//  case cropped at the top and bottom but not the sides, which reads as a
+//  monitor with its middle sliced out rather than as a monitor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -835,6 +840,7 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
 
     out.viewportPx = viewportPx;
     out.driveCount = 0;
+    out.glassOnly  = 1;
     aspect         = (float) viewportW / (float) viewportH;
 
     MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, 1.0f, out.monitorWorld);
