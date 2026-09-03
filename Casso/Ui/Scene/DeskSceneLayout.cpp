@@ -712,19 +712,100 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::SolvePictureStandoff
+//
+//  The band's boundary sampled at its corners AND its edge midpoints: the
+//  midpoints are where the sag stands proudest, and the standoff a point
+//  demands grows with how far forward it sits, so an edge's middle asks for
+//  more room than the corners it runs between. Three samples an edge is
+//  therefore exact for a spherical sag rather than an approximation -- along
+//  any one edge the off-axis distance is constant and the forward bulge peaks
+//  at the middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::SolvePictureStandoff (const DeskSceneMetrics & metrics,
+                                             const float              monitorWorld[16],
+                                             int                      displayW,
+                                             int                      displayH,
+                                             float                    aspect)
+{
+    constexpr int   kEdgeSamples = 3;   // both ends and the middle
+    float           monitorCx    = (metrics.monitorMin[0] + metrics.monitorMax[0]) * 0.5f;
+    float           glassCx      = (metrics.glass.x0 + metrics.glass.x1) * 0.5f - monitorCx;
+    float           glassCy      = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
+    float           planeZ       = -metrics.glass.baseY;
+    float           bandU0       = 0.0f;
+    float           bandV0       = 0.0f;
+    float           bandU1       = 1.0f;
+    float           bandV1       = 1.0f;
+    float           standoff     = 0.0f;
+
+
+
+    CurvedDisplayMath::ComputePictureBand (metrics.glass, displayW, displayH,
+                                           bandU0, bandV0, bandU1, bandV1);
+
+    for (int iu = 0; iu < kEdgeSamples; iu++)
+    {
+        for (int iv = 0; iv < kEdgeSamples; iv++)
+        {
+            float   fu         = (float) iu / (float) (kEdgeSamples - 1);
+            float   fv         = (float) iv / (float) (kEdgeSamples - 1);
+            float   modelPt[3] = {};
+            float   worldPt[3] = {};
+
+            CurvedDisplayMath::ModelPointFromUv (metrics.glass,
+                                                 bandU0 + fu * (bandU1 - bandU0),
+                                                 bandV0 + fv * (bandV1 - bandV0),
+                                                 modelPt);
+
+            if (!SceneCamera::TransformPoint (monitorWorld, modelPt, worldPt))
+            {
+                continue;
+            }
+
+            standoff = std::max (standoff,
+                                 SceneCamera::SolveContainStandoff (worldPt[0] - glassCx,
+                                                                    worldPt[1] - glassCy,
+                                                                    worldPt[2] - planeZ,
+                                                                    kFovY, aspect));
+        }
+    }
+
+    return standoff;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::ComputeGlassFill
 //
 //  The fullscreen camera: the monitor mounts exactly as in the windowed
 //  composition (so the glass surface, hit tester, and picture band all keep
-//  working unchanged), but the camera solves to FILL the viewport with the
-//  glass rect -- the shorter-standoff axis binds and the other crops. The
-//  projected glass rect IS the viewport, which is what routes the CRT target
-//  to the whole screen.
+//  working unchanged), and the camera stands as CLOSE to it as it can get
+//  without cutting anything off the picture.
+//
+//  Close means covering the viewport with the glass, which is what keeps the
+//  monitor's case off screen. But the glass is only about 1.42 to 1 and the
+//  raster all but fills it, so covering a WIDER viewport than that crops the
+//  glass vertically and takes the picture with it: on 16:9 that was 14% of
+//  the picture's height, a dozen scanlines off each end, in text as much as in
+//  graphics. So the cover standoff is a floor the picture is allowed to
+//  raise, not the answer: up to about 3:2 the glass covers exactly as it
+//  always did, and past that the eye backs off just far enough to hold the
+//  whole raster -- the tube's own margins, and some bezel, filling the sides
+//  the picture cannot reach.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
                                            UINT                     dpi,
+                                           int                      displayW,
+                                           int                      displayH,
                                            const DeskSceneMetrics & metrics,
                                            DeskSceneComposition   & out)
 {
@@ -736,6 +817,11 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
     float     glassCy   = (metrics.glass.z0 + metrics.glass.z1) * 0.5f;
     float     glassW    = metrics.glass.x1 - metrics.glass.x0;
     float     glassH    = metrics.glass.z1 - metrics.glass.z0;
+    float     tanY      = std::tan (kFovY * 0.5f);
+    float     aspect    = 0.0f;
+    float     standoff  = 0.0f;
+    float     halfWpx   = 0.0f;
+    float     halfHpx   = 0.0f;
     float     nativeHPx = 0.0f;
 
 
@@ -743,27 +829,47 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
     out = {};
 
     CBRAEx (dpi > 0, E_INVALIDARG);
+    CBRAEx (displayW > 0 && displayH > 0, E_INVALIDARG);
 
     BAIL_OUT_IF (viewportW <= 0 || viewportH <= 0, S_FALSE);   // EHM-ALLOW-SFALSE: minimized/zero viewport is a routine skip-this-frame state the caller tests for, not an error
 
     out.viewportPx = viewportPx;
     out.driveCount = 0;
+    aspect         = (float) viewportW / (float) viewportH;
 
     MakeDeviceWorld (-monitorCx, 0.0f, 0.0f, 1.0f, out.monitorWorld);
 
-    SceneCamera::SolveGlassFillCamera (glassCx, glassCy, glassW, glassH,
-                                       -metrics.glass.baseY,
-                                       kFovY, (float) viewportW / (float) viewportH,
-                                       kNearMm, kFarMm,
-                                       out.view, out.proj, out.viewProj);
+    standoff = std::max (SceneCamera::SolveCoverStandoff (glassW, glassH, kFovY, aspect),
+                         SolvePictureStandoff (metrics, out.monitorWorld, displayW, displayH, aspect));
 
-    // The glass claims the whole viewport; scene scale keys off the SCREEN
-    // height so the CRT target is sized for what is actually visible.
-    out.glassRectPx = viewportPx;
+    SceneCamera::SolveStraightOnCamera (glassCx, glassCy, -metrics.glass.baseY, standoff,
+                                        kFovY, aspect, kNearMm, kFarMm,
+                                        out.view, out.proj, out.viewProj);
+
+    // Straight on at the glass rect's own center, so the rect projects
+    // centered and square and needs no corner pass -- its half-extents are
+    // just the off-axis distances over the frustum's span at the standoff.
+    // Clamped to the viewport, because a covering glass runs off it and what
+    // this rect reports is the CRT's room ON SCREEN.
+    halfWpx = std::min ((float) viewportW * 0.5f,
+                        (glassW * 0.5f) / (standoff * tanY * aspect) * ((float) viewportW * 0.5f));
+    halfHpx = std::min ((float) viewportH * 0.5f,
+                        (glassH * 0.5f) / (standoff * tanY) * ((float) viewportH * 0.5f));
+
+    {
+        float  centerX = (float) (viewportPx.left + viewportPx.right) * 0.5f;
+        float  centerY = (float) (viewportPx.top + viewportPx.bottom) * 0.5f;
+
+        out.glassRectPx.left   = (LONG) std::floor (centerX - halfWpx);
+        out.glassRectPx.top    = (LONG) std::floor (centerY - halfHpx);
+        out.glassRectPx.right  = (LONG) std::ceil  (centerX + halfWpx);
+        out.glassRectPx.bottom = (LONG) std::ceil  (centerY + halfHpx);
+    }
+
     out.sceneRectPx = viewportPx;
 
     nativeHPx      = (float) kScreenNativeHDp * (float) dpi / 96.0f;
-    out.sceneScale = (float) viewportH / nativeHPx;
+    out.sceneScale = (halfHpx * 2.0f) / nativeHPx;
 
 Error:
     return hr;

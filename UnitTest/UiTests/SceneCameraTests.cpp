@@ -256,12 +256,14 @@ public:
         RECT   viewport     = { 0, 0, 1200, 900 };   // 4:3 viewport
         float  glassW       = 216.0f;
         float  glassH       = 144.0f;                // 1.5 aspect > 4:3
+        float  standoff     = SceneCamera::SolveCoverStandoff (glassW, glassH, 0.6f,
+                                                               1200.0f / 900.0f);
 
 
 
-        SceneCamera::SolveGlassFillCamera (10.0f, 120.0f, glassW, glassH, -6.0f,
-                                           0.6f, 1200.0f / 900.0f, 1.0f, 5000.0f,
-                                           view, proj, viewProj);
+        SceneCamera::SolveStraightOnCamera (10.0f, 120.0f, -6.0f, standoff,
+                                            0.6f, 1200.0f / 900.0f, 1.0f, 5000.0f,
+                                            view, proj, viewProj);
 
         // The vertical edge midpoints land exactly on the viewport's top and
         // bottom edges; the horizontal midpoints land OUTSIDE (cropped).
@@ -293,12 +295,14 @@ public:
         RECT   viewport     = { 0, 0, 2100, 900 };
         float  glassW       = 216.0f;
         float  glassH       = 144.0f;
+        float  standoff     = SceneCamera::SolveCoverStandoff (glassW, glassH, 0.6f,
+                                                               2100.0f / 900.0f);
 
 
 
-        SceneCamera::SolveGlassFillCamera (0.0f, 0.0f, glassW, glassH, 0.0f,
-                                           0.6f, 2100.0f / 900.0f, 1.0f, 5000.0f,
-                                           view, proj, viewProj);
+        SceneCamera::SolveStraightOnCamera (0.0f, 0.0f, 0.0f, standoff,
+                                            0.6f, 2100.0f / 900.0f, 1.0f, 5000.0f,
+                                            view, proj, viewProj);
 
         {
             float  right[3] = { glassW * 0.5f, 0.0f, 0.0f };
@@ -311,6 +315,43 @@ public:
             Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, top, viewport, px));
             Assert::IsTrue (px[1] < -0.5f);           // cropped past the top
         }
+    }
+
+    TEST_METHOD (Contain_Standoff_Lands_A_Point_Exactly_On_The_Edge)
+    {
+        // The standoff one point demands puts that point ON the frustum's
+        // edge -- the demanding axis's edge, and inside on the other.
+        float  view[16]     = {};
+        float  proj[16]     = {};
+        float  viewProj[16] = {};
+        RECT   viewport     = { 0, 0, 1600, 900 };
+        float  aspect       = 1600.0f / 900.0f;
+        float  high[3]      = { 12.0f, 70.0f, 20.0f };   // 20 in front of the plane
+        float  standoff     = SceneCamera::SolveContainStandoff (high[0], high[1], high[2], 0.6f, aspect);
+        float  px[2]        = {};
+
+
+
+        SceneCamera::SolveStraightOnCamera (0.0f, 0.0f, 0.0f, standoff, 0.6f, aspect,
+                                            1.0f, 5000.0f, view, proj, viewProj);
+
+        Assert::IsTrue (SceneCamera::ProjectToScreen (viewProj, high, viewport, px));
+        Assert::AreEqual (0.0f, px[1], 0.5f, L"the height is what this point demands");
+        Assert::IsTrue (px[0] > 0.0f && px[0] < 1600.0f);
+    }
+
+    TEST_METHOD (Contain_Standoff_Backs_Off_For_A_Nearer_Point)
+    {
+        // A point standing proud of the aim plane is seen from closer, so it
+        // projects further off-axis: the standoff grows by exactly its lift,
+        // which is what makes a curved sheet's bulging edges solvable point
+        // by point.
+        float  flat  = SceneCamera::SolveContainStandoff (0.0f, 40.0f, 0.0f, 0.6f, 1.5f);
+        float  proud = SceneCamera::SolveContainStandoff (0.0f, 40.0f, 7.5f, 0.6f, 1.5f);
+
+
+
+        Assert::AreEqual (flat + 7.5f, proud, 1e-4f);
     }
 
 };

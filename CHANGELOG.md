@@ -55,6 +55,15 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Fullscreen cut the top and bottom off the picture on a widescreen monitor.**
+  The camera framed fullscreen by covering the screen with the monitor's glass,
+  and the glass is only about 1.4 to 1 -- so on a 16:9 screen the glass was
+  cropped vertically and the raster, which all but fills it, went with it:
+  about a dozen scanlines off each end, roughly a line and a half of text. The
+  camera now stands back far enough to hold the whole picture whenever
+  covering would cost any of it, so nothing is ever cut off. Up to about 3:2
+  the glass still covers the screen exactly as before; past that the tube's
+  own margins fill the sides the picture cannot reach.
 - **The mounted disk's name drew through the monitor's case.** The name under each
   3D drive was chrome painted after the scene, so it had no depth and nothing could
   stand in front of it. Orbiting until the monitor came between the camera and a

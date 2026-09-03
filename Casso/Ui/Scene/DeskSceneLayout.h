@@ -182,12 +182,18 @@ public:
     // show you a differently-shaped part than the composition does.
     static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
-    // The fullscreen presentation: a straight-on camera whose frustum the
-    // GLASS fills (cover, not contain -- the monitor body crops offscreen),
-    // no drives in the composition (the overlay strip presents those
-    // separately). Same S_FALSE contract for an empty viewport.
+    // The fullscreen presentation: a straight-on camera standing as close as
+    // it can WITHOUT cutting the picture, no drives in the composition (the
+    // overlay strip presents those separately). Close means the glass covers
+    // the viewport and the monitor body crops offscreen; a viewport wide
+    // enough that covering would crop the raster instead backs the eye off to
+    // the picture's own containment. `displayW` x `displayH` is the emulated
+    // grid, which is what fixes the picture's band on the glass. Same S_FALSE
+    // contract for an empty viewport.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
+                                      int                      displayW,
+                                      int                      displayH,
                                       const DeskSceneMetrics & metrics,
                                       DeskSceneComposition   & out);
 
@@ -343,6 +349,17 @@ private:
                                          float                   tanHalfY,
                                          float                   tanHalfX,
                                          float                 & outDist);
+
+    // How far back the fullscreen camera must stand for the WHOLE picture to
+    // be on screen. Sampled over the picture band's boundary rather than
+    // solved from its flat rect, because the band lies on a curved sheet:
+    // the sag bulges each edge's middle toward the eye, and a nearer point
+    // projects further off-axis than the corners it sits between.
+    static float    SolvePictureStandoff (const DeskSceneMetrics & metrics,
+                                          const float              monitorWorld[16],
+                                          int                      displayW,
+                                          int                      displayH,
+                                          float                    aspect);
 
     // One full composition solve at a specific drive drop; Compute wraps it
     // with the gap-reserving correction.
