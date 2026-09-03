@@ -61,6 +61,15 @@ Entries before versioning was introduced use dates only.
   the rate the datasheet specifies, so any speech a title produces is faster
   and higher in tempo than in earlier releases. The speech smoke-test disk is
   re-tuned to the chip's slowest rate to keep its original pacing.
+- **The mounted disk's name drew through the monitor's case.** The name under each
+  3D drive was chrome painted after the scene, so it had no depth and nothing could
+  stand in front of it. Orbiting until the monitor came between the camera and a
+  drive left the name floating over the case. It is a camera-facing quad in the
+  scene now, sized to a fixed number of screen pixels and depth tested like any
+  other surface, so the case cuts it exactly where the case crosses it. The name
+  keeps the size it reads at from every pose, which is why it was taken out of the
+  scene the first time. The fullscreen overlay strip has nothing in front of its
+  drives and keeps the chrome label it had.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
