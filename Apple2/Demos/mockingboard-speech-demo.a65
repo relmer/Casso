@@ -24,6 +24,21 @@
 ;  period speech drivers did, and it lets each phoneme run for the duration its
 ;  own DR bits ask for.
 ;
+;  Two things guard that handshake, because A/R is the part of this chip that
+;  varies most between hosts.
+;
+;  The demo masks interrupts and never unmasks them. A/R is an output pin, and
+;  on a real Mockingboard it runs to VIA #1's CA1; a host that instead drives
+;  the CPU's interrupt line from it will interrupt this program after the very
+;  first phoneme. There is no DOS here and so no handler behind $03FE, so that
+;  interrupt reaches a garbage vector and the machine reboots -- which loops
+;  the demo forever on its first word rather than failing outright.
+;
+;  And the poll carries a deadline sized from the phoneme's own duration, so a
+;  host whose read does not report A/R paces the line instead of hanging on it.
+;  A phoneme lasts 4096 * (16 - rate) * (4 - DR) chip ticks; the deadline is
+;  twice that product, far enough out that a working request always wins.
+;
 ;  SUNG notes cannot work that way. A single phoneme write sounds for at most
 ;  146 ms (4096 * 16 * 4 chip ticks at the slowest rate), which is shorter than
 ;  most notes, so a held note is built by re-writing the SAME phoneme byte
@@ -129,10 +144,17 @@ CAPCOL  = $0D              ; next column in that row
 CAPROW  = $0E              ; which of the four caption rows
 CAPLEN  = $0F              ; characters left to print
 TMP     = $10
+RATEC   = $11              ; 16 - the current speech rate, for the poll deadline
+PDL     = $12              ; poll deadline, in 256-iteration units
 
 
 start
+    sei                         ; see the note on A/R above; never unmasked
+
     jsr ScreenInit
+
+    lda #$08                    ; a rate of 8, until a stream states its own
+    sta RATEC
 
     ; Leave Power Down with the mode bits staged. Writing the duration bits
     ; while CTL is still set, then dropping CTL, is what latches the operating
@@ -253,10 +275,16 @@ spk_next
     ; the moment its countdown expires, and every cycle spent before the next
     ; write is a cycle of decaying output.
     sta SPHON
+    jsr SetDeadline             ; A still holds the phoneme byte
     jsr Advance1
 spk_poll
     lda SPHON                   ; D7 set = the chip wants the next phoneme
-    bpl spk_poll
+    bmi spk_asked
+    dey
+    bne spk_poll
+    dec PDL
+    bne spk_poll
+spk_asked
     jmp spk_next
 
 spk_cap
@@ -281,6 +309,15 @@ spk_pitch
     ldy #$00
     lda (PTR),y                 ; rate + I11 + I2-I0
     sta SRATE
+    lsr a
+    lsr a
+    lsr a
+    lsr a                       ; the rate nibble alone
+    sta TMP
+    lda #$10
+    sec
+    sbc TMP
+    sta RATEC
     jsr Advance1
     jmp spk_next
 
@@ -293,6 +330,42 @@ spk_wait
     jmp spk_next
 
 spk_done
+    rts
+
+
+; ============================================================================
+;  SetDeadline -- size the A/R wait from the phoneme's own duration
+;
+;  A phoneme lasts 4096 * (16 - rate) * (4 - DR) chip ticks, so the product of
+;  those two terms is its length in units the poll loop can count out. The
+;  deadline is twice the product, which on a host whose A/R read works arrives
+;  long after the request and is never reached.
+;
+;  Entry: A = the phoneme byte, DR in D7:6.  Exit: PDL set, Y = 0.
+; ============================================================================
+SetDeadline
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a                       ; DR alone, 0 to 3
+    sta TMP
+    lda #$04
+    sec
+    sbc TMP
+    sta TMP                     ; 4 - DR, so 1 to 4
+
+    lda #$00
+sd_add
+    clc
+    adc RATEC
+    dec TMP
+    bne sd_add                  ; (16 - rate) * (4 - DR), at most 64
+
+    asl a                       ; twice over, so a live request always wins
+    sta PDL
+    ldy #$00
     rts
 
 
