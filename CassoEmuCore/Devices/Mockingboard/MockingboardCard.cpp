@@ -32,6 +32,10 @@ MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
     if (variant == MockingboardVariant::SoundSpeech)
     {
         m_speech = make_unique<Ssi263>();
+
+        // Tick is fed the CPU's cycle counts, so that -- not the voice chip's
+        // own XCK -- is the clock its phoneme countdown has to be measured in.
+        m_speech->SetTickClock (static_cast<double> (kAppleCpuClock));
     }
 
     m_speechSource.SetSpeech (m_speech.get());
@@ -191,6 +195,10 @@ void MockingboardCard::PowerCycle (Prng & prng)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Tick
+//
+//  Advances the card by `cycles` phi2 clocks. Both the VIA timers and the
+//  voice chip's phoneme countdown are in that domain; the voice chip's own XCK
+//  is a separate clock and never counts here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

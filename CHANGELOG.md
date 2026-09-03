@@ -55,6 +55,12 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
+  documented length, because the voice chip's duration countdown was measured
+  in the chip's own clock while being drained in CPU cycles. Speech now runs at
+  the rate the datasheet specifies, so any speech a title produces is faster
+  and higher in tempo than in earlier releases. The speech smoke-test disk is
+  re-tuned to the chip's slowest rate to keep its original pacing.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
