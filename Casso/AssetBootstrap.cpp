@@ -11,6 +11,7 @@
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/StockBootDisks.h"
 #include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
@@ -123,15 +124,20 @@ static constexpr RomSpec s_kRomCatalog[] =
 //  user picks one in the boot or insert disk picker, or clicks Download
 //  in Create New Disk. Nothing fetches them on its own. The on-disk
 //  filename is shorter than the Asimov one; a copy dropped into Disks/
-//  under that name is picked up without a download. StockBootDisks in
-//  CassoEmuCore holds the same two names for the command line, so a
-//  change here is a change there too.
+//  under that name is picked up without a download.
+//
+//  THE FILENAME COMES FROM StockBootDisks, which is where the command line
+//  looks the same file up. This table held its own copy until 2026-09-02,
+//  agreeing with that one by hand, so a rename in either place would have
+//  left `disk create --bootable` hunting for a file the emulator no longer
+//  writes -- and nothing could have caught it, because each half was
+//  internally consistent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct BootDiskSpec
 {
-    string_view  cassoName;          // local filename under Disks/
+    LPCWSTR      cassoName;          // local filename under Disks/, from StockBootDisks
     LPCWSTR      asimovUrlPath;      // path component on the Asimov mirror
     size_t       expectedSize;       // exact byte count for integrity check
     string_view  shortLabel;         // text on the choice button
@@ -144,7 +150,7 @@ struct BootDiskSpec
 // CatalogReproductionTest.
 static constexpr BootDiskSpec s_kDos33Disk =
 {
-    "DOS 3.3 System Master.dsk",
+    StockBootDisks::kpszDos33MasterFile,
     L"/images/masters/DOS%203.3%20System%20Master%20-%20680-0210-A%20%281982%29.dsk",
     143360,
     "DOS 3.3",
@@ -155,7 +161,7 @@ static constexpr BootDiskSpec s_kDos33Disk =
 // SHA1 40DC1A16E3F234857A29B49CA0B996E1B14D38B9.
 static constexpr BootDiskSpec s_kProDOSDisk =
 {
-    "ProDOS Users Disk.dsk",
+    StockBootDisks::kpszProDosUsersDiskFile,
     L"/images/masters/prodos/ProDOS%20Users%20Disk%20-%20680-0224-C.dsk",
     143360,
     "ProDOS",
@@ -2657,7 +2663,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
     for (const DownloadRow & dr : downloads)
     {
-        fs::path           wantPath  = diskDir / string (dr.spec->cassoName);
+        fs::path           wantPath  = diskDir / dr.spec->cassoName;
         bool               foundAny  = false;
         std::error_code    ecCmp;
 
@@ -2723,7 +2729,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     for (int j = 0; j < downloadCount; ++j)
     {
         const DownloadRow               * dr       = shownDownloads[(size_t) j];
-        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        fs::path                          wantPath = diskDir / dr->spec->cassoName;
         bool                              present  = fs::exists (wantPath, ec);
         DiskMruPickerSession::ModelRow    row;
 
@@ -2854,7 +2860,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     for (const DownloadRow & dr : downloads)
     {
-        fs::path           wantPath  = diskDir / string (dr.spec->cassoName);
+        fs::path           wantPath  = diskDir / dr.spec->cassoName;
         bool               foundAny  = false;
         std::error_code    ecCmp;
 
@@ -2933,7 +2939,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     for (int j = 0; j < downloadCount; ++j)
     {
         const DownloadRow               * dr       = shownDownloads[(size_t) j];
-        fs::path                          wantPath = diskDir / string (dr->spec->cassoName);
+        fs::path                          wantPath = diskDir / dr->spec->cassoName;
         bool                              present  = fs::exists (wantPath, ec);
         DiskMruPickerSession::ModelRow    row;
 

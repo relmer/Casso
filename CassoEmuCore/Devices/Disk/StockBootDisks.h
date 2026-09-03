@@ -42,6 +42,21 @@ public:
         ProDosUsersDisk,
     };
 
+    //  The names the two masters are cached under, and the ONE place either
+    //  is spelled.
+    //
+    //  They are the DOWNLOADED names rather than the names on the servers they
+    //  come from: the emulator renames each one as it saves it, so this is
+    //  what is actually on disk.
+    //
+    //  PUBLIC, AND constexpr, so the downloader can build its own table from
+    //  them. AssetBootstrap held a second copy for a while; the two agreed by
+    //  hand, and a rename in one would have left the command line looking for
+    //  a file the emulator no longer writes -- with nothing to catch it,
+    //  because each half was internally consistent.
+    static constexpr const wchar_t *  kpszDos33MasterFile     = L"DOS 3.3 System Master.dsk";
+    static constexpr const wchar_t *  kpszProDosUsersDiskFile = L"ProDOS Users Disk.dsk";
+
     //  Where that master sits in the cache, whether or not it is there yet.
     //
     //  NARROW, because that is what IDiskFileIo takes and what the command

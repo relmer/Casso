@@ -6,15 +6,8 @@
 
 
 
-//  The names the two masters are cached under.
-//
-//  They are the DOWNLOADED names rather than the names on the servers they
-//  come from: AssetBootstrap renames each one as it saves it, so this is what
-//  is actually on disk. AssetBootstrap holds the same two strings in its own
-//  BootDiskSpec table, which is constexpr and does not read them from here,
-//  so a change to either name has to be made in both places.
-static constexpr const wchar_t *  s_kpszDos33Master     = L"DOS 3.3 System Master.dsk";
-static constexpr const wchar_t *  s_kpszProDosUsersDisk = L"ProDOS Users Disk.dsk";
+//  The names live in the header, as public constants, because AssetBootstrap
+//  builds its download table out of them. See StockBootDisks.h.
 
 
 
@@ -28,7 +21,7 @@ static constexpr const wchar_t *  s_kpszProDosUsersDisk = L"ProDOS Users Disk.ds
 
 const wchar_t * StockBootDisks::GetFileName (Which disk)
 {
-    return (disk == Which::Dos33Master) ? s_kpszDos33Master : s_kpszProDosUsersDisk;
+    return (disk == Which::Dos33Master) ? kpszDos33MasterFile : kpszProDosUsersDiskFile;
 }
 
 
