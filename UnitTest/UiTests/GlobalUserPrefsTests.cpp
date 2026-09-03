@@ -413,4 +413,119 @@ public:
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }
 
+
+    // How many times `key` appears among the members of the saved global
+    // object. Counted on the reparsed document rather than by searching the
+    // text, because a substring hit cannot tell one member from six.
+    static size_t  CountGlobalMembers (const std::string & savedText, const std::string & key)
+    {
+        JsonValue         doc;
+        JsonParseError    err;
+        HRESULT           hr    = S_OK;
+        const JsonValue * globalObj = nullptr;
+        size_t            count = 0;
+
+        hr = JsonParser::Parse (savedText, doc, err);
+        AssertSucceeded (hr);
+
+        for (const auto & kv : doc.GetObjectEntries())
+        {
+            if (kv.first == "global" && kv.second.GetType() == JsonType::Object)
+            {
+                globalObj = &kv.second;
+                break;
+            }
+        }
+
+        Assert::IsNotNull (globalObj);
+
+        for (const auto & kv : globalObj->GetObjectEntries())
+        {
+            if (kv.first == key)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+
+    // monitorTilt was parsed live AND captured by the unknown-key sweep,
+    // because it was missing from s_kKnownTopLevel. Every save emitted the
+    // live copy plus every stale copy a previous save had left, so the
+    // member count grew by one per save. A real user file reached twelve.
+    TEST_METHOD (RoundTrip_MonitorTiltIsNotDuplicated)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+        std::string         text;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"global\":{\"$cassoGlobalPrefsVersion\":1,"
+                              "\"monitorTilt\":{\"AppleMonitorIIc\":0.0873},"
+                              "\"monitorTilt\":{\"AppleMonitorIIc\":0.0873}}}");
+        AssertSucceeded (hr);
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = prefs.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::AreEqual ((size_t) 1, CountGlobalMembers (text, "monitorTilt"));
+    }
+
+
+    TEST_METHOD (RoundTrip_MonitorTiltIsStableAcrossRepeatedSaves)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+        std::string         first;
+        std::string         second;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"global\":{\"$cassoGlobalPrefsVersion\":1,"
+                              "\"monitorTilt\":{\"AppleMonitorII\":0.05}}}");
+        AssertSucceeded (hr);
+
+        AssertSucceeded (prefs.Load (L"C:\\Casso", fs));
+        AssertSucceeded (prefs.Save (L"C:\\Casso", fs));
+        first = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+
+        AssertSucceeded (prefs.Load (L"C:\\Casso", fs));
+        AssertSucceeded (prefs.Save (L"C:\\Casso", fs));
+        second = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+
+        Assert::AreEqual (first, second);
+        Assert::AreEqual ((size_t) 1, CountGlobalMembers (second, "monitorTilt"));
+    }
+
+
+    // The fix adds one entry to the known set, so check it did not also
+    // swallow the passthrough that keeps genuinely unknown keys alive.
+    TEST_METHOD (RoundTrip_UnknownKeyStillSurvivesAfterKnownSetChange)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+        std::string         text;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"global\":{\"$cassoGlobalPrefsVersion\":1,"
+                              "\"monitorTilt\":{\"AppleMonitorII\":0.05},"
+                              "\"futureKey\":\"keep me\"}}");
+        AssertSucceeded (hr);
+
+        AssertSucceeded (prefs.Load (L"C:\\Casso", fs));
+        AssertSucceeded (prefs.Save (L"C:\\Casso", fs));
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::AreEqual ((size_t) 1, CountGlobalMembers (text, "futureKey"));
+        Assert::AreEqual ((size_t) 1, CountGlobalMembers (text, "monitorTilt"));
+    }
+
 };

@@ -54,6 +54,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "recentDisks",
     "recentDiskLoadedAt",
     "crt",
+    "monitorTilt",
     "window",
     "printOutputDpi",
     "printDotStyle",

@@ -59,6 +59,9 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **The preferences file grew a duplicate monitor-tilt entry on every save.** The
+  key was both read directly and swept up as an unknown key, so each save wrote
+  one more copy than the last. Existing files repair themselves on the next save.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
