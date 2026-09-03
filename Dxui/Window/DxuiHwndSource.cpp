@@ -383,6 +383,10 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     int          widthPx          = 0;
     int          heightPx         = 0;
     ATOM         classAtom        = 0;
+    UINT         ownerDpi         = 0;
+    SIZE         frameSizePx      = {};
+    POINT        besidePlacement  = {};
+    bool         placedBeside     = false;
 
 
 
@@ -467,6 +471,20 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         dpiAtCreate = s_kDefaultDpi;
     }
 
+    // A window that opens beside its owner lands on the OWNER's monitor,
+    // so size it in that monitor's DPI rather than the system's: the
+    // placement below then measures the frame in the pixels the window
+    // will really have, which is what keeps it inside one monitor when
+    // the two run at different scales.
+    if (params.placeBesideOwner && params.ownerHwnd != nullptr)
+    {
+        ownerDpi = GetDpiForWindow (params.ownerHwnd);
+        if (ownerDpi != 0)
+        {
+            dpiAtCreate = ownerDpi;
+        }
+    }
+
     m_scaler.SetDpi (dpiAtCreate);
 
     if (params.useInitialWindowRectPx)
@@ -488,6 +506,23 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         windowY  = CW_USEDEFAULT;
         widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
         heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
+
+        // Beside the owner instead of the cascade. This is not just a
+        // nicety for a composited window: CW_USEDEFAULT is honored only
+        // for WS_OVERLAPPED*, and a WS_POPUP window takes it literally,
+        // which opened the Settings sheet in the primary monitor's
+        // top-left corner however the emulator window was placed.
+        if (params.placeBesideOwner)
+        {
+            frameSizePx  = { widthPx, heightPx };
+            placedBeside = TryGetOwnerSidePlacement (params.ownerHwnd, frameSizePx, besidePlacement);
+
+            if (placedBeside)
+            {
+                windowX = besidePlacement.x;
+                windowY = besidePlacement.y;
+            }
+        }
     }
 
     m_hwnd = CreateWindowExW (exStyle,
@@ -618,6 +653,117 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
     if (result.y < work.top)             { result.y = work.top;             }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::PlaceBesideOwner
+//
+//  Pure placement geometry (declared in the header). Puts a window of
+//  `windowSizePx` alongside `ownerRect` rather than on top of it: flush
+//  against the owner's right edge when the whole frame then fits inside
+//  `work`, else flush against its left edge.
+//
+//  `work` is the OWNER's monitor work area, so neither side placement can
+//  put the window on a neighboring monitor or split it across two -- the
+//  fit test is what rules a side out, and a window wider than the gap
+//  beside the owner has no fitting side at all.
+//
+//  When neither side fits, the window overlaps the owner rather than
+//  moving off its monitor, pinned to the work-area edge on whichever side
+//  has more room. That is the smallest overlap the monitor allows, and it
+//  keeps the owner's opposite edge visible.
+//
+//  Tops align with the owner (a shorter dialog reads as attached to it),
+//  then the clamp corrects a window whose bottom would fall below the
+//  work area -- so a dialog beside a tall or low-sitting owner still
+//  keeps its button row above the taskbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::PlaceBesideOwner (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work)
+{
+    LONG  rightSideX = ownerRect.right;
+    LONG  leftSideX  = ownerRect.left - windowSizePx.cx;
+    LONG  roomRight  = work.right - ownerRect.right;
+    LONG  roomLeft   = ownerRect.left - work.left;
+    RECT  placed     = {};
+
+
+
+    if (rightSideX + windowSizePx.cx <= work.right)
+    {
+        placed.left = rightSideX;
+    }
+    else if (leftSideX >= work.left)
+    {
+        placed.left = leftSideX;
+    }
+    else if (roomRight >= roomLeft)
+    {
+        placed.left = work.right - windowSizePx.cx;
+    }
+    else
+    {
+        placed.left = work.left;
+    }
+
+    placed.top    = ownerRect.top;
+    placed.right  = placed.left + windowSizePx.cx;
+    placed.bottom = placed.top  + windowSizePx.cy;
+
+    return DxuiHwndSource::ClampToWorkArea (placed, work);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TryGetOwnerSidePlacement
+//
+//  The Win32 half of the beside-the-owner placement: reads the owner's
+//  frame and the work area of the monitor the owner is on, then hands both
+//  to PlaceBesideOwner. Returns false (leaving `outTopLeft` untouched) when
+//  there is no owner or the system will not say where it is, which leaves
+//  the caller on its default placement path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::TryGetOwnerSidePlacement (HWND ownerHwnd, const SIZE & windowSizePx, POINT & outTopLeft)
+{
+    HRESULT      hr        = S_OK;
+    RECT         ownerRect = {};
+    HMONITOR     monitor   = nullptr;
+    MONITORINFO  info      = { sizeof (info) };
+    BOOL         gotOwner  = FALSE;
+    BOOL         gotInfo   = FALSE;
+    bool         placed    = false;
+
+
+
+    CBRA (ownerHwnd != nullptr);
+
+    gotOwner = GetWindowRect (ownerHwnd, &ownerRect);
+    CWR (gotOwner);
+
+    monitor = MonitorFromWindow (ownerHwnd, MONITOR_DEFAULTTONEAREST);
+    CWRA (monitor);
+
+    gotInfo = GetMonitorInfoW (monitor, &info);
+    CWR (gotInfo);
+
+    outTopLeft = DxuiHwndSource::PlaceBesideOwner (ownerRect, windowSizePx, info.rcWork);
+    placed     = true;
+
+Error:
+
+    return placed;
 }
 
 

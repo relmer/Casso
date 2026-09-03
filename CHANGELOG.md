@@ -63,6 +63,23 @@ Entries before versioning was introduced use dates only.
   the whole picture. Up to about 3:2 the glass still covers the screen as
   before; beyond that only the tube is drawn, against black, without the case,
   bezel or power lamp.
+- **GH #137: audio follows a change of the default output device.** The output
+  device was resolved once at startup, so selecting a different speaker or
+  headset left the sound on the old one until the next launch. Sounds are
+  re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
+- **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
+  pending-audio backlog from the rate the endpoint reports, and that calculation
+  overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
+  interfaces run at wrapped it to about a third of the intended depth, so the mixer
+  ran dry and the speaker and Mockingboard stuttered.
+- **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
+  documented length, because the voice chip's duration countdown was measured
+  in the chip's own clock while being drained in CPU cycles. Speech now runs at
+  the rate the datasheet specifies, so any speech a title produces is faster
+  and higher in tempo than in earlier releases. The speech smoke-test disk moves
+  to the chip's slowest rate, which is as near its original pacing as the
+  hardware reaches.
 - **The mounted disk's name drew through the monitor's case.** The name under each
   3D drive was chrome painted after the scene, so it had no depth and nothing could
   stand in front of it. Orbiting until the monitor came between the camera and a

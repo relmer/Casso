@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -282,6 +282,7 @@
     <ClCompile Include="Video\Apple80ColTextMode.cpp" />
     <ClCompile Include="Video\AppleDoubleHiResMode.cpp" />
     <ClCompile Include="Video\VideoTiming.cpp" />
+    <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
@@ -437,6 +438,7 @@
     <ClInclude Include="Video\PixelFormat.h" />
     <ClInclude Include="Video\MonochromeTint.h" />
     <ClInclude Include="Video\CharacterRom.h" />
+    <ClInclude Include="Audio\AudioEndpointNotifier.h" />
     <ClInclude Include="Audio\AudioGenerator.h" />
     <ClInclude Include="Audio\IDriveAudioSink.h" />
     <ClInclude Include="Audio\IDriveAudioEventSink.h" />

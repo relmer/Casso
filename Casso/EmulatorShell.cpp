@@ -7910,48 +7910,87 @@ void EmulatorShell::OnCpuThreadStart()
     hr = m_wasapiAudio.Initialize();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    // Drive-audio sample loading (spec 005-disk-ii-audio FR-009,
-    // NFR-005, FR-019, FR-006). The mixer holds the asset-load
-    // context so any later runtime mechanism switch (Options dialog,
-    // ) can reload every registered source through one
-    // entry point. Default mechanism is Shugart unless the
-    // per-machine registry already overrode it during Initialize.
-    if (m_wasapiAudio.IsInitialized() && !m_diskAudioSources.empty())
-    {
-        fs::path  baseDir;
-        wstring   devicesDir;
-        HRESULT   hrLoad     = S_OK;
+    LoadAudioAssetsForDeviceRate();
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadAudioAssetsForDeviceRate
+//
+//  Decodes every sound that has to arrive at the host device's sample rate,
+//  and records the rate it decoded at.
+//
+//  Drive-audio sample loading (spec 005-disk-ii-audio FR-009, NFR-005,
+//  FR-019, FR-006). The mixer holds the asset-load context, so any later
+//  runtime mechanism switch reloads every registered source through one entry
+//  point. Default mechanism is Shugart unless the per-machine registry
+//  already overrode it during Initialize.
+//
+//  The ImageWriter mechanical sound set is the embedded CC BY 4.0 grains that
+//  EnsureImageWriterSounds extracted to the asset base, decoded from MP3
+//  through the same Media Foundation path as the Disk II WAVs. A missing
+//  grain is silent.
+//
+//  The Mockingboard PSGs are seeded here because the initial machine is built
+//  before WASAPI comes up; machine switches after this point pick the rate up
+//  at build time in MachineManager.
+//
+//  ExecuteCpuSlices re-runs this whenever the device rate moves. A change of
+//  the default output device can land on a device with a different mix format
+//  (GH #137), and grains decoded at the old rate would play at the wrong
+//  pitch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LoadAudioAssetsForDeviceRate()
+{
+    HRESULT   hr          = S_OK;
+    bool      isAudioUp   = false;
+    uint32_t  sampleRate  = 0;
+    fs::path  baseDir;
+    wstring   devicesDir;
+    fs::path  soundsDir;
+    HRESULT   hrLoad      = S_OK;
+    HRESULT   hrSnd       = S_OK;
+
+
+
+    isAudioUp = m_wasapiAudio.IsInitialized();
+    BAIL_OUT_IF (!isAudioUp, S_OK);
+
+    sampleRate = m_wasapiAudio.GetSampleRate();
+
+    if (!m_diskAudioSources.empty())
+    {
         // Use the same user-writable asset root that Main.cpp /
         // AssetBootstrap used when writing the WAVs so the read
         // path agrees with the write path.
         baseDir     = AssetBootstrap::GetAssetBaseDirectory();
         devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
 
-        m_driveAudioMixer.SetSampleLoadContext (devicesDir, m_wasapiAudio.GetSampleRate());
+        m_driveAudioMixer.SetSampleLoadContext (devicesDir, sampleRate);
 
         hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
 
-    // Load the ImageWriter mechanical sound set (embedded CC BY 4.0 grains that
-    // EnsureImageWriterSounds extracted to the asset base). Decodes MP3 via the
-    // same Media Foundation path as the Disk II WAVs; a missing grain is silent.
-    if (m_wasapiAudio.IsInitialized())
+    soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+    hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(), sampleRate);
+    IGNORE_RETURN_VALUE (hrSnd, S_OK);
+
+    if (m_refs.mockingboard != nullptr)
     {
-        fs::path  soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
-        HRESULT   hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(),
-                                                         m_wasapiAudio.GetSampleRate());
-        IGNORE_RETURN_VALUE (hrSnd, S_OK);
+        m_refs.mockingboard->SetSampleRate (sampleRate);
     }
 
-    // The initial machine is built before WASAPI comes up, so its PSGs
-    // do not yet know the host sample rate. Seed it now (machine switches
-    // after this point pick it up at build time in MachineManager).
-    if (m_wasapiAudio.IsInitialized() && m_refs.mockingboard != nullptr)
-    {
-        m_refs.mockingboard->SetSampleRate (m_wasapiAudio.GetSampleRate());
-    }
+    m_audioAssetSampleRate = sampleRate;
+
+Error:
+    return;
 }
 
 
@@ -8775,7 +8814,7 @@ void EmulatorShell::ExecuteCpuSlices()
     HRESULT   hr              = S_OK;
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_cpuManager.GetSpeedMode();
-    bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
+    bool      audioActive     = false;
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
@@ -8784,6 +8823,24 @@ void EmulatorShell::ExecuteCpuSlices()
     uint32_t  numSamples      = 0;
 
 
+
+    // Service the endpoint before anything reads it. A lost endpoint and a
+    // change of the default output device are both torn down and reopened
+    // here, on the one thread allowed to do it. This runs ahead of the
+    // audioActive gate rather than inside SubmitFrame: a teardown clears
+    // IsInitialized, so the gate below would otherwise keep the reopen from
+    // ever running (GH #137).
+    m_wasapiAudio.ServiceEndpointChanges();
+
+    audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
+
+    // A reopen can land on a device with a different mix format, and every
+    // drive, printer and PSG sound was decoded to the rate of the device that
+    // is gone. Re-decode before this frame's samples are generated.
+    if (audioActive && m_wasapiAudio.GetSampleRate() != m_audioAssetSampleRate)
+    {
+        LoadAudioAssetsForDeviceRate();
+    }
 
     if (speed == SpeedMode::Double)
     {
