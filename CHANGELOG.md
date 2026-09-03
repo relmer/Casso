@@ -55,6 +55,11 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
+  pending-audio backlog from the rate the endpoint reports, and that calculation
+  overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
+  interfaces run at wrapped it to about a third of the intended depth, so the mixer
+  ran dry and the speaker and Mockingboard stuttered.
 - **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
   documented length, because the voice chip's duration countdown was measured
   in the chip's own clock while being drained in CPU cycles. Speech now runs at
