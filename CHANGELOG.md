@@ -55,6 +55,11 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
+  pending-audio backlog from the rate the endpoint reports, and that calculation
+  overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
+  interfaces run at wrapped it to about a third of the intended depth, so the mixer
+  ran dry and the speaker and Mockingboard stuttered.
 - **The mounted disk's name drew through the monitor's case.** The name under each
   3D drive was chrome painted after the scene, so it had no depth and nothing could
   stand in front of it. Orbiting until the monitor came between the camera and a
