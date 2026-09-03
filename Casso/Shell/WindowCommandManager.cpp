@@ -2255,7 +2255,8 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
                 L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset window size",
+                L"Ctrl+0 -> Reset window size\n"
+                L"Ctrl+Shift+0 -> Reset view (3D scene)",
                 false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);

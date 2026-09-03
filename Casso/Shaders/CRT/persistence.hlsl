@@ -1,7 +1,7 @@
 // Casso original. Mixes current frame with previous frame's post-bloom output
 // for phosphor-style persistence.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; };
 Texture2D    texCurrent : register(t0);
 Texture2D    texPrev    : register(t1);
 SamplerState sam        : register(s0);

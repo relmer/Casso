@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT
 // Casso modifications: horizontal lateral spread of chroma in Y'CbCr.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };
@@ -12,7 +12,10 @@ float3 ToYCbCr (float3 c) { float y = 0.299*c.r + 0.587*c.g + 0.114*c.b; float c
 float3 ToRgb (float3 c) { float r = c.x + 1.402*c.z; float g = c.x - 0.344136*c.y - 0.714136*c.z; float b = c.x + 1.772*c.y; return float3 (r, g, b); }
 float4 main (PSInput i) : SV_TARGET
 {
-    float  tx     = 1.0 / max (g_outputW, 1.0);
+    // One step is one EMULATED pixel, so the chroma spreads across the same
+    // share of the picture at any window size, and the eight-tap cap stays a
+    // cap on emulated pixels rather than on output ones.
+    float  tx     = (1.0 / max (g_outputW, 1.0)) * max (g_pixelScaleX, 0.001);
     float  radius = max (g_colorBleedWidth, 0.0);
     float3 centerYcbcr = ToYCbCr (tex.Sample (sam, i.uv).rgb);
     float2 chromaAcc   = centerYcbcr.yz;

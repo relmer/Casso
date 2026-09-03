@@ -282,6 +282,77 @@ CrtUvRect ComputeUvRectForFit (const RECT & fittedRect, int textureW, int textur
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComputeCrtPixelScale
+//
+//  Divides the fitted rect by the emulated framebuffer it holds, which is how
+//  many target texels one emulated pixel covers.
+//
+//  A degenerate rect or source size yields 1.0 on both axes, which makes a
+//  radius mean one target texel again -- the behavior before this factor
+//  existed, and a harmless one for a frame that is about to draw nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtPixelScale ComputeCrtPixelScale (const RECT & fittedRect, int sourceW, int sourceH)
+{
+    CrtPixelScale  scale;
+    int            fittedW = fittedRect.right  - fittedRect.left;
+    int            fittedH = fittedRect.bottom - fittedRect.top;
+
+
+
+    if (fittedW > 0 && sourceW > 0)
+    {
+        scale.x = (float) fittedW / (float) sourceW;
+    }
+
+    if (fittedH > 0 && sourceH > 0)
+    {
+        scale.y = (float) fittedH / (float) sourceH;
+    }
+
+    return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeCrtPictureUvRect
+//
+//  Where the picture lands in the target's UV space.
+//
+//  A degenerate fit yields the whole target, which is what every pass assumed
+//  before this rect existed. The alternative, an empty rect, would hand the
+//  scanline pass a zero-height span to divide by.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtUvRect ComputeCrtPictureUvRect (const RECT & fittedRect, int targetW, int targetH)
+{
+    CrtUvRect  uv;
+    bool       isSizeable = (fittedRect.right > fittedRect.left) &&
+                            (fittedRect.bottom > fittedRect.top) &&
+                            (targetW > 0) && (targetH > 0);
+
+
+
+    if (isSizeable)
+    {
+        uv = ComputeUvRectForFit (fittedRect, targetW, targetH);
+    }
+
+    return uv;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CrtPostProcess
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -745,11 +816,15 @@ HRESULT CrtPostProcess::Process (
     const CrtParams           & params,
     const RECT                & viewportRect,
     int                         backBufferW,
-    int                         backBufferH)
+    int                         backBufferH,
+    int                         sourceW,
+    int                         sourceH)
 {
-    HRESULT    hr    = S_OK;
-    int        cur   = 0;
-    CrtParams  local = params;
+    HRESULT        hr      = S_OK;
+    int            cur     = 0;
+    CrtParams      local   = params;
+    CrtPixelScale  scale   = ComputeCrtPixelScale (viewportRect, sourceW, sourceH);
+    CrtUvRect      picture = ComputeCrtPictureUvRect (viewportRect, backBufferW, backBufferH);
 
 
 
@@ -766,8 +841,24 @@ HRESULT CrtPostProcess::Process (
     // the chain runs at picture size would blur by a fifth of the distance it
     // meant to. The chain is the only thing that knows what it is drawing
     // into, so it settles the question here rather than trusting the caller.
-    local.outputW = (backBufferW > 0) ? (float) backBufferW : 1.0f;
-    local.outputH = (backBufferH > 0) ? (float) backBufferH : 1.0f;
+    //
+    // The pixel scale is settled here for the same reason and answers the
+    // other half of the question: how many of those texels a radius given in
+    // emulated pixels is worth. Without it a radius covers a fixed number of
+    // OUTPUT pixels, so the bloom tightens as the window grows and the desk
+    // scene and the flat themes disagree at the same settings.
+    //
+    // The picture rect answers the third version of the same question, for
+    // the scanline pass, which needs to know not just how big the picture is
+    // but WHERE it is. It lays 192 cycles across what it is handed, and the
+    // picture is a letterboxed subrect of the target everywhere except the
+    // desk scene, where the target is the picture.
+    local.outputW     = (backBufferW > 0) ? (float) backBufferW : 1.0f;
+    local.outputH     = (backBufferH > 0) ? (float) backBufferH : 1.0f;
+    local.pixelScaleX = scale.x;
+    local.pixelScaleY = scale.y;
+    local.pictureV0   = picture.v0;
+    local.pictureV1   = picture.v1;
 
     hr = UploadConstants (local);
     CHRA (hr);

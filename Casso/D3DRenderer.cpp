@@ -569,6 +569,10 @@ Error:
 //  runs the CRT post-process pass into `dstRtv`. Scoped so the perf
 //  timer measures the post-process pass alone.
 //
+//  The framebuffer's own size goes along with the fitted rect because the
+//  chain measures its blur radii in emulated pixels, and those two are what
+//  say how large one of those is on this target.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
@@ -594,7 +598,9 @@ HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv,
                             m_crtParams,
                             fittedRect,
                             targetW,
-                            targetH);
+                            targetH,
+                            m_texWidth,
+                            m_texHeight);
     CHRA (hr);
 
 Error:
