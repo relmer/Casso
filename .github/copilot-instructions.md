@@ -865,6 +865,15 @@ in conversation.
 - The only `.gitignore`d disk images are the two Apple-owned masters the
   scenario suite reads, `Disks/Apple/dos33-master.dsk` and
   `Disks/Apple/prodos-users.dsk`. Disks we author belong in the repo.
+- **Launch Casso in the background unless the user asked for it.** Any run
+  the user did not directly request -- screenshot capture, render
+  validation, reproducing a bug, checking that a change took -- must not
+  pop up over whatever they are doing and must not steal input focus.
+  Launch it minimized and without activation, and never call
+  `SetForegroundWindow` on it. This costs nothing: the window is still
+  fully drivable, because posted `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` and
+  `PrintWindow` capture need neither focus nor foreground. When the user
+  asks to start Casso, launch it in the foreground as usual.
 
 ## Shell and Terminal Rules
 
