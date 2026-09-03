@@ -88,6 +88,19 @@ public:
         return E_NOTIMPL;
     }
 
+    // The off-screen target's ACTUAL size, which is not always the size
+    // BeginDrawToTexture was asked for: the texture is grown to fit and never
+    // shrunk, so a later, smaller request reuses a larger surface. A caller
+    // laying texture coordinates over what it drew has to know how much of
+    // the surface that drawing covered, or it samples the stale remainder.
+    //
+    // Zero for a renderer with no target, which is also what a mock says.
+    virtual void  GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const
+    {
+        outWidthPx  = 0;
+        outHeightPx = 0;
+    }
+
     virtual HRESULT  EndDrawToTexture (ID3D11ShaderResourceView ** outSrv)
     {
         UNREFERENCED_PARAMETER (outSrv);

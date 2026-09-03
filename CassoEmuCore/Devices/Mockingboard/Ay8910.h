@@ -67,7 +67,12 @@ public:
     static constexpr Byte    kEnvAttack    = 0x04;
     static constexpr Byte    kEnvContinue  = 0x08;
 
-    // Mockingboard clocks the AY from the Apple II system clock (~1.023 MHz).
+    // The Apple II system clock, which is what a Mockingboard feeds the AY.
+    // It stays here as the fallback for a chip nobody wires up, and it is
+    // duplicated from MachineConfig's kAppleCpuClock on purpose: including
+    // that header would tie this chip model to one machine, and the part ran
+    // at other rates in other machines. MockingboardCard states the real rate
+    // through SetClock, so the value below decides nothing in this tree.
     static constexpr double  kDefaultClockHz = 1022727.0;
 
     // Internal prescaler: the synthesis engine steps at clock / this.

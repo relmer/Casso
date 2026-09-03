@@ -851,6 +851,24 @@ private:
     // Re-hangs the mounted-image basename strip under each projected drive.
     void    SyncSceneDriveLabels ();
 
+    // Hands each drive's name to the scene as a depth-tested quad: bakes the
+    // two strings into one texture when either has changed, then re-solves
+    // the quads, which move whenever the camera does.
+    void    SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+                                     const SIZE                        & cellPx,
+                                     int                                 gapPx);
+
+    // Draws both names into a single off-screen texture, stacked, and keeps
+    // the view. One texture because the text renderer has only one: a second
+    // bake replaces the first, so baking per drive would leave both wearing
+    // whichever name went last.
+    bool    TryBakeSceneDiskLabels  (const std::array<std::wstring, 2> & names,
+                                     const SIZE                        & cellPx);
+
+    // Retires both quads, for a theme or a presentation that draws no scene
+    // drives at all.
+    void    ClearSceneDiskLabels    ();
+
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -1320,6 +1338,14 @@ private:
     // The mounted image's name under each drive. CHROME, not scene geometry:
     // it is read at a fixed size wherever the desk is posed.
     std::array<DxuiShadowedText, 2>  m_sceneDriveLabel;
+
+    // What the in-scene quads currently say and the cell they were baked at,
+    // so the texture is rendered on a change rather than on every
+    // composition pass. The view belongs to the text renderer and stays good
+    // until the next bake, which is why nothing else may use that path.
+    std::array<std::wstring, 2>      m_sceneDiskLabelText;
+    SIZE                             m_sceneDiskLabelCell = {};
+    ID3D11ShaderResourceView       * m_sceneDiskLabelSrv  = nullptr;
 
     // Where each of those strips landed, empty when a drive shows no name.
     // The write-protect tooltip belongs to the strip now that the padlock

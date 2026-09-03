@@ -110,7 +110,7 @@ private:
 
     UINT32  m_bufferFrames    = 0;
     UINT32  m_sampleRate      = 44100;
-    UINT32  m_samplesPerFrame = 735;
+    UINT32  m_samplesPerFrame = 734;  // 44100 Hz truncated; Initialize recomputes
     UINT32  m_channels        = 1;
     bool    m_initialized     = false;
 
