@@ -55,6 +55,17 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **The Mockingboard's speech registers no longer read back the voice chip.** $Cn40-$Cn44
+  are decoded for writes only; a read returns the first 6522, which answers across the
+  whole of $Cn00-$Cn7F. Casso spliced the chip's request bit into D7, so software that
+  polled for it worked here and hung on a real board. Reading it back is a Phasor
+  facility. The speech demo and smoke test, which polled exactly that way, now count
+  each phoneme's duration out instead.
+- **Voiced fricatives came out as sonorants -- Z sounded like L.** The phoneme table
+  collapsed the chip's two source amplitudes into one, and frication was cascaded through
+  the vowel formants, so Z's own F2 stood as a low-pass in front of its own hiss.
+  Frication now runs in a parallel branch with the two amplitudes kept apart, putting
+  33 dB between Z and L where there had been none.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are

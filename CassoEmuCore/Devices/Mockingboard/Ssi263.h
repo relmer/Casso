@@ -134,7 +134,6 @@ public:
     static constexpr Byte    kInflectLowMask = 0x07;
 
     // D7 on a read carries the inverted A/R level.
-    static constexpr Byte    kStatusRequest = 0x80;
 
     // Duration-bit mode encodings, latched on a CTL one-to-zero transition.
     static constexpr Byte    kModePhonemeTransitioned = 3;
@@ -153,7 +152,6 @@ public:
     void    SetTickClock  (double tickClockHz);
 
     void    WriteRegister (Byte reg, Byte value);
-    Byte    ReadRegister  (Byte reg) const;
 
     void    Reset ();
 

@@ -49,8 +49,6 @@ namespace Ssi263TestNs
                              L"An unprogrammed chip must not request data");
             Assert::IsTrue (chip.IsSilent(),
                             L"An unprogrammed chip must contribute nothing");
-            Assert::AreEqual<Byte> (0, chip.ReadRegister (0),
-                                    L"Status must read back with no request pending");
         }
 
 
@@ -301,8 +299,6 @@ namespace Ssi263TestNs
             chip.Tick (cycles);
             Assert::IsTrue (chip.IsRequesting(),
                             L"A/R must assert once the phoneme has been generated");
-            Assert::AreEqual<Byte> (Ssi263::kStatusRequest, chip.ReadRegister (0),
-                                    L"Status read must report the request in D7");
         }
 
 
@@ -321,7 +317,6 @@ namespace Ssi263TestNs
 
             Assert::IsFalse (chip.IsRequesting(),
                              L"The A/R-disabled mode must never request");
-            Assert::AreEqual<Byte> (0, chip.ReadRegister (0));
         }
 
 

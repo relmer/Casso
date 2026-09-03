@@ -59,6 +59,15 @@ MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
 //  PSG first when the control lines currently select a PSG read so the CPU
 //  sees live AY data.
 //
+//  Every read on this card is a VIA read. The voice chip is decoded for writes
+//  only and drives nothing onto the data bus, so $Cn40-$Cn44 read back as VIA
+//  #1's registers reached through the third mirror -- $Cn40 is its port B, and
+//  what comes back is whatever the speech writes themselves left in ORB, gated
+//  by the DDRB those same writes set. Reading A/R back is a Phasor native mode
+//  facility and this card is not a Phasor. Substituting the request bit into
+//  D7 here would be a courtesy hardware does not extend, and software written
+//  against it would hang on a real board.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte MockingboardCard::Read (Word address)
@@ -75,15 +84,6 @@ Byte MockingboardCard::Read (Word address)
         (portB & kAyControlMask) == kAyBc1)
     {
         m_via[index].SetPortAInput (m_psg[index].ReadData());
-    }
-
-    if (IsInstalledSpeech (offset))
-    {
-        // The VIA still sees the access -- its side effects are real on the
-        // board -- but the chip drives D7 with its request status, the only
-        // line it drives on a read.
-        return static_cast<Byte> ((m_via[index].ReadRegister (reg) & 0x7F) |
-                                  m_speech->ReadRegister (static_cast<Byte> (offset)));
     }
 
     return m_via[index].ReadRegister (reg);

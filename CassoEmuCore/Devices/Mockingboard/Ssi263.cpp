@@ -333,27 +333,6 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadRegister
-//
-//  A read enables D7 only and returns the INVERTED A/R level there; every
-//  other bit is undriven. The register address is ignored entirely, so any
-//  address in the chip's range yields the same status.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Ssi263::ReadRegister (Byte reg) const
-{
-    UNREFERENCED_PARAMETER (reg);
-
-    return m_request ? kStatusRequest : static_cast<Byte> (0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Reset
 //
 //  Power-on state. CTL is set high on reset and on power up, which IS Power

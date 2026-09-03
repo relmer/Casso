@@ -525,29 +525,77 @@ namespace MockingboardCardTestNs
         }
 
 
-        TEST_METHOD (SpeechReadCarriesRequestStatusOnBit7)
+        ////////////////////////////////////////////////////////////////////
+        //
+        //  SpeechReadReturnsTheViaAndNotTheVoiceChip
+        //
+        //  $Cn40-$Cn44 are decoded for speech WRITES only. The voice chip
+        //  drives nothing onto the data bus, so a read there returns VIA #1
+        //  through its third mirror -- and because the speech writes landed in
+        //  that VIA too, $Cn40 reads back the phoneme byte the caller just
+        //  wrote, gated by the DDRB its own rate byte set.
+        //
+        //  This is the defect that hung the speech demo everywhere but here:
+        //  it polled D7 at $Cn40 for the chip's request and got an echo of its
+        //  own writing. The chip must contribute nothing, even while it is
+        //  actively requesting. Reading A/R back is a Phasor native mode
+        //  facility and neither variant is a Phasor.
+        //
+        ////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SpeechReadReturnsTheViaAndNotTheVoiceChip)
         {
-            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+            MockingboardCard    sound  (4, MockingboardVariant::SoundOnly);
+            MockingboardCard    speech (4, MockingboardVariant::SoundSpeech);
             Ssi263 *            chip = nullptr;
 
 
 
-            chip = card.GetSpeech();
+            chip = speech.GetSpeech();
 
-            // Bring the chip out of Power Down in the common mode and start a
-            // short phoneme.
-            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
-            card.Write (0xC443, 0x0C);
-            card.Write (0xC442, static_cast<Byte> (0x0F << Ssi263::kRateShift));
-            card.Write (0xC440, 0x08);
+            ProgramSpeechWithClearD7 (sound);
+            ProgramSpeechWithClearD7 (speech);
 
-            Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
-                                    L"No request while the phoneme is sounding");
+            // Run the phoneme out so the chip really is asking for the next.
+            speech.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * kAppleCpuClock) + 1);
 
-            card.Tick (static_cast<uint32_t> (chip->GetPhonemeDurationSec() * kAppleCpuClock) + 1);
+            Assert::IsTrue (chip->IsRequesting(),
+                            L"The chip must be requesting, or this test proves nothing");
 
-            Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
-                                    L"The request must surface as D7 anywhere in the chip's range");
+            Assert::AreEqual<Byte> (0, static_cast<Byte> (speech.Read (0xC440) & 0x80),
+                                    L"D7 must echo ORB, not the request the chip is making");
+
+            Assert::AreEqual<Byte> (sound.Read (0xC440), speech.Read (0xC440),
+                                    L"An installed voice chip must not change what a read returns");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////
+        //
+        //  SpeechReadEchoesWhicheverPhonemeBitSevenWasWritten
+        //
+        //  The other half of the same fact: with PB7 an output, D7 follows the
+        //  phoneme byte. A caller polling here sees its own DR1 bit, which is
+        //  why the demo's streams behaved differently depending on which
+        //  duration each phoneme asked for.
+        //
+        ////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (SpeechReadEchoesWhicheverPhonemeBitSevenWasWritten)
+        {
+            MockingboardCard    card (4, MockingboardVariant::SoundSpeech);
+
+
+
+            ProgramSpeechWithClearD7 (card);
+
+            Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC440) & 0x80),
+                                    L"Phoneme $0A leaves ORB bit 7 clear");
+
+            card.Write (0xC440, 0xAC);   // the same phoneme at a longer duration
+
+            Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC440) & 0x80),
+                                    L"Phoneme $AC leaves ORB bit 7 set");
         }
 
 
@@ -604,6 +652,10 @@ namespace MockingboardCardTestNs
         //  wiring is observable -- the chip's own tests can be satisfied by a
         //  chip nobody ever told the machine's rate.
         //
+        //  The request is read off the chip rather than off the bus, because
+        //  the bus does not carry it: $Cn40-$Cn44 read back as VIA #1. See
+        //  SpeechReadReturnsTheViaAndNotTheVoiceChip.
+        //
         ////////////////////////////////////////////////////////////////////////
 
         TEST_METHOD (SpeechPhonemeLastsThePhi2CycleCountNotTheXckCount)
@@ -635,13 +687,13 @@ namespace MockingboardCardTestNs
 
             card.Tick (expected - kMarginCycles);
 
-            Assert::AreEqual<Byte> (0, static_cast<Byte> (card.Read (0xC442) & 0x80),
-                                    L"The phoneme must still be sounding just short of its phi2 count");
+            Assert::IsFalse (chip->IsRequesting(),
+                             L"The phoneme must still be sounding just short of its phi2 count");
 
             card.Tick (kMarginCycles * 2);
 
-            Assert::AreEqual<Byte> (0x80, static_cast<Byte> (card.Read (0xC442) & 0x80),
-                                    L"and must complete on the phi2 count, not the XCK count");
+            Assert::IsTrue (chip->IsRequesting(),
+                            L"and must complete on the phi2 count, not the XCK count");
         }
 
 
@@ -805,6 +857,18 @@ namespace MockingboardCardTestNs
 
 
     private:
+        // Bring the voice chip out of Power Down and start a phoneme whose D7
+        // is clear, using the rate byte $8A the speech demo itself writes --
+        // rate 8 to the chip, and to VIA #1 a DDRB that leaves PB7 an output.
+        static void ProgramSpeechWithClearD7 (MockingboardCard & card)
+        {
+            card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
+            card.Write (0xC443, 0x0C);
+            card.Write (0xC442, 0x8A);
+            card.Write (0xC440, 0x0A);
+        }
+
+
         // The classic detection probe: load Timer 1 with $FFFF, tick a few
         // cycles, and read T1C-L twice with a tick between them.
         static void RunDetection (MockingboardCard & card, Byte & outFirst, Byte & outSecond)
