@@ -201,8 +201,15 @@ private:
     // The caption's own column, left of the stack. Fixed rather than measured
     // so drive 1 and drive 2 put their names at the same x and the two stacks
     // line up. A measured column would drift with the font.
-    static constexpr int     kCompactCaptionWidthPx  = 50;
-    static constexpr int     kCompactCaptionGapXPx   = 8;
+    static constexpr int     kCompactCaptionWidthPx  = 44;
+    static constexpr int     kCompactCaptionGapXPx   = 6;
+
+    // Descent allowance under the caption. DxuiTextVAlign::Bottom aligns the
+    // layout BOX, which carries the font's descent below the baseline, so a
+    // box bottom sitting on the rail put the baseline a couple of DIP above
+    // it and the word read as floating in the middle of the rail. Dropping
+    // the box by roughly the descent lands the baseline on the rail instead.
+    static constexpr int     kCompactCaptionDescentPx = 2;
 
     // Dead space below the rail, inside the click band. The widget is bottom
     // anchored in the drive bar with a 2 dp gap under it, so without this the
@@ -213,7 +220,7 @@ private:
     static constexpr int    kCompactPadPx          = 10;
     static constexpr int    kCompactCornerPx       = 4;
     static constexpr float  kCompactFontDip        = 12.0f;
-    static constexpr float  kCompactCaptionFontDip = 10.0f;
+    static constexpr float  kCompactCaptionFontDip = 9.0f;
 
     // The head-position bar spans the disk's 140 quarter-tracks. The lit core
     // is drawn as stacked ellipses of falling alpha rather than one shape,

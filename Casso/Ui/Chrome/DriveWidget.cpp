@@ -267,7 +267,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         // above them is doing.
         m_captionRect.left   = x;
         m_captionRect.right  = x + capW;
-        m_captionRect.bottom = m_barRect.bottom;
+        m_captionRect.bottom = m_barRect.bottom + Scale (kCompactCaptionDescentPx, dpi);
         m_captionRect.top    = m_captionRect.bottom - capH;
 
         // The band spans the whole stack and IS the door. HitTest checks the
@@ -590,6 +590,9 @@ void DriveWidget::Paint (
             PaintCompactHeadBar (painter, theme, dpi);
 
             swprintf_s (label, L"DRIVE %d", m_drive + 1);
+            // Bottom aligned so the caption sits on the rail's baseline
+            // rather than floating in the middle of a taller box. Centering
+            // it left the word riding above the bar it labels.
             hr = text.DrawString (label,
                                   (float) m_captionRect.left,
                                   (float) m_captionRect.top,
@@ -599,7 +602,7 @@ void DriveWidget::Paint (
                                   capFontDip,
                                   kFontFamily,
                                   DxuiTextRenderer::HAlign::Left,
-                                  DxuiTextRenderer::VAlign::Center);
+                                  DxuiTextRenderer::VAlign::Bottom);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             // An empty drive still needs a name to click. PaintBasenameLabel
