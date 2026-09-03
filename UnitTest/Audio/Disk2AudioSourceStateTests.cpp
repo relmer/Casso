@@ -44,18 +44,30 @@ public:
         Disk2AudioSource   src;
         float              out[16] = {};
 
-        src.SetSampleBufferForTest (L"HeadStep", vector<float> (32, 0.5f));
-        src.SetSampleBufferForTest (L"HeadStop", vector<float> (32, 0.9f));
+        // 140 samples is one per quarter-track of a full stroke, so a step of
+        // N quarter-tracks buys exactly N samples and the arithmetic below
+        // needs no rounding argument.
+        src.SetSampleBufferForTest (L"HeadStep", vector<float> (140, 0.5f));
+        src.SetSampleBufferForTest (L"HeadStop", vector<float> (140, 0.9f));
 
-        // First step starts a fresh shot from the step buffer.
+        // First step starts a fresh shot from the step buffer. It plays a
+        // SLICE, not the whole clip: the recording is a full-stroke seek, and
+        // one step did not travel a full stroke. The first step after a reset
+        // is charged one half-track, which is two quarter-tracks.
         src.Tick      (100000);
         src.OnHeadStep (1);
         src.GeneratePCM (out, 16);
 
-        // Step volume is 0.30; sample is 0.5 -> 0.15 per output sample.
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < 2; i++)
         {
-            Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-5f);
+            Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-5f,
+                              L"the step's own slice plays from the step buffer");
+        }
+
+        for (int i = 2; i < 16; i++)
+        {
+            Assert::AreEqual (0.0f, out[i], 1e-5f,
+                              L"and stops there rather than running the whole recording");
         }
     }
 

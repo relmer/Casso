@@ -483,12 +483,18 @@ void Disk2AudioSource::OnHeadStep (int newQt)
     bool      wasInSeekMode        = false;
     uint64_t  gap                  = 0;
     uint32_t  headLen              = 0;
+    int       movedQt              = 0;
+    uint32_t  slice                = 0;
 
 
-
-    (void) newQt;
 
     wasInSeekMode = m_seekMode;
+
+    // How far the head actually moved, in quarter-tracks. The first step
+    // after a reset has nothing to measure from and is charged one half-track,
+    // which is what a single phase transition moves.
+    movedQt      = (m_lastStepQt < 0) ? 2 : abs (newQt - m_lastStepQt);
+    m_lastStepQt = newQt;
 
     if (m_lastStepCycle != 0 && m_currentCycle >= m_lastStepCycle)
     {
@@ -502,22 +508,54 @@ void Disk2AudioSource::OnHeadStep (int newQt)
         previousStillPlaying = (headLen > 0 && m_headPos < headLen);
     }
 
+    // What the step bought, in samples: its share of the recording, where the
+    // whole recording is one full-stroke seek. A move of nothing buys nothing,
+    // which is what a repeated phase write at the same position should cost.
+    //
+    // Sized from the STEP buffer, not from headLen. headLen measures whatever
+    // was playing before, which is null on the first step and is the stop
+    // sample right after a bump, so using it bought zero and the step fell
+    // silent.
+    if (!m_stepBuf.empty() && movedQt > 0)
+    {
+        slice = (uint32_t) (((uint64_t) m_stepBuf.size() * (uint64_t) movedQt) /
+                            (uint64_t) kFullStrokeQuarterTracks);
+
+        if (slice == 0)
+        {
+            slice = 1;
+        }
+    }
+
     if (withinSeekWindow && previousStillPlaying)
     {
-        // Tight seek burst AND the previous head one-shot has not
-        // finished decaying. Hold its tail; do not restart -- that
-        // preserves the FR-005 "no click-click-click" invariant.
-        m_seekMode = true;
+        // Tight seek burst AND the previous shot is still inside its slice.
+        // EXTEND it rather than restarting: the gesture is one seek getting
+        // longer, so the sound is one rattle getting longer. Restarting here
+        // is the click-click-click the FR-005 rule exists to prevent, and
+        // holding a fixed-length tail instead is what made a one-track move
+        // sound like crossing the disk.
+        m_seekMode   = true;
+        m_headLimit += slice;
     }
     else
     {
-        // Either a fresh single step (gap >= kSeekThresholdCycles)
-        // OR a seek burst whose previous sample already ran out.
-        // In both cases restart from sample 0 so the listener hears
-        // a continuous buzz, not silence-with-occasional-clicks.
-        m_seekMode = withinSeekWindow;
-        m_headBuf  = &m_stepBuf;
-        m_headPos  = 0;
+        // A fresh step, or a burst whose slice already ran out. Start with
+        // only what this step paid for, PAST the clip's quiet lead-in: a
+        // slice this short would otherwise be most of the way through the
+        // ramp-in before it ended.
+        uint32_t  leadIn = (uint32_t) ((m_stepBuf.size() * (size_t) kHeadLeadInPercent) / 100);
+
+        m_seekMode  = withinSeekWindow;
+        m_headBuf   = &m_stepBuf;
+        m_headPos        = leadIn;
+        m_headLimit      = leadIn + slice;
+        m_headSliceStart = leadIn;
+    }
+
+    if (m_headBuf != nullptr && m_headLimit > (uint32_t) m_headBuf->size())
+    {
+        m_headLimit = (uint32_t) m_headBuf->size();
     }
 
     m_lastStepCycle = m_currentCycle;
@@ -648,6 +686,13 @@ void Disk2AudioSource::TriggerHeadShot (
 {
     m_headBuf = buf;
     m_headPos = 0;
+
+    // A bump plays WHOLE. It is a stop against a travel limit, not a distance
+    // travelled, so there is no slice to size -- and leaving the limit at
+    // whatever the last seek had paid for would truncate the thunk or silence
+    // it outright.
+    m_headLimit      = (buf != nullptr) ? (uint32_t) buf->size() : 0;
+    m_headSliceStart = 0;
 
     if (m_audioEventSink != nullptr)
     {
@@ -908,17 +953,48 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
 
 void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
-    uint32_t  len = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
-    uint32_t  i   = 0;
+    uint32_t  len     = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
+    uint32_t  i       = 0;
+    uint32_t  release = 0;
 
 
 
-    // No buffer and an empty buffer are the same thing here: silence. The
-    // loop then mixes until either the output frame or the sample runs out --
-    // this is a one-shot, so a short sample simply stops contributing.
+    // No buffer and an empty buffer are the same thing here: silence.
+    //
+    // The shot stops at the LIMIT the steps have paid for, not at the end of
+    // the sample. m_headLimit is clamped to the buffer so a long seek runs out
+    // of recording rather than off the end of it.
+    if (m_headLimit < len)
+    {
+        len = m_headLimit;
+    }
+
+    // Ramp into the cut. The slice ends mid-rattle, and a waveform that stops
+    // mid-cycle is an audible click, which would defeat the point since short
+    // slices are the common case.
+    //
+    // The ramp is a FRACTION of what is being played, not a fixed length. A
+    // half-track step buys around 200 samples of a 14,000-sample recording, so
+    // a flat 128-sample release would spend most of the slice fading and the
+    // step would arrive as a swell instead of a tick. Bounded above so a long
+    // seek does not fade for a tenth of a second.
+    release = (len > m_headSliceStart) ? ((len - m_headSliceStart) / 8) : 0;
+
+    if (release > kHeadReleaseSamples)
+    {
+        release = kHeadReleaseSamples;
+    }
+
     for (i = 0; i < n && m_headPos < len; i++)
     {
-        out[i] += (*m_headBuf)[m_headPos] * m_headVolume;
+        float  gain = m_headVolume;
+
+        if (release > 0 && (len - m_headPos) < release)
+        {
+            gain *= (float) (len - m_headPos) / (float) release;
+        }
+
+        out[i] += (*m_headBuf)[m_headPos] * gain;
         m_headPos++;
     }
 }

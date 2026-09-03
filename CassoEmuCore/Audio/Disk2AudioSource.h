@@ -190,6 +190,64 @@ private:
     const vector<float> * m_headBuf = nullptr;
     uint32_t              m_headPos = 0;
 
+    // How far into m_headBuf this gesture is allowed to play, in samples.
+    //
+    // HeadStep.wav is not one step. Measured, both shipped mechanisms are a
+    // SUSTAINED RATTLE: Alps runs 322 ms and is nearly twice as loud in the
+    // middle as at its start, Shugart runs 413 ms at a flat level end to end,
+    // and neither has discrete impulses at 1 ms resolution. They are
+    // recordings of a seek, not of a step.
+    //
+    // So a step does not play the clip. It buys a SLICE of it, sized by how
+    // far the head actually moved, and the slice accumulates while the seek
+    // continues. A one-track move gets a blip; crossing the disk gets the
+    // whole recording. Because the texture is uniform, an arbitrary length
+    // out of it still sounds like a seek that lasted that long.
+    uint32_t              m_headLimit = 0;
+
+    // Where the current gesture started. The release ramp is a fraction of
+    // what this gesture PLAYS, so it needs the slice's length, not the
+    // absolute end index -- with a lead-in those differ, and sizing the ramp
+    // off the end index made it as long as the whole slice.
+    uint32_t              m_headSliceStart = 0;
+
+    // Quarter-track the last step reported, so the next one yields a
+    // distance. -1 means no step has been seen, which is not the same as a
+    // step at quarter-track 0.
+    int                   m_lastStepQt = -1;
+
+    // Full stroke of a 35-track disk in quarter-tracks. The clip is treated
+    // as one full-stroke seek, so this is the divisor that turns a distance
+    // into a fraction of the recording.
+    static constexpr int  kFullStrokeQuarterTracks = 140;
+
+    // Where a slice STARTS, as a percent of the clip.
+    //
+    // Both shipped recordings open with roughly 10 ms of quiet before the
+    // rattle settles, and a one-track seek buys about 9 ms. Starting every
+    // gesture at sample 0 therefore served short seeks almost nothing but the
+    // lead-in: measured against each clip's own body, a one-track move came
+    // out at 0.27 of level on Alps and 0.51 on Shugart. Short moves were not
+    // just short, they were faint.
+    //
+    // Measured level of a one-track slice against each clip's own body, by
+    // where the slice starts:
+    //
+    //              0%     4%     8%    12%
+    //     Alps    0.24   0.65   0.73   1.20
+    //     Shugart 0.58   1.33   0.95   1.34
+    //
+    // Alps ramps for about 40 ms, so four percent was not enough for it even
+    // though it was plenty for Shugart. Twelve puts both at or above the
+    // level of their own sustained middle, and costs a full-stroke seek only
+    // the part of the recording that was ramping in anyway.
+    static constexpr int  kHeadLeadInPercent = 12;
+
+    // Fade applied at the end of a slice. The cut lands in the middle of a
+    // rattle, and stopping a waveform mid-cycle is a click. Short enough not
+    // to soften the stop, long enough to remove the discontinuity.
+    static constexpr uint32_t  kHeadReleaseSamples = 128;
+
     // Door one-shot. Points at m_doorCloseBuf on insert, m_doorOpenBuf
     // on eject. nullptr means no door sound playing.
     vector<float>         m_doorOpenBuf;

@@ -79,19 +79,20 @@ public:
     {
         Disk2AudioSource   src;
         float              out[8] = {};
-        vector<float>      step (4, 0.5f);
+        vector<float>      step (140, 0.5f);   // one sample per quarter-track
 
         src.SetSampleBufferForTest (L"HeadStep", std::move (step));
         src.OnHeadStep (1);
         src.GeneratePCM (out, 8);
 
-        // First 4 samples carry the step sound; remainder are silent.
-        for (int i = 0; i < 4; i++)
+        // A step plays its slice, which for the first step is one half-track
+        // == two quarter-tracks == two samples here. The rest is silence.
+        for (int i = 0; i < 2; i++)
         {
             Assert::AreEqual (0.5f * Disk2AudioSource::kHeadVolume, out[i], 1e-6f);
         }
 
-        for (int i = 4; i < 8; i++)
+        for (int i = 2; i < 8; i++)
         {
             Assert::AreEqual (0.0f, out[i], 1e-6f);
         }
@@ -102,8 +103,11 @@ public:
         Disk2AudioSource   src;
         float              out[4] = {};
 
+        // The head buffer is a full 140 so the step's slice covers the whole
+        // four-sample frame; a 16-sample buffer would buy zero and the head
+        // would drop out of the sum this test is about.
         src.SetSampleBufferForTest (L"MotorLoop", vector<float> (16, 1.0f));
-        src.SetSampleBufferForTest (L"HeadStep",  vector<float> (16, 1.0f));
+        src.SetSampleBufferForTest (L"HeadStep",  vector<float> (140 * 4, 1.0f));
         src.SetSampleBufferForTest (L"DoorClose", vector<float> (16, 1.0f));
 
         src.OnMotorEngaged();
