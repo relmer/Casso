@@ -76,6 +76,13 @@ public:
         // their own (the auto-opened print preview); an activating Show()
         // still focuses them on demand.
         bool                createNoActivate  = false;
+
+        // Open the window flush against the owner's right edge (or its
+        // left, when the right will not fit on the owner's monitor)
+        // instead of taking the OS cascade position -- which a composited
+        // WS_POPUP window never gets, landing it in the primary monitor's
+        // top-left corner. Requires ownerHwnd.
+        bool                placeBesideOwner  = false;
     };
 
 

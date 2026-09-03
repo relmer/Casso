@@ -55,6 +55,7 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **The Settings dialog now opens adjacent to the main window.**
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
