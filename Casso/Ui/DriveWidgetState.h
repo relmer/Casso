@@ -80,6 +80,17 @@ struct DriveWidgetState
     // with no Disk ][ controller. A reader must not render that as track 0.
     std::atomic<int>  headQuarterTrack     { -1 };
 
+    // When the drive was last doing something, so the 2D indicator can fade
+    // out of full brightness instead of dropping to idle the instant the
+    // motor stops. UI thread only: it is written where the activity is
+    // sampled and read where the bar is painted, both on that thread.
+    int64_t           lastActiveMs         = 0;
+
+    // How long that fade takes. Shared rather than local to the painter,
+    // because the shell has to keep asking for frames for exactly as long as
+    // the fade runs. A fade nobody redraws is a snap with extra steps.
+    static constexpr int64_t  kActivityFadeMs = 700;
+
     // Write-protect state of the mounted image, sampled each UI frame
     // from the DiskImage in DiskManager::UpdateDriveWidgets. Drives the
     // padlock cue and the hover tooltip. UI-thread only.

@@ -7348,6 +7348,22 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
+
+        // A drive that has just gone quiet is FADING, and a fade nobody
+        // redraws is a step with a delay in front of it. Nothing else asks
+        // for these frames: the activity flags have already settled, the head
+        // is not moving, and a static emulator picture skips the present
+        // entirely. Ask for them until the fade is over.
+        {
+            int64_t  sinceMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                   std::chrono::steady_clock::now().time_since_epoch()).count()
+                               - st.lastActiveMs;
+
+            if (st.lastActiveMs != 0 && sinceMs >= 0 && sinceMs < DriveWidgetState::kActivityFadeMs)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
     }
 
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,

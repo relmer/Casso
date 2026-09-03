@@ -848,6 +848,11 @@ void DiskManager::UpdateDriveWidgets()
         st.diskActive.store (active,    std::memory_order_relaxed);
         st.headQuarterTrack.store  (headQuarterTrack, std::memory_order_relaxed);
 
+        if (motorOn || active)
+        {
+            st.lastActiveMs = nowMs;
+        }
+
         // Sample the mounted image's write-protect breakdown for the
         // padlock cue + hover tooltip. Empty drive -> no protection.
         {

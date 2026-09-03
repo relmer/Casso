@@ -229,6 +229,10 @@ private:
     static constexpr int     kCompactBarLayers      = 4;
     static constexpr int     kMaxQuarterTrack       = 139;
 
+    // Alpha the lit core settles to once the drive has been quiet through the
+    // whole fade.
+    static constexpr float   kCompactBarIdleAlpha   = 0.35f;
+
     // Write-protect padlock badge. The lock glyph drawn beside the mounted
     // disk's BASENAME whenever that disk is write-protected by any source --
     // in both paint paths, and the same glyph the 3D scene's name strip

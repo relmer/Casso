@@ -366,6 +366,8 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
     int    quarter   = m_state.headQuarterTrack.load (std::memory_order_relaxed);
     bool   mounted   = !m_state.mountedImagePath.empty();
     bool   active    = m_state.diskActive.load (std::memory_order_relaxed);
+    int64_t nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                           std::chrono::steady_clock::now().time_since_epoch()).count();
     float  coreHalf  = (float) Scale (kCompactBarCoreHalfPx, dpi);
     float  cx        = 0.0f;
     int    layer     = 0;
@@ -422,8 +424,26 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
         // not doing anything, and at 0.75 it drew the eye as hard as a drive
         // that was. The gap between the two is what makes activity readable
         // across the room without looking at it directly.
-        float  base = active ? 1.0f : 0.35f;
-        float  span = (float) (kCompactBarLayers - 1);
+        //
+        // Getting there is a FADE, not a step. The decay is fast at first and
+        // then long tailed, the way a phosphor or a warm filament goes out,
+        // which reads as the light dying rather than a value changing. A
+        // linear ramp over the same duration looks mechanical.
+        int64_t  sinceMs = nowMs - m_state.lastActiveMs;
+        float    t       = (float) sinceMs / (float) DriveWidgetState::kActivityFadeMs;
+        float    fall    = 0.0f;
+        float    base    = kCompactBarIdleAlpha;
+        float    span    = (float) (kCompactBarLayers - 1);
+
+        if (active || sinceMs < 0)
+        {
+            base = 1.0f;
+        }
+        else if (t < 1.0f)
+        {
+            fall = (1.0f - t) * (1.0f - t);
+            base = kCompactBarIdleAlpha + (1.0f - kCompactBarIdleAlpha) * fall;
+        }
 
         for (layer = kCompactBarLayers; layer >= 1; layer--)
         {
@@ -465,6 +485,7 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.diskActive.store (active, std::memory_order_relaxed);
     m_state.headQuarterTrack.store (state.headQuarterTrack.load (std::memory_order_relaxed),
                              std::memory_order_relaxed);
+    m_state.lastActiveMs = state.lastActiveMs;
 
     m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
