@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "CommandLineHelp.h"
 #include "CommandLineParser.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -14,6 +16,8 @@
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
+#include "Ui/Chrome/CassoTheme.h"
+#include "Window/DxuiMessageBox.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -32,7 +36,19 @@
 //  both executables and CassoCli's help can write these flags with whichever
 //  prefix its reader asked for. A hand-rolled loop here used to compare wide
 //  literals, took only the `--` form for everything but `--trace`, and could
-//  not be reached by a test.
+//  not be reached by a test. Everything this function still does is the
+//  platform edge: the wide-to-narrow conversion, and one Windows quirk.
+//
+//  THE QUIRK IS AN EMPTY COMMAND LINE. Given nothing, CommandLineToArgvW hands
+//  back the path of the running executable -- unquoted, so an install under
+//  `C:\Program Files` comes back as the TWO arguments `C:\Program` and
+//  `Files\...\Casso.exe`. Afterwards that is indistinguishable from arguments a
+//  person typed. It cost nothing while an unrecognized argument was dropped;
+//  now that one is refused, an ordinary double-click would open a dialog
+//  complaining about an argument nobody passed and start no emulator. So the
+//  empty line is answered here, before Windows gets a chance to fill it in.
+//  Measured, not assumed: `argc` comes back 2 for an empty string, and 1 with
+//  an empty argument for a line of only spaces.
 //
 //  The conversion goes through the process's narrow code page, not UTF-8:
 //  TextEncoding::WideToNarrow says why, and why that heals itself if the
@@ -41,24 +57,31 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ParseCommandLine (
-    LPWSTR         lpCmdLine,
-    wstring & outMachine,
-    wstring & outDisk1,
-    wstring & outDisk2,
-    size_t  & outTraceCapacity,
-    bool    & outNoImageWatch)
+    LPWSTR                                lpCmdLine,
+    CommandLineOptions::EmulatorOptions & outParsed)
 {
-    HRESULT                              hr   = S_OK;
-    int                                  argc = 0;
-    LPWSTR                             * argv = nullptr;
-    std::vector<std::string>             narrow;
-    std::vector<char *>                  pointers;
-    CommandLineOptions::EmulatorOptions  parsed;
+    HRESULT                   hr      = S_OK;
+    int                       argc    = 0;
+    LPWSTR                  * argv    = nullptr;
+    const wchar_t           * scan    = lpCmdLine;
+    std::vector<std::string>  narrow;
+    std::vector<char *>       pointers;
+    bool                      hasArgs = false;
 
 
 
-    outTraceCapacity = 0;
-    outNoImageWatch  = false;
+    outParsed = CommandLineOptions::EmulatorOptions();
+
+    for (; scan != nullptr && *scan != L'\0'; scan++)
+    {
+        if (!iswspace (*scan))
+        {
+            hasArgs = true;
+            break;
+        }
+    }
+
+    BAIL_OUT_IF (!hasArgs, S_OK);
 
     argv = CommandLineToArgvW (lpCmdLine, &argc);
     CWRA (argv);
@@ -73,18 +96,66 @@ static HRESULT ParseCommandLine (
         pointers.push_back (arg.data());
     }
 
-    parsed = CommandLineParser::ParseEmulator ((int) pointers.size(), pointers.data());
-
-    outMachine       = TextEncoding::NarrowToWide (parsed.machine);
-    outDisk1         = TextEncoding::NarrowToWide (parsed.disk1);
-    outDisk2         = TextEncoding::NarrowToWide (parsed.disk2);
-    outTraceCapacity = parsed.traceEntries;
-    outNoImageWatch  = parsed.noImageWatch;
+    outParsed = CommandLineParser::ParseEmulator ((int) pointers.size(), pointers.data());
 
     LocalFree (argv);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowCommandLineDialog
+//
+//  The usage text, in the themed box the rest of startup uses, with a refusal
+//  above it when there is one.
+//
+//  IT RUNS BEFORE ANYTHING ELSE OF STARTUP, which is why it loads the theme
+//  itself rather than taking one. Nothing has read preferences yet at this
+//  point and no window exists; GlobalUserPrefs::Load only reads, so a command
+//  line refused on the way in cannot disturb what is stored. A theme that
+//  cannot be read falls back to the same default CassoTheme::MakeByName gives
+//  every other caller.
+//
+//  THE TEXT IS BUILT IN CORE, from the parser's own option table, so this
+//  function chooses a window and a glyph and describes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void ShowCommandLineDialog (const CommandLineOptions::EmulatorOptions & parsed)
+{
+    GlobalUserPrefs  prefs;
+    Win32FileSystem  fsPrefs;
+    std::wstring     title   = std::wstring (L"Casso ") + s_kchEmDash + L" Command Line";
+    std::wstring     body;
+    std::string      usage   = CommandLineHelp::BuildEmulatorHelp (parsed.flagPrefix);
+    HRESULT          hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                           fsPrefs);
+    bool             refused = parsed.verdict
+                            == CommandLineOptions::EmulatorOptions::Verdict::Refused;
+    CassoTheme       theme;
+
+
+
+    IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+    theme = CassoTheme::MakeByName (prefs.activeTheme);
+
+    if (refused)
+    {
+        body  = TextEncoding::NarrowToWide (parsed.refusalMessage);
+        body += L"\n\n";
+    }
+
+    body += TextEncoding::NarrowToWide (usage);
+
+    (void) DxuiMessageBox (nullptr, &theme, body.c_str(), title.c_str(),
+                           MB_OK | (refused ? MB_ICONWARNING : MB_ICONINFORMATION));
 }
 
 
@@ -449,16 +520,25 @@ int WINAPI wWinMain (
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow)
 {
-    HRESULT                         hr            = S_OK;
-    wstring                         machineName;
-    wstring                         disk1Path;
-    wstring                         disk2Path;
-    size_t                          traceCapacity = 0;
-    bool                            noImageWatch  = false;
-    int                             exitCode      = 0;
-    bool                            userExited    = false;
-    MachineConfig                   config;
-    std::unique_ptr<EmulatorShell>  shell         = std::make_unique<EmulatorShell>();
+    //  What a command line this program could not take exits with. CassoCli
+    //  documents 2 as "produced no output", which is exactly what a refused
+    //  invocation of the emulator does.
+    constexpr int  kRefusedCommandLineStatus = 2;
+
+
+
+    HRESULT                              hr            = S_OK;
+    wstring                              machineName;
+    wstring                              disk1Path;
+    wstring                              disk2Path;
+    size_t                               traceCapacity = 0;
+    bool                                 noImageWatch  = false;
+    int                                  exitCode      = 0;
+    bool                                 userExited    = false;
+    bool                                 answered      = false;
+    CommandLineOptions::EmulatorOptions  parsed;
+    MachineConfig                        config;
+    std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
 
 
 
@@ -528,10 +608,33 @@ int WINAPI wWinMain (
         }
     });
 
-    // Parse command line
-    hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity,
-                           noImageWatch);
+    // Parse command line. A help request is answered and a command line that
+    // could not be read is refused BEFORE any of the startup work below, so
+    // neither one downloads an asset, writes a preference, or builds a machine
+    // on the way to a dialog that was going to stop startup anyway.
+    hr = ParseCommandLine (lpCmdLine, parsed);
     CHR (hr);
+
+    answered = parsed.verdict != CommandLineOptions::EmulatorOptions::Verdict::Clean;
+
+    if (answered)
+    {
+        ShowCommandLineDialog (parsed);
+
+        // A help request was answered, so it succeeded. A refusal exits on the
+        // status CassoCli spends on a command line it could not take, rather
+        // than on the 1 the tail below gives a genuine failure.
+        exitCode = (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Help)
+                 ? 0 : kRefusedCommandLineStatus;
+    }
+
+    BAIL_OUT_IF (answered, S_OK);
+
+    machineName   = TextEncoding::NarrowToWide (parsed.machine);
+    disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
+    disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    traceCapacity = parsed.traceEntries;
+    noImageWatch  = parsed.noImageWatch;
 
     shell->SetImageWatchDisabled (noImageWatch);
 
