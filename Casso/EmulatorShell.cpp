@@ -3900,11 +3900,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
-            // Nothing to put back without a scene. The flat themes draw the
-            // drives as a compact band and never build the camera, so the
-            // pose this resets does not exist and the command would be a
-            // key that visibly does nothing.
-            case IDM_VIEW_RESET_SCENE: return DeskSceneActive();
             default:           return true;
         }
     });
