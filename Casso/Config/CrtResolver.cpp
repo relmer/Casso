@@ -29,6 +29,7 @@ static constexpr char  s_kKeySeparator = '/';
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CrtResolver::ModeToken
@@ -41,8 +42,11 @@ std::string_view CrtResolver::ModeToken (size_t modeIndex)
 {
     size_t  clamped = (modeIndex < kModeCount) ? modeIndex : 0;
 
+
+
     return s_kModeTokens[clamped];
 }
+
 
 
 
@@ -63,6 +67,8 @@ std::string CrtResolver::MakeKey (
     std::string       key;
     std::string_view  token = ModeToken (modeIndex);
 
+
+
     key.reserve (monitorConfigName.size() + 1 + token.size());
     key.append (monitorConfigName);
     key.push_back (s_kKeySeparator);
@@ -70,6 +76,7 @@ std::string CrtResolver::MakeKey (
 
     return key;
 }
+
 
 
 
@@ -100,6 +107,8 @@ CrtResolved CrtResolver::Resolve (
     const CrtOverrides     &  overrides)
 {
     CrtResolved  resolved;
+
+
 
     resolved.values = preset;
 

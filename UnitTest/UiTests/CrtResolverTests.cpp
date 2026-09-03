@@ -368,9 +368,9 @@ public:
     {
         const char *       monitors[] = { "AppleMonitorII", "AppleMonitorIIc" };
         std::set<std::string>  keys;
-        size_t             m     = 0;
-        size_t             mode  = 0;
-        size_t             total = 0;
+        size_t                 m     = 0;
+        size_t                 mode  = 0;
+        size_t                 total = 0;
 
         for (m = 0; m < _countof (monitors); m++)
         {
