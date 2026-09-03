@@ -145,6 +145,12 @@ struct DeskSceneComposition
     // swell and swing as it turns, so chrome hung from them swims; one
     // point rides the drive rigidly through any orbit.
     POINT  driveLabelPx[2]  = {};
+
+    // The same anchor in WORLD space, which is what a depth-tested billboard
+    // needs and a screen point cannot give. The depth is the whole difficulty
+    // here: the name has to sit at the drive's own distance before the
+    // monitor's case can stand in front of it.
+    float  driveLabelWorld[2][3] = {};
 };
 
 
@@ -290,6 +296,35 @@ public:
                                             const CurvedDisplaySurface & glass,
                                             int                          displayW,
                                             int                          displayH);
+
+    // The camera's own right and up axes in WORLD space, read off the view
+    // matrix's rotation. Both are unit length and square to the gaze, so a
+    // quad spanned by them faces the camera head-on and all four of its
+    // corners share one depth.
+    static void     GetCameraBasis (const float view[16], float outRight[3], float outUp[3]);
+
+    // How much world one screen pixel spans at `worldPt`'s depth, across and
+    // down. Returns false for a point at or behind the eye plane. Read off
+    // the projection the composition actually carries, so the user's zoom is
+    // already in the answer rather than something a caller has to reapply.
+    static bool     GetWorldPerPixel (const DeskSceneComposition & comp,
+                                      const float                  worldPt[3],
+                                      float                      & outPerPxX,
+                                      float                      & outPerPxY);
+
+    // The four world corners of one drive's name billboard, covering exactly
+    // `labelPx` pixels starting `gapPx` below that drive's anchor. Corners
+    // come back top-left, top-right, bottom-left, bottom-right. Returns false
+    // when the anchor does not project.
+    //
+    // Pixels go IN and world corners come out, which is the inversion the
+    // whole fix rests on: the name is specified in the units it has to be
+    // legible in, and the scene is told where that lands.
+    static bool     TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
+                                           int                          drive,
+                                           const SIZE                 & labelPx,
+                                           int                          gapPx,
+                                           float                        outCorners[4][3]);
 
 private:
     static void     SolveStandoff (const float             sceneMin[3],

@@ -467,6 +467,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDrawToTextureSize
+//
+//  Reports the off-screen target's real dimensions, which is what a caller
+//  needs to map texture coordinates over the part of it that was drawn. The
+//  texture is grown and never shrunk, so this is >= whatever the last
+//  BeginDrawToTexture asked for, and the difference is uninitialized surface
+//  a 0..1 mapping would sample.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const
+{
+    outWidthPx  = (m_textureTarget != nullptr) ? m_textureW : 0;
+    outHeightPx = (m_textureTarget != nullptr) ? m_textureH : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginDrawDeferred
 //
 //  Points the context at a fresh command list, so everything this pass draws

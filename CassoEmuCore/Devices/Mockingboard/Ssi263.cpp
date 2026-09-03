@@ -151,9 +151,12 @@ static constexpr double  s_kReleaseTauSec = 0.004;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Ssi263::Ssi263 (double clockHz)
+Ssi263::Ssi263 (double xckHz)
 {
-    m_clockHz = (clockHz > 0.0) ? clockHz : kDefaultClockHz;
+    // The tick clock is deliberately left unstated here. Until an owner calls
+    // SetTickClock, GetTickClockHz answers with XCK, which is the only
+    // self-consistent reading of a Tick nobody has described.
+    m_xckHz = (xckHz > 0.0) ? xckHz : kDefaultXckHz;
 
     Reset();
 }
@@ -183,18 +186,69 @@ void Ssi263::SetSampleRate (uint32_t sampleRate)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetClock
+//  SetXckClock
 //
 //  The external XCK time base. Every published timing formula is relative to
-//  it, so changing it rescales durations and filter frequencies together.
+//  it, so changing it rescales durations and filter frequencies together. It
+//  is NOT the rate Tick counts in; see SetTickClock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ssi263::SetClock (double clockHz)
+void Ssi263::SetXckClock (double xckHz)
 {
-    if (clockHz > 0.0)
+    double   previousXck  = m_xckHz;
+    double   previousTick = GetTickClockHz();
+
+
+
+    if (xckHz > 0.0)
     {
-        m_clockHz = clockHz;
+        m_xckHz = xckHz;
+
+        // A phoneme already sounding was loaded against the old rates, so
+        // rescale the remainder to leave the same fraction of it to play. Two
+        // ratios apply. Its length in SECONDS moves with XCK, and the domain
+        // that length is counted in moves too whenever the tick clock is
+        // still following XCK. Once an owner has stated a tick clock the
+        // second ratio is 1, and only the duration moves.
+        m_phonemeCycles *= (previousXck / m_xckHz) *
+                           (GetTickClockHz() / previousTick);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTickClock
+//
+//  The rate of the cycles Tick receives -- the owning machine's clock, not the
+//  chip's. It converts a duration in seconds into the countdown Tick drains,
+//  and it is the only thing in the class that does: the datasheet formulas all
+//  stay in XCK terms.
+//
+//  An Apple II Mockingboard ticks at phi2, about 1.75x slower than XCK, so the
+//  distinction is worth 75% of every phoneme's length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::SetTickClock (double tickClockHz)
+{
+    double   previous = GetTickClockHz();
+
+
+
+    if (tickClockHz > 0.0)
+    {
+        m_tickClockHz = tickClockHz;
+
+        // As above: an in-flight countdown is in the old domain and has to be
+        // converted rather than left to drain at the wrong rate. `previous`
+        // comes from GetTickClockHz so that the first call on a chip which was
+        // still following XCK converts from XCK, not from an unset zero.
+        m_phonemeCycles *= m_tickClockHz / previous;
     }
 }
 
@@ -455,7 +509,7 @@ uint16_t Ssi263::GetInflectionValue() const
 
 double Ssi263::GetFrameDurationSec() const
 {
-    return (4096.0 * (16.0 - static_cast<double> (GetRateSel()))) / m_clockHz;
+    return (4096.0 * (16.0 - static_cast<double> (GetRateSel()))) / m_xckHz;
 }
 
 
@@ -505,7 +559,7 @@ double Ssi263::GetFilterFrequencyHz() const
 
 
 
-    return (divisor > 0.0) ? (m_clockHz / divisor) : 0.0;
+    return (divisor > 0.0) ? (m_xckHz / divisor) : 0.0;
 }
 
 
@@ -526,7 +580,7 @@ double Ssi263::GetInflectionFrequencyHz() const
 
 
 
-    return (divisor > 0.0) ? (m_clockHz / divisor) : 0.0;
+    return (divisor > 0.0) ? (m_xckHz / divisor) : 0.0;
 }
 
 
@@ -946,7 +1000,9 @@ void Ssi263::BeginPhoneme (Byte outgoing)
         }
     }
 
-    m_phonemeCycles = seconds * m_clockHz;
+    // The datasheet formula gives seconds against XCK; the countdown Tick
+    // drains is in the machine's cycles, so the tick clock is what converts.
+    m_phonemeCycles = seconds * GetTickClockHz();
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
 }

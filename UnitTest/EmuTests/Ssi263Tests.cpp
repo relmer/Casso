@@ -212,7 +212,7 @@ namespace Ssi263TestNs
             {
                 chip.WriteRegister (Ssi263::kRegRateInflection, static_cast<Byte> (r << Ssi263::kRateShift));
 
-                expected = (4096.0 * (16.0 - static_cast<double> (r))) / Ssi263::kDefaultClockHz;
+                expected = (4096.0 * (16.0 - static_cast<double> (r))) / Ssi263::kDefaultXckHz;
 
                 Assert::AreEqual (expected, chip.GetFrameDurationSec(), 1e-12,
                                   L"Frame Duration = 4096 x (16 - R) / XCK");
@@ -262,7 +262,7 @@ namespace Ssi263TestNs
                     continue;   // divisor 2 x (256-255) = 2; still finite, covered below
                 }
 
-                Assert::AreEqual (Ssi263::kDefaultClockHz / (2.0 * (256.0 - f)),
+                Assert::AreEqual (Ssi263::kDefaultXckHz / (2.0 * (256.0 - f)),
                                   chip.GetFilterFrequencyHz(), 1e-6,
                                   L"Filter Frequency = XCK / (2 x (256 - F))");
             }
@@ -278,7 +278,7 @@ namespace Ssi263TestNs
             chip.WriteRegister (Ssi263::kRegInflection, 0x80);   // I10 set -> I = 0x400
 
             Assert::AreEqual<uint16_t> (0x400, chip.GetInflectionValue());
-            Assert::AreEqual (Ssi263::kDefaultClockHz / (8.0 * (4096.0 - 1024.0)),
+            Assert::AreEqual (Ssi263::kDefaultXckHz / (8.0 * (4096.0 - 1024.0)),
                               chip.GetInflectionFrequencyHz(), 1e-9,
                               L"Inflection Frequency = XCK / (8 x (4096 - I))");
         }
@@ -292,7 +292,7 @@ namespace Ssi263TestNs
 
 
             StartSpeaking (chip, 0x08);
-            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kBareTickClockHz);
 
             chip.Tick (cycles / 2);
             Assert::IsFalse (chip.IsRequesting(), L"Must not request part-way through");
@@ -356,7 +356,7 @@ namespace Ssi263TestNs
 
 
             StartSpeaking (chip, 0x08);
-            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kBareTickClockHz);
 
             chip.Tick (cycles + 1);
             Assert::IsTrue (chip.IsRequesting());
@@ -387,7 +387,7 @@ namespace Ssi263TestNs
             Assert::AreEqual (a.GetPhonemeDurationSec(), b.GetPhonemeDurationSec(), 1e-12,
                               L"Host sample rate must not affect emulated duration");
 
-            cycles = static_cast<uint32_t> (a.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz);
+            cycles = static_cast<uint32_t> (a.GetPhonemeDurationSec() * kBareTickClockHz);
 
             a.Tick (cycles + 1);
             b.Tick (cycles + 1);
@@ -690,7 +690,7 @@ namespace Ssi263TestNs
             last = buffer[kRenderSamples - 1];
 
             // Expire the phoneme between renders, as the emulated machine does.
-            chip.Tick (static_cast<uint32_t> (chip.GetPhonemeDurationSec() * Ssi263::kDefaultClockHz) + 1);
+            chip.Tick (static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kBareTickClockHz) + 1);
 
             RenderInto (chip, buffer.data(), 2048);
 
@@ -744,7 +744,7 @@ namespace Ssi263TestNs
             size_t     ph              = 0;
             float      last            = 0.0f;
             float      maxStep         = 0.0f;
-            double     cyclesPerSample = Ssi263::kDefaultClockHz / kSampleRate;
+            double     cyclesPerSample = kBareTickClockHz / kSampleRate;
             std::vector<float>   buffer (512);
 
 
@@ -915,9 +915,280 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  PhonemeSpansTheTickClockCountNotTheXckCount
+        //
+        //  The chip's XCK and the cycles Tick receives are different clocks.
+        //  The datasheet gives a phoneme's length in seconds against XCK; the
+        //  countdown Tick drains has to be that length converted at the TICK
+        //  rate. Converting at XCK instead ran every phoneme 1.75x long on an
+        //  Apple II, and every duration test agreed with it, because they all
+        //  asserted the formula rather than the count it produces.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (PhonemeSpansTheTickClockCountNotTheXckCount)
+        {
+            Ssi263   chip;
+            double   seconds  = 0.0;
+            double   expected = 0.0;
+            double   xckCount = 0.0;
+
+
+
+            chip.SetTickClock (kPhi2ClockHz);
+            StartSpeaking (chip, 0x08);
+
+            seconds  = chip.GetPhonemeDurationSec();
+            expected = seconds * kPhi2ClockHz;
+            xckCount = seconds * Ssi263::kDefaultXckHz;
+
+            Assert::IsTrue (xckCount > expected * 1.5,
+                            L"Precondition: the two clocks must differ enough to discriminate");
+
+            AssertPhonemeSpansCycles (chip, expected, L"rate $A, D = 0, ticked at phi2");
+        }
+
+
+        TEST_METHOD (PhonemeTickCountTracksRateAndDurationBits)
+        {
+            static constexpr Byte   kRates[]     = { 0x00, 0x0A, 0x0F };
+            static constexpr Byte   kDurations[] = { 0, 1, 3 };
+
+            size_t   r        = 0;
+            size_t   d        = 0;
+            double   expected = 0.0;
+
+
+
+            for (r = 0; r < sizeof (kRates); r++)
+            {
+                for (d = 0; d < sizeof (kDurations); d++)
+                {
+                    Ssi263   chip;
+
+
+
+                    chip.SetTickClock (kPhi2ClockHz);
+                    LeavePowerDown (chip, Ssi263::kModePhonemeTransitioned);
+                    chip.WriteRegister (Ssi263::kRegRateInflection,
+                                        static_cast<Byte> (kRates[r] << Ssi263::kRateShift));
+                    chip.WriteRegister (Ssi263::kRegDurationPhoneme,
+                                        static_cast<Byte> ((kDurations[d] << Ssi263::kDurationShift) | 0x08));
+
+                    expected = chip.GetPhonemeDurationSec() * kPhi2ClockHz;
+
+                    AssertPhonemeSpansCycles (chip, expected,
+                                              L"R = " + std::to_wstring (static_cast<int> (kRates[r])) +
+                                              L", D = " + std::to_wstring (static_cast<int> (kDurations[d])));
+                }
+            }
+        }
+
+
+        TEST_METHOD (FrameTimingModeCountsOneFrameWhateverTheDurationBits)
+        {
+            Ssi263   chip;
+            double   frame    = 0.0;
+            double   expected = 0.0;
+
+
+
+            chip.SetTickClock (kPhi2ClockHz);
+
+            // In the frame-timing mode the duration bits selected the mode, so
+            // they no longer multiply the frame.
+            LeavePowerDown (chip, Ssi263::kModeFrameImmediate);
+            chip.WriteRegister (Ssi263::kRegRateInflection,
+                                static_cast<Byte> (0x0A << Ssi263::kRateShift));
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x08);
+
+            frame    = chip.GetFrameDurationSec();
+            expected = frame * kPhi2ClockHz;
+
+            Assert::AreEqual (frame, chip.GetPhonemeDurationSec(), 1e-12,
+                              L"Frame timing takes the frame unmultiplied");
+
+            AssertPhonemeSpansCycles (chip, expected, L"frame timing, D = 0");
+
+            // Setting the duration bits restarts the phoneme and must not
+            // change its length in this mode.
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme,
+                                static_cast<Byte> ((3 << Ssi263::kDurationShift) | 0x08));
+
+            Assert::AreEqual (frame, chip.GetPhonemeDurationSec(), 1e-12,
+                              L"and D = 3 must still be one frame");
+
+            AssertPhonemeSpansCycles (chip, expected, L"frame timing, D = 3");
+        }
+
+
+        TEST_METHOD (TickClockChangeRescalesAnInFlightPhoneme)
+        {
+            Ssi263   chip;
+            double   expected = 0.0;
+
+
+
+            // Started while the chip still assumed XCK ticks.
+            StartSpeaking (chip, 0x08);
+
+            expected = chip.GetPhonemeDurationSec() * kPhi2ClockHz;
+
+            // Half-way through by the old rate, then state the real one. What
+            // is left must be half the phoneme measured in the NEW domain, not
+            // the old count left to drain at the new rate.
+            chip.Tick (static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kBareTickClockHz / 2.0));
+            chip.SetTickClock (kPhi2ClockHz);
+
+            AssertPhonemeSpansCycles (chip, expected / 2.0, L"rescaled mid-phoneme");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  UnstatedTickClockFollowsXckWhicheverWayXckWasSet
+        //
+        //  Until an owner states a tick rate the chip falls back to XCK. That
+        //  fallback has to answer the same way whether XCK arrived through the
+        //  constructor or through SetXckClock, or the two spellings of one
+        //  intent would time phonemes differently -- a silent divergence of
+        //  exactly the kind the two-clock split exists to rule out.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnstatedTickClockFollowsXckWhicheverWayXckWasSet)
+        {
+            static constexpr double   kOtherXckHz = 2000000.0;
+
+            Ssi263   viaCtor (kOtherXckHz);
+            Ssi263   viaSetter;
+            double   expected = 0.0;
+
+
+
+            viaSetter.SetXckClock (kOtherXckHz);
+
+            StartSpeaking (viaCtor,   0x08);
+            StartSpeaking (viaSetter, 0x08);
+
+            Assert::AreEqual (viaCtor.GetPhonemeDurationSec(), viaSetter.GetPhonemeDurationSec(), 1e-12,
+                              L"Precondition: both chips must agree on the duration in seconds");
+
+            expected = viaCtor.GetPhonemeDurationSec() * kOtherXckHz;
+
+            AssertPhonemeSpansCycles (viaCtor,   expected, L"XCK through the constructor");
+            AssertPhonemeSpansCycles (viaSetter, expected, L"XCK through SetXckClock");
+        }
+
+
+        TEST_METHOD (StatedTickClockSurvivesAnXckChange)
+        {
+            Ssi263   chip;
+            double   expected = 0.0;
+
+
+
+            // Once an owner states the tick rate, XCK moving must not drag the
+            // countdown into a different domain -- only the duration changes.
+            chip.SetTickClock (kPhi2ClockHz);
+            chip.SetXckClock (Ssi263::kDefaultXckHz / 2.0);
+
+            StartSpeaking (chip, 0x08);
+
+            expected = chip.GetPhonemeDurationSec() * kPhi2ClockHz;
+
+            AssertPhonemeSpansCycles (chip, expected, L"stated tick clock, halved XCK");
+        }
+
+
+        TEST_METHOD (TickClockDoesNotDisturbTheDatasheetFormulas)
+        {
+            Ssi263   chip;
+            double   frame  = 0.0;
+            double   filter = 0.0;
+
+
+
+            chip.WriteRegister (Ssi263::kRegRateInflection,
+                                static_cast<Byte> (0x0A << Ssi263::kRateShift));
+            chip.WriteRegister (Ssi263::kRegFilterFreq, 0xD3);
+
+            frame  = chip.GetFrameDurationSec();
+            filter = chip.GetFilterFrequencyHz();
+
+            chip.SetTickClock (kPhi2ClockHz);
+
+            Assert::AreEqual (frame, chip.GetFrameDurationSec(), 1e-12,
+                              L"The tick clock must not reach a datasheet formula");
+            Assert::AreEqual (filter, chip.GetFilterFrequencyHz(), 1e-6,
+                              L"nor the filter frequency");
+
+            // XCK, by contrast, is exactly what those formulas divide by.
+            chip.SetXckClock (Ssi263::kDefaultXckHz / 2.0);
+
+            Assert::AreEqual (frame * 2.0, chip.GetFrameDurationSec(), 1e-12,
+                              L"Halving XCK must double the frame duration");
+            Assert::AreEqual (filter / 2.0, chip.GetFilterFrequencyHz(), 1e-6,
+                              L"and halve the filter frequency");
+        }
+
+
     private:
         static constexpr uint32_t   kRenderSamples = 8192;
         static constexpr double     kSampleRate    = 44100.0;
+
+        // A chip nobody told otherwise takes its Tick cycles to be XCK ticks,
+        // so this is the rate a bare chip's countdown converts at.
+        static constexpr double     kBareTickClockHz = Ssi263::kDefaultXckHz;
+
+        // The Apple II phi2 rate, which is what a Mockingboard actually feeds
+        // Tick -- roughly 1.75x slower than the voice chip's own XCK. Spelled
+        // out here rather than taken from MachineConfig so these tests state
+        // the number they expect instead of agreeing with production by
+        // construction.
+        static constexpr double     kPhi2ClockHz     = 1022727.0;
+
+        // How far short of, and past, the expected count the boundary checks
+        // land. A few cycles absorb the truncation in turning a duration in
+        // seconds into an integer tick count, while staying orders of
+        // magnitude tighter than a clock-domain error, which is off by 75%.
+        static constexpr uint32_t   kBoundaryMarginCycles = 8;
+
+        // Drive a just-started phoneme to just short of `expectedCycles` and
+        // confirm it is still sounding, then confirm a few more cycles end it.
+        // The COUNT is the assertion: a countdown loaded from the wrong clock
+        // misses this window by the ratio between the two clocks, which no
+        // assertion over GetPhonemeDurationSec can see.
+        static void AssertPhonemeSpansCycles (Ssi263 & chip, double expectedCycles, const std::wstring & label)
+        {
+            uint32_t   total     = static_cast<uint32_t> (expectedCycles);
+            uint32_t   half      = total / 2;
+            uint32_t   justShort = 0;
+
+
+
+            Assert::IsTrue (total > kBoundaryMarginCycles * 4,
+                            (L"Precondition: too few cycles to bracket a boundary: " + label).c_str());
+
+            justShort = total - half - kBoundaryMarginCycles;
+
+            chip.Tick (half);
+
+            Assert::IsFalse (chip.IsRequesting(),
+                             (L"Phoneme ended at half its cycle count: " + label).c_str());
+
+            chip.Tick (justShort);
+
+            Assert::IsFalse (chip.IsRequesting(),
+                             (L"Phoneme ended before its cycle count: " + label).c_str());
+
+            chip.Tick (kBoundaryMarginCycles * 2);
+
+            Assert::IsTrue (chip.IsRequesting(),
+                            (L"Phoneme outlasted its cycle count: " + label).c_str());
+        }
 
         // Bring a chip up in the common mode, rate $A, amplitude $F, and
         // start the AH1 vowel sounding.
@@ -941,7 +1212,7 @@ namespace Ssi263TestNs
 
 
 
-            value = static_cast<uint16_t> (4096.0 - Ssi263::kDefaultClockHz / (8.0 * hz));
+            value = static_cast<uint16_t> (4096.0 - Ssi263::kDefaultXckHz / (8.0 * hz));
             rate  = static_cast<Byte> (chip.GetRateSel() << Ssi263::kRateShift);
 
             chip.WriteRegister (Ssi263::kRegInflection,

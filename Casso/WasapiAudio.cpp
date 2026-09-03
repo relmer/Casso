@@ -87,11 +87,13 @@ WasapiAudio::~WasapiAudio()
 
 HRESULT WasapiAudio::Initialize()
 {
-    HRESULT          hr             = S_OK;
-    WAVEFORMATEX   * mixFormat      = nullptr;
-    WAVEFORMATEX     desiredFormat  = {};
-    REFERENCE_TIME   bufferDuration = 1000000;  // 100ms
-    BYTE           * buffer         = nullptr;
+    HRESULT                  hr             = S_OK;
+    WAVEFORMATEX           * mixFormat      = nullptr;
+    WAVEFORMATEX             desiredFormat  = {};
+    REFERENCE_TIME           bufferDuration = 1000000;  // 100ms
+    BYTE                   * buffer         = nullptr;
+    uint64_t                 frameSamples   = 0;
+    AudioEndpointNotifier  * notifier       = nullptr;
 
 
 
@@ -100,6 +102,18 @@ HRESULT WasapiAudio::Initialize()
                            nullptr,
                            CLSCTX_ALL,
                            IID_PPV_ARGS (&m_enumerator));
+    CHRA (hr);
+
+    // Watch for the default render endpoint moving before resolving it. The
+    // endpoint below is resolved once, and a later switch of the default
+    // output device leaves it valid, so nothing fails and no HRESULT reports
+    // the change -- this callback is the only notice we get (GH #137).
+    notifier = new AudioEndpointNotifier();
+    CPRA (notifier);
+
+    m_endpointNotifier.Attach (notifier);
+
+    hr = m_enumerator->RegisterEndpointNotificationCallback (m_endpointNotifier.Get());
     CHRA (hr);
 
     // Get default audio endpoint
@@ -172,9 +186,18 @@ HRESULT WasapiAudio::Initialize()
     hr = m_audioClient->GetService (IID_PPV_ARGS (&m_renderClient));
     CHRA (hr);
 
-    // Calculate samples per emulation frame:
-    // sampleRate * cyclesPerFrame / clockSpeed = exact samples per frame
-    m_samplesPerFrame = m_sampleRate * kAppleCyclesPerFrame / kAppleCpuClock;
+    // Samples per emulation frame, TRUNCATED rather than exact: the Apple's
+    // frame rate is kAppleCpuClock / kAppleCyclesPerFrame = 60.05 Hz, not 60,
+    // so 44100 Hz gives 734.3 and this keeps 734. The fraction does not matter
+    // because the only reader is the pending-buffer cap in SubmitFrame.
+    //
+    // The product is taken in 64 bits because a 32-bit multiply wraps once the
+    // endpoint rate passes 252,200 Hz, and pro interfaces do report 352800 and
+    // 384000 shared-mode mix formats. A wrapped product stays positive and
+    // merely looks small, so the cap would have sat at about a third of its
+    // intended depth and starved the mixer.
+    frameSamples      = static_cast<uint64_t> (m_sampleRate) * kAppleCyclesPerFrame / kAppleCpuClock;
+    m_samplesPerFrame = static_cast<UINT32> (frameSamples);
 
     // Pre-fill buffer with silence to avoid initial noise
     hr = m_renderClient->GetBuffer (m_bufferFrames, &buffer);
@@ -213,6 +236,10 @@ Error:
 
 void WasapiAudio::Shutdown()
 {
+    HRESULT  hrUnregister = S_OK;
+
+
+
     // Stop the pump before touching the client: set the flag, then signal
     // the event so the thread observes it without waiting out a timeout.
     m_renderStop.store (true, std::memory_order_relaxed);
@@ -231,6 +258,17 @@ void WasapiAudio::Shutdown()
     {
         m_audioClient->Stop();
     }
+
+    // Unregister before the enumerator is released: the enumerator owns the
+    // registration, so dropping it while notifications are still routed here
+    // is a use-after-free waiting for the next device switch.
+    if (m_enumerator && m_endpointNotifier)
+    {
+        hrUnregister = m_enumerator->UnregisterEndpointNotificationCallback (m_endpointNotifier.Get());
+        IGNORE_RETURN_VALUE (hrUnregister, S_OK);
+    }
+
+    m_endpointNotifier.Reset();
 
     m_renderClient.Reset();
     m_audioClient.Reset();
@@ -258,11 +296,37 @@ void WasapiAudio::Shutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ArmEndpointReopen
+//
+//  CPU THREAD ONLY. The half both recovery routes share: drop the stream and
+//  schedule one reopen. Shutdown joins the render pump, which is why the pump
+//  only reports through m_endpointLossHr and the notification client only
+//  sets a flag -- neither may tear the stream down from its own thread.
+//
+//  The delay is re-armed on every entry, so the burst of notifications
+//  Windows sends while a device settles pushes the single reopen out instead
+//  of producing one attempt each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::ArmEndpointReopen()
+{
+    Shutdown();
+
+    m_deviceLost = true;
+    m_reinitAtMs = GetNowMs() + kReinitRetryMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NoteEndpointLoss
 //
-//  CPU THREAD ONLY. Shutdown joins the render pump, so the pump reports a
-//  dead endpoint through m_endpointLossHr and stops rather than tearing
-//  itself down from inside its own thread.
+//  CPU THREAD ONLY. The endpoint went away under us; the pump recorded the
+//  failing hr and stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,10 +334,29 @@ void WasapiAudio::NoteEndpointLoss (HRESULT hrLoss)
 {
     DEBUGMSG (L"WASAPI endpoint lost (hr=0x%08X). Reopening the default device shortly.\n", hrLoss);
 
-    Shutdown();
+    ArmEndpointReopen();
+}
 
-    m_deviceLost = true;
-    m_reinitAtMs = GetNowMs() + kReinitRetryMs;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteDefaultDeviceChange
+//
+//  CPU THREAD ONLY. The user selected a different default output device. The
+//  endpoint already held stays valid, so the notification is the only signal
+//  there is; without it audio stays on the old device until the next restart
+//  (GH #137).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::NoteDefaultDeviceChange()
+{
+    DEBUGMSG (L"WASAPI default render endpoint changed. Reopening on the new device shortly.\n");
+
+    ArmEndpointReopen();
 }
 
 
@@ -324,6 +407,74 @@ int64_t WasapiAudio::GetNowMs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ServiceEndpointChanges
+//
+//  CPU THREAD ONLY, once per frame. The single recovery route, fed by two
+//  reports: the pump's failing hr for an endpoint that went away, and the
+//  notification client's flag for a default output device the user changed.
+//
+//  It lives OUTSIDE SubmitFrame because a teardown clears m_initialized, and
+//  the owner reaches SubmitFrame only while audio is up: with the recovery
+//  inside, the first teardown closed the only door the reopen could come
+//  through and audio stayed dead until the next restart.
+//
+//  A loss outranks a device change, since the loss carries the hr worth
+//  logging and both arm the same reopen anyway.
+//
+//  The reopen can land on a device with a different mix format, so the
+//  sample rate is free to move across this call. Whatever the owner decoded
+//  at the old rate has to be re-derived; GetSampleRate is what to compare
+//  against.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WasapiAudio::ServiceEndpointChanges()
+{
+    HRESULT  hrLost       = S_OK;
+    HRESULT  hrReopen     = S_OK;
+    bool     defaultMoved = false;
+
+
+
+    hrLost = m_endpointLossHr.exchange (S_OK, std::memory_order_acquire);
+
+    if (FAILED (hrLost))
+    {
+        NoteEndpointLoss (hrLost);
+    }
+    else if (m_endpointNotifier)
+    {
+        defaultMoved = m_endpointNotifier->ConsumeDefaultRenderChange();
+
+        if (defaultMoved)
+        {
+            NoteDefaultDeviceChange();
+        }
+    }
+
+    if (m_deviceLost && GetNowMs() >= m_reinitAtMs)
+    {
+        m_reinitAtMs = GetNowMs() + kReinitRetryMs;
+
+        hrReopen = Initialize();
+
+        // Clearing the flag is what ends the retry. Leaving it set re-entered
+        // Initialize every second over a live stream, and the second pass
+        // assigned over a joinable render thread, which terminates the
+        // process.
+        if (SUCCEEDED (hrReopen))
+        {
+            m_deviceLost = false;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SubmitFrame
 //
 //  Generates one slice of audio -- speaker, drives, Mockingboard -- mixes it,
@@ -365,29 +516,8 @@ HRESULT WasapiAudio::SubmitFrame (
     size_t     prevFrames     = 0;
     UINT32     i              = 0;
     float    * stereoPtr      = nullptr;
-    HRESULT    hrLost         = S_OK;
 
 
-
-    // Device-loss recovery. The pump reports the failing hr and stops; the
-    // teardown happens here because Shutdown joins that very thread, and the
-    // reopen is throttled so a device switch mid-teardown is not hammered.
-    hrLost = m_endpointLossHr.exchange (S_OK, std::memory_order_acquire);
-
-    if (FAILED (hrLost))
-    {
-        NoteEndpointLoss (hrLost);
-    }
-
-    if (m_deviceLost && GetNowMs() >= m_reinitAtMs)
-    {
-        HRESULT  hrReopen = S_OK;
-
-        m_reinitAtMs = GetNowMs() + kReinitRetryMs;
-
-        hrReopen = Initialize();
-        IGNORE_RETURN_VALUE (hrReopen, S_OK);
-    }
 
     BAIL_OUT_IF (!m_initialized || m_renderClient == nullptr, S_OK);
 
