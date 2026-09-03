@@ -2,6 +2,8 @@
 
 #include "CommandLineHelp.h"
 
+#include "CommandLineParser.h"
+
 
 
 
@@ -286,6 +288,100 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
 
     text += "\n\n";
     text += BuildExampleCommands (flagPrefix);
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineHelp::WrapToColumns
+//
+//  Greedy word wrap. A word wider than the budget takes a line to itself
+//  rather than being cut, because every long word in this text is a path or a
+//  flag and half of either is worse than a line that runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineHelp::WrapToColumns (const std::string & text,
+                                            const std::string & indent,
+                                            size_t              columns)
+{
+    std::istringstream  words (text);
+    std::string         wrapped;
+    std::string         line;
+    std::string         word;
+
+
+
+    while (words >> word)
+    {
+        if (line.empty())
+        {
+            line = indent + word;
+            continue;
+        }
+
+        if (line.size() + 1 + word.size() > columns)
+        {
+            wrapped += line + "\n";
+            line     = indent + word;
+            continue;
+        }
+
+        line += " " + word;
+    }
+
+    if (!line.empty())
+    {
+        wrapped += line + "\n";
+    }
+
+    return wrapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineHelp::BuildEmulatorHelp
+//
+//  What Casso.exe takes on its command line, for the box it shows when it was
+//  handed something it could not read, or was asked outright.
+//
+//  COMPOSED FROM THE PARSER'S TABLE rather than written beside it, for the
+//  reason every other page here is: a page written by hand describes the
+//  options somebody remembered, and the one that goes missing is the one added
+//  last. The flag column is not padded to a description column the way the
+//  console pages are -- this text is read in a proportional font, where a
+//  column built from spaces does not line up -- so each description sits
+//  indented under its flag instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineHelp::BuildEmulatorHelp (char flagPrefix)
+{
+    const std::string  indent = "      ";
+    std::string        text;
+
+
+
+    text  = "Usage:\n";
+    text += "  Casso [options]\n";
+    text += "\n";
+    text += "Options:\n";
+
+    for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
+    {
+        text += "  " + CommandLineParser::FormatLongOption (flag.option, flagPrefix)
+                     + flag.valueName + "\n";
+        text += WrapToColumns (flag.description, indent, kEmulatorLineColumns);
+    }
 
     return text;
 }

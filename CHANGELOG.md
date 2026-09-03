@@ -91,6 +91,12 @@ Entries before versioning was introduced use dates only.
   keeps the size it reads at from every pose, which is why it was taken out of the
   scene the first time. The fullscreen overlay strip has nothing in front of its
   drives and keeps the chrome label it had.
+- **Casso started up regardless of what was on its command line.** A mistyped flag,
+  a misspaced one, a stray disk image path and `--help` were all discarded in
+  silence and the emulator booted as though nothing had been asked, so
+  `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
+  An argument Casso cannot read now stops startup and shows the reason above the
+  full usage text, and every form of `--help` shows that text and exits.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
