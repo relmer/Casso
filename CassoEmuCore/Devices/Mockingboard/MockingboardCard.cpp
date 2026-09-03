@@ -26,12 +26,22 @@ MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
     m_audioSource[0].SetPan (1.0f, 0.0f);
     m_audioSource[1].SetPan (0.0f, 1.0f);
 
+    // The card wires both PSGs to the Apple II system clock. Stating it here
+    // keeps the machine's rate in one place instead of leaving each chip
+    // holding its own copy of the number.
+    m_psg[0].SetClock (static_cast<double> (kAppleCpuClock));
+    m_psg[1].SetClock (static_cast<double> (kAppleCpuClock));
+
     // The sound+speech variant installs the voice chip in socket 1. The
     // sound-only variant allocates nothing, so it cannot even accidentally
     // acquire speech behavior.
     if (variant == MockingboardVariant::SoundSpeech)
     {
         m_speech = make_unique<Ssi263>();
+
+        // Tick is fed the CPU's cycle counts, so that -- not the voice chip's
+        // own XCK -- is the clock its phoneme countdown has to be measured in.
+        m_speech->SetTickClock (static_cast<double> (kAppleCpuClock));
     }
 
     m_speechSource.SetSpeech (m_speech.get());
@@ -191,6 +201,10 @@ void MockingboardCard::PowerCycle (Prng & prng)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Tick
+//
+//  Advances the card by `cycles` phi2 clocks. Both the VIA timers and the
+//  voice chip's phoneme countdown are in that domain; the voice chip's own XCK
+//  is a separate clock and never counts here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

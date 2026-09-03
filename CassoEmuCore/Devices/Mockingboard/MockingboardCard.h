@@ -103,7 +103,8 @@ public:
     void    SoftReset  () override;
     void    PowerCycle (Prng & prng) override;
 
-    // Advance both VIA timers by `cycles` phi2 clocks (fires timer IRQs).
+    // Advance both VIA timers and the voice chip by `cycles` phi2 clocks
+    // (fires timer IRQs).
     void    Tick       (uint32_t cycles);
 
     // Register both VIAs' IRQ sources with the shared controller.
