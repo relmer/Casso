@@ -2621,6 +2621,13 @@ void EmulatorShell::SyncSceneDriveChrome()
 //  whatever angle the inspection orbit is showing rather than vanishing the
 //  moment the camera moves.
 //
+//  ON THE DESK THE NAME IS SCENE GEOMETRY, in the strip it stays chrome, and
+//  what decides is whether anything can get in front of the drive. Orbit the
+//  desk and the monitor comes between the camera and a drive, so the name
+//  has to be something the depth buffer can cut. The overlay strip is a bare
+//  row with nothing in front of it, so a chrome label there is occluded by
+//  nothing and costs no texture.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncSceneDriveLabels()
@@ -2636,13 +2643,21 @@ void EmulatorShell::SyncSceneDriveLabels()
     IDxuiTextRenderer *           text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     bool                          visible = DeskSceneActive() && (!fs || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
+    // The strip has nothing in front of its drives, so it keeps the chrome
+    // label; the desk hands its names to the scene instead.
+    bool                          inScene = visible && !onStrip;
+    std::array<std::wstring, 2>   names;
+    int                           halfW   = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                           stripH  = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                           gapPx   = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    SIZE                          cellPx  = { halfW * 2, stripH };
 
 
 
     for (int i = 0; i < (int) m_sceneDriveLabel.size(); i++)
     {
-        std::wstring  name;
-        RECT          rc = {};
+        std::wstring &  name = names[i];
+        RECT            rc   = {};
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
@@ -2675,13 +2690,10 @@ void EmulatorShell::SyncSceneDriveLabels()
         // than the drive's swelling bounds, so it rides the orbit rigidly.
         if (!name.empty())
         {
-            int  halfW = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
-            int  strip = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-
             rc.left   = comp.driveLabelPx[i].x - halfW;
             rc.right  = comp.driveLabelPx[i].x + halfW;
-            rc.top    = comp.driveLabelPx[i].y + m_scaler.ToPx (s_kSceneDriveLabelGapDp);
-            rc.bottom = rc.top + strip;
+            rc.top    = comp.driveLabelPx[i].y + gapPx;
+            rc.bottom = rc.top + stripH;
 
             if (text != nullptr)
             {
@@ -2707,10 +2719,210 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
         m_sceneDriveLabel[i].Layout         (rc, m_scaler);
-        m_sceneDriveLabel[i].SetVisible     (!name.empty());
+        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
 
+        // THE RECT STAYS HONEST EITHER WAY. It anchors the write-protect
+        // tooltip, and the quad covers exactly these pixels, so the hover
+        // target lands on the name whichever way the name was drawn.
         m_sceneDriveLabelRect[i] = name.empty() ? RECT{} : rc;
     }
+
+    if (inScene)
+    {
+        SyncSceneDiskLabelQuads (names, cellPx, gapPx);
+    }
+    else
+    {
+        ClearSceneDiskLabels();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSceneDiskLabelQuads
+//
+//  Puts both names in the scene: one baked texture, two camera-facing quads.
+//
+//  THE TEXTURE IS BAKED ON A CHANGE, THE QUADS ARE SOLVED EVERY PASS. A name
+//  changes when a disk is mounted; the quad changes whenever the camera
+//  moves, because holding a constant pixel size at a moving distance is
+//  exactly what it is for.
+//
+//  The two cells are stacked in one texture and each quad takes its own half
+//  through its uv rect. Both halves are the same size, so drive 1's cell is
+//  simply the second one down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, 2> & names,
+                                             const SIZE                        & cellPx,
+                                             int                                 gapPx)
+{
+    const DeskSceneComposition &  comp = m_deskScene.Composition();
+    IDxuiTextRenderer *           text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    UINT                          texW = 0;
+    UINT                          texH = 0;
+
+
+
+    if (text == nullptr || (names[0].empty() && names[1].empty()))
+    {
+        ClearSceneDiskLabels();
+        return;
+    }
+
+    if (names != m_sceneDiskLabelText ||
+        cellPx.cx != m_sceneDiskLabelCell.cx || cellPx.cy != m_sceneDiskLabelCell.cy)
+    {
+        if (!TryBakeSceneDiskLabels (names, cellPx))
+        {
+            ClearSceneDiskLabels();
+            return;
+        }
+    }
+
+    text->GetDrawToTextureSize (texW, texH);
+
+    if (m_sceneDiskLabelSrv == nullptr || texW == 0 || texH == 0)
+    {
+        ClearSceneDiskLabels();
+        return;
+    }
+
+    for (int i = 0; i < (int) names.size(); i++)
+    {
+        float  corners[4][3] = {};
+        float  uv[4]         = {};
+
+        if (names[i].empty() ||
+            !DeskSceneLayout::TryMakeDriveLabelQuad (comp, i, cellPx, gapPx, corners))
+        {
+            m_deskScene.SetDiskLabel (i, nullptr, nullptr, nullptr);
+            continue;
+        }
+
+        // Against the texture's REAL size, not the size the bake asked for.
+        // The renderer grows that texture and never shrinks it, so the cells
+        // usually cover only part of it and a 0..1 mapping would stretch
+        // whatever else is still in there across the name.
+        uv[0] = 0.0f;
+        uv[1] = (float) (i * cellPx.cy)       / (float) texH;
+        uv[2] = (float) cellPx.cx             / (float) texW;
+        uv[3] = (float) ((i + 1) * cellPx.cy) / (float) texH;
+
+        m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TryBakeSceneDiskLabels
+//
+//  Draws both names into one off-screen texture, stacked, and keeps the view.
+//
+//  ONE TEXTURE FOR THE PAIR because the text renderer owns exactly one: its
+//  view is replaced by the next BeginDrawToTexture, so baking a label per
+//  drive leaves the first drive pointing at the second drive's name. Stacking
+//  the cells is what makes a single bake serve both.
+//
+//  Painted with the same static, color and glow reach the chrome label uses,
+//  so moving a name into the scene does not restyle it.
+//
+//  THE SHADOW IS BAKED IN, not painted over the scene afterwards. The name is
+//  geometry now and can be occluded; a halo laid on in screen space would
+//  stay flat on the glass while the text it belongs to went behind the case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, 2> & names,
+                                            const SIZE                        & cellPx)
+{
+    // Baked white, which is what the chrome label has always defaulted to;
+    // the glow behind it is what separates it from the case.
+    constexpr uint32_t           kLabelArgb = 0xFFFFFFFF;
+    IDxuiTextRenderer         *  text       = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    ID3D11ShaderResourceView  *  srv        = nullptr;
+    float                        fontPx     = 0.0f;
+    HRESULT                      hr         = S_OK;
+
+
+
+    if (text == nullptr || cellPx.cx <= 0 || cellPx.cy <= 0)
+    {
+        return false;
+    }
+
+    hr = text->BeginDrawToTexture ((UINT) cellPx.cx, (UINT) (cellPx.cy * 2));
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    // The same DIP-to-pixel the chrome label paints at, which is also the
+    // size the truncation was measured against.
+    fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+
+    for (int i = 0; i < (int) names.size(); i++)
+    {
+        if (names[i].empty())
+        {
+            continue;
+        }
+
+        DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
+                                         0.0f, (float) (i * cellPx.cy),
+                                         (float) cellPx.cx, (float) cellPx.cy,
+                                         kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                         DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                         DxuiShadowedText::kGlowReachPx);
+    }
+
+    hr = text->EndDrawToTexture (&srv);
+
+    if (FAILED (hr) || srv == nullptr)
+    {
+        return false;
+    }
+
+    m_sceneDiskLabelSrv  = srv;
+    m_sceneDiskLabelText = names;
+    m_sceneDiskLabelCell = cellPx;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClearSceneDiskLabels
+//
+//  Retires both quads and forgets what was baked, so the next name that needs
+//  one bakes rather than reusing a texture drawn for a different cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ClearSceneDiskLabels()
+{
+    for (int i = 0; i < (int) m_sceneDiskLabelText.size(); i++)
+    {
+        m_deskScene.SetDiskLabel (i, nullptr, nullptr, nullptr);
+        m_sceneDiskLabelText[i].clear();
+    }
+
+    m_sceneDiskLabelSrv  = nullptr;
+    m_sceneDiskLabelCell = SIZE {};
 }
 
 
