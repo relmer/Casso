@@ -337,14 +337,16 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  The 2D themes' activity indicator, drawn under the disk name.
 //
-//  It is one mechanism with two behaviors, chosen by the theme rather than by
-//  a theme NAME. A lamp says "busy". This says WHERE, which is the thing the
-//  modeled 3D drive cannot show either: on a machine whose seeks are audible,
-//  watching the core travel while the drive grinds is information.
+//  A lamp says "busy". This says WHERE, which is the thing the modeled 3D
+//  drive cannot show either: on a machine whose seeks are audible, watching
+//  the core travel while the drive grinds is information.
 //
-//      Retro Terminal  the lit core sits at the head's position and slides
-//                      as the head steps
-//      Dark Modern     the core sits centered and reads as a lamp
+//  Both 2D themes track the head. Dark Modern was going to center the core
+//  and read as a plain lamp, on the reasoning that a sliding instrument suits
+//  a terminal and a lamp suits a flat modern shell. Seeing it move settled
+//  that: the position is worth more than the idiom, and a theme flag with one
+//  value everywhere is a branch pretending to be a decision. The two themes
+//  still differ, because each lights its core in its own accent.
 //
 //  The diffuse edge is built from stacked ellipses of falling alpha rather
 //  than a blur, since the painter has no blur and does not need one for a
@@ -395,7 +397,6 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
         return;
     }
 
-    if (theme.driveActivityFollowsHead)
     {
         float  span = (float) kMaxQuarterTrack;
         float  t    = (float) quarter / ((span > 0.0f) ? span : 1.0f);
@@ -403,10 +404,6 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
         // Inset by the core's own half-width so the lit spot stays whole at
         // track 0 and at the last track instead of being clipped by the rail.
         cx = (float) m_barRect.left + coreHalf + t * ((float) barW - 2.0f * coreHalf);
-    }
-    else
-    {
-        cx = (float) m_barRect.left + (float) barW * 0.5f;
     }
 
     // Stacked ellipses, widest and faintest first, so the alpha accumulates
