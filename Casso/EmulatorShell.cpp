@@ -131,7 +131,10 @@ static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWi
 static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
-static constexpr int     s_kDriveWidgetGapDp    = 16;
+// Gap between the two drive rows. Wide, because the compact presentation puts
+// each drive's caption on the same line as the other's rail, and a narrow gap
+// left "DRIVE 2" reading as a label on drive 1's bar.
+static constexpr int     s_kDriveWidgetGapDp    = 44;
 
 //  How long the change band stands before closing itself. Long enough to read
 //  twice without hurrying, short enough that a build loop does not leave a
@@ -330,7 +333,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     int                           clientW,
     int                           clientH,
     UINT                          dpi,
-    float                         sceneScale)
+    float                         sceneScale,
+    int                           visibleCount)
 {
     int            bottomInset   = 0;
     int            commandBarTop = 0;
@@ -365,7 +369,12 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     probe   = driveChrome[0].GetOuterRect();
     widgetW = probe.right  - probe.left;
     widgetH = probe.bottom - probe.top;
-    totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+    // Centered on the drives that will actually SHOW, not on the array. A //c
+    // with its external drive unconnected lays out both and hides the second
+    // right after this, so centering on two left the single visible drive
+    // sitting left of center by half a widget and a gap.
+    visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
+    totalW  = widgetW * visibleCount + gap * (visibleCount - 1);
     x       = std::max (0, (clientW - totalW) / 2);
     // Anchor the widget to the bottom so the margin between the
     // basename label and the window edge mirrors the gap between
@@ -4003,7 +4012,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
         else
         {
-            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale,
+                                            ShouldShowExternalDrive() ? 2 : 1);
         }
 
         m_driveBandSurface.SetVisible (!DeskSceneActive());
@@ -7499,7 +7509,8 @@ bool EmulatorShell::TryPresentUiFrame()
                     m_driveBandSurface.SetBounds (m_stripRectPx);
                     m_driveBandSurface.SetVisible (true);
                     LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
-                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f);
+                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
+                                                    ShouldShowExternalDrive() ? 2 : 1);
 
                     if (!ShouldShowExternalDrive())
                     {
@@ -12342,7 +12353,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
             else if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi,
+                                                m_chromeSceneScale, ShouldShowExternalDrive() ? 2 : 1);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional

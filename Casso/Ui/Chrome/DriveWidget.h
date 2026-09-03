@@ -115,6 +115,18 @@ public:
     {
         RECT  r = m_bodyRect;
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
+
+        // The compact caption sits to the LEFT of the body, so the occupied
+        // region starts at the caption rather than at the click band. Without
+        // this the placement centers the band alone and every caption hangs
+        // off the left of where the row was meant to be. Skeuo leaves the
+        // caption rect empty, hence the guard.
+        if (m_captionRect.right > m_captionRect.left)
+        {
+            if (m_captionRect.left   < r.left)   { r.left   = m_captionRect.left;   }
+            if (m_captionRect.bottom > r.bottom) { r.bottom = m_captionRect.bottom; }
+        }
+
         return r;
     }
 
@@ -169,28 +181,39 @@ private:
     // clicking the door. A card would be a picture of hardware, which is the
     // one thing a flat theme is not trying to show.
     //
-    //     [ casso-rocks.dsk ]   name, the control, marquees when long
-    //     [ ....(o).......... ]  head position, or the activity lamp
-    //     DRIVE 1                caption, small and left aligned
+    //     DRIVE 1  [ casso-rocks.dsk ]   name, the control, marquees
+    //              [ ....(o).......... ]  head position, or the lamp
+    //
+    // The caption sits to the LEFT of the stack and is bottom aligned with
+    // the rail, so both drives' captions land on one line.
     //
     // The band is a FIXED width so the click target does not shrink with the
     // filename. "(empty)" is the state where clicking matters most and would
     // otherwise offer the smallest target on screen.
-    static constexpr int     kCompactBodyWidthPx    = 140;
-    static constexpr int     kCompactBodyHeightPx   = 52;
-    static constexpr int     kCompactNameHeightPx   = 20;
-    static constexpr int     kCompactBarGapPx       = 3;
-    static constexpr int     kCompactBarHeightPx    = 5;
-    static constexpr int     kCompactCaptionGapPx   = 2;
-    // Taller than the caption's ink needs, because the widget is anchored to
-    // the BOTTOM of the drive band with only a 2 dp gap under it. The row
-    // carries its own breathing room rather than the shared gap growing,
-    // which the skeuo drives also use and do not want changed.
-    static constexpr int    kCompactCaptionHeightPx = 22;
-    static constexpr int    kCompactPadPx           = 10;
-    static constexpr int    kCompactCornerPx        = 4;
-    static constexpr float  kCompactFontDip         = 12.0f;
-    static constexpr float  kCompactCaptionFontDip  = 10.0f;
+    static constexpr int  kCompactBodyWidthPx     = 140;
+    static constexpr int  kCompactBodyHeightPx    = 36;
+    static constexpr int  kCompactNameHeightPx    = 20;
+    static constexpr int  kCompactBarGapPx        = 3;
+    static constexpr int  kCompactBarHeightPx     = 5;
+    static constexpr int  kCompactCaptionGapPx    = 2;
+    static constexpr int  kCompactCaptionHeightPx = 14;
+
+    // The caption's own column, left of the stack. Fixed rather than measured
+    // so drive 1 and drive 2 put their names at the same x and the two stacks
+    // line up. A measured column would drift with the font.
+    static constexpr int     kCompactCaptionWidthPx  = 50;
+    static constexpr int     kCompactCaptionGapXPx   = 8;
+
+    // Dead space below the rail, inside the click band. The widget is bottom
+    // anchored in the drive bar with a 2 dp gap under it, so without this the
+    // rail sits on the window edge and the lit core is clipped in half. It is
+    // part of the band rather than a separate margin so the click target
+    // gains it too, which a target this thin can use.
+    static constexpr int    kCompactBottomPadPx    = 8;
+    static constexpr int    kCompactPadPx          = 10;
+    static constexpr int    kCompactCornerPx       = 4;
+    static constexpr float  kCompactFontDip        = 12.0f;
+    static constexpr float  kCompactCaptionFontDip = 10.0f;
 
     // The head-position bar spans the disk's 140 quarter-tracks. The lit core
     // is drawn as stacked ellipses of falling alpha rather than one shape,

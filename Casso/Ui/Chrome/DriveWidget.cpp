@@ -243,27 +243,32 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         int  nameH    = Scale (kCompactNameHeightPx,     dpi);
         int  barGap   = Scale (kCompactBarGapPx,         dpi);
         int  barH     = Scale (kCompactBarHeightPx,      dpi);
-        int  capGap   = Scale (kCompactCaptionGapPx,     dpi);
+        int  capW     = Scale (kCompactCaptionWidthPx,   dpi);
+        int  capGapX  = Scale (kCompactCaptionGapXPx,    dpi);
         int  capH     = Scale (kCompactCaptionHeightPx,  dpi);
+        int  bandX    = x + capW + capGapX;
 
         // The name row IS m_labelRect, which is what PaintBasenameLabel
         // marquees and hangs the padlock off. Moving that rect to the top of
         // the stack brings the marquee, the clip and both badges with it, so
         // none of that had to be rewritten for the new arrangement.
-        m_labelRect.left   = x;
+        m_labelRect.left   = bandX;
         m_labelRect.top    = y;
-        m_labelRect.right  = x + cBandW;
+        m_labelRect.right  = bandX + cBandW;
         m_labelRect.bottom = y + nameH;
 
-        m_barRect.left     = x;
+        m_barRect.left     = bandX;
         m_barRect.top      = m_labelRect.bottom + barGap;
-        m_barRect.right    = x + cBandW;
+        m_barRect.right    = bandX + cBandW;
         m_barRect.bottom   = m_barRect.top + barH;
 
+        // Caption column to the LEFT, its text bottom aligned with the rail
+        // so both drives' captions sit on one line no matter what the stack
+        // above them is doing.
         m_captionRect.left   = x;
-        m_captionRect.top    = m_barRect.bottom + capGap;
-        m_captionRect.right  = x + cBandW;
-        m_captionRect.bottom = m_captionRect.top + capH;
+        m_captionRect.right  = x + capW;
+        m_captionRect.bottom = m_barRect.bottom;
+        m_captionRect.top    = m_captionRect.bottom - capH;
 
         // The band spans the whole stack and IS the door. HitTest checks the
         // eject rect first, so making it the band means a click anywhere on
@@ -271,10 +276,10 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         // the skeuo door click does. The compact widget offered no eject at
         // all before this: it left m_ejectRect empty, so HitTest could only
         // ever answer Body, and a 2D theme had no way to empty a drive.
-        m_bodyRect.left   = x;
+        m_bodyRect.left   = bandX;
         m_bodyRect.top    = y;
-        m_bodyRect.right  = x + cBandW;
-        m_bodyRect.bottom = m_captionRect.bottom;
+        m_bodyRect.right  = bandX + cBandW;
+        m_bodyRect.bottom = m_barRect.bottom + Scale (kCompactBottomPadPx, dpi);
 
         m_faceRect  = m_bodyRect;
         m_slotRect  = {};
@@ -571,10 +576,14 @@ void DriveWidget::Paint (
             // size with the filename would be a different control per disk.
             if (m_bandHovered)
             {
+                // Painted to the RAIL, not to the band's full height. The band
+                // carries dead space below the rail so the click target is not
+                // as thin as the ink, but a highlight over that space would
+                // read as a box hanging below the control.
                 painter.FillRect ((float) m_bodyRect.left,
                                   (float) m_bodyRect.top,
-                                  (float) (m_bodyRect.right  - m_bodyRect.left),
-                                  (float) (m_bodyRect.bottom - m_bodyRect.top),
+                                  (float) (m_bodyRect.right - m_bodyRect.left),
+                                  (float) (m_barRect.bottom - m_bodyRect.top),
                                   theme.buttonHover);
             }
 

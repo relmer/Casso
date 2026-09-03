@@ -493,13 +493,18 @@ private:
     // Window-placement and chrome-layout helpers. Every reader is an
     // EmulatorShell method, so they belong to the class rather than to
     // the translation unit.
+    // visibleCount is how many drives will be SHOWN, which is not always the
+    // array size: the row is centered on that, so a //c with no external
+    // drive centers its one drive rather than leaving a gap where the second
+    // would have been.
     static void  LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
         int                           bottomInsetPx,
         int                           clientW,
         int                           clientH,
         UINT                          dpi,
-        float                         sceneScale);
+        float                         sceneScale,
+        int                           visibleCount);
 
     static bool  TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
 
