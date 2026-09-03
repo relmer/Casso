@@ -19,25 +19,26 @@
 ;
 ;  Speech and song are paced differently, on purpose.
 ;
-;  SPOKEN lines use the chip's own handshake: write a phoneme, then poll bit 7
-;  of the phoneme register until the chip requests the next one. That is what
-;  period speech drivers did, and it lets each phoneme run for the duration its
-;  own DR bits ask for.
+;  SPOKEN lines are paced by this program's own cycle-counted delays. They do
+;  NOT poll the chip's request line, because on a Mockingboard that cannot
+;  work: the first 6522 decodes only A0-A3 and A7, so it answers everywhere in
+;  $C400-$C47F, and $C440 is that VIA's port B. Every speech write lands in
+;  both chips -- a phoneme byte to $C440 is also an ORB write, and the rate
+;  byte to $C442 is also a DDRB write -- and a read returns the VIA's IRB, not
+;  the voice chip, which drives nothing on a read. Polling D7 there reads back
+;  the phoneme this program itself just wrote, through whichever port B bits
+;  the rate byte last left as outputs. Reading A/R back is a Phasor native
+;  mode facility; the Mockingboard route is A/R to VIA #1's CA1.
 ;
-;  Two things guard that handshake, because A/R is the part of this chip that
-;  varies most between hosts.
+;  So the wait is computed instead of asked for. A phoneme sounds for
+;  4096 * (16 - rate) * (4 - DR) chip ticks, and PhonemeWait counts out that
+;  same product. Tempo becomes a property of this disk rather than of the host
+;  clock, which is what a demo meant to be passed between emulators needs.
 ;
-;  The demo masks interrupts and never unmasks them. A/R is an output pin, and
-;  on a real Mockingboard it runs to VIA #1's CA1; a host that instead drives
-;  the CPU's interrupt line from it will interrupt this program after the very
-;  first phoneme. There is no DOS here and so no handler behind $03FE, so that
-;  interrupt reaches a garbage vector and the machine reboots -- which loops
-;  the demo forever on its first word rather than failing outright.
-;
-;  And the poll carries a deadline sized from the phoneme's own duration, so a
-;  host whose read does not report A/R paces the line instead of hanging on it.
-;  A phoneme lasts 4096 * (16 - rate) * (4 - DR) chip ticks; the deadline is
-;  twice that product, far enough out that a working request always wins.
+;  The phoneme is re-written once at the halfway point so the chip is still
+;  sounding whichever rate its timer runs at, and so the next phoneme always
+;  reloads a sounding chip rather than restarting a silent one -- no seam at
+;  the boundary, the same trick Sing uses to hold a note.
 ;
 ;  SUNG notes cannot work that way. A single phoneme write sounds for at most
 ;  146 ms (4096 * 16 * 4 chip ticks at the slowest rate), which is shorter than
@@ -145,11 +146,13 @@ CAPROW  = $0E              ; which of the four caption rows
 CAPLEN  = $0F              ; characters left to print
 TMP     = $10
 RATEC   = $11              ; 16 - the current speech rate, for the poll deadline
-PDL     = $12              ; poll deadline, in 256-iteration units
+HALF    = $12              ; units left after the mid-phoneme reload
 
 
 start
-    sei                         ; see the note on A/R above; never unmasked
+    sei                         ; reset masks interrupts and nothing here
+                                ; unmasks them; A/R reaches VIA #1's CA1 and
+                                ; no handler stands behind $03FE
 
     jsr ScreenInit
 
@@ -275,16 +278,8 @@ spk_next
     ; the moment its countdown expires, and every cycle spent before the next
     ; write is a cycle of decaying output.
     sta SPHON
-    jsr SetDeadline             ; A still holds the phoneme byte
+    jsr PhonemeWait             ; A still holds the phoneme byte
     jsr Advance1
-spk_poll
-    lda SPHON                   ; D7 set = the chip wants the next phoneme
-    bmi spk_asked
-    dey
-    bne spk_poll
-    dec PDL
-    bne spk_poll
-spk_asked
     jmp spk_next
 
 spk_cap
@@ -334,16 +329,30 @@ spk_done
 
 
 ; ============================================================================
-;  SetDeadline -- size the A/R wait from the phoneme's own duration
+;  PhonemeWait -- hold for the length the phoneme's own DR bits asked for
 ;
-;  A phoneme lasts 4096 * (16 - rate) * (4 - DR) chip ticks, so the product of
-;  those two terms is its length in units the poll loop can count out. The
-;  deadline is twice the product, which on a host whose A/R read works arrives
-;  long after the request and is never reached.
+;  A phoneme sounds for 4096 * (16 - rate) * (4 - DR) chip ticks. RATEC carries
+;  16 - rate, refreshed by every pitch escape, and DR is D7:6 of the phoneme
+;  byte, so the product is the length in units of 4096 ticks: 1 unit at the
+;  fastest rate and shortest duration, 64 at the slowest and longest, which is
+;  the 146 ms ceiling quoted at the top of this file.
 ;
-;  Entry: A = the phoneme byte, DR in D7:6.  Exit: PDL set, Y = 0.
+;      DR = %11 -> 1 unit       DR = %01 -> 3 units
+;      DR = %10 -> 2 units      DR = %00 -> 4 units
+;
+;  A unit here is 4096 machine cycles, matching what the chip's own countdown
+;  spends on one, so the tempo is the one these streams were written against.
+;
+;  Halfway through, the phoneme is written again. That reloads a countdown that
+;  is still running rather than restarting a chip that has fallen silent, which
+;  keeps the line seamless whether the host's phoneme timer is fast or slow.
+;
+;  Entry: A = the phoneme byte, DR in D7:6.  Clobbers A, X, Y, TMP, UNITS,
+;  HALF and CURPH -- none of which is live across a phoneme.
 ; ============================================================================
-SetDeadline
+PhonemeWait
+    sta CURPH                   ; kept for the reload halfway through
+
     lsr a
     lsr a
     lsr a
@@ -357,15 +366,51 @@ SetDeadline
     sta TMP                     ; 4 - DR, so 1 to 4
 
     lda #$00
-sd_add
+pw_add
     clc
     adc RATEC
     dec TMP
-    bne sd_add                  ; (16 - rate) * (4 - DR), at most 64
+    bne pw_add                  ; (16 - rate) * (4 - DR), 1 to 64
 
-    asl a                       ; twice over, so a live request always wins
-    sta PDL
+    sta TMP
+    lsr a
+    sta HALF                    ; the back half
+    lda TMP
+    sec
+    sbc HALF
+    sta UNITS                   ; the front half, never zero
+    jsr BurnUnits
+
+    lda HALF
+    beq pw_done
+    sta UNITS
+    lda CURPH
+    sta SPHON                   ; reload the phoneme, still sounding
+    jsr BurnUnits
+pw_done
+    rts
+
+
+; ============================================================================
+;  BurnUnits -- spend UNITS units of 4096 machine cycles
+;
+;  The inner pass is bit-dey-bne, eight cycles, and 256 of them make 2048; two
+;  laps make the unit. The bit is there only to spend three cycles on nothing,
+;  and it reads TMP because TMP is dead by now.
+; ============================================================================
+BurnUnits
+bu_unit
+    ldx #$02
+bu_lap
     ldy #$00
+bu_inner
+    bit TMP
+    dey
+    bne bu_inner
+    dex
+    bne bu_lap
+    dec UNITS
+    bne bu_unit
     rts
 
 
