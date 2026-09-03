@@ -48,10 +48,13 @@ audio-rate independence, a different axis.
    convert at load time (`seconds * tickClockHz`) or scale in `Tick()`. Either
    way, make both clock domains explicit and named so this cannot silently
    regress.
-2. The chip needs to know the tick-domain rate. There is a `SetClock()` seam;
-   check who calls it and whether the card/shell should pass the machine's CPU
-   clock. Careful: `SetClock` may currently be understood as setting XCK. If one
-   variable now has to represent two clocks, split it.
+2. The chip needs to know the tick-domain rate. There is a `SetClock()` seam --
+   and **it has no callers anywhere in the tree** (`Ssi263.cpp:171`), so it is
+   dead code you can redefine without breaking any caller. `Ay8910::SetClock`
+   looks uncalled too, which may fold into item 5. Decide whether the card or
+   the shell should now pass the machine CPU clock through it. If one variable
+   has to represent two different clocks, split it rather than overloading it.
+   (Verified independently by the relmer-desktop relay against the tree.)
 3. **Put the conversion where a test can reach it.** `EmulatorShell.cpp` is NOT
    compiled into the UnitTest project in this tree, so any logic that lands there
    is unverifiable — which is how this bug survived. The conversion belongs in
