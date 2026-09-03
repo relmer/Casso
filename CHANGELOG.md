@@ -55,6 +55,10 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **GH #137: audio follows a change of the default output device.** The output
+  device was resolved once at startup, so selecting a different speaker or
+  headset left the sound on the old one until the next launch. Sounds are
+  re-decoded when the new device runs at a different sample rate.
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
