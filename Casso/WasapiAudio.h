@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Audio/AudioEndpointNotifier.h"
+
 
 class DriveAudioMixer;
 
@@ -32,6 +34,9 @@ public:
 
     HRESULT Initialize();
     void    Shutdown   ();
+
+    // CPU thread, once per frame, even while IsInitialized() is false.
+    void  ServiceEndpointChanges();
 
     // Submit one audio slice from speaker toggle timestamps. The
     // optional `driveMixer` parameter is the host's per-frame
@@ -70,12 +75,22 @@ private:
     void    RenderPump ();
     void    DrainFrames (UINT32 toWrite, BYTE * buffer);
 
-    // The endpoint died under us (AUDCLNT_E_DEVICE_INVALIDATED and friends:
-    // default-device switch, dock/undock, driver reset). Tears the client
-    // down and arms the throttled re-open in SubmitFrame. An expected
-    // runtime condition, never an assert.
-    void     NoteEndpointLoss (HRESULT hrLoss);
-    int64_t  GetNowMs         () const;
+    // Tear the client down and arm the throttled reopen. Two ways in, one
+    // recovery path.
+    //
+    // NoteEndpointLoss is the endpoint dying under us: dock/undock, driver
+    // reset, the device going away (AUDCLNT_E_DEVICE_INVALIDATED and
+    // friends). An expected runtime condition, never an assert.
+    //
+    // NoteDefaultDeviceChange is the user selecting a different output
+    // device. That does NOT invalidate the endpoint already held -- it stays
+    // present and every call on it keeps succeeding -- so nothing fails and
+    // the loss path never fires. An IMMNotificationClient is the only way to
+    // hear about it (GH #137).
+    void     ArmEndpointReopen      ();
+    void     NoteEndpointLoss       (HRESULT hrLoss);
+    void     NoteDefaultDeviceChange();
+    int64_t  GetNowMs               () const;
 
     // PUMP THREAD's half of that: record the FIRST failing hr and let the
     // pump stop. A later failure must not overwrite it, or the reason the
@@ -86,6 +101,12 @@ private:
     ComPtr<IMMDevice>            m_device;
     ComPtr<IAudioClient>         m_audioClient;
     ComPtr<IAudioRenderClient>   m_renderClient;
+
+    // Registered on m_enumerator for the life of the stream and unregistered
+    // before it is released. Held through a ComPtr because it is
+    // reference-counted: a notification still in flight on an MMDevice
+    // thread keeps the object alive by itself.
+    ComPtr<AudioEndpointNotifier>  m_endpointNotifier;
 
     UINT32  m_bufferFrames    = 0;
     UINT32  m_sampleRate      = 44100;
@@ -123,7 +144,8 @@ private:
     // Endpoint loss and the throttled reopen. The PUMP ONLY REPORTS: it
     // records the failing hr and stops, because Shutdown joins the render
     // thread and calling it from inside that thread would join itself. The
-    // teardown and the retry both run on the CPU thread, in SubmitFrame.
+    // teardown and the retry both run on the CPU thread, in
+    // ServiceEndpointChanges.
     std::atomic<HRESULT>  m_endpointLossHr { S_OK };
     bool                  m_deviceLost = false;
     int64_t               m_reinitAtMs = 0;

@@ -55,6 +55,10 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **GH #137: audio follows a change of the default output device.** The output
+  device was resolved once at startup, so selecting a different speaker or
+  headset left the sound on the old one until the next launch. Sounds are
+  re-decoded when the new device runs at a different sample rate.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

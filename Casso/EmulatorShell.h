@@ -351,6 +351,10 @@ private:
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
 
+    // Decodes the drive, printer and PSG sounds to the host device's sample
+    // rate. CPU thread only.
+    void LoadAudioAssetsForDeviceRate();
+
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();
@@ -1711,6 +1715,11 @@ private:
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
+
+    // Host sample rate the loaded sounds were decoded at, 0 before the first
+    // load. Compared against the live device rate each frame so a reopen onto
+    // a device with a different mix format re-decodes them.
+    uint32_t                      m_audioAssetSampleRate = 0;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
