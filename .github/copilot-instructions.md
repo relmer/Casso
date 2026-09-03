@@ -816,12 +816,17 @@ in conversation.
   other type
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`,
   `ci`, `build`, `merge`
-- **A subject is a label, not a sentence.** Give a short noun label for the
-  area, then the specific changes in parentheses. This is not a style
-  preference. A sentence needs a subject, the only subject on offer is the
-  area being changed, and an area cannot act, so writing a sentence produces
-  an anthropomorphic subject every time.
+- **A subject is a label, not a sentence about the area.** Give a short noun
+  label, or an imperative phrase. This is not a style preference. A
+  declarative sentence needs a subject, the only subject on offer is the area
+  being changed, and an area cannot act, so writing one produces an
+  anthropomorphic subject every time. An imperative supplies no subject, so
+  it does not.
+- **Parentheses are optional.** They add specifics to a title too generic to
+  carry them, which is mostly merges. A title that already says what changed
+  takes nothing after it.
 - Examples:
+  - `fix(settings): apply theme defaults on theme change`
   - `feat(cpu): stack operations (PHA, PLA)`
   - `fix(ops): ShiftLeft dispatch (ASL not ROL)`
   - `test(adc): signed overflow edge cases`
