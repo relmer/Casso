@@ -78,6 +78,11 @@ public:
             m_marqueeStartMs = nowMs;
         }
 
+        // The compact band's button treatment rides this same signal rather
+        // than a second hit test, so the highlight and the marquee can never
+        // disagree about whether the pointer is on the control.
+        m_bandHovered = inside;
+
         m_marqueeHovered = inside;
     }
 
@@ -159,16 +164,40 @@ private:
     static constexpr float   kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float   kMarqueeGapDip         = 25.0f;
 
-    // Compact paint-path dimensions. The compact widget is a flat
-    // rounded card with "DRIVE N" on the left and the status LED on
-    // the right -- no 3D case top, no door, no cassowary. Total
-    // height is sized so the drive bar can shrink the bottom inset
-    // dramatically when the active theme requests compact drives.
-    static constexpr int     kCompactBodyWidthPx  = 140;
-    static constexpr int     kCompactBodyHeightPx = 40;
-    static constexpr int     kCompactPadPx        = 10;
-    static constexpr int     kCompactCornerPx     = 4;
-    static constexpr float   kCompactFontDip      = 12.0f;
+    // Compact paint-path dimensions, used by the 2D themes. There is NO
+    // card: the mounted disk's name is the control, and clicking it is
+    // clicking the door. A card would be a picture of hardware, which is the
+    // one thing a flat theme is not trying to show.
+    //
+    //     [ casso-rocks.dsk ]   name, the control, marquees when long
+    //     [ ....(o).......... ]  head position, or the activity lamp
+    //     DRIVE 1                caption, small and left aligned
+    //
+    // The band is a FIXED width so the click target does not shrink with the
+    // filename. "(empty)" is the state where clicking matters most and would
+    // otherwise offer the smallest target on screen.
+    static constexpr int     kCompactBodyWidthPx    = 140;
+    static constexpr int     kCompactBodyHeightPx   = 52;
+    static constexpr int     kCompactNameHeightPx   = 20;
+    static constexpr int     kCompactBarGapPx       = 3;
+    static constexpr int     kCompactBarHeightPx    = 5;
+    static constexpr int     kCompactCaptionGapPx   = 2;
+    // Taller than the caption's ink needs, because the widget is anchored to
+    // the BOTTOM of the drive band with only a 2 dp gap under it. The row
+    // carries its own breathing room rather than the shared gap growing,
+    // which the skeuo drives also use and do not want changed.
+    static constexpr int    kCompactCaptionHeightPx = 22;
+    static constexpr int    kCompactPadPx           = 10;
+    static constexpr int    kCompactCornerPx        = 4;
+    static constexpr float  kCompactFontDip         = 12.0f;
+    static constexpr float  kCompactCaptionFontDip  = 10.0f;
+
+    // The head-position bar spans the disk's 140 quarter-tracks. The lit core
+    // is drawn as stacked ellipses of falling alpha rather than one shape,
+    // which is how the diffuse edge is built without a blur.
+    static constexpr int     kCompactBarCoreHalfPx  = 6;
+    static constexpr int     kCompactBarLayers      = 4;
+    static constexpr int     kMaxQuarterTrack       = 139;
 
     // Write-protect padlock badge. The lock glyph drawn beside the mounted
     // disk's BASENAME whenever that disk is write-protected by any source --
@@ -193,6 +222,9 @@ private:
     static constexpr uint32_t kDamageFillArgb      = 0xFFE8A317;   // amber body
     static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
+
+    // Compact only. The head-position bar under the disk name.
+    void  PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme & theme, UINT dpi);
 
     static bool  IsPointInRect (const RECT & rect, int x, int y);
     static int   Scale         (int value, UINT dpi);
@@ -236,6 +268,15 @@ private:
     RECT                 m_slotRect          = {};
     RECT                 m_ejectRect         = {};
     RECT                 m_labelRect         = {};
+
+    // Compact only. The head-position bar and the "DRIVE N" caption under it.
+    RECT                 m_barRect           = {};
+    RECT                 m_captionRect       = {};
+
+    // Compact only. True while the pointer is inside the hit band, which
+    // gives the name its button treatment. The shell already tells the widget
+    // about hover for the marquee, so this rides that same signal.
+    bool                 m_bandHovered       = false;
     LedIndicator         m_led;
     DriveWidgetState     m_state;
     UINT                 m_dpi               = 96;

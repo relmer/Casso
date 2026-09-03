@@ -39,6 +39,15 @@ struct CassoTheme : public DxuiTheme
     // preserved across theme swaps.
     bool      compactDrives  = false;
 
+    // Compact themes only. Whether the drive's activity indicator tracks the
+    // HEAD, sliding along its rail as the head steps, or sits centered and
+    // reads as a plain lamp. Both are the same stacked-ellipse shape.
+    //
+    // A token rather than a theme name on purpose. Theme names are resolved
+    // in exactly one place, MakeByName, and a widget that asked "am I the
+    // retro theme?" would be the second.
+    bool      driveActivityFollowsHead = false;
+
     uint32_t  driveBody  = 0;
     uint32_t  driveBezel = 0;
     uint32_t  driveLabel = 0;
@@ -165,6 +174,10 @@ struct CassoTheme : public DxuiTheme
         // P1 phosphor on near-black: deep green-black panels with
         // bright phosphor-green labels and LEDs to evoke a CRT cabinet.
         theme.compactDrives                 = true;
+
+        // A terminal shows status as information, not as a lamp, so the
+        // drive's indicator carries the head position.
+        theme.driveActivityFollowsHead      = true;
         theme.titleBarTop               = 0xFF16381E;
         theme.titleBarBottom            = 0xFF0A1F0E;
         theme.titleText                 = 0xFFB7FCB9;
