@@ -211,6 +211,14 @@ private:
     // off the end index made it as long as the whole slice.
     uint32_t              m_headSliceStart = 0;
 
+    // A ROAMING read position through the clip's body. Each gesture takes the
+    // next stretch of the recording and the cursor wraps when it runs out, so
+    // consecutive seeks draw different material instead of replaying one
+    // fragment. A real mechanism never makes exactly the same noise twice,
+    // and identical repeats are most of what makes a sampled texture sound
+    // like a sound effect.
+    uint32_t              m_headRoam = 0;
+
     // Quarter-track the last step reported, so the next one yields a
     // distance. -1 means no step has been seen, which is not the same as a
     // step at quarter-track 0.
@@ -230,6 +238,11 @@ private:
     // out at 0.27 of level on Alps and 0.51 on Shugart. Short moves were not
     // just short, they were faint.
     //
+    // The clip's usable BODY, as percentages of its length. Outside these the
+    // recording is ramping in or dying away, which is the shape of a seek
+    // beginning and ending -- fine for a full stroke that plays the lot, wrong
+    // for a slice taken out of the middle.
+    //
     // Measured level of a one-track slice against each clip's own body, by
     // where the slice starts:
     //
@@ -238,10 +251,24 @@ private:
     //     Shugart 0.58   1.33   0.95   1.34
     //
     // Alps ramps for about 40 ms, so four percent was not enough for it even
-    // though it was plenty for Shugart. Twelve puts both at or above the
-    // level of their own sustained middle, and costs a full-stroke seek only
-    // the part of the recording that was ramping in anyway.
-    static constexpr int  kHeadLeadInPercent = 12;
+    // though it was plenty for Shugart.
+    static constexpr int  kHeadBodyStartPercent = 12;
+    static constexpr int  kHeadBodyEndPercent   = 92;
+
+    // Ramp on and off a slice. BOTH ends: a slice lifted out of the middle of
+    // a rattle starts mid-waveform as well as ending mid-waveform, and an
+    // instant onset is as much of a click as an instant cut. The first pass
+    // ramped only the end, and short seeks read as sound effects being
+    // triggered rather than as a mechanism running.
+    //
+    // Long enough to be heard as a fade rather than a cut. An eighth of a
+    // slice was the first try and gave a one-track move about 1.5 ms, which
+    // is a cut with extra steps.
+    static constexpr uint32_t  kHeadRampSamples = 256;
+
+    // Below this a slice is too short to ramp meaningfully, so it plays flat
+    // rather than being swallowed by its own envelope.
+    static constexpr uint32_t  kHeadMinRampSlice = 64;
 
     // Fade applied at the end of a slice. The cut lands in the middle of a
     // rattle, and stopping a waveform mid-cycle is a click. Short enough not

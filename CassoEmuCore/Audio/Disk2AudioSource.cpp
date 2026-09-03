@@ -540,17 +540,37 @@ void Disk2AudioSource::OnHeadStep (int newQt)
     }
     else
     {
-        // A fresh step, or a burst whose slice already ran out. Start with
-        // only what this step paid for, PAST the clip's quiet lead-in: a
-        // slice this short would otherwise be most of the way through the
-        // ramp-in before it ended.
-        uint32_t  leadIn = (uint32_t) ((m_stepBuf.size() * (size_t) kHeadLeadInPercent) / 100);
+        // A fresh step, or a burst whose slice already ran out. It takes the
+        // NEXT stretch of the recording rather than restarting at a fixed
+        // point, so two seeks in a row do not play the same fragment.
+        size_t    total    = m_stepBuf.size();
+        uint32_t  bodyLo   = (uint32_t) ((total * (size_t) kHeadBodyStartPercent) / 100);
+        uint32_t  bodyHi   = (uint32_t) ((total * (size_t) kHeadBodyEndPercent)   / 100);
 
-        m_seekMode  = withinSeekWindow;
-        m_headBuf   = &m_stepBuf;
-        m_headPos        = leadIn;
-        m_headLimit      = leadIn + slice;
-        m_headSliceStart = leadIn;
+        if (bodyHi <= bodyLo)
+        {
+            bodyLo = 0;
+            bodyHi = (uint32_t) total;
+        }
+
+        if (m_headRoam < bodyLo || m_headRoam >= bodyHi)
+        {
+            m_headRoam = bodyLo;
+        }
+
+        // A slice that would run off the end of the body wraps to its start
+        // rather than being cut short, so distance still governs duration.
+        if (m_headRoam + slice > bodyHi)
+        {
+            m_headRoam = bodyLo;
+        }
+
+        m_seekMode       = withinSeekWindow;
+        m_headBuf        = &m_stepBuf;
+        m_headPos        = m_headRoam;
+        m_headLimit      = m_headRoam + slice;
+        m_headSliceStart = m_headRoam;
+        m_headRoam      += slice;
     }
 
     if (m_headBuf != nullptr && m_headLimit > (uint32_t) m_headBuf->size())
@@ -953,9 +973,10 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
 
 void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
-    uint32_t  len     = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
-    uint32_t  i       = 0;
-    uint32_t  release = 0;
+    uint32_t  len      = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
+    uint32_t  i        = 0;
+    uint32_t  ramp     = 0;
+    uint32_t  sliceLen = 0;
 
 
 
@@ -978,20 +999,38 @@ void Disk2AudioSource::MixHead (float * out, uint32_t n)
     // a flat 128-sample release would spend most of the slice fading and the
     // step would arrive as a swell instead of a tick. Bounded above so a long
     // seek does not fade for a tenth of a second.
-    release = (len > m_headSliceStart) ? ((len - m_headSliceStart) / 8) : 0;
+    // Ramp BOTH ends. A slice out of the middle of a rattle begins and ends
+    // mid-waveform, and an instant onset clicks exactly as an instant cut
+    // does. A slice too short to ramp plays flat rather than being swallowed
+    // by its own envelope.
+    sliceLen = (len > m_headSliceStart) ? (len - m_headSliceStart) : 0;
 
-    if (release > kHeadReleaseSamples)
+    if (sliceLen >= kHeadMinRampSlice)
     {
-        release = kHeadReleaseSamples;
+        ramp = sliceLen / 4;
+
+        if (ramp > kHeadRampSamples)
+        {
+            ramp = kHeadRampSamples;
+        }
     }
 
     for (i = 0; i < n && m_headPos < len; i++)
     {
-        float  gain = m_headVolume;
+        float     gain = m_headVolume;
+        uint32_t  into = m_headPos - m_headSliceStart;
+        uint32_t  left = len - m_headPos;
 
-        if (release > 0 && (len - m_headPos) < release)
+        if (ramp > 0)
         {
-            gain *= (float) (len - m_headPos) / (float) release;
+            if (into < ramp)
+            {
+                gain *= (float) (into + 1) / (float) ramp;
+            }
+            else if (left < ramp)
+            {
+                gain *= (float) left / (float) ramp;
+            }
         }
 
         out[i] += (*m_headBuf)[m_headPos] * gain;
