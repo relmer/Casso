@@ -53,7 +53,11 @@ $outBin = [System.IO.Path]::ChangeExtension($srcPath, '.bin')
 # the .bin. Pre-delete so genuine failure (no .bin) is distinguishable.
 if (Test-Path $outBin) { Remove-Item $outBin }
 
-& $cli as65 $srcPath -o $outBin -q -z | Out-Null
+# --flat asks for the full 64 KB padded image. The default output is the
+# unpadded span from the lowest address the source used to the highest, which
+# for these sources is about 64 bytes starting at $0801 -- indexing it at
+# $0800 below would read past the end.
+& $cli as65 $srcPath -o $outBin -q -z --flat | Out-Null
 
 if (-not (Test-Path $outBin)) {
     throw "Assembly failed: $srcPath (no output produced)"
