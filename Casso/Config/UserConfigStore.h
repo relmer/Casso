@@ -67,6 +67,9 @@ public:
                                     const JsonValue   & currentJson,
                                     const JsonValue   & defaultJson,
                                     IFileSystem       & fs) const;
+    // Removes the machine's saved overrides from the written file, not only
+    // from this store's cache. Callers holding a merged config for it must
+    // re-Load before their next SaveDelta.
     HRESULT      Reset             (const std::string & machineName,
                                     IFileSystem       & fs) const;
     std::wstring GetUserFilePath      (const std::string & machineName) const;
@@ -187,5 +190,13 @@ private:
 
     std::wstring                                m_userDir;
     mutable std::map<std::string, JsonValue>    m_machinePrefs;
+
+    // Machines the save currently in flight must not carry forward from the
+    // on-disk file. Non-empty only for the length of Reset's own save: once
+    // the document has been written without the entry there is nothing left
+    // to suppress, and a tombstone outliving that write would delete the
+    // machine again out of a later save that legitimately put it back.
+    mutable std::set<std::string>               m_erasedMachines;
+
     GlobalUserPrefs                           * m_prefs        = nullptr;
 };

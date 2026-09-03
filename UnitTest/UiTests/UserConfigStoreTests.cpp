@@ -58,6 +58,21 @@ public:
             "}"
         "}";
 
+    // Two machines plus a global section. Reset must take exactly one of the
+    // machines out of the written file and leave everything else standing.
+    static constexpr const char *  kpszTwoMachinePrefs =
+        "{"
+            "\"global\":{"
+                "\"$cassoGlobalPrefsVersion\":1,"
+                "\"activeTheme\":\"Retro Terminal\","
+                "\"futureKey\":\"keep\""
+            "},"
+            "\"machines\":{"
+                "\"Apple2e\":{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"},"
+                "\"Apple2plus\":{\"$cassoMachineVersion\":1,\"colorMode\":\"green\"}"
+            "}"
+        "}";
+
 
     // Helper: parse a JSON literal into a JsonValue, asserting success.
     static JsonValue ParseOrFail (const char * text)
@@ -169,6 +184,39 @@ public:
         }
 
         return out;
+    }
+
+
+    // Whether the prefs file still carries an entry for this machine. Reset's
+    // assertions are about ABSENCE, which ReadMachineOrFail cannot express --
+    // it fails the test when the entry is missing.
+    static bool HasMachineOnDisk (
+        InMemoryFileSystem  & fs,
+        UserConfigStore     & store,
+        const std::string   & machineName)
+    {
+        std::string        text;
+        JsonValue          root;
+        JsonParseError     err;
+        const JsonValue  * machines = nullptr;
+        HRESULT            hr       = S_OK;
+        bool               present  = false;
+
+
+        hr = fs.ReadAllText (store.GetUserPrefsFilePath(), text);
+        AssertSucceeded (hr);
+
+        hr = JsonParser::Parse (text, root, err);
+        AssertSucceeded (hr);
+
+        machines = FindObjectValueForTest (root, "machines");
+
+        if (machines != nullptr)
+        {
+            present = (FindObjectValueForTest (*machines, machineName) != nullptr);
+        }
+
+        return present;
     }
 
 
@@ -981,5 +1029,125 @@ public:
         savedGlobal = ParseOrFail (GlobalTextOrFail (fs, store).c_str());
         Assert::AreEqual (std::string ("DarkModern"),
                           FindObjectValueForTest (savedGlobal, "activeTheme")->GetString());
+    }
+
+
+    // Reset has to take the entry out of the WRITTEN FILE, not just this
+    // store's cache. BuildCombinedJson reads the file back and merges every
+    // machine it finds, so an erase that stops at the cache is undone before
+    // the document is written and Reset returns S_OK having changed nothing.
+
+    TEST_METHOD (Reset_RemovesTheMachineFromTheWrittenFile)
+    {
+        InMemoryFileSystem  fs;
+        JsonValue           other;
+        std::string         globalBefore;
+        std::string         globalAfter;
+        HRESULT             hr = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszTwoMachinePrefs);
+        AssertSucceeded (hr);
+        globalBefore = GlobalTextOrFail (fs, store);
+
+        hr = store.Reset ("Apple2e", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse (HasMachineOnDisk (fs, store, "Apple2e"));
+
+        // The read-back that used to resurrect the reset entry is the same one
+        // that preserves machines this process never loaded, so removing one
+        // machine must leave the other and the global section standing.
+        other = ReadMachineOrFail (fs, store, "Apple2plus");
+        Assert::AreEqual (std::string ("green"),
+                          FindObjectValueForTest (other, "colorMode")->GetString());
+
+        globalAfter = GlobalTextOrFail (fs, store);
+        Assert::AreEqual (globalBefore, globalAfter);
+    }
+
+
+    // A plain regression test, not a pin on where the on-disk skip lives: the
+    // erasure set is cleared when Reset returns, so this passes wherever the
+    // skip is applied. It guards the sequence a restore-defaults button would
+    // produce.
+    TEST_METHOD (Reset_ThenSaveDelta_WritesTheNewDelta)
+    {
+        InMemoryFileSystem  fs;
+        JsonValue           afterSave;
+        HRESULT             hr          = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszTwoMachinePrefs);
+        AssertSucceeded (hr);
+
+        hr = store.Reset ("Apple2e", fs);
+        AssertSucceeded (hr);
+        Assert::IsFalse (HasMachineOnDisk (fs, store, "Apple2e"));
+
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertSucceeded (hr);
+
+        afterSave = ReadMachineOrFail (fs, store, "Apple2e");
+        Assert::AreEqual (std::string ("Double"),
+                          FindObjectValueForTest (afterSave, "speedMode")->GetString());
+    }
+
+
+    TEST_METHOD (Reset_WhenPrefsFileMissing_WritesNothing)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+
+
+        hr = store.Reset ("Apple2e", fs);
+        AssertSucceeded (hr);
+
+        // Creating a file here would cost a user upgrading from an older build
+        // everything they have: LoadAll gates the legacy-file migration on the
+        // unified file being absent, so an empty one written here strands the
+        // legacy files permanently unread.
+        Assert::IsFalse (fs.Exists (store.GetUserPrefsFilePath()));
+        Assert::AreEqual (size_t (0), fs.FileCount());
+    }
+
+
+    TEST_METHOD (Reset_FailedWrite_KeepsTheMachineInTheCache)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           merged;
+        std::wstring        parseDetail;
+        HRESULT             hr          = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszTwoMachinePrefs);
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, parseDetail);
+        AssertSucceeded (hr);
+
+        hr = fs.SetReadOnlyAttribute (store.GetUserPrefsFilePath(), true);
+        AssertSucceeded (hr);
+
+        hr = store.Reset ("Apple2e", fs);
+        AssertFailed (hr);
+
+        // The write is what removes the entry, so a failed write leaves it on
+        // disk and the cache has to agree. A cache that dropped it anyway
+        // answers with the shipped defaults for the rest of the session, and
+        // because the cache still holds the OTHER machine, Load's re-read
+        // guard never fires to correct it.
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Maximum"),
+                          FindObjectValueForTest (merged, "speedMode")->GetString());
     }
 };

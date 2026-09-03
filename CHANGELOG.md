@@ -55,6 +55,11 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Resetting a machine's settings did nothing.** The entry was dropped from memory
+  and then restored from the file before it was written, so the machine kept its
+  overrides. Resetting now removes the entry from the file, leaves every other
+  machine and the global settings alone, and does not create a preferences file
+  where there was none.
 - **Global settings could be reset to defaults on launch.** A remembered disk whose
   file was gone made startup rewrite the preferences file to clear the stale path,
   and that write replaced the whole global section with built-in defaults. The

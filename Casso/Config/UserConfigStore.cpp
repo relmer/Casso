@@ -1204,22 +1204,78 @@ Error:
 //
 //  UserConfigStore::Reset
 //
+//  Discards a machine's saved overrides so it falls back to the shipped
+//  defaults.
+//
+//  Erasing the cache entry is not enough on its own, which is the whole
+//  reason this function is more than one line. BuildCombinedJson reads the
+//  existing file back and merges every machine it finds there, so the entry
+//  erased here returns from disk before the document is written and the file
+//  comes out unchanged. The erasure set is what the read-back consults: the
+//  machine goes in before the save and comes out after it, so exactly one
+//  write suppresses exactly one entry.
+//
+//  The set is deliberately NOT session-lifetime state. After a successful
+//  write neither the file nor the cache holds the entry, so every later save
+//  already produces a document without it and a surviving tombstone would buy
+//  nothing. It would cost something, though: anything that legitimately put
+//  the machine back -- another store over the same directory, or the user
+//  editing the file -- would be deleted again by the next save.
+//
+//  Two obligations fall on the caller, neither of which this function can
+//  discharge. A merged config still held for this machine is stale, so saving
+//  it back restores exactly what was erased; re-Load first. And another store
+//  open over the same directory that still holds the machine in its own cache
+//  will write it back on its next save, so reset through the store that owns
+//  the machine's state.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::Reset (
     const std::string  & machineName,
     IFileSystem        & fs) const
 {
-    HRESULT  hr = S_OK;
+    HRESULT      hr       = S_OK;
+    JsonValue    saved;
+    auto         found    = m_machinePrefs.find (machineName);
+    bool         hasEntry = false;
+    bool         hasFile  = false;
 
 
 
-    m_machinePrefs.erase (machineName);
+    hasEntry = (found != m_machinePrefs.end());
+
+    if (hasEntry)
+    {
+        saved = found->second;
+        m_machinePrefs.erase (found);
+    }
+
+    // Nothing on disk is nothing to erase from, and writing an empty document
+    // here would cost a user upgrading from an older build everything they
+    // have. LoadAll gates the legacy-file migration on the unified file being
+    // absent, so creating one strands GlobalUserPrefs.json and every
+    // <machine>_user.json permanently unread.
+    hasFile = fs.Exists (GetUserPrefsFilePath());
+    BAIL_OUT_IF (!hasFile, S_OK);
+
+    m_erasedMachines.insert (machineName);
 
     hr = SaveCombinedJson (m_prefs, fs);
     CHR (hr);
 
 Error:
+    m_erasedMachines.clear();
+
+    // The write is what removes the entry from the file, so a write that
+    // failed leaves it there and the cache has to agree. Dropping it anyway
+    // makes Load answer with the shipped defaults for the rest of the session
+    // over overrides that are still on disk.
+    if (FAILED (hr) && hasEntry)
+    {
+        m_machinePrefs[machineName] = saved;
+    }
+
     return hr;
 }
 
@@ -1252,6 +1308,12 @@ Error:
 //  on-disk object is carried through verbatim instead. With no prefs and
 //  nothing on disk the key is omitted, which LoadCombinedJson already reads as
 //  constructed defaults.
+//
+//  Reset is the one caller that needs an on-disk entry NOT carried forward,
+//  and m_erasedMachines is how it says so. The skip belongs to the on-disk
+//  pass alone: applying it after the in-memory overlay below would let a
+//  Reset followed by a SaveDelta of the same machine write the new delta and
+//  then drop it again, which is the same silent loss in the other direction.
 //
 //  A read or parse failure is ignored rather than propagated: an unreadable or
 //  corrupt existing file means there is nothing to preserve, and refusing to
@@ -1297,6 +1359,11 @@ JsonValue UserConfigStore::BuildCombinedJson (
                 {
                     for (const auto & kv : existingMachines->GetObjectEntries())
                     {
+                        if (m_erasedMachines.contains (kv.first))
+                        {
+                            continue;
+                        }
+
                         if (kv.second.GetType() == JsonType::Object)
                         {
                             merged[kv.first] = kv.second;
