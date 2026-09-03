@@ -50,13 +50,32 @@
 ;  Stream formats
 ;
 ;  Speech: one phoneme byte per sound, its duration in bits 7:6, terminated by
-;  $FF. Four escapes carry the parameter changes:
-;      $FE nn      set the filter frequency (voice type)
-;      $FD hi lo   set pitch: hi to $C441, lo to $C442
+;  $FF. Five escapes carry the parameter changes:
+;      $FB n ...   print n high-ASCII characters as a caption; n = 0 clears
 ;      $FC nn      nn delay units of silence
+;      $FD hi lo   set pitch: hi to $C441, lo to $C442
+;      $FE nn      set the filter frequency (voice type)
 ;      $FF         end of stream
-;  Those four values would otherwise be phonemes $3C-$3F at the shortest
+;  Those five values would otherwise be phonemes $3B-$3F at the shortest
 ;  duration -- the German vowels and LB, none of which this demo speaks.
+;
+;  A pitch byte carries the speech rate in its high nibble, because $C442 holds
+;  both. The generator folds the rate in; writing a bare pitch there resets the
+;  chip to rate 0, which is what made the question run 1.6x slower than the
+;  lines before it.
+;
+;  ---------------------------------------------------------------------------
+;  Captions
+;
+;  Each word is preceded by a caption escape, so the text appears as the word
+;  starts rather than after it finishes: Speak runs escapes to completion in the
+;  gap between phonemes, which is the instant the word begins.
+;
+;  Text goes straight into the text page. The monitor's COUT is not usable from
+;  a direct-boot payload -- it is a JMP through $0036, which nothing has set
+;  when the boot ROM jumps here -- and COUT1, HOME and CROUT all depend on the
+;  text window and cursor bytes being initialized. Writing $0400-$07FF costs
+;  about 19 cycles per character and depends on nothing.
 ;
 ;  Song: four bytes per record -- phoneme, pitch high, pitch low, duration in
 ;  delay units -- terminated by $FF in the phoneme position. Consonants take a
@@ -72,23 +91,49 @@ SRATE   = $C442            ; rate in D7:4, I11 in D3, I2-I0 in D2:0
 SCTL    = $C443            ; CTL in D7, articulation in D6:4, amplitude in D3:0
 SFILT   = $C444            ; vocal tract filter clock
 
+; -- Soft switches -----------------------------------------------------------
+CLR80COL = $C000           ; 80STORE off
+CLR80VID = $C00C           ; 40-column video
+TXTSET   = $C051           ; text, not graphics
+MIXCLR   = $C052           ; full screen, no mixed mode
+LOWSCR   = $C054           ; text page 1
+
 ; -- Attribute values --------------------------------------------------------
 MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme timing
 CTLUP   = $80              ; CTL set -- Power Down
 CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
-RATE    = $60              ; speech rate 6, inflection bits clear
 FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
 FILTNOM = $D3              ; ~19.9 kHz -- the datasheet's nominal setting
 FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
+
+; -- Stream escapes ----------------------------------------------------------
+ESCCAP  = $FB
+ESCWAIT = $FC
+ESCPTCH = $FD
+ESCFILT = $FE
+ESCEND  = $FF
+
+; -- Caption geometry --------------------------------------------------------
+;  Four rows starting at text row 10. Row bases are the Apple's interleaved
+;  layout: base = $400 + (row & 7) * $80 + (row >> 3) * 40.
+CAPROWS = $04
+TITLE   = $0500            ; text row 2
 
 ; -- Zero page ---------------------------------------------------------------
 PTR     = $06              ; stream pointer (2 bytes)
 UNITS   = $08              ; delay-unit countdown
 CURPH   = $09              ; phoneme byte being sustained
 NDUR    = $0A              ; remaining units in the current note
+CAPPTR  = $0B              ; current caption row base (2 bytes)
+CAPCOL  = $0D              ; next column in that row
+CAPROW  = $0E              ; which of the four caption rows
+CAPLEN  = $0F              ; characters left to print
+TMP     = $10
 
 
 start
+    jsr ScreenInit
+
     ; Leave Power Down with the mode bits staged. Writing the duration bits
     ; while CTL is still set, then dropping CTL, is what latches the operating
     ; mode: A/R active, phoneme timing, transitioned inflection.
@@ -99,11 +144,14 @@ start
     lda #CTLDN
     sta SCTL
 
-    ; Nominal speaking attributes.
-    lda #RATE
-    sta SRATE
     lda #FILTNOM
     sta SFILT
+
+    ; Rate and pitch both live in $C442 and both arrive from the streams, so
+    ; there is nothing to set here. Leaving the inflection register alone would
+    ; be a bug: it powers up at 0, which is 54.6 Hz -- a glottal period so long
+    ; that a short phoneme spans barely two pulses and no vowel is resolvable.
+    ; Every stream opens with a pitch escape for exactly that reason.
 
     ; ---- 1. Speak, so there is something to compare the rest against.
     lda #<introData
@@ -139,14 +187,11 @@ start
     ldx #>wargData
     jsr Speak
 
-    ; ---- 4. A flat, deliberate line: slower rate, no inflection movement.
-    lda #$40                    ; rate 4 -- longer frames, slower delivery
-    sta SRATE
+    ; ---- 4. A flat, deliberate line. The stream carries its own slower rate
+    ;         in the high nibble of its opening pitch escape.
     lda #<halData
     ldx #>halData
     jsr Speak
-    lda #RATE
-    sta SRATE
 
     ; ---- 5. And then it sings.
     jsr Sing
@@ -170,21 +215,32 @@ Speak
 spk_next
     ldy #$00
     lda (PTR),y
-    cmp #$FF
+    cmp #ESCEND
     beq spk_done
-    cmp #$FE
+    cmp #ESCFILT
     beq spk_filt
-    cmp #$FD
+    cmp #ESCPTCH
     beq spk_pitch
-    cmp #$FC
+    cmp #ESCWAIT
     beq spk_wait
+    cmp #ESCCAP
+    beq spk_cap
 
-    ; A plain phoneme: start it, then wait for the chip to ask for the next.
+    ; A plain phoneme: start it, step the pointer, then wait for the chip to
+    ; ask for the next. The pointer advance happens BEFORE the poll so the
+    ; answer to the request is as prompt as possible -- the chip stops sounding
+    ; the moment its countdown expires, and every cycle spent before the next
+    ; write is a cycle of decaying output.
     sta SPHON
     jsr Advance1
 spk_poll
     lda SPHON                   ; D7 set = the chip wants the next phoneme
     bpl spk_poll
+    jmp spk_next
+
+spk_cap
+    jsr Advance1
+    jsr Caption
     jmp spk_next
 
 spk_filt
@@ -236,8 +292,15 @@ Sing
 sng_next
     ldy #$00
     lda (PTR),y
-    cmp #$FF
+    cmp #ESCEND
     beq sng_done
+    cmp #ESCCAP                 ; tested before the record step, which is fixed-size
+    bne sng_rec
+    jsr Advance1
+    jsr Caption
+    jmp sng_next
+
+sng_rec
     sta CURPH
 
     iny
@@ -310,6 +373,172 @@ d1_inner
     dex
     bne d1_outer
     rts
+
+
+; ============================================================================
+;  ScreenInit -- 40-column text page 1, cleared, with the title in place
+;
+;  Nothing here calls the monitor. A direct-boot payload is entered by the
+;  disk ROM with the zero-page vectors COUT and its relatives depend on still
+;  holding power-on garbage, so the screen is set up from the soft switches
+;  and filled by hand.
+; ============================================================================
+ScreenInit
+    sta CLR80COL
+    sta CLR80VID
+    bit TXTSET
+    bit MIXCLR
+    bit LOWSCR
+
+    ; Fill $0400-$07FF with spaces.
+    lda #$A0
+    ldx #$00
+si_fill
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne si_fill
+
+    ; Title, then park the caption cursor at the first caption row.
+    ldy #$00
+si_title
+    lda titleText,y
+    beq si_capinit
+    sta TITLE+4,y
+    iny
+    bne si_title
+
+si_capinit
+    lda #$00
+    sta CAPROW
+    jsr CaptionRow
+    rts
+
+
+; ============================================================================
+;  Caption -- print the escape's text, or clear the caption area
+;
+;  Entry: PTR points at the length byte. A length of zero clears and resets.
+;  Words are separated by a space, and a word that will not fit on the current
+;  row starts the next one, so a caption never wraps mid-word.
+; ============================================================================
+Caption
+    ldy #$00
+    lda (PTR),y
+    sta CAPLEN
+    jsr Advance1
+    lda CAPLEN
+    bne cap_fit
+
+    ; Length 0: blank the four caption rows and start again at the top.
+    lda #$00
+    sta CAPROW
+cap_clr
+    jsr CaptionRow
+    lda #$A0
+    ldy #39
+cap_clr1
+    sta (CAPPTR),y
+    dey
+    bpl cap_clr1
+    inc CAPROW
+    lda CAPROW
+    cmp #CAPROWS
+    bne cap_clr
+    lda #$00
+    sta CAPROW
+    jsr CaptionRow
+    rts
+
+cap_fit
+    ; Does the word (plus a leading space when mid-row) fit in 40 columns?
+    lda CAPCOL
+    beq cap_nospace
+    clc
+    adc #$01                    ; the separating space
+    sta TMP
+    clc
+    adc CAPLEN
+    cmp #41
+    bcc cap_space
+    jsr CaptionNext             ; start a fresh row instead of splitting a word
+    jmp cap_nospace
+
+cap_space
+    ldy CAPCOL
+    lda #$A0
+    sta (CAPPTR),y
+    lda TMP
+    sta CAPCOL
+
+cap_nospace
+    ldy #$00
+cap_put
+    cpy CAPLEN
+    beq cap_done
+    lda (PTR),y
+    sty TMP
+    ldy CAPCOL
+    sta (CAPPTR),y
+    inc CAPCOL
+    ldy TMP
+    iny
+    bne cap_put
+
+cap_done
+    ; Step the stream pointer past the characters just printed.
+    lda CAPLEN
+    clc
+    adc PTR
+    sta PTR
+    bcc cap_ret
+    inc PTR+1
+cap_ret
+    rts
+
+
+; ============================================================================
+;  CaptionNext -- move to the next caption row, wrapping to the first
+;  CaptionRow -- point CAPPTR at row CAPROW and reset the column
+; ============================================================================
+CaptionNext
+    inc CAPROW
+    lda CAPROW
+    cmp #CAPROWS
+    bcc CaptionRow
+    lda #$00
+    sta CAPROW
+
+CaptionRow
+    ldx CAPROW
+    lda capRowLo,x
+    sta CAPPTR
+    lda capRowHi,x
+    sta CAPPTR+1
+    lda #$00
+    sta CAPCOL
+    ; Blank the row we are about to write into.
+    lda #$A0
+    ldy #39
+cr_blank
+    sta (CAPPTR),y
+    dey
+    bpl cr_blank
+    rts
+
+
+; Text rows 10-13 on page 1.
+capRowLo
+    .byte $28,$A8,$28,$A8
+capRowHi
+    .byte $05,$05,$06,$06
+
+titleText
+    .byte $CD,$CF,$C3,$CB,$C9,$CE,$C7,$C2,$CF,$C1,$D2,$C4,$A0
+    .byte $D3,$D0,$C5,$C5,$C3,$C8,$A0,$C3,$C8,$C9,$D0
+    .byte $00
 
 
 ; ============================================================================
