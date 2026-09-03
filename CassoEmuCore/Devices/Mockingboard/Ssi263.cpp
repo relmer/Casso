@@ -131,11 +131,10 @@ static constexpr double  s_kReleaseTauSec = 0.004;
 
 Ssi263::Ssi263 (double xckHz)
 {
+    // The tick clock is deliberately left unstated here. Until an owner calls
+    // SetTickClock, GetTickClockHz answers with XCK, which is the only
+    // self-consistent reading of a Tick nobody has described.
     m_xckHz = (xckHz > 0.0) ? xckHz : kDefaultXckHz;
-
-    // Until an owner states the rate its Tick cycles arrive at, the only
-    // self-consistent reading is that they are XCK ticks.
-    m_tickClockHz = m_xckHz;
 
     Reset();
 }
@@ -175,7 +174,8 @@ void Ssi263::SetSampleRate (uint32_t sampleRate)
 
 void Ssi263::SetXckClock (double xckHz)
 {
-    double   previous = m_xckHz;
+    double   previousXck  = m_xckHz;
+    double   previousTick = GetTickClockHz();
 
 
 
@@ -183,9 +183,14 @@ void Ssi263::SetXckClock (double xckHz)
     {
         m_xckHz = xckHz;
 
-        // A phoneme already sounding was loaded against the old rate, so
-        // rescale the remainder to leave the same fraction of it to play.
-        m_phonemeCycles *= previous / m_xckHz;
+        // A phoneme already sounding was loaded against the old rates, so
+        // rescale the remainder to leave the same fraction of it to play. Two
+        // ratios apply. Its length in SECONDS moves with XCK, and the domain
+        // that length is counted in moves too whenever the tick clock is
+        // still following XCK. Once an owner has stated a tick clock the
+        // second ratio is 1, and only the duration moves.
+        m_phonemeCycles *= (previousXck / m_xckHz) *
+                           (GetTickClockHz() / previousTick);
     }
 }
 
@@ -209,7 +214,7 @@ void Ssi263::SetXckClock (double xckHz)
 
 void Ssi263::SetTickClock (double tickClockHz)
 {
-    double   previous = m_tickClockHz;
+    double   previous = GetTickClockHz();
 
 
 
@@ -218,7 +223,9 @@ void Ssi263::SetTickClock (double tickClockHz)
         m_tickClockHz = tickClockHz;
 
         // As above: an in-flight countdown is in the old domain and has to be
-        // converted rather than left to drain at the wrong rate.
+        // converted rather than left to drain at the wrong rate. `previous`
+        // comes from GetTickClockHz so that the first call on a chip which was
+        // still following XCK converts from XCK, not from an unset zero.
         m_phonemeCycles *= m_tickClockHz / previous;
     }
 }
@@ -918,7 +925,7 @@ void Ssi263::BeginPhoneme (Byte outgoing)
 
     // The datasheet formula gives seconds against XCK; the countdown Tick
     // drains is in the machine's cycles, so the tick clock is what converts.
-    m_phonemeCycles = seconds * m_tickClockHz;
+    m_phonemeCycles = seconds * GetTickClockHz();
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
 }

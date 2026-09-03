@@ -1046,6 +1046,63 @@ namespace Ssi263TestNs
         }
 
 
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  UnstatedTickClockFollowsXckWhicheverWayXckWasSet
+        //
+        //  Until an owner states a tick rate the chip falls back to XCK. That
+        //  fallback has to answer the same way whether XCK arrived through the
+        //  constructor or through SetXckClock, or the two spellings of one
+        //  intent would time phonemes differently -- a silent divergence of
+        //  exactly the kind the two-clock split exists to rule out.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (UnstatedTickClockFollowsXckWhicheverWayXckWasSet)
+        {
+            static constexpr double   kOtherXckHz = 2000000.0;
+
+            Ssi263   viaCtor (kOtherXckHz);
+            Ssi263   viaSetter;
+            double   expected = 0.0;
+
+
+
+            viaSetter.SetXckClock (kOtherXckHz);
+
+            StartSpeaking (viaCtor,   0x08);
+            StartSpeaking (viaSetter, 0x08);
+
+            Assert::AreEqual (viaCtor.GetPhonemeDurationSec(), viaSetter.GetPhonemeDurationSec(), 1e-12,
+                              L"Precondition: both chips must agree on the duration in seconds");
+
+            expected = viaCtor.GetPhonemeDurationSec() * kOtherXckHz;
+
+            AssertPhonemeSpansCycles (viaCtor,   expected, L"XCK through the constructor");
+            AssertPhonemeSpansCycles (viaSetter, expected, L"XCK through SetXckClock");
+        }
+
+
+        TEST_METHOD (StatedTickClockSurvivesAnXckChange)
+        {
+            Ssi263   chip;
+            double   expected = 0.0;
+
+
+
+            // Once an owner states the tick rate, XCK moving must not drag the
+            // countdown into a different domain -- only the duration changes.
+            chip.SetTickClock (kPhi2ClockHz);
+            chip.SetXckClock (Ssi263::kDefaultXckHz / 2.0);
+
+            StartSpeaking (chip, 0x08);
+
+            expected = chip.GetPhonemeDurationSec() * kPhi2ClockHz;
+
+            AssertPhonemeSpansCycles (chip, expected, L"stated tick clock, halved XCK");
+        }
+
+
         TEST_METHOD (TickClockDoesNotDisturbTheDatasheetFormulas)
         {
             Ssi263   chip;

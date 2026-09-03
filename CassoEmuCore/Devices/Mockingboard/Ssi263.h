@@ -77,8 +77,14 @@ struct Ssi263PhonemeSpec
 //  A duration in seconds therefore has to be multiplied by the TICK clock to
 //  become a countdown Tick can drain. Multiplying by XCK instead is what once
 //  made every phoneme sound 1.75x too long. SetXckClock and SetTickClock keep
-//  the two rates separate, and a caller that sets neither gets a chip whose
-//  Tick is assumed to be fed XCK ticks.
+//  the two rates separate.
+//
+//  Until SetTickClock states a rate, the tick clock FOLLOWS XCK, whichever way
+//  XCK was set -- through the constructor or through SetXckClock. The two must
+//  agree: a fallback that tracked the constructor but froze at the default
+//  afterward would make Ssi263 (rate) and SetXckClock (rate) time phonemes
+//  differently, which is a trap of exactly the kind this class already sprung
+//  once.
 //
 //  A/R (Acknowledge/Request Not) goes from high to low once a phoneme has
 //  been generated, and the owning card wires it to a VIA control line as an
@@ -186,6 +192,8 @@ public:
     static constexpr double  kNominalFilterHz = 20000.0;
 
 private:
+    double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
+
     void    LatchMode           ();
     void    BeginPhoneme        (Byte outgoing);
     void    GlideFormants       ();
@@ -196,9 +204,11 @@ private:
     const Ssi263PhonemeSpec &  GetActiveSpec () const;
 
     // The chip's own time base, and the rate of the cycles Tick is fed. They
-    // are different clocks; see the two-domain note above.
+    // are different clocks; see the two-domain note above. Zero means no owner
+    // has stated a tick rate, in which case it follows XCK -- resolved at each
+    // use through GetTickClockHz rather than copied, so the two cannot drift.
     double     m_xckHz       = kDefaultXckHz;
-    double     m_tickClockHz = kDefaultXckHz;
+    double     m_tickClockHz = 0.0;
     uint32_t   m_sampleRate  = 0;
 
     Byte       m_reg[kRegCount] = {};
