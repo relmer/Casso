@@ -569,6 +569,7 @@
     <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
     <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
+    <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />

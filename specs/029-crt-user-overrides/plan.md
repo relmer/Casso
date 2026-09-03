@@ -72,8 +72,7 @@ Ordinary compliance work, no structural tension. The specific traps this feature
 walks into: the four preset aggregate initializers in `CrtPresets.h` name
 `userOverride` positionally and their column alignment must survive the member's
 removal; several functions in the settings bridge are being replaced wholesale
-and their `////` banner comments must move with them; `MonitorCatalog.h` needs a
-missing include added rather than continuing to rely on a transitive one.
+and their `////` banner comments must move with them.
 
 ### II. Testing Discipline — PASS, and this feature improves it
 
@@ -113,8 +112,8 @@ and `ApplyActiveDefaults` both disappear, and the Display page's badge machinery
 shrinks because a source lookup replaces eight float comparisons with epsilon
 handling.
 
-**File Scope**: two changes touch files this feature would not otherwise need.
-Both are recorded in Complexity Tracking below rather than made silently.
+**File Scope**: three changes touch files this feature would not otherwise need.
+All are recorded in Complexity Tracking below rather than made silently.
 
 ### VI. Thin Executable, Testable Core (NON-NEGOTIABLE) — PASS, and this is the point
 
@@ -215,7 +214,6 @@ without either dragging in the other.
 |-----------|------------|--------------------------------------|
 | Fixing `monitorTilt`'s absence from `s_kKnownTopLevel` in `GlobalUserPrefs.cpp` | It is the exact defect this feature must avoid for its own new key, one level away in the same function. The key is parsed live and also captured as unknown, so every save emits one more stale copy. The user's live file currently holds twelve `monitorTilt` members. Leaving it means shipping a feature whose correctness argument is contradicted by the line above it. | Filing it separately was considered. Rejected because the new key's test ("every top-level key appears exactly once") covers both, and writing that test while a known violation sits beside it means either a failing test or a test written to avoid the truth. |
 | Fixing the legacy-file upgrade in `UserConfigStore.cpp` to write the converted document | `MigrateLegacyFiles` keeps the raw parsed document and writes that, discarding what `FromJson` produced, while the sibling branch eight lines away writes `prefs.ToJson()`. Under a shape-triggered conversion this means a legacy upgrade writes a file that still needs converting. | Deferring it was considered. Rejected because it maximizes the window in which a file on disk carries the old key and not the new one, which is exactly the state the conversion is designed to be the last reader of. The change is correct under the current schema too, so it does not depend on this feature. |
-| Adding a missing `#include "Core/JsonValue.h"` to `Casso/Config/MonitorCatalog.h` | The header names `JsonValue` at `:105` and `JsonType` at `:109` while including neither, and compiles today only because both current includers reach the definition first. This feature adds a new translation unit that includes it, so the latent break becomes a real one. | Leaving it and having the new test file include `Core/JsonValue.h` first was considered. Rejected because it propagates the fragility rather than fixing it, and the next includer hits the same wall with no clue why. |
 | Renaming the `L"Monitor:"` label at `Casso/Ui/Settings/DisplayPage.cpp:240` | That row lists phosphors, not monitors. The mislabel is pre-existing and harmless while there is one monitor axis; this feature introduces a real one, so the row would name the wrong axis of a distinction the same page now depends on. | Leaving it was considered. Rejected because the feature makes an existing mislabel actively misleading, and the fix is one string. |
 
 > A third, larger dependency is **not** this feature's to fix and is tracked as a
