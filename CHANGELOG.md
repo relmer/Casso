@@ -43,6 +43,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **A machine's `monitor` key names a vendor-qualified monitor.** `MonitorII` and
+  `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`. The catalog will hold
+  tubes from more than one maker, so the names say whose they are. A machine JSON
+  carrying an old name falls back to the default monitor.
 - **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
   under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
   optimizing tesselation, and precompiling shaders. 

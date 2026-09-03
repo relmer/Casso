@@ -34,6 +34,12 @@
 //  their JSON. An absent key means the default, which is what every machine
 //  but the //c shipped alongside.
 //
+//  A shipped configName is FROZEN. The name is not a label, it is the key
+//  a monitor's own settings are stored under in the user's prefs, so a
+//  rename orphans that data with no diagnostic. Vendor-qualify new names,
+//  because the catalog will hold tubes from more than one maker. A
+//  human-readable label, when the UI needs one, belongs in its own field.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct MonitorSpec
@@ -48,11 +54,11 @@ struct MonitorSpec
 inline constexpr MonitorSpec s_kMonitors[] =
 {
     // The Apple Monitor II (A2M2010): the beige 12-inch, a P1 green tube.
-    { "MonitorII",  DeskDeviceKind::Monitor2,  IDR_MODEL_MONITOR2_MESH,  ColorMode::GreenMono },
+    { "AppleMonitorII",  DeskDeviceKind::Monitor2,  IDR_MODEL_MONITOR2_MESH,  ColorMode::GreenMono },
 
     // The Monitor //c (A2M4090): the platinum 9-inch that shipped with the
     // //c, green as well.
-    { "MonitorIIc", DeskDeviceKind::Monitor2c, IDR_MODEL_MONITOR2C_MESH, ColorMode::GreenMono },
+    { "AppleMonitorIIc", DeskDeviceKind::Monitor2c, IDR_MODEL_MONITOR2C_MESH, ColorMode::GreenMono },
 };
 
 
