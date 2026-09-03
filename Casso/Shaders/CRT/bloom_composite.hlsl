@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: CC0-1.0
 // Casso modifications: additive composite of the blurred bloom buffer.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; float g_bloomThreshold; };
 Texture2D    texSrc   : register(t0);
 Texture2D    texBloom : register(t1);
 SamplerState sam      : register(s0);

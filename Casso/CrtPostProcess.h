@@ -53,11 +53,21 @@ struct CrtParams
     float    pictureV0          = 0.0f;
     float    pictureV1          = 1.0f;
 
+    // Luminance a pixel must reach before it contributes to the bloom.
+    // Halation is light that had to be emitted before it could scatter
+    // inside the faceplate, so only bright areas produce it. Without
+    // this the blur lifts every dark pixel sitting next to a lit one,
+    // which on dithered artwork fills the gaps and flattens the tone.
+    //
+    // Not a per-monitor value and not on the Display page yet. One
+    // number, deliberately, until the CRT tuning work decides whether
+    // a color tube and a phosphor tube want different ones.
+    float    bloomThreshold     = 0.0f;
+
     // D3D11 requires a constant buffer size that is a multiple of 16
-    // bytes; the 14 fields above pack to 56, so pad to 64. No shader
-    // declares these two.
+    // bytes; the 15 fields above pack to 60, so pad to 64. No shader
+    // declares this one.
     float    _pad0              = 0.0f;
-    float    _pad1              = 0.0f;
 };
 
 

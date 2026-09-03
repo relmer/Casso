@@ -55,6 +55,14 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Bloom washed out dithered pictures.** It was applied to every pixel rather than
+  to bright ones, so a dark pixel next to a lit one was lifted along with it. On
+  dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
+  dither stopped reading as tone. Only pixels above a brightness threshold feed the
+  bloom now, which is what a phosphor does.
+- **The bloom radius slider offered a range nobody could use.** It ran to 10 in whole
+  steps, where the useful span ends around 4 and the setting wants half-pixel
+  resolution. It now runs 0.5 to 4.0 and drags in tenths.
 - **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
   built as a plain member and given its words afterward painted with a hard-coded
   white rather than the theme's own text color. Whole settings pages are built that

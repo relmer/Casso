@@ -338,11 +338,18 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_bloomRadiusLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_bloomRadiusLabel.SetText (L"Radius:");
-    m_bloomRadius.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_bloomRadius.SetRange     (1.0f, 10.0f);
-    m_bloomRadius.SetStep      (1.0f);
-    m_bloomRadius.SetSuffix    (L" px");
-    m_bloomRadius.SetShowTicks (true);
+    // Halation measures about two emulated pixels of Gaussian sigma on every
+    // tube size, so the whole useful span sits under 4 and half-pixel
+    // resolution is what the setting wants. A ceiling of 10 in whole steps
+    // spent most of its travel past anything anyone picks and could not
+    // express 2.5 at all.
+    m_bloomRadius.SetRect          (MakeRect (controlsX, y, sliderWidth, rowHeight));
+    m_bloomRadius.SetRange         (0.5f, 4.0f);
+    m_bloomRadius.SetStep          (0.5f);
+    m_bloomRadius.SetDragStep      (0.1f);
+    m_bloomRadius.SetDecimalPlaces (1);
+    m_bloomRadius.SetSuffix        (L" px");
+    m_bloomRadius.SetShowTicks     (true);
     m_bloomRadiusRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
     y += rowHeight + sectionGap;
 

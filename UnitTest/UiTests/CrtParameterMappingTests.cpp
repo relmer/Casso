@@ -66,7 +66,7 @@ public:
 
         Assert::AreEqual (2.0f,  prefs.crtByMode[0].brightness);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].scanlinesIntensity);
-        Assert::AreEqual (10.0f, prefs.crtByMode[0].bloomRadius);    // clamp 0..10 px
+        Assert::AreEqual (4.0f,  prefs.crtByMode[0].bloomRadius);    // clamp 0..4 px
         Assert::AreEqual (0.0f,  prefs.crtByMode[0].bloomStrength);
         Assert::AreEqual (0.0f,  prefs.crtByMode[0].colorBleedWidth);
         Assert::IsTrue   (prefs.crtByMode[0].userOverride);
@@ -253,6 +253,77 @@ public:
         Assert::AreEqual (0.5f,  prefs.crtByMode[0].bloomStrength);
         Assert::AreEqual (false, prefs.crtByMode[0].colorBleedEnabled);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].colorBleedWidth);
+    }
+
+
+    TEST_METHOD (MakeCrtParams_CarriesABloomThresholdThroughEveryLayer)
+    {
+        GlobalUserPrefs   prefs;
+        ThemeCrtDefaults  theme;
+        CrtParams         params = {};
+
+
+
+        // Only bright pixels feed the bloom, so the threshold has to reach
+        // the shader on every path. It is not a per-monitor value and not a
+        // prefs field, so a user override and a theme override must both
+        // leave it alone rather than zeroing it back to a bloom that lifts
+        // every dark pixel next to a lit one.
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 640.0f, 480.0f);
+        Assert::IsTrue (params.bloomThreshold > 0.0f);
+
+        theme.hasBloom       = true;
+        theme.bloomEnabled   = true;
+        theme.bloomRadius    = 2.0f;
+        theme.bloomStrength  = 0.4f;
+        params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+        Assert::IsTrue (params.bloomThreshold > 0.0f);
+
+        prefs.crtByMode[0].userOverride  = true;
+        prefs.crtByMode[0].bloomEnabled  = true;
+        prefs.crtByMode[0].bloomRadius   = 2.0f;
+        prefs.crtByMode[0].bloomStrength = 0.7f;
+        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 640.0f, 480.0f);
+        Assert::IsTrue (params.bloomThreshold > 0.0f);
+
+        // Below full scale, or nothing would ever clear it and the bloom
+        // would vanish rather than pick out the bright areas.
+        Assert::IsTrue (params.bloomThreshold < 1.0f);
+    }
+
+
+    TEST_METHOD (Load_ClampsBloomRadiusToTheDocumentedCeiling)
+    {
+        GlobalUserPrefs  prefs;
+        JsonValue        parsed;
+        JsonParseError   err;
+        HRESULT          hr;
+
+
+
+        // Halation runs to about two emulated pixels of sigma, so the useful
+        // span ends well under 4 and the schema in spec 007 caps it there.
+        // The clamp used to admit 10, which is why the slider offered six
+        // stops past anything worth picking.
+        constexpr const char *  json =
+            "{\n"
+            "  \"$cassoGlobalPrefsVersion\": 1,\n"
+            "  \"crt\": {\n"
+            "    \"green\": {\n"
+            "      \"userOverride\": true,\n"
+            "      \"bloom\": { \"enabled\": true, \"radius\": 9.0, \"strength\": 0.5 }\n"
+            "    }\n"
+            "  }\n"
+            "}\n";
+
+
+        hr = JsonParser::Parse (json, parsed, err);
+        AssertSucceeded (hr);
+
+        hr = prefs.FromJson (parsed);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (4.0f, prefs.crtByMode[1].bloomRadius);
     }
 
 
