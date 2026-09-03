@@ -68,6 +68,7 @@ public:
     // back stays valid until the next BeginDrawToTexture.
     HRESULT  BeginDrawToTexture (UINT widthPx, UINT heightPx) override;
     HRESULT  EndDrawToTexture   (ID3D11ShaderResourceView ** outSrv) override;
+    void     GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const override;
 
     // Source-compatibility aliases for existing call sites that
     // reference `DxuiTextRenderer::HAlign` / `::VAlign`. The canonical
