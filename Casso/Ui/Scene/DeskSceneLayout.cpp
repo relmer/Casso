@@ -654,6 +654,10 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             {
                 out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
                 out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
+
+                out.driveLabelWorld[i][0] = worldPt[0];
+                out.driveLabelWorld[i][1] = worldPt[1];
+                out.driveLabelWorld[i][2] = worldPt[2];
             }
         }
     }
@@ -898,6 +902,10 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
             {
                 out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
                 out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
+
+                out.driveLabelWorld[i][0] = worldPt[0];
+                out.driveLabelWorld[i][1] = worldPt[1];
+                out.driveLabelWorld[i][2] = worldPt[2];
             }
         }
     }
@@ -1045,4 +1053,167 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
     }
 
     return center;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetCameraBasis
+//
+//  Reads the camera's right and up axes out of the view matrix.
+//
+//  The rotation block holds the camera basis in its COLUMNS under this file's
+//  row-vector convention, because a view transform is the inverse of the
+//  camera's placement and a rotation's inverse is its transpose. So right is
+//  (m0, m4, m8) and up is (m1, m5, m9), already unit length and mutually
+//  square.
+//
+//  The orbit turns the MODELS rather than the eye, so both axes hold still
+//  through a whole orbit. A quad built on them keeps its facing however far
+//  the scene has been spun, which is what a name that has to stay readable
+//  wants.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::GetCameraBasis (const float view[16], float outRight[3], float outUp[3])
+{
+    outRight[0] = view[0];
+    outRight[1] = view[4];
+    outRight[2] = view[8];
+
+    outUp[0]    = view[1];
+    outUp[1]    = view[5];
+    outUp[2]    = view[9];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetWorldPerPixel
+//
+//  Inverts the perspective divide at one depth: how much world a single pixel
+//  covers there.
+//
+//  Clip w under this projection IS the distance in front of the eye, so it
+//  falls straight out of the fourth column. Screen position is (v * m11 / w)
+//  scaled by half the viewport, which rearranges to 2w / (viewport * m11)
+//  world units per pixel.
+//
+//  Taken from the composition's own proj rather than from kFovY, so the
+//  clip-space zoom ApplyViewTransform folded in is already counted. Sizing
+//  through the fov instead would be right at zoom 1.0 and wrong everywhere
+//  else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::GetWorldPerPixel (const DeskSceneComposition & comp,
+                                        const float                  worldPt[3],
+                                        float                      & outPerPxX,
+                                        float                      & outPerPxY)
+{
+    float  w         = worldPt[0] * comp.viewProj[3]  + worldPt[1] * comp.viewProj[7] +
+                       worldPt[2] * comp.viewProj[11] + comp.viewProj[15];
+    int    viewportW = comp.viewportPx.right  - comp.viewportPx.left;
+    int    viewportH = comp.viewportPx.bottom - comp.viewportPx.top;
+
+
+
+    outPerPxX = 0.0f;
+    outPerPxY = 0.0f;
+
+    if (w <= 0.0f || viewportW <= 0 || viewportH <= 0 ||
+        comp.proj[0] <= 0.0f || comp.proj[5] <= 0.0f)
+    {
+        return false;
+    }
+
+    outPerPxX = 2.0f * w / ((float) viewportW * comp.proj[0]);
+    outPerPxY = 2.0f * w / ((float) viewportH * comp.proj[5]);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::TryMakeDriveLabelQuad
+//
+//  Places the name's billboard: a rectangle square to the camera, hung under
+//  the drive's anchor, covering the pixel size the caller asked for.
+//
+//  CONSTANT SCREEN SIZE IS THE POINT. Standing the name in the drive's own
+//  plane made it foreshorten and shrink with the pose, so the one thing on
+//  screen whose job is to be read went unreadable on a small desk. Spanning
+//  the quad with the camera's own axes and sizing it through the pixel scale
+//  at its depth gives back the fixed size chrome had, while leaving the name
+//  real geometry that the depth buffer can cut.
+//
+//  All four corners share ONE depth, because right and up are both square to
+//  the gaze. That makes the rectangle exact rather than approximate: it
+//  covers the requested pixels precisely, and it cannot tilt into the case it
+//  is meant to be hidden by.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
+                                             int                          drive,
+                                             const SIZE                 & labelPx,
+                                             int                          gapPx,
+                                             float                        outCorners[4][3])
+{
+    const float  * anchor   = nullptr;
+    float          right[3] = {};
+    float          up[3]    = {};
+    float          perPxX   = 0.0f;
+    float          perPxY   = 0.0f;
+    float          halfW    = (float) labelPx.cx * 0.5f;
+    float          topPx    = (float) gapPx;
+    float          botPx    = (float) (gapPx + labelPx.cy);
+    float          offsX[4] = { -halfW, halfW, -halfW, halfW };
+    float          offsY[4] = { topPx,  topPx, botPx,  botPx  };
+
+
+
+    memset (outCorners, 0, sizeof (float) * 4 * 3);
+
+    if (drive < 0 || drive >= 2 || drive >= comp.driveCount ||
+        labelPx.cx <= 0 || labelPx.cy <= 0)
+    {
+        return false;
+    }
+
+    anchor = comp.driveLabelWorld[drive];
+
+    if (!GetWorldPerPixel (comp, anchor, perPxX, perPxY))
+    {
+        return false;
+    }
+
+    GetCameraBasis (comp.view, right, up);
+
+    for (int corner = 0; corner < 4; corner++)
+    {
+        float  dx = offsX[corner] * perPxX;
+        float  dy = offsY[corner] * perPxY;
+
+
+
+        // Screen y runs DOWN while the camera's up runs up, so the offset
+        // below the anchor is subtracted rather than added.
+        for (int axis = 0; axis < 3; axis++)
+        {
+            outCorners[corner][axis] = anchor[axis] + dx * right[axis] - dy * up[axis];
+        }
+    }
+
+    return true;
 }

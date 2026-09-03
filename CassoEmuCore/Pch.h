@@ -4,6 +4,7 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <mmdeviceapi.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>

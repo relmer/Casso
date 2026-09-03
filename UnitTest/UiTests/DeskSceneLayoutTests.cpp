@@ -596,4 +596,308 @@ public:
         }
     }
 
+    // Projects a billboard's four world corners and returns their screen
+    // bounds, which is the whole of what the sizing contract is about.
+    static void MeasureQuadPx (const DeskSceneComposition & comp,
+                               const float                  corners[4][3],
+                               RECT                       & outPx)
+    {
+        float  pxMin[2] = {};
+        float  pxMax[2] = {};
+
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, corners[0], comp.viewportPx, pxMin));
+
+        pxMax[0] = pxMin[0];
+        pxMax[1] = pxMin[1];
+
+        for (int corner = 1; corner < 4; corner++)
+        {
+            float  px[2] = {};
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, corners[corner], comp.viewportPx, px));
+
+            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+        }
+
+        outPx.left   = (LONG) std::lround (pxMin[0]);
+        outPx.top    = (LONG) std::lround (pxMin[1]);
+        outPx.right  = (LONG) std::lround (pxMax[0]);
+        outPx.bottom = (LONG) std::lround (pxMax[1]);
+    }
+
+
+    // The clip w of a world point: its distance in front of the eye, which
+    // is what the billboard's four corners must all agree on.
+    static float MeasureClipW (const DeskSceneComposition & comp, const float worldPt[3])
+    {
+        return worldPt[0] * comp.viewProj[3]  + worldPt[1] * comp.viewProj[7] +
+               worldPt[2] * comp.viewProj[11] + comp.viewProj[15];
+    }
+
+
+    TEST_METHOD (Camera_Basis_Is_Orthonormal_And_Square_To_The_Gaze)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport = { 0, 0, 1600, 1000 };
+        float                 right[3] = {};
+        float                 up[3]    = {};
+        float                 rl       = 0.0f;
+        float                 ul       = 0.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        DeskSceneLayout::GetCameraBasis (comp.view, right, up);
+
+        rl = std::sqrt (right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+        ul = std::sqrt (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+
+        Assert::AreEqual (1.0f, rl, 1e-5f, L"camera right must be unit length");
+        Assert::AreEqual (1.0f, ul, 1e-5f, L"camera up must be unit length");
+
+        Assert::AreEqual (0.0f, right[0] * up[0] + right[1] * up[1] + right[2] * up[2], 1e-5f,
+            L"right and up must be square to each other, or the quad shears");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Grows_With_Distance)
+    {
+        DeskSceneMetrics      metrics    = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport   = { 0, 0, 1600, 1000 };
+        float                 anchor[3]  = {};
+        float                 farther[3] = {};
+        float                 nearX      = 0.0f;
+        float                 nearY      = 0.0f;
+        float                 farX       = 0.0f;
+        float                 farY       = 0.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        anchor[0] = comp.driveLabelWorld[0][0];
+        anchor[1] = comp.driveLabelWorld[0][1];
+        anchor[2] = comp.driveLabelWorld[0][2];
+
+        // Straight back along the gaze, which in this world frame is -Z.
+        farther[0] = anchor[0];
+        farther[1] = anchor[1];
+        farther[2] = anchor[2] - 500.0f;
+
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (comp, anchor,  nearX, nearY));
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (comp, farther, farX,  farY));
+
+        Assert::IsTrue (farY > nearY, L"a pixel must cover more world further away");
+        Assert::IsTrue (farX > nearX, L"and the same across as down");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Follows_The_Zoom)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        DeskSceneComposition  plain;
+        DeskSceneComposition  zoomed;
+        DeskSceneView         view;
+        RECT                  viewport = { 0, 0, 1600, 1000 };
+        float                 plainX   = 0.0f;
+        float                 plainY   = 0.0f;
+        float                 zoomX    = 0.0f;
+        float                 zoomY    = 0.0f;
+
+
+
+        view.zoom = 2.0f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, plain));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, zoomed, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (plain,  plain.driveLabelWorld[0],  plainX, plainY));
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (zoomed, zoomed.driveLabelWorld[0], zoomX,  zoomY));
+
+        // A doubled zoom halves the world a pixel covers. Reading the scale
+        // off kFovY instead of the composition's own proj would miss this and
+        // size the name wrong at every zoom but 1.0.
+        Assert::AreEqual (plainY * 0.5f, zoomY, plainY * 0.01f,
+            L"a doubled zoom must halve the world per pixel");
+        Assert::AreEqual (plainX * 0.5f, zoomX, plainX * 0.01f,
+            L"and the same across");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Rejects_A_Point_Behind_The_Eye)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport  = { 0, 0, 1600, 1000 };
+        float                 behind[3] = {};
+        float                 perPxX    = 1.0f;
+        float                 perPxY    = 1.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        // Well behind the camera, which sits forward of the whole scene.
+        behind[0] = comp.driveLabelWorld[0][0];
+        behind[1] = comp.driveLabelWorld[0][1];
+        behind[2] = comp.driveLabelWorld[0][2] + 100000.0f;
+
+        Assert::IsFalse (DeskSceneLayout::GetWorldPerPixel (comp, behind, perPxX, perPxY));
+
+        Assert::AreEqual (0.0f, perPxX, L"a refused query must not leave a stale scale behind");
+        Assert::AreEqual (0.0f, perPxY, L"and the same down");
+    }
+
+
+    TEST_METHOD (Label_Quad_Covers_The_Requested_Pixels)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        int                   gapPx         = 4;
+        float                 corners[4][3] = {};
+        RECT                  quadPx        = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, gapPx, corners));
+
+        MeasureQuadPx (comp, corners, quadPx);
+
+        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
+            L"the quad must be exactly as wide as it was asked for");
+        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
+            L"and exactly as tall");
+
+        // Centered on the anchor and hung the gap below it: the placement the
+        // chrome strip had, which is what keeps the tooltip rect honest.
+        Assert::AreEqual (comp.driveLabelPx[0].x, (quadPx.left + quadPx.right) / 2,
+            L"centered on the drive's anchor");
+        Assert::AreEqual (comp.driveLabelPx[0].y + gapPx, quadPx.top,
+            L"hung the gap below that anchor");
+    }
+
+
+    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_Through_The_Orbit)
+    {
+        DeskSceneMetrics      metrics          = MakeMetrics();
+        DeskSceneComposition  front;
+        DeskSceneComposition  turned;
+        DeskSceneView         view;
+        RECT                  viewport         = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx          = { 120, 16 };
+        float                 frontQuad[4][3]  = {};
+        float                 turnedQuad[4][3] = {};
+        RECT                  frontPx          = {};
+        RECT                  turnedPx         = {};
+
+
+
+        // Forty degrees of yaw is where the bleed showed, and where the
+        // reverted in-scene quad had foreshortened the name away.
+        view.orbitYawRad = 0.6981317f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, front));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, turned, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (front,  0, labelPx, 4, frontQuad));
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (turned, 0, labelPx, 4, turnedQuad));
+
+        MeasureQuadPx (front,  frontQuad,  frontPx);
+        MeasureQuadPx (turned, turnedQuad, turnedPx);
+
+        Assert::AreEqual (frontPx.right - frontPx.left, turnedPx.right - turnedPx.left,
+            L"the name must not narrow as the scene turns");
+        Assert::AreEqual (frontPx.bottom - frontPx.top, turnedPx.bottom - turnedPx.top,
+            L"nor shorten");
+    }
+
+
+    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_At_Any_Zoom)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        float                 corners[4][3] = {};
+        RECT                  quadPx        = {};
+
+
+
+        view.zoom = 2.5f;
+        view.panY = -0.3f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners));
+
+        MeasureQuadPx (comp, corners, quadPx);
+
+        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
+            L"leaning in must not enlarge the type");
+        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
+            L"nor stretch it");
+    }
+
+
+    TEST_METHOD (Label_Quad_Corners_Share_The_Anchor_Depth)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 200, 20 };
+        float                 corners[4][3] = {};
+        float                 anchorW       = 0.0f;
+
+
+
+        view.orbitYawRad   = 0.6f;
+        view.orbitPitchRad = 0.2f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, 4, corners));
+
+        anchorW = MeasureClipW (comp, comp.driveLabelWorld[1]);
+
+        // ONE depth across the whole quad is what makes the occlusion exact.
+        // A quad tilted in depth would be cut by the case along a line that
+        // has nothing to do with where the case crosses the name on screen.
+        for (int corner = 0; corner < 4; corner++)
+        {
+            Assert::AreEqual (anchorW, MeasureClipW (comp, corners[corner]), anchorW * 1e-4f,
+                L"every corner must sit at the drive's own distance");
+        }
+    }
+
+
+    TEST_METHOD (Label_Quad_Refuses_An_Absent_Drive)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        SIZE                  emptyPx       = { 0, 0 };
+        float                 corners[4][3] = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 1, metrics, comp));
+
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, 4, corners),
+            L"a drive the composition never placed has no name to hang");
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, -1, labelPx, 4, corners));
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, emptyPx, 4, corners),
+            L"an empty measurement is not a quad");
+    }
+
 };
