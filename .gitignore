@@ -438,3 +438,6 @@ UnitTest/Fixtures/*.rom
 # fetch these would otherwise see 400+ KB of vendor material as untracked and one
 # `git add -A` away from being committed by accident.
 /DevDisks/
+
+# Intermediate assembler output for demo disks (the .dsk is the artifact)
+Apple2/Demos/*.bin

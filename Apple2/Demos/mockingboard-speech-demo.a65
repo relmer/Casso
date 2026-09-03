@@ -1,0 +1,320 @@
+; ============================================================================
+;  mockingboard-speech-demo.a65 -- what the Mockingboard C's voice chip can do
+;
+;  A direct-boot demo for the SSI 263A speech synthesizer in slot 4. It speaks,
+;  changes voice type, asks a question with a rising pitch, delivers a line in
+;  a flat computer monotone, and then sings.
+;
+;  The point of the singing is that it cannot be faked. An emulator that plays
+;  pre-recorded phoneme samples can say the words; only one that synthesizes
+;  from the chip's parameters can put those words on a melody, because pitch
+;  is a register (the 12-bit inflection value) and not a property of a
+;  recording.
+;
+;  Build:  scripts/BuildDirectBootDisk.ps1
+;  Boot:   Casso.exe --machine Apple2e --disk1 Apple2\Demos\mockingboard-speech-demo.dsk
+;
+;  ---------------------------------------------------------------------------
+;  Driving the chip
+;
+;  Speech and song are paced differently, on purpose.
+;
+;  SPOKEN lines use the chip's own handshake: write a phoneme, then poll bit 7
+;  of the phoneme register until the chip requests the next one. That is what
+;  period speech drivers did, and it lets each phoneme run for the duration its
+;  own DR bits ask for.
+;
+;  SUNG notes cannot work that way. A single phoneme write sounds for at most
+;  146 ms (4096 * 16 * 4 chip ticks at the slowest rate), which is shorter than
+;  most notes, so a held note is built by re-writing the SAME phoneme byte
+;  every delay unit until the note's duration is used up. Re-writing a phoneme
+;  that is already sounding only reloads its duration countdown -- it does not
+;  disturb the glottal phase, the resonators, or the amplitude envelope -- so
+;  the note sustains without a seam. Note length therefore comes from this
+;  program's own cycle-counted delay loop rather than from the chip's timer,
+;  which also keeps the melody correct if the chip's phoneme timing is ever
+;  recalibrated.
+;
+;  Pitch is the 12-bit inflection value, scattered across two registers:
+;  I10-I3 fill $C441, I11 sits at bit 3 of $C442, and I2-I0 sit at bits 2-0.
+;  $C442's high nibble is the speech rate, so both halves are written together
+;  from a table rather than read back -- the chip is write-only through this
+;  path, and a read returns only the request bit.
+;
+;  The tune sits two octaves below its usual key. Pitch is clamped at 400 Hz,
+;  and a low fundamental leaves the formants legible, so the melody lands in
+;  the same register as the speaking voice: it sounds like one voice that
+;  starts singing rather than a second, higher instrument.
+;
+;  ---------------------------------------------------------------------------
+;  Stream formats
+;
+;  Speech: one phoneme byte per sound, its duration in bits 7:6, terminated by
+;  $FF. Four escapes carry the parameter changes:
+;      $FE nn      set the filter frequency (voice type)
+;      $FD hi lo   set pitch: hi to $C441, lo to $C442
+;      $FC nn      nn delay units of silence
+;      $FF         end of stream
+;  Those four values would otherwise be phonemes $3C-$3F at the shortest
+;  duration -- the German vowels and LB, none of which this demo speaks.
+;
+;  Song: four bytes per record -- phoneme, pitch high, pitch low, duration in
+;  delay units -- terminated by $FF in the phoneme position. Consonants take a
+;  unit or two and the vowel carries the rest of the note, all at one pitch.
+; ============================================================================
+
+    .org $6000
+
+; -- SSI 263A, slot 4, speech socket 1 ---------------------------------------
+SPHON   = $C440            ; DR duration in D7:6, phoneme in D5:0; reads D7 = request
+SINF    = $C441            ; inflection I10-I3
+SRATE   = $C442            ; rate in D7:4, I11 in D3, I2-I0 in D2:0
+SCTL    = $C443            ; CTL in D7, articulation in D6:4, amplitude in D3:0
+SFILT   = $C444            ; vocal tract filter clock
+
+; -- Attribute values --------------------------------------------------------
+MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme timing
+CTLUP   = $80              ; CTL set -- Power Down
+CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
+RATE    = $60              ; speech rate 6, inflection bits clear
+FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
+FILTNOM = $D3              ; ~19.9 kHz -- the datasheet's nominal setting
+FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
+
+; -- Zero page ---------------------------------------------------------------
+PTR     = $06              ; stream pointer (2 bytes)
+UNITS   = $08              ; delay-unit countdown
+CURPH   = $09              ; phoneme byte being sustained
+NDUR    = $0A              ; remaining units in the current note
+
+
+start
+    ; Leave Power Down with the mode bits staged. Writing the duration bits
+    ; while CTL is still set, then dropping CTL, is what latches the operating
+    ; mode: A/R active, phoneme timing, transitioned inflection.
+    lda #MODEDR
+    sta SPHON
+    lda #CTLUP
+    sta SCTL
+    lda #CTLDN
+    sta SCTL
+
+    ; Nominal speaking attributes.
+    lda #RATE
+    sta SRATE
+    lda #FILTNOM
+    sta SFILT
+
+    ; ---- 1. Speak, so there is something to compare the rest against.
+    lda #<introData
+    ldx #>introData
+    jsr Speak
+
+    ; ---- 2. The same sentence through three vocal tracts. Only the filter
+    ;         register changes between them; the phonemes are identical.
+    lda #FILTLO
+    sta SFILT
+    lda #<voiceData
+    ldx #>voiceData
+    jsr Speak
+
+    lda #FILTNOM
+    sta SFILT
+    lda #<voiceData
+    ldx #>voiceData
+    jsr Speak
+
+    lda #FILTHI
+    sta SFILT
+    lda #<voiceData
+    ldx #>voiceData
+    jsr Speak
+
+    lda #FILTNOM
+    sta SFILT
+
+    ; ---- 3. A question. The stream raises the pitch under the final word and
+    ;         puts it back afterwards.
+    lda #<wargData
+    ldx #>wargData
+    jsr Speak
+
+    ; ---- 4. A flat, deliberate line: slower rate, no inflection movement.
+    lda #$40                    ; rate 4 -- longer frames, slower delivery
+    sta SRATE
+    lda #<halData
+    ldx #>halData
+    jsr Speak
+    lda #RATE
+    sta SRATE
+
+    ; ---- 5. And then it sings.
+    jsr Sing
+
+    ; Silence the chip and stop. Power Down is the part's own quiescent state.
+    lda #CTLUP
+    sta SCTL
+halt
+    jmp halt
+
+
+; ============================================================================
+;  Speak -- play a phoneme stream, pacing on the chip's own request line
+;
+;  Entry: A = stream address low, X = stream address high
+; ============================================================================
+Speak
+    sta PTR
+    stx PTR+1
+
+spk_next
+    ldy #$00
+    lda (PTR),y
+    cmp #$FF
+    beq spk_done
+    cmp #$FE
+    beq spk_filt
+    cmp #$FD
+    beq spk_pitch
+    cmp #$FC
+    beq spk_wait
+
+    ; A plain phoneme: start it, then wait for the chip to ask for the next.
+    sta SPHON
+    jsr Advance1
+spk_poll
+    lda SPHON                   ; D7 set = the chip wants the next phoneme
+    bpl spk_poll
+    jmp spk_next
+
+spk_filt
+    jsr Advance1
+    ldy #$00
+    lda (PTR),y
+    sta SFILT
+    jsr Advance1
+    jmp spk_next
+
+spk_pitch
+    jsr Advance1
+    ldy #$00
+    lda (PTR),y                 ; I10-I3
+    sta SINF
+    jsr Advance1
+    ldy #$00
+    lda (PTR),y                 ; rate + I11 + I2-I0
+    sta SRATE
+    jsr Advance1
+    jmp spk_next
+
+spk_wait
+    jsr Advance1
+    ldy #$00
+    lda (PTR),y
+    jsr DelayUnits
+    jsr Advance1
+    jmp spk_next
+
+spk_done
+    rts
+
+
+; ============================================================================
+;  Sing -- play the song stream
+;
+;  Each record holds a phoneme, a pitch, and a length in delay units. The
+;  phoneme is re-written once per unit so the note sustains past the chip's
+;  own duration limit; re-writing a sounding phoneme reloads its countdown and
+;  nothing else, so the tone continues unbroken.
+; ============================================================================
+Sing
+    lda #<songData
+    sta PTR
+    lda #>songData
+    sta PTR+1
+
+sng_next
+    ldy #$00
+    lda (PTR),y
+    cmp #$FF
+    beq sng_done
+    sta CURPH
+
+    iny
+    lda (PTR),y
+    sta SINF                    ; I10-I3
+    iny
+    lda (PTR),y
+    sta SRATE                   ; rate 0 + I11 + I2-I0
+    iny
+    lda (PTR),y
+    sta NDUR
+
+    ; Step over the four bytes of this record.
+    lda PTR
+    clc
+    adc #$04
+    sta PTR
+    bcc sng_hold
+    inc PTR+1
+
+sng_hold
+    lda CURPH
+    sta SPHON                   ; (re)start the phoneme; sustains if already sounding
+    jsr Delay1
+    dec NDUR
+    bne sng_hold
+    jmp sng_next
+
+sng_done
+    rts
+
+
+; ============================================================================
+;  Advance1 -- step the stream pointer one byte
+; ============================================================================
+Advance1
+    inc PTR
+    bne adv_done
+    inc PTR+1
+adv_done
+    rts
+
+
+; ============================================================================
+;  DelayUnits -- burn A delay units (A = 0 does nothing)
+;  Delay1     -- burn one unit, about 41 ms of emulated time
+;
+;  The unit is this program's own clock. Note length is measured in these, not
+;  in chip frames, so the melody keeps its tempo regardless of how the chip's
+;  phoneme timer is calibrated.
+; ============================================================================
+DelayUnits
+    cmp #$00
+    beq del_done
+    sta UNITS
+del_loop
+    jsr Delay1
+    dec UNITS
+    bne del_loop
+del_done
+    rts
+
+Delay1
+    ldx #$21                    ; 33 * 256 inner iterations, ~5 cycles each
+d1_outer
+    ldy #$00
+d1_inner
+    dey
+    bne d1_inner
+    dex
+    bne d1_outer
+    rts
+
+
+; ============================================================================
+;  Data
+; ============================================================================
+    .include "mockingboard-speech-demo.inc"
+
+; --- end ---
