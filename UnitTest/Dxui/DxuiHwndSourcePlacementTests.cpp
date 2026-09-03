@@ -10,8 +10,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiHwndSourcePlacementTests
 //
-//  Window placement: clamping to the work area, and rescuing a window saved on
-//  a monitor that no longer exists.
+//  Window placement: clamping to the work area, rescuing a window saved on a
+//  monitor that no longer exists, and seating a dialog beside its owner.
 //
 //  Pure geometry over supplied rects, with no real monitors involved -- which
 //  is the point. The interesting cases are a display configuration the test
@@ -123,6 +123,97 @@ public:
 
 
         AssertPoint (-1920, 100, p, L"clamped to the left monitor's left edge");
+    }
+
+
+    SIZE  GetSize (LONG cx, LONG cy)
+    {
+        SIZE  size = { cx, cy };
+        return size;
+    }
+
+
+    //
+    //  The preferred placement: flush against the owner's right edge, tops
+    //  aligned, whenever the whole frame still fits on the owner's monitor.
+    //
+    TEST_METHOD (BesideOwnerPrefersTheRightEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (900, 100, p, L"flush against the owner's right edge");
+    }
+
+
+    //
+    //  An owner near the right edge leaves no room on that side, so the
+    //  window goes to the owner's left rather than off the monitor.
+    //
+    TEST_METHOD (BesideOwnerFallsBackToTheLeftEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (1300, 100, 1900, 700), GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (800, 100, p, L"flush against the owner's left edge");
+    }
+
+
+    //
+    //  Neither side fits: the window overlaps the owner on the side with
+    //  more room -- pinned to that edge of the work area, so the overlap is
+    //  the smallest the monitor allows -- instead of leaving the monitor.
+    //
+    TEST_METHOD (BesideOwnerOverlapsOnTheRoomierSide)
+    {
+        POINT  left  = DxuiHwndSource::PlaceBesideOwner (GetRect (200, 100, 1800, 900), GetSize (500, 600), s_kWork);
+        POINT  right = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 1700, 900), GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (0,    100, left,  L"more room left: pinned to the work-area left edge");
+        AssertPoint (1420, 100, right, L"more room right: pinned to the work-area right edge");
+    }
+
+
+    //
+    //  A maximized owner fills its monitor, so there is no side to sit
+    //  beside. The window still stays on that monitor and overlaps.
+    //
+    TEST_METHOD (BesideMaximizedOwnerStaysOnItsMonitor)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (s_kWork, GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (1420, 0, p, L"overlapping the maximized owner, still on its monitor");
+    }
+
+
+    //
+    //  The work area is the OWNER's monitor, so an owner on a secondary
+    //  screen to the left of the primary keeps its dialog there: the fit
+    //  test is against that monitor's edges, negative coordinates and all.
+    //
+    TEST_METHOD (BesideOwnerStaysOnASecondaryMonitor)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (-1800, 100, -1200, 700),
+                                                     GetSize (500, 600),
+                                                     GetRect (-1920, 0, 0, 1080));
+
+
+        AssertPoint (-1200, 100, p, L"beside the owner on the left-hand monitor");
+    }
+
+
+    //
+    //  Tops align with the owner, but a low-sitting owner would push the
+    //  window's bottom under the taskbar, so the clamp lifts it back.
+    //
+    TEST_METHOD (BesideOwnerClampsTheBottomIntoTheWorkArea)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 700, 900, 1000), GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (900, 440, p, L"bottom meets work.bottom; the side placement holds");
     }
 };
 

@@ -59,6 +59,7 @@ Entries before versioning was introduced use dates only.
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
   re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
