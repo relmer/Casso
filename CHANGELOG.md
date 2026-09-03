@@ -53,6 +53,8 @@ Entries before versioning was introduced use dates only.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
+- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
+  RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
 - **Full-screen mode hid the top and bottom of the picture on a widescreen
