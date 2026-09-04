@@ -54,16 +54,15 @@ halData
     .byte $FB,$00,$FD,$C9,$42,$FB,$03,$C9
     .byte $A7,$CD,$0F,$87,$B7,$FB,$06,$D3
     .byte $CF,$D2,$D2,$D9,$AC,$B0,$10,$9E
-    .byte $41,$00,$40,$FB,$05,$C4,$C1,$D6
-    .byte $C5,$AE,$E5,$08,$85,$B3,$00,$FB
-    .byte $03,$C9,$A7,$CD,$0F,$87,$B7,$FB
-    .byte $06,$C1,$C6,$D2,$C1,$C9,$C4,$DB
-    .byte $B4,$9E,$08,$85,$E5,$FB,$01,$C9
-    .byte $4F,$87,$FB,$05,$C3,$C1,$CE,$A7
-    .byte $D4,$C0,$E9,$0C,$B8,$E8,$FB,$02
-    .byte $C4,$CF,$E5,$16,$FB,$05,$D4,$C8
-    .byte $C1,$D4,$AE,$F5,$0C,$C0,$E8,$00
-    .byte $FF
+    .byte $41,$FB,$05,$C4,$C1,$D6,$C5,$AE
+    .byte $E5,$08,$85,$B3,$00,$FB,$03,$C9
+    .byte $A7,$CD,$0F,$87,$B7,$FB,$06,$C1
+    .byte $C6,$D2,$C1,$C9,$C4,$DB,$B4,$9E
+    .byte $08,$85,$E5,$FB,$01,$C9,$4F,$87
+    .byte $FB,$05,$C3,$C1,$CE,$A7,$D4,$C0
+    .byte $E9,$0C,$B8,$E8,$FB,$02,$C4,$CF
+    .byte $E5,$16,$FB,$05,$D4,$C8,$C1,$D4
+    .byte $AE,$F5,$0C,$C0,$E8,$00,$FF
 
 ; Daisy Bell chorus. Caption escapes carry the syllable; records are
 ; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is
