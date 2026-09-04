@@ -120,11 +120,9 @@ HIRES      = $C057         ; hi-res, not lo-res
 DHIRESON   = $C05E         ; double hi-res (needs 80-column video too)
 
 ; -- This version ------------------------------------------------------------
-DHGR     = 1               ; the engine's conditionals key on this
 CAPLAST  = 79              ; the last column of a caption row
 CAPFIT   = 81              ; one past the width, for the fits-in-a-row test
 TITLECOL = 29              ; the title's first column, centered in 80
-LAPS     = $1E             ; song: delay laps left in the current unit
 ALT      = $1F             ; unpacker: the byte a pair run alternates with
 PCY      = $20             ; PutChar: the caller's Y
 

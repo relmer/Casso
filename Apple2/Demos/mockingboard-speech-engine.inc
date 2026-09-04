@@ -6,24 +6,23 @@
 ;  assembled into both demos. What differs is the picture: how a character
 ;  reaches a text row, how the eye is painted, and how the screen is set up.
 ;
-;  The including file must, BEFORE this file:
-;      define DHGR when it is the double hi-res version
-;      define CAPLAST and CAPFIT -- the last column of a caption row, and one
-;          past the width, for the does-this-word-fit test
-;      declare its own soft switches
+;  The including file must, BEFORE this file, define CAPLAST and CAPFIT --
+;  the last column of a caption row, and one past the width, for the
+;  does-this-word-fit test -- and declare its own soft switches. It must also,
+;  anywhere, provide:
 ;
-;  and must, ANYWHERE, provide:
 ;      ScreenInit  set the display up and draw the eye at rest
-;      EyeFlash / EyeFlashQ / EyeDecay / EyeRest   the eye
-;      PutChar     character A at column Y of the row at CAPPTR, double hi-res
-;                  only; the hi-res version stores straight into the row
-;      FLASHU, SNGFLASHL, decayUnits, decayLaps    what a paint costs, double
-;                  hi-res only, from the generator
+;      EyeFlash / EyeFlashQ / EyeDecay / EyeRest   the eye. Each returns carry
+;                  SET when it painted, so the delay after it can charge for
+;                  the time the paint took
+;      PutChar     character A at column Y of the row at CAPPTR
+;      FLASHU, SNGFLASHL, decayUnits, decayLaps    what a paint costs, from
+;                  the generator, in speech units and in song laps left
 ;
-;  A note on the conditionals below. They are few, and each marks a real
-;  difference in the machine rather than a stylistic one: the double hi-res
-;  paints move enough bytes that the delay after them has to give the time
-;  back, and its text rows are eighty columns split across two memory banks.
+;  Nothing here is conditional on which version is being assembled. Where the
+;  two machines differ the difference is behind one of those names, and where
+;  a version has nothing to charge for it says so with a zero rather than with
+;  an .ifdef.
 ; ============================================================================
 
 
@@ -84,6 +83,7 @@ TMP3    = $1A
 FLASHQ  = $1B              ; a vowel has been written; flash at the reload
 RLROW   = $1C              ; unpacker: graphics row
 RLCOL   = $1D              ; unpacker: byte column
+LAPS    = $1E              ; song: delay laps left in the current unit
 
 start
     sei                         ; reset masks interrupts and nothing here
@@ -296,7 +296,6 @@ pw_add
     lda CURPH
     sta SPHON                   ; reload the phoneme, still sounding
     jsr EyeFlashQ
-    .ifdef DHGR
     bcc pw_burn
     lda UNITS                   ; the flash spent FLASHU of the back half
     sec
@@ -305,14 +304,11 @@ pw_add
     beq pw_done
     sta UNITS
 pw_burn
-    .endif
     jmp BurnUnits
 pw_tail
     jmp EyeFlashQ
-    .ifdef DHGR
 pw_done
     rts
-    .endif
 
 
 ;  BurnUnits -- spend UNITS units of 4096 machine cycles
@@ -338,7 +334,6 @@ bu_in2
     lda #DECAYU
     sta DECAYT
     jsr EyeDecay
-    .ifdef DHGR
     bcc bu_next
     lda UNITS                   ; the paint spent decayUnits,x: take them off,
     sec                         ; keeping at least one for the loop to end on
@@ -346,7 +341,6 @@ bu_in2
     bcc bu_next
     beq bu_next
     sta UNITS
-    .endif
 bu_next
     dec UNITS
     bne bu_unit
@@ -399,10 +393,8 @@ sng_rec
     inc PTR+1
 
 sng_note
-    .ifdef DHGR
     ldx #DELAY1L
     stx LAPS
-    .endif
     ; A new note: if it is a vowel, it is a syllable, and the eye flashes.
     ; (The branch above once went straight to sng_hold, skipping this unless
     ; the record happened to cross a page -- so the song never flashed.)
@@ -412,30 +404,20 @@ sng_note
     cmp #VOWELMAX+1
     bcs sng_hold
     jsr EyeFlash
-    .ifdef DHGR
     ldx #SNGFLASHL              ; the flash spent part of this unit
     stx LAPS
-    .endif
 
 sng_hold
     lda CURPH
     sta SPHON                   ; (re)start the phoneme; sustains if already sounding
-    .ifdef DHGR
     ldx LAPS
     jsr DelayLaps
     ldx #DELAY1L
     stx LAPS
-    .else
-    jsr Delay1
-    .endif
     dec NDUR
-    .ifdef DHGR
     bne sng_more
     jmp sng_next
 sng_more
-    .else
-    beq sng_next
-    .endif
     ; A held note keeps the eye lit. The flash collapses over the note's last
     ; SNGTAIL units, one ring per unit, so the next syllable's flash still
     ; reads as a fresh pulse.
@@ -443,11 +425,9 @@ sng_more
     cmp #SNGTAIL+1
     bcs sng_hold
     jsr EyeDecay
-    .ifdef DHGR
     bcc sng_hold
     lda decayLaps,x             ; the paint spent part of the next unit
     sta LAPS
-    .endif
     jmp sng_hold
 
 sng_done
@@ -487,9 +467,7 @@ del_done
 
 Delay1
     ldx #DELAY1L                ; 33 laps of 256 passes, ~5 cycles each
-    .ifdef DHGR
 DelayLaps
-    .endif
 d1_outer
     ldy #$00
 d1_inner
@@ -522,11 +500,7 @@ cap_clr
     lda #$A0
     ldy #CAPLAST
 cap_clr1
-    .ifdef DHGR
     jsr PutChar
-    .else
-    sta (CAPPTR),y
-    .endif
     dey
     bpl cap_clr1
     inc CAPROW
@@ -555,11 +529,7 @@ cap_fit
 cap_space
     ldy CAPCOL
     lda #$A0
-    .ifdef DHGR
     jsr PutChar
-    .else
-    sta (CAPPTR),y
-    .endif
     lda TMP
     sta CAPCOL
 
@@ -571,11 +541,7 @@ cap_put
     lda (PTR),y
     sty TMP
     ldy CAPCOL
-    .ifdef DHGR
     jsr PutChar
-    .else
-    sta (CAPPTR),y
-    .endif
     inc CAPCOL
     ldy TMP
     iny
@@ -617,11 +583,7 @@ CaptionRow
     lda #$A0
     ldy #CAPLAST
 cr_blank
-    .ifdef DHGR
     jsr PutChar
-    .else
-    sta (CAPPTR),y
-    .endif
     dey
     bpl cr_blank
     rts

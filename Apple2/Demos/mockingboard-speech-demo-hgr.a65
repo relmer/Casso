@@ -135,6 +135,11 @@ CAPFIT   = 41              ; one past the width, for the fits-in-a-row test
 ;  of stores. Orange is the odd-x pixels of the orange/blue group, which makes
 ;  a solid orange byte $AA in an even byte column and $D5 in an odd one; the
 ;  fill starts from the column's parity and toggles. White is every pixel on.
+;
+;  Each of the first three returns carry SET when it painted, which is the
+;  engine's signal to charge the delay that follows for the time it took. The
+;  hi-res charge is zero -- the delay loop is already short by the eye's share
+;  -- but the convention is the same, so the engine needs no conditional.
 ; ============================================================================
 EyeFlash
     lda #$00
@@ -150,35 +155,35 @@ ef_loop
     sta GLOWPH
     lda #DECAYU
     sta DECAYT
+    sec
     rts
 
 EyeFlashQ
     lda FLASHQ
-    beq efq_done
-    jmp EyeFlash
-efq_done
+    bne EyeFlash
+    clc
     rts
 
 EyeDecay
     lda GLOWPH
-    beq ed_done
+    beq ed_none
     dec GLOWPH
-    ldx GLOWPH
-    lda #$00
+    ldx GLOWPH                  ; the ring, and PaintBand leaves it alone, so
+    lda #$00                    ;   the caller can index its cost by it
     sta TMP2
     jsr PaintBand
-ed_done
+    sec
+    rts
+ed_none
+    clc
     rts
 
 EyeRest
     lda #$00
     sta FLASHQ
 er_loop
-    lda GLOWPH
-    beq er_done
     jsr EyeDecay
-    jmp er_loop
-er_done
+    bcs er_loop
     rts
 
 PaintBand
@@ -349,6 +354,19 @@ RleRow
     lda hgrRowHi,x
     sta EYEP+1
 rr_done
+    rts
+
+
+; ============================================================================
+;  PutChar -- character A at column Y of the row at CAPPTR
+;
+;  A forty-column row is forty bytes in one bank, so this is just the store the
+;  caption code would otherwise make itself. It exists so that code can be the
+;  same in both demos: the double hi-res row is split across two banks and
+;  cannot be written directly. A and Y survive, as they must.
+; ============================================================================
+PutChar
+    sta (CAPPTR),y
     rts
 
 

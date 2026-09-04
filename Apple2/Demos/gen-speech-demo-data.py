@@ -337,6 +337,21 @@ def emit_eye_hgr():
             data += [row_base(y) & 0xFF, row_base(y) >> 8, b, n]
         print(fmt(data + [0, 0, 0, 0], 16))
     print()
+    #  The engine charges the delay after a paint for the time the paint took,
+    #  and does it the same way in both demos. Here there is nothing to charge:
+    #  a band is a fill rather than a copy, and BurnUnits already runs its inner
+    #  loop short by the eye's share. Saying so with a zero costs one subtract
+    #  and keeps the shared code free of a conditional.
+    print("; What a paint costs the delay that follows, in speech units and in")
+    print("; song laps left after it. Nothing, here: a band is a fill, and the")
+    print("; delay loop is already short by the eye's share.")
+    print("FLASHU    = $00")
+    print(f"SNGFLASHL = ${SONG_LAPS:02X}")
+    print("decayUnits")
+    print(fmt([0, 0, 0]))
+    print("decayLaps")
+    print(fmt([SONG_LAPS] * 3))
+    print()
 
 
 # ----------------------------------------- HAL's eye, double hi-res ---

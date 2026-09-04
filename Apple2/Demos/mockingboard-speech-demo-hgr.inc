@@ -226,6 +226,16 @@ glowBand2
     .byte $A8,$22,$12,$04,$A8,$26,$12,$04,$A8,$2A,$13,$02,$A8,$2E,$13,$02
     .byte $00,$00,$00,$00
 
+; What a paint costs the delay that follows, in speech units and in
+; song laps left after it. Nothing, here: a band is a fill, and the
+; delay loop is already short by the eye's share.
+FLASHU    = $00
+SNGFLASHL = $21
+decayUnits
+    .byte $00,$00,$00
+decayLaps
+    .byte $21,$21,$21
+
 ; Daisy Bell chorus. Caption escapes carry the syllable; records are
 ; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is
 ; deliberate here: the song paces itself and wants the longest frames.
