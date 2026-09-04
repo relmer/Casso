@@ -670,9 +670,19 @@ void WasapiAudio::RenderPump()
 
     SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-    // Keep at least ~20 ms queued in the device so scheduling jitter on
-    // the producer side never reaches the speaker.
-    floorFr = m_sampleRate / 50;
+    // The depth at which the endpoint is treated as about to run dry, and the
+    // only condition under which filler is written at all.
+    //
+    // This was 20 ms, and that was the whole problem. Logged over 3584 render
+    // wakes the device queue sits at a mean of 19.2 ms and never once fell
+    // below 10, while the pending queue is legitimately empty at 38% of wakes
+    // -- a producer running at real time has nothing in hand most of the time.
+    // A 20 ms floor against a 19 ms queue is therefore true almost whenever
+    // pending is empty, so filler was spliced into an endpoint that was in no
+    // danger whatsoever. 5 ms is a real emergency: the measured minimum is
+    // twice that, so this should never fire in normal running, and if it does
+    // the device genuinely was about to starve.
+    floorFr = m_sampleRate / 200;
 
     while (!m_renderStop.load (std::memory_order_relaxed))
     {
