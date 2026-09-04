@@ -1427,4 +1427,40 @@ public:
         // And the file the save refused to touch is still exactly as it was.
         Assert::AreEqual (corrupt, fs.PeekContent (store.GetUserPrefsFilePath()));
     }
+
+
+    TEST_METHOD (LoadAll_WhenOnlyTheGlobalSectionIsBad_KeepsTheMachineDeltas)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           machine;
+        std::wstring        parseDetail;
+        std::wstring        preservedPath;
+        HRESULT             hr       = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+        std::string         original = "{\"global\":42,\"machines\":{\"Apple2e\":{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}}}";
+
+
+        store.SetTimestampSource ([] { return kFixedStamp; });
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), original);
+        AssertSucceeded (hr);
+
+        // The document parses and its machines section is perfectly readable;
+        // only the global section is wrong. The whole file is still set aside,
+        // because the global is what could not be loaded -- but the deltas were
+        // readable, so they must survive into the file that replaces it. Losing
+        // them costs the user their slot configuration and remembered disks
+        // over a fault in a different section.
+        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        AssertFailed (hr);
+        Assert::IsFalse (preservedPath.empty());
+
+        hr = store.SaveAll (prefs, fs);
+        AssertSucceeded (hr);
+
+        machine = ReadMachineOrFail (fs, store, "Apple2e");
+        Assert::AreEqual (std::string ("Maximum"),
+                          FindObjectValueForTest (machine, "speedMode")->GetString());
+    }
 };

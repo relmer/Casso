@@ -1588,7 +1588,14 @@ Error:
 //  Reads a parsed prefs document into the global prefs and the per-machine
 //  delta cache.
 //
-//  Only the ROOT being a non-object is an error. Everything inside is
+//  A global section that will not load is reported, but only AFTER the
+//  machines are cached. The two sections are independent data in one document,
+//  and the machines are readable on their own: LoadAll answers a failure by
+//  setting the whole file aside, so anything cached here is what the next save
+//  puts back. Reporting the failure first instead cost the user their slot
+//  configuration and remembered disks over a fault in a different section.
+//
+//  Only the ROOT being a non-object is an error outright. Everything inside is
 //  optional: a missing global section resets to constructed defaults, a
 //  missing machines section leaves the cache alone, and any machine entry that
 //  is not an object is skipped. A prefs file is user-writable and
@@ -1606,24 +1613,23 @@ HRESULT UserConfigStore::LoadCombinedJson (
     GlobalUserPrefs & prefs) const
 {
     HRESULT            hr       = S_OK;
+    HRESULT            hrGlobal = S_OK;
     const JsonValue  * global   = nullptr;
     const JsonValue  * machines = nullptr;
+    bool               isObject = false;
 
 
 
-    if (root.GetType() != JsonType::Object)
-    {
-        hr = E_INVALIDARG;
-        CHR (hr);
-    }
+    isObject = (root.GetType() == JsonType::Object);
+    CBREx (isObject, E_INVALIDARG);
 
     global = FindObjectValue (root, kpszGlobalKey);
     if (global != nullptr)
     {
-        hr = prefs.FromJson (*global);
-        CHR (hr);
+        hrGlobal = prefs.FromJson (*global);
     }
-    else
+
+    if (global == nullptr || FAILED (hrGlobal))
     {
         prefs = GlobalUserPrefs {};
     }
@@ -1639,6 +1645,9 @@ HRESULT UserConfigStore::LoadCombinedJson (
             }
         }
     }
+
+    // Reported last, with the machines already cached.
+    hr = hrGlobal;
 
 Error:
     return hr;
