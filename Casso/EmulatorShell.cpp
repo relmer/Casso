@@ -1560,6 +1560,7 @@ void EmulatorShell::RefreshCrtOverrideKeys()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::ResolveCrtForCurrentMode
@@ -1602,6 +1603,7 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
 
     return CrtResolver::Resolve (CrtPresets::GetPreset (mode), themeDefaults, overrides);
 }
+
 
 
 

@@ -36,6 +36,13 @@ static constexpr const char *  s_kpszCrtModeKeys[kCrtModeCount] = {
 };
 
 
+// The monitors the v1-era catalog held, frozen against that history. The
+// conversion fans an adopted v1 block onto both, and deliberately does NOT
+// read s_kMonitors: an eight-monitor build must not spread a //e-era user's
+// tuning onto a Commodore tube they have never booted.
+static constexpr const char *  s_kpszV1Monitors[] = { "AppleMonitorII", "AppleMonitorIIc" };
+
+
 // Known top-level keys recognized by this version of GlobalUserPrefs.
 // Anything not in this list is preserved in `unknownPassthrough`.
 static const std::set<std::string>  s_kKnownTopLevel = {
@@ -123,13 +130,13 @@ static constexpr size_t  s_kcCrtGroup = _countof (s_kpszCrtGroupKeys);
 // order within a group is the serialized key order.
 struct CrtFieldDesc
 {
-    CrtGroup                          group;
-    const char *                      key;
-    CrtScalar                         type;
-    std::optional<bool>  CrtOverrides::*   boolMember;
-    std::optional<float> CrtOverrides::*   floatMember;
-    float                             lo;
-    float                             hi;
+    CrtGroup                                group;
+    const char                            * key;
+    CrtScalar                               type;
+    std::optional<bool> CrtOverrides::*     boolMember;
+    std::optional<float> CrtOverrides::*    floatMember;
+    float                                   lo;
+    float                                   hi;
 };
 
 
@@ -604,8 +611,6 @@ JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t
 
 void GlobalUserPrefs::ReadCrtOverrides (const JsonValue & v, std::map<std::string, CrtOverrides> & out)
 {
-    static constexpr const char *  s_kpszV1Monitors[] = { "AppleMonitorII", "AppleMonitorIIc" };
-
     const JsonValue *  overridesVal = nullptr;
     const JsonValue *  overridesObj = nullptr;
     const JsonValue *  crtSub       = nullptr;
@@ -688,6 +693,7 @@ void GlobalUserPrefs::ReadCrtOverrides (const JsonValue & v, std::map<std::strin
         }
     }
 }
+
 
 
 
