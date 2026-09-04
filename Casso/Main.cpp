@@ -475,6 +475,99 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReportAssertion
+//
+//  The GUI host for a failed EHM assertion: show the text with Abort / Retry
+//  / Ignore, or break straight through when a debugger is attached, since the
+//  dialog would only obscure the stack you came for.
+//
+//  EACH ASSERTION IS SHOWN ONCE PER RUN, and never while another one is
+//  already on screen. Both ceilings exist because assertions fire from the
+//  PAINT PATH, where nothing fails only once.
+//
+//  The nesting is the worse of the two, and is caused by the dialog itself: a
+//  task-modal message box runs its own message loop, so it dispatches the very
+//  WM_PAINT whose failed assertion put it on screen, which fails again and
+//  stacks a second box on the first. Launching Casso minimized used to bury
+//  the screen in some thirty of them within seconds, each one hiding what the
+//  first had to say. So a failure raised while this function is already
+//  reporting is logged and passed over.
+//
+//  Answering Ignore then has to mean "and stop telling me", because the frame
+//  after the one you dismissed fails identically. Remembering the message text
+//  keys that on the assertion SITE -- file, line, and expression are all in it
+//  -- so a second, different failure still gets its dialog.
+//
+//  Suppressing a report is not suppressing the failure: every path here
+//  returns to EHM's normal error path, exactly as Ignore does, and DEBUGMSG
+//  has already logged the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void ReportAssertion (const wchar_t * message)
+{
+    // `reporting` is deliberately NOT thread_local: one assertion dialog at a
+    // time is the intent, and a second thread failing while the first holds
+    // the screen would stack a box behind a modal one nobody can reach.
+    static std::atomic<bool>          reporting;
+    static std::mutex                 seenLock;
+    static std::set<std::wstring>     seen;
+    std::wstring                      text;
+    int                               choice = IDIGNORE;
+    bool                              wasNew = false;
+
+
+
+    if (IsDebuggerPresent())
+    {
+        __debugbreak();
+        return;
+    }
+
+    if (reporting.exchange (true))
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  guard (seenLock);
+
+        wasNew = seen.insert ((message != nullptr) ? message : L"").second;
+    }
+
+    if (wasNew)
+    {
+        text  = L"An internal assertion failed:\n\n";
+        text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+        text += L"\n\n"
+                L"Abort  = quit now\n"
+                L"Retry  = break (attach a debugger first to inspect)\n"
+                L"Ignore = try to continue (this assertion will not be shown again)";
+
+        choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                              MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+    }
+
+    reporting = false;
+
+    if (choice == IDABORT)
+    {
+        TerminateProcess (GetCurrentProcess(), 3);
+    }
+    else if (choice == IDRETRY)
+    {
+        __debugbreak();   // no-op crash if still no debugger; lets you attach one
+    }
+
+    // IDIGNORE: fall through -- EHM continues on its normal error path.
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  wWinMain
 //
 //  Process entry point. Everything here is startup ORDERING -- each step is
@@ -493,10 +586,8 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 //  The breakpoint hook exists because a failed assertion in a debug build
 //  otherwise raises a raw int 3 -- fine under a debugger, but with none
 //  attached it becomes a bare "Casso.exe has stopped working" with no detail
-//  at all. Showing the assertion text and offering Abort / Retry / Ignore lets
-//  the user quit, attach a debugger and break, or continue on EHM's normal
-//  error path the way a release build would. With a debugger already attached
-//  it breaks directly: the dialog would only obscure the stack you came for.
+//  at all. ReportAssertion above is that hook, and says what it shows and how
+//  often.
 //
 //  --trace is applied before the CPU thread starts, because both halves must
 //  be in place first -- the ring has to be sized, and the crash-time filter
@@ -568,45 +659,11 @@ int WINAPI wWinMain (
 
     SetNotifyFunction (&EmulatorShell::NotifyUser);
 
-    // Register a GUI assertion breakpoint. In debug builds a failed EHM
-    // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks
-    // via a raw int 3 -- fine under a debugger, but with none attached it
-    // becomes a silent "Casso.exe has stopped working" WER crash with no
-    // detail. Instead surface the assertion text and let the user choose
-    // Abort (quit) / Retry (break, e.g. after attaching a debugger) /
-    // Ignore (continue on EHM's normal error path, as a release build would).
-    SetBreakpointFunction ([] (const wchar_t * message)
-    {
-        // With a debugger attached, break at the assertion site as before --
-        // the dialog would only get in the way of the stack you came for.
-        if (IsDebuggerPresent())
-        {
-            __debugbreak();
-        }
-        else
-        {
-            std::wstring text = L"An internal assertion failed:\n\n";
-            text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
-            text += L"\n\n"
-                    L"Abort  = quit now\n"
-                    L"Retry  = break (attach a debugger first to inspect)\n"
-                    L"Ignore = try to continue";
-
-            int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
-                                      MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
-
-            if (choice == IDABORT)
-            {
-                TerminateProcess (GetCurrentProcess(), 3);
-            }
-            else if (choice == IDRETRY)
-            {
-                __debugbreak();   // no-op crash if still no debugger; lets you attach one
-            }
-
-            // IDIGNORE: fall through -- EHM continues on its normal error path.
-        }
-    });
+    // Register the GUI assertion host, so a failed EHM assertion (the *A macro
+    // variants, or a bare ASSERT) surfaces its text instead of raising a raw
+    // int 3 that becomes a silent "Casso.exe has stopped working". See
+    // ReportAssertion.
+    SetBreakpointFunction (&ReportAssertion);
 
     // Parse command line. A help request is answered and a command line that
     // could not be read is refused BEFORE any of the startup work below, so
