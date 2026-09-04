@@ -1730,10 +1730,13 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     bool            & outFoundLegacy) const
 {
     HRESULT                   hr                = S_OK;
+    HRESULT                   hrGlobal          = S_OK;
     std::wstring              legacyGlobalPath  = JoinPath (m_userDir, GetLegacyGlobalPrefsFilename());
     std::wstring              legacySuffix      = GetLegacyUserSuffix();
     std::vector<std::wstring> filenames;
     std::vector<std::wstring> legacyUserFiles;
+    std::vector<std::wstring> migratedFiles;
+    std::vector<std::wstring> skippedFiles;
     std::string               text;
     std::string               combinedText;
     JsonValue                 parsed;
@@ -1778,20 +1781,34 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
 
     outFoundLegacy = true;
 
+    // A legacy file that will not read is skipped rather than fatal, and it
+    // stays on disk. Failing the whole migration over one of them cost the user
+    // every OTHER file too: nothing was written and nothing was deleted, and
+    // once anything else created the unified file, the gate in LoadAll never
+    // opened again and the readable files were stranded unread. Casso can do
+    // nothing with a file it cannot parse, so leaving it in place is both the
+    // most it can offer and the only record the user has left of it.
     if (fHaveLegacyGlobal)
     {
-        hr = fs.ReadAllText (legacyGlobalPath, text);
-        CHR (hr);
+        hrGlobal = fs.ReadAllText (legacyGlobalPath, text);
 
-        hr = JsonParser::Parse (text, parsed, err);
-        CHR (hr);
+        if (SUCCEEDED (hrGlobal))
+        {
+            hrGlobal = JsonParser::Parse (text, parsed, err);
+        }
 
-        legacyGlobalJson = parsed;
+        if (SUCCEEDED (hrGlobal))
+        {
+            hrGlobal = prefs.FromJson (parsed);
+        }
 
-        hr = prefs.FromJson (parsed);
-        CHR (hr);
+        if (SUCCEEDED (hrGlobal))
+        {
+            legacyGlobalJson = parsed;
+        }
     }
-    else
+
+    if (!fHaveLegacyGlobal || FAILED (hrGlobal))
     {
         prefs = GlobalUserPrefs {};
         legacyGlobalJson = prefs.ToJson();
@@ -1801,15 +1818,23 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     {
         std::wstring  path        = JoinPath (m_userDir, filename);
         std::string   machineName = Narrow (StripSuffix (filename, legacySuffix));
+        HRESULT       hrFile      = fs.ReadAllText (path, text);
 
-        hr = fs.ReadAllText (path, text);
-        CHR (hr);
 
-        hr = JsonParser::Parse (text, parsed, err);
-        CHR (hr);
+        if (SUCCEEDED (hrFile))
+        {
+            hrFile = JsonParser::Parse (text, parsed, err);
+        }
+
+        if (FAILED (hrFile))
+        {
+            skippedFiles.push_back (filename);
+            continue;
+        }
 
         canonical = CanonicalizeVersionStamp (parsed, 1);
         m_machinePrefs[machineName] = canonical;
+        migratedFiles.push_back (filename);
     }
 
     machines.reserve (m_machinePrefs.size());
@@ -1828,13 +1853,15 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     hr = fs.WriteAllText (GetUserPrefsFilePath(), combinedText);
     CHR (hr);
 
-    if (fHaveLegacyGlobal)
+    // Only what actually came across is removed. A skipped file is the user's
+    // sole copy of whatever is in it.
+    if (fHaveLegacyGlobal && SUCCEEDED (hrGlobal))
     {
         hr = fs.Delete (legacyGlobalPath);
         CHR (hr);
     }
 
-    for (const auto & filename : legacyUserFiles)
+    for (const auto & filename : migratedFiles)
     {
         std::wstring  path = JoinPath (m_userDir, filename);
 
@@ -1843,15 +1870,31 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     }
 
     trace = L"[UserConfigStore] Migrated user prefs:";
-    if (fHaveLegacyGlobal)
+    if (fHaveLegacyGlobal && SUCCEEDED (hrGlobal))
     {
         trace += L" global";
     }
 
-    for (const auto & filename : legacyUserFiles)
+    for (const auto & filename : migratedFiles)
     {
         trace += L" ";
         trace += filename;
+    }
+
+    if (!skippedFiles.empty() || FAILED (hrGlobal))
+    {
+        trace += L" -- left in place, unreadable:";
+
+        if (FAILED (hrGlobal))
+        {
+            trace += L" global";
+        }
+
+        for (const auto & filename : skippedFiles)
+        {
+            trace += L" ";
+            trace += filename;
+        }
     }
 
     trace += L"\n";

@@ -1463,4 +1463,82 @@ public:
         Assert::AreEqual (std::string ("Maximum"),
                           FindObjectValueForTest (machine, "speedMode")->GetString());
     }
+
+
+    // One unreadable legacy file must not cost the user the others. The whole
+    // migration used to fail on it, which wrote nothing and deleted nothing --
+    // and once anything else created the unified file, LoadAll's migration gate
+    // never opened again, so every legacy file was stranded unread.
+
+    TEST_METHOD (LoadAll_WhenOneLegacyFileIsUnreadable_MigratesTheRest)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           foo;
+        std::wstring        parseDetail;
+        std::wstring        preservedPath;
+        HRESULT             hr      = S_OK;
+        std::wstring        baseDir = L"C:\\Casso";
+        UserConfigStore     store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
+        AssertSucceeded (hr);
+        hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Foo"),
+                              "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
+        AssertSucceeded (hr);
+        hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Bar"), "{ truncated");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        AssertSucceeded (hr);
+
+        // The readable files came across and are gone from disk.
+        Assert::AreEqual (std::string ("DarkModern"), prefs.activeTheme);
+        Assert::IsTrue (fs.Exists (store.GetUserPrefsFilePath()));
+        Assert::IsFalse (fs.Exists (LegacyGlobalPathForTest (baseDir)));
+        Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Foo")));
+
+        foo = ReadMachineOrFail (fs, store, "foo");
+        Assert::AreEqual (std::string ("maximum"),
+                          FindObjectValueForTest (foo, "speedMode")->GetString());
+
+        // The one that could not be read stays on disk. Casso can do nothing
+        // with it, so deleting it would destroy the only copy of whatever the
+        // user still has in there.
+        Assert::IsTrue (fs.Exists (LegacyMachinePathForTest (baseDir, "Bar")));
+        Assert::AreEqual (std::string ("{ truncated"),
+                          fs.PeekContent (LegacyMachinePathForTest (baseDir, "Bar")));
+    }
+
+
+    TEST_METHOD (LoadAll_WhenTheLegacyGlobalIsUnreadable_StillMigratesTheMachines)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           foo;
+        std::wstring        parseDetail;
+        std::wstring        preservedPath;
+        HRESULT             hr      = S_OK;
+        std::wstring        baseDir = L"C:\\Casso";
+        UserConfigStore     store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir), "{ truncated");
+        AssertSucceeded (hr);
+        hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Foo"),
+                              "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        AssertSucceeded (hr);
+
+        foo = ReadMachineOrFail (fs, store, "foo");
+        Assert::AreEqual (std::string ("maximum"),
+                          FindObjectValueForTest (foo, "speedMode")->GetString());
+
+        Assert::AreEqual (std::string ("Skeuomorphic"), prefs.activeTheme);
+        Assert::IsTrue (fs.Exists (LegacyGlobalPathForTest (baseDir)));
+    }
 };
