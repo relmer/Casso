@@ -38,6 +38,8 @@ MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme
 CTLUP   = $80              ; CTL set -- Power Down
 CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
 FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
+FILTHAL = $CB              ; ~16.9 kHz -- HAL's tract, a sixth longer than
+                           ;   nominal, which is size rather than pitch
 FILTNOM = $D3              ; ~19.9 kHz -- the datasheet's nominal setting
 FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
 PHMASK  = $3F              ; the phoneme code within a phoneme byte
@@ -115,10 +117,17 @@ start
     ; Every stream opens with a pitch escape for exactly that reason.
 
     ; ---- 1. HAL. A flat, deliberate line; the stream carries its own slower
-    ;         rate in the high nibble of its opening pitch escape.
+    ;         rate in the high nibble of its opening pitch escape. The tract is
+    ;         scaled down a sixth while he speaks: pitch says how low a voice
+    ;         is, the tract says how big the thing making it is, and the two
+    ;         are separate registers. HAL wants the second one.
+    lda #FILTHAL
+    sta SFILT
     lda #<halData
     ldx #>halData
     jsr Speak
+    lda #FILTNOM
+    sta SFILT
 
     ; ---- 2. Joshua. A greeting that falls, then a question that rises
     ;         continuously under its final word.
