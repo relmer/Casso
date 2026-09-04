@@ -427,6 +427,15 @@ Error:
 //  theoretical floor for this reader: it lands on the model rather than under
 //  a cliff, so a sector is not being missed and there is margin below it.
 //
+//  NOT DOS 3.3'S SKEW, THOUGH THAT TABLE IS RIGHT THERE. Reading a track in
+//  DOS's logical order walks physical 0, 13, 11, 9, ... -- thirteen or fourteen
+//  positions apart in the direction the disk turns, so this reader waits most
+//  of a revolution for each anyway. On the same 32 sectors it costs 8.4 s,
+//  against 9.4 s for ascending order and 4.0 s for the order built here. The
+//  table is not wrong; it is cut for RWTS and the file manager above it, which
+//  have far more to do between sectors than the boot ROM does. Which skew is
+//  right is a property of the reader, not of the medium.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DirectBootBuilder::BuildReadOrder (Byte * outOrder)
