@@ -13,7 +13,8 @@ introData
     .byte $B9,$E4,$11,$9E,$E5,$C0,$FB,$06
     .byte $D3,$D0,$C5,$C5,$C3,$C8,$B0,$E7
     .byte $01,$E8,$B2,$FB,$05,$C3,$C8,$C9
-    .byte $D0,$AE,$E8,$B2,$47,$E7,$00,$FF
+    .byte $D0,$AE,$E8,$B2,$47,$E7,$00,$FC
+    .byte $09,$FF
 
 ; the recurring interjection between sections
 sarahData
@@ -23,7 +24,8 @@ sarahData
     .byte $87,$B7,$FB,$08,$D7,$C1,$D4,$C3
     .byte $C8,$C9,$CE,$C7,$A3,$0E,$C0,$E8
     .byte $B2,$87,$B9,$FB,$06,$D9,$CF,$D5
-    .byte $AE,$AE,$AE,$83,$14,$57,$00,$FF
+    .byte $AE,$AE,$AE,$83,$14,$57,$00,$FC
+    .byte $06,$FF
 
 ; "This is my voice." -- spoken at three filter settings
 voiceData
@@ -32,7 +34,7 @@ voiceData
     .byte $C9,$D3,$47,$AF,$FB,$02,$CD,$D9
     .byte $B7,$0F,$87,$FB,$06,$D6,$CF,$C9
     .byte $C3,$C5,$AE,$B3,$11,$87,$B0,$40
-    .byte $FF
+    .byte $FC,$07,$FF
 
 ; "Shall we play a game?" -- declination, dip, then a drawn rise
 wargData
@@ -47,7 +49,8 @@ wargData
     .byte $EF,$66,$C8,$FD,$FD,$64,$C8,$FD
     .byte $0A,$6C,$C5,$FD,$16,$6F,$C5,$FD
     .byte $22,$6C,$F7,$FD,$2D,$6D,$F7,$FD
-    .byte $38,$6A,$F7,$FD,$06,$8A,$00,$FF
+    .byte $38,$6A,$F7,$FD,$06,$8A,$00,$FC
+    .byte $07,$FF
 
 ; "I'm sorry Dave. I'm afraid I can't do that." -- slow and level
 halData
@@ -62,7 +65,8 @@ halData
     .byte $87,$FB,$05,$C3,$C1,$CE,$A7,$D4
     .byte $C0,$E9,$0C,$B8,$E8,$FB,$02,$C4
     .byte $CF,$E5,$16,$FB,$05,$D4,$C8,$C1
-    .byte $D4,$AE,$F5,$0C,$C0,$E8,$00,$FF
+    .byte $D4,$AE,$F5,$0C,$C0,$E8,$00,$FC
+    .byte $07,$FF
 
 ; Daisy Bell chorus. Caption escapes carry the syllable; records are
 ; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is
