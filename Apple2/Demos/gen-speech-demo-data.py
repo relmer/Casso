@@ -206,21 +206,33 @@ def cylon():
 
 
 # ---------------------------------------------------------- HAL's eye ---
-#  Hi-res, mixed mode: 280 x 160 above four text rows. The palette has no red;
-#  orange is the nearest thing, so the disc is orange, the bezel and pinpoint
-#  white. Every byte carries the high bit so the whole picture sits in the
-#  orange/blue group and no half-pixel shift appears at a boundary. Orange is
-#  the odd-x pixels, so a solid orange byte is $AA in an even byte column and
-#  $D5 in an odd one; white is every pixel on.
+#  Double hi-res, mixed mode: 140 color cells by 160 rows above four rows of
+#  80-column text. A cell is four dots and a byte is seven, so a cell's color
+#  comes from the dots of one or two bytes and a byte's value depends on the
+#  cells it covers. The colors are the lo-res sixteen. Which dot carries which
+#  bit is fixed by Apple IIe Technical Note #3, whose four-byte fill patterns
+#  (aux, main, aux, main) are the definition: magenta is $08 $11 $22 $44, only
+#  the LAST dot of each cell lit, so the last dot is the color's low bit and
+#  the first three are bits 1 to 3.
 #
-#  The flash is three concentric bands inside the disc. A vowel paints all
-#  three white at once and they decay orange from the outside in, so each
-#  syllable is a pulse that collapses toward the pinpoint. Bands are listed as
-#  row spans of whole bytes so a paint is a tight run of stores.
-HGR_W, HGR_H = 280, 160
-BLACK, WHITE, ORANGE = 0, 1, 2
-CX, CY, RX, RY = 139.5, 79.5, 70.0, 66.0        # pixels are a shade wider than tall
-BANDS = [(0.06, 0.18), (0.18, 0.30), (0.30, 0.42)]  # innermost first, as radius fractions
+#  The eye is a gray bezel around a lens that shades magenta, orange, yellow
+#  to a white pinpoint. The flash is the three inner rings each stepping one
+#  shade brighter, and the decay steps them back from the outside in. A ring
+#  boundary rarely lands on a byte, so a paint cannot be a fill; it is a copy.
+#  The picture is rendered in each of its four states and, per transition, the
+#  bytes that change are emitted with their new values, as spans: rowLo,
+#  rowHi, column with bit 7 set for the auxiliary bank, count, then the
+#  bytes. A rowHi of 0 ends the list.
+DH_W, DH_H = 140, 160
+BLACK, MAGENTA, ORANGE, GRAY2, YELLOW, WHITE = 0, 1, 9, 10, 13, 15
+CX, CY, RX, RY = 69.5, 79.5, 35.0, 66.0          # cells are twice as wide as a row is tall
+ZONES = [(0.07, WHITE), (0.18, YELLOW), (0.42, ORANGE), (0.925, MAGENTA), (1.0, GRAY2)]
+#  The flash bands, innermost first: (inner radius, outer radius, lit color).
+#  Each lies within one zone and lights to the next shade in.
+BANDS = [(0.07, 0.18, WHITE), (0.18, 0.30, YELLOW), (0.30, 0.42, YELLOW)]
+#  Cycle costs of PaintStream, for the constants that give the time back.
+CYC_PER_BYTE, CYC_PER_SPAN = 19, 70
+SPEECH_UNIT, SONG_LAP, SONG_LAPS = 4096, 1280, 33
 
 def hgr_row_base(y):
     return 0x2000 + (y & 7) * 0x400 + ((y >> 3) & 7) * 0x80 + (y >> 6) * 0x28
@@ -228,105 +240,140 @@ def hgr_row_base(y):
 def eye_radius(x, y):
     return (((x - CX) / RX) ** 2 + ((y - CY) / RY) ** 2) ** 0.5
 
-def hgr_eye():
-    img = [[BLACK] * HGR_W for _ in range(HGR_H)]
-    for y in range(HGR_H):
-        for x in range(HGR_W):
+def eye_cells(lit):
+    """The picture, with the bands in `lit` one shade brighter."""
+    img = [[BLACK] * DH_W for _ in range(DH_H)]
+    for y in range(DH_H):
+        for x in range(DH_W):
             r = eye_radius(x, y)
-            if r <= 1.0:
-                img[y][x] = WHITE if r > 0.925 else ORANGE     # ~5 px bezel
-    # The pinpoint is whole byte cells, chosen by their centers, so no byte is
-    # part white and part orange. A mixed byte keeps its alternating orange
-    # bits when the bands around it go solid white, and read as a bracket.
-    for y in range(HGR_H):
-        for b in range(40):
-            if eye_radius(b * 7 + 3, y) <= 0.06:
-                for i in range(7):
-                    img[y][b * 7 + i] = WHITE
+            c = BLACK
+            for edge, color in ZONES:
+                if r <= edge:
+                    c = color
+                    break
+            for k, (lo, hi, bright) in enumerate(BANDS):
+                if k in lit and lo < r <= hi:
+                    c = bright
+            img[y][x] = c
     return img
 
-def orange_fill(b):
-    return 0xAA if (b % 2 == 0) else 0xD5
-
-def pack_row(row):
+def pack_row(cells):
+    """The row's 80 bytes in screen order: aux, main, aux, ... Dot j of a cell
+    carries bit (j + 1) & 3 of its color."""
+    dots = [0] * (DH_W * 4)
+    for k, c in enumerate(cells):
+        for j in range(4):
+            if (c >> ((j + 1) & 3)) & 1:
+                dots[4 * k + j] = 1
     out = []
-    for b in range(40):
-        val = 0x80
+    for s in range(80):
+        v = 0
         for i in range(7):
-            c = row[b * 7 + i]
-            x = b * 7 + i
-            if c == WHITE or (c == ORANGE and (x & 1)):
-                val |= 1 << i
-        out.append(val)
+            v |= dots[7 * s + i] << i
+        out.append(v)
     return out
 
+#  The packer against the technote's own table.
+assert pack_row([MAGENTA] * DH_W)[:4] == [0x08, 0x11, 0x22, 0x44]
+assert pack_row([ORANGE] * DH_W)[:4] == [0x4C, 0x19, 0x33, 0x66]
+assert pack_row([YELLOW] * DH_W)[:4] == [0x6E, 0x5D, 0x3B, 0x77]
+assert pack_row([GRAY2] * DH_W)[:4] == [0x55, 0x2A, 0x55, 0x2A]
+
 def rle(stream):
-    """(count, byte) pairs; a count with bit 7 set is an ALTERNATING run of
-    the byte and its $7F complement. Solid orange is $AA, $D5, $AA, ... across
-    byte columns, so without this the fill would pack to runs of one."""
-    out = []
-    i, n = 0, len(stream)
+    """(count, byte) pairs; a count with bit 7 set is followed by TWO bytes and
+    the run alternates them. A solid color's pattern repeats every four bytes
+    across the screen, so within one bank it alternates two values, and
+    without the pair a fill would pack to runs of one."""
+    out, i, n = [], 0, len(stream)
     while i < n:
-        v = stream[i]
-        if i + 1 < n and stream[i + 1] == (v ^ 0x7F):
-            k = 1
-            while i + k < n and k < 127 and stream[i + k] == (v if k % 2 == 0 else v ^ 0x7F):
+        a = stream[i]
+        b = stream[i + 1] if i + 1 < n else None
+        if b is not None and b != a:
+            k = 2
+            while i + k < n and k < 127 and stream[i + k] == (a if k % 2 == 0 else b):
                 k += 1
-            if k >= 3:
-                out += [0x80 | k, v]; i += k
+            if k >= 4:
+                out += [0x80 | k, a, b]
+                i += k
                 continue
         k = 1
-        while i + k < n and k < 127 and stream[i + k] == v:
+        while i + k < n and k < 127 and stream[i + k] == a:
             k += 1
-        out += [k, v]; i += k
+        out += [k, a]
+        i += k
     return out + [0]
 
-def bands():
-    """Per band, the row spans of whole byte cells whose centre lies in it."""
-    img = hgr_eye()
-    spans = [[] for _ in BANDS]
-    for y in range(HGR_H):
-        for k, (lo, hi) in enumerate(BANDS):
-            run = None
-            for b in range(40):
-                r = eye_radius(b * 7 + 3, y)
-                solid = all(img[y][b * 7 + i] == ORANGE for i in range(7))
-                inside = solid and lo <= r < hi
-                if inside and run is None:
-                    run = [b, 0]
-                if inside:
-                    run[1] += 1
-                if (not inside) and run is not None:
-                    spans[k].append((y, run[0], run[1])); run = None
-            if run is not None:
-                spans[k].append((y, run[0], run[1]))
+def transition(src, dst):
+    """Spans of the bytes that differ between two pictures, per row and bank,
+    carrying the new values: (row, aux, first column, bytes). A gap of up to
+    three bytes is bridged, since a span header costs more than three bytes
+    do; the bridged bytes are written with the value they already hold."""
+    spans = []
+    for y in range(DH_H):
+        a, b = pack_row(src[y]), pack_row(dst[y])
+        for aux, off in ((1, 0), (0, 1)):
+            pa, pb = a[off::2], b[off::2]
+            runs = []
+            for c in range(40):
+                if pa[c] == pb[c]:
+                    continue
+                if runs and c - runs[-1][1] <= 4:
+                    runs[-1][1] = c
+                else:
+                    runs.append([c, c])
+            for c0, c1 in runs:
+                spans.append((y, aux, c0, pb[c0:c1 + 1]))
     return spans
 
+def span_bytes(spans):
+    data = []
+    for y, aux, c0, vals in spans:
+        base = hgr_row_base(y)
+        data += [base & 0xFF, base >> 8, c0 | (0x80 if aux else 0), len(vals)] + list(vals)
+    return data + [0, 0]
+
 def emit_eye():
-    img = hgr_eye()
-    stream = [v for y in range(HGR_H) for v in pack_row(img[y])]
-    packed = rle(stream)
-    print(f"; HAL's eye, run-length coded: (count, byte) pairs over the 160 x 40 bytes")
-    print(f"; of the mixed-mode picture, row-major; a count of 0 ends it. {len(packed)} bytes.")
-    print("eyeRle")
-    print(fmt(packed, 16))
-    print()
+    rest = eye_cells(set())
+    s3, s2, s1 = eye_cells({0, 1, 2}), eye_cells({0, 1}), eye_cells({0})
+    for name, off in (("eyeRleAux", 0), ("eyeRleMain", 1)):
+        stream = [v for y in range(DH_H) for v in pack_row(rest[y])[off::2]]
+        packed = rle(stream)
+        print(f"; HAL's eye, {'auxiliary' if off == 0 else 'main'} bank, run-length coded over the")
+        print(f"; 160 x 40 bytes of the mixed-mode picture, row-major; a count of 0 ends it.")
+        print(f"; {len(packed)} bytes.")
+        print(name)
+        print(fmt(packed, 16))
+        print()
     print("; Base address of each of the 160 graphics rows, low then high.")
     print("hgrRowLo")
-    print(fmt([hgr_row_base(y) & 0xFF for y in range(HGR_H)], 16))
+    print(fmt([hgr_row_base(y) & 0xFF for y in range(DH_H)], 16))
     print("hgrRowHi")
-    print(fmt([hgr_row_base(y) >> 8 for y in range(HGR_H)], 16))
+    print(fmt([hgr_row_base(y) >> 8 for y in range(DH_H)], 16))
     print()
-    sp = bands()
-    print("; The flash bands, innermost first. Each span is rowLo, rowHi, first byte")
-    print("; column, byte count; a rowHi of 0 ends the band.")
-    for k, s in enumerate(sp):
-        print(f"; band {k}: {len(s)} spans, {sum(n for _, _, n in s)} bytes")
-        print(f"glowBand{k}")
-        data = []
-        for y, b, n in s:
-            data += [hgr_row_base(y) & 0xFF, hgr_row_base(y) >> 8, b, n]
-        print(fmt(data + [0, 0, 0, 0], 16))
+    print("; The flash and its three decay steps, outermost ring first. Each is the")
+    print("; bytes that change, as spans: rowLo, rowHi, column (bit 7 = aux), count,")
+    print("; then the count bytes; a rowHi of 0 ends the list.")
+    costs = {}
+    for name, a, b in (("eyeFlash", rest, s3), ("eyeDecay2", s3, s2),
+                       ("eyeDecay1", s2, s1), ("eyeDecay0", s1, rest)):
+        sp = transition(a, b)
+        nbytes = sum(len(v) for *_, v in sp)
+        costs[name] = CYC_PER_BYTE * nbytes + CYC_PER_SPAN * len(sp)
+        print(f"; {name}: {len(sp)} spans, {nbytes} bytes, about {costs[name]} cycles")
+        print(name)
+        print(fmt(span_bytes(sp), 16))
+        print()
+    flash = costs["eyeFlash"]
+    decays = [costs[n] for n in ("eyeDecay0", "eyeDecay1", "eyeDecay2")]
+    print("; What the paints cost, so the delays around them can give the time back:")
+    print("; speech units of 4096 cycles, and laps of the song's 1280-cycle delay loop")
+    print("; left in the unit after the paint. The decay tables are indexed by ring.")
+    print(f"FLASHU    = ${max(1, round(flash / SPEECH_UNIT)):02X}")
+    print(f"SNGFLASHL = ${max(1, SONG_LAPS - round(flash / SONG_LAP)):02X}")
+    print("decayUnits")
+    print(fmt([max(1, round(c / SPEECH_UNIT)) for c in decays]))
+    print("decayLaps")
+    print(fmt([max(1, SONG_LAPS - round(c / SONG_LAP)) for c in decays]))
     print()
 
 

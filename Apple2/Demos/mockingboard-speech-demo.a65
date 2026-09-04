@@ -108,12 +108,15 @@ SCTL    = $C443            ; CTL in D7, articulation in D6:4, amplitude in D3:0
 SFILT   = $C444            ; vocal tract filter clock
 
 ; -- Soft switches -----------------------------------------------------------
-CLR80COL = $C000           ; 80STORE off
-CLR80VID = $C00C           ; 40-column video
-TXTCLR   = $C050           ; graphics, not text
-MIXSET   = $C053           ; mixed: four text rows under the graphics
-LOWSCR   = $C054           ; page 1
-HIRES    = $C057           ; hi-res, not lo-res
+SET80STORE = $C001         ; 80STORE on: PAGE2 steers text and hi-res page 1
+                           ; writes between main and auxiliary memory
+SET80COL   = $C00D         ; 80-column video
+TXTCLR     = $C050         ; graphics, not text
+MIXSET     = $C053         ; mixed: four text rows under the graphics
+PAGE2OFF   = $C054         ; with 80STORE: writes to main
+PAGE2ON    = $C055         ; with 80STORE: writes to auxiliary
+HIRES      = $C057         ; hi-res, not lo-res
+DHIRESON   = $C05E         ; double hi-res (needs 80-column video too)
 
 ; -- Attribute values --------------------------------------------------------
 MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme timing
@@ -126,6 +129,8 @@ PHMASK  = $3F              ; the phoneme code within a phoneme byte
 VOWELMAX = $1C             ; codes $01-$1C are the vowels, the syllable nuclei
 DECAYU  = $08              ; spoken-path units between flash decay steps
 SNGTAIL = $03              ; sung units over which a note's flash collapses
+DELAY1L = $21              ; laps of the song's delay loop in one unit
+TITLECOL = 29              ; the title's first column, centered in 80
 
 ; -- Stream escapes ----------------------------------------------------------
 ESCCAP  = $FB
@@ -135,9 +140,11 @@ ESCFILT = $FE
 ESCEND  = $FF
 
 ; -- Caption geometry --------------------------------------------------------
-;  Hi-res mixed mode: HAL's eye fills the 160 graphics rows, and the four text
-;  rows beneath it carry three caption rows and the title. Text row bases are
-;  the Apple's interleaved layout: base = $400 + (row & 7) * $80 + (row >> 3) * 40.
+;  Double hi-res mixed mode: HAL's eye fills the 160 graphics rows, and the
+;  four 80-column text rows beneath it carry three caption rows and the title.
+;  Text row bases are the Apple's interleaved layout:
+;  base = $400 + (row & 7) * $80 + (row >> 3) * 40; even columns live in the
+;  auxiliary bank at the same address, odd ones in main.
 CAPROWS = $03
 TITLE   = $07D0            ; text row 23
 
@@ -162,6 +169,9 @@ TMP3    = $1A
 FLASHQ  = $1B              ; a vowel has been written; flash at the reload
 RLROW   = $1C              ; unpacker: graphics row
 RLCOL   = $1D              ; unpacker: byte column
+LAPS    = $1E              ; song: delay laps left in the current unit
+ALT     = $1F              ; unpacker: the byte a pair run alternates with
+PCY     = $20              ; PutChar: the caller's Y
 
 
 start
@@ -376,9 +386,19 @@ pw_add
     lda CURPH
     sta SPHON                   ; reload the phoneme, still sounding
     jsr EyeFlashQ
+    bcc pw_burn
+    lda UNITS                   ; the flash spent FLASHU of the back half
+    sec
+    sbc #FLASHU
+    bcc pw_done
+    beq pw_done
+    sta UNITS
+pw_burn
     jmp BurnUnits
 pw_tail
     jmp EyeFlashQ
+pw_done
+    rts
 
 
 ; ============================================================================
@@ -405,6 +425,13 @@ bu_in2
     lda #DECAYU
     sta DECAYT
     jsr EyeDecay
+    bcc bu_next
+    lda UNITS                   ; the paint spent decayUnits,x: take them off,
+    sec                         ; keeping at least one for the loop to end on
+    sbc decayUnits,x
+    bcc bu_next
+    beq bu_next
+    sta UNITS
 bu_next
     dec UNITS
     bne bu_unit
@@ -412,121 +439,131 @@ bu_next
 
 
 ; ============================================================================
-;  EyeFlash  -- a syllable: every flash band white at once
-;  EyeFlashQ -- EyeFlash if a vowel has queued one
-;  EyeDecay  -- one step of the flash collapsing inward: the outermost white
-;               band back to orange
-;  EyeRest   -- everything back to orange
-;  PaintBand -- band X, orange (TMP2 = 0) or white (TMP2 = 1)
+;  EyeFlash    -- a syllable: the three inner rings each a shade brighter
+;  EyeFlashQ   -- EyeFlash if a vowel has queued one
+;  EyeDecay    -- one step of the flash collapsing inward: the outermost lit
+;                 ring back to its resting shade
+;  EyeRest     -- everything back to rest
+;  PaintStream -- apply one transition list; SRCP points at it
 ;
-;  The bands are lists of row spans of whole bytes, so a paint is a tight run
-;  of stores. Orange is the odd-x pixels of the orange/blue group, which makes
-;  a solid orange byte $AA in an even byte column and $D5 in an odd one; the
-;  fill starts from the column's parity and toggles. White is every pixel on.
+;  A color cell is four dots and a byte is seven, so the rings do not fall on
+;  byte boundaries and a paint copies bytes rather than filling them. Each
+;  transition is a list of spans: row address, first column with bit 7 set for
+;  the auxiliary bank, count, then the count bytes. With 80STORE on, PAGE2
+;  steers the hi-res writes between the banks.
+;
+;  EyeFlash, EyeFlashQ and EyeDecay return carry set when they painted, so the
+;  caller can give the time back: FLASHU and DECAYC are in speech units and
+;  SNGFLASHL and SNGDECAYL in song laps, all from the generator, which knows
+;  the byte counts.
 ; ============================================================================
 EyeFlash
     lda #$00
     sta FLASHQ
-    lda #$01
-    sta TMP2
-    ldx #$02
-ef_loop
-    jsr PaintBand
-    dex
-    bpl ef_loop
+    lda #<eyeFlash
+    sta SRCP
+    lda #>eyeFlash
+    sta SRCP+1
+    jsr PaintStream
     lda #$03
     sta GLOWPH
     lda #DECAYU
     sta DECAYT
+    sec
     rts
 
 EyeFlashQ
     lda FLASHQ
-    beq efq_done
-    jmp EyeFlash
-efq_done
+    bne EyeFlash
+    clc
     rts
 
 EyeDecay
     lda GLOWPH
-    beq ed_done
+    beq ed_none
     dec GLOWPH
     ldx GLOWPH
-    lda #$00
-    sta TMP2
-    jsr PaintBand
-ed_done
+    lda eyeDecayLo,x
+    sta SRCP
+    lda eyeDecayHi,x
+    sta SRCP+1
+    jsr PaintStream
+    sec
+    rts
+ed_none
+    clc
     rts
 
 EyeRest
     lda #$00
     sta FLASHQ
 er_loop
-    lda GLOWPH
-    beq er_done
     jsr EyeDecay
-    jmp er_loop
-er_done
+    bcs er_loop
     rts
 
-PaintBand
-    lda glowBandLo,x
-    sta SRCP
-    lda glowBandHi,x
-    sta SRCP+1
-pb_span
+PaintStream
+ps_span
     ldy #$00
     lda (SRCP),y                ; row, low
     sta EYEP
     iny
-    lda (SRCP),y                ; row, high: zero ends the band
-    beq pb_done
+    lda (SRCP),y                ; row, high: zero ends the list
+    beq ps_done
     sta EYEP+1
     iny
-    lda (SRCP),y                ; first byte column
+    lda (SRCP),y                ; first column; bit 7 selects the aux bank
+    bpl ps_main
+    sta PAGE2ON
+ps_main
+    and #$7F
     sta TMP3
     iny
-    lda (SRCP),y                ; byte count
-    sta TMP
+    lda (SRCP),y                ; count
+    clc
+    adc TMP3
+    sta TMP                     ; the column past the last
+    ; Step past the header, then bias the source down by the first column so
+    ; that one index serves both the source and the row.
     lda SRCP
     clc
     adc #$04
     sta SRCP
-    bcc pb_fill
+    bcc ps_bias
     inc SRCP+1
-pb_fill
+ps_bias
+    lda SRCP
+    sec
+    sbc TMP3
+    sta SRCP
+    bcs ps_copy0
+    dec SRCP+1
+ps_copy0
     ldy TMP3
-    lda TMP2
-    bne pb_white
-    tya
-    and #$01
-    beq pb_even
-    lda #$D5
-    bne pb_orange               ; always
-pb_even
-    lda #$AA
-pb_orange
-    sta (EYEP),y
-    eor #$7F                    ; $AA <-> $D5
-    iny
-    dec TMP
-    bne pb_orange
-    beq pb_span                 ; always
-pb_white
-    lda #$FF
-pb_wloop
+ps_copy
+    lda (SRCP),y
     sta (EYEP),y
     iny
-    dec TMP
-    bne pb_wloop
-    jmp pb_span
-pb_done
+    cpy TMP
+    bne ps_copy
+    ; Unbias and step: the source sits at (bytes - first column), and the
+    ; bytes ran to the column past the last.
+    lda SRCP
+    clc
+    adc TMP
+    sta SRCP
+    bcc ps_next
+    inc SRCP+1
+ps_next
+    sta PAGE2OFF
+    jmp ps_span
+ps_done
     rts
 
-glowBandLo
-    .byte <glowBand0,<glowBand1,<glowBand2
-glowBandHi
-    .byte >glowBand0,>glowBand1,>glowBand2
+eyeDecayLo
+    .byte <eyeDecay0,<eyeDecay1,<eyeDecay2
+eyeDecayHi
+    .byte >eyeDecay0,>eyeDecay1,>eyeDecay2
 
 
 ; ============================================================================
@@ -576,6 +613,8 @@ sng_rec
     inc PTR+1
 
 sng_note
+    ldx #DELAY1L
+    stx LAPS
     ; A new note: if it is a vowel, it is a syllable, and the eye flashes.
     ; (The branch above once went straight to sng_hold, skipping this unless
     ; the record happened to cross a page -- so the song never flashed.)
@@ -585,20 +624,30 @@ sng_note
     cmp #VOWELMAX+1
     bcs sng_hold
     jsr EyeFlash
+    ldx #SNGFLASHL              ; the flash spent part of this unit
+    stx LAPS
 
 sng_hold
     lda CURPH
     sta SPHON                   ; (re)start the phoneme; sustains if already sounding
-    jsr Delay1
+    ldx LAPS
+    jsr DelayLaps
+    ldx #DELAY1L
+    stx LAPS
     dec NDUR
-    beq sng_next
+    bne sng_more
+    jmp sng_next
+sng_more
     ; A held note keeps the eye lit. The flash collapses over the note's last
-    ; SNGTAIL units, one band per unit, so the next syllable's flash still
+    ; SNGTAIL units, one ring per unit, so the next syllable's flash still
     ; reads as a fresh pulse.
     lda NDUR
     cmp #SNGTAIL+1
     bcs sng_hold
     jsr EyeDecay
+    bcc sng_hold
+    lda decayLaps,x             ; the paint spent part of the next unit
+    sta LAPS
     jmp sng_hold
 
 sng_done
@@ -619,6 +668,7 @@ adv_done
 ; ============================================================================
 ;  DelayUnits -- burn A delay units (A = 0 does nothing)
 ;  Delay1     -- burn one unit, about 41 ms of emulated time
+;  DelayLaps  -- burn X laps of the unit's loop, 1280 cycles each
 ;
 ;  The unit is this program's own clock. Note length is measured in these, not
 ;  in chip frames, so the melody keeps its tempo regardless of how the chip's
@@ -637,7 +687,8 @@ del_done
     rts
 
 Delay1
-    ldx #$21                    ; 33 * 256 inner iterations, ~5 cycles each
+    ldx #DELAY1L                ; 33 laps of 256 passes, ~5 cycles each
+DelayLaps
 d1_outer
     ldy #$00
 d1_inner
@@ -649,7 +700,7 @@ d1_inner
 
 
 ; ============================================================================
-;  ScreenInit -- 40-column text page 1, cleared, with the title in place
+;  ScreenInit -- double hi-res over 80-column text, cleared, with the title
 ;
 ;  Nothing here calls the monitor. A direct-boot payload is entered by the
 ;  disk ROM with the zero-page vectors COUT and its relatives depend on still
@@ -657,84 +708,48 @@ d1_inner
 ;  and filled by hand.
 ; ============================================================================
 ScreenInit
-    sta CLR80COL
-    sta CLR80VID
+    sta SET80COL
+    sta SET80STORE
+    sta PAGE2OFF
     bit TXTCLR
     bit MIXSET
-    bit LOWSCR
     bit HIRES
+    sta DHIRESON
 
-    ; Fill the text page with spaces: rows 20-23 show under the picture.
-    lda #$A0
-    ldx #$00
-si_fill
-    sta $0400,x
-    sta $0500,x
-    sta $0600,x
-    sta $0700,x
-    inx
-    bne si_fill
+    ; Both banks of the text page blank: rows 20-23 show under the picture.
+    jsr TextFill
+    sta PAGE2ON
+    jsr TextFill
+    sta PAGE2OFF
 
-    ; HAL's eye, unpacked from (count, byte) pairs across the 160 rows of the
-    ; mixed-mode picture. A count with bit 7 set is an ALTERNATING run -- the
-    ; byte and then its $7F complement, turn about -- which is how a solid
-    ; orange fill packs, since orange is $AA in one byte column and $D5 in the
-    ; next. The rows are not contiguous in memory, so the column is counted
-    ; and the row pointer re-fetched at each row's end.
-    lda #<eyeRle
-    sta SRCP
-    lda #>eyeRle
-    sta SRCP+1
-    lda #$00
-    sta RLROW
-    sta RLCOL
-    jsr RleRow
-rl_pair
-    ldy #$00
-    lda (SRCP),y                ; count: zero ends the picture
-    beq rl_done
-    sta TMP3                    ; bit 7 kept: alternate or not
-    and #$7F
-    sta TMP
-    iny
-    lda (SRCP),y                ; the byte
-    sta TMP2
-    lda SRCP
-    clc
-    adc #$02
-    sta SRCP
-    bcc rl_run
-    inc SRCP+1
-rl_run
-    ldy RLCOL
-    lda TMP2
-    sta (EYEP),y
-    bit TMP3
-    bpl rl_noalt
-    eor #$7F
-    sta TMP2
-rl_noalt
-    iny
-    cpy #40
-    bne rl_same
-    ldy #$00
-    inc RLROW
-    jsr RleRow
-rl_same
-    sty RLCOL
-    dec TMP
-    bne rl_run
-    beq rl_pair                 ; always
-rl_done
+    ; HAL's eye, one bank at a time, each from its own run-length stream.
+    sta PAGE2ON
+    lda #<eyeRleAux
+    ldx #>eyeRleAux
+    jsr Unpack
+    sta PAGE2OFF
+    lda #<eyeRleMain
+    ldx #>eyeRleMain
+    jsr Unpack
 
     ; Title on the bottom row, then park the caption cursor at the first
-    ; caption row. The picture starts with every band orange: at rest.
-    ldy #$00
+    ; caption row. The picture starts at rest.
+    lda #<TITLE
+    sta CAPPTR
+    lda #>TITLE
+    sta CAPPTR+1
+    ldx #$00
 si_title
-    lda titleText,y
+    lda titleText,x
     beq si_capinit
-    sta TITLE+8,y
-    iny
+    pha
+    txa
+    clc
+    adc #TITLECOL
+    tay
+    pla
+    jsr PutChar
+    inx
     bne si_title
 
 si_capinit
@@ -747,6 +762,81 @@ si_capinit
     jsr CaptionRow
     rts
 
+TextFill
+    lda #$A0
+    ldx #$00
+tf_loop
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne tf_loop
+    rts
+
+
+; ============================================================================
+;  Unpack -- one bank of the picture from its run-length stream, A/X = stream
+;
+;  A count with bit 7 set is followed by TWO bytes and the run alternates
+;  them, which is how a solid color packs: its pattern repeats every four
+;  bytes across the screen, so within one bank it alternates two values. The
+;  rows are not contiguous in memory, so the column is counted and the row
+;  pointer re-fetched at each row's end.
+; ============================================================================
+Unpack
+    sta SRCP
+    stx SRCP+1
+    lda #$00
+    sta RLROW
+    sta RLCOL
+    jsr RleRow
+rl_pair
+    ldy #$00
+    lda (SRCP),y                ; count: zero ends the stream
+    beq rl_done
+    sta TMP3                    ; bit 7 kept: a pair or not
+    and #$7F
+    sta TMP
+    iny
+    lda (SRCP),y                ; the byte
+    sta TMP2
+    sta ALT
+    bit TMP3
+    bpl rl_single
+    iny
+    lda (SRCP),y                ; the byte it alternates with
+    sta ALT
+rl_single
+    iny
+    tya
+    clc
+    adc SRCP
+    sta SRCP
+    bcc rl_run
+    inc SRCP+1
+rl_run
+    ldy RLCOL
+    lda TMP2
+    sta (EYEP),y
+    ldx ALT                     ; swap the pair; a single swaps with itself
+    lda TMP2
+    sta ALT
+    stx TMP2
+    iny
+    cpy #40
+    bne rl_same
+    ldy #$00
+    inc RLROW
+    jsr RleRow
+rl_same
+    sty RLCOL
+    dec TMP
+    bne rl_run
+    beq rl_pair                 ; always
+rl_done
+    rts
+
 RleRow
     ldx RLROW
     cpx #160
@@ -756,6 +846,32 @@ RleRow
     lda hgrRowHi,x
     sta EYEP+1
 rr_done
+    rts
+
+
+; ============================================================================
+;  PutChar -- character A at 80-column position Y of the row at CAPPTR
+;
+;  Even columns live in the auxiliary bank and odd ones in main, at the same
+;  address; with 80STORE on, PAGE2 selects which bank a text-page write lands
+;  in. A and Y survive.
+; ============================================================================
+PutChar
+    sty PCY
+    pha
+    tya
+    lsr a
+    tay
+    pla
+    bcs pc_main
+    sta PAGE2ON
+    sta (CAPPTR),y
+    sta PAGE2OFF
+    ldy PCY
+    rts
+pc_main
+    sta (CAPPTR),y
+    ldy PCY
     rts
 
 
@@ -774,15 +890,15 @@ Caption
     lda CAPLEN
     bne cap_fit
 
-    ; Length 0: blank the four caption rows and start again at the top.
+    ; Length 0: blank the caption rows and start again at the top.
     lda #$00
     sta CAPROW
 cap_clr
     jsr CaptionRow
     lda #$A0
-    ldy #39
+    ldy #79
 cap_clr1
-    sta (CAPPTR),y
+    jsr PutChar
     dey
     bpl cap_clr1
     inc CAPROW
@@ -795,7 +911,7 @@ cap_clr1
     rts
 
 cap_fit
-    ; Does the word (plus a leading space when mid-row) fit in 40 columns?
+    ; Does the word (plus a leading space when mid-row) fit in 80 columns?
     lda CAPCOL
     beq cap_nospace
     clc
@@ -803,7 +919,7 @@ cap_fit
     sta TMP
     clc
     adc CAPLEN
-    cmp #41
+    cmp #81
     bcc cap_space
     jsr CaptionNext             ; start a fresh row instead of splitting a word
     jmp cap_nospace
@@ -811,7 +927,7 @@ cap_fit
 cap_space
     ldy CAPCOL
     lda #$A0
-    sta (CAPPTR),y
+    jsr PutChar
     lda TMP
     sta CAPCOL
 
@@ -823,7 +939,7 @@ cap_put
     lda (PTR),y
     sty TMP
     ldy CAPCOL
-    sta (CAPPTR),y
+    jsr PutChar
     inc CAPCOL
     ldy TMP
     iny
@@ -863,9 +979,9 @@ CaptionRow
     sta CAPCOL
     ; Blank the row we are about to write into.
     lda #$A0
-    ldy #39
+    ldy #79
 cr_blank
-    sta (CAPPTR),y
+    jsr PutChar
     dey
     bpl cr_blank
     rts
