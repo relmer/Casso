@@ -95,7 +95,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
 static constexpr float   s_kfVoicedGain   = 966.00f;
-static constexpr float   s_kfNoiseGain    = 0.075f;
+static constexpr float   s_kfNoiseGain    = 0.130f;
 
 // How fast the noise source is smoothed. The LFSR delivers a rail-to-rail bit
 // per sample; at 0.65 that smoothing broke at 8 kHz, so the source was very
@@ -117,7 +117,7 @@ static constexpr float   s_kfNoiseGain    = 0.075f;
 // are nearly the same sound and "Daisy" comes out closer to "Dailey".
 // Tilting the noise up before it enters the tract restores the sibilance
 // the formants cannot carry, and leaves the resonators to color it.
-static constexpr float   s_kfNoiseLpCoef  = 0.12f;
+static constexpr float   s_kfNoiseLpCoef  = 0.07f;
 
 // Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
 // TWO cascaded sections, not one. Above its top resonance the real chip falls
@@ -156,13 +156,22 @@ static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 // cascading put a low-pass in front of its own hiss and buried it 17 dB below
 // S's, when the chip's stored amplitudes differ by only 3.5 dB. Summed
 // resonators contribute without attenuating each other.
-static constexpr double  s_kFricBandwidthHz = 300.0;
+static constexpr double  s_kFricBandwidthHz = 450.0;
 
 // The two fricative resonators are not equals. Measured on a real SSI-263, its
 // frication peaks at F2 -- 1.5-2 kHz for an S -- while ours summed F2 and F3
 // evenly and so peaked at F3 instead, an octave high. F3 contributes; it does
 // not lead.
-static constexpr float   s_kfFricF3Weight = 0.40f;
+static constexpr float   s_kfFricF3Weight = 0.22f;
+
+// Two more poles, on the fricative branch alone. Above its peak the real chip
+// falls about 28 dB across the octave from 1.75 to 3.5 kHz; the parallel
+// resonators' own skirts, working against the radiation tilt, manage roughly a
+// third of that, which left frication reading as hiss laid over the voice. The
+// output low-pass cannot supply the rest -- it is shared with the voiced path,
+// which is already matched -- so the noise gets its own. 0.28 breaks near
+// 2.5 kHz.
+static constexpr float   s_kfFricLpCoef   = 0.28f;
 
 // Amplitude envelope rates: a fast attack and a slightly longer release,
 // expressed as time constants the per-sample coefficient is derived from.
@@ -427,6 +436,8 @@ void Ssi263::Reset()
     m_noiseLp      = 0.0f;
     m_vaCur        = 0.0f;
     m_faCur        = 0.0f;
+    m_fricLp       = 0.0f;
+    m_fricLp2      = 0.0f;
     m_fricY1[0]    = 0.0f;
     m_fricY1[1]    = 0.0f;
     m_fricY2[0]    = 0.0f;
@@ -672,10 +683,14 @@ float Ssi263::GenerateSample()
     {
         float   noise = GenerateNoiseSample();
 
-        sample += (ResonateFricative (0, noise, m_fCur[1] * scale) +
-                   ResonateFricative (1, noise, m_fCur[2] * scale) *
-                   s_kfFricF3Weight) *
-                  s_kfNoiseGain * m_faCur;
+        float   fric = ResonateFricative (0, noise, m_fCur[1] * scale) +
+                       ResonateFricative (1, noise, m_fCur[2] * scale) *
+                       s_kfFricF3Weight;
+
+        m_fricLp  += s_kfFricLpCoef * (fric - m_fricLp);
+        m_fricLp2 += s_kfFricLpCoef * (m_fricLp - m_fricLp2);
+
+        sample += m_fricLp2 * s_kfNoiseGain * m_faCur;
     }
 
     // Radiation characteristic: the lips differentiate the volume flow,

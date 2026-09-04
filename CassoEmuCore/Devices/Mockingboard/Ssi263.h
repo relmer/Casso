@@ -270,6 +270,8 @@ private:
     float      m_faCur        = 0.0f;
 
     // Parallel fricative branch state, one pair per resonator (F2, F3).
+    float      m_fricLp       = 0.0f;
+    float      m_fricLp2      = 0.0f;
     float      m_fricY1[2]    = { 0.0f, 0.0f };
     float      m_fricY2[2]    = { 0.0f, 0.0f };
 
