@@ -92,46 +92,6 @@ def setp(f, rate=RATE_SPEECH):
 # never inside a cluster like the /sp/ of "speech", which is what punched
 # silent holes through the middle of words.
 
-INTRO = (
-    clear_caption()
-    + setp(BASE_HZ)
-    + cap("HELLO.") + [P("HF", SHORT), P("EH", LONG), P("L", SHORT), P("O", MED), P("OU", SHORT), P("PA", MED)]
-    + cap("I")       + [P("AH1", LONG), P("I", SHORT)]
-    + cap("AM")      + [P("AE", MED), P("M", SHORT)]
-    + cap("THE")     + [P("THV", QUICK), P("UH3", SHORT)]
-    + cap("MOCKINGBOARD") + [P("M", SHORT), P("AH", LONG), P("PA", QUICK), P("K", QUICK),
-                             P("I", SHORT), P("NG", SHORT),
-                             P("B", QUICK), P("O", LONG), P("R1", SHORT), P("D", QUICK), P("PA", QUICK)]
-    + cap("SPEECH") + [P("S", SHORT), P("P", QUICK), P("E", LONG), P("T", QUICK), P("SCH", SHORT)]
-    + cap("CHIP.")  + [P("T", QUICK), P("SCH", SHORT), P("I", MED), P("P", QUICK), P("PA", LONG)]
-)
-
-VOICE = (
-    clear_caption()
-    + setp(BASE_HZ)
-    + cap("THIS") + [P("THV", QUICK), P("I", MED), P("S", SHORT)]
-    + cap("IS")   + [P("I", MED), P("Z", SHORT)]
-    + cap("MY")   + [P("M", SHORT), P("AH1", LONG), P("I", SHORT)]
-    + cap("VOICE.") + [P("V", SHORT), P("O", LONG), P("I", SHORT), P("S", SHORT), P("PA", MED)]
-)
-
-
-
-# The recurring interjection between sections. Lower and slower than the rest,
-# because the joke only works if it sounds like it means it.
-SARAH_HZ = 94.0
-
-SARAH = (
-    clear_caption()
-    + setp(SARAH_HZ, RATE_SLOW)
-    + cap("SARAH,") + [P("S", SHORT), P("EH", LONG), P("R1", SHORT), P("UH3", SHORT), P("PA", QUICK)]
-    + cap("I'M")     + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
-    + cap("WATCHING")+ [P("W", SHORT), P("AH", LONG), P("PA", QUICK), P("T", QUICK), P("SCH", SHORT),
-                        P("I", SHORT), P("NG", SHORT)]
-    + cap("YOU...")  + [P("Y", SHORT), P("IU", LONG), P("U1", MED), P("PA", LONG)]
-)
-
-
 def wargames():
     """A question contour, not a step to a held note.
 
@@ -144,6 +104,16 @@ def wargames():
     """
     q = lambda f: setp(f, RATE_QUESTION)
     s = clear_caption()
+    # The greeting is a statement: it falls, pauses, and then the question
+    # starts fresh with its own caption.
+    s += q(112.0) + cap("GREETINGS,") + [P("KV", QUICK), P("R1", SHORT), P("E", LONG), P("T", QUICK),
+                                        P("I", SHORT), P("NG", SHORT), P("Z", SHORT), P("PA", MED)]
+    s += q(108.0) + cap("PROFESSOR") + [P("P", QUICK), P("R1", SHORT), P("UH3", SHORT), P("F", SHORT),
+                                        P("EH", MED), P("S", SHORT), P("ER", MED)]
+    s += q(101.0) + cap("FALKEN.") + [P("F", SHORT), P("AW", MED), P("L", SHORT), P("K", QUICK),
+                                      P("UH3", SHORT), P("N", MED), P("PA", LONG)]
+    s += hold(7)
+    s += clear_caption()
     # Declination across the run-up.
     s += q(106.0) + cap("SHALL") + [P("SCH", SHORT), P("AE", MED), P("LF", SHORT)]
     s += q(102.0) + cap("WE") + [P("W", SHORT), P("E", MED)]
@@ -168,7 +138,7 @@ HAL = (
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
     + cap("SORRY,") + [P("S", SHORT), P("AW", LONG), P("R1", SHORT), P("E", MED),
                        P("PA", MED)]                       # the comma
-    + cap("DAVE.") + [P("D", QUICK), P("A", LONG), P("AY", SHORT), P("V", SHORT), P("PA", LONG)]
+    + cap("MARK.") + [P("M", SHORT), P("AH", LONG), P("R1", SHORT), P("K", QUICK), P("PA", LONG)]
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
     + cap("AFRAID")+ [P("UH3", QUICK), P("F", SHORT), P("R1", SHORT), P("A", LONG), P("AY", SHORT), P("D", QUICK)]
     + cap("I")     + [P("AH1", MED), P("I", SHORT)]
@@ -218,6 +188,153 @@ def fmt(vals, per=8):
                      for i in range(0, len(vals), per))
 
 
+# ------------------------------------------------------------ Cylon ---
+CYLON_HZ   = 72.0         # a Centurion: low, level, and not in a hurry
+RATE_CYLON = 0x50
+
+def cylon():
+    """Two Centurion lines from the 1978 pilot. The stress in "command" is
+    the show's own: the pitch climbs into the last syllable and settles."""
+    c = lambda f: setp(f, RATE_CYLON)
+    s = clear_caption()
+    s += c(CYLON_HZ) + cap("BY") + [P("B", QUICK), P("AH1", LONG), P("I", SHORT)]
+    s += cap("YOUR")             + [P("Y", SHORT), P("OO", MED), P("R1", SHORT)]
+    s += c(76.0) + cap("COMMAND.") + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT)]
+    s += c(94.0)                 + [P("AE", LONG), P("AE", MED)]
+    s += c(82.0)                 + [P("N", MED), P("D", QUICK), P("PA", LONG)]
+    s += hold(8)
+    s += c(74.0) + cap("EXTERMINATION.") + [P("EH", MED), P("K", QUICK), P("S", SHORT), P("T", QUICK),
+                                            P("ER", MED), P("M", SHORT), P("I", SHORT), P("N", SHORT),
+                                            P("A", LONG), P("AY", SHORT), P("SCH", SHORT), P("UH3", SHORT),
+                                            P("N", MED), P("PA", LONG)]
+    return s
+
+
+# ---------------------------------------------------------- HAL's eye ---
+#  Hi-res, mixed mode: 280 x 160 above four text rows. The palette has no red;
+#  orange is the nearest thing, so the disc is orange, the bezel and pinpoint
+#  white. Every byte carries the high bit so the whole picture sits in the
+#  orange/blue group and no half-pixel shift appears at a boundary. Orange is
+#  the odd-x pixels, so a solid orange byte is $AA in an even byte column and
+#  $D5 in an odd one; white is every pixel on.
+#
+#  The flash is three concentric bands inside the disc. A vowel paints all
+#  three white at once and they decay orange from the outside in, so each
+#  syllable is a pulse that collapses toward the pinpoint. Bands are listed as
+#  row spans of whole bytes so a paint is a tight run of stores.
+HGR_W, HGR_H = 280, 160
+BLACK, WHITE, ORANGE = 0, 1, 2
+CX, CY, RX, RY = 139.5, 79.5, 70.0, 66.0        # pixels are a shade wider than tall
+BANDS = [(0.06, 0.18), (0.18, 0.30), (0.30, 0.42)]  # innermost first, as radius fractions
+
+def hgr_row_base(y):
+    return 0x2000 + (y & 7) * 0x400 + ((y >> 3) & 7) * 0x80 + (y >> 6) * 0x28
+
+def eye_radius(x, y):
+    return (((x - CX) / RX) ** 2 + ((y - CY) / RY) ** 2) ** 0.5
+
+def hgr_eye():
+    img = [[BLACK] * HGR_W for _ in range(HGR_H)]
+    for y in range(HGR_H):
+        for x in range(HGR_W):
+            r = eye_radius(x, y)
+            if r <= 1.0:
+                img[y][x] = WHITE if r > 0.925 else ORANGE     # ~5 px bezel
+    # The pinpoint is whole byte cells, chosen by their centers, so no byte is
+    # part white and part orange. A mixed byte keeps its alternating orange
+    # bits when the bands around it go solid white, and read as a bracket.
+    for y in range(HGR_H):
+        for b in range(40):
+            if eye_radius(b * 7 + 3, y) <= 0.06:
+                for i in range(7):
+                    img[y][b * 7 + i] = WHITE
+    return img
+
+def orange_fill(b):
+    return 0xAA if (b % 2 == 0) else 0xD5
+
+def pack_row(row):
+    out = []
+    for b in range(40):
+        val = 0x80
+        for i in range(7):
+            c = row[b * 7 + i]
+            x = b * 7 + i
+            if c == WHITE or (c == ORANGE and (x & 1)):
+                val |= 1 << i
+        out.append(val)
+    return out
+
+def rle(stream):
+    """(count, byte) pairs; a count with bit 7 set is an ALTERNATING run of
+    the byte and its $7F complement. Solid orange is $AA, $D5, $AA, ... across
+    byte columns, so without this the fill would pack to runs of one."""
+    out = []
+    i, n = 0, len(stream)
+    while i < n:
+        v = stream[i]
+        if i + 1 < n and stream[i + 1] == (v ^ 0x7F):
+            k = 1
+            while i + k < n and k < 127 and stream[i + k] == (v if k % 2 == 0 else v ^ 0x7F):
+                k += 1
+            if k >= 3:
+                out += [0x80 | k, v]; i += k
+                continue
+        k = 1
+        while i + k < n and k < 127 and stream[i + k] == v:
+            k += 1
+        out += [k, v]; i += k
+    return out + [0]
+
+def bands():
+    """Per band, the row spans of whole byte cells whose centre lies in it."""
+    img = hgr_eye()
+    spans = [[] for _ in BANDS]
+    for y in range(HGR_H):
+        for k, (lo, hi) in enumerate(BANDS):
+            run = None
+            for b in range(40):
+                r = eye_radius(b * 7 + 3, y)
+                solid = all(img[y][b * 7 + i] == ORANGE for i in range(7))
+                inside = solid and lo <= r < hi
+                if inside and run is None:
+                    run = [b, 0]
+                if inside:
+                    run[1] += 1
+                if (not inside) and run is not None:
+                    spans[k].append((y, run[0], run[1])); run = None
+            if run is not None:
+                spans[k].append((y, run[0], run[1]))
+    return spans
+
+def emit_eye():
+    img = hgr_eye()
+    stream = [v for y in range(HGR_H) for v in pack_row(img[y])]
+    packed = rle(stream)
+    print(f"; HAL's eye, run-length coded: (count, byte) pairs over the 160 x 40 bytes")
+    print(f"; of the mixed-mode picture, row-major; a count of 0 ends it. {len(packed)} bytes.")
+    print("eyeRle")
+    print(fmt(packed, 16))
+    print()
+    print("; Base address of each of the 160 graphics rows, low then high.")
+    print("hgrRowLo")
+    print(fmt([hgr_row_base(y) & 0xFF for y in range(HGR_H)], 16))
+    print("hgrRowHi")
+    print(fmt([hgr_row_base(y) >> 8 for y in range(HGR_H)], 16))
+    print()
+    sp = bands()
+    print("; The flash bands, innermost first. Each span is rowLo, rowHi, first byte")
+    print("; column, byte count; a rowHi of 0 ends the band.")
+    for k, s in enumerate(sp):
+        print(f"; band {k}: {len(s)} spans, {sum(n for _, _, n in s)} bytes")
+        print(f"glowBand{k}")
+        data = []
+        for y, b, n in s:
+            data += [hgr_row_base(y) & 0xFF, hgr_row_base(y) >> 8, b, n]
+        print(fmt(data + [0, 0, 0, 0], 16))
+    print()
+
+
 #  A silence to close a sentence on, in delay units of about 41.5 ms each.
 #  A phoneme-length PA cannot do this job: the longest one at the speech rate
 #  is 128 ms, which reads as a breath rather than a full stop, so each line
@@ -236,11 +353,10 @@ def emit(name, data, comment, tail = 0):
 print("; ==== GENERATED by gen_data.py -- do not hand-edit ====")
 print(f"; speech rate ${RATE_SPEECH:02X}, baseline pitch {BASE_HZ:.0f} Hz")
 print()
-emit("introData", INTRO, '"Hello. I am the Mockingboard speech chip."', tail = 9)
-emit("sarahData", SARAH, "the recurring interjection between sections", tail = 6)
-emit("voiceData", VOICE, '"This is my voice." -- spoken at three filter settings', tail = 7)
 emit("wargData", wargames(), '"Shall we play a game?" -- declination, dip, then a drawn rise', tail = 7)
-emit("halData", HAL, '"I\'m sorry Dave. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
+emit("halData", HAL, '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
+emit("cylonData", cylon(), '"By your command. Extermination." -- a Centurion, low and level', tail = 8)
+emit_eye()
 
 print("; Daisy Bell chorus. Caption escapes carry the syllable; records are")
 print("; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is")

@@ -110,9 +110,10 @@ SFILT   = $C444            ; vocal tract filter clock
 ; -- Soft switches -----------------------------------------------------------
 CLR80COL = $C000           ; 80STORE off
 CLR80VID = $C00C           ; 40-column video
-TXTSET   = $C051           ; text, not graphics
-MIXCLR   = $C052           ; full screen, no mixed mode
-LOWSCR   = $C054           ; text page 1
+TXTCLR   = $C050           ; graphics, not text
+MIXSET   = $C053           ; mixed: four text rows under the graphics
+LOWSCR   = $C054           ; page 1
+HIRES    = $C057           ; hi-res, not lo-res
 
 ; -- Attribute values --------------------------------------------------------
 MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme timing
@@ -121,6 +122,9 @@ CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
 FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
 FILTNOM = $D3              ; ~19.9 kHz -- the datasheet's nominal setting
 FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
+PHMASK  = $3F              ; the phoneme code within a phoneme byte
+VOWELMAX = $1C             ; codes $01-$1C are the vowels, the syllable nuclei
+DECAYU  = $08              ; spoken-path units between flash decay steps
 
 ; -- Stream escapes ----------------------------------------------------------
 ESCCAP  = $FB
@@ -130,10 +134,11 @@ ESCFILT = $FE
 ESCEND  = $FF
 
 ; -- Caption geometry --------------------------------------------------------
-;  Four rows starting at text row 10. Row bases are the Apple's interleaved
-;  layout: base = $400 + (row & 7) * $80 + (row >> 3) * 40.
-CAPROWS = $04
-TITLE   = $0500            ; text row 2
+;  Hi-res mixed mode: HAL's eye fills the 160 graphics rows, and the four text
+;  rows beneath it carry three caption rows and the title. Text row bases are
+;  the Apple's interleaved layout: base = $400 + (row & 7) * $80 + (row >> 3) * 40.
+CAPROWS = $03
+TITLE   = $07D0            ; text row 23
 
 ; -- Zero page ---------------------------------------------------------------
 PTR     = $06              ; stream pointer (2 bytes)
@@ -147,6 +152,15 @@ CAPLEN  = $0F              ; characters left to print
 TMP     = $10
 RATEC   = $11              ; 16 - the current speech rate, for the poll deadline
 HALF    = $12              ; units left after the mid-phoneme reload
+GLOWPH  = $13              ; how many flash bands are currently white, 0-3
+DECAYT  = $14              ; units until the next decay step
+EYEP    = $15              ; screen pointer for the eye (2 bytes)
+SRCP    = $17              ; source pointer: image, then span lists (2 bytes)
+TMP2    = $19
+TMP3    = $1A
+FLASHQ  = $1B              ; a vowel has been written; flash at the reload
+RLROW   = $1C              ; unpacker: graphics row
+RLCOL   = $1D              ; unpacker: byte column
 
 
 start
@@ -178,75 +192,37 @@ start
     ; that a short phoneme spans barely two pulses and no vowel is resolvable.
     ; Every stream opens with a pitch escape for exactly that reason.
 
-    ; ---- 1. Speak, so there is something to compare the rest against.
-    lda #<introData
-    ldx #>introData
-    jsr Speak
-
-    jsr Sarah
-
-    ; ---- 2. The same sentence through three vocal tracts. Only the filter
-    ;         register changes between them; the phonemes are identical.
-    lda #FILTLO
-    sta SFILT
-    lda #<voiceData
-    ldx #>voiceData
-    jsr Speak
-
-    lda #FILTNOM
-    sta SFILT
-    lda #<voiceData
-    ldx #>voiceData
-    jsr Speak
-
-    lda #FILTHI
-    sta SFILT
-    lda #<voiceData
-    ldx #>voiceData
-    jsr Speak
-
-    lda #FILTNOM
-    sta SFILT
-
-    jsr Sarah
-
-    ; ---- 3. A question. The stream falls to a low turning point and then
-    ;         rises continuously under the final word.
-    lda #<wargData
-    ldx #>wargData
-    jsr Speak
-
-    jsr Sarah
-
-    ; ---- 4. A flat, deliberate line. The stream carries its own slower rate
-    ;         in the high nibble of its opening pitch escape.
+    ; ---- 1. HAL. A flat, deliberate line; the stream carries its own slower
+    ;         rate in the high nibble of its opening pitch escape.
     lda #<halData
     ldx #>halData
     jsr Speak
 
-    jsr Sarah
+    ; ---- 2. Joshua. A greeting that falls, then a question that rises
+    ;         continuously under its final word.
+    lda #<wargData
+    ldx #>wargData
+    jsr Speak
 
-    ; ---- 5. And then it sings.
+    ; ---- 3. A Centurion: the heavy tract, and a stream carrying its own low
+    ;         pitch and slow rate.
+    lda #FILTLO
+    sta SFILT
+    lda #<cylonData
+    ldx #>cylonData
+    jsr Speak
+    lda #FILTNOM
+    sta SFILT
+
+    ; ---- 4. And then it sings.
     jsr Sing
 
     ; Silence the chip and stop. Power Down is the part's own quiescent state.
     lda #CTLUP
     sta SCTL
+    jsr EyeRest
 halt
     jmp halt
-
-
-; ============================================================================
-;  Sarah -- the recurring interjection, spoken between every section
-;
-;  Its stream carries its own pitch and rate, lower and slower than the lines
-;  around it, and every other section sets its own on entry, so the two do not
-;  have to be untangled afterwards.
-; ============================================================================
-Sarah
-    lda #<sarahData
-    ldx #>sarahData
-    jmp Speak
 
 
 ; ============================================================================
@@ -278,6 +254,15 @@ spk_next
     ; the moment its countdown expires, and every cycle spent before the next
     ; write is a cycle of decaying output.
     sta SPHON
+    pha
+    and #PHMASK                 ; a vowel is a syllable: queue a flash for it
+    beq spk_novowel
+    cmp #VOWELMAX+1
+    bcs spk_novowel
+    lda #$01
+    sta FLASHQ
+spk_novowel
+    pla
     jsr PhonemeWait             ; A still holds the phoneme byte
     jsr Advance1
     jmp spk_next
@@ -381,14 +366,18 @@ pw_add
     sta UNITS                   ; the front half, never zero
     jsr BurnUnits
 
+    ; The flash comes AFTER the reload. Painting three bands costs several
+    ; thousand cycles, and the reload is what keeps a short phoneme sounding
+    ; through the second half; it must not wait for the paint.
     lda HALF
-    beq pw_done
+    beq pw_tail
     sta UNITS
     lda CURPH
     sta SPHON                   ; reload the phoneme, still sounding
-    jsr BurnUnits
-pw_done
-    rts
+    jsr EyeFlashQ
+    jmp BurnUnits
+pw_tail
+    jmp EyeFlashQ
 
 
 ; ============================================================================
@@ -400,18 +389,143 @@ pw_done
 ; ============================================================================
 BurnUnits
 bu_unit
-    ldx #$02
-bu_lap
     ldy #$00
-bu_inner
+bu_in1
     bit TMP
     dey
-    bne bu_inner
-    dex
-    bne bu_lap
+    bne bu_in1                  ; 256 passes, 2048 cycles
+    ldy #$E0
+bu_in2
+    bit TMP
+    dey
+    bne bu_in2                  ; 224 passes, 1792: the eye has the rest
+    dec DECAYT
+    bne bu_next
+    lda #DECAYU
+    sta DECAYT
+    jsr EyeDecay
+bu_next
     dec UNITS
     bne bu_unit
     rts
+
+
+; ============================================================================
+;  EyeFlash  -- a syllable: every flash band white at once
+;  EyeFlashQ -- EyeFlash if a vowel has queued one
+;  EyeDecay  -- one step of the flash collapsing inward: the outermost white
+;               band back to orange
+;  EyeRest   -- everything back to orange
+;  PaintBand -- band X, orange (TMP2 = 0) or white (TMP2 = 1)
+;
+;  The bands are lists of row spans of whole bytes, so a paint is a tight run
+;  of stores. Orange is the odd-x pixels of the orange/blue group, which makes
+;  a solid orange byte $AA in an even byte column and $D5 in an odd one; the
+;  fill starts from the column's parity and toggles. White is every pixel on.
+; ============================================================================
+EyeFlash
+    lda #$00
+    sta FLASHQ
+    lda #$01
+    sta TMP2
+    ldx #$02
+ef_loop
+    jsr PaintBand
+    dex
+    bpl ef_loop
+    lda #$03
+    sta GLOWPH
+    lda #DECAYU
+    sta DECAYT
+    rts
+
+EyeFlashQ
+    lda FLASHQ
+    beq efq_done
+    jmp EyeFlash
+efq_done
+    rts
+
+EyeDecay
+    lda GLOWPH
+    beq ed_done
+    dec GLOWPH
+    ldx GLOWPH
+    lda #$00
+    sta TMP2
+    jsr PaintBand
+ed_done
+    rts
+
+EyeRest
+    lda #$00
+    sta FLASHQ
+er_loop
+    lda GLOWPH
+    beq er_done
+    jsr EyeDecay
+    jmp er_loop
+er_done
+    rts
+
+PaintBand
+    lda glowBandLo,x
+    sta SRCP
+    lda glowBandHi,x
+    sta SRCP+1
+pb_span
+    ldy #$00
+    lda (SRCP),y                ; row, low
+    sta EYEP
+    iny
+    lda (SRCP),y                ; row, high: zero ends the band
+    beq pb_done
+    sta EYEP+1
+    iny
+    lda (SRCP),y                ; first byte column
+    sta TMP3
+    iny
+    lda (SRCP),y                ; byte count
+    sta TMP
+    lda SRCP
+    clc
+    adc #$04
+    sta SRCP
+    bcc pb_fill
+    inc SRCP+1
+pb_fill
+    ldy TMP3
+    lda TMP2
+    bne pb_white
+    tya
+    and #$01
+    beq pb_even
+    lda #$D5
+    bne pb_orange               ; always
+pb_even
+    lda #$AA
+pb_orange
+    sta (EYEP),y
+    eor #$7F                    ; $AA <-> $D5
+    iny
+    dec TMP
+    bne pb_orange
+    beq pb_span                 ; always
+pb_white
+    lda #$FF
+pb_wloop
+    sta (EYEP),y
+    iny
+    dec TMP
+    bne pb_wloop
+    jmp pb_span
+pb_done
+    rts
+
+glowBandLo
+    .byte <glowBand0,<glowBand1,<glowBand2
+glowBandHi
+    .byte >glowBand0,>glowBand1,>glowBand2
 
 
 ; ============================================================================
@@ -460,10 +574,19 @@ sng_rec
     bcc sng_hold
     inc PTR+1
 
+    ; A new note: if it is a vowel, it is a syllable, and the eye flashes.
+    lda CURPH
+    and #PHMASK
+    beq sng_hold
+    cmp #VOWELMAX+1
+    bcs sng_hold
+    jsr EyeFlash
+
 sng_hold
     lda CURPH
     sta SPHON                   ; (re)start the phoneme; sustains if already sounding
     jsr Delay1
+    jsr EyeDecay
     dec NDUR
     bne sng_hold
     jmp sng_next
@@ -495,6 +618,7 @@ DelayUnits
     cmp #$00
     beq del_done
     sta UNITS
+    jsr EyeRest                 ; nothing is being said
 del_loop
     jsr Delay1
     dec UNITS
@@ -525,11 +649,12 @@ d1_inner
 ScreenInit
     sta CLR80COL
     sta CLR80VID
-    bit TXTSET
-    bit MIXCLR
+    bit TXTCLR
+    bit MIXSET
     bit LOWSCR
+    bit HIRES
 
-    ; Fill $0400-$07FF with spaces.
+    ; Fill the text page with spaces: rows 20-23 show under the picture.
     lda #$A0
     ldx #$00
 si_fill
@@ -540,19 +665,87 @@ si_fill
     inx
     bne si_fill
 
-    ; Title, then park the caption cursor at the first caption row.
+    ; HAL's eye, unpacked from (count, byte) pairs across the 160 rows of the
+    ; mixed-mode picture. A count with bit 7 set is an ALTERNATING run -- the
+    ; byte and then its $7F complement, turn about -- which is how a solid
+    ; orange fill packs, since orange is $AA in one byte column and $D5 in the
+    ; next. The rows are not contiguous in memory, so the column is counted
+    ; and the row pointer re-fetched at each row's end.
+    lda #<eyeRle
+    sta SRCP
+    lda #>eyeRle
+    sta SRCP+1
+    lda #$00
+    sta RLROW
+    sta RLCOL
+    jsr RleRow
+rl_pair
+    ldy #$00
+    lda (SRCP),y                ; count: zero ends the picture
+    beq rl_done
+    sta TMP3                    ; bit 7 kept: alternate or not
+    and #$7F
+    sta TMP
+    iny
+    lda (SRCP),y                ; the byte
+    sta TMP2
+    lda SRCP
+    clc
+    adc #$02
+    sta SRCP
+    bcc rl_run
+    inc SRCP+1
+rl_run
+    ldy RLCOL
+    lda TMP2
+    sta (EYEP),y
+    bit TMP3
+    bpl rl_noalt
+    eor #$7F
+    sta TMP2
+rl_noalt
+    iny
+    cpy #40
+    bne rl_same
+    ldy #$00
+    inc RLROW
+    jsr RleRow
+rl_same
+    sty RLCOL
+    dec TMP
+    bne rl_run
+    beq rl_pair                 ; always
+rl_done
+
+    ; Title on the bottom row, then park the caption cursor at the first
+    ; caption row. The picture starts with every band orange: at rest.
     ldy #$00
 si_title
     lda titleText,y
     beq si_capinit
-    sta TITLE+4,y
+    sta TITLE+8,y
     iny
     bne si_title
 
 si_capinit
     lda #$00
     sta CAPROW
+    sta GLOWPH
+    sta FLASHQ
+    lda #DECAYU
+    sta DECAYT
     jsr CaptionRow
+    rts
+
+RleRow
+    ldx RLROW
+    cpx #160
+    bcs rr_done                 ; the last run ends exactly on row 160
+    lda hgrRowLo,x
+    sta EYEP
+    lda hgrRowHi,x
+    sta EYEP+1
+rr_done
     rts
 
 
@@ -668,11 +861,11 @@ cr_blank
     rts
 
 
-; Text rows 10-13 on page 1.
+; Text rows 20-22 on page 1, the three above the title.
 capRowLo
-    .byte $28,$A8,$28,$A8
+    .byte $50,$D0,$50
 capRowHi
-    .byte $05,$05,$06,$06
+    .byte $06,$06,$07
 
 titleText
     .byte $CD,$CF,$C3,$CB,$C9,$CE,$C7,$C2,$CF,$C1,$D2,$C4,$A0
