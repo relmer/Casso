@@ -59,10 +59,9 @@ Entries before versioning was introduced use dates only.
   805 Hz, inside the pitch range instead of well below it, so lip radiation tilted the
   output upward across the whole F1 region. Measured against a recording of a real
   SSI-263: the chip's voiced spectrum falls monotonically from the fundamental at about
-  -8 dB/octave, ours was flat. The break now sits at 50 Hz and follows the device rate
-  rather than being a fixed coefficient, which also stops timbre depending on the
-  listener's audio hardware. Mean band error against that recording falls from 10.0 dB
-  to 3.8 dB.
+  -8 dB/octave, ours was flat. The break now sits below the pitch range and follows the
+  device rate rather than being a fixed coefficient, which also stops timbre depending on
+  the listener's audio hardware.
 - **The voice chip's request line reaches the second 6522, not the first.** Each speech
   socket interrupts through the other channel's VIA, so the chip at $Cn40 latches CA1 on
   the VIA at $Cn80-$CnFF. Casso raised it on the first one, where an interrupt-driven
@@ -78,8 +77,13 @@ Entries before versioning was introduced use dates only.
   collapsed the chip's two source amplitudes into one, and frication was cascaded through
   the vowel formants, so Z's own F2 stood as a low-pass in front of its own hiss.
   Frication now runs in a parallel branch with the two amplitudes kept apart, putting
-  33 dB between Z and L where there had been none, at a level that keeps S and SCH from
-  reading as bursts of noise.
+  33 dB between Z and L where there had been none.
+- **Fricatives were harsh, and the voice was too bright throughout.** The noise source
+  was smoothed only to 8 kHz, so it was very nearly white, and it was then run through a
+  high-pass that brightened it further. That high-pass is gone, the source is band-limited,
+  and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
+  36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
+  against that recording falls from 9.9 dB to 4.9 dB.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are

@@ -94,10 +94,16 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // tilt at the output costs F1-dominant voiced energy 20+ dB while barely
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
-static constexpr float   s_kfVoicedGain   = 966.00f;
-static constexpr float   s_kfNoiseGain    = 0.060f;
+static constexpr float   s_kfVoicedGain   = 1608.00f;
+static constexpr float   s_kfNoiseGain    = 0.030f;
 
-// Noise-shaping high-pass on the fricative source (one-pole, ~2.5 kHz).
+// How fast the noise source is smoothed. The LFSR delivers a rail-to-rail bit
+// per sample; at 0.65 that smoothing broke at 8 kHz, so the source was very
+// nearly white and read as harsh static rather than as breath. The real chip's
+// frication is dark -- measured against a recording, its 1600-3200 band sits
+// 21 dB under the voice -- because on the die the noise goes through the same
+// switched-capacitor sections as everything else. 0.35 breaks near 3.3 kHz,
+// which the parallel fricative resonators then shape.
 // The die carries a dedicated noise shaping filter between the noise
 // generator and the tract, which this model omitted: frication went into
 // the formant cascade raw and came out bandlimited by F2 and F3. That is
@@ -106,13 +112,13 @@ static constexpr float   s_kfNoiseGain    = 0.060f;
 // are nearly the same sound and "Daisy" comes out closer to "Dailey".
 // Tilting the noise up before it enters the tract restores the sibilance
 // the formants cannot carry, and leaves the resonators to color it.
-static constexpr float   s_kfNoiseHpCoef  = 0.50f;
+static constexpr float   s_kfNoiseLpCoef  = 0.35f;
 
 // Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
 // octave the radiation tilt would otherwise push to Nyquist -- the digital
 // sheen on fricatives -- standing in for the analog output stage between
 // the chip and the card's mixer.
-static constexpr float   s_kfOutputLpCoef = 0.54f;
+static constexpr float   s_kfOutputLpCoef = 0.23f;
 
 // Two cascaded one-pole sections smooth the glottal impulse train: each pulse
 // starts from zero rather than opening with a step, and the -12 dB/oct tail
@@ -130,7 +136,7 @@ static constexpr float   s_kfOutputLpCoef = 0.54f;
 // It is also derived from the device rate now. As a bare coefficient the break
 // moved with whatever the host was running at, making timbre a property of the
 // listener's DAC.
-static constexpr double  s_kSourceBreakHz = 50.0;
+static constexpr double  s_kSourceBreakHz = 30.0;
 static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
@@ -392,8 +398,6 @@ void Ssi263::Reset()
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
     m_noiseLp      = 0.0f;
-    m_noiseHp      = 0.0f;
-    m_noisePrev    = 0.0f;
     m_fricY1[0]    = 0.0f;
     m_fricY1[1]    = 0.0f;
     m_fricY2[0]    = 0.0f;
@@ -852,15 +856,12 @@ float Ssi263::GenerateNoiseSample()
         m_lfsr ^= 0xB400u;
     }
 
-    m_noiseLp += 0.65f * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
+    // Smoothing the rail-to-rail step both removes what would read as clicks
+    // and band-limits the source; the fricative branch's own resonators supply
+    // the shape from there.
+    m_noiseLp += s_kfNoiseLpCoef * (((bit != 0) ? 1.0f : -1.0f) - m_noiseLp);
 
-    // The smoothing above removes the rail-to-rail step that would read as
-    // clicks; this puts the spectral tilt back, so the result is a hiss
-    // rather than a rumble.
-    m_noiseHp   = s_kfNoiseHpCoef * (m_noiseHp + m_noiseLp - m_noisePrev);
-    m_noisePrev = m_noiseLp;
-
-    return m_noiseHp;
+    return m_noiseLp;
 }
 
 

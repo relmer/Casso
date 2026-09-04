@@ -263,11 +263,6 @@ private:
     uint32_t   m_lfsr         = 0xACE1u;
     float      m_noiseLp      = 0.0f;
 
-    // Noise-shaping high-pass state: the filter the die carries between the
-    // noise generator and the tract (see s_kfNoiseHpCoef).
-    float      m_noiseHp      = 0.0f;
-    float      m_noisePrev    = 0.0f;
-
     // Parallel fricative branch state, one pair per resonator (F2, F3).
     float      m_fricY1[2]    = { 0.0f, 0.0f };
     float      m_fricY2[2]    = { 0.0f, 0.0f };
