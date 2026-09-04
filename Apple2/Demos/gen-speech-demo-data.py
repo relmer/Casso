@@ -1,4 +1,10 @@
-"""Emit the .a65 data tables for the SSI-263 speech demo.
+"""Emit the .a65 data tables for the SSI-263 speech demo, in both its versions.
+
+There are two demos and one voice. mockingboard-speech-demo-hgr.a65 draws HAL's
+eye in hi-res over 40-column captions; mockingboard-speech-demo-dhgr.a65 draws
+it in double hi-res over 80-column ones. They speak the same lines and sing the
+same song, so the speech and the song are written once here and the eye twice,
+and each version gets its own .inc.
 
 Pitch: f = XCK / (8 * (4096 - I)), so I = round(4096 - XCK/8/f). The 12 bits are
 scattered -- I10..I3 -> $C441, I11 -> $C442 bit 3, I2..I0 -> $C442 bits 2..0 --
@@ -16,14 +22,11 @@ syllables have the duration contrast the ear segments on.
 import os
 import sys
 
-#  Write the file rather than printing it. This script printed to stdout, so a
+#  Write the files rather than printing them. This script printed to stdout, so a
 #  caller that forgot to redirect it changed nothing at all while appearing to
 #  succeed -- which is exactly what happened, twice, to an edit of the pause
 #  lengths in the HAL line.
-_OUT = os.path.join (os.path.dirname (os.path.abspath (__file__)),
-                     "mockingboard-speech-demo.inc")
-#  Default newline translation gives this file the CRLF the tree uses.
-sys.stdout = open (_OUT, "w", encoding = "ascii")
+_HERE = os.path.dirname (os.path.abspath (__file__))
 
 XCK = 1789772.5
 K = XCK / 8.0
@@ -205,15 +208,146 @@ def cylon():
     return s
 
 
-# ---------------------------------------------------------- HAL's eye ---
-#  Double hi-res, mixed mode: 140 color cells by 160 rows above four rows of
-#  80-column text. A cell is four dots and a byte is seven, so a cell's color
-#  comes from the dots of one or two bytes and a byte's value depends on the
-#  cells it covers. The colors are the lo-res sixteen. Which dot carries which
-#  bit is fixed by Apple IIe Technical Note #3, whose four-byte fill patterns
-#  (aux, main, aux, main) are the definition: magenta is $08 $11 $22 $44, only
-#  the LAST dot of each cell lit, so the last dot is the color's low bit and
-#  the first three are bits 1 to 3.
+#  Both pictures are 160 rows of the mixed-mode screen, and both address those
+#  rows the same way: the hi-res interleave, which double hi-res inherits.
+def row_base(y):
+    return 0x2000 + (y & 7) * 0x400 + ((y >> 3) & 7) * 0x80 + (y >> 6) * 0x28
+
+
+# ------------------------------------------------ HAL's eye, hi-res ---
+#  280 x 160 above four text rows. The palette has no red; orange is the
+#  nearest thing, so the disc is orange, the bezel and pinpoint white. Every
+#  byte carries the high bit so the whole picture sits in the orange/blue group
+#  and no half-pixel shift appears at a boundary. Orange is the odd-x pixels,
+#  so a solid orange byte is $AA in an even byte column and $D5 in an odd one;
+#  white is every pixel on.
+#
+#  The flash is three concentric bands inside the disc. A vowel paints all
+#  three white at once and they decay orange from the outside in, so each
+#  syllable is a pulse that collapses toward the pinpoint. Bands are listed as
+#  row spans of whole bytes so a paint is a tight run of stores.
+HGR_W, HGR_H = 280, 160
+HGR_BLACK, HGR_WHITE, HGR_ORANGE = 0, 1, 2
+HGR_CX, HGR_CY, HGR_RX, HGR_RY = 139.5, 79.5, 70.0, 66.0   # pixels a shade wider than tall
+HGR_BANDS = [(0.06, 0.18), (0.18, 0.30), (0.30, 0.42)]     # innermost first, radius fractions
+
+
+def hgr_radius(x, y):
+    return (((x - HGR_CX) / HGR_RX) ** 2 + ((y - HGR_CY) / HGR_RY) ** 2) ** 0.5
+
+
+def hgr_eye():
+    img = [[HGR_BLACK] * HGR_W for _ in range(HGR_H)]
+    for y in range(HGR_H):
+        for x in range(HGR_W):
+            r = hgr_radius(x, y)
+            if r <= 1.0:
+                img[y][x] = HGR_WHITE if r > 0.925 else HGR_ORANGE    # ~5 px bezel
+    # The pinpoint is whole byte cells, chosen by their centers, so no byte is
+    # part white and part orange. A mixed byte keeps its alternating orange
+    # bits when the bands around it go solid white, and read as a bracket.
+    for y in range(HGR_H):
+        for b in range(40):
+            if hgr_radius(b * 7 + 3, y) <= 0.06:
+                for i in range(7):
+                    img[y][b * 7 + i] = HGR_WHITE
+    return img
+
+
+def hgr_pack_row(row):
+    out = []
+    for b in range(40):
+        val = 0x80
+        for i in range(7):
+            c = row[b * 7 + i]
+            x = b * 7 + i
+            if c == HGR_WHITE or (c == HGR_ORANGE and (x & 1)):
+                val |= 1 << i
+        out.append(val)
+    return out
+
+
+def hgr_rle(stream):
+    """(count, byte) pairs; a count with bit 7 set is an ALTERNATING run of
+    the byte and its $7F complement. Solid orange is $AA, $D5, $AA, ... across
+    byte columns, so without this the fill would pack to runs of one."""
+    out = []
+    i, n = 0, len(stream)
+    while i < n:
+        v = stream[i]
+        if i + 1 < n and stream[i + 1] == (v ^ 0x7F):
+            k = 1
+            while i + k < n and k < 127 and stream[i + k] == (v if k % 2 == 0 else v ^ 0x7F):
+                k += 1
+            if k >= 3:
+                out += [0x80 | k, v]; i += k
+                continue
+        k = 1
+        while i + k < n and k < 127 and stream[i + k] == v:
+            k += 1
+        out += [k, v]; i += k
+    return out + [0]
+
+
+def hgr_bands():
+    """Per band, the row spans of whole byte cells whose center lies in it."""
+    img = hgr_eye()
+    spans = [[] for _ in HGR_BANDS]
+    for y in range(HGR_H):
+        for k, (lo, hi) in enumerate(HGR_BANDS):
+            run = None
+            for b in range(40):
+                r = hgr_radius(b * 7 + 3, y)
+                solid = all(img[y][b * 7 + i] == HGR_ORANGE for i in range(7))
+                inside = solid and lo <= r < hi
+                if inside and run is None:
+                    run = [b, 0]
+                if inside:
+                    run[1] += 1
+                if (not inside) and run is not None:
+                    spans[k].append((y, run[0], run[1])); run = None
+            if run is not None:
+                spans[k].append((y, run[0], run[1]))
+    return spans
+
+
+def emit_eye_hgr():
+    img = hgr_eye()
+    stream = [v for y in range(HGR_H) for v in hgr_pack_row(img[y])]
+    packed = hgr_rle(stream)
+    print(f"; HAL's eye, run-length coded: (count, byte) pairs over the 160 x 40 bytes")
+    print(f"; of the mixed-mode picture, row-major; a count of 0 ends it. {len(packed)} bytes.")
+    print("eyeRle")
+    print(fmt(packed, 16))
+    print()
+    print("; Base address of each of the 160 graphics rows, low then high.")
+    print("hgrRowLo")
+    print(fmt([row_base(y) & 0xFF for y in range(HGR_H)], 16))
+    print("hgrRowHi")
+    print(fmt([row_base(y) >> 8 for y in range(HGR_H)], 16))
+    print()
+    sp = hgr_bands()
+    print("; The flash bands, innermost first. Each span is rowLo, rowHi, first byte")
+    print("; column, byte count; a rowHi of 0 ends the band.")
+    for k, s in enumerate(sp):
+        print(f"; band {k}: {len(s)} spans, {sum(n for _, _, n in s)} bytes")
+        print(f"glowBand{k}")
+        data = []
+        for y, b, n in s:
+            data += [row_base(y) & 0xFF, row_base(y) >> 8, b, n]
+        print(fmt(data + [0, 0, 0, 0], 16))
+    print()
+
+
+# ----------------------------------------- HAL's eye, double hi-res ---
+#  140 color cells by 160 rows above four rows of 80-column text. A cell is
+#  four dots and a byte is seven, so a cell's color comes from the dots of one
+#  or two bytes and a byte's value depends on the cells it covers. The colors
+#  are the lo-res sixteen. Which dot carries which bit is fixed by Apple IIe
+#  Technical Note #3, whose four-byte fill patterns (aux, main, aux, main) are
+#  the definition: magenta is $08 $11 $22 $44, only the LAST dot of each cell
+#  lit, so the last dot is the color's low bit and the first three are bits 1
+#  to 3.
 #
 #  The eye is a gray bezel around a lens that shades magenta, orange, yellow
 #  to a white pinpoint. The flash is the three inner rings each stepping one
@@ -224,40 +358,41 @@ def cylon():
 #  rowHi, column with bit 7 set for the auxiliary bank, count, then the
 #  bytes. A rowHi of 0 ends the list.
 DH_W, DH_H = 140, 160
-BLACK, MAGENTA, ORANGE, GRAY2, YELLOW, WHITE = 0, 1, 9, 10, 13, 15
-CX, CY, RX, RY = 69.5, 79.5, 35.0, 66.0          # cells are twice as wide as a row is tall
-ZONES = [(0.07, WHITE), (0.18, YELLOW), (0.42, ORANGE), (0.925, MAGENTA), (1.0, GRAY2)]
+DH_BLACK, DH_MAGENTA, DH_ORANGE, DH_GRAY2, DH_YELLOW, DH_WHITE = 0, 1, 9, 10, 13, 15
+DH_CX, DH_CY, DH_RX, DH_RY = 69.5, 79.5, 35.0, 66.0   # cells twice as wide as a row is tall
+DH_ZONES = [(0.07, DH_WHITE), (0.18, DH_YELLOW), (0.42, DH_ORANGE),
+            (0.925, DH_MAGENTA), (1.0, DH_GRAY2)]
 #  The flash bands, innermost first: (inner radius, outer radius, lit color).
 #  Each lies within one zone and lights to the next shade in.
-BANDS = [(0.07, 0.18, WHITE), (0.18, 0.30, YELLOW), (0.30, 0.42, YELLOW)]
+DH_BANDS = [(0.07, 0.18, DH_WHITE), (0.18, 0.30, DH_YELLOW), (0.30, 0.42, DH_YELLOW)]
 #  Cycle costs of PaintStream, for the constants that give the time back.
 CYC_PER_BYTE, CYC_PER_SPAN = 19, 70
 SPEECH_UNIT, SONG_LAP, SONG_LAPS = 4096, 1280, 33
 
-def hgr_row_base(y):
-    return 0x2000 + (y & 7) * 0x400 + ((y >> 3) & 7) * 0x80 + (y >> 6) * 0x28
 
-def eye_radius(x, y):
-    return (((x - CX) / RX) ** 2 + ((y - CY) / RY) ** 2) ** 0.5
+def dh_radius(x, y):
+    return (((x - DH_CX) / DH_RX) ** 2 + ((y - DH_CY) / DH_RY) ** 2) ** 0.5
 
-def eye_cells(lit):
+
+def dh_cells(lit):
     """The picture, with the bands in `lit` one shade brighter."""
-    img = [[BLACK] * DH_W for _ in range(DH_H)]
+    img = [[DH_BLACK] * DH_W for _ in range(DH_H)]
     for y in range(DH_H):
         for x in range(DH_W):
-            r = eye_radius(x, y)
-            c = BLACK
-            for edge, color in ZONES:
+            r = dh_radius(x, y)
+            c = DH_BLACK
+            for edge, color in DH_ZONES:
                 if r <= edge:
                     c = color
                     break
-            for k, (lo, hi, bright) in enumerate(BANDS):
+            for k, (lo, hi, bright) in enumerate(DH_BANDS):
                 if k in lit and lo < r <= hi:
                     c = bright
             img[y][x] = c
     return img
 
-def pack_row(cells):
+
+def dh_pack_row(cells):
     """The row's 80 bytes in screen order: aux, main, aux, ... Dot j of a cell
     carries bit (j + 1) & 3 of its color."""
     dots = [0] * (DH_W * 4)
@@ -273,13 +408,15 @@ def pack_row(cells):
         out.append(v)
     return out
 
-#  The packer against the technote's own table.
-assert pack_row([MAGENTA] * DH_W)[:4] == [0x08, 0x11, 0x22, 0x44]
-assert pack_row([ORANGE] * DH_W)[:4] == [0x4C, 0x19, 0x33, 0x66]
-assert pack_row([YELLOW] * DH_W)[:4] == [0x6E, 0x5D, 0x3B, 0x77]
-assert pack_row([GRAY2] * DH_W)[:4] == [0x55, 0x2A, 0x55, 0x2A]
 
-def rle(stream):
+#  The packer against the technote's own table.
+assert dh_pack_row([DH_MAGENTA] * DH_W)[:4] == [0x08, 0x11, 0x22, 0x44]
+assert dh_pack_row([DH_ORANGE] * DH_W)[:4] == [0x4C, 0x19, 0x33, 0x66]
+assert dh_pack_row([DH_YELLOW] * DH_W)[:4] == [0x6E, 0x5D, 0x3B, 0x77]
+assert dh_pack_row([DH_GRAY2] * DH_W)[:4] == [0x55, 0x2A, 0x55, 0x2A]
+
+
+def dh_rle(stream):
     """(count, byte) pairs; a count with bit 7 set is followed by TWO bytes and
     the run alternates them. A solid color's pattern repeats every four bytes
     across the screen, so within one bank it alternates two values, and
@@ -303,14 +440,15 @@ def rle(stream):
         i += k
     return out + [0]
 
-def transition(src, dst):
+
+def dh_transition(src, dst):
     """Spans of the bytes that differ between two pictures, per row and bank,
     carrying the new values: (row, aux, first column, bytes). A gap of up to
     three bytes is bridged, since a span header costs more than three bytes
     do; the bridged bytes are written with the value they already hold."""
     spans = []
     for y in range(DH_H):
-        a, b = pack_row(src[y]), pack_row(dst[y])
+        a, b = dh_pack_row(src[y]), dh_pack_row(dst[y])
         for aux, off in ((1, 0), (0, 1)):
             pa, pb = a[off::2], b[off::2]
             runs = []
@@ -325,19 +463,21 @@ def transition(src, dst):
                 spans.append((y, aux, c0, pb[c0:c1 + 1]))
     return spans
 
-def span_bytes(spans):
+
+def dh_span_bytes(spans):
     data = []
     for y, aux, c0, vals in spans:
-        base = hgr_row_base(y)
+        base = row_base(y)
         data += [base & 0xFF, base >> 8, c0 | (0x80 if aux else 0), len(vals)] + list(vals)
     return data + [0, 0]
 
-def emit_eye():
-    rest = eye_cells(set())
-    s3, s2, s1 = eye_cells({0, 1, 2}), eye_cells({0, 1}), eye_cells({0})
+
+def emit_eye_dhgr():
+    rest = dh_cells(set())
+    s3, s2, s1 = dh_cells({0, 1, 2}), dh_cells({0, 1}), dh_cells({0})
     for name, off in (("eyeRleAux", 0), ("eyeRleMain", 1)):
-        stream = [v for y in range(DH_H) for v in pack_row(rest[y])[off::2]]
-        packed = rle(stream)
+        stream = [v for y in range(DH_H) for v in dh_pack_row(rest[y])[off::2]]
+        packed = dh_rle(stream)
         print(f"; HAL's eye, {'auxiliary' if off == 0 else 'main'} bank, run-length coded over the")
         print(f"; 160 x 40 bytes of the mixed-mode picture, row-major; a count of 0 ends it.")
         print(f"; {len(packed)} bytes.")
@@ -346,9 +486,9 @@ def emit_eye():
         print()
     print("; Base address of each of the 160 graphics rows, low then high.")
     print("hgrRowLo")
-    print(fmt([hgr_row_base(y) & 0xFF for y in range(DH_H)], 16))
+    print(fmt([row_base(y) & 0xFF for y in range(DH_H)], 16))
     print("hgrRowHi")
-    print(fmt([hgr_row_base(y) >> 8 for y in range(DH_H)], 16))
+    print(fmt([row_base(y) >> 8 for y in range(DH_H)], 16))
     print()
     print("; The flash and its three decay steps, outermost ring first. Each is the")
     print("; bytes that change, as spans: rowLo, rowHi, column (bit 7 = aux), count,")
@@ -356,12 +496,12 @@ def emit_eye():
     costs = {}
     for name, a, b in (("eyeFlash", rest, s3), ("eyeDecay2", s3, s2),
                        ("eyeDecay1", s2, s1), ("eyeDecay0", s1, rest)):
-        sp = transition(a, b)
+        sp = dh_transition(a, b)
         nbytes = sum(len(v) for *_, v in sp)
         costs[name] = CYC_PER_BYTE * nbytes + CYC_PER_SPAN * len(sp)
         print(f"; {name}: {len(sp)} spans, {nbytes} bytes, about {costs[name]} cycles")
         print(name)
-        print(fmt(span_bytes(sp), 16))
+        print(fmt(dh_span_bytes(sp), 16))
         print()
     flash = costs["eyeFlash"]
     decays = [costs[n] for n in ("eyeDecay0", "eyeDecay1", "eyeDecay2")]
@@ -392,30 +532,50 @@ def emit(name, data, comment, tail = 0):
     print()
 
 
-print("; ==== GENERATED by gen_data.py -- do not hand-edit ====")
-print(f"; speech rate ${RATE_SPEECH:02X}, baseline pitch {BASE_HZ:.0f} Hz")
-print()
-emit("wargData", wargames(), '"Shall we play a game?" -- declination, dip, then a drawn rise', tail = 7)
-emit("halData", HAL, '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
-emit("cylonData", cylon(), '"By your command." -- a Centurion, low and level', tail = 8)
-emit_eye()
+def emit_all(path, emit_eye, screen):
+    """One version's whole .inc: the shared speech and song, and its own eye."""
+    saved = sys.stdout
+    #  Default newline translation gives this file the CRLF the tree uses.
+    with open(path, "w", encoding = "ascii") as out:
+        sys.stdout = out
+        try:
+            print("; ==== GENERATED by gen-speech-demo-data.py -- do not hand-edit ====")
+            print(f"; {screen}")
+            print(f"; speech rate ${RATE_SPEECH:02X}, baseline pitch {BASE_HZ:.0f} Hz")
+            print()
+            emit("wargData", wargames(),
+                 '"Shall we play a game?" -- declination, dip, then a drawn rise', tail = 7)
+            emit("halData", HAL,
+                 '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
+            emit("cylonData", cylon(),
+                 '"By your command." -- a Centurion, low and level', tail = 8)
+            emit_eye()
 
-print("; Daisy Bell chorus. Caption escapes carry the syllable; records are")
-print("; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is")
-print("; deliberate here: the song paces itself and wants the longest frames.")
-print("songData")
-print(fmt(clear_caption()))
-total = 0
-for syl, note, beats, parts, word in SONG:
-    hi, lo = pitch_bytes(hz(note), 0x00)
-    units = beats * BEAT
-    total += units
-    if word:
-        print(fmt(cap(word)))
-    fixed = sum(u for _, u in parts if u is not None)
-    rows = [(PH[p], hi, lo, (units - fixed) if u is None else u) for p, u in parts]
-    body = ",".join(",".join(f"${v:02X}" for v in r) for r in rows)
-    print(f"    .byte {body}   ; {syl or 'rest':5s} {note} {beats}b")
-print("    .byte $FF")
-print()
-print(f"; total {total} units ~= {total * 0.0415:.1f} s")
+            print("; Daisy Bell chorus. Caption escapes carry the syllable; records are")
+            print("; {phoneme, pitch-hi, pitch-lo, units}, $FF ends. Rate nibble 0 is")
+            print("; deliberate here: the song paces itself and wants the longest frames.")
+            print("songData")
+            print(fmt(clear_caption()))
+            total = 0
+            for syl, note, beats, parts, word in SONG:
+                hi, lo = pitch_bytes(hz(note), 0x00)
+                units = beats * BEAT
+                total += units
+                if word:
+                    print(fmt(cap(word)))
+                fixed = sum(u for _, u in parts if u is not None)
+                rows = [(PH[p], hi, lo, (units - fixed) if u is None else u) for p, u in parts]
+                body = ",".join(",".join(f"${v:02X}" for v in r) for r in rows)
+                print(f"    .byte {body}   ; {syl or 'rest':5s} {note} {beats}b")
+            print("    .byte $FF")
+            print()
+            print(f"; total {total} units ~= {total * 0.0415:.1f} s")
+        finally:
+            sys.stdout = saved
+
+
+emit_all(os.path.join (_HERE, "mockingboard-speech-demo-hgr.inc"),
+         emit_eye_hgr, "hi-res eye over 40-column captions")
+emit_all(os.path.join (_HERE, "mockingboard-speech-demo-dhgr.inc"),
+         emit_eye_dhgr, "double hi-res eye over 80-column captions")
+print("wrote mockingboard-speech-demo-hgr.inc and mockingboard-speech-demo-dhgr.inc")

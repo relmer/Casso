@@ -16,7 +16,9 @@
     (--disk1 is required; a positional path is silently ignored.)
 
 .PARAMETER Source
-    The .a65 source under Apple2/Demos. Default: mockingboard-speech-demo.a65.
+    The .a65 source under Apple2/Demos. Default:
+    mockingboard-speech-demo-dhgr.a65; its hi-res twin is
+    mockingboard-speech-demo-hgr.a65.
 
 .PARAMETER LoadAddress
     Where the payload loads and is entered. Default: 0x6000, which is page
@@ -27,7 +29,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Source        = 'mockingboard-speech-demo.a65',
+    [string]$Source        = 'mockingboard-speech-demo-dhgr.a65',
     [string]$LoadAddress   = '0x6000',
     [string]$Configuration = 'Release'
 )
