@@ -699,18 +699,21 @@ void WasapiAudio::RenderPump()
             pending = static_cast<UINT32> (m_pendingSamples.size() / 2);
         }
 
-        // Write everything pending (up to the free space); extend with
-        // filler only as far as needed to keep the device at the floor.
-        //
-        // NOTE: this floor is not the whole story. The producer generates
-        // audio in proportion to EMULATED cycles, and it runs about 5% behind
-        // real time, so the queue drains no matter how the floor is written
-        // and the filler below is spliced in on a regular cadence. Measured at
-        // the endpoint, that is 5.4% of all frames sent and an audible 41 Hz
-        // amplitude modulation on every sound. See handoffs/task-5.
+        // Write everything pending, up to the free space.
         toWrite = (pending < available) ? pending : available;
 
-        if (padding + toWrite < floorFr)
+        // Filler is a last resort, not a top-up. Extending every pass to reach
+        // a queue floor splices a fade and a re-ramp into a stream that is
+        // keeping pace perfectly well; what the device actually needs is
+        // simply not to run dry, and while `padding` frames remain queued it
+        // will not. So filler is written only when there is nothing real to
+        // send AND the endpoint is close to the floor.
+        //
+        // This was tried once before and measured no better, because the CPU
+        // thread's frame pacing was jittering hard enough to empty the queue
+        // regardless -- see CpuManager::ThreadProc. With the pacing corrected,
+        // the queue keeps a level and this is what removes the rest.
+        if (pending == 0 && padding < floorFr)
         {
             toWrite = ((floorFr - padding) < available) ? (floorFr - padding)
                                                         : available;
