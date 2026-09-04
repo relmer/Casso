@@ -459,31 +459,48 @@ bool UserConfigStore::TryGetStringField (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UserConfigStore::BuildObjectWithEnabled
+//  UserConfigStore::BuildObjectWithOverrides
+//
+//  Returns `src` carrying the two per-entry fields a user file is allowed to
+//  restate: the `enabled` bit, and a card's `ports` connector list when the
+//  user entry declares one.
+//
+//  Everything else deliberately comes from the default. A user file records a
+//  DIFFERENCE, so `device`, `rom` and the capability flags have to keep
+//  tracking the shipped machine rather than freezing at whatever they held
+//  the last time the settings dialog wrote the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonValue UserConfigStore::BuildObjectWithEnabled (
+JsonValue UserConfigStore::BuildObjectWithOverrides (
     const JsonValue & src,
-    bool              enabled)
+    bool              enabled,
+    const JsonValue * ports)
 {
     std::vector<std::pair<std::string, JsonValue>>    rebuilt;
     const auto                                      * entries = &src.GetObjectEntries();
 
 
 
-    rebuilt.reserve (entries->size() + 1);
+    rebuilt.reserve (entries->size() + 2);
     for (size_t i = 0; i < entries->size(); ++i)
     {
-        if ((*entries)[i].first == "enabled")
+        const std::string &  key = (*entries)[i].first;
+
+        if (key == "enabled" || (key == "ports" && ports != nullptr))
         {
             continue;
         }
 
-        rebuilt.emplace_back ((*entries)[i].first, (*entries)[i].second);
+        rebuilt.emplace_back (key, (*entries)[i].second);
     }
 
     rebuilt.emplace_back ("enabled", JsonValue (enabled));
+
+    if (ports != nullptr)
+    {
+        rebuilt.emplace_back ("ports", *ports);
+    }
 
     return JsonValue (std::move (rebuilt));
 }
@@ -719,12 +736,21 @@ JsonValue UserConfigStore::MergeHardwareArray (
         if (userIdx >= 0)
         {
             const JsonValue & userEntry = userArr.GetArrayElement ((size_t) userIdx);
+            const JsonValue * userPorts = nullptr;
             userMatched[(size_t) userIdx] = true;
+
+            // Only a slot entry has connectors, and only the user's own list
+            // may override the default's -- an absent or malformed `ports`
+            // leaves the card describing the hardware it shipped with.
+            if (slotArray)
+            {
+                (void) TryFindTypedField (userEntry, "ports", JsonType::Array, userPorts);
+            }
 
             if (TryGetBoolField (userEntry, "enabled", enabled) &&
                 defEntry.GetType() == JsonType::Object)
             {
-                merged.emplace_back (BuildObjectWithEnabled (defEntry, enabled));
+                merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts));
             }
             else
             {
@@ -780,10 +806,13 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
     for (size_t i = 0; i < currentArr.GetArraySize(); ++i)
     {
-        const JsonValue & curEntry = currentArr.GetArrayElement (i);
-        int               defIdx   = -1;
-        bool              curEn    = true;
-        bool              defEn    = true;
+        const JsonValue & curEntry    = currentArr.GetArrayElement (i);
+        const JsonValue * curPorts    = nullptr;
+        const JsonValue * defPorts    = nullptr;
+        int               defIdx      = -1;
+        bool              curEn       = true;
+        bool              defEn       = true;
+        bool              portsDiffer = false;
 
         if (curEntry.GetType() != JsonType::Object)
         {
@@ -810,10 +839,26 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         (void) TryGetBoolField (curEntry, "enabled", curEn);
         if (defIdx >= 0 && defaultArr.GetArrayElement ((size_t) defIdx).GetType() == JsonType::Object)
         {
-            (void) TryGetBoolField (defaultArr.GetArrayElement ((size_t) defIdx), "enabled", defEn);
+            const JsonValue &  defEntry = defaultArr.GetArrayElement ((size_t) defIdx);
+
+            (void) TryGetBoolField (defEntry, "enabled", defEn);
+
+            if (slotArray)
+            {
+                (void) TryFindTypedField (curEntry, "ports", JsonType::Array, curPorts);
+                (void) TryFindTypedField (defEntry, "ports", JsonType::Array, defPorts);
+            }
         }
 
-        if (curEn != defEn)
+        // A card's connector list is a setting in its own right: detaching
+        // the second Disk ][ drive edits `ports` and leaves `enabled` alone.
+        // Diffing the enabled bit by itself threw that edit away -- the
+        // dialog applied it live, nothing reached the user file, and the
+        // drive was back the next time the machine or the dialog loaded.
+        portsDiffer = curPorts != nullptr &&
+                      (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
+
+        if (curEn != defEn || portsDiffer)
         {
             std::vector<std::pair<std::string, JsonValue>>  obj;
             std::string                                     type;
@@ -835,6 +880,12 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
             }
 
             obj.emplace_back ("enabled", JsonValue (curEn));
+
+            if (portsDiffer)
+            {
+                obj.emplace_back ("ports", *curPorts);
+            }
+
             delta.emplace_back (JsonValue (std::move (obj)));
         }
     }

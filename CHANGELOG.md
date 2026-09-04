@@ -57,6 +57,9 @@ Entries before versioning was introduced use dates only.
   RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **Unchecking a second drive was not correctly persisted.** The drive left the
+  desk as it should, but came back the next time Settings opened, and on the
+  next launch.
 - **Full-screen mode hid the top and bottom of the picture on a widescreen
   display.** The camera was placed so the monitor's glass covered the screen,
   and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
