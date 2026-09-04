@@ -55,6 +55,13 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **Double hi-res colors now match the hardware.** The color clock runs one dot
+  ahead of the byte boundary, so the last dot of a cell is the color's low bit;
+  reading the dots as a plain binary number showed magenta as brown and orange
+  as green, on every real double hi-res picture.
+- **80-column text under mixed mode no longer doubles the aux column** while a
+  program has PAGE2 on for its own aux writes. The overlay read main through
+  the bus, which 80STORE bends to aux; it now reads the bank directly.
 - **The synthesized voice was missing its fundamental.** The glottal source broke at
   805 Hz, inside the pitch range instead of well below it, so lip radiation tilted the
   output upward across the whole F1 region. Measured against a recording of a real
