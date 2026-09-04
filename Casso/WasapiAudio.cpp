@@ -701,6 +701,13 @@ void WasapiAudio::RenderPump()
 
         // Write everything pending (up to the free space); extend with
         // filler only as far as needed to keep the device at the floor.
+        //
+        // NOTE: this floor is not the whole story. The producer generates
+        // audio in proportion to EMULATED cycles, and it runs about 5% behind
+        // real time, so the queue drains no matter how the floor is written
+        // and the filler below is spliced in on a regular cadence. Measured at
+        // the endpoint, that is 5.4% of all frames sent and an audible 41 Hz
+        // amplitude modulation on every sound. See handoffs/task-5.
         toWrite = (pending < available) ? pending : available;
 
         if (padding + toWrite < floorFr)
@@ -819,6 +826,30 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
             samples[i * m_channels]     = left;
             samples[i * m_channels + 1] = right;
         }
+    }
+
+    // Diagnostic tap (CASSO_AUDIO_DUMP_DEVICE): the frames as handed to the
+    // endpoint, filler included. CASSO_AUDIO_DUMP taps the producer side; the
+    // two together say whether an artifact was generated or was introduced by
+    // this queue. That comparison is what identified the filler cadence.
+    if (!m_devDumpChecked)
+    {
+        char     path[MAX_PATH] = {};
+        size_t   len            = 0;
+
+        m_devDumpChecked = true;
+
+        if (getenv_s (&len, path, sizeof (path), "CASSO_AUDIO_DUMP_DEVICE") == 0 && len > 1)
+        {
+            fopen_s (&m_devDumpFile, path, "wb");
+        }
+    }
+
+    if (m_devDumpFile != nullptr)
+    {
+        fwrite (samples, sizeof (float), toWrite * m_channels, m_devDumpFile);
+        m_fillerFrames  += (toWrite - fromPending);
+        m_writtenFrames += toWrite;
     }
 
     m_pendingSamples.erase (m_pendingSamples.begin(),
