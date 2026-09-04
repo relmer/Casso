@@ -125,6 +125,7 @@ FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
 PHMASK  = $3F              ; the phoneme code within a phoneme byte
 VOWELMAX = $1C             ; codes $01-$1C are the vowels, the syllable nuclei
 DECAYU  = $08              ; spoken-path units between flash decay steps
+SNGTAIL = $03              ; sung units over which a note's flash collapses
 
 ; -- Stream escapes ----------------------------------------------------------
 ESCCAP  = $FB
@@ -571,10 +572,13 @@ sng_rec
     clc
     adc #$04
     sta PTR
-    bcc sng_hold
+    bcc sng_note
     inc PTR+1
 
+sng_note
     ; A new note: if it is a vowel, it is a syllable, and the eye flashes.
+    ; (The branch above once went straight to sng_hold, skipping this unless
+    ; the record happened to cross a page -- so the song never flashed.)
     lda CURPH
     and #PHMASK
     beq sng_hold
@@ -586,10 +590,16 @@ sng_hold
     lda CURPH
     sta SPHON                   ; (re)start the phoneme; sustains if already sounding
     jsr Delay1
-    jsr EyeDecay
     dec NDUR
-    bne sng_hold
-    jmp sng_next
+    beq sng_next
+    ; A held note keeps the eye lit. The flash collapses over the note's last
+    ; SNGTAIL units, one band per unit, so the next syllable's flash still
+    ; reads as a fresh pulse.
+    lda NDUR
+    cmp #SNGTAIL+1
+    bcs sng_hold
+    jsr EyeDecay
+    jmp sng_hold
 
 sng_done
     rts

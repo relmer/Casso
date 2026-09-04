@@ -41,7 +41,7 @@ halData
     .byte $D4,$AE,$F5,$0C,$C0,$E8,$00,$FC
     .byte $07,$FF
 
-; "By your command. Extermination." -- a Centurion, low and level
+; "By your command." -- a Centurion, low and level
 cylonData
     .byte $FB,$00,$FD,$7B,$55,$FB,$02,$C2
     .byte $D9,$E4,$0F,$87,$FB,$04,$D9,$CF
@@ -49,11 +49,7 @@ cylonData
     .byte $FB,$08,$C3,$CF,$CD,$CD,$C1,$CE
     .byte $C4,$AE,$E9,$9B,$B7,$FD,$D6,$54
     .byte $0C,$4C,$FD,$AB,$50,$78,$E5,$00
-    .byte $FC,$08,$FD,$86,$51,$FB,$0E,$C5
-    .byte $D8,$D4,$C5,$D2,$CD,$C9,$CE,$C1
-    .byte $D4,$C9,$CF,$CE,$AE,$4A,$E9,$B0
-    .byte $E8,$5C,$B7,$87,$B8,$08,$85,$B2
-    .byte $9B,$78,$00,$FC,$08,$FF
+    .byte $FC,$08,$FF
 
 ; HAL's eye, run-length coded: (count, byte) pairs over the 160 x 40 bytes
 ; of the mixed-mode picture, row-major; a count of 0 ends it. 1415 bytes.

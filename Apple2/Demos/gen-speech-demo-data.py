@@ -193,7 +193,7 @@ CYLON_HZ   = 72.0         # a Centurion: low, level, and not in a hurry
 RATE_CYLON = 0x50
 
 def cylon():
-    """Two Centurion lines from the 1978 pilot. The stress in "command" is
+    """A Centurion line from the 1978 pilot. The stress in "command" is
     the show's own: the pitch climbs into the last syllable and settles."""
     c = lambda f: setp(f, RATE_CYLON)
     s = clear_caption()
@@ -202,11 +202,6 @@ def cylon():
     s += c(76.0) + cap("COMMAND.") + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT)]
     s += c(94.0)                 + [P("AE", LONG), P("AE", MED)]
     s += c(82.0)                 + [P("N", MED), P("D", QUICK), P("PA", LONG)]
-    s += hold(8)
-    s += c(74.0) + cap("EXTERMINATION.") + [P("EH", MED), P("K", QUICK), P("S", SHORT), P("T", QUICK),
-                                            P("ER", MED), P("M", SHORT), P("I", SHORT), P("N", SHORT),
-                                            P("A", LONG), P("AY", SHORT), P("SCH", SHORT), P("UH3", SHORT),
-                                            P("N", MED), P("PA", LONG)]
     return s
 
 
@@ -355,7 +350,7 @@ print(f"; speech rate ${RATE_SPEECH:02X}, baseline pitch {BASE_HZ:.0f} Hz")
 print()
 emit("wargData", wargames(), '"Shall we play a game?" -- declination, dip, then a drawn rise', tail = 7)
 emit("halData", HAL, '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
-emit("cylonData", cylon(), '"By your command. Extermination." -- a Centurion, low and level', tail = 8)
+emit("cylonData", cylon(), '"By your command." -- a Centurion, low and level', tail = 8)
 emit_eye()
 
 print("; Daisy Bell chorus. Caption escapes carry the syllable; records are")
