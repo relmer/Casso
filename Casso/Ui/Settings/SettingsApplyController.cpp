@@ -56,10 +56,7 @@ void SettingsApplyController::SnapshotBaselines()
 {
     if (m_prefs != nullptr)
     {
-        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            m_baselineCrt[i] = m_prefs->crtByMode[i];
-        }
+        m_baselineCrt = m_prefs->crtOverrides;
     }
 
     if (m_state != nullptr)
@@ -303,27 +300,10 @@ void SettingsApplyController::CommitApply()
             m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
             m_prefs->printerAudioPan         != m_baselinePrinterAudioPan;
 
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            const auto &  cur  = m_prefs->crtByMode[i];
-            const auto &  base = m_baselineCrt[i];
-
-            if (cur.brightness         != base.brightness         ||
-                cur.contrast           != base.contrast           ||
-                cur.gamma              != base.gamma              ||
-                cur.persistence        != base.persistence        ||
-                cur.scanlinesEnabled   != base.scanlinesEnabled   ||
-                cur.scanlinesIntensity != base.scanlinesIntensity ||
-                cur.bloomEnabled       != base.bloomEnabled       ||
-                cur.bloomRadius        != base.bloomRadius        ||
-                cur.bloomStrength      != base.bloomStrength      ||
-                cur.colorBleedEnabled  != base.colorBleedEnabled  ||
-                cur.colorBleedWidth    != base.colorBleedWidth    ||
-                cur.userOverride       != base.userOverride)
-            {
-                anyCrtChanged = true;
-            }
-        }
+        // Presence counts as a change, not just a differing value: clearing
+        // a pair's last override is an edit worth saving, and the map compare
+        // sees the entry disappear where a field-by-field walk would not.
+        anyCrtChanged = (m_prefs->crtOverrides != m_baselineCrt);
 
         if (anyCrtChanged || anyPrintChanged)
         {
@@ -344,10 +324,7 @@ void SettingsApplyController::CommitApply()
         // Re-snapshot baselines so subsequent Cancel after another
         // round of edits reverts to THIS committed state, not the
         // pre-commit one.
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            m_baselineCrt[i] = m_prefs->crtByMode[i];
-        }
+        m_baselineCrt = m_prefs->crtOverrides;
 
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
@@ -433,10 +410,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
     // per-frame MakeCrtParams path.
     if (m_prefs != nullptr)
     {
-        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            m_prefs->crtByMode[i] = m_baselineCrt[i];
-        }
+        m_prefs->crtOverrides = m_baselineCrt;
 
         // Revert Printing edits (no live effect; they only bind at the next
         // delivery / printer sound, so this simply un-does the staged writes).
