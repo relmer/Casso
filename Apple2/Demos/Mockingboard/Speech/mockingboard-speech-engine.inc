@@ -37,6 +37,13 @@ SFILT   = $C444            ; vocal tract filter clock
 MODEDR  = $C0              ; DR=11 while still powered down: A/R active, phoneme timing
 CTLUP   = $80              ; CTL set -- Power Down
 CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
+;  Articulation is how long the tract takes to glide from one phoneme's
+;  formants to the next: the chip spends (8 - artic) * 10 ms on the move, so 0
+;  is a slow human glide and 7 snaps. It is the one voice knob that does not
+;  run through the formants themselves, which is why it separates these three
+;  characters more than the tract does.
+CTLHAL  = $2C              ; articulation 2, a 60 ms glide -- warm, unhurried
+CTLCYL  = $7C              ; articulation 7, a 10 ms snap -- a machine moving
 FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
 FILTHAL = $CB              ; ~16.9 kHz -- HAL's tract, a sixth longer than
                            ;   nominal, which is size rather than pitch
@@ -123,11 +130,15 @@ start
     ;         are separate registers. HAL wants the second one.
     lda #FILTHAL
     sta SFILT
+    lda #CTLHAL
+    sta SCTL
     lda #<halData
     ldx #>halData
     jsr Speak
     lda #FILTNOM
     sta SFILT
+    lda #CTLDN
+    sta SCTL
 
     ; ---- 2. Joshua. A greeting that falls, then a question that rises
     ;         continuously under its final word.
@@ -139,11 +150,15 @@ start
     ;         pitch and slow rate.
     lda #FILTLO
     sta SFILT
+    lda #CTLCYL
+    sta SCTL
     lda #<cylonData
     ldx #>cylonData
     jsr Speak
     lda #FILTNOM
     sta SFILT
+    lda #CTLDN
+    sta SCTL
 
     ; ---- 4. And then it sings.
     jsr Sing
