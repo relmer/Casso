@@ -500,12 +500,19 @@ void Ssi263::Tick (uint32_t cycles)
 
 bool Ssi263::IsSilent() const
 {
-    // A finished phoneme is not silent until its release tail has decayed:
-    // the envelope ramps the boundary instead of gating it, so the chip
-    // stays audible for the few milliseconds the ramp needs. Idle and
-    // unprogrammed chips have a zero envelope and stay free.
-    return IsPoweredDown() || (GetAmplitude() == 0) ||
-           (!m_sounding && m_envLevel < 0.001f);
+    // Nothing here is silent until the release tail has decayed: the envelope
+    // ramps every boundary instead of gating it, so the chip stays audible for
+    // the few milliseconds the ramp needs. Idle and unprogrammed chips have a
+    // zero envelope and stay free.
+    //
+    // Power Down used to short-circuit this and return true at once, which cut
+    // the waveform to zero mid-cycle -- the demo ends on a Power Down and that
+    // was an audible pop every time. It releases like everything else now.
+    bool   quiet = IsPoweredDown() || (GetAmplitude() == 0) || !m_sounding;
+
+
+
+    return quiet && (m_envLevel < 0.001f);
 }
 
 
@@ -869,40 +876,48 @@ void Ssi263::GlideLevels()
 
 float Ssi263::GenerateExcitation()
 {
-    const Ssi263PhonemeSpec  & spec    = GetActiveSpec();
-    float                      src     = 0.0f;
-    float                      impulse = 0.0f;
-    double                     pitch   = 0.0;
+    float    src     = 0.0f;
+    float    impulse = 0.0f;
+    double   pitch   = 0.0;
 
 
 
-    if (spec.voiced)
+    // The oscillator runs unconditionally and the GLIDED level decides how
+    // much of it is heard. It used to be gated on the phoneme's `voiced`
+    // flag, which is read from the incoming spec the instant it changes, so
+    // handing a vowel to a fricative stopped the glottal source dead in one
+    // sample while m_vaCur was still easing down from 0.67 -- a step, and an
+    // audible pop at the transition. The flag is redundant anyway: across all
+    // 64 ROM rows, voiced == false always carries voicedLevel == 0, so the
+    // level alone says everything the flag did, and says it smoothly.
+    //
+    // Running the phase through unvoiced stretches also means a returning
+    // vowel resumes mid-cycle instead of restarting, and the two source poles
+    // decay to nothing rather than holding stale energy across the gap.
+    pitch = std::clamp (GetInflectionFrequencyHz(), 30.0, 400.0);
+
+    m_glottalPhase += pitch / static_cast<double> (m_sampleRate);
+
+    if (m_glottalPhase >= 1.0)
     {
-        pitch = std::clamp (GetInflectionFrequencyHz(), 30.0, 400.0);
-
-        m_glottalPhase += pitch / static_cast<double> (m_sampleRate);
-
-        if (m_glottalPhase >= 1.0)
-        {
-            m_glottalPhase -= 1.0;
-            impulse         = 1.0f;
-        }
-
-        // Two cascaded one-pole sections: the pulse rises from zero rather
-        // than opening with a step, and its tail keeps enough energy at the
-        // upper formants to excite them.
-        m_excLp1 += m_sourcePole * (impulse - m_excLp1);
-        m_excLp2 += m_sourcePole * (m_excLp1 - m_excLp2);
-
-        src = m_excLp2 * s_kfVoicedGain * m_vaCur;
-
-        // The radiation tilt at the output taxes low-F1 vowels roughly with
-        // the square of F1; compensating one power of it here keeps close
-        // vowels (OU, :OH) audible next to open ones (AH, AE) while leaving
-        // the natural open-vowels-are-louder tendency in place. Glided F1 is
-        // used so the correction moves smoothly through transitions.
-        src *= static_cast<float> (731.0 / std::max (m_fCur[0], 170.0));
+        m_glottalPhase -= 1.0;
+        impulse         = 1.0f;
     }
+
+    // Two cascaded one-pole sections: the pulse rises from zero rather
+    // than opening with a step, and its tail keeps enough energy at the
+    // upper formants to excite them.
+    m_excLp1 += m_sourcePole * (impulse - m_excLp1);
+    m_excLp2 += m_sourcePole * (m_excLp1 - m_excLp2);
+
+    src = m_excLp2 * s_kfVoicedGain * m_vaCur;
+
+    // The radiation tilt at the output taxes low-F1 vowels roughly with
+    // the square of F1; compensating one power of it here keeps close
+    // vowels (OU, :OH) audible next to open ones (AH, AE) while leaving
+    // the natural open-vowels-are-louder tendency in place. Glided F1 is
+    // used so the correction moves smoothly through transitions.
+    src *= static_cast<float> (731.0 / std::max (m_fCur[0], 170.0));
 
     return src;
 }
