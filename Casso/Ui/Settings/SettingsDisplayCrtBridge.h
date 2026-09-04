@@ -43,8 +43,24 @@ public:
     int   GetActiveModeIdx        () const;
     void  ReseedFromActiveMode    ();
     void  PublishDefaultsHint     ();
-    void  PromoteActiveToOverride ();
     void  ResetActiveToDefaults   ();
+
+    // The override key and the resolved picture for whichever monitor and
+    // mode the page is showing.
+    std::string   ActiveOverrideKey () const;
+    CrtResolved   ResolveActive     () const;
+
+    // Record one field as the user's. Never seeds a sibling: that is the
+    // whole difference from the flag this replaced, which snapshotted all
+    // eleven values before it latched.
+    template <typename T>
+    void  SetOverride (std::optional<T> CrtOverrides::* member, T value)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->crtOverrides[ActiveOverrideKey()].*member = value;
+        }
+    }
 
     // A theme carries CRT defaults, so adopting a theme adopts them --
     // on Apply now, on OK, and on the Cancel that puts the old theme
@@ -60,11 +76,6 @@ public:
 
 
 private:
-    // ResetActiveToDefaults with the null-guard already passed: seeds the
-    // active monitor's CRT block from its preset plus the active theme's
-    // crtDefaults layer.
-    void  ApplyActiveDefaults (GlobalUserPrefs & prefs);
-
     GlobalUserPrefs     * m_prefs       = nullptr;
     ThemeManager        * m_themes      = nullptr;
     SettingsPanelState  * m_state       = nullptr;
