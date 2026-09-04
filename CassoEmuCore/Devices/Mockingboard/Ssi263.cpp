@@ -95,7 +95,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
 static constexpr float   s_kfVoicedGain   = 60.00f;
-static constexpr float   s_kfNoiseGain    = 0.30f;
+static constexpr float   s_kfNoiseGain    = 0.21f;
 
 // Noise-shaping high-pass on the fricative source (one-pole, ~2.5 kHz).
 // The die carries a dedicated noise shaping filter between the noise
@@ -106,7 +106,7 @@ static constexpr float   s_kfNoiseGain    = 0.30f;
 // are nearly the same sound and "Daisy" comes out closer to "Dailey".
 // Tilting the noise up before it enters the tract restores the sibilance
 // the formants cannot carry, and leaves the resonators to color it.
-static constexpr float   s_kfNoiseHpCoef  = 0.74f;
+static constexpr float   s_kfNoiseHpCoef  = 0.50f;
 
 // Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
 // octave the radiation tilt would otherwise push to Nyquist -- the digital

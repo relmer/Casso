@@ -55,6 +55,11 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **The voice chip's request line reaches the second 6522, not the first.** Each speech
+  socket interrupts through the other channel's VIA, so the chip at $Cn40 latches CA1 on
+  the VIA at $Cn80-$CnFF. Casso raised it on the first one, where an interrupt-driven
+  speech driver never looks -- and where the speech writes, which alias onto that same
+  VIA, would have clobbered the register it was watching.
 - **The Mockingboard's speech registers no longer read back the voice chip.** $Cn40-$Cn44
   are decoded for writes only; a read returns the first 6522, which answers across the
   whole of $Cn00-$Cn7F. Casso spliced the chip's request bit into D7, so software that
@@ -65,7 +70,8 @@ Entries before versioning was introduced use dates only.
   collapsed the chip's two source amplitudes into one, and frication was cascaded through
   the vowel formants, so Z's own F2 stood as a low-pass in front of its own hiss.
   Frication now runs in a parallel branch with the two amplitudes kept apart, putting
-  33 dB between Z and L where there had been none.
+  33 dB between Z and L where there had been none, at a level that keeps S and SCH from
+  reading as bursts of noise.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are

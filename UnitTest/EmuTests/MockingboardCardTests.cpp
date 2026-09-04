@@ -616,8 +616,11 @@ namespace MockingboardCardTestNs
 
             // Falling-edge CA1 (PCR bit 0 clear is the reset state), CA1
             // interrupt enabled -- the arming real speech drivers perform.
-            card.Write (0xC40C, 0x00);
-            card.Write (0xC40E, static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqCa1));
+            // On VIA #2, because the $Cn40 socket's A/R runs to that one's
+            // CA1; $Cn0C/$Cn0D belong to the $Cn20 socket. Arming here is also
+            // out of reach of the speech writes, which alias onto VIA #1.
+            card.Write (0xC48C, 0x00);
+            card.Write (0xC48E, static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqCa1));
 
             card.Write (0xC440, static_cast<Byte> (Ssi263::kModePhonemeTransitioned << Ssi263::kDurationShift));
             card.Write (0xC443, 0x0C);
@@ -634,7 +637,7 @@ namespace MockingboardCardTestNs
             // The pacing loop's response: write the next phoneme, then
             // acknowledge at the VIA. The line must release.
             card.Write (0xC440, 0x09);
-            card.Read (0xC401);
+            card.Read (0xC481);
 
             Assert::IsFalse (cpu.IrqAsserted(),
                              L"Acknowledge must release the interrupt");
