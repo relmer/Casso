@@ -166,7 +166,8 @@ HAL = (
     clear_caption()
     + setp(HAL_HZ, RATE_HAL)
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
-    + cap("SORRY,") + [P("S", SHORT), P("AW", LONG), P("R1", SHORT), P("E", MED)]
+    + cap("SORRY,") + [P("S", SHORT), P("AW", LONG), P("R1", SHORT), P("E", MED),
+                       P("PA", MED)]                       # the comma
     + cap("DAVE.") + [P("D", QUICK), P("A", LONG), P("AY", SHORT), P("V", SHORT), P("PA", LONG)]
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
     + cap("AFRAID")+ [P("UH3", QUICK), P("F", SHORT), P("R1", SHORT), P("A", LONG), P("AY", SHORT), P("D", QUICK)]
