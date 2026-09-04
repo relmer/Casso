@@ -137,7 +137,7 @@ static constexpr float   s_kfOutputLpCoef = 0.23f;
 // moved with whatever the host was running at, making timbre a property of the
 // listener's DAC.
 static constexpr double  s_kSourceBreakHz = 50.0;
-static constexpr float   s_kfOutputGain   = 3.00f;
+static constexpr float   s_kfOutputGain   = 5.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
 // Frication resonances are much broader than voiced ones -- a hiss is not a
@@ -150,6 +150,14 @@ static constexpr double  s_kFricBandwidthHz = 140.0;
 
 // Amplitude envelope rates: a fast attack and a slightly longer release,
 // expressed as time constants the per-sample coefficient is derived from.
+// How fast a phoneme's two source amplitudes reach their new values. The
+// formants already glide; the LEVELS used to step, so every phoneme boundary
+// changed the excitation's amplitude and its character in a single sample --
+// a vowel's 0.40 of voicing became a stop's 0.27 of frication instantly. That
+// step is what popped, and it fired at every boundary, which is why the
+// popping followed the phoneme rate. 6 ms is short enough to leave a stop its
+// attack and long enough that the step is no longer a click.
+static constexpr double  s_kLevelTauSec   = 0.006;
 static constexpr double  s_kAttackTauSec  = 0.002;
 static constexpr double  s_kReleaseTauSec = 0.004;
 
@@ -398,6 +406,8 @@ void Ssi263::Reset()
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
     m_noiseLp      = 0.0f;
+    m_vaCur        = 0.0f;
+    m_faCur        = 0.0f;
     m_fricY1[0]    = 0.0f;
     m_fricY1[1]    = 0.0f;
     m_fricY2[0]    = 0.0f;
@@ -618,6 +628,7 @@ float Ssi263::GenerateSample()
     }
 
     GlideFormants();
+    GlideLevels();
 
     scale = GetFilterFrequencyHz() / kNominalFilterHz;
     scale = std::clamp (scale, 0.5, 2.0);
@@ -635,13 +646,16 @@ float Ssi263::GenerateSample()
 
     // Frication runs beside the tract, not through it: the noise is shaped by
     // its own broad resonators at F2 and F3 and summed in.
-    if (GetActiveSpec().fricative)
+    // Driven by the glided level, not the spec's, so frication fades in and
+    // out rather than switching on. The branch stays live while that level is
+    // still decaying, which is why it tests m_faCur and not spec.fricative.
+    if (GetActiveSpec().fricative || m_faCur > 0.0001f)
     {
         float   noise = GenerateNoiseSample();
 
         sample += (ResonateFricative (0, noise, m_fCur[1] * scale) +
                    ResonateFricative (1, noise, m_fCur[2] * scale)) *
-                  s_kfNoiseGain * GetActiveSpec().fricLevel;
+                  s_kfNoiseGain * m_faCur;
     }
 
     // Radiation characteristic: the lips differentiate the volume flow,
@@ -781,6 +795,34 @@ void Ssi263::GlideFormants()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GlideLevels
+//
+//  Eases the two source amplitudes toward the active phoneme's, so a boundary
+//  changes the excitation over a few milliseconds rather than in one sample.
+//  Runs every sample, next to the formant glide, and unlike that one it does
+//  NOT hold through a pause: a pause really does want both sources at zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::GlideLevels()
+{
+    const Ssi263PhonemeSpec &   spec = GetActiveSpec();
+
+
+
+    double   coef = 1.0 - std::exp (-1.0 / (s_kLevelTauSec *
+                                            static_cast<double> (m_sampleRate)));
+
+    m_vaCur += static_cast<float> (coef) * (spec.voicedLevel - m_vaCur);
+    m_faCur += static_cast<float> (coef) * (spec.fricLevel   - m_faCur);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GenerateExcitation
 //
 //  The glottal source: a tilted pulse train at the inflection frequency for
@@ -816,7 +858,7 @@ float Ssi263::GenerateExcitation()
         m_excLp1 += m_sourcePole * (impulse - m_excLp1);
         m_excLp2 += m_sourcePole * (m_excLp1 - m_excLp2);
 
-        src = m_excLp2 * s_kfVoicedGain * spec.voicedLevel;
+        src = m_excLp2 * s_kfVoicedGain * m_vaCur;
 
         // The radiation tilt at the output taxes low-F1 vowels roughly with
         // the square of F1; compensating one power of it here keeps close

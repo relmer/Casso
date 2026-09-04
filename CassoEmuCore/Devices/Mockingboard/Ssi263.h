@@ -203,6 +203,7 @@ private:
     void    LatchMode           ();
     void    BeginPhoneme        (Byte outgoing);
     void    GlideFormants       ();
+    void    GlideLevels         ();
     float   GenerateExcitation  ();
     float   GenerateNoiseSample ();
     float   Resonate            (int stage, float input, double centerHz);
@@ -262,6 +263,11 @@ private:
     float      m_excLp2       = 0.0f;
     uint32_t   m_lfsr         = 0xACE1u;
     float      m_noiseLp      = 0.0f;
+
+    // The two source amplitudes as actually applied, eased toward the active
+    // phoneme's so a boundary is not a step (see s_kLevelTauSec).
+    float      m_vaCur        = 0.0f;
+    float      m_faCur        = 0.0f;
 
     // Parallel fricative branch state, one pair per resonator (F2, F3).
     float      m_fricY1[2]    = { 0.0f, 0.0f };
