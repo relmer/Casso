@@ -349,13 +349,26 @@ void CpuManager::ThreadProc()
 {
     //  kFramePeriod100Ns is one frame in 100 ns units. The pacing below
     //  advances an ABSOLUTE deadline by exactly that much per pass, so a late
-    //  wake-up is caught up on the next one instead of being added to the
-    //  period. Re-arming a RELATIVE timer after each wait, as this did, spends
-    //  period + wake latency every frame, and that latency accumulates: about
-    //  1 ms of it on a 16.7 ms frame ran the machine 5% slow. Audio is
-    //  generated from emulated cycles, so the render queue starved by the same
-    //  5% and the endpoint got filler spliced in on a regular cadence -- an
-    //  audible beating under every sound.
+    //  wake-up is repaid by the next frame running short. Re-arming a RELATIVE
+    //  timer after each wait, as this did, restarts the interval from whenever
+    //  the thread happens to get scheduled, so lateness is never repaid.
+    //
+    //  What that costs is JITTER, not drift. Measured over 2341 frames, the
+    //  wake is late by a mean of 329 us with a standard deviation of 244 and a
+    //  tail to 5.4 ms -- a distribution as wide as its own mean, not a constant
+    //  offset. The long-run rate barely moves either way (99.62% of real time
+    //  before, 99.82% after), which is why a rate measurement alone does not
+    //  find this.
+    //
+    //  It reaches the speaker through the audio queue. A frame hands over its
+    //  whole slice of samples at once while the endpoint drains continuously,
+    //  so what matters is the SPACING of those handovers, not their average.
+    //  Under the relative timer a run of late frames emptied the queue and
+    //  WasapiAudio::DrainFrames spliced in its decaying filler; at the endpoint
+    //  that was 1.76% amplitude modulation at 41 Hz, audible as a rhythmic
+    //  beating under every sound the machine made. With the deadline absolute
+    //  a late frame is followed by an early one, the queue level stays put, and
+    //  the same measurement reads 0.03%.
     //
     //  kRebaseSlack100Ns is how far behind the deadline may fall before it is
     //  re-based rather than chased, so a pause, a breakpoint or a long stall
