@@ -49,7 +49,7 @@ public:
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
         Assert::AreEqual (true, prefs.crtMonitor);            // desk scene default ON; checkbox is the opt-out
-        Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
+        Assert::AreEqual ((size_t) 0, prefs.crtOverrides.size());
         Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
 
@@ -80,15 +80,15 @@ public:
         orig.lastDiskCreateFolder   = "C:\\Users\\me\\Disks";
         orig.arrowsToJoystick       = true;
         orig.pointerMapping         = InputMappingMode::Mouse;
-        orig.crtByMode[0].brightness         = 1.25f;
-        orig.crtByMode[0].contrast           = 1.35f;
-        orig.crtByMode[0].scanlinesEnabled   = true;
-        orig.crtByMode[0].scanlinesIntensity = 0.75f;
-        orig.crtByMode[0].bloomEnabled       = true;
-        orig.crtByMode[0].bloomRadius        = 2.0f;
-        orig.crtByMode[0].bloomStrength      = 0.6f;
-        orig.crtByMode[0].colorBleedEnabled  = true;
-        orig.crtByMode[0].colorBleedWidth    = 1.5f;
+        orig.crtOverrides["AppleMonitorII/color"].brightness         = 1.25f;
+        orig.crtOverrides["AppleMonitorII/color"].contrast           = 1.35f;
+        orig.crtOverrides["AppleMonitorII/color"].scanlinesEnabled   = true;
+        orig.crtOverrides["AppleMonitorII/color"].scanlinesIntensity = 0.75f;
+        orig.crtOverrides["AppleMonitorIIc/amber"].bloomEnabled      = true;
+        orig.crtOverrides["AppleMonitorIIc/amber"].bloomRadius       = 2.0f;
+        orig.crtOverrides["AppleMonitorIIc/amber"].bloomStrength     = 0.6f;
+        orig.crtOverrides["AppleMonitorIIc/amber"].colorBleedEnabled = true;
+        orig.crtOverrides["AppleMonitorIIc/amber"].colorBleedWidth   = 1.5f;
         orig.window.placements["topology-A"] = { 100, 50, 1280, 720, true };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
@@ -114,15 +114,10 @@ public:
         Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
         Assert::IsTrue   (orig.pointerMapping == loaded.pointerMapping,
                           L"split pointer mapping round-trips");
-        Assert::AreEqual (orig.crtByMode[0].brightness,      loaded.crtByMode[0].brightness);
-        Assert::AreEqual (orig.crtByMode[0].contrast,        loaded.crtByMode[0].contrast);
-        Assert::AreEqual (orig.crtByMode[0].scanlinesEnabled,    loaded.crtByMode[0].scanlinesEnabled);
-        Assert::AreEqual (orig.crtByMode[0].scanlinesIntensity,  loaded.crtByMode[0].scanlinesIntensity);
-        Assert::AreEqual (orig.crtByMode[0].bloomEnabled,        loaded.crtByMode[0].bloomEnabled);
-        Assert::AreEqual (orig.crtByMode[0].bloomRadius,         loaded.crtByMode[0].bloomRadius);
-        Assert::AreEqual (orig.crtByMode[0].bloomStrength,       loaded.crtByMode[0].bloomStrength);
-        Assert::AreEqual (orig.crtByMode[0].colorBleedEnabled,   loaded.crtByMode[0].colorBleedEnabled);
-        Assert::AreEqual (orig.crtByMode[0].colorBleedWidth,     loaded.crtByMode[0].colorBleedWidth);
+        // The whole map compares in one step, which also proves an absent
+        // field stayed absent rather than round-tripping as a default.
+        Assert::IsTrue   (orig.crtOverrides == loaded.crtOverrides);
+        Assert::AreEqual ((size_t) 2, loaded.crtOverrides.size());
         Assert::AreEqual (size_t (2),                            loaded.window.placements.size());
         Assert::AreEqual (100, loaded.window.placements["topology-A"].x);
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
@@ -209,8 +204,7 @@ public:
         AssertSucceeded (hr);
         Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
         // crt sub-object missing → struct defaults preserved.
-        Assert::AreEqual (1.0f, prefs.crtByMode[0].brightness);
-        Assert::AreEqual (1.0f, prefs.crtByMode[0].contrast);
+        Assert::AreEqual ((size_t) 0, prefs.crtOverrides.size());
     }
 
 
