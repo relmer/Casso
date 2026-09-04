@@ -440,4 +440,4 @@ UnitTest/Fixtures/*.rom
 /DevDisks/
 
 # Intermediate assembler output for demo disks (the .dsk is the artifact)
-Apple2/Demos/*.bin
+Apple2/Demos/**/*.bin

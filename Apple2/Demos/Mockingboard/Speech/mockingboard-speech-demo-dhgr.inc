@@ -28,11 +28,11 @@ wargData
 
 ; "I'm sorry Mark. I'm afraid I can't do that." -- slow and level
 halData
-    .byte $FB,$00,$FD,$C9,$42,$FB,$03,$C9
+    .byte $FB,$00,$FD,$F5,$45,$FB,$03,$C9
     .byte $A7,$CD,$0F,$87,$B7,$FB,$06,$D3
     .byte $CF,$D2,$D2,$D9,$AC,$B0,$10,$9E
-    .byte $41,$40,$FB,$05,$CD,$C1,$D2,$CB
-    .byte $AE,$B7,$0E,$9E,$E9,$00,$FB,$03
+    .byte $41,$40,$FB,$05,$C4,$C1,$D6,$C5
+    .byte $AE,$E5,$08,$85,$B3,$00,$FB,$03
     .byte $C9,$A7,$CD,$0F,$87,$B7,$FB,$06
     .byte $C1,$C6,$D2,$C1,$C9,$C4,$DB,$B4
     .byte $9E,$08,$85,$E5,$FB,$01,$C9,$4F

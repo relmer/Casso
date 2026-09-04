@@ -16,9 +16,9 @@
     (--disk1 is required; a positional path is silently ignored.)
 
 .PARAMETER Source
-    The .a65 source under Apple2/Demos. Default:
-    mockingboard-speech-demo-dhgr.a65; its hi-res twin is
-    mockingboard-speech-demo-hgr.a65.
+    The .a65 source, as a path under Apple2/Demos. Default:
+    Mockingboard/Speech/mockingboard-speech-demo-dhgr.a65; its hi-res twin is
+    mockingboard-speech-demo-hgr.a65 in the same folder.
 
 .PARAMETER LoadAddress
     Where the payload loads and is entered. Default: 0x6000, which is page
@@ -29,7 +29,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Source        = 'mockingboard-speech-demo-dhgr.a65',
+    [string]$Source        = 'Mockingboard/Speech/mockingboard-speech-demo-dhgr.a65',
     [string]$LoadAddress   = '0x6000',
     [string]$Configuration = 'Release'
 )
@@ -38,6 +38,14 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $demoDir  = Join-Path $repoRoot 'Apple2\Demos'
+
+#  A source may name a subfolder of Apple2\Demos -- the demos are grouped by
+#  the hardware they exercise -- so it is resolved against that root. The .dsk
+#  goes to Apple2\Demos whatever folder its source came from: that is the path
+#  machine profiles, documents and launch commands already name, and the point
+#  of grouping the sources was never to move the disks.
+$srcPath  = Join-Path $demoDir $Source
+$srcDir   = Split-Path -Parent $srcPath
 $cli      = Join-Path $repoRoot "x64\$Configuration\CassoCli.exe"
 
 if (-not (Test-Path $cli))
@@ -45,14 +53,13 @@ if (-not (Test-Path $cli))
     throw "CassoCli.exe not found at $cli. Run scripts/Build.ps1 first."
 }
 
-$srcPath = Join-Path $demoDir $Source
 if (-not (Test-Path $srcPath))
 {
     throw "Source not found: $srcPath"
 }
 
 $stem   = [IO.Path]::GetFileNameWithoutExtension($Source)
-$outBin = Join-Path $demoDir "$stem.bin"
+$outBin = Join-Path $srcDir "$stem.bin"
 $outDsk = Join-Path $demoDir "$stem.dsk"
 
 # `disk create` refuses to overwrite, so clear both artifacts first.

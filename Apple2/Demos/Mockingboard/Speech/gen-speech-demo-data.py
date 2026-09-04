@@ -50,7 +50,11 @@ RATE_QUESTION = 0x60      # rate 6: 40/80/120/160 ms -- the question, unhurried
 RATE_SLOW   = 0x50        # rate 5: 44/88/132/176 ms -- the Sarah interjection
 RATE_HAL    = 0x40        # rate 4: 48/96/144/192 ms -- deliberate, not sluggish
 BASE_HZ     = 112.0       # speaking pitch; well clear of the 54.6 Hz floor
-HAL_HZ      = 90.0        # lower than the rest: calm, and not quite human
+#  Douglas Rain played HAL calm and level rather than deep, and a man's
+#  speaking fundamental sits around 85-180 Hz. This was 90, which is inside
+#  that range but at the floor of it, and it read as a much bigger machine
+#  than the film's. A little under the baseline is enough to set him apart.
+HAL_HZ      = 105.0
 
 CAP  = 0xFB               # caption escape: $FB len <high-ASCII bytes>, len 0 = clear
 FILT = 0xFE
@@ -141,7 +145,9 @@ HAL = (
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
     + cap("SORRY,") + [P("S", SHORT), P("AW", LONG), P("R1", SHORT), P("E", MED),
                        P("PA", MED)]                       # the comma
-    + cap("MARK.") + [P("M", SHORT), P("AH", LONG), P("R1", SHORT), P("K", QUICK), P("PA", LONG)]
+    #  "Dave" is the diphthong the demo already spells out in "afraid" and in
+    #  the song's "Daisy": A carries it and AY closes it.
+    + cap("DAVE.") + [P("D", QUICK), P("A", LONG), P("AY", SHORT), P("V", SHORT), P("PA", LONG)]
     + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
     + cap("AFRAID")+ [P("UH3", QUICK), P("F", SHORT), P("R1", SHORT), P("A", LONG), P("AY", SHORT), P("D", QUICK)]
     + cap("I")     + [P("AH1", MED), P("I", SHORT)]
